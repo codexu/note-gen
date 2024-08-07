@@ -10,14 +10,15 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "vue": "^3.3.4",
-    "@tauri-apps/api": "^1"
+    "@tauri-apps/api": "^1",
+    "tesseract.js": "^5.1.0",
+    "vue": "^3.3.4"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^1",
     "@vitejs/plugin-vue": "^5.0.5",
     "typescript": "^5.2.2",
     "vite": "^5.3.1",
-    "vue-tsc": "^2.0.22",
-    "@tauri-apps/cli": "^1"
+    "vue-tsc": "^2.0.22"
   }
 }

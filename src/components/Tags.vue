@@ -1,6 +1,6 @@
 <template>
   <a-space class="p-4">
-    <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" />
+    <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" @change="segmentedChange" />
     <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '临时'" @close="remove(tag.id)">
       {{ tag.name }}
     </a-tag>
@@ -27,8 +27,14 @@ import { db, type Tag } from '../db.ts';
 import { computed, nextTick, onMounted, ref, h } from 'vue';
 import { PlusOutlined, SettingOutlined, CheckOutlined } from '@ant-design/icons-vue';
 import { useStorage } from '@vueuse/core'
+import emitter from '../emitter.ts'
 
-const checked = useStorage('defaultTag', '临时')
+const checked = useStorage('currentTag', '临时')
+
+async function segmentedChange() {
+  await nextTick()
+  emitter.emit('refresh')
+}
 
 const tags = ref<Tag[]>([])
 const isOption = useStorage('isTagOption', false)

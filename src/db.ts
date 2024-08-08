@@ -7,8 +7,9 @@ interface Tag {
 
 interface Note {
   id: number;
+  imgPath: string;
   content: string;
-  tagIds: number[];
+  tag: number;
 }
 
 const db = new Dexie('note-db') as Dexie & {
@@ -18,7 +19,7 @@ const db = new Dexie('note-db') as Dexie & {
 
 db.version(1).stores({
   tags: '++id, name&',
-  notes: '++id, content, tagIds'
+  notes: '++id, imgPath, content, tag'
 });
 
 export type { Tag, Note };

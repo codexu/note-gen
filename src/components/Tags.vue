@@ -1,22 +1,22 @@
 <template>
   <a-space>
+    <div>
+      <a-button size="small" v-if="!isOption" @click="isOption = true" :icon="h(SettingOutlined)">
+      </a-button>
+      <a-button size="small" v-else @click="isOption = false" :icon="h(SaveOutlined)">
+      </a-button>
+    </div>
     <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" @change="segmentedChange" />
     <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '临时'" @close="remove(tag.id)">
       {{ tag.name }}
     </a-tag>
-    <div v-if="isOption">
+    <div>
       <a-input v-if="inputVisible" ref="inputRef" v-model:value="inputValue" type="text" size="small"
         :style="{ width: '78px' }" @blur="add" @keyup.enter="add" />
       <a-tag v-else @click="showInput" class="cursor-pointer">
         <plus-outlined />
         新标签
       </a-tag>
-    </div>
-    <div>
-      <a-button type="primary" size="small" v-if="!isOption" @click="isOption = true" :icon="h(SettingOutlined)">
-      </a-button>
-      <a-button type="primary" size="small" v-else @click="isOption = false" :icon="h(CheckOutlined)">
-      </a-button>
     </div>
   </a-space>
 </template>
@@ -25,7 +25,7 @@
 import { notification } from 'ant-design-vue';
 import { db, type Tag } from '../db.ts';
 import { computed, nextTick, onMounted, ref, h } from 'vue';
-import { PlusOutlined, SettingOutlined, CheckOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, SettingOutlined, SaveOutlined } from '@ant-design/icons-vue';
 import { useStorage } from '@vueuse/core'
 import emitter from '../emitter.ts'
 

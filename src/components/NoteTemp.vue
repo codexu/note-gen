@@ -1,32 +1,37 @@
 <template>
-  <section>
-    <div v-for="(item, index) in notes" :key="index">
-      <img class="image" :src="item.imgPath" />
-      <p>{{ item.content }}</p>
-    </div>
+  <section class="w-full">
+    <template v-for="(item, index) in remarks" :key="index">
+      <a-divider>{{ dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss') }}</a-divider>
+      <div class="flex w-full py-4 border-b border-gray-300">
+        <div class="mr-4 min-h-24">
+          <a-image :width="200" :src="item.imgPath" />
+        </div>
+        <div>
+          <p>{{ item.content }}</p>
+          <a-button danger @click="deleteNote(item)" :icon="h(DeleteOutlined)"></a-button>
+        </div>
+      </div>
+    </template>
   </section>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, h } from 'vue';
+import { DeleteOutlined } from '@ant-design/icons-vue';
 import { db, type Note } from '../db.ts'
 import store from 'store'
 import emitter from '../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
+import dayjs from 'dayjs';
 
-const notes = ref<Note[]>()
+const remarks = ref<Note[]>()
 
-async function getNotes() {
+async function getRemarks() {
   const currentTag = store.get('currentTag') as string;
-  const result = await db.notes.where({ tag: currentTag }).toArray()
-  notes.value = await Promise.all(result.map(async (note) => {
-    // 生成图片 URL
-    // 获取图片
-    console.log(note.imgPath);
+  const result = await db.remarks.where({ tag: currentTag }).toArray()
+  remarks.value = await Promise.all(result.map(async (note) => {
     const imgFile = await readBinaryFile(note.imgPath);
-    console.log(imgFile);
     const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
-
     return {
       ...note,
       imgPath: imgPath
@@ -34,9 +39,15 @@ async function getNotes() {
   }))
 }
 
-emitter.on('refresh', getNotes)
+emitter.on('refresh', getRemarks)
 
 onMounted(async () => {
-  await getNotes()
+  await getRemarks()
 })
+
+// 删除记录
+async function deleteNote(note: Note) {
+  await db.remarks.delete(note.id)
+  emitter.emit('refresh')
+}
 </script>

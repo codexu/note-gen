@@ -22,10 +22,11 @@ async function screenshot() {
 
   const currentTag = store.get('currentTag')
 
-  await db.notes.add({
+  await db.remarks.add({
     imgPath: screenshotPath as string,
     content: data.text,
     tag: currentTag,
+    createdAt: new Date().getTime()
   })
 
   emitter.emit('refresh')

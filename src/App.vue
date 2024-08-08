@@ -1,18 +1,11 @@
-<script setup lang="ts">
-import Screenshot from "./components/Screenshot.vue";
-</script>
-
 <template>
   <div class="container">
+    <Tags />
     <Screenshot />
   </div>
 </template>
 
-<style scoped>
-.container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-</style>
+<script setup lang="ts">
+import Screenshot from "./components/Screenshot.vue";
+import Tags from './components/Tags.vue'
+</script>

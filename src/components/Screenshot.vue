@@ -30,11 +30,11 @@ async function screenshot() {
   text.value = ret.data.text;
 }
 
-onMounted(async () => {
-  await register('Command+R', () => {
-    screenshot();
-  });
-})
+// onMounted(async () => {
+//   await register('Shift+B', () => {
+//     screenshot();
+//   });
+// })
 </script>
 
 <style scoped>

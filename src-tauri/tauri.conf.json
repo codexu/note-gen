@@ -26,9 +26,9 @@
     },
     "windows": [
       {
-        "title": "note-gen",
-        "width": 800,
-        "height": 600
+        "title": "记点儿",
+        "width": 1024,
+        "height": 800
       }
     ],
     "security": {

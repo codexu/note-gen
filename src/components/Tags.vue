@@ -1,5 +1,5 @@
 <template>
-  <a-space class="p-4">
+  <a-space>
     <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" @change="segmentedChange" />
     <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '临时'" @close="remove(tag.id)">
       {{ tag.name }}

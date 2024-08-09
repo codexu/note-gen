@@ -16,9 +16,10 @@ interface Mark {
 
 interface Note {
   id: number;
-  imgPath: string;
+  title: string;
   content: string;
-  tag: number;
+  markIds: number[];
+  tag: string;
   createdAt: number;
 }
 
@@ -31,7 +32,7 @@ const db = new Dexie('note-db') as Dexie & {
 db.version(1).stores({
   tags: '++id, name&',
   marks: '++id, imgPath, content, tag, keywords, createdAt',
-  notes: '++id, imgPath, content, tag, createdAt'
+  notes: '++id, title, content, markIds, tag, createdAt'
 });
 
 export type { Tag, Mark, Note };

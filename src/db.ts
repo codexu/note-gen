@@ -9,7 +9,7 @@ interface Remark {
   id: number;
   imgPath: string;
   content: string;
-  tag: number;
+  tag: string;
   keywords: string[];
   createdAt: number;
 }

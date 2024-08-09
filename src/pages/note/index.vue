@@ -1,18 +1,25 @@
 <template>
   <section class="h-screen flex justify-center items-center">
-    <MdEditor v-show="!loading" :height="1000" v-model="note" />
-    <a-spin v-show="loading" size="large" :spinning="loading" tip="笔记整理中..." />
+    <a-spin v-if="loading" size="large" :spinning="loading" tip="笔记整理中..." />
+    <div v-else>
+      <header class="h-12 w-full px-4 flex justify-between items-center">
+        <a-button size="small" @click="router.back()">返回</a-button>
+      </header>
+      <MdEditor :height="1000" v-model="note" />
+    </div>
   </section>
 </template>
 
 <script lang=ts setup>
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { db } from '../../db.ts'
 import store from 'store'
 import { getCompletions, type Data } from '../../api/completions.ts'
 import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 
+const router = useRouter()
 const loading = ref<boolean>(false)
 const note = ref<string>('');
 
@@ -54,6 +61,6 @@ onMounted(async() => {
 
 <style scoped>
 .md-editor{
-  height: 100vh;
+  height: calc(100vh - 48px)
 }
 </style>

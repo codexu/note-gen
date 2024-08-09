@@ -10,7 +10,19 @@
           <p class="line-clamp-3 text-sm leading-6 mt-3 mb-3">{{ item.content }}</p>
         </div>
         <div class="flex justify-between items-end">
-          <a-button danger @click="deleteRemark(item)" :icon="h(DeleteOutlined)"></a-button>
+          <a-space>
+            <a-dropdown>
+              <a-button :icon="h(SwapOutlined)"></a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item v-for="(tag, index) in tags" :key="index">
+                    <a @click="changeTag(item, tag)">{{ tag.name }}</a>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+            <a-button danger @click="deleteRemark(item)" :icon="h(DeleteOutlined)"></a-button>
+          </a-space>
           <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
         </div>
       </div>
@@ -20,8 +32,8 @@
 
 <script lang="ts" setup>
 import { onMounted, ref, h } from 'vue';
-import { DeleteOutlined } from '@ant-design/icons-vue';
-import { db, type Remark } from '../db.ts'
+import { DeleteOutlined, SwapOutlined } from '@ant-design/icons-vue';
+import { db, Tag, type Remark } from '../db.ts'
 import store from 'store'
 import emitter from '../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
@@ -47,11 +59,30 @@ async function getRemarks() {
   }))
 }
 
-emitter.on('refresh', getRemarks)
+// 获取所有标签
+const tags = ref<Tag[]>([])
+async function queryTags() {
+  const res = await db.tags.toArray()
+  tags.value = res
+}
+
+emitter.on('refresh', listenRefresh)
+
+async function listenRefresh() {
+  await queryTags()
+  await getRemarks()
+}
 
 onMounted(async () => {
-  await getRemarks()
+  await queryTags()
+  await listenRefresh()
 })
+
+// 修改 remark tag
+async function changeTag(remark: Remark, tag: Tag) {
+  await db.remarks.update(remark.id, { tag: tag.name })
+  emitter.emit('refresh')
+}
 
 // 删除记录
 async function deleteRemark(remark: Remark) {

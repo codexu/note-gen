@@ -31,6 +31,10 @@
         "height": 800
       }
     ],
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
     "security": {
       "csp": null
     },

@@ -1,7 +1,7 @@
 <template>
   <template v-for="item in marks" :key="item.id" v-if="marks?.length">
     <a-badge-ribbon text="Mark">
-      <section class="w-full bg-white p-4 mb-2" >
+      <section class="w-full bg-white p-4 mb-2 overflow-hidden" >
         <div class="flex w-full border-b border-gray-300">
           <div class="mr-4 h-40">
             <a-image :src="item.imgPath" />

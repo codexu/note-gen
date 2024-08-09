@@ -3,6 +3,8 @@
 
 use std::process::Command;
 use chrono::{DateTime, Utc};
+use tauri::{Manager, SystemTray, SystemTrayEvent};
+use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem};
 
 // 生成文件名
 fn generate_file_name() -> String {
@@ -41,7 +43,20 @@ fn cut_words(str: String) -> Vec<String> {
 }
 
 fn main() {
+    let tray_menu = SystemTrayMenu::new();
+    let tray = SystemTray::new().with_menu(tray_menu);
     tauri::Builder::default()
+        .system_tray(tray)
+        .on_system_tray_event(|app, event| match event {
+            SystemTrayEvent::LeftClick {
+              position: _,
+              size: _,
+              ..
+            } => {
+                app.emit_all("left_click", ()).unwrap();
+            }
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![screenshot, cut_words])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

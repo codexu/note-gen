@@ -12,6 +12,7 @@ import { db } from '../db.ts';
 import emitter from '../emitter.ts';
 import { createWorker } from 'tesseract.js';
 import { readBinaryFile } from '@tauri-apps/api/fs'
+import { listen } from '@tauri-apps/api/event'
 
 async function screenshot() {
   const screenshotPath = await invoke("screenshot") as string;
@@ -40,6 +41,9 @@ async function screenshot() {
 }
 
 onMounted(async () => {
+  await listen('left_click', () => {
+    screenshot()
+  });
   await register('CommandOrControl+Shift+C', () => {
     screenshot();
   });

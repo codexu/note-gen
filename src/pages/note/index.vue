@@ -57,10 +57,11 @@ function createNote() {
     ${marks.value.map(item => item.content).join(';\n\n')}。
     我还提取了这些笔记的关键词：
     ${marks.value.map(item => item.keywords.join(',')).join(';\n\n')}。
-    请将这些片段整理成一篇详细完整的笔记，要求返回格式：
+    请将这些片段整理成一篇详细完整的笔记，要满足以下要求：
     - 使用 Markdown 语法。
     - 请使用中文。
-    - 笔记的内容有限，请尽量补充内容。
+    - 笔记片段可能缺失，内容要补全。
+    - 笔记顺序可能是错误的，要按照正确顺序排列。
     - 参考资料（带链接，最好是中文网站）
   `
   const data: Data = {

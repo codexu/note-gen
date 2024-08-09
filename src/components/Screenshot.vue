@@ -20,12 +20,19 @@ async function screenshot() {
   const worker = await createWorker(['chi_sim', 'eng']);
   const { data } = await worker.recognize(imgFile);
 
+  data.text = data.text.replace(/\s+/g, '');
+
+  const keywords = await invoke("cut_words", {
+    str: data.text
+  }) as string[]
+
   const currentTag = store.get('currentTag')
 
   await db.remarks.add({
     imgPath: screenshotPath as string,
     content: data.text,
     tag: currentTag,
+    keywords,
     createdAt: new Date().getTime()
   })
 

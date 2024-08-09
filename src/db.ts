@@ -10,6 +10,7 @@ interface Remark {
   imgPath: string;
   content: string;
   tag: number;
+  keywords: string[];
   createdAt: number;
 }
 
@@ -29,7 +30,7 @@ const db = new Dexie('note-db') as Dexie & {
 
 db.version(1).stores({
   tags: '++id, name&',
-  remarks: '++id, imgPath, content, tag, createdAt',
+  remarks: '++id, imgPath, content, tag, keywords, createdAt',
   notes: '++id, imgPath, content, tag, createdAt'
 });
 

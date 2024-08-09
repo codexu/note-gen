@@ -6,7 +6,7 @@
       <Create />
     </a-space>
   </header>
-  <div class="p-4 pt-20">
+  <div class="p-4 pt-20 bg-gray-100 min-h-screen">
     <NoteTemp />
   </div>
 </template>

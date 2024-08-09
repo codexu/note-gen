@@ -1,39 +1,47 @@
 <template>
-  <section class="w-full">
-    <template v-for="(item, index) in remarks" :key="index">
-      <a-divider>{{ dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss') }}</a-divider>
-      <div class="flex w-full py-4 border-b border-gray-300">
-        <div class="mr-4 min-h-24">
-          <a-image :width="200" :src="item.imgPath" />
-        </div>
+  <section class="w-full bg-white p-4 mb-2" v-for="item in remarks" :key="item.id">
+    <div class="flex w-full border-b border-gray-300">
+      <div class="mr-4 h-40">
+        <a-image :src="item.imgPath" />
+      </div>
+      <div class="w-full flex flex-col justify-between">
         <div>
-          <p>{{ item.content }}</p>
-          <a-button danger @click="deleteNote(item)" :icon="h(DeleteOutlined)"></a-button>
+          <a-tag v-for="(keyword, index) in item.keywords" :key="index">{{ keyword }}</a-tag>
+          <p class="line-clamp-3 text-sm leading-6 mt-3 mb-3">{{ item.content }}</p>
+        </div>
+        <div class="flex justify-between items-end">
+          <a-button danger @click="deleteRemark(item)" :icon="h(DeleteOutlined)"></a-button>
+          <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
         </div>
       </div>
-    </template>
+    </div>
   </section>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, ref, h } from 'vue';
 import { DeleteOutlined } from '@ant-design/icons-vue';
-import { db, type Note } from '../db.ts'
+import { db, type Remark } from '../db.ts'
 import store from 'store'
 import emitter from '../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime'
+import zh from 'dayjs/locale/zh-cn'
 
-const remarks = ref<Note[]>()
+dayjs.locale(zh)
+dayjs.extend(relativeTime)
+
+const remarks = ref<Remark[]>()
 
 async function getRemarks() {
   const currentTag = store.get('currentTag') as string;
   const result = await db.remarks.where({ tag: currentTag }).toArray()
-  remarks.value = await Promise.all(result.map(async (note) => {
-    const imgFile = await readBinaryFile(note.imgPath);
+  remarks.value = await Promise.all(result.map(async (remark) => {
+    const imgFile = await readBinaryFile(remark.imgPath);
     const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
     return {
-      ...note,
+      ...remark,
       imgPath: imgPath
     }
   }))
@@ -46,8 +54,25 @@ onMounted(async () => {
 })
 
 // 删除记录
-async function deleteNote(note: Note) {
-  await db.remarks.delete(note.id)
+async function deleteRemark(remark: Remark) {
+  await db.remarks.delete(remark.id)
   emitter.emit('refresh')
 }
+
+// 计算时间以前
+function timeAgo(time: number) {
+  return dayjs(time).fromNow()
+}
 </script>
+
+<style lang="scss">
+.ant-image{
+  height: 160px;
+  width: 300px;
+  .ant-image-img{
+    height: 160px;
+    width: 300px;
+    object-fit: cover;
+  }
+}
+</style>

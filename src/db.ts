@@ -5,7 +5,7 @@ interface Tag {
   name: string;
 }
 
-interface Remark {
+interface Mark {
   id: number;
   imgPath: string;
   content: string;
@@ -24,15 +24,15 @@ interface Note {
 
 const db = new Dexie('note-db') as Dexie & {
   tags: EntityTable<Tag, 'id'>;
-  remarks: EntityTable<Remark, 'id'>;
+  marks: EntityTable<Mark, 'id'>;
   notes: EntityTable<Note, 'id'>;
 };
 
 db.version(1).stores({
   tags: '++id, name&',
-  remarks: '++id, imgPath, content, tag, keywords, createdAt',
+  marks: '++id, imgPath, content, tag, keywords, createdAt',
   notes: '++id, imgPath, content, tag, createdAt'
 });
 
-export type { Tag, Remark, Note };
+export type { Tag, Mark, Note };
 export { db };

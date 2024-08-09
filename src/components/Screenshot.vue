@@ -28,7 +28,7 @@ async function screenshot() {
 
   const currentTag = store.get('currentTag')
 
-  await db.remarks.add({
+  await db.marks.add({
     imgPath: screenshotPath as string,
     content: data.text,
     tag: currentTag,

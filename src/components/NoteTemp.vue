@@ -1,5 +1,5 @@
 <template>
-  <section class="w-full bg-white p-4 mb-2" v-for="item in remarks" :key="item.id">
+  <section class="w-full bg-white p-4 mb-2" v-for="item in marks" :key="item.id" v-if="marks?.length">
     <div class="flex w-full border-b border-gray-300">
       <div class="mr-4 h-40">
         <a-image :src="item.imgPath" />
@@ -21,19 +21,22 @@
                 </a-menu>
               </template>
             </a-dropdown>
-            <a-button danger @click="deleteRemark(item)" :icon="h(DeleteOutlined)"></a-button>
+            <a-button danger @click="deleteMark(item)" :icon="h(DeleteOutlined)"></a-button>
           </a-space>
           <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
         </div>
       </div>
     </div>
   </section>
+  <div v-else class="w-full empty-wrap flex justify-center items-center">
+    <a-empty description="你还没有任何记录" />
+  </div>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, ref, h } from 'vue';
 import { DeleteOutlined, SwapOutlined } from '@ant-design/icons-vue';
-import { db, Tag, type Remark } from '../db.ts'
+import { db, Tag, type Mark } from '../db.ts'
 import store from 'store'
 import emitter from '../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
@@ -44,16 +47,16 @@ import zh from 'dayjs/locale/zh-cn'
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
-const remarks = ref<Remark[]>()
+const marks = ref<Mark[]>()
 
-async function getRemarks() {
+async function getMarks() {
   const currentTag = store.get('currentTag') as string;
-  const result = await db.remarks.where({ tag: currentTag }).toArray()
-  remarks.value = await Promise.all(result.map(async (remark) => {
-    const imgFile = await readBinaryFile(remark.imgPath);
+  const result = await db.marks.where({ tag: currentTag }).toArray()
+  marks.value = await Promise.all(result.map(async (mark) => {
+    const imgFile = await readBinaryFile(mark.imgPath);
     const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
     return {
-      ...remark,
+      ...mark,
       imgPath: imgPath
     }
   }))
@@ -70,7 +73,7 @@ emitter.on('refresh', listenRefresh)
 
 async function listenRefresh() {
   await queryTags()
-  await getRemarks()
+  await getMarks()
 }
 
 onMounted(async () => {
@@ -78,15 +81,15 @@ onMounted(async () => {
   await listenRefresh()
 })
 
-// 修改 remark tag
-async function changeTag(remark: Remark, tag: Tag) {
-  await db.remarks.update(remark.id, { tag: tag.name })
+// 修改 mark tag
+async function changeTag(mark: Mark, tag: Tag) {
+  await db.marks.update(mark.id, { tag: tag.name })
   emitter.emit('refresh')
 }
 
 // 删除记录
-async function deleteRemark(remark: Remark) {
-  await db.remarks.delete(remark.id)
+async function deleteMark(mark: Mark) {
+  await db.marks.delete(mark.id)
   emitter.emit('refresh')
 }
 
@@ -105,5 +108,9 @@ function timeAgo(time: number) {
     width: 300px;
     object-fit: cover;
   }
+}
+.empty-wrap {
+  height: calc(100vh - 120px);
+  overflow: hidden;
 }
 </style>

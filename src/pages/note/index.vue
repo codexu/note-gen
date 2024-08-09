@@ -23,19 +23,19 @@ const router = useRouter()
 const loading = ref<boolean>(false)
 const note = ref<string>('');
 
-async function getRemarks() {
+async function getMarks() {
   const currentTag = store.get('currentTag') as string;
-  return await db.remarks.where({ tag: currentTag }).toArray()
+  return await db.marks.where({ tag: currentTag }).toArray()
 }
 
 onMounted(async() => {
   loading.value = true
-  const remarks = await getRemarks()
+  const marks = await getMarks()
   const content = `
     以下是我记录的一些笔记片段：
-    ${remarks.map(item => item.content).join(';\n\n')}。
+    ${marks.map(item => item.content).join(';\n\n')}。
     我还提取了这些笔记的关键词：
-    ${remarks.map(item => item.keywords.join(',')).join(';\n\n')}。
+    ${marks.map(item => item.keywords.join(',')).join(';\n\n')}。
     请将这些片段整理成一篇详细完整的笔记，要求返回格式：
     - 使用 Markdown 语法。
     - 请使用中文。

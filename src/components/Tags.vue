@@ -7,7 +7,7 @@
       </a-button>
     </div>
     <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" @change="segmentedChange" />
-    <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '临时'" @close="remove(tag.id)">
+    <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '记点儿'" @close="remove(tag.id)">
       {{ tag.name }}
     </a-tag>
     <div>
@@ -29,7 +29,7 @@ import { PlusOutlined, SettingOutlined, SaveOutlined } from '@ant-design/icons-v
 import { useStorage } from '@vueuse/core'
 import emitter from '../emitter.ts'
 
-const checked = useStorage('currentTag', '临时')
+const checked = useStorage('currentTag', '记点儿')
 
 async function segmentedChange() {
   await nextTick()
@@ -45,11 +45,11 @@ const segmentedOptions = computed(() => {
   return tags.value.map((tag) => tag.name)
 })
 
-// 创建默认标签：临时，判断 tags 是否存在 name 是临时的标签
+// 创建默认标签：记点儿，判断 tags 是否存在 name 是记点儿的标签
 async function createDefaultTag() {
-  const hasTag = await db.tags.where({ name: '临时' }).count()
+  const hasTag = await db.tags.where({ name: '记点儿' }).count()
   if (!hasTag) {
-    await db.tags.add({ name: '临时' })
+    await db.tags.add({ name: '记点儿' })
   }
 }
 

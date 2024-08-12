@@ -6,8 +6,8 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "note-gen",
-    "version": "0.0.0"
+    "productName": "NoteGen",
+    "version": "0.1.0"
   },
   "tauri": {
     "allowlist": {

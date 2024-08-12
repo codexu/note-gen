@@ -32,7 +32,7 @@
       </section>
     </a-badge-ribbon>
   </template>
-  <div v-else class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!store.screenshotStatus" class="w-full empty-wrap flex justify-center items-center">
     <a-empty description="你还没有任何记录" />
   </div>
 </template>
@@ -41,12 +41,15 @@
 import { onMounted, ref, h } from 'vue';
 import { DeleteOutlined, SwapOutlined } from '@ant-design/icons-vue';
 import { db, Tag, type Mark } from '../../../db.ts'
-import store from 'store'
+import storage from 'store'
 import emitter from '../../../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
+import useStore from '../../../store.ts'
+
+const store = useStore()
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
@@ -54,7 +57,7 @@ dayjs.extend(relativeTime)
 const marks = ref<Mark[]>()
 
 async function getMarks() {
-  const currentTag = store.get('currentTag') as string;
+  const currentTag = storage.get('currentTag') as string;
   const result = await db.marks.where({ tag: currentTag }).toArray()
   marks.value = await Promise.all(result.map(async (mark) => {
     const imgFile = await readBinaryFile(mark.imgPath);

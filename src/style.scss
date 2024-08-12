@@ -1,0 +1,24 @@
+.ant-skeleton-image{
+  width: 300px !important;
+  height: 160px !important;
+  border-radius: 0 !important;
+}
+
+.ant-skeleton-button-sm{
+  height: 32px;
+  min-height: 32px;
+  width: 32px !important;
+  min-width: 32px !important;
+}
+
+.ant-skeleton-paragraph >li{
+  border-radius: 0 !important;
+}
+.ant-skeleton-paragraph >li +li{
+  margin-block-start: 8px !important;
+}
+
+.ant-skeleton-avatar {
+  width: 48px !important;
+  border-radius: 4px !important;  
+}

@@ -40,9 +40,9 @@
 <script lang="ts" setup>
 import { onMounted, ref, h } from 'vue';
 import { DeleteOutlined, SwapOutlined } from '@ant-design/icons-vue';
-import { db, Tag, type Mark } from '../db.ts'
+import { db, Tag, type Mark } from '../../../db.ts'
 import store from 'store'
-import emitter from '../emitter.ts'
+import emitter from '../../../emitter.ts'
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -63,7 +63,7 @@ async function getMarks() {
       ...mark,
       imgPath: imgPath
     }
-  }))
+  }).reverse())
 }
 
 // 获取所有标签

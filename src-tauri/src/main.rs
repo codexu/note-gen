@@ -4,7 +4,7 @@
 use std::process::Command;
 use chrono::{DateTime, Utc};
 use tauri::{Manager, SystemTray, SystemTrayEvent};
-use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem};
+use tauri::SystemTrayMenu;
 
 // 生成文件名
 fn generate_file_name() -> String {
@@ -54,6 +54,14 @@ fn main() {
               ..
             } => {
                 app.emit_all("left_click", ()).unwrap();
+            }
+            SystemTrayEvent::RightClick {
+                position: _,
+                size: _,
+                ..
+            } => {
+                // 打开主窗口
+                app.get_window("main").unwrap().show().unwrap();
             }
             _ => {}
         })

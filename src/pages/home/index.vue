@@ -7,12 +7,14 @@
     </a-space>
   </header>
   <div class="p-4 pt-16 bg-gray-100 min-h-screen">
+    <ScreenshotStatus />
     <NoteTemp />
   </div>
 </template>
 
 <script setup lang="ts">
-import NoteTemp from "../../components/NoteTemp.vue";
+import NoteTemp from "./components/NoteTemp.vue";
+import ScreenshotStatus from "./components/ScreenshotStatus.vue";
 import Screenshot from "../../components/Screenshot.vue";
 import Tags from '../../components/Tags.vue'
 import Create from '../../components/Create.vue'

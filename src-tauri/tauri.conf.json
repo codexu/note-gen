@@ -22,6 +22,9 @@
       },
       "globalShortcut": {
         "all": true
+      },
+      "path": {
+        "all": true
       }
     },
     "windows": [
@@ -41,7 +44,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.codexu.dev",
+      "identifier": "com.codexu.NoteGen",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

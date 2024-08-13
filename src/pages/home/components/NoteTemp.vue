@@ -8,7 +8,7 @@
           </div>
           <div class="w-full flex flex-col justify-between">
             <div>
-              <a-tag v-for="(keyword, index) in item.keywords" :key="index">{{ keyword }}</a-tag>
+              <a-tag v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</a-tag>
               <p class="line-clamp-3 text-sm leading-6 mt-3 mb-3">{{ item.content }}</p>
             </div>
             <div class="flex justify-between items-end">
@@ -17,7 +17,7 @@
                   <a-button :icon="h(SwapOutlined)"></a-button>
                   <template #overlay>
                     <a-menu>
-                      <a-menu-item v-for="(tag, index) in tags" :key="index">
+                      <a-menu-item v-for="tag in tags" :key="tag.id">
                         <a @click="changeTag(item, tag)">{{ tag.name }}</a>
                       </a-menu-item>
                     </a-menu>
@@ -32,7 +32,7 @@
       </section>
     </a-badge-ribbon>
   </template>
-  <div v-else-if="!store.screenshotStatus" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!store.screenshotList" class="w-full empty-wrap flex justify-center items-center">
     <a-empty description="你还没有任何记录" />
   </div>
 </template>
@@ -47,6 +47,7 @@ import { readBinaryFile } from '@tauri-apps/api/fs'
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
+import { Empty } from 'ant-design-vue';
 import useStore from '../../../store.ts'
 
 const store = useStore()
@@ -60,8 +61,13 @@ async function getMarks() {
   const currentTag = storage.get('currentTag') as string;
   const result = await db.marks.where({ tag: currentTag }).toArray()
   marks.value = await Promise.all(result.map(async (mark) => {
-    const imgFile = await readBinaryFile(mark.imgPath);
-    const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
+    let imgPath = ''
+    try {
+      const imgFile = await readBinaryFile(mark.imgPath);
+      imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
+    } catch (error) {
+      imgPath = Empty.PRESENTED_IMAGE_SIMPLE;
+    }
     return {
       ...mark,
       imgPath: imgPath

@@ -16,6 +16,7 @@
     "@vueuse/core": "^10.11.0",
     "ant-design-vue": "^4.2.3",
     "axios": "^1.7.3",
+    "browser-image-compression": "^2.0.2",
     "dayjs": "^1.11.12",
     "dexie": "^4.0.8",
     "md-editor-v3": "^4.18.0",
@@ -23,11 +24,13 @@
     "pinia": "^2.2.1",
     "store": "^2.0.12",
     "tesseract.js": "^5.1.0",
+    "uuid": "^10.0.0",
     "vue": "^3.3.4",
     "vue-router": "4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^5.0.5",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",

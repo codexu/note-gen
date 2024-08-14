@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Manager, SystemTray, SystemTrayEvent};
+use tauri::{CustomMenuItem, Manager, SystemTray, SystemTrayEvent};
 use tauri::SystemTrayMenu;
 
 // 截图
@@ -9,7 +9,7 @@ use base64::{engine::general_purpose, Engine as _};
 use screenshots::Screen;
 
 #[tauri::command]
-fn screenshot() -> String {
+fn screenshot_base64() -> String {
     let screen = Screen::from_point(100, 100).unwrap();
     let image = screen
         .capture().unwrap();
@@ -35,22 +35,30 @@ fn cut_words(str: String) -> Vec<String> {
 }
 
 fn main() {
-    let tray_menu = SystemTrayMenu::new();
+    let screenshot = CustomMenuItem::new("screenshot".to_string(), "记录");
+    let quit = CustomMenuItem::new("quit".to_string(), "退出");
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(screenshot)
+        .add_item(quit);
+   
     let tray = SystemTray::new().with_menu(tray_menu);
     tauri::Builder::default()
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
-            SystemTrayEvent::LeftClick {
-              position: _,
-              size: _,
-              ..
-            } => {
-                println!("system tray received a left click");
-                app.emit_all("left_click", ()).unwrap();
-            }
+            SystemTrayEvent::MenuItemClick { id, .. } => {
+                match id.as_str() {
+                  "quit" => {
+                    std::process::exit(0);
+                  }
+                  "screenshot" => {
+                    app.emit_all("screenshot", ()).unwrap();
+                  }
+                  _ => {}
+                }
+              }
             _ => {}
         })
-        .invoke_handler(tauri::generate_handler![screenshot, cut_words])
+        .invoke_handler(tauri::generate_handler![screenshot_base64, cut_words])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

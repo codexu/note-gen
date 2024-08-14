@@ -35,6 +35,9 @@ importers:
       dexie:
         specifier: ^4.0.8
         version: 4.0.8
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
       md-editor-v3:
         specifier: ^4.18.0
         version: 4.18.0(@codemirror/view@6.30.0)(@lezer/common@1.2.1)(vue@3.4.35(typescript@5.5.4))
@@ -63,6 +66,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^1
         version: 1.6.0
+      '@types/lodash':
+        specifier: ^4.17.7
+        version: 4.17.7
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
@@ -628,6 +634,9 @@ packages:
 
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
+
+  '@types/lodash@4.17.7':
+    resolution: {integrity: sha512-8wTvZawATi/lsmNu10/j2hk1KEP0IvjubqPE3cu1Xz7xfXXt5oCq3SNUz4fMIP4XGF9Ky+Ue2tBA3hcS7LSBlA==}
 
   '@types/markdown-it@14.1.2':
     resolution: {integrity: sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog==}
@@ -2108,6 +2117,8 @@ snapshots:
   '@types/estree@1.0.5': {}
 
   '@types/linkify-it@5.0.0': {}
+
+  '@types/lodash@4.17.7': {}
 
   '@types/markdown-it@14.1.2':
     dependencies:

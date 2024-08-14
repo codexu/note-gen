@@ -32,7 +32,7 @@
       </section>
     </a-badge-ribbon>
   </template>
-  <div v-else-if="!store.screenshotList" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <a-empty description="你还没有任何记录" />
   </div>
 </template>

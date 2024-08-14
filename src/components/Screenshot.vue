@@ -1,11 +1,11 @@
 <template>
-  <a-button type="primary" @click="screenshot" :icon="h(EditOutlined)">记录</a-button>
+  <!-- <a-button type="primary" @click="screenshot" :icon="h(EditOutlined)">记录</a-button> -->
 </template>
 
 <script setup lang="ts">
-import { EditOutlined } from '@ant-design/icons-vue';
+// import { EditOutlined } from '@ant-design/icons-vue';
 import { invoke } from "@tauri-apps/api/tauri";
-import { onMounted, h } from "vue";
+import { onMounted } from "vue";
 import storage from 'store'
 import { db } from '../db.ts';
 import emitter from '../emitter.ts';
@@ -18,6 +18,7 @@ import imageCompression from 'browser-image-compression';
 import useStore from '../store.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
+import { debounce } from 'lodash'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
 
 const store = useStore()
@@ -33,7 +34,7 @@ async function screenshot() {
   })
 
   try {
-    const base64img = await invoke("screenshot") as string;
+    const base64img = await invoke("screenshot_base64") as string;
     await notificationScreenshot()
     const buffer = base64ToArrayBuffer(base64img)
     const blob = new Blob([buffer], { type: 'image/png' });
@@ -108,6 +109,7 @@ async function takeContent(content: string) {
   const request_content = `
     以下是截图后使用 OCR 识别出的文字，该截图是整个屏幕的截图，识别后的内容为：${content}。
     - 提取截图中的核心内容，剔除无关内容，（无关内容可能包括系统软件界面上的文字、网页导航栏中的文字等）。
+    - 如果是识别的内容包含代码，请完整保留代码。
     - 以“content”作为开头。
   `
   const data: Data = {
@@ -137,14 +139,6 @@ async function notificationScreenshot() {
 }
 
 onMounted(async () => {
-  await listen('left_click', () => {
-    screenshot()
-  });
+  listen('screenshot', debounce(screenshot, 1000));
 })
 </script>
-
-<style scoped>
-.image {
-  width: 300px;
-}
-</style>

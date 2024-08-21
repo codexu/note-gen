@@ -1,9 +1,7 @@
 <template>
-  <!-- <a-button type="primary" @click="screenshot" :icon="h(EditOutlined)">记录</a-button> -->
 </template>
 
 <script setup lang="ts">
-// import { EditOutlined } from '@ant-design/icons-vue';
 import { invoke } from "@tauri-apps/api/tauri";
 import { onMounted } from "vue";
 import storage from 'store'
@@ -64,10 +62,10 @@ async function screenshot() {
     const worker = await createWorker(['chi_sim', 'eng']);
     const { data } = await worker.recognize(imgFile);
 
-    data.text = data.text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
+    const content = data.text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
 
     store.updateStatus({id, screenshotStatus: true, screenshotProgress: '提取内容' })
-    const content = await takeContent(data.text)
+    const description = await takeDescription(data.text)
 
     store.updateStatus({id, screenshotStatus: true, screenshotProgress: '分析关键词' })
     const keywords = await invoke("cut_words", {
@@ -79,7 +77,8 @@ async function screenshot() {
     store.updateStatus({id, screenshotStatus: true, screenshotProgress: '保存记录' })
     await db.marks.add({
       imgPath: path,
-      content: content,
+      content,
+      description,
       tag: currentTag,
       keywords,
       createdAt: new Date().getTime()
@@ -105,12 +104,9 @@ function base64ToArrayBuffer(base64: string) {
 }
 
 // 提取识别文字里的重要内容
-async function takeContent(content: string) {
+async function takeDescription(content: string) {
   const request_content = `
-    以下是截图后使用 OCR 识别出的文字，该截图是整个屏幕的截图，识别后的内容为：${content}。
-    - 提取截图中的核心内容，剔除无关内容，（无关内容可能包括系统软件界面上的文字、网页导航栏中的文字等）。
-    - 如果是识别的内容包含代码，请完整保留代码。
-    - 以“content”作为开头。
+    以下是截图后使用 OCR 识别出的文字，该截图是整个屏幕的截图，识别后的内容为：${content}。请返回一句此截图内容的核心内容描述，长度不要超过50字。
   `
   const data: Data = {
     model: 'gpt-4o-mini',

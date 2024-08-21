@@ -3,13 +3,16 @@ import Dexie, { type EntityTable } from 'dexie';
 interface Tag {
   id: number;
   name: string;
+  total?: number;
+  createdAt: number;
 }
 
 interface Mark {
   id: number;
   imgPath: string;
   content: string;
-  tag: string;
+  description: string;
+  tag: number;
   keywords: string[];
   createdAt: number;
 }
@@ -19,7 +22,7 @@ interface Note {
   title: string;
   content: string;
   markIds: number[];
-  tag: string;
+  tag: number;
   createdAt: number;
 }
 
@@ -30,8 +33,8 @@ const db = new Dexie('note-db') as Dexie & {
 };
 
 db.version(1).stores({
-  tags: '++id, name&',
-  marks: '++id, imgPath, content, tag, keywords, createdAt',
+  tags: '++id, name&, total, createdAt',
+  marks: '++id, imgPath, content, description, tag, keywords, createdAt',
   notes: '++id, title, content, markIds, tag, createdAt'
 });
 

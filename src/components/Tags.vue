@@ -1,57 +1,32 @@
 <template>
-  <a-space>
-    <div>
-      <a-button size="small" v-if="!isOption" @click="isOption = true" :icon="h(SettingOutlined)">
-      </a-button>
-      <a-button size="small" v-else @click="isOption = false" :icon="h(SaveOutlined)">
-      </a-button>
-    </div>
-    <a-segmented v-show="!isOption" v-model:value="checked" :options="segmentedOptions" @change="segmentedChange" />
-    <a-tag :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '记点儿'" @close="remove(tag.id)">
+  <div class="d-flex ga-2">
+    <v-btn v-if="!isOption" @click="isOption = true" icon="mdi-content-save-outline"></v-btn>
+    <v-btn v-else @click="isOption = false" icon="mdi-cog"></v-btn>
+    <v-chip :bordered="false" v-if="isOption" v-for="tag in tags" :key="tag.id" :closable="tag.name !== '记点儿'" @close="remove(tag.id)">
       {{ tag.name }}
-    </a-tag>
+    </v-chip>
     <div>
-      <a-input v-if="inputVisible" ref="inputRef" v-model:value="inputValue" type="text" size="small"
-        :style="{ width: '78px' }" @blur="add" @keyup.enter="add" />
-      <a-tag v-else @click="showInput" class="cursor-pointer">
+      <v-text-field label="新标签名称" variant="underlined" required v-if="inputVisible" ref="inputRef" v-model="inputValue" type="text" size="small"
+        @blur="add" @keyup.enter="add" />
+      <v-chip v-else @click="showInput" class="cursor-pointer">
         <plus-outlined />
         新标签
-      </a-tag>
+      </v-chip>
     </div>
-  </a-space>
+  </div>
 </template>
 
 <script lang="ts" setup>
 import { notification } from 'ant-design-vue';
 import { db, type Tag } from '../db.ts';
-import { computed, nextTick, onMounted, ref, h } from 'vue';
-import { PlusOutlined, SettingOutlined, SaveOutlined } from '@ant-design/icons-vue';
+import { nextTick, onMounted, ref } from 'vue';
+import { PlusOutlined } from '@ant-design/icons-vue';
 import { useStorage } from '@vueuse/core'
-import emitter from '../emitter.ts'
-
-const checked = useStorage('currentTag', '记点儿')
-
-async function segmentedChange() {
-  await nextTick()
-  emitter.emit('refresh')
-}
 
 const tags = ref<Tag[]>([])
 const isOption = useStorage('isTagOption', false)
 const inputVisible = ref(false)
 const inputValue = ref('')
-
-const segmentedOptions = computed(() => {
-  return tags.value.map((tag) => tag.name)
-})
-
-// 创建默认标签：记点儿，判断 tags 是否存在 name 是记点儿的标签
-async function createDefaultTag() {
-  const hasTag = await db.tags.where({ name: '记点儿' }).count()
-  if (!hasTag) {
-    await db.tags.add({ name: '记点儿' })
-  }
-}
 
 // 查询 tags
 async function queryTags() {
@@ -60,7 +35,6 @@ async function queryTags() {
 }
 
 onMounted(async () => {
-  await createDefaultTag()
   queryTags()
 })
 
@@ -74,7 +48,10 @@ async function showInput() {
 
 async function add() {
   if (inputValue.value.length === 0) return
-  await db.tags.add({ name: inputValue.value }).catch(() => {
+  await db.tags.add({
+    name: inputValue.value,
+    createdAt: new Date().getTime()
+  }).catch(() => {
     notification.error({
       message: '添加失败',
       description: '该标签已存在',

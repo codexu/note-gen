@@ -1,45 +1,53 @@
 <template>
-  <template v-for="item in marks" :key="item.id" v-if="marks?.length">
-    <a-badge-ribbon text="Mark">
-      <section class="w-full bg-white p-4 mb-2 overflow-hidden" >
-        <div class="flex w-full border-b border-gray-300">
-          <div class="mr-4 h-40">
-            <a-image :src="item.imgPath" />
-          </div>
-          <div class="w-full flex flex-col justify-between">
-            <div>
-              <a-tag v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</a-tag>
-              <p class="line-clamp-3 text-sm leading-6 mt-3 mb-3">{{ item.content }}</p>
+  <v-row v-if="marks?.length">
+    <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
+      <v-card class="mb-2">
+        <v-img height="200px" :src="item.imgPath" cover></v-img>
+        <div class="p-4">
+          <v-chip-group>
+            <v-chip size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
+          </v-chip-group>
+          <!-- 最多3行文字 -->
+          <p class="text-sm leading-6 mt-2 h-12 line-clamp-2">{{ item.description }}</p>
+          <div class="flex justify-between items-end mt-4">
+            <div class="d-flex ga-2">
+              <v-menu>
+                <template v-slot:activator="{props}">
+                  <v-btn :disabled="tags.length === 0" prepend-icon="mdi-swap-horizontal" v-bind="props">转移</v-btn>
+                </template>
+                <v-list>
+                  <v-list-item
+                    v-for="(tag, index) in tags"
+                    :key="index"
+                    :value="index"
+                  >
+                    <v-list-item-title @click="changeTag(item, tag)">{{ tag.name }}</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+              <v-btn @click="deleteMark(item)" prepend-icon="mdi-delete">删除</v-btn>
             </div>
-            <div class="flex justify-between items-end">
-              <a-space>
-                <a-dropdown>
-                  <a-button :icon="h(SwapOutlined)"></a-button>
-                  <template #overlay>
-                    <a-menu>
-                      <a-menu-item v-for="tag in tags" :key="tag.id">
-                        <a @click="changeTag(item, tag)">{{ tag.name }}</a>
-                      </a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
-                <a-button danger @click="deleteMark(item)" :icon="h(DeleteOutlined)"></a-button>
-              </a-space>
-              <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
-            </div>
+            <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
           </div>
         </div>
-      </section>
-    </a-badge-ribbon>
-  </template>
+      </v-card>
+    </v-col>
+  </v-row>
   <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
-    <a-empty description="你还没有任何记录" />
+    <v-empty-state
+      headline="Welcome,"
+      title="暂时还没有任何记录"
+      text="赶快去截图生成一条 Mark 吧！"
+    >
+      <template v-slot:media>
+        <v-icon icon="mdi-monitor-screenshot"></v-icon>
+      </template>
+    </v-empty-state>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, h } from 'vue';
-import { DeleteOutlined, SwapOutlined } from '@ant-design/icons-vue';
+import { onMounted, ref} from 'vue';
 import { db, Tag, type Mark } from '../../../db.ts'
 import storage from 'store'
 import emitter from '../../../emitter.ts'
@@ -58,7 +66,7 @@ dayjs.extend(relativeTime)
 const marks = ref<Mark[]>()
 
 async function getMarks() {
-  const currentTag = storage.get('currentTag') as string;
+  const currentTag = storage.get('currentTag')
   const result = await db.marks.where({ tag: currentTag }).toArray()
   marks.value = await Promise.all(result.map(async (mark) => {
     let imgPath = ''
@@ -79,7 +87,8 @@ async function getMarks() {
 const tags = ref<Tag[]>([])
 async function queryTags() {
   const res = await db.tags.toArray()
-  tags.value = res
+  const currentTag = storage.get('currentTag')
+  tags.value = res.filter(item => item.id !== currentTag)
 }
 
 emitter.on('refresh', listenRefresh)
@@ -96,7 +105,7 @@ onMounted(async () => {
 
 // 修改 mark tag
 async function changeTag(mark: Mark, tag: Tag) {
-  await db.marks.update(mark.id, { tag: tag.name })
+  await db.marks.update(mark.id, { tag: tag.id })
   emitter.emit('refresh')
 }
 
@@ -113,17 +122,8 @@ function timeAgo(time: number) {
 </script>
 
 <style lang="scss">
-.ant-image{
-  height: 160px;
-  width: 300px;
-  .ant-image-img{
-    height: 160px;
-    width: 300px;
-    object-fit: cover;
-  }
-}
 .empty-wrap {
-  height: calc(100vh - 120px);
+  height: calc(100vh - 180px);
   overflow: hidden;
 }
 </style>

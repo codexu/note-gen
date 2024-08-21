@@ -27,9 +27,11 @@
     "tesseract.js": "^5.1.0",
     "uuid": "^10.0.0",
     "vue": "^3.3.4",
-    "vue-router": "4"
+    "vue-router": "4",
+    "vuetify": "^3.7.0"
   },
   "devDependencies": {
+    "@mdi/font": "^7.4.47",
     "@tauri-apps/cli": "^1",
     "@types/lodash": "^4.17.7",
     "@types/uuid": "^10.0.0",

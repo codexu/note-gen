@@ -62,7 +62,13 @@ importers:
       vue-router:
         specifier: '4'
         version: 4.4.3(vue@3.4.35(typescript@5.5.4))
+      vuetify:
+        specifier: ^3.7.0
+        version: 3.7.0(typescript@5.5.4)(vue@3.4.35(typescript@5.5.4))
     devDependencies:
+      '@mdi/font':
+        specifier: ^7.4.47
+        version: 7.4.47
       '@tauri-apps/cli':
         specifier: ^1
         version: 1.6.0
@@ -447,6 +453,9 @@ packages:
 
   '@lezer/yaml@1.0.3':
     resolution: {integrity: sha512-GuBLekbw9jDBDhGur82nuwkxKQ+a3W5H0GfaAthDXcAu+XdpS43VlnxA9E9hllkpSP5ellRDKjLLj7Lu9Wr6xA==}
+
+  '@mdi/font@7.4.47':
+    resolution: {integrity: sha512-43MtGpd585SNzHZPcYowu/84Vz2a2g31TvPMTm9uTiCSWzaheQySUcSyUH/46fPnuPQWof2yd0pGBtzee/IQWw==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -1481,6 +1490,25 @@ packages:
       typescript:
         optional: true
 
+  vuetify@3.7.0:
+    resolution: {integrity: sha512-x+UaU4SPYNcJSE/voCTBFrNn0q9Spzx2EMfDdUj0NYgHGKb59OqnZte+AjaJaoOXy1AHYIGEpm5Ryk2BEfgWuw==}
+    engines: {node: ^12.20 || >=14.13}
+    peerDependencies:
+      typescript: '>=4.7'
+      vite-plugin-vuetify: '>=1.0.0'
+      vue: ^3.3.0
+      vue-i18n: ^9.0.0
+      webpack-plugin-vuetify: '>=2.0.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      vite-plugin-vuetify:
+        optional: true
+      vue-i18n:
+        optional: true
+      webpack-plugin-vuetify:
+        optional: true
+
   w3c-keyname@2.2.8:
     resolution: {integrity: sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==}
 
@@ -2000,6 +2028,8 @@ snapshots:
       '@lezer/common': 1.2.1
       '@lezer/highlight': 1.2.0
       '@lezer/lr': 1.4.2
+
+  '@mdi/font@7.4.47': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -2976,6 +3006,12 @@ snapshots:
       '@vue/runtime-dom': 3.4.35
       '@vue/server-renderer': 3.4.35(vue@3.4.35(typescript@5.5.4))
       '@vue/shared': 3.4.35
+    optionalDependencies:
+      typescript: 5.5.4
+
+  vuetify@3.7.0(typescript@5.5.4)(vue@3.4.35(typescript@5.5.4)):
+    dependencies:
+      vue: 3.4.35(typescript@5.5.4)
     optionalDependencies:
       typescript: 5.5.4
 

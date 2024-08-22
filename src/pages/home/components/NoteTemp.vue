@@ -2,7 +2,7 @@
   <v-row v-if="marks?.length">
     <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card class="mb-2">
-        <v-img height="200px" :src="item.imgPath" cover>
+        <v-img height="200px" :src="item.imgPath" cover gradient="to bottom left, rgba(0,0,0,.4), rgba(200,200,200,.2)">
           <v-checkbox
             class="absolute top-0 right-2"
             v-model="item.status"
@@ -10,33 +10,33 @@
             @click="changeStatus(item)"
           ></v-checkbox>
         </v-img>
-        <div class="p-4">
+        <v-card-text>
           <v-chip-group>
             <v-chip size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
           </v-chip-group>
           <!-- 最多3行文字 -->
           <p class="text-sm leading-6 mt-2 h-12 line-clamp-2">{{ item.description }}</p>
-          <div class="flex justify-between items-end mt-4">
-            <div class="d-flex ga-2">
-              <v-menu>
-                <template v-slot:activator="{props}">
-                  <v-btn :disabled="tags.length === 0" prepend-icon="mdi-swap-horizontal" v-bind="props">转移</v-btn>
-                </template>
-                <v-list>
-                  <v-list-item
-                    v-for="(tag, index) in tags"
-                    :key="index"
-                    :value="index"
-                  >
-                    <v-list-item-title @click="changeTag(item, tag)">{{ tag.name }}</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-              <v-btn @click="deleteMark(item)" prepend-icon="mdi-delete">删除</v-btn>
-            </div>
-            <span class="mb-0 text-sm text-gray-400">{{ timeAgo(item.createdAt) }}</span>
+        </v-card-text>
+        <v-card-actions class="flex justify-between">
+          <div>
+            <v-menu>
+              <template v-slot:activator="{props}">
+                <v-btn size="small" :disabled="tags.length === 0" icon="mdi-swap-horizontal" v-bind="props"></v-btn>
+              </template>
+              <v-list>
+                <v-list-item
+                  v-for="(tag, index) in tags"
+                  :key="index"
+                  :value="index"
+                >
+                  <v-list-item-title @click="changeTag(item, tag)">{{ tag.name }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+            <v-btn size="small" @click="deleteMark(item)" icon="mdi-delete"></v-btn>
           </div>
-        </div>
+          <span class="mb-0 text-sm text-gray-400 pr-2">{{ timeAgo(item.createdAt) }}</span>
+        </v-card-actions>
       </v-card>
     </v-col>
   </v-row>

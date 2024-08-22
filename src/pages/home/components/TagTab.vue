@@ -8,17 +8,23 @@
       @update:model-value="segmentedChange"
     >
       <v-tab
-        v-for="item in tags"
-        :key="item.id"
-        :value="item.id"
+        v-for="(tag, index) in tags"
+        :key="tag.id"
+        :value="tag.id"
       >
-      {{ item.name }}
+      {{ tag.name }}
       <v-icon
-        v-if="item.name !== DEFAULT_TAG_NAME && isEditing"
-        @click="deleteTag(item, $event)"
+        v-if="tag.name !== DEFAULT_TAG_NAME && isEditing"
+        @click="deleteTag(tag, $event)"
         class="ml-2"
         icon="mdi-close"
       ></v-icon>
+      <v-badge
+        v-else
+        color="primary"
+        :content="marksTotals[index]"
+        inline
+      ></v-badge>
       </v-tab>
     </v-tabs>
     <div class="flex pr-1">
@@ -72,11 +78,15 @@ async function createDefaultTag() {
   }
 }
 
-emitter.on('refresh', queryTags)
+emitter.on('refresh', async () => {
+  await queryTags()
+  await getTagTotal()
+})
 
 onMounted(async () => {
   await createDefaultTag();
-  queryTags();
+  await queryTags();
+  await getTagTotal()
 })
 
 const isEditing = ref(false)
@@ -93,8 +103,14 @@ async function deleteTag(tag: Tag, event: Event) {
     emitter.emit('refresh')
   }
 }
+
+// 获取标签下的 marks 数量
+const marksTotals = ref<number[]>([])
+async function getTagTotal() {
+  marksTotals.value.length = 0
+  for (let index = 0; index < tags.value.length; index++) {
+    const total = await db.marks.where({ tag: tags.value[index].id }).count()
+    marksTotals.value[index] = total
+  }
+}
 </script>
-
-<style lang="scss" scoped>
-
-</style>

@@ -12,7 +12,7 @@
       </template>
     </v-app-bar>
   </v-card>
-  <div class="note-wrap p-6">
+  <div class="note-wrap p-6 bg-gray-50">
     <!-- <ScreenshotStatus /> -->
     <NoteTemp />
   </div>

@@ -13,10 +13,10 @@ import { listen } from '@tauri-apps/api/event'
 import { appDataDir } from '@tauri-apps/api/path';
 import dayjs from 'dayjs';
 import imageCompression from 'browser-image-compression';
-import useStore from '../store.ts'
+import useStore, { ScreenshotListStatus } from '../store.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
-import { debounce } from 'lodash'
+import { clone, debounce } from 'lodash'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
 
 const store = useStore()
@@ -25,11 +25,19 @@ async function screenshot() {
 
   const id = uuidv4()
 
-  store.screenshotList.push({
+  const tagId = storage.get('currentTag')
+
+  const result: ScreenshotListStatus = {
     id,
+    tagId,
+    path: '',
+    keywords: [],
+    description: '',
     screenshotStatus: true,
-    screenshotProgress: '截图'
-  })
+    screenshotProgress: '截图',
+  }
+
+  store.screenshotList.unshift(clone(result))
 
   try {
     const base64img = await invoke("screenshot_base64") as string;
@@ -39,8 +47,9 @@ async function screenshot() {
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
     const fileName = `${now}.png`;
     const file = new File([blob], fileName, { type: 'image/png' });
-    
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '压缩截图' })
+
+    result.screenshotProgress = '压缩图片'
+    store.updateStatus(clone(result))
     const options = {
       maxSizeMB: 0.7,
       maxWidthOrHeight: 1280,
@@ -48,33 +57,42 @@ async function screenshot() {
     const compressedFile = await imageCompression(file, options);
     const bufferCompressed = await compressedFile.arrayBuffer();
 
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '保存截图' })
+    result.screenshotProgress = '保存截图'
+
+    store.updateStatus(clone(result))
     await writeBinaryFile(fileName, bufferCompressed, {
       dir: BaseDirectory.AppConfig
     });
     const appDataDirPath = await appDataDir();
-   
     const path = `${appDataDirPath}/${fileName}`;
-
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '识别文字' })
+    
     const imgFile = await readBinaryFile(path);
-    // 识别图片
+    const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
+    result.path = imgPath
+    result.screenshotProgress = '识别文字'
+
+    store.updateStatus(clone(result))
     const worker = await createWorker(['chi_sim', 'eng']);
     const { data } = await worker.recognize(imgFile);
 
     const content = data.text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
 
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '提取内容' })
-    const description = await takeDescription(data.text)
-
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '分析关键词' })
+    result.screenshotProgress = '分析关键词'
+    store.updateStatus(clone(result))
     const keywords = await invoke("cut_words", {
       str: content
     }) as string[]
+    result.keywords = keywords
+
+    result.screenshotProgress = '提取内容'
+    store.updateStatus(clone(result))
+    const description = await takeDescription(data.text)
+    result.description = description
 
     const currentTag = storage.get('currentTag')
 
-    store.updateStatus({id, screenshotStatus: true, screenshotProgress: '保存记录' })
+    result.screenshotProgress = '保存记录'
+    store.updateStatus(clone(result))
     await db.marks.add({
       imgPath: path,
       status: true,
@@ -87,7 +105,8 @@ async function screenshot() {
     store.complete(id)
     emitter.emit('refresh')
   } catch (error) {
-    store.updateStatus({id, screenshotStatus: false, screenshotProgress: '截图失败' })
+    result.screenshotProgress = '截图失败'
+    store.updateStatus(clone(result))
     setTimeout(() => {
       store.complete(id)
     }, 5000);

@@ -1,5 +1,6 @@
 <template>
   <v-row v-if="marks?.length">
+    <ScreenshotStatus />
     <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card>
         <div class="h-48 overflow-hidden">
@@ -83,6 +84,8 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
 import { Empty } from 'ant-design-vue';
+import ScreenshotStatus from "./ScreenshotStatus.vue";
+
 import useStore from '../../../store.ts'
 
 const store = useStore()

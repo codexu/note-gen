@@ -15,14 +15,12 @@
     </v-app-bar>
   </v-card>
   <div class="note-wrap p-6 bg-gray-50">
-    <!-- <ScreenshotStatus /> -->
     <NoteTemp />
   </div>
 </template>
 
 <script setup lang="ts">
 import NoteTemp from "./components/NoteTemp.vue";
-// import ScreenshotStatus from "./components/ScreenshotStatus.vue";
 import Screenshot from "../../components/Screenshot.vue";
 import TagTab from './components/TagTab.vue'
 import CreateNote from './components/CreateNote.vue'

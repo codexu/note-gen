@@ -10,7 +10,7 @@
             :lazy-src="item.imgPath"
             :src="item.imgPath"
             cover
-            gradient="to bottom left, rgba(0,0,0,.4), rgba(200,200,200,.2)">
+          >
           </v-img>
           <v-checkbox
             class="absolute top-0 right-2"

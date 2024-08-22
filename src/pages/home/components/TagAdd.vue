@@ -1,11 +1,7 @@
 <template>
-  <v-tooltip v-if="!showInput" text="新增标签" location="bottom">
-    <template v-slot:activator="{ props }">
-      <v-btn icon @click="create" v-bind="props">
-        <v-icon>mdi-tab-plus</v-icon>
-      </v-btn>
-    </template>
-  </v-tooltip>
+  <v-btn v-if="!showInput" icon @click="create" v-tooltip="'新增标签'">
+    <v-icon>mdi-tab-plus</v-icon>
+  </v-btn>
   <v-text-field
     class="min-w-60"
     v-if="showInput"

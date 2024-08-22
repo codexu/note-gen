@@ -1,8 +1,8 @@
 <template>
   <v-tooltip text="整理" location="bottom">
     <template v-slot:activator="{ props }">
-      <v-btn icon @click="create" v-bind="props">
-        <v-icon>mdi-puzzle-edit-outline</v-icon>
+      <v-btn prepend-icon="mdi-puzzle-edit-outline" @click="create" v-bind="props">
+        整理
       </v-btn>
     </template>
   </v-tooltip>

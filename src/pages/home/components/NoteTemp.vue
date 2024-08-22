@@ -1,15 +1,24 @@
 <template>
   <v-row v-if="marks?.length">
     <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
-      <v-card class="mb-2">
-        <v-img height="200px" :src="item.imgPath" cover gradient="to bottom left, rgba(0,0,0,.4), rgba(200,200,200,.2)">
+      <v-card>
+        <div class="h-48 overflow-hidden">
+          <v-img
+            :height="192"
+            :aspect-ratio="2"
+            class="h-full cursor-pointer hover:scale-125 duration-1000 transition-transform"
+            :lazy-src="item.imgPath"
+            :src="item.imgPath"
+            cover
+            gradient="to bottom left, rgba(0,0,0,.4), rgba(200,200,200,.2)">
+          </v-img>
           <v-checkbox
             class="absolute top-0 right-2"
             v-model="item.status"
             color="primary"
             @click="changeStatus(item)"
           ></v-checkbox>
-        </v-img>
+        </div>
         <v-card-text>
           <v-chip-group>
             <v-chip size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
@@ -17,11 +26,19 @@
           <!-- 最多3行文字 -->
           <p class="text-sm leading-6 mt-2 h-12 line-clamp-2">{{ item.description }}</p>
         </v-card-text>
+        <v-divider></v-divider>
         <v-card-actions class="flex justify-between">
           <div>
+            <!-- 转移 -->
             <v-menu>
               <template v-slot:activator="{props}">
-                <v-btn size="small" :disabled="tags.length === 0" icon="mdi-swap-horizontal" v-bind="props"></v-btn>
+                <v-btn
+                  size="small"
+                  color="primary"
+                  :disabled="tags.length === 0"
+                  icon="mdi-swap-horizontal"
+                  v-bind="props"
+                ></v-btn>
               </template>
               <v-list>
                 <v-list-item
@@ -33,8 +50,10 @@
                 </v-list-item>
               </v-list>
             </v-menu>
-            <v-btn size="small" @click="deleteMark(item)" icon="mdi-delete"></v-btn>
+            <!-- 删除 -->
+            <v-btn size="small" color="error" @click="deleteMark(item)" icon="mdi-delete"></v-btn>
           </div>
+          <!-- 时间 -->
           <span class="mb-0 text-sm text-gray-400 pr-2">{{ timeAgo(item.createdAt) }}</span>
         </v-card-actions>
       </v-card>

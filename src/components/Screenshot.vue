@@ -120,7 +120,7 @@ async function takeDescription(content: string) {
   }
   const res = await getCompletions(data);
   const result = res.data.choices[0].message.content
-  return result.slice(8, result.length)
+  return result
 }
 
 // 截图完成通知

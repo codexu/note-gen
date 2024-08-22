@@ -20,8 +20,8 @@
         icon="mdi-close"
       ></v-icon>
       <v-badge
-        v-else
-        color="primary"
+        v-else-if="marksTotals[index] > 0"
+        color="error"
         :content="marksTotals[index]"
         inline
       ></v-badge>

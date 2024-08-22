@@ -1,10 +1,12 @@
 <template>
   <v-card>
     <v-app-bar color="primary">
-      <v-app-bar-nav-icon></v-app-bar-nav-icon>
-      <v-app-bar-title>NoteGen</v-app-bar-title>
+      <v-app-bar-title>
+        <v-icon size="small" icon="mdi-notebook-multiple" class="-translate-y-0.5"></v-icon>
+        <span class="ml-4">NoteGen</span>
+      </v-app-bar-title>
       <v-spacer></v-spacer>
-      <v-btn icon="mdi-magnify"></v-btn>
+      <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
       <Screenshot />
       <CreateNote />
       <template v-slot:extension>

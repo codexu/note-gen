@@ -77,6 +77,7 @@ async function screenshot() {
     store.updateStatus({id, screenshotStatus: true, screenshotProgress: '保存记录' })
     await db.marks.add({
       imgPath: path,
+      status: true,
       content,
       description,
       tag: currentTag,

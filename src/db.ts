@@ -9,6 +9,7 @@ interface Tag {
 
 interface Mark {
   id: number;
+  status: boolean;
   imgPath: string;
   content: string;
   description: string;
@@ -34,7 +35,7 @@ const db = new Dexie('note-db') as Dexie & {
 
 db.version(1).stores({
   tags: '++id, name&, total, createdAt',
-  marks: '++id, imgPath, content, description, tag, keywords, createdAt',
+  marks: '++id, status, imgPath, content, description, tag, keywords, createdAt',
   notes: '++id, title, content, markIds, tag, createdAt'
 });
 

@@ -2,7 +2,14 @@
   <v-row v-if="marks?.length">
     <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card class="mb-2">
-        <v-img height="200px" :src="item.imgPath" cover></v-img>
+        <v-img height="200px" :src="item.imgPath" cover>
+          <v-checkbox
+            class="absolute top-0 right-2"
+            v-model="item.status"
+            color="primary"
+            @click="changeStatus(item)"
+          ></v-checkbox>
+        </v-img>
         <div class="p-4">
           <v-chip-group>
             <v-chip size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
@@ -112,6 +119,13 @@ onMounted(async () => {
 // 修改 mark tag
 async function changeTag(mark: Mark, tag: Tag) {
   await db.marks.update(mark.id, { tag: tag.id })
+  emitter.emit('refresh')
+}
+
+// 修改 mark status
+async function changeStatus(mark: Mark) {
+  console.log(mark);
+  await db.marks.update(mark.id, { status: !mark.status })
   emitter.emit('refresh')
 }
 

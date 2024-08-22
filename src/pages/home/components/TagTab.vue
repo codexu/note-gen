@@ -1,16 +1,25 @@
 <template>
-  <v-tabs
-    v-model="checked"
-    align-tabs="title"
-    @update:model-value="segmentedChange"
-  >
-    <v-tab
-      v-for="item in tags"
-      :key="item.id"
-      :text="`${item.name}`"
-      :value="item.id"
-    ></v-tab>
-  </v-tabs>
+  <div class="w-full flex items-center justify-between">
+    <v-tabs
+      v-model="checked"
+      align-tabs="title"
+      show-arrows
+      @update:model-value="segmentedChange"
+    >
+      <v-tab
+        v-for="item in tags"
+        :key="item.id"
+        :value="item.id"
+      >
+      {{ item.name }}
+      <v-icon v-if="item.name !== DEFAULT_TAG_NAME && isEditing" @click="deleteTag(item)" class="ml-2" icon="mdi-close"></v-icon>
+      </v-tab>
+    </v-tabs>
+    <v-btn icon @click="handleEdit" v-tooltip="'编辑标签'">
+      <v-icon v-if="!isEditing">mdi-cog-outline</v-icon>
+      <v-icon v-else>mdi-cog-off-outline</v-icon>
+    </v-btn>
+  </div>
 </template>
 
 <script lang="ts" setup>
@@ -40,7 +49,7 @@ async function segmentedChange() {
 }
 
 // 创建默认标签
-const DEFAULT_TAG_NAME = '临时'
+const DEFAULT_TAG_NAME = '灵感'
 async function createDefaultTag() {
   const hasTag = await db.tags.where({ name: DEFAULT_TAG_NAME }).count()
   if (!hasTag) {
@@ -53,10 +62,22 @@ async function createDefaultTag() {
   }
 }
 
+emitter.on('refresh', queryTags)
+
 onMounted(async () => {
   await createDefaultTag();
   queryTags();
 })
+
+const isEditing = ref(false)
+function handleEdit() {
+  isEditing.value = !isEditing.value
+}
+
+async function deleteTag(tag: Tag) {
+  await db.tags.delete(tag.id)
+  queryTags()
+}
 </script>
 
 <style lang="scss" scoped>

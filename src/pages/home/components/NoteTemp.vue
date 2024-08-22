@@ -35,19 +35,20 @@
   </v-row>
   <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
-      headline="Welcome,"
-      title="暂时还没有任何记录"
+      headline="暂无记录"
+      :title="`${currentTagName}标签中还没有任何记录`"
       text="赶快去截图生成一条 Mark 吧！"
     >
       <template v-slot:media>
-        <v-icon icon="mdi-monitor-screenshot"></v-icon>
+        <v-icon icon="mdi-information-outline" class="mb-2"></v-icon>
       </template>
     </v-empty-state>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref} from 'vue';
+import { computed, onMounted, ref} from 'vue';
+import { useStorage } from '@vueuse/core';
 import { db, Tag, type Mark } from '../../../db.ts'
 import storage from 'store'
 import emitter from '../../../emitter.ts'
@@ -64,10 +65,10 @@ dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
 const marks = ref<Mark[]>()
+const currentTag = useStorage('currentTag', storage.get('currentTag'))
 
 async function getMarks() {
-  const currentTag = storage.get('currentTag')
-  const result = await db.marks.where({ tag: currentTag }).toArray()
+  const result = await db.marks.where({ tag: currentTag.value }).toArray()
   marks.value = await Promise.all(result.map(async (mark) => {
     let imgPath = ''
     try {
@@ -84,12 +85,17 @@ async function getMarks() {
 }
 
 // 获取所有标签
+const allTags = ref<Tag[]>([])
 const tags = ref<Tag[]>([])
 async function queryTags() {
   const res = await db.tags.toArray()
-  const currentTag = storage.get('currentTag')
-  tags.value = res.filter(item => item.id !== currentTag)
+  allTags.value = res
+  tags.value = res.filter(item => item.id !== currentTag.value)
 }
+
+const currentTagName = computed(() => {
+  return allTags.value.find(item => item.id === currentTag.value)?.name
+})
 
 emitter.on('refresh', listenRefresh)
 

@@ -130,7 +130,7 @@ async function notificationScreenshot() {
     permissionGranted = permission === 'granted';
   }
   if (permissionGranted) {
-    sendNotification({ title: '记点儿', body: '截图成功' });
+    sendNotification({ title: 'NoteGen', body: '截图成功' });
   }
 }
 

@@ -6,7 +6,6 @@
       <v-spacer></v-spacer>
       <v-btn icon="mdi-magnify"></v-btn>
       <Screenshot />
-      <TagAdd />
       <CreateNote />
       <template v-slot:extension>
         <TagTab />
@@ -24,7 +23,6 @@ import NoteTemp from "./components/NoteTemp.vue";
 // import ScreenshotStatus from "./components/ScreenshotStatus.vue";
 import Screenshot from "../../components/Screenshot.vue";
 import TagTab from './components/TagTab.vue'
-import TagAdd from './components/TagAdd.vue'
 import CreateNote from './components/CreateNote.vue'
 </script>
 

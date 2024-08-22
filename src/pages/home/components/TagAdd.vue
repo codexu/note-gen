@@ -7,8 +7,9 @@
     </template>
   </v-tooltip>
   <v-text-field
+    class="min-w-60"
     v-if="showInput"
-    v-tooltip:bottom="'创建的标签将在下方可见'"
+    append-inner-icon="mdi-check"
     type="text"
     label="标签名"
     variant="underlined"
@@ -16,8 +17,8 @@
     autofocus
     hide-details
     v-model="model"
-    @update:focused="handleFocus"
-    clearable
+    @keydown.enter="handleSubmit"
+    @click:append-inner="handleSubmit()"
   ></v-text-field>
   <v-snackbar :timeout="2000" v-model="snackbar">
     标签创建失败（可能重复创建）。
@@ -26,9 +27,11 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
+import { useStorage } from '@vueuse/core';
 import {db} from '../../../db.ts';
 import emitter from '../../../emitter.ts'
 
+const currentTag = useStorage('currentTag', 0)
 const showInput = ref(false)
 const model = ref('')
 const snackbar = ref(false)
@@ -37,20 +40,21 @@ function create() {
   showInput.value = true
 }
 
-async function handleFocus(isFocused: boolean) {
-  if (isFocused) return;
+async function handleSubmit(event?: KeyboardEvent) {
+  event?.preventDefault()
   if (model.value.length) {
-    await db.tags.add({
+    const tagId = await db.tags.add({
       name: model.value,
       createdAt: new Date().getTime()
-    })
-    .then(() => {
-      emitter.emit('refresh')
     })
     .catch(() => {
       snackbar.value = true
     })
-    model.value = ''
+    if (tagId) {
+      currentTag.value = tagId
+      emitter.emit('refresh')
+      model.value = ''
+    }
   }
   showInput.value = false
 }

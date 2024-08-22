@@ -1,6 +1,7 @@
 <template>
   <div class="w-full flex items-center justify-between">
     <v-tabs
+      class="flex-1"
       v-model="checked"
       align-tabs="title"
       show-arrows
@@ -12,18 +13,27 @@
         :value="item.id"
       >
       {{ item.name }}
-      <v-icon v-if="item.name !== DEFAULT_TAG_NAME && isEditing" @click="deleteTag(item)" class="ml-2" icon="mdi-close"></v-icon>
+      <v-icon
+        v-if="item.name !== DEFAULT_TAG_NAME && isEditing"
+        @click="deleteTag(item, $event)"
+        class="ml-2"
+        icon="mdi-close"
+      ></v-icon>
       </v-tab>
     </v-tabs>
-    <v-btn icon @click="handleEdit" v-tooltip="'编辑标签'">
-      <v-icon v-if="!isEditing">mdi-cog-outline</v-icon>
-      <v-icon v-else>mdi-cog-off-outline</v-icon>
-    </v-btn>
+    <div class="flex pr-1">
+      <TagAdd />
+      <v-btn icon @click="handleEdit" v-tooltip="'编辑标签'">
+        <v-icon v-if="!isEditing">mdi-cog-outline</v-icon>
+        <v-icon v-else>mdi-cog-off-outline</v-icon>
+      </v-btn>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { useStorage } from '@vueuse/core'
+import TagAdd from './TagAdd.vue'
 import emitter from '../../../emitter.ts'
 import { db, type Tag } from '../../../db.ts';
 import { nextTick, onMounted, ref } from 'vue';
@@ -74,9 +84,14 @@ function handleEdit() {
   isEditing.value = !isEditing.value
 }
 
-async function deleteTag(tag: Tag) {
+async function deleteTag(tag: Tag, event: Event) {
+  event.stopPropagation()
   await db.tags.delete(tag.id)
-  queryTags()
+  await queryTags()
+  if (checked.value === tag.id) {
+    checked.value = tags.value[0].id
+    emitter.emit('refresh')
+  }
 }
 </script>
 

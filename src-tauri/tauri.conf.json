@@ -35,8 +35,8 @@
     },
     "windows": [
       {
-        "title": "记点儿",
-        "width": 1024,
+        "title": "NoteGen",
+        "width": 1280,
         "height": 800
       }
     ],

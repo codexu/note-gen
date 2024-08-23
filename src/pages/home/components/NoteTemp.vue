@@ -1,11 +1,11 @@
 <template>
   <v-row v-if="marks?.length">
     <ScreenshotStatus />
-    <v-col v-for="item in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
+    <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card>
-        <div class="h-48 overflow-hidden">
+        <div class="overflow-hidden">
           <v-img
-            :height="192"
+            @click="showImageViewer(index)"
             :aspect-ratio="2"
             class="h-full cursor-pointer hover:scale-125 duration-1000 transition-transform"
             :lazy-src="item.imgPath"
@@ -60,6 +60,7 @@
       </v-card>
     </v-col>
   </v-row>
+  <!-- 暂无记录 -->
   <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
       headline="暂无记录"
@@ -71,6 +72,8 @@
       </template>
     </v-empty-state>
   </div>
+  <!-- 图片预览 -->
+  <ImageViewer v-if="marks" :src="marks[imageViewerMarkIndex].imgPath" v-model:visible="isShowImageViewer" />
 </template>
 
 <script lang="ts" setup>
@@ -85,6 +88,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
 import { Empty } from 'ant-design-vue';
 import ScreenshotStatus from "./ScreenshotStatus.vue";
+import ImageViewer from '../../../components/ImageViewer.vue';
 
 import useStore from '../../../store.ts'
 
@@ -160,6 +164,15 @@ async function deleteMark(mark: Mark) {
 // 计算时间以前
 function timeAgo(time: number) {
   return dayjs(time).fromNow()
+}
+
+// 图片预览
+const isShowImageViewer = ref(false)
+const imageViewerMarkIndex = ref(0)
+
+function showImageViewer(index: number) {
+  isShowImageViewer.value = true
+  imageViewerMarkIndex.value = index
 }
 </script>
 

@@ -6,8 +6,8 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "NoteGen",
-    "version": "0.2.1"
+    "productName": "note_gen",
+    "version": "0.1.0"
   },
   "tauri": {
     "allowlist": {
@@ -19,9 +19,6 @@
       "fs": {
         "all": true,
         "scope": ["**"]
-      },
-      "globalShortcut": {
-        "all": true
       },
       "path": {
         "all": true
@@ -50,7 +47,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.codexu.NoteGen",
+      "identifier": "com.codexu.note.gen",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

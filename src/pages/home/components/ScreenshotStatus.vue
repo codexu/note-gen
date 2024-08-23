@@ -29,7 +29,7 @@
         <v-chip-group v-else class="mt-4 ml-4">
           <v-chip size="small" v-for="keyword in screenshot.keywords" :key="keyword">{{ keyword }}</v-chip>
         </v-chip-group>
-        <div v-if="!screenshot.description.length" class="px-4 mt-4 mb-2">
+        <div v-if="!screenshot.description.length" class="px-4 mt-4 pt-1 mb-2">
           <v-skeleton-loader
             type="list-item-two-line"
           ></v-skeleton-loader>

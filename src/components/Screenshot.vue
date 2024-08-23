@@ -8,11 +8,9 @@ import storage from 'store'
 import { db } from '../db.ts';
 import emitter from '../emitter.ts';
 import { createWorker } from 'tesseract.js';
-import { readBinaryFile, BaseDirectory, writeBinaryFile } from '@tauri-apps/api/fs'
+import { readBinaryFile } from '@tauri-apps/api/fs'
 import { listen } from '@tauri-apps/api/event'
-import { appDataDir } from '@tauri-apps/api/path';
 import dayjs from 'dayjs';
-import imageCompression from 'browser-image-compression';
 import useStore, { ScreenshotListStatus } from '../store.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,9 +20,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from '@tauri
 const store = useStore()
 
 async function screenshot() {
-
   const id = uuidv4()
-
   const tagId = storage.get('currentTag')
 
   const result: ScreenshotListStatus = {
@@ -40,43 +36,23 @@ async function screenshot() {
   store.screenshotList.unshift(clone(result))
 
   try {
-    const base64img = await invoke("screenshot_base64") as string;
+    const path = await invoke("screenshot_path") as string;
     await notificationScreenshot()
-    const buffer = base64ToArrayBuffer(base64img)
-    const blob = new Blob([buffer], { type: 'image/png' });
+    const imgUint8Array = await readBinaryFile(path);
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
     const fileName = `${now}.png`;
-    const file = new File([blob], fileName, { type: 'image/png' });
-
-    result.screenshotProgress = '压缩图片'
-    store.updateStatus(clone(result))
-    const options = {
-      maxSizeMB: 0.7,
-      maxWidthOrHeight: 1280,
-    };
-    const compressedFile = await imageCompression(file, options);
-    const bufferCompressed = await compressedFile.arrayBuffer();
-
-    result.screenshotProgress = '保存截图'
-
-    store.updateStatus(clone(result))
-    await writeBinaryFile(fileName, bufferCompressed, {
-      dir: BaseDirectory.AppConfig
-    });
-    const appDataDirPath = await appDataDir();
-    const path = `${appDataDirPath}/${fileName}`;
+    const file = new File([imgUint8Array], fileName)
+    const imgUrl = URL.createObjectURL(new Blob([imgUint8Array], { type: 'image/jpeg' }));
     
-    const imgFile = await readBinaryFile(path);
-    const imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
-    result.path = imgPath
+    // 文字识别
+    result.path = imgUrl
     result.screenshotProgress = '识别文字'
-
     store.updateStatus(clone(result))
     const worker = await createWorker(['chi_sim', 'eng']);
-    const { data } = await worker.recognize(imgFile);
-
+    const { data } = await worker.recognize(file);
     const content = data.text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
 
+    // 分析关键词
     result.screenshotProgress = '分析关键词'
     store.updateStatus(clone(result))
     const keywords = await invoke("cut_words", {
@@ -84,13 +60,14 @@ async function screenshot() {
     }) as string[]
     result.keywords = keywords
 
+    // 分析内容，提取描述
     result.screenshotProgress = '提取内容'
     store.updateStatus(clone(result))
     const description = await takeDescription(data.text)
     result.description = description
 
+    // 保存
     const currentTag = storage.get('currentTag')
-
     result.screenshotProgress = '保存记录'
     store.updateStatus(clone(result))
     await db.marks.add({
@@ -105,22 +82,13 @@ async function screenshot() {
     store.complete(id)
     emitter.emit('refresh')
   } catch (error) {
+    console.error(error);
     result.screenshotProgress = '截图失败'
     store.updateStatus(clone(result))
     setTimeout(() => {
       store.complete(id)
     }, 5000);
   }
-}
-
-function base64ToArrayBuffer(base64: string) {
-  var binary_string = atob(base64);
-  var len = binary_string.length;
-  var bytes = new Uint8Array(len);
-  for (var i = 0; i < len; i++) {
-    bytes[i] = binary_string.charCodeAt(i);
-  }
-  return bytes.buffer;
 }
 
 // 提取识别文字里的重要内容

@@ -1,5 +1,5 @@
 <template>
-  <v-row v-if="marks?.length">
+  <v-row v-if="marks?.length && !loading">
     <ScreenshotStatus />
     <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card>
@@ -61,7 +61,7 @@
     </v-col>
   </v-row>
   <!-- 暂无记录 -->
-  <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!store.screenshotList.length && !loading" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
       headline="暂无记录"
       :title="`${currentTagName}标签中还没有任何记录`"
@@ -72,8 +72,11 @@
       </template>
     </v-empty-state>
   </div>
+  <div v-else class="h-48 w-80 mx-auto">
+    <v-progress-linear indeterminate></v-progress-linear>
+  </div>
   <!-- 图片预览 -->
-  <ImageViewer v-if="marks" :src="marks[imageViewerMarkIndex].imgPath" v-model:visible="isShowImageViewer" />
+  <ImageViewer v-if="marks && marks[imageViewerMarkIndex]" :src="marks[imageViewerMarkIndex].imgPath" v-model:visible="isShowImageViewer" />
 </template>
 
 <script lang="ts" setup>
@@ -94,6 +97,8 @@ import useStore from '../../../store.ts'
 
 const store = useStore()
 
+const loading = ref(false)
+
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
@@ -101,6 +106,7 @@ const marks = ref<Mark[]>()
 const currentTag = useStorage('currentTag', storage.get('currentTag'))
 
 async function getMarks() {
+  loading.value = true
   const result = await db.marks.where({ tag: currentTag.value }).toArray()
   marks.value = await Promise.all(result.map(async (mark) => {
     let imgPath = ''
@@ -115,6 +121,7 @@ async function getMarks() {
       imgPath: imgPath
     }
   }).reverse())
+  loading.value = false
 }
 
 // 获取所有标签

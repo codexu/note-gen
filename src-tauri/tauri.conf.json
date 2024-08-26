@@ -28,6 +28,10 @@
       },
       "notification": {
         "all": true
+      },
+      "protocol": {
+        "asset": true,
+        "assetScope": ["$APPDATA/**"]
       }
     },
     "windows": [

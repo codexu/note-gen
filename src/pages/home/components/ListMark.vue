@@ -1,9 +1,9 @@
 <template>
   <v-row v-if="marks?.length && !loading">
-    <ScreenshotStatus />
+    <CreativeMark />
     <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
       <v-card>
-        <div class="overflow-hidden">
+        <div class="overflow-hidden h-48">
           <v-img
             @click="showImageViewer(index)"
             :aspect-ratio="2"
@@ -82,16 +82,15 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref} from 'vue';
 import { useStorage } from '@vueuse/core';
-import { db, Tag, type Mark } from '../../../db.ts'
 import storage from 'store'
 import emitter from '../../../emitter.ts'
-import { readBinaryFile } from '@tauri-apps/api/fs'
+import { convertFileSrc } from '@tauri-apps/api/tauri';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
-import { Empty } from 'ant-design-vue';
-import ScreenshotStatus from "./ScreenshotStatus.vue";
+import { db, Tag, type Mark } from '../../../db.ts'
 import ImageViewer from '../../../components/ImageViewer.vue';
+import CreativeMark from "./CreativeMark.vue";
 
 import useStore from '../../../store.ts'
 
@@ -107,20 +106,11 @@ const currentTag = useStorage('currentTag', storage.get('currentTag'))
 
 async function getMarks() {
   loading.value = true
-  const result = await db.marks.where({ tag: currentTag.value }).toArray()
-  marks.value = await Promise.all(result.map(async (mark) => {
-    let imgPath = ''
-    try {
-      const imgFile = await readBinaryFile(mark.imgPath);
-      imgPath = URL.createObjectURL(new Blob([imgFile], { type: 'image/jpeg' }));
-    } catch (error) {
-      imgPath = Empty.PRESENTED_IMAGE_SIMPLE;
-    }
-    return {
-      ...mark,
-      imgPath: imgPath
-    }
-  }).reverse())
+  const res = await db.marks.where({ tag: currentTag.value }).toArray()
+  marks.value = res.map(mark => ({
+    ...mark,
+    imgPath: convertFileSrc(mark.imgPath)
+  })).reverse()
   loading.value = false
 }
 

@@ -8,22 +8,22 @@
       <v-spacer></v-spacer>
       <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
       <Screenshot />
-      <CreateNote />
+      <NoteCreate />
       <template v-slot:extension>
         <TagTab />
       </template>
     </v-app-bar>
   </v-card>
   <div class="note-wrap p-6 bg-gray-50">
-    <NoteTemp />
+    <ListMark />
   </div>
 </template>
 
 <script setup lang="ts">
-import NoteTemp from "./components/NoteTemp.vue";
+import ListMark from "./components/ListMark.vue";
 import Screenshot from "../../components/Screenshot.vue";
 import TagTab from './components/TagTab.vue'
-import CreateNote from './components/CreateNote.vue'
+import NoteCreate from './components/NoteCreate.vue'
 </script>
 
 <style>

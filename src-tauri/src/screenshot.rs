@@ -6,7 +6,7 @@ pub fn screenshot_path() -> String {
     let main_monitor = monitors.get(0).unwrap();
     let image = main_monitor.capture_image().unwrap();
     // 获取app目录
-    let app_dir = tauri::api::path::data_dir().unwrap().join("note.gen");
+    let app_dir = tauri::api::path::data_dir().unwrap().join("com.codexu.note.gen");
     // 判断 app_dir/note.gen 是否存在，不存在则创建
     if !app_dir.clone().exists() {
         let _ = std::fs::create_dir(app_dir.clone());

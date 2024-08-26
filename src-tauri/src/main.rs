@@ -5,6 +5,8 @@ mod screenshot;
 use screenshot::screenshot_path;
 mod keyword;
 use keyword::cut_words;
+mod ocr;
+use ocr::lt_ocr;
 
 use tauri::{CustomMenuItem, Manager, SystemTray, SystemTrayEvent};
 use tauri::SystemTrayMenu;
@@ -33,7 +35,7 @@ fn main() {
               }
             _ => {}
         })
-        .invoke_handler(tauri::generate_handler![screenshot_path, cut_words])
+        .invoke_handler(tauri::generate_handler![screenshot_path, cut_words, lt_ocr])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -7,10 +7,8 @@ import { onMounted } from "vue";
 import storage from 'store'
 import { db } from '../db.ts';
 import emitter from '../emitter.ts';
-import { createWorker } from 'tesseract.js';
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { listen } from '@tauri-apps/api/event'
-import dayjs from 'dayjs';
 import useStore, { ScreenshotListStatus } from '../store.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
@@ -36,21 +34,17 @@ async function screenshot() {
   store.screenshotList.unshift(clone(result))
 
   try {
-    const path = await invoke("screenshot_path") as string;
+    const path = await invoke<string>("screenshot_path");
     await notificationScreenshot()
     const imgUint8Array = await readBinaryFile(path);
-    const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-    const fileName = `${now}.png`;
-    const file = new File([imgUint8Array], fileName)
     const imgUrl = URL.createObjectURL(new Blob([imgUint8Array], { type: 'image/jpeg' }));
     
     // 文字识别
     result.path = imgUrl
     result.screenshotProgress = '识别文字'
     store.updateStatus(clone(result))
-    const worker = await createWorker(['chi_sim', 'eng']);
-    const { data } = await worker.recognize(file);
-    const content = data.text.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
+    const content = await invoke<string>("lt_ocr", { path });
+    console.log(content);
 
     // 分析关键词
     result.screenshotProgress = '分析关键词'
@@ -63,7 +57,7 @@ async function screenshot() {
     // 分析内容，提取描述
     result.screenshotProgress = '提取内容'
     store.updateStatus(clone(result))
-    const description = await takeDescription(data.text)
+    const description = await takeDescription(content)
     result.description = description
 
     // 保存

@@ -1,8 +1,16 @@
 <template>
-  <v-row v-if="marks?.length && !loading">
+  <v-row v-if="marks?.length">
     <CreativeMark />
-    <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="12" md="6" lg="4" xl="3" xxl="1">
-      <v-card>
+    <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1">
+      <v-card :loading="loading">
+        <template v-slot:loader="{ isActive }">
+          <v-progress-linear
+            :active="isActive"
+            color="deep-purple"
+            height="4"
+            indeterminate
+          ></v-progress-linear>
+        </template>
         <div class="overflow-hidden h-48">
           <v-img
             @click="showImageViewer(index)"
@@ -22,10 +30,10 @@
         </div>
         <v-card-text>
           <v-chip-group>
-            <v-chip size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
+            <v-chip label size="small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
           </v-chip-group>
           <!-- 最多3行文字 -->
-          <p class="text-sm leading-6 mt-2 h-12 line-clamp-2">{{ item.description }}</p>
+          <p class="text-sm leading-6 mt-2 h-12 line-clamp-2" v-tooltip="item.description">{{ item.description }}</p>
         </v-card-text>
         <v-divider></v-divider>
         <v-card-actions class="flex justify-between">
@@ -41,13 +49,25 @@
                   v-bind="props"
                 ></v-btn>
               </template>
-              <v-list>
+              <v-list density="compact">
+                <v-list-subheader>选择要转移到的标签</v-list-subheader>
                 <v-list-item
                   v-for="(tag, index) in tags"
                   :key="index"
                   :value="index"
                 >
-                  <v-list-item-title @click="changeTag(item, tag)">{{ tag.name }}</v-list-item-title>
+                  <template v-slot:prepend>
+                    <v-icon icon="mdi-tab"></v-icon>
+                  </template>
+                  <template v-slot:append>
+                    <v-badge
+                      color="error"
+                      inline
+                    ></v-badge>
+                  </template>
+                  <v-list-item-title @click="changeTag(item, tag)" class="min-w-48">
+                    {{ tag.name }}
+                  </v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-menu>
@@ -61,7 +81,7 @@
     </v-col>
   </v-row>
   <!-- 暂无记录 -->
-  <div v-else-if="!store.screenshotList.length && !loading" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
       headline="暂无记录"
       :title="`${currentTagName}标签中还没有任何记录`"
@@ -71,9 +91,6 @@
         <v-icon icon="mdi-information-outline" class="mb-2"></v-icon>
       </template>
     </v-empty-state>
-  </div>
-  <div v-else class="h-48 w-80 mx-auto">
-    <v-progress-linear indeterminate></v-progress-linear>
   </div>
   <!-- 图片预览 -->
   <ImageViewer v-if="marks && marks[imageViewerMarkIndex]" :src="marks[imageViewerMarkIndex].imgPath" v-model:visible="isShowImageViewer" />
@@ -107,11 +124,11 @@ const currentTag = useStorage('currentTag', storage.get('currentTag'))
 async function getMarks() {
   loading.value = true
   const res = await db.marks.where({ tag: currentTag.value }).toArray()
+  loading.value = false
   marks.value = res.map(mark => ({
     ...mark,
     imgPath: convertFileSrc(mark.imgPath)
   })).reverse()
-  loading.value = false
 }
 
 // 获取所有标签

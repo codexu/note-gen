@@ -1,19 +1,17 @@
 <template>
-  <v-card>
-    <v-app-bar color="primary">
-      <v-app-bar-title>
-        <v-icon size="small" icon="mdi-notebook-multiple" class="-translate-y-0.5"></v-icon>
-        <span class="ml-4">NoteGen</span>
-      </v-app-bar-title>
-      <v-spacer></v-spacer>
-      <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
-      <Screenshot />
-      <NoteCreate />
-      <template v-slot:extension>
-        <TagTab />
-      </template>
-    </v-app-bar>
-  </v-card>
+  <v-app-bar color="primary">
+    <v-app-bar-title>
+      <v-icon size="small" icon="mdi-notebook-multiple" class="-translate-y-0.5"></v-icon>
+      <span class="ml-4">NoteGen</span>
+    </v-app-bar-title>
+    <v-spacer></v-spacer>
+    <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
+    <Screenshot />
+    <NoteCreate />
+    <template v-slot:extension>
+      <TagTab />
+    </template>
+  </v-app-bar>
   <div class="note-wrap p-6 bg-gray-50">
     <ListMark />
   </div>

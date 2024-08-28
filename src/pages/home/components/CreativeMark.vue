@@ -1,5 +1,9 @@
 <template>
-  <v-col v-for="screenshot in store.screenshotList" :key="screenshot.id" cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1">
+  <v-col
+    v-for="screenshot in screenshotStore.screenshotList"
+    :key="screenshot.id"
+    cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1"
+  >
     <v-card>
       <template v-slot:loader>
         <v-progress-linear
@@ -62,9 +66,9 @@
 </template>
 
 <script lang="ts" setup>
-import useStore from '../../../store.ts'
+import useScreenshotStore from '../../../stores/screenshot.ts'
 
-const store = useStore()
+const screenshotStore = useScreenshotStore()
 </script>
 
 <style lang="scss" scoped>

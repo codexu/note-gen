@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 
-interface Tag {
+interface Tab {
   id: number;
   name: string;
   total?: number;
@@ -13,7 +13,7 @@ interface Mark {
   imgPath: string;
   content: string;
   description: string;
-  tag: number;
+  tab: number;
   keywords: string[];
   createdAt: number;
 }
@@ -23,21 +23,21 @@ interface Note {
   title: string;
   content: string;
   markIds: number[];
-  tag: number;
+  tab: number;
   createdAt: number;
 }
 
 const db = new Dexie('note-db') as Dexie & {
-  tags: EntityTable<Tag, 'id'>;
+  tabs: EntityTable<Tab, 'id'>;
   marks: EntityTable<Mark, 'id'>;
   notes: EntityTable<Note, 'id'>;
 };
 
 db.version(1).stores({
-  tags: '++id, name&, total, createdAt',
-  marks: '++id, status, imgPath, content, description, tag, keywords, createdAt',
-  notes: '++id, title, content, markIds, tag, createdAt'
+  tabs: '++id, name&, total, createdAt',
+  marks: '++id, status, imgPath, content, description, tab, keywords, createdAt',
+  notes: '++id, title, content, markIds, tab, createdAt'
 });
 
-export type { Tag, Mark, Note };
+export type { Tab, Mark, Note };
 export { db };

@@ -26,12 +26,12 @@ import 'md-editor-v3/lib/style.css';
 
 const loading = ref<boolean>(false)
 const content = ref<string>('');
-const currentTag = store.get('currentTag');
+const currentTab = store.get('currentTab');
 const marks = ref<Mark[]>([])
 const note = ref<Note | undefined>(undefined)
 
 async function getMarks() {
-  return await db.marks.where({ tag: currentTag }).toArray()
+  return await db.marks.where({ tab: currentTab }).toArray()
 }
 
 function saveNote() {
@@ -49,7 +49,7 @@ function saveNote() {
       title,
       content: content.value,
       markIds,
-      tag: currentTag,
+      tab: currentTab,
       createdAt: new Date().getTime()
     })
   }
@@ -89,7 +89,7 @@ function createNote() {
 
 async function getNote() {
   const markLastCreatedAt = Math.max(...marks.value.map(item => item.createdAt))
-  note.value = await db.notes.where({ tag: currentTag }).first()
+  note.value = await db.notes.where({ tab: currentTab }).first()
   if (note.value && note.value.createdAt > markLastCreatedAt) {
     content.value = note.value.content
     loading.value = false

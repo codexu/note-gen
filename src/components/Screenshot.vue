@@ -9,21 +9,21 @@ import { db } from '../db.ts';
 import emitter from '../emitter.ts';
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { listen } from '@tauri-apps/api/event'
-import useStore, { ScreenshotListStatus } from '../store.ts'
+import useScreenshotStore, { ScreenshotListStatus } from '../stores/screenshot.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
 import { clone, debounce } from 'lodash'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
 
-const store = useStore()
+const screenshotStore = useScreenshotStore()
 
 async function screenshot() {
   const id = uuidv4()
-  const tagId = storage.get('currentTag')
+  const tabId = storage.get('currentTab')
 
   const result: ScreenshotListStatus = {
     id,
-    tagId,
+    tabId,
     path: '',
     keywords: [],
     description: '',
@@ -31,7 +31,7 @@ async function screenshot() {
     screenshotProgress: '截图',
   }
 
-  store.screenshotList.unshift(clone(result))
+  screenshotStore.screenshotList.unshift(clone(result))
 
   try {
     const path = await invoke<string>("screenshot_path");
@@ -42,13 +42,12 @@ async function screenshot() {
     // 文字识别
     result.path = imgUrl
     result.screenshotProgress = '识别文字'
-    store.updateStatus(clone(result))
+    screenshotStore.updateStatus(clone(result))
     const content = await invoke<string>("lt_ocr", { path });
-    console.log(content);
 
     // 分析关键词
     result.screenshotProgress = '分析关键词'
-    store.updateStatus(clone(result))
+    screenshotStore.updateStatus(clone(result))
     const keywords = await invoke("cut_words", {
       str: content
     }) as string[]
@@ -56,31 +55,31 @@ async function screenshot() {
 
     // 分析内容，提取描述
     result.screenshotProgress = '提取内容'
-    store.updateStatus(clone(result))
+    screenshotStore.updateStatus(clone(result))
     const description = await takeDescription(content)
     result.description = description
 
     // 保存
-    const currentTag = storage.get('currentTag')
+    const currentTab = storage.get('currentTab')
     result.screenshotProgress = '保存记录'
-    store.updateStatus(clone(result))
+    screenshotStore.updateStatus(clone(result))
     await db.marks.add({
       imgPath: path,
       status: true,
       content,
       description,
-      tag: currentTag,
+      tab: currentTab,
       keywords,
       createdAt: new Date().getTime()
     })
-    store.complete(id)
+    screenshotStore.complete(id)
     emitter.emit('refresh')
   } catch (error) {
     console.error(error);
     result.screenshotProgress = '截图失败'
-    store.updateStatus(clone(result))
+    screenshotStore.updateStatus(clone(result))
     setTimeout(() => {
-      store.complete(id)
+      screenshotStore.complete(id)
     }, 5000);
   }
 }

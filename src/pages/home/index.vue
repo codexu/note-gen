@@ -9,7 +9,7 @@
     <Screenshot />
     <NoteCreate />
     <template v-slot:extension>
-      <TagTab />
+      <TabTab />
     </template>
   </v-app-bar>
   <div class="note-wrap p-6 bg-gray-50">
@@ -20,7 +20,7 @@
 <script setup lang="ts">
 import ListMark from "./components/ListMark.vue";
 import Screenshot from "../../components/Screenshot.vue";
-import TagTab from './components/TagTab.vue'
+import TabTab from './components/TabTab.vue'
 import NoteCreate from './components/NoteCreate.vue'
 </script>
 

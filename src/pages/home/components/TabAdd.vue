@@ -23,11 +23,10 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
-import { useStorage } from '@vueuse/core';
-import {db} from '../../../db.ts';
-import emitter from '../../../emitter.ts'
+import useTabStore from '../../../stores/tab.ts'
 
-const currentTag = useStorage('currentTag', 0)
+const tabStore = useTabStore()
+
 const showInput = ref(false)
 const model = ref('')
 const snackbar = ref(false)
@@ -39,19 +38,15 @@ function create() {
 async function handleSubmit(event?: KeyboardEvent) {
   event?.preventDefault()
   if (model.value.length) {
-    const tagId = await db.tags.add({
-      name: model.value,
-      createdAt: new Date().getTime()
-    })
-    .catch(() => {
-      snackbar.value = true
-    })
-    if (tagId) {
-      currentTag.value = tagId
-      emitter.emit('refresh')
+    const tabId = await tabStore.createTab(model.value)
+    if (tabId) {
       model.value = ''
+      showInput.value = false
+    } else {
+      snackbar.value = true
     }
+  } else {
+    showInput.value = false
   }
-  showInput.value = false
 }
 </script>

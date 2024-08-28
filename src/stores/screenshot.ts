@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 export interface ScreenshotListStatus {
   id: string
-  tagId: number
+  tabId: number
   path: string
   keywords: string[]
   description: string;
@@ -11,7 +11,7 @@ export interface ScreenshotListStatus {
   screenshotProgress: string
 }
 
-export default defineStore('store', () => {
+export default defineStore('screenshotStore', () => {
   // 截图进度
   const screenshotList = ref<ScreenshotListStatus[]>([])
 
@@ -29,8 +29,6 @@ export default defineStore('store', () => {
   function complete(id: string) {
     screenshotList.value = screenshotList.value.filter(item => item.id !== id)
   }
-
-  // Tabs 管理
 
   return {
     screenshotList,

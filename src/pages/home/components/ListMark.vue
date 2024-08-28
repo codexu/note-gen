@@ -15,8 +15,7 @@
           <v-img
             @click="showImageViewer(index)"
             :aspect-ratio="2"
-            class="h-full cursor-pointer hover:scale-125 duration-1000 transition-transform"
-            :lazy-src="item.imgPath"
+            class="h-full cursor-pointer hover:scale-105 duration-1000 transition-transform"
             :src="item.imgPath"
             cover
           >
@@ -44,7 +43,7 @@
                 <v-btn
                   size="small"
                   color="primary"
-                  :disabled="tags.length === 0"
+                  :disabled="tabs.length === 0"
                   icon="mdi-swap-horizontal"
                   v-bind="props"
                 ></v-btn>
@@ -52,9 +51,10 @@
               <v-list density="compact">
                 <v-list-subheader>选择要转移到的标签</v-list-subheader>
                 <v-list-item
-                  v-for="(tag, index) in tags"
+                  v-for="(tab, index) in tabs"
                   :key="index"
                   :value="index"
+                  :disabled="tab.id === checked"
                 >
                   <template v-slot:prepend>
                     <v-icon icon="mdi-tab"></v-icon>
@@ -63,10 +63,11 @@
                     <v-badge
                       color="error"
                       inline
+                      :content="tab.total"
                     ></v-badge>
                   </template>
-                  <v-list-item-title @click="changeTag(item, tag)" class="min-w-48">
-                    {{ tag.name }}
+                  <v-list-item-title @click="changeTab(item, tab)" class="min-w-48">
+                    {{ tab.name }}
                   </v-list-item-title>
                 </v-list-item>
               </v-list>
@@ -81,10 +82,10 @@
     </v-col>
   </v-row>
   <!-- 暂无记录 -->
-  <div v-else-if="!store.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!screenshotStore.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
       headline="暂无记录"
-      :title="`${currentTagName}标签中还没有任何记录`"
+      :title="`${checkedTabName}标签中还没有任何记录`"
       text="赶快去截图生成一条 Mark 吧！"
     >
       <template v-slot:media>
@@ -97,21 +98,24 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref} from 'vue';
-import { useStorage } from '@vueuse/core';
-import storage from 'store'
+import { ref, watch} from 'vue';
 import emitter from '../../../emitter.ts'
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
-import { db, Tag, type Mark } from '../../../db.ts'
+import { db, Tab, type Mark } from '../../../db.ts'
 import ImageViewer from '../../../components/ImageViewer.vue';
 import CreativeMark from "./CreativeMark.vue";
+import useTabStore from "../../../stores/tab.ts"
 
-import useStore from '../../../store.ts'
+import useScreenshotStore from '../../../stores/screenshot.ts'
+import { storeToRefs } from 'pinia';
 
-const store = useStore()
+const screenshotStore = useScreenshotStore()
+const tabStore = useTabStore()
+
+const { checked, tabs, checkedTabName } = storeToRefs(tabStore)
 
 const loading = ref(false)
 
@@ -119,54 +123,38 @@ dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
 const marks = ref<Mark[]>()
-const currentTag = useStorage('currentTag', storage.get('currentTag'))
 
 async function getMarks() {
   loading.value = true
-  const res = await db.marks.where({ tag: currentTag.value }).toArray()
-  loading.value = false
+  const res = await db.marks.where({ tab: checked.value }).toArray()
   marks.value = res.map(mark => ({
     ...mark,
     imgPath: convertFileSrc(mark.imgPath)
   })).reverse()
+  loading.value = false
 }
 
-// 获取所有标签
-const allTags = ref<Tag[]>([])
-const tags = ref<Tag[]>([])
-async function queryTags() {
-  const res = await db.tags.toArray()
-  allTags.value = res
-  tags.value = res.filter(item => item.id !== currentTag.value)
-}
+watch(checked, getMarks, { immediate: true })
 
-const currentTagName = computed(() => {
-  return allTags.value.find(item => item.id === currentTag.value)?.name
-})
-
-emitter.on('refresh', listenRefresh)
-
-async function listenRefresh() {
-  await queryTags()
-  await getMarks()
-}
-
-onMounted(async () => {
-  await queryTags()
-  await listenRefresh()
-})
-
-// 修改 mark tag
-async function changeTag(mark: Mark, tag: Tag) {
-  await db.marks.update(mark.id, { tag: tag.id })
-  emitter.emit('refresh')
+// 修改 mark tab
+async function changeTab(mark: Mark, tab: Tab) {
+  await db.marks.update(mark.id, { tab: tab.id })
+  // 当前标签 total - 1
+  const currentTab = tabs.value.find(item => item.id === checked.value)
+  if (currentTab) {
+    currentTab.total -= 1
+  }
+  // 修改标签 total
+  const targetTab = tabs.value.find(item => item.id === tab.id)
+  if (targetTab) {
+    targetTab.total += 1
+  }
+  getMarks()
 }
 
 // 修改 mark status
 async function changeStatus(mark: Mark) {
-  console.log(mark);
   await db.marks.update(mark.id, { status: !mark.status })
-  emitter.emit('refresh')
 }
 
 // 删除记录

@@ -1,6 +1,6 @@
 <template>
   <v-col
-    v-for="screenshot in screenshotStore.screenshotList"
+    v-for="screenshot in screenshotList"
     :key="screenshot.id"
     cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1"
   >
@@ -66,9 +66,11 @@
 </template>
 
 <script lang="ts" setup>
+import { storeToRefs } from 'pinia';
 import useScreenshotStore from '../../../stores/screenshot.ts'
 
 const screenshotStore = useScreenshotStore()
+const { screenshotList } = storeToRefs(screenshotStore)
 </script>
 
 <style lang="scss" scoped>

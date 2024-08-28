@@ -6,16 +6,23 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { onMounted } from "vue";
 import storage from 'store'
 import { db } from '../db.ts';
-import emitter from '../emitter.ts';
 import { readBinaryFile } from '@tauri-apps/api/fs'
 import { listen } from '@tauri-apps/api/event'
-import useScreenshotStore, { ScreenshotListStatus } from '../stores/screenshot.ts'
 import { Data, getCompletions } from '../api/completions.ts';
 import { v4 as uuidv4 } from 'uuid';
-import { clone, debounce } from 'lodash'
+import { clone } from 'lodash'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
+import useScreenshotStore, { ScreenshotListStatus } from '../stores/screenshot.ts'
+import useTabStore from '../stores/tab.ts'
+import useMarkStore from '../stores/marks.ts'
+import { storeToRefs } from "pinia";
 
 const screenshotStore = useScreenshotStore()
+const tabStore = useTabStore()
+const markStore = useMarkStore()
+
+const { screenshotList } = storeToRefs(screenshotStore)
+const { checked } = storeToRefs(tabStore)
 
 async function screenshot() {
   const id = uuidv4()
@@ -31,7 +38,7 @@ async function screenshot() {
     screenshotProgress: '截图',
   }
 
-  screenshotStore.screenshotList.unshift(clone(result))
+  screenshotList.value.unshift(clone(result))
 
   try {
     const path = await invoke<string>("screenshot_path");
@@ -73,15 +80,14 @@ async function screenshot() {
       createdAt: new Date().getTime()
     })
     screenshotStore.complete(id)
-    emitter.emit('refresh')
   } catch (error) {
-    console.error(error);
     result.screenshotProgress = '截图失败'
     screenshotStore.updateStatus(clone(result))
-    setTimeout(() => {
-      screenshotStore.complete(id)
-    }, 5000);
+    screenshotStore.complete(id)
   }
+
+  tabStore.queryTabs()
+  markStore.getMarks(checked.value)
 }
 
 // 提取识别文字里的重要内容
@@ -116,6 +122,6 @@ async function notificationScreenshot() {
 }
 
 onMounted(async () => {
-  listen('screenshot', debounce(screenshot, 1000));
+  listen('screenshot', screenshot);
 })
 </script>

@@ -11,7 +11,7 @@
             indeterminate
           ></v-progress-linear>
         </template>
-        <div class="overflow-hidden h-48">
+        <div class="overflow-hidden h-48 bg-gray-400">
           <v-img
             @click="showImageViewer(index)"
             :aspect-ratio="2"
@@ -19,6 +19,14 @@
             :src="item.imgPath"
             cover
           >
+            <template v-slot:placeholder>
+              <div class="d-flex align-center justify-center fill-height bg-gray-400">
+                <v-progress-circular
+                  color="grey-lighten-4"
+                  indeterminate
+                ></v-progress-circular>
+              </div>
+            </template>
           </v-img>
           <v-checkbox
             class="absolute top-0 right-2"
@@ -55,6 +63,7 @@
                   :key="index"
                   :value="index"
                   :disabled="tab.id === checked"
+                  @click="transferMark(item, tab)"
                 >
                   <template v-slot:prepend>
                     <v-icon icon="mdi-tab"></v-icon>
@@ -66,14 +75,14 @@
                       :content="tab.total"
                     ></v-badge>
                   </template>
-                  <v-list-item-title @click="changeTab(item, tab)" class="min-w-48">
+                  <v-list-item-title class="min-w-48">
                     {{ tab.name }}
                   </v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-menu>
             <!-- 删除 -->
-            <v-btn size="small" color="error" @click="deleteMark(item)" icon="mdi-delete"></v-btn>
+            <v-btn size="small" color="error" @click="handleDelete(item)" icon="mdi-delete"></v-btn>
           </div>
           <!-- 时间 -->
           <span class="mb-0 text-sm text-gray-400 pr-2">{{ timeAgo(item.createdAt) }}</span>
@@ -94,13 +103,15 @@
     </v-empty-state>
   </div>
   <!-- 图片预览 -->
-  <ImageViewer v-if="marks && marks[imageViewerMarkIndex]" :src="marks[imageViewerMarkIndex].imgPath" v-model:visible="isShowImageViewer" />
+  <ImageViewer
+    v-if="marks && marks[imageViewerMarkIndex]"
+    :src="marks[imageViewerMarkIndex].imgPath"
+    v-model:visible="isShowImageViewer"
+  />
 </template>
 
 <script lang="ts" setup>
 import { ref, watch} from 'vue';
-import emitter from '../../../emitter.ts'
-import { convertFileSrc } from '@tauri-apps/api/tauri';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
@@ -108,48 +119,34 @@ import { db, Tab, type Mark } from '../../../db.ts'
 import ImageViewer from '../../../components/ImageViewer.vue';
 import CreativeMark from "./CreativeMark.vue";
 import useTabStore from "../../../stores/tab.ts"
-
+import useMarkStore from '../../../stores/marks.ts';
 import useScreenshotStore from '../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
-
-const screenshotStore = useScreenshotStore()
-const tabStore = useTabStore()
-
-const { checked, tabs, checkedTabName } = storeToRefs(tabStore)
-
-const loading = ref(false)
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
-const marks = ref<Mark[]>()
+const tabStore = useTabStore()
+const markStore = useMarkStore()
+const screenshotStore = useScreenshotStore()
 
-async function getMarks() {
-  loading.value = true
-  const res = await db.marks.where({ tab: checked.value }).toArray()
-  marks.value = res.map(mark => ({
-    ...mark,
-    imgPath: convertFileSrc(mark.imgPath)
-  })).reverse()
-  loading.value = false
-}
+const { checked, tabs, checkedTabName } = storeToRefs(tabStore)
 
-watch(checked, getMarks, { immediate: true })
+const { marks, loading } = storeToRefs(markStore)
 
-// 修改 mark tab
-async function changeTab(mark: Mark, tab: Tab) {
-  await db.marks.update(mark.id, { tab: tab.id })
-  // 当前标签 total - 1
-  const currentTab = tabs.value.find(item => item.id === checked.value)
-  if (currentTab) {
-    currentTab.total -= 1
+watch(checked, async () => {
+  await markStore.getMarks(checked.value)
+}, { immediate: true })
+
+// 修改 mark tab 
+async function transferMark(mark: Mark, tab: Tab) {
+  const res = await db.marks.update(mark.id, { tab: tab.id })
+  // 移除 mark，并修改标签总数
+  if (res) {
+    const index = marks.value.findIndex(item => item.id === mark.id)
+    marks.value.splice(index, 1)
+    tabStore.queryTabs()
   }
-  // 修改标签 total
-  const targetTab = tabs.value.find(item => item.id === tab.id)
-  if (targetTab) {
-    targetTab.total += 1
-  }
-  getMarks()
 }
 
 // 修改 mark status
@@ -157,10 +154,9 @@ async function changeStatus(mark: Mark) {
   await db.marks.update(mark.id, { status: !mark.status })
 }
 
-// 删除记录
-async function deleteMark(mark: Mark) {
-  await db.marks.delete(mark.id)
-  emitter.emit('refresh')
+async function handleDelete(mark: Mark) {
+  await markStore.deleteMark(mark)
+  await tabStore.queryTabs()
 }
 
 // 计算时间以前

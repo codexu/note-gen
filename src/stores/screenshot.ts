@@ -27,7 +27,8 @@ export default defineStore('screenshotStore', () => {
   }
 
   function complete(id: string) {
-    screenshotList.value = screenshotList.value.filter(item => item.id !== id)
+    const index = screenshotList.value.findIndex(item => item.id === id)
+    screenshotList.value.splice(index, 1)
   }
 
   return {

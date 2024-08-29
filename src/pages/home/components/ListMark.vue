@@ -1,7 +1,7 @@
 <template>
   <v-row v-if="marks?.length">
     <CreativeMark />
-    <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1">
+    <v-col v-for="(item, index) in marks" :key="item.id" cols="12" xs="12" sm="6" md="64" lg="4" xl="3" xxl="2">
       <v-card :loading="loading">
         <template v-slot:loader="{ isActive }">
           <v-progress-linear

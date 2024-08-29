@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "note_gen",
-    "version": "0.1.2"
+    "version": "0.2.0"
   },
   "tauri": {
     "allowlist": {
@@ -38,7 +38,7 @@
       {
         "title": "NoteGen",
         "width": 1280,
-        "height": 800
+        "height": 860
       }
     ],
     "systemTray": {

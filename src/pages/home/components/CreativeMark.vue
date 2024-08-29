@@ -2,7 +2,7 @@
   <v-col
     v-for="screenshot in screenshotList"
     :key="screenshot.id"
-    cols="12" xs="12" sm="6" md="4" lg="3" xl="2" xxl="1"
+    cols="12" xs="12" sm="6" md="64" lg="4" xl="3" xxl="2"
   >
     <v-card>
       <template v-slot:loader>
@@ -21,8 +21,7 @@
           :height="192"
           :aspect-ratio="2"
           class="h-full cursor-pointer hover:scale-125 duration-1000 transition-transform"
-          :lazy-src="screenshot.path"
-          :src="screenshot.path"
+          :src="convertFileSrc(screenshot.path)"
           cover
         >
         </v-img>
@@ -68,6 +67,7 @@
 <script lang="ts" setup>
 import { storeToRefs } from 'pinia';
 import useScreenshotStore from '../../../stores/screenshot.ts'
+import { convertFileSrc } from '@tauri-apps/api/tauri';
 
 const screenshotStore = useScreenshotStore()
 const { screenshotList } = storeToRefs(screenshotStore)

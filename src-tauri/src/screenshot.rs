@@ -1,4 +1,4 @@
-use xcap::Monitor;
+use xcap::{image, Monitor};
 
 #[tauri::command]
 pub fn screenshot_path() -> String {
@@ -14,5 +14,17 @@ pub fn screenshot_path() -> String {
     let timestamp = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
     let file_path = app_dir.join(format!("{}.png", timestamp));
     image.save(app_dir.join(format!("{}.png", timestamp))).unwrap();
+    file_path.to_str().unwrap().to_string()
+}
+
+#[tauri::command]
+pub fn screenshot_end(path: String, x: u32, y: u32, width: u32, height: u32) -> String {
+    let image = image::open(path.clone()).unwrap();
+    let image = image.crop_imm(x, y, width, height);
+    let app_dir = tauri::api::path::data_dir().unwrap().join("com.codexu.note.gen");
+    let timestamp = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
+    let file_path = app_dir.join(format!("{}.png", timestamp));
+    image.save(app_dir.join(format!("{}.png", timestamp))).unwrap();
+    std::fs::remove_file(path).unwrap();
     file_path.to_str().unwrap().to_string()
 }

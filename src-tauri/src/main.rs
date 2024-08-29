@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod screenshot;
-use screenshot::screenshot_path;
+use screenshot::{screenshot_path, screenshot_end};
 mod keyword;
 use keyword::cut_words;
 mod ocr;
@@ -35,7 +35,12 @@ fn main() {
               }
             _ => {}
         })
-        .invoke_handler(tauri::generate_handler![screenshot_path, cut_words, lt_ocr])
+        .invoke_handler(tauri::generate_handler![
+          screenshot_path,
+          screenshot_end,
+          cut_words,
+          lt_ocr
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

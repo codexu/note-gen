@@ -6,7 +6,6 @@
     </v-app-bar-title>
     <v-spacer></v-spacer>
     <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
-    <Screenshot />
     <NoteCreate />
     <template v-slot:extension>
       <TabTab />
@@ -19,7 +18,6 @@
 
 <script setup lang="ts">
 import ListMark from "./components/ListMark.vue";
-import Screenshot from "../../components/Screenshot.vue";
 import TabTab from './components/TabTab.vue'
 import NoteCreate from './components/NoteCreate.vue'
 </script>

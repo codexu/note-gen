@@ -12,7 +12,8 @@
         :key="tab.id"
         :value="tab.id"
       >
-        <span>{{ tab.name }}</span>
+        <span v-if="!isEditing">{{ tab.name }}</span>
+        <input v-else class="tab-edit" type="text" v-model="tab.name" @change="updateTabName(tab.id)" />
         <v-icon
           v-if="tab.name !== DEFAULT_TAB_NAME && isEditing"
           @click="tabStore.deleteTab(tab, $event)"
@@ -60,4 +61,15 @@ function handleEdit() {
 function segmentedChange(id: unknown) {
   checked.value = id as number
 }
+
+function updateTabName(id: number) {
+  tabStore.updateTabName(id)
+}
 </script>
+
+<style lang="scss" scoped>
+.tab-edit{
+  color: #fff;
+  outline: none;
+}
+</style>

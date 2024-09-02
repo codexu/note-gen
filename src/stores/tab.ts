@@ -53,6 +53,12 @@ export default defineStore('tabStore', () => {
     return tabId
   }
 
+  async function updateTabName(id: number) {
+    const name = tabs.value.find(t => t.id === id)?.name
+    await db.tabs.update(id, { name })
+    await queryTabs()
+  }
+
   // 删除标签
   async function deleteTab(tab: Tab, event: Event) {
     event.stopPropagation()
@@ -74,6 +80,7 @@ export default defineStore('tabStore', () => {
     queryTabs,
     createDefaultTab,
     createTab,
+    updateTabName,
     deleteTab,
     checkedTabName
   }

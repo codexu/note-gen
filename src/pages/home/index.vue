@@ -5,6 +5,7 @@
       <span class="ml-4">NoteGen</span>
     </v-app-bar-title>
     <v-spacer></v-spacer>
+    <v-btn prepend-icon="mdi-monitor-screenshot" @click="screenshot">记录</v-btn>
     <v-btn prepend-icon="mdi-magnify">搜索</v-btn>
     <NoteCreate />
     <template v-slot:extension>
@@ -20,6 +21,7 @@
 import ListMark from "./components/ListMark.vue";
 import TabTab from './components/TabTab.vue'
 import NoteCreate from './components/NoteCreate.vue'
+import { screenshot } from "../../utils/screenshot";
 </script>
 
 <style>

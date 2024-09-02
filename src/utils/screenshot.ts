@@ -1,5 +1,6 @@
 import { getCurrent, WebviewWindow } from '@tauri-apps/api/window';
 import { invoke } from "@tauri-apps/api/tauri";
+import { isRegistered, registerAll } from '@tauri-apps/api/globalShortcut';
 import storage from 'store'
 import { v4 as uuidv4 } from 'uuid';
 import { clone } from 'lodash'
@@ -143,3 +144,10 @@ async function notificationScreenshot() {
   }
 }
 
+export async function registerGlobalShortcut() {
+  const registered = await isRegistered('Option+C');
+  console.log(registered);
+  if (!registered) {
+    await registerAll(['Option+C', 'Alt+C'], screenshot);
+  }
+}

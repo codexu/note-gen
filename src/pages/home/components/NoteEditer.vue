@@ -1,38 +1,42 @@
 <template>
-  <v-overlay
-    :model-value="loading"
-    persistent
-    class="flex align-center justify-center translate-y-16"
-  >
-    <div class="flex flex-col items-center">
-      <v-progress-circular
-        color="primary"
-        size="64"
-        indeterminate
-      ></v-progress-circular>
-      <v-chip variant="elevated" class="mt-4">整理笔记中...</v-chip>
-    </div>
-  </v-overlay>
-  <MdPreview v-show="!loading" :modelValue="content" />
+  <section class="relative w-full h-full">
+    <v-overlay
+      :model-value="loading"
+      contained
+      class="flex align-center justify-center"
+    >
+      <div class="flex flex-col items-center">
+        <v-progress-circular
+          color="primary"
+          size="64"
+          indeterminate
+        ></v-progress-circular>
+        <v-chip variant="elevated" class="mt-4">整理笔记中...</v-chip>
+      </div>
+    </v-overlay>
+    <MdPreview v-show="!loading" :modelValue="content" />
+  </section>
 </template>
 
 <script lang=ts setup>
-import { onMounted, ref } from 'vue';
-import { db, Mark, Note } from '../../../db.ts'
-import store from 'store'
-import { getCompletions, type Data } from '../../../api/completions.ts'
+import { ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { MdPreview } from 'md-editor-v3';
+import useTabStore from '../../../stores/tab.ts'
+import useMarkStore from '../../../stores/marks.ts'
+import { db, Note } from '../../../db.ts'
+import { getCompletions, type Data } from '../../../api/completions.ts'
 import 'md-editor-v3/lib/style.css';
+
+const tabStore = useTabStore()
+const markStore = useMarkStore()
+
+const { checked } = storeToRefs(tabStore)
+const { marks } = storeToRefs(markStore)
 
 const loading = ref<boolean>(false)
 const content = ref<string>('');
-const currentTab = store.get('currentTab');
-const marks = ref<Mark[]>([])
 const note = ref<Note | undefined>(undefined)
-
-async function getMarks() {
-  return await db.marks.where({ tab: currentTab }).toArray()
-}
 
 function saveNote() {
   const markIds = marks.value.map(item => item.id)
@@ -49,7 +53,7 @@ function saveNote() {
       title,
       content: content.value,
       markIds,
-      tab: currentTab,
+      tab: checked.value,
       createdAt: new Date().getTime()
     })
   }
@@ -88,8 +92,14 @@ function createNote() {
 }
 
 async function getNote() {
+  content.value = ''
   const markLastCreatedAt = Math.max(...marks.value.map(item => item.createdAt))
-  note.value = await db.notes.where({ tab: currentTab }).first()
+  note.value = await db.notes.where({ tab: checked.value }).first()
+  const currentMarks = marks.value.filter(mark => mark.tab === checked.value);
+  if (currentMarks.length === 0) {
+    loading.value = false
+    return
+  }
   if (note.value && note.value.createdAt > markLastCreatedAt) {
     content.value = note.value.content
     loading.value = false
@@ -98,16 +108,10 @@ async function getNote() {
   }
 }
 
-onMounted(async() => {
+watch(checked, async () => {
   loading.value = true
-  marks.value = await getMarks()
   getNote()
+}, {
+  immediate: true
 })
 </script>
-
-<style scoped>
-.md-editor{
-  height: calc(100vh - 64px);
-  margin-top: 64px;
-}
-</style>

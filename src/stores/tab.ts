@@ -10,6 +10,10 @@ interface Tabs extends Tab {
 }
 
 export default defineStore('tabStore', () => {
+
+  const showInput = ref(false) // 新增标签表单展示
+  const isEditing = ref(false) // tab 编辑模式
+
   // 当前选中的标签
   const checked = useStorage('currentTab', 0)
   const tabs = ref<Tabs[]>([])
@@ -75,6 +79,8 @@ export default defineStore('tabStore', () => {
   })
 
   return {
+    isEditing,
+    showInput,
     checked,
     tabs,
     queryTabs,

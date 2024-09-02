@@ -1,5 +1,9 @@
 <template>
-  <section class="relative w-full h-full">
+  <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-b-thin">
+    <v-btn variant="text" prepend-icon="mdi-file-arrow-left-right-outline">生成文章</v-btn>
+    <v-switch class="h-14 mr-2" color="primary" />
+  </div>
+  <section class="relative w-full note-container story-scroll">
     <v-overlay
       :model-value="loading"
       contained
@@ -115,3 +119,9 @@ watch(checked, async () => {
   immediate: true
 })
 </script>
+
+<style lang="scss" scoped>
+.note-container{
+  height: calc(100vh - 48px);
+}
+</style>

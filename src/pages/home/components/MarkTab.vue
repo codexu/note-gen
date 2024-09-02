@@ -3,7 +3,6 @@
     <v-tabs
       class="flex-1"
       v-model="checked"
-      color="primary"
       direction="vertical"
       @update:model-value="segmentedChange"
     >
@@ -29,7 +28,6 @@
           ></v-icon>
           <v-badge
             v-else-if="tab.total > 0"
-            :color="tab.id === checked ? 'primary' : ''"
             :content="tab.total"
             inline
           ></v-badge>
@@ -68,7 +66,7 @@ function updateTabName(id: number) {
 }
 :deep() {
   .v-tab-item--selected{
-    background-color: rgba(#1967C0, .1)
+    background-color: rgba(#000, .1)
   }
 }
 </style>

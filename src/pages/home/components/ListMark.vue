@@ -1,8 +1,12 @@
 <template>
-  <template v-if="marks?.length">
+  <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-e-thin border-b-thin">
+    <v-btn variant="text" prepend-icon="mdi-scan-helper">记录</v-btn>
+    <span class="text-sm text-gray-400">{{ statusTotoal }}/{{ total }}</span>
+  </div>
+  <div v-if="marks?.length" class="list-mark story-scroll border-e-thin">
     <CreativeMark />
     <div v-for="(item, index) in marks" :key="item.id">
-      <v-card :loading="loading" class="mb-2">
+      <v-card :loading="loading" class="m-2">
         <template v-slot:loader="{ isActive }">
           <v-progress-linear
             :active="isActive"
@@ -89,7 +93,7 @@
         </v-card-actions>
       </v-card>
     </div>
-  </template>
+  </div>
   <!-- 暂无记录 -->
   <div v-else-if="!screenshotStore.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
     <v-empty-state
@@ -111,7 +115,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch} from 'vue';
+import { computed, ref, watch} from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
@@ -172,4 +176,18 @@ function showImageViewer(index: number) {
   isShowImageViewer.value = true
   imageViewerMarkIndex.value = index
 }
+
+// 计算数量
+const total = computed(() => {
+  return marks.value.length
+})
+const statusTotoal = computed(() => {
+  return marks.value.filter(mark => mark.status).length
+})
 </script>
+
+<style lang="scss" scoped>
+.list-mark{
+  height: calc(100vh - 48px);
+}
+</style>

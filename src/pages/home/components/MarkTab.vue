@@ -66,7 +66,7 @@ function updateTabName(id: number) {
 }
 :deep() {
   .v-tab-item--selected{
-    background-color: rgba(#000, .1)
+    background-color: rgba(#666, .05)
   }
 }
 </style>

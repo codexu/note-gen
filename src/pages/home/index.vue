@@ -1,8 +1,8 @@
 <template>
   <main class="flex w-full h-screen overflow-hidden">
-    <AsideMenu />
+    <TabMenu />
     <section class="w-96 h-screen overflow-hidden">
-      <ListMark />
+      <MarkList />
     </section>
     <section class="flex-1 h-screen overflow-hidden">
       <NoteEditer />
@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import ListMark from "./components/ListMark.vue";
-import AsideMenu from "./components/AsideMenu.vue";
+import MarkList from "./components/MarkList.vue";
+import TabMenu from "./components/TabMenu.vue";
 import NoteEditer from "./components/NoteEditer.vue";
 </script>

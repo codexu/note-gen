@@ -3,9 +3,9 @@
     <div class="flex-1">
       <v-btn size="small" variant="text" icon="mdi-file-document-check-outline"></v-btn>
     </div>
-    <div class="flex gap-4">
-      <span class="text-sm text-gray-400">{{ content.length }}字</span>
-      <span class="text-sm text-gray-400">{{ timeAgo }}</span>
+    <div class="flex gap-1">
+      <v-chip size="small">{{ content.length }}字</v-chip>
+      <v-chip size="small">{{ timeAgo }}</v-chip>
     </div>
   </div>
   <section class="relative w-full note-container story-scroll">

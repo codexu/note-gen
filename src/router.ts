@@ -1,8 +1,21 @@
 import { createWebHashHistory, createRouter } from 'vue-router'
-
+import BlankLayout from './components/BlankLayout.vue'
+import BasicLayout from './components/BasicLayout.vue'
 const routes = [
-  { path: '/', name: 'home', component: () => import('./pages/home/index.vue') },
-  { path: '/screenshot', name: 'screenshot', component: () => import('./pages/screenshot/index.vue') },
+  {
+    path: '/',
+    component: BasicLayout,
+    children: [
+      { path: '/', name: 'home', component: () => import('./pages/home/index.vue') },
+    ]
+  },
+  {
+    path: '/',
+    component: BlankLayout,
+    children: [
+      { path: '/screenshot', name: 'screenshot', component: () => import('./pages/screenshot/index.vue') },
+    ]
+  }
 ]
 
 const router = createRouter({

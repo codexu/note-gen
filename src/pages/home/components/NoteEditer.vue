@@ -1,7 +1,12 @@
 <template>
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-b-thin">
-    <v-btn variant="text" prepend-icon="mdi-file-arrow-left-right-outline">生成文章</v-btn>
-    <v-switch class="h-14 mr-2" color="primary" />
+    <div class="flex-1">
+      <v-btn size="small" variant="text" icon="mdi-file-document-check-outline"></v-btn>
+    </div>
+    <div class="flex gap-4">
+      <span class="text-sm text-gray-400">{{ content.length }}字</span>
+      <span class="text-sm text-gray-400">{{ timeAgo }}</span>
+    </div>
   </div>
   <section class="relative w-full note-container story-scroll">
     <v-overlay
@@ -23,13 +28,14 @@
 </template>
 
 <script lang=ts setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { MdPreview } from 'md-editor-v3';
 import useTabStore from '../../../stores/tab.ts'
 import useMarkStore from '../../../stores/marks.ts'
 import { db, Note } from '../../../db.ts'
 import { getCompletions, type Data } from '../../../api/completions.ts'
+import dayjs from 'dayjs';
 import 'md-editor-v3/lib/style.css';
 
 const tabStore = useTabStore()
@@ -111,6 +117,10 @@ async function getNote() {
     createNote()
   }
 }
+
+const timeAgo = computed(() => {
+  return dayjs(note.value?.createdAt).fromNow()
+})
 
 watch(checked, async () => {
   loading.value = true

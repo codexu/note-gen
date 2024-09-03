@@ -1,7 +1,7 @@
 <template>
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-e-thin border-b-thin">
-    <v-btn variant="text" prepend-icon="mdi-scan-helper">记录</v-btn>
-    <span class="text-sm text-gray-400">{{ statusTotoal }}/{{ total }}</span>
+    <v-btn size="small" variant="text" icon="mdi-monitor-screenshot"></v-btn>
+    <span class="text-sm text-gray-400">Marks: {{ statusTotoal }} / {{ total }}</span>
   </div>
   <div v-if="marks?.length" class="list-mark story-scroll border-e-thin">
     <CreativeMark />

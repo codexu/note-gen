@@ -24,7 +24,7 @@
               ></v-skeleton-loader>
             </div>
             <v-chip-group v-else class="!py-0 px-2">
-              <v-chip label size="x-small" v-for="keyword in screenshot.keywords" :key="keyword">{{ keyword }}</v-chip>
+              <v-chip variant="flat" label size="x-small" v-for="keyword in screenshot.keywords" :key="keyword">{{ keyword }}</v-chip>
             </v-chip-group>
             <v-checkbox
               disabled
@@ -44,7 +44,6 @@
                 size="x-small"
                 variant="plain"
                 disabled
-                color="primary"
                 icon="mdi-swap-horizontal"
               ></v-btn>
               <v-btn size="x-small" variant="plain" color="error" disabled icon="mdi-delete"></v-btn>

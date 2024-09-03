@@ -40,9 +40,9 @@
           <div class="flex-1 px-2">
             <div class="flex items-center justify-between">
               <v-chip-group class="!py-0">
-                <v-chip label size="x-small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
+                <v-chip label variant="flat" size="x-small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
               </v-chip-group>
-              <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" size="x-small" v-model="item.status" color="primary" @click="changeStatus(item)"></v-checkbox>
+              <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" size="x-small" v-model="item.status" @click="changeStatus(item)"></v-checkbox>
             </div>
             <!-- 最多3行文字 -->
             <p class="text-xs leading-5 my-1 line-clamp-2" v-tooltip="item.description">{{ item.description }}</p>
@@ -54,7 +54,6 @@
                     <v-btn
                       size="x-small"
                       variant="plain"
-                      color="primary"
                       :disabled="tabs.length === 0"
                       icon="mdi-swap-horizontal"
                       v-bind="props"
@@ -69,15 +68,8 @@
                       :disabled="tab.id === checked"
                       @click="transferMark(item, tab)"
                     >
-                      <template v-slot:prepend>
-                        <v-icon icon="mdi-tab"></v-icon>
-                      </template>
                       <template v-slot:append>
-                        <v-badge
-                          color="error"
-                          inline
-                          :content="tab.total"
-                        ></v-badge>
+                        <v-badge inline :content="tab.total"></v-badge>
                       </template>
                       <v-list-item-title class="min-w-48">
                         {{ tab.name }}

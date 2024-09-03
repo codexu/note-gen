@@ -1,6 +1,6 @@
 <template>
-  <div class="w-64 h-screen flex flex-col justify-between border-e-thin">
-    <div class="flex justify-rounded h-12 items-center bg-gray-50 border-b-thin">
+  <div class="w-64 h-screen flex flex-col justify-between border-e-thin bg-gray-50">
+    <div class="flex justify-rounded h-12 items-center bg-gray-100 border-b-thin">
       <TabAdd class="hover:text-[#1967C0]" />
       <v-icon size="small" class="flex-1 border-e-thin" v-tooltip="'搜索'">mdi-tab-search</v-icon>
       <div class="flex-1 flex justify-center cursor-pointer items-center text-sm hover:text-[#1967C0]"

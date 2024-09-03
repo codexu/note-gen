@@ -85,14 +85,14 @@ async function analysisScreenshot (id: string, path: string) {
   result.keywords = keywords
 
   // 分析内容，提取描述
-  result.screenshotProgress = '提取内容'
+  result.screenshotProgress = '分析内容'
   screenshotStore.updateStatus(clone(result))
   const description = await takeDescription(content)
   result.description = description
 
   // 保存
   const currentTab = storage.get('currentTab')
-  result.screenshotProgress = '提取内容'
+  result.screenshotProgress = '保存'
   screenshotStore.updateStatus(clone(result))
   await db.marks.add({
     imgPath: path,

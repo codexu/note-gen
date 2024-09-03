@@ -86,7 +86,7 @@
                   </v-list>
                 </v-menu>
                 <!-- 删除 -->
-                <v-btn size="x-small"variant="plain" color="error" @click="handleDelete(item)" icon="mdi-delete"></v-btn>
+                <v-btn size="x-small" variant="plain" color="error" @click="handleDelete(item)" icon="mdi-delete"></v-btn>
               </div>
               <!-- 时间 -->
               <span class="mb-0 text-xs text-gray-400">{{ timeAgo(item.createdAt) }}</span>

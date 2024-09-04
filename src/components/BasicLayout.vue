@@ -1,7 +1,7 @@
 <template>
   <div class="flex justify-between">
     <MainMenu />
-      <router-view></router-view>
+    <router-view></router-view>
   </div>
 </template>
 

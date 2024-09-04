@@ -131,7 +131,7 @@ const tabStore = useTabStore()
 const markStore = useMarkStore()
 const screenshotStore = useScreenshotStore()
 
-const { checked, tabs, checkedTabName } = storeToRefs(tabStore)
+const { checked, tabs } = storeToRefs(tabStore)
 
 const { marks, loading } = storeToRefs(markStore)
 

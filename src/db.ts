@@ -28,29 +28,17 @@ interface Note {
   createdAt: number;
 }
 
-interface Article {
-  id: number;
-  title: string;
-  file: string;
-  markIds: number[];
-  keywords: string[];
-  description: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 const db = new Dexie('note-db') as Dexie & {
   tabs: EntityTable<Tab, 'id'>;
   marks: EntityTable<Mark, 'id'>;
   notes: EntityTable<Note, 'id'>;
-  articles: EntityTable<Article, 'id'>
 };
 
 db.version(1).stores({
   tabs: '++id, name&, total, createdAt',
   marks: '++id, status, imgPath, content, description, tab, keywords, createdAt',
   notes: '++id, title, content, markIds, tab, generating, createdAt',
-  articles: '++id, title, file, markIds, keywords, description, createdAt, updatedAt'
+  folders: '++id, name, createdAt',
 });
 
 export type { Tab, Mark, Note };

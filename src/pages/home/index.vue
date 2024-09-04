@@ -1,5 +1,5 @@
 <template>
-  <main class="flex w-full h-screen overflow-hidden">
+  <main class="flex-1 flex w-full h-screen overflow-hidden">
     <TabMenu />
     <section class="w-96 h-screen overflow-hidden">
       <MarkList />

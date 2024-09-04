@@ -1,18 +1,52 @@
 <template>
   <aside class="w-12 h-screen border-e-thin flex flex-col justify-between bg-gray-100">
-    <div>
-      <v-btn variant="plain" icon="mdi-puzzle-heart" :active="true" v-tooltip:end="'笔记'"></v-btn>
-      <v-btn variant="plain" icon="mdi-note-edit-outline" v-tooltip:end="'文章'"></v-btn>
-      <v-btn variant="plain" icon="mdi-star-box-outline" v-tooltip:end="'收藏'"></v-btn>
-      <v-btn variant="plain" icon="mdi-image-outline" v-tooltip:end="'图床'"></v-btn>
-      <v-btn variant="plain" icon="mdi-home-search-outline" v-tooltip:end="'全局搜索'"></v-btn>
-      <v-btn variant="plain" icon="mdi-history" v-tooltip:end="'回收站'"></v-btn>
-      <v-btn variant="plain" icon="mdi-calendar-blank" v-tooltip:end="'历史'"></v-btn>
-      <v-btn variant="plain" icon="mdi-cookie-cog-outline" v-tooltip:end="'平台管理'"></v-btn>
+    <div class="flex flex-col items-center">
+      <v-btn v-for="(menu, index) in mainMenus"
+        :key="index"
+        variant="plain"
+        :icon="route.name === menu.name ? menu.icon : menu.icon + '-outline'"
+        :class="route.name === menu.name ? 'scale-125' : ''"
+        v-tooltip:end="menu.tip"
+        @click="menuClick(menu.name)"
+      ></v-btn>
     </div>
-    <div>
-      <v-btn variant="plain" icon="mdi-help-circle-outline"></v-btn>
-      <v-btn variant="plain" icon="mdi-cog-outline"></v-btn>
+    <div class="flex flex-col items-center">
+      <v-btn v-for="(menu, index) in otherMenus"
+      :key="index"
+      variant="plain"
+      :icon="route.name === menu.name ? menu.icon : menu.icon + '-outline'"
+      :class="route.name === menu.name ? 'scale-125' : ''"
+      v-tooltip:end="menu.tip"
+      @click="menuClick(menu.name)"
+    ></v-btn>
     </div>
   </aside>
 </template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+
+const router = useRouter()
+const route = useRoute()
+
+const mainMenus = ref([
+  { name: 'note', icon: 'mdi-puzzle-heart', tip: '笔记' },
+  { name: 'article', icon: 'mdi-note-edit', tip: '文章' },
+  { name: 'collection', icon: 'mdi-star-box', tip: '收藏' },
+  { name: 'image', icon: 'mdi-image', tip: '图床' },
+  { name: 'search', icon: 'mdi-home-search', tip: '全局搜索' },
+  { name: 'trash', icon: 'mdi-clipboard-text-clock', tip: '回收站' },
+  { name: 'history', icon: 'mdi-calendar-blank', tip: '历史' },
+  { name: 'platform', icon: 'mdi-cookie-cog', tip: '平台管理' },
+])
+
+const otherMenus = ref([
+  { name: 'help', icon: 'mdi-help-circle', tip: '帮助' },
+  { name: 'setting', icon: 'mdi-cog', tip: '设置' },
+])
+
+function menuClick(name: string) {
+  router.push({ name })
+}
+</script>

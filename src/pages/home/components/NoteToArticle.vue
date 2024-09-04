@@ -16,6 +16,7 @@
             这篇笔记只是一篇空洞的草稿，生成文章去完善它吧！
           </div>
           <v-text-field v-model="note.title" label="标题" required></v-text-field>
+          <FolderSelect v-model="folder" />
           <p class="text-caption text-medium-emphasis">*创建 “{{ note.title }}.md” 文件。</p>
           <p class="text-caption text-medium-emphasis">*生成后将移除对应的 Marks（文章中可查看） 和 Notes。</p>
         </v-card-text>
@@ -37,9 +38,7 @@ import { ref } from 'vue';
 import { writeTextFile, BaseDirectory, exists, createDir } from '@tauri-apps/api/fs';
 import { db, Note } from '../../../db';
 import useMarkStore from '../../../stores/marks.ts';
-import { clone } from 'lodash';
-
-console.log(BaseDirectory.AppData);
+import FolderSelect from '../../../components/FolderSelect.vue';
 
 const emit = defineEmits(['created'])
 
@@ -48,6 +47,7 @@ const markStore = useMarkStore()
 const isActive = ref(false)
 const loading = ref(false)
 const note = ref<Note>({} as Note)
+const folder = ref('默认文件夹')
 
 function showDialog(data: Note) {
   isActive.value = true
@@ -60,21 +60,12 @@ async function genArticle() {
   if (!(await exists('article', { dir: BaseDirectory.AppData }))) {
     await createDir('article', { dir: BaseDirectory.AppData })
   }
-  const file = `article/${note.value.title}.md`
+  const file = `article/${folder.value}/${note.value.title}.md`
   await writeTextFile(
     file,
     note.value.content,
     { dir: BaseDirectory.AppData }
   )
-  await db.articles.add({
-    title: note.value.title,
-    file,
-    description: '',
-    keywords: [],
-    markIds: clone(note.value.markIds),
-    createdAt: new Date().getTime(),
-    updatedAt: new Date().getTime()
-  })
   await db.notes.delete(note.value.id)
   for (let index = 0; index < note.value.markIds.length; index++) {
     const markId = note.value.markIds[index];

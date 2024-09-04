@@ -1,7 +1,7 @@
 <template>
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-e-thin border-b-thin">
     <div>
-      <v-btn size="small" variant="text" icon="mdi-vector-square-plus"></v-btn>
+      <v-btn size="small" variant="text" icon="mdi-vector-square-plus" @click="screenshot"></v-btn>
       <v-btn size="small" variant="text" icon="mdi-clipboard-text-multiple-outline"></v-btn>
     </div>
     <span class="text-sm text-gray-400">Marks: {{ statusTotoal }} / {{ total }}</span>
@@ -22,8 +22,7 @@
           <div class="overflow-hidden h-28 w-28 bg-gray-400">
             <v-img
               @click="showImageViewer(index)"
-              :aspect-ratio="2"
-              class="h-full cursor-pointer hover:scale-105 duration-1000 transition-transform"
+              class="h-28 w-28 cursor-pointer hover:scale-105 duration-1000 transition-transform"
               :src="item.imgPath"
               cover
             >
@@ -37,12 +36,12 @@
               </template>
             </v-img>
           </div>
-          <div class="flex-1 px-2">
+          <div class="flex-1 px-2 overflow-hidden">
             <div class="flex items-center justify-between">
               <v-chip-group class="!py-0">
                 <v-chip label variant="flat" size="x-small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
               </v-chip-group>
-              <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" size="x-small" v-model="item.status" @click="changeStatus(item)"></v-checkbox>
+              <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" v-model="item.status" @click="changeStatus(item)"></v-checkbox>
             </div>
             <!-- 最多3行文字 -->
             <p class="text-xs leading-5 my-1 line-clamp-2" v-tooltip="item.description">{{ item.description }}</p>
@@ -120,6 +119,7 @@ import useTabStore from "../../../stores/tab.ts"
 import useMarkStore from '../../../stores/marks.ts';
 import useScreenshotStore from '../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
+import { screenshot } from '../../../utils/screenshot.ts';
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)

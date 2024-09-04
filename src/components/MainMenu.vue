@@ -8,6 +8,7 @@
       <v-btn variant="plain" icon="mdi-home-search-outline" v-tooltip:end="'全局搜索'"></v-btn>
       <v-btn variant="plain" icon="mdi-history" v-tooltip:end="'回收站'"></v-btn>
       <v-btn variant="plain" icon="mdi-calendar-blank" v-tooltip:end="'历史'"></v-btn>
+      <v-btn variant="plain" icon="mdi-cookie-cog-outline" v-tooltip:end="'平台管理'"></v-btn>
     </div>
     <div>
       <v-btn variant="plain" icon="mdi-help-circle-outline"></v-btn>

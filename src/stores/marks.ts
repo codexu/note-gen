@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { db, Mark } from "../db";
 import { convertFileSrc } from "@tauri-apps/api/tauri";
 
@@ -23,9 +23,14 @@ export default defineStore('markStore', () => {
     await db.marks.delete(mark.id)
   }
 
+  const enabledMarks = computed(() => {
+    return marks.value.filter(mark => mark.status)
+  })
+
   return {
     loading,
     marks,
+    enabledMarks,
     getMarks,
     deleteMark,
   }

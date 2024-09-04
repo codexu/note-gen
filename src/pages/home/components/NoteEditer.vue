@@ -1,24 +1,38 @@
 <template>
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-b-thin">
-    <div class="flex-1">
+    <div class="flex-1 flex justify-between">
       <v-btn
+        :loading="loading"
         size="small"
         variant="text"
         prepend-icon="mdi-file-document-check-outline"
         :disabled="genDisabled"
         @click="createNote"
       >整理笔记</v-btn>
-      <v-btn size="small" variant="text" prepend-icon="mdi-file-export-outline">生成文章</v-btn>
-    </div>
-    <span v-if="loading" class="text-xs text-gray-400">整理笔记中...</span>
-    <div class="flex gap-1" v-else>
-      <v-chip size="small">{{ checkTextLength(content) }}字</v-chip>
-      <v-chip size="small">{{ timeAgo }}</v-chip>
+      <v-btn
+        :disabled="!(note && note.content.length)"
+        size="small"
+        variant="text"
+        prepend-icon="mdi-file-export-outline"
+        @click="exportArticle"
+      >生成文章</v-btn>
     </div>
   </div>
   <section class="relative w-full note-container story-scroll">
-    <MdPreview v-show="!loading" :modelValue="content" />
+    <div class="flex justify-between items-end px-4 mt-3" v-if="!loading && note">
+      <p class="text-md font-bold text-gray-700">NOTE</p>
+      <span class="text-xs text-gray-400">
+        {{note?.title}}，{{ checkTextLength(content) }}字，{{ timeAgo }}
+      </span>
+    </div>
+    <v-skeleton-loader
+      v-show="loading"
+      class="mx-auto h-full flex items-start"
+      type="article"
+    ></v-skeleton-loader>
+    <MdPreview v-show="!loading" :modelValue="showContent" />
   </section>
+  <NoteToArticle ref="noteToArticleRef" @created="getNote" />
 </template>
 
 <script lang=ts setup>
@@ -33,6 +47,7 @@ import dayjs from 'dayjs';
 import 'md-editor-v3/lib/style.css';
 import { isEqual } from 'lodash';
 import checkTextLength from '../../../utils/checkTextLength.ts'
+import NoteToArticle from './NoteToArticle.vue';
 
 const tabStore = useTabStore()
 const markStore = useMarkStore()
@@ -49,7 +64,6 @@ async function getNote() {
   content.value = ''
   note.value = await db.notes.where({ tab: checked.value }).first()
   content.value = note.value?.content || ''
-  console.log(note.value);
   loading.value = note.value?.generating || false
 }
 
@@ -112,6 +126,10 @@ async function createNote() {
   })
 }
 
+const showContent = computed(() => {
+  return content.value = content.value.replace(/^# (.*)$/m, '')
+})
+
 async function saveNote() {
   const markIds = enabledMarks.value.map(item => item.id)
   const title = (content.value.match(/^# (.*)$/m) as string[])[1]
@@ -127,6 +145,11 @@ async function saveNote() {
   }
 }
 
+const noteToArticleRef = ref<InstanceType<typeof NoteToArticle> | null>(null)
+function exportArticle() {
+  noteToArticleRef.value?.showDialog(note.value!)
+}
+
 watch(checked, async () => {
   await getNote()
 }, { immediate: true })
@@ -135,5 +158,10 @@ watch(checked, async () => {
 <style lang="scss" scoped>
 .note-container{
   height: calc(100vh - 48px);
+}
+:deep() {
+  .md-editor-preview-wrapper{
+    padding-top: 0;
+  }
 }
 </style>

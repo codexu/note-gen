@@ -1,12 +1,16 @@
 <template>
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-e-thin border-b-thin">
     <div>
-      <v-btn size="small" variant="text" icon="mdi-vector-square-plus" @click="screenshot"></v-btn>
-      <v-btn size="small" variant="text" icon="mdi-clipboard-text-multiple-outline"></v-btn>
+      <v-btn size="small" variant="text" icon="mdi-vector-square-plus" v-tooltip="'截图记录'" @click="screenshot"></v-btn>
+      <v-btn size="small" variant="text" icon="mdi-clipboard-text-multiple-outline" v-tooltip="'文字记录'"></v-btn>
+      <v-btn size="small" variant="text" icon="mdi-image-plus-outline" v-tooltip="'图片标记'"></v-btn>
     </div>
-    <span class="text-sm text-gray-400">Marks: {{ statusTotoal }} / {{ total }}</span>
   </div>
   <div v-if="marks?.length" class="list-mark story-scroll border-e-thin">
+    <div class="flex justify-between px-2 pt-3 items-end">
+      <p class="text-md font-bold text-gray-700">Marks</p>
+      <span class="text-xs text-gray-400">{{ statusTotoal }} / {{ total }}</span>
+    </div>
     <MarkCreative />
     <div v-for="(item, index) in marks" :key="item.id">
       <v-card :loading="loading" class="m-2">
@@ -22,7 +26,7 @@
           <div class="overflow-hidden h-28 w-28 bg-gray-400">
             <v-img
               @click="showImageViewer(index)"
-              class="h-28 w-28 cursor-pointer hover:scale-105 duration-1000 transition-transform"
+              class="h-28 w-28 cursor-zoom-in hover:scale-105 duration-1000 transition-transform"
               :src="item.imgPath"
               cover
             >
@@ -44,7 +48,7 @@
               <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" v-model="item.status" @click="changeStatus(item)"></v-checkbox>
             </div>
             <!-- 最多3行文字 -->
-            <p class="text-xs leading-5 my-1 line-clamp-2" v-tooltip="item.description">{{ item.description }}</p>
+            <p class="text-xs leading-5 my-1 line-clamp-2">{{ item.description }}</p>
             <div class="flex justify-between items-center">
               <div class="flex items-center">
                 <!-- 转移 -->
@@ -88,11 +92,10 @@
     </div>
   </div>
   <!-- 暂无记录 -->
-  <div v-else-if="!screenshotStore.screenshotList.length" class="w-full empty-wrap flex justify-center items-center">
+  <div v-else-if="!screenshotStore.screenshotList.length" class="w-full h-full empty-wrap flex justify-center items-center border-e-thin">
     <v-empty-state
       headline="暂无记录"
-      :title="`${checkedTabName}标签中还没有任何记录`"
-      text="赶快去截图生成一条 Mark 吧！"
+      text="赶快去生成一条 Mark 吧！"
     >
       <template v-slot:media>
         <v-icon icon="mdi-information-outline" class="mb-2"></v-icon>

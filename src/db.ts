@@ -31,7 +31,6 @@ interface Note {
 interface Article {
   id: number;
   title: string;
-  content: string;
   file: string;
   markIds: number[];
   keywords: string[];
@@ -51,7 +50,7 @@ db.version(1).stores({
   tabs: '++id, name&, total, createdAt',
   marks: '++id, status, imgPath, content, description, tab, keywords, createdAt',
   notes: '++id, title, content, markIds, tab, generating, createdAt',
-  articles: '++id, title, content, file, markIds, keywords, description, createdAt, updatedAt'
+  articles: '++id, title, file, markIds, keywords, description, createdAt, updatedAt'
 });
 
 export type { Tab, Mark, Note };

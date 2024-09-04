@@ -25,7 +25,7 @@ export default defineStore('tabStore', () => {
     // 查询数量
     for (let index = 0; index < tabs.value.length; index++) {
       const tab = tabs.value[index];
-      const total = await db.marks.where({ tab: tab.id }).count()
+      const total = await db.marks.where({ tab: tab.id }).filter(mark => mark.status).count()
       tabs.value[index].total = total
     }
   }

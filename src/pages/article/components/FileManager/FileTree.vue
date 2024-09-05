@@ -1,7 +1,7 @@
 <template>
   <div class="flex-1">
     <v-treeview
-      :items="entries"
+      :items="folders"
       v-model:opened="opened"
       item-title="name"
       item-value="path"
@@ -21,7 +21,11 @@
         </v-icon>
       </template>
       <template v-slot:append="{ item }">
-        <v-icon class="scale-75 hidden" @click="deleteFolder(item)">
+        <v-icon
+          v-if="item.children && item.children.length === 0"
+          class="scale-75 hidden" 
+          @click="folderStore.deleteFolder(item)"
+        >
           mdi-close
         </v-icon>
       </template>
@@ -30,43 +34,18 @@
 </template>
 
 <script lang="ts" setup>
-import { readDir, BaseDirectory, FileEntry, removeDir, exists } from '@tauri-apps/api/fs';
-import { useLocalStorage } from '@vueuse/core';
-import { onMounted, ref } from 'vue';
+import { onMounted } from 'vue';
 import { VTreeview } from 'vuetify/labs/VTreeview'
-import { ignoreFolders } from '../../../utils/createDefaultFolder.ts'
+import useFolderStore from '../../../../stores/folders.ts'
+import { storeToRefs } from 'pinia';
 
-const opened = useLocalStorage('articleTreeOpend', <string[]>[]);
-const entries = ref<FileEntry[]>();
+const folderStore = useFolderStore()
 
-async function getFolders() {
-  entries.value = await readDir('article', { dir: BaseDirectory.AppData, recursive: true });
-  processEntries(entries.value)
-}
-
-function processEntries(entries: FileEntry[]) {
-  entries.forEach((entry, index) => {
-    if (entry.name && ignoreFolders.includes(entry.name)) {
-      entries.splice(index, 1)
-    }
-    if (entry.children) {
-      processEntries(entry.children)
-    }
-  })
-}
-
-async function deleteFolder(item: FileEntry) {
-  const isExists = await exists(item.path, { dir: BaseDirectory.AppData })
-  if (isExists) {
-    await removeDir(item.path, { dir: BaseDirectory.AppData })
-  }
-  await getFolders()
-}
+const { folders, opened } = storeToRefs(folderStore)
 
 onMounted(async() => {
-  getFolders()
+  folderStore.getFolders()
 })
-
 </script>
 
 <style lang="scss" scoped>

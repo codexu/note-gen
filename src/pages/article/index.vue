@@ -1,11 +1,11 @@
 <template>
   <main class="flex-1 flex">
-    <ArticleList />
+    <FileManager />
   </main>
 </template>
 
 <script lang="ts" setup>
-import ArticleList from './components/ArticleList.vue';
+import FileManager from './components/FileManager/index.vue';
 </script>
 
 <style lang="scss" scoped>

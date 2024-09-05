@@ -20,6 +20,9 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  alias: {
+    "@": "/src",
+  },
   css: {
     postcss: {
       plugins: [

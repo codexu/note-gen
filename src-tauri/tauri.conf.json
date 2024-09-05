@@ -17,12 +17,19 @@
         "all": true
       },
       "shell": {
-        "all": false,
-        "open": true
+        "all": true
       },
       "fs": {
         "all": true,
         "scope": ["**"]
+      },
+      "dialog": {
+        "all": false,
+        "ask": false,
+        "confirm": false,
+        "message": false,
+        "open": true,
+        "save": false
       },
       "path": {
         "all": true

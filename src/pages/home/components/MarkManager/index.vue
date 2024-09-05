@@ -13,7 +13,7 @@
     </div>
     <MarkCreative />
     <div v-for="(item, index) in marks" :key="item.id">
-      <v-card :loading="loading" class="m-2">
+      <v-card :loading="loading" class="m-2" :variant="item.status ? 'elevated' : 'plain'">
         <template v-slot:loader="{ isActive }">
           <v-progress-linear
             :active="isActive"

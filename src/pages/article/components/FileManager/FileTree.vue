@@ -3,6 +3,7 @@
     <v-treeview
       :items="folders"
       v-model:opened="opened"
+      v-model:activated="activated"
       item-title="name"
       item-value="path"
       density="compact"
@@ -41,7 +42,7 @@ import { storeToRefs } from 'pinia';
 
 const folderStore = useFolderStore()
 
-const { folders, opened } = storeToRefs(folderStore)
+const { folders, opened, activated } = storeToRefs(folderStore)
 
 onMounted(async() => {
   folderStore.getFolders()

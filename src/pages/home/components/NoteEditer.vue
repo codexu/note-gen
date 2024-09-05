@@ -3,7 +3,6 @@
     <div class="flex-1 flex justify-between">
       <v-btn
         :loading="loading"
-        size="small"
         variant="text"
         prepend-icon="mdi-file-document-check-outline"
         :disabled="genDisabled"
@@ -11,7 +10,6 @@
       >整理笔记</v-btn>
       <v-btn
         :disabled="!(note && note.content.length)"
-        size="small"
         variant="text"
         prepend-icon="mdi-file-export-outline"
         @click="exportArticle"

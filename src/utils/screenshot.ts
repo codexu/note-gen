@@ -146,7 +146,6 @@ async function notificationScreenshot() {
 
 export async function registerGlobalShortcut() {
   const registered = await isRegistered('Option+C');
-  console.log(registered);
   if (!registered) {
     await registerAll(['Option+C', 'Alt+C'], screenshot);
   }

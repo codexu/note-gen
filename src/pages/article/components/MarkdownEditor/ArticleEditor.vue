@@ -12,15 +12,15 @@ import { nextTick, ref, watch } from 'vue';
 import { MdEditor } from 'md-editor-v3';
 import type { ExposeParam } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
-import useFolderStore from '../../../../stores/folders.ts'
+import useArticleStore from '../../../../stores/article.ts'
 import { storeToRefs } from 'pinia';
 import { BaseDirectory, writeTextFile } from '@tauri-apps/api/fs';
 
 const editorRef = ref<ExposeParam>();
 
-const folderStore = useFolderStore()
+const articleStore = useArticleStore()
 
-const { article, activated } = storeToRefs(folderStore)
+const { article, activated } = storeToRefs(articleStore)
 
 async function handleChange() {
   await nextTick()
@@ -30,7 +30,7 @@ async function handleChange() {
 }
 
 watch(activated, async () => {
-  await folderStore.readArticle()
+  await articleStore.readArticle()
 }, {
   immediate: true
 })

@@ -21,11 +21,11 @@
 <script lang="ts" setup>
 import { storeToRefs } from 'pinia';
 import { renameFile } from '@tauri-apps/api/fs';
-import useFolderStore from '../../../../stores/folders.ts'
+import useArticleStore from '../../../../stores/article.ts'
 import { nextTick } from 'vue';
-const folderStore = useFolderStore()
+const articleStore = useArticleStore()
 
-const { article, activated } = storeToRefs(folderStore)
+const { article, activated } = storeToRefs(articleStore)
 
 async function handleRename() {
   await nextTick()
@@ -33,7 +33,7 @@ async function handleRename() {
     const path = article.value.path.split('/').slice(0, -1).join('/') + `/${article.value.title}.md`
     activated.value[0] = path
     await renameFile(article.value.path, path)
-    await folderStore.getFolders()
+    await articleStore.getFolders()
   }
 }
 </script>

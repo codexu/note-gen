@@ -8,11 +8,11 @@
 <script lang="ts" setup>
 import ArticleTool from './ArticleTool.vue';
 import ArticleEditor from './ArticleEditor.vue';
-import useFolderStore from '../../../../stores/folders.ts'
+import useArticleStore from '../../../../stores/article.ts'
 import { storeToRefs } from 'pinia';
 
-const folderStore = useFolderStore()
-const { activated } = storeToRefs(folderStore)
+const articleStore = useArticleStore()
+const { activated } = storeToRefs(articleStore)
 </script>
 
 <style lang="scss" scoped>

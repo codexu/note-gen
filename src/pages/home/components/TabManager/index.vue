@@ -12,15 +12,15 @@
         <v-icon v-else>mdi-content-save-outline</v-icon>
       </div>
     </div>
-    <MarkTab class="flex-1 overflow-y-auto story-scroll" />
+    <TabList class="flex-1 overflow-y-auto story-scroll" />
   </div>
 </template>
 
 <script lang="ts" setup>
-import MarkTab from './MarkTab.vue';
+import TabList from './TabList.vue';
 import TabAdd from './TabAdd.vue'
 import { storeToRefs } from 'pinia';
-import useTabStore from '../../../stores/tab.ts'
+import useTabStore from '../../../../stores/tab.ts'
 
 const tabStore = useTabStore()
 

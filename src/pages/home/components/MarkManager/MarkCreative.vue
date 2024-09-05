@@ -58,7 +58,7 @@
 
 <script lang="ts" setup>
 import { storeToRefs } from 'pinia';
-import useScreenshotStore from '../../../stores/screenshot.ts'
+import useScreenshotStore from '../../../../stores/screenshot.ts'
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 
 const screenshotStore = useScreenshotStore()

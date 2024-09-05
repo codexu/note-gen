@@ -1,10 +1,10 @@
 import { defineStore } from "pinia";
-import { nextTick, ref, watch } from "vue";
+import { nextTick, ref } from "vue";
 import { BaseDirectory, createDir, exists, FileEntry, readDir, readTextFile, removeDir, removeFile } from "@tauri-apps/api/fs";
 import { ignoreFolders } from '../utils/createDefaultFolder.ts'
 import { useLocalStorage } from "@vueuse/core";
 
-export default defineStore('folderStore', () => {
+export default defineStore('articleStore', () => {
   const loading = ref(false)
   const folders = ref<FileEntry[]>();
   const opened = useLocalStorage('articleTreeOpend', <string[]>[]);
@@ -68,7 +68,6 @@ export default defineStore('folderStore', () => {
   async function readArticle() {
     await nextTick()
     resetArticle()
-    console.log(article.value.content);
     const path = activated.value[0]
     if (path) {
       loading.value = true

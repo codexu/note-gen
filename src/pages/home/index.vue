@@ -1,17 +1,17 @@
 <template>
   <main class="flex-1 flex w-full h-screen overflow-hidden">
-    <TabMenu />
+    <TabManager />
     <section class="w-96 h-screen overflow-hidden">
-      <MarkList />
+      <MarkManager />
     </section>
     <section class="flex-1 h-screen overflow-hidden">
-      <NoteEditer />
+      <NoteManager />
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import MarkList from "./components/MarkList.vue";
-import TabMenu from "./components/TabMenu.vue";
-import NoteEditer from "./components/NoteEditer.vue";
+import MarkManager from "./components/MarkManager/index.vue";
+import TabManager from "./components/TabManager/index.vue";
+import NoteManager from "./components/NoteManager/index.vue";
 </script>

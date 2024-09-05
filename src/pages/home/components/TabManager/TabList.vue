@@ -39,7 +39,7 @@
 
 <script lang="ts" setup>
 import { onMounted } from 'vue';
-import useTabStore, { DEFAULT_TAB_NAME } from '../../../stores/tab.ts'
+import useTabStore, { DEFAULT_TAB_NAME } from '../../../../stores/tab.ts'
 import { storeToRefs } from 'pinia';
 
 const tabStore = useTabStore()

@@ -24,7 +24,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
-import useTabStore from '../../../stores/tab.ts'
+import useTabStore from '../../../../stores/tab.ts'
 import { storeToRefs } from 'pinia';
 
 const tabStore = useTabStore()

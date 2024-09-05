@@ -37,14 +37,14 @@
 import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { MdPreview } from 'md-editor-v3';
-import useTabStore from '../../../stores/tab.ts'
-import useMarkStore from '../../../stores/marks.ts'
-import { db, Note } from '../../../db.ts'
-import { getCompletions, type Data } from '../../../api/completions.ts'
+import useTabStore from '../../../../stores/tab.ts'
+import useMarkStore from '../../../../stores/marks.ts'
+import { db, Note } from '../../../../db.ts'
+import { getCompletions, type Data } from '../../../../api/completions.ts'
 import dayjs from 'dayjs';
 import 'md-editor-v3/lib/style.css';
 import { isEqual } from 'lodash';
-import checkTextLength from '../../../utils/checkTextLength.ts'
+import checkTextLength from '../../../../utils/checkTextLength.ts'
 import NoteToArticle from './NoteToArticle.vue';
 
 const tabStore = useTabStore()

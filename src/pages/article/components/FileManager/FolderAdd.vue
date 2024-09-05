@@ -24,9 +24,9 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
-import useFolderStore from '../../../../stores/folders.ts'
+import useArticleStore from '../../../../stores/article.ts'
 
-const folderStore = useFolderStore()
+const articleStore = useArticleStore()
 
 const showInput = ref(false)
 const model = ref('')
@@ -39,11 +39,11 @@ function handleShow() {
 async function handleSubmit(event?: KeyboardEvent) {
   event?.preventDefault()
   if (model.value.length) {
-    const isCreated = await folderStore.createFolder(model.value)
+    const isCreated = await articleStore.createFolder(model.value)
     if (isCreated) {
       model.value = ''
       showInput.value = false
-      await folderStore.getFolders()
+      await articleStore.getFolders()
     } else {
       snackbar.value = true
     }

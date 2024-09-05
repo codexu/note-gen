@@ -94,12 +94,9 @@
   <!-- 暂无记录 -->
   <div v-else-if="!screenshotStore.screenshotList.length" class="w-full h-full empty-wrap flex justify-center items-center border-e-thin">
     <v-empty-state
-      headline="暂无记录"
+      headline="无记录"
       text="赶快去生成一条 Mark 吧！"
     >
-      <template v-slot:media>
-        <v-icon icon="mdi-information-outline" class="mb-2"></v-icon>
-      </template>
     </v-empty-state>
   </div>
   <!-- 图片预览 -->
@@ -115,14 +112,14 @@ import { computed, ref, watch} from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
-import { db, Tab, type Mark } from '../../../db.ts'
-import ImageViewer from '../../../components/ImageViewer.vue';
+import { db, Tab, type Mark } from '../../../../db.ts'
+import ImageViewer from '../../../../components/ImageViewer.vue';
 import MarkCreative from "./MarkCreative.vue";
-import useTabStore from "../../../stores/tab.ts"
-import useMarkStore from '../../../stores/marks.ts';
-import useScreenshotStore from '../../../stores/screenshot.ts'
+import useTabStore from "../../../../stores/tab.ts"
+import useMarkStore from '../../../../stores/marks.ts';
+import useScreenshotStore from '../../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
-import { screenshot } from '../../../utils/screenshot.ts';
+import { screenshot } from '../../../../utils/screenshot.ts';
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)

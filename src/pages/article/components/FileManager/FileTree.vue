@@ -26,14 +26,14 @@
         <v-icon
           v-if="(item.children && item.children.length === 0)"
           class="scale-75 hidden" 
-          @click="folderStore.deleteFolder(item)"
+          @click="articleStore.deleteFolder(item)"
         >
           mdi-close
         </v-icon>
         <v-icon
           v-else="!item.children"
           class="scale-75 hidden" 
-          @click="folderStore.deleteFile(item)"
+          @click="articleStore.deleteFile(item)"
         >
           mdi-close
         </v-icon>
@@ -45,15 +45,15 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { VTreeview } from 'vuetify/labs/VTreeview'
-import useFolderStore from '../../../../stores/folders.ts'
+import useArticleStore from '../../../../stores/article.ts'
 import { storeToRefs } from 'pinia';
 
-const folderStore = useFolderStore()
+const articleStore = useArticleStore()
 
-const { folders, opened, activated } = storeToRefs(folderStore)
+const { folders, opened, activated } = storeToRefs(articleStore)
 
 onMounted(async() => {
-  folderStore.getFolders()
+  articleStore.getFolders()
 })
 </script>
 

@@ -36,19 +36,19 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { writeTextFile, BaseDirectory, exists, createDir } from '@tauri-apps/api/fs';
-import { db, Note } from '../../../db';
-import useMarkStore from '../../../stores/marks.ts';
-import FolderSelect from '../../../components/FolderSelect.vue';
+import { db, Note } from '../../../../db.ts';
+import useMarkStore from '../../../../stores/marks.ts';
+import FolderSelect from '../../../../components/FolderSelect.vue';
 import { useRouter } from 'vue-router';
 import { appDataDir } from '@tauri-apps/api/path';
-import useFolderStore from '../../../stores/folders.ts';
+import useArticleStore from '../../../../stores/article.ts';
 import { storeToRefs } from 'pinia';
 
 const router = useRouter()
 const emit = defineEmits(['created'])
-const folderStore = useFolderStore()
+const articleStore = useArticleStore()
 
-const { activated } = storeToRefs(folderStore)
+const { activated } = storeToRefs(articleStore)
 
 const markStore = useMarkStore()
 
@@ -83,7 +83,7 @@ async function genArticle() {
   await db.notes.delete(note.value.id)
   loading.value = false
   isActive.value = false
-  await folderStore.getFolders()
+  await articleStore.getFolders()
   const appDataDirPath = await appDataDir()
   activated.value[0] = `${appDataDirPath}${file}`
   router.push({

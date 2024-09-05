@@ -13,7 +13,7 @@
       <v-card title="生成文章">
         <v-card-text>
           <div class="text-medium-emphasis mb-4">
-            这篇笔记只是一篇空洞的草稿，生成文章去完善它吧！
+            AI 已经帮你整理一篇笔记。
           </div>
           <v-text-field v-model="note.title" label="标题" required></v-text-field>
           <FolderSelect v-model="folder" />
@@ -39,8 +39,16 @@ import { writeTextFile, BaseDirectory, exists, createDir } from '@tauri-apps/api
 import { db, Note } from '../../../db';
 import useMarkStore from '../../../stores/marks.ts';
 import FolderSelect from '../../../components/FolderSelect.vue';
+import { useRouter } from 'vue-router';
+import { appDataDir } from '@tauri-apps/api/path';
+import useFolderStore from '../../../stores/folders.ts';
+import { storeToRefs } from 'pinia';
 
+const router = useRouter()
 const emit = defineEmits(['created'])
+const folderStore = useFolderStore()
+
+const { activated } = storeToRefs(folderStore)
 
 const markStore = useMarkStore()
 
@@ -66,14 +74,21 @@ async function genArticle() {
     note.value.content,
     { dir: BaseDirectory.AppData }
   )
-  await db.notes.delete(note.value.id)
   for (let index = 0; index < note.value.markIds.length; index++) {
     const markId = note.value.markIds[index];
-    await db.marks.update(markId, { status: false })
+    console.log(markId);
+    await db.marks.update(markId, { deleted: true })
   }
   await markStore.getMarks(note.value.tab)
+  await db.notes.delete(note.value.id)
   loading.value = false
   isActive.value = false
+  await folderStore.getFolders()
+  const appDataDirPath = await appDataDir()
+  activated.value[0] = `${appDataDirPath}${file}`
+  router.push({
+    name: 'article',
+  })
   emit('created')
 }
 

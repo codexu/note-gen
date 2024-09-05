@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { MdEditor } from 'md-editor-v3';
 import type { ExposeParam } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
@@ -23,8 +23,15 @@ const folderStore = useFolderStore()
 const { article, activated } = storeToRefs(folderStore)
 
 async function handleChange() {
-  if (activated.value[0]) {
+  await nextTick()
+  if (activated.value[0] && article.value.content) {
     await writeTextFile(activated.value[0], article.value.content, { dir: BaseDirectory.AppData })
   }
 }
+
+watch(activated, async () => {
+  await folderStore.readArticle()
+}, {
+  immediate: true
+})
 </script>

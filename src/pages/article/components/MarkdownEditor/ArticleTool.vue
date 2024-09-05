@@ -3,9 +3,9 @@
     <div class="flex-1 flex justify-between items-center">
       <div class="flex-1">
         <input
-          @change="handleRename"
           v-model="article.title"
           class="min-w-[600px] outline-none px-4 font-bold text-md"
+          @change="handleRename"
         ></input>
       </div>
       <div>
@@ -22,12 +22,14 @@
 import { storeToRefs } from 'pinia';
 import { renameFile } from '@tauri-apps/api/fs';
 import useFolderStore from '../../../../stores/folders.ts'
+import { nextTick } from 'vue';
 const folderStore = useFolderStore()
 
 const { article, activated } = storeToRefs(folderStore)
 
 async function handleRename() {
-  if (article.value.title) {
+  await nextTick()
+  if (article.value.title && activated.value[0]) {
     const path = article.value.path.split('/').slice(0, -1).join('/') + `/${article.value.title}.md`
     activated.value[0] = path
     await renameFile(article.value.path, path)

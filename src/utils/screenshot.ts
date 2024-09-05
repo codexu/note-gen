@@ -101,6 +101,7 @@ async function analysisScreenshot (id: string, path: string) {
     description,
     tab: currentTab,
     keywords,
+    deleted: false,
     createdAt: new Date().getTime()
   })
   screenshotStore.complete(id)

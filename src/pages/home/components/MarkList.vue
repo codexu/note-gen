@@ -41,7 +41,7 @@
             </v-img>
           </div>
           <div class="flex-1 px-2 overflow-hidden">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between mt-1">
               <v-chip-group class="!py-0">
                 <v-chip label variant="flat" size="x-small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
               </v-chip-group>

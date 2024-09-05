@@ -9,7 +9,7 @@ pub fn cut_words(str: String) -> Vec<String> {
     let top_key = keyword_extractor.extract_keywords(
         &jieba,
         &str,
-        3,
+        2,
         vec![],
     );
     top_key.iter().map(|x| x.keyword.clone()).collect()

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import { ref, watch } from "vue";
-import { BaseDirectory, createDir, exists, FileEntry, readDir, readTextFile, removeDir } from "@tauri-apps/api/fs";
+import { nextTick, ref, watch } from "vue";
+import { BaseDirectory, createDir, exists, FileEntry, readDir, readTextFile, removeDir, removeFile } from "@tauri-apps/api/fs";
 import { ignoreFolders } from '../utils/createDefaultFolder.ts'
 import { useLocalStorage } from "@vueuse/core";
 
@@ -41,7 +41,6 @@ export default defineStore('folderStore', () => {
     return false
   }
 
-
   async function deleteFolder(item: FileEntry) {
     const isExists = await exists(item.path, { dir: BaseDirectory.AppData })
     if (isExists) {
@@ -50,7 +49,26 @@ export default defineStore('folderStore', () => {
     await getFolders()
   }
 
+  function resetArticle() {
+    article.value.title = ''
+    article.value.content = ''
+    article.value.path = ''
+  }
+
+  async function deleteFile(item: FileEntry) {
+    const isExists = await exists(item.path, { dir: BaseDirectory.AppData })
+    if (isExists) {
+      await removeFile(item.path, { dir: BaseDirectory.AppData })
+    }
+    await getFolders()
+    activated.value[0] = ''
+    resetArticle()
+  }
+
   async function readArticle() {
+    await nextTick()
+    resetArticle()
+    console.log(article.value.content);
     const path = activated.value[0]
     if (path) {
       loading.value = true
@@ -62,11 +80,6 @@ export default defineStore('folderStore', () => {
     }
   }
 
-  watch(activated, async () => {
-    await readArticle()
-  }, {
-    immediate: true
-  })
   return {
     loading,
     opened,
@@ -75,6 +88,8 @@ export default defineStore('folderStore', () => {
     folders,
     getFolders,
     createFolder,
-    deleteFolder
+    deleteFolder,
+    deleteFile,
+    readArticle
   }
 })

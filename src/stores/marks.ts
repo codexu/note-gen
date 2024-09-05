@@ -13,7 +13,7 @@ export default defineStore('markStore', () => {
     marks.value = res.map(mark => ({
       ...mark,
       imgPath: convertFileSrc(mark.imgPath)
-    })).filter(mark => mark.status).reverse()
+    })).filter(mark => !mark.deleted).reverse()
     loading.value = false
   }
 

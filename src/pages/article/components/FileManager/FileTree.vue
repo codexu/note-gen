@@ -9,6 +9,7 @@
       density="compact"
       open-on-click
       activatable
+      mandatory
     >
       <template v-slot:prepend="{ item, isOpen }">
         <v-icon v-if="item.children && item.children.length" class="scale-75">
@@ -23,9 +24,16 @@
       </template>
       <template v-slot:append="{ item }">
         <v-icon
-          v-if="item.children && item.children.length === 0"
+          v-if="(item.children && item.children.length === 0)"
           class="scale-75 hidden" 
           @click="folderStore.deleteFolder(item)"
+        >
+          mdi-close
+        </v-icon>
+        <v-icon
+          v-else="!item.children"
+          class="scale-75 hidden" 
+          @click="folderStore.deleteFile(item)"
         >
           mdi-close
         </v-icon>
@@ -61,7 +69,7 @@ onMounted(async() => {
     min-height: 32px !important;
   }
   .v-list-item-title{
-    @apply text-sm;
+    font-size: 14px;
   }
   .v-list-item-action{
     display: none;

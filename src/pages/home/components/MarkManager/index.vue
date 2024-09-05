@@ -115,6 +115,7 @@ import useScreenshotStore from '../../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
 import { screenshot } from '../../../../utils/screenshot.ts';
 import Empty from './Empty.vue';
+import emitter from '../../../../emitter.ts';
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
@@ -138,7 +139,11 @@ async function transferMark(mark: Mark, tab: Tab) {
   if (res) {
     const index = marks.value.findIndex(item => item.id === mark.id)
     marks.value.splice(index, 1)
-    tabStore.queryTabs()
+    await tabStore.queryTabs()
+    if (marks.value.length === 0) {
+      await db.notes.where({ tab: checked.value }).delete()
+      emitter.emit('reloadNote')
+    }
   }
 }
 

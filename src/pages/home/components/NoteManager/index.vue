@@ -48,6 +48,7 @@ import { isEqual } from 'lodash';
 import checkTextLength from '../../../../utils/checkTextLength.ts'
 import NoteToArticle from './NoteToArticle.vue';
 import Empty from './Empty.vue';
+import emitter from '../../../../emitter.ts';
 
 const tabStore = useTabStore()
 const markStore = useMarkStore()
@@ -66,6 +67,8 @@ async function getNote() {
   content.value = note.value?.content || ''
   loading.value = note.value?.generating || false
 }
+
+emitter.on('reloadNote', getNote)
 
 const genDisabled = computed(() => {
   const marksIds = enabledMarks.value.map(item => item.id)

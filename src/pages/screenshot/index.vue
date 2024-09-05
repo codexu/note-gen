@@ -14,8 +14,8 @@
       class="absolute z-20 grid grid-cols-2 gap-2 bg-[#fff] bg-opacity-80 rounded shadow p-2"
       :style="(pickerUtilsStyle as StyleValue)"
     >
-      <v-btn color="red" density="comfortable" prepend-icon="mdi-close" @click="handleClose">关闭</v-btn>
-      <v-btn color="blue" density="comfortable" prepend-icon="mdi-check" @click="handleSubmit">完成</v-btn>
+      <v-btn density="comfortable" prepend-icon="mdi-close" @click="handleClose">关闭</v-btn>
+      <v-btn density="comfortable" prepend-icon="mdi-check" @click="handleSubmit">完成</v-btn>
     </div>
     
   </div>
@@ -76,8 +76,8 @@ const pickerStyle = computed(() => {
 
 const pickerUtilsStyle = computed(() => {
   return {
-    top: `${top.value + height.value + 20}px`,
-    left: `${left.value + width.value - 192}px`,
+    top: `${top.value + height.value - 45}px`,
+    left: `${left.value + width.value - 198}px`,
     visibility: isSelected.value ? 'visible' : 'hidden',
   }
 })
@@ -134,7 +134,7 @@ async function handleSubmit() {
 .screen-picker{
   position: absolute;
   z-index: 10;
-  border: solid 3px #2196F3;
+  border: solid 3px #ccc;
   box-sizing: content-box;
   transform: translate(-2px, -2px);
   box-shadow: 0 0 0 100000px rgba(0, 0, 0, .5);

@@ -24,11 +24,12 @@
       </span>
     </div>
     <v-skeleton-loader
-      v-show="loading"
+      v-if="loading"
       class="mx-auto h-full flex items-start"
       type="article"
     ></v-skeleton-loader>
-    <MdPreview v-show="!loading" :modelValue="showContent" />
+    <MdPreview v-if="!loading" :modelValue="showContent" />
+    <Empty v-if="!note" :disabled="genDisabled" />
   </section>
   <NoteToArticle ref="noteToArticleRef" @created="getNote" />
 </template>
@@ -46,6 +47,7 @@ import 'md-editor-v3/lib/style.css';
 import { isEqual } from 'lodash';
 import checkTextLength from '../../../../utils/checkTextLength.ts'
 import NoteToArticle from './NoteToArticle.vue';
+import Empty from './Empty.vue';
 
 const tabStore = useTabStore()
 const markStore = useMarkStore()

@@ -92,13 +92,7 @@
     </div>
   </div>
   <!-- 暂无记录 -->
-  <div v-else-if="!screenshotStore.screenshotList.length" class="w-full h-full empty-wrap flex justify-center items-center border-e-thin">
-    <v-empty-state
-      headline="无记录"
-      text="赶快去生成一条 Mark 吧！"
-    >
-    </v-empty-state>
-  </div>
+  <Empty v-else-if="!screenshotStore.screenshotList.length" />
   <!-- 图片预览 -->
   <ImageViewer
     v-if="marks && marks[imageViewerMarkIndex]"
@@ -120,6 +114,7 @@ import useMarkStore from '../../../../stores/marks.ts';
 import useScreenshotStore from '../../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
 import { screenshot } from '../../../../utils/screenshot.ts';
+import Empty from './Empty.vue';
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)

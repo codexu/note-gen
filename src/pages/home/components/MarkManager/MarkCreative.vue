@@ -15,7 +15,7 @@
           </v-img>
         </div>
         <div class="flex-1">
-          <div class="flex justify-between h-6">
+          <div class="flex justify-between h-6 mt-1">
             <div v-if="!screenshot.keywords.length" class="flex mt-1">
               <v-skeleton-loader
                 v-for="loader in 3"

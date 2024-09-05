@@ -11,8 +11,9 @@ import { db } from '../db.ts';
 import { Data, getCompletions } from '../api/completions.ts';
 import useMarkStore from '../stores/marks.ts';
 import useTabStore from '../stores/tab.ts';
+import { nextTick } from 'vue';
 
-const result: ScreenshotListStatus = {
+const defaultResult: ScreenshotListStatus = {
   id: '',
   tabId: 0,
   path: '',
@@ -22,7 +23,11 @@ const result: ScreenshotListStatus = {
   screenshotProgress: '截图',
 }
 
+let result = clone(defaultResult)
+
 export async function screenshot() {
+  result = clone(defaultResult)
+  
   const currentWindow = getCurrent()
   await currentWindow.hide();
 
@@ -59,6 +64,8 @@ export async function screenshotEnd(event: any) {
   const { screenshotList } = storeToRefs(screenshotStore)
   const { id, path } = event.payload
   result.path = path
+  await nextTick();
+  console.log(result);
   screenshotList.value.unshift(clone(result))
   setTimeout(() => {
     analysisScreenshot(id, path);

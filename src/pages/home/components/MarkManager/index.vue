@@ -6,7 +6,7 @@
       <v-btn size="small" variant="text" icon="mdi-image-plus-outline" v-tooltip="'图片标记'"></v-btn>
     </div>
   </div>
-  <div v-if="marks?.length" class="list-mark story-scroll border-e-thin">
+  <div v-if="marks?.length || screenshotList.length" class="list-mark story-scroll border-e-thin">
     <div class="flex justify-between px-2 pt-3 items-end">
       <p class="text-md font-bold text-gray-700">Marks</p>
       <span class="text-xs text-gray-400">{{ statusTotoal }} / {{ total }}</span>
@@ -123,6 +123,8 @@ dayjs.extend(relativeTime)
 const tabStore = useTabStore()
 const markStore = useMarkStore()
 const screenshotStore = useScreenshotStore()
+
+const { screenshotList } = storeToRefs(screenshotStore)
 
 const { checked, tabs } = storeToRefs(tabStore)
 

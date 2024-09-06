@@ -16,6 +16,7 @@ interface Mark {
   tab: number;
   keywords: string[];
   deleted: boolean;
+  deletedAt?: number;
   createdAt: number;
 }
 
@@ -37,7 +38,7 @@ const db = new Dexie('note-db') as Dexie & {
 
 db.version(1).stores({
   tabs: '++id, name&, total, createdAt',
-  marks: '++id, status, imgPath, content, description, tab, keywords, deleted, createdAt',
+  marks: '++id, status, imgPath, content, description, tab, keywords, deleted, deletedAt, createdAt',
   notes: '++id, title, content, markIds, tab, generating, createdAt',
   folders: '++id, name, createdAt',
 });

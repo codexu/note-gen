@@ -77,7 +77,7 @@ async function genArticle() {
   for (let index = 0; index < note.value.markIds.length; index++) {
     const markId = note.value.markIds[index];
     console.log(markId);
-    await db.marks.update(markId, { deleted: true })
+    await db.marks.update(markId, { deleted: true, deletedAt: Date.now() })
   }
   await markStore.getMarks(note.value.tab)
   await db.notes.delete(note.value.id)

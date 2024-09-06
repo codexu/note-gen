@@ -20,7 +20,7 @@ export default defineStore('markStore', () => {
   async function deleteMark(mark: Mark) {
     const index = marks.value.findIndex(item => item.id == mark.id)
     marks.value.splice(index, 1)
-    await db.marks.delete(mark.id)
+    await db.marks.update(mark.id, { deleted: true, deletedAt: Date.now() })
   }
 
   const enabledMarks = computed(() => {

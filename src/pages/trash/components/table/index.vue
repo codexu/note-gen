@@ -2,6 +2,7 @@
   <v-data-table
     density="compact"
     fixed-header
+    show-select
     :height="height"
     v-model:page="page"
     :headers="(headers as any)"
@@ -69,7 +70,7 @@ dayjs.extend(relativeTime)
 
 const page = ref(1)
 const pageCount = ref(0)
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(100)
 const headers = [
   { title: '索引', key: 'index', sortable: false, align: 'center' },
   { title: '记录', key: 'imgPath', sortable: false, align: 'center' },

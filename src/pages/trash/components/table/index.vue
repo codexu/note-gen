@@ -7,6 +7,7 @@
     :headers="headers"
     :items="desserts"
     :items-per-page="itemsPerPage"
+    v-viewer
   >
     <template v-slot:item.index="{ index }">
       {{ index + 1 + (page - 1) * itemsPerPage }}

@@ -6,13 +6,13 @@
       <v-btn size="small" variant="text" icon="mdi-image-plus-outline" v-tooltip="'图片标记'"></v-btn>
     </div>
   </div>
-  <div v-if="marks?.length || screenshotList.length" class="list-mark story-scroll border-e-thin">
+  <div v-if="marks?.length || screenshotList.length" class="list-mark story-scroll border-e-thin" v-viewer>
     <div class="flex justify-between px-2 pt-3 items-end">
       <p class="text-md font-bold text-gray-700">Marks</p>
       <span class="text-xs text-gray-400">{{ statusTotoal }} / {{ total }}</span>
     </div>
     <MarkCreative />
-    <div v-for="(item, index) in marks" :key="item.id">
+    <div v-for="item in marks" :key="item.id">
       <v-card :loading="loading" class="m-2" :variant="item.status ? 'elevated' : 'plain'">
         <template v-slot:loader="{ isActive }">
           <v-progress-linear
@@ -25,7 +25,6 @@
         <div class="flex">
           <div class="overflow-hidden h-28 w-28 bg-gray-400">
             <v-img
-              @click="showImageViewer(index)"
               class="h-28 w-28 cursor-zoom-in hover:scale-105 duration-1000 transition-transform"
               :src="item.imgPath"
               cover
@@ -93,21 +92,14 @@
   </div>
   <!-- 暂无记录 -->
   <Empty v-else-if="!screenshotStore.screenshotList.length" />
-  <!-- 图片预览 -->
-  <ImageViewer
-    v-if="marks && marks[imageViewerMarkIndex]"
-    :src="marks[imageViewerMarkIndex].imgPath"
-    v-model:visible="isShowImageViewer"
-  />
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch} from 'vue';
+import { computed, watch} from 'vue';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
 import { db, Tab, type Mark } from '../../../../db.ts'
-import ImageViewer from '../../../../components/ImageViewer.vue';
 import MarkCreative from "./MarkCreative.vue";
 import useTabStore from "../../../../stores/tab.ts"
 import useMarkStore from '../../../../stores/marks.ts';
@@ -162,15 +154,6 @@ async function handleDelete(mark: Mark) {
 // 计算时间以前
 function timeAgo(time: number) {
   return dayjs(time).fromNow()
-}
-
-// 图片预览
-const isShowImageViewer = ref(false)
-const imageViewerMarkIndex = ref(0)
-
-function showImageViewer(index: number) {
-  isShowImageViewer.value = true
-  imageViewerMarkIndex.value = index
 }
 
 // 计算数量

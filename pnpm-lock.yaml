@@ -53,6 +53,12 @@ importers:
       uuid:
         specifier: ^10.0.0
         version: 10.0.0
+      v-viewer:
+        specifier: ^3.0.11
+        version: 3.0.11(vue@3.4.35(typescript@5.5.4))
+      viewerjs:
+        specifier: ^1.11.6
+        version: 1.11.6
       vue:
         specifier: ^3.3.4
         version: 3.4.35(typescript@5.5.4)
@@ -1382,6 +1388,14 @@ packages:
 
   uzip@0.20201231.0:
     resolution: {integrity: sha512-OZeJfZP+R0z9D6TmBgLq2LHzSSptGMGDGigGiEe0pr8UBe/7fdflgHlHBNDASTXB5jnFuxHpNaJywSg8YFeGng==}
+
+  v-viewer@3.0.11:
+    resolution: {integrity: sha512-E8LOdAxhzuktt4HB3PswVCccQ1Q1sYHYnLsS6zaJISpb5EvmAFs5sYNfXnDLFxVb5DQ82v4ZlGxkYlseXwWRJw==}
+    peerDependencies:
+      vue: ^3.0.0
+
+  viewerjs@1.11.6:
+    resolution: {integrity: sha512-TlhdSp2oEOLFXvEp4psKaeTjR5zBjTRcM/sHUN8PkV1UWuY8HKC8n7GaVdW5Xqnwdr/F1OmzLik1QwDjI4w/nw==}
 
   vite@5.3.5:
     resolution: {integrity: sha512-MdjglKR6AQXQb9JGiS7Rc2wC6uMjcm7Go/NHNO63EwiJXfuk9PgqiP/n5IDJCziMkfw9n4Ubp7lttNwz+8ZVKA==}
@@ -2879,6 +2893,14 @@ snapshots:
   uuid@10.0.0: {}
 
   uzip@0.20201231.0: {}
+
+  v-viewer@3.0.11(vue@3.4.35(typescript@5.5.4)):
+    dependencies:
+      lodash: 4.17.21
+      viewerjs: 1.11.6
+      vue: 3.4.35(typescript@5.5.4)
+
+  viewerjs@1.11.6: {}
 
   vite@5.3.5(sass@1.77.8):
     dependencies:

@@ -9,6 +9,7 @@ interface Tab {
 
 interface Mark {
   id: number;
+  type: 'screenshot' | 'text' | 'image'
   status: boolean;
   imgPath: string;
   content: string;
@@ -38,7 +39,7 @@ const db = new Dexie('note-db') as Dexie & {
 
 db.version(1).stores({
   tabs: '++id, name&, total, createdAt',
-  marks: '++id, status, imgPath, content, description, tab, keywords, deleted, deletedAt, createdAt',
+  marks: '++id, type, status, imgPath, content, description, tab, keywords, deleted, deletedAt, createdAt',
   notes: '++id, title, content, markIds, tab, generating, createdAt',
   folders: '++id, name, createdAt',
 });

@@ -4,7 +4,7 @@
     fixed-header
     :height="height"
     v-model:page="page"
-    :headers="headers"
+    :headers="(headers as any)"
     :items="desserts"
     :items-per-page="itemsPerPage"
     v-viewer
@@ -13,7 +13,8 @@
       {{ index + 1 + (page - 1) * itemsPerPage }}
     </template>
     <template v-slot:item.imgPath="{ value }">
-      <v-img class="w-6 h-6" cover :src="convertFileSrc(value)" />
+      <v-img v-if="value" cover :src="convertFileSrc(value)" />
+      <v-icon v-else>mdi-format-text</v-icon>
     </template>
     <template v-slot:item.keywords="{ value }">
       <v-chip
@@ -24,9 +25,6 @@
         {{ item }}
       </v-chip>
     </template>
-    <template v-slot:item.content="{ value }">
-      <v-icon v-tooltip="value" class="ml-1 cursor-pointer" color="primary">mdi-text-search</v-icon>
-    </template>
     <template v-slot:item.description="{ value }">
       {{ value }}
     </template>
@@ -34,6 +32,25 @@
       {{ dayjs(value).fromNow() }}
     </template>
     <template v-slot:item.actions="{ item }">
+      <v-dialog max-width="800">
+        <template v-slot:activator="{ props: activatorProps }">
+          <v-icon v-bind="activatorProps" class="cursor-pointer" color="primary" v-tooltip="'内容'">mdi-text-search</v-icon>
+        </template>
+        <template v-slot:default="{ isActive }">
+          <v-card title="内容">
+            <v-card-text>
+              <p class="whitespace-pre-wrap text-gray-600">{{ item.content }}</p>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn
+                text="关闭"
+                @click="isActive.value = false"
+              ></v-btn>
+            </v-card-actions>
+          </v-card>
+        </template>
+      </v-dialog>
       <v-btn icon="mdi-recycle-variant" variant="text" color="error" size="small" v-tooltip="'还原'" @click="recycle(item)"></v-btn>
     </template>
   </v-data-table>
@@ -54,14 +71,13 @@ const page = ref(1)
 const pageCount = ref(0)
 const itemsPerPage = ref(10)
 const headers = [
-  { title: '索引', key: 'index', sortable: false },
-  { title: '记录', key: 'imgPath', sortable: false },
+  { title: '索引', key: 'index', sortable: false, align: 'center' },
+  { title: '记录', key: 'imgPath', sortable: false, align: 'center' },
   { title: '关键词', key: 'keywords', sortable: false },
   { title: '描述', key: 'description', sortable: false },
-  { title: '内容', key: 'content', sortable: false },
   { title: '来源于', key: 'tabName' },
   { title: '删除于', key: 'deletedAt' },
-  { title: '操作', key: 'actions', sortable: false },
+  { title: '操作', key: 'actions', sortable: false, align: 'center' },
 ]
 
 interface DeletedMark extends Mark {

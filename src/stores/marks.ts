@@ -12,7 +12,7 @@ export default defineStore('markStore', () => {
     const res = await db.marks.where({ tab: tabId }).toArray()
     marks.value = res.map(mark => ({
       ...mark,
-      imgPath: convertFileSrc(mark.imgPath)
+      imgPath: mark.type === 'screenshot' ? convertFileSrc(mark.imgPath) : ''
     })).filter(mark => !mark.deleted).reverse()
     loading.value = false
   }

@@ -19,6 +19,9 @@
       "shell": {
         "all": true
       },
+      "clipboard": {
+        "all": true
+      },
       "fs": {
         "all": true,
         "scope": ["**"]

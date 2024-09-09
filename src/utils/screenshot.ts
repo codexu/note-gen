@@ -8,10 +8,10 @@ import useScreenshotStore, { ScreenshotListStatus } from '../stores/screenshot.t
 import { storeToRefs } from "pinia";
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
 import { db } from '../db.ts';
-import { Data, getCompletions } from '../api/completions.ts';
 import useMarkStore from '../stores/marks.ts';
 import useTabStore from '../stores/tab.ts';
 import { nextTick } from 'vue';
+import takeDescription from './takeDescription.ts'
 
 const defaultResult: ScreenshotListStatus = {
   id: '',
@@ -103,6 +103,7 @@ async function analysisScreenshot (id: string, path: string) {
   screenshotStore.updateStatus(clone(result))
   await db.marks.add({
     imgPath: path,
+    type: 'screenshot',
     status: true,
     content,
     description,
@@ -119,25 +120,6 @@ async function analysisScreenshot (id: string, path: string) {
   const markStore = useMarkStore()
   const tabId = storage.get('currentTab')
   await markStore.getMarks(tabId)
-}
-
-// 提取识别文字里的重要内容
-async function takeDescription(content: string) {
-  const request_content = `
-    以下是截图后使用 OCR 识别出的文字，该截图是整个屏幕的截图，识别后的内容为：${content}。请返回一句此截图内容的核心内容描述，长度不要超过50字。
-  `
-  const data: Data = {
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: request_content,
-      },
-    ]
-  }
-  const res = await getCompletions(data);
-  const result = res.data.choices[0].message.content
-  return result
 }
 
 // 截图完成通知

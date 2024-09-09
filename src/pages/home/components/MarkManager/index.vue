@@ -2,7 +2,7 @@
   <div class="h-12 flex justify-between items-center px-2 bg-gray-50 border-e-thin border-b-thin">
     <div>
       <v-btn size="small" variant="text" icon="mdi-vector-square-plus" v-tooltip="'截图记录'" @click="screenshot"></v-btn>
-      <v-btn size="small" variant="text" icon="mdi-clipboard-text-multiple-outline" v-tooltip="'文字记录'"></v-btn>
+      <MarkText />
       <v-btn size="small" variant="text" icon="mdi-image-plus-outline" v-tooltip="'图片标记'"></v-btn>
     </div>
   </div>
@@ -23,8 +23,9 @@
           ></v-progress-linear>
         </template>
         <div class="flex">
-          <div class="overflow-hidden h-28 w-28 bg-gray-400">
+          <div class="overflow-hidden cursor-pointer h-28 w-28 flex justify-center items-center bg-gray-100">
             <v-img
+              v-if="item.type === 'screenshot'"
               class="h-28 w-28 cursor-zoom-in hover:scale-105 duration-1000 transition-transform"
               :src="item.imgPath"
               cover
@@ -38,6 +39,25 @@
                 </div>
               </template>
             </v-img>
+            <v-dialog v-if="item.type === 'text'" max-width="800">
+              <template v-slot:activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps" class="scale-150 h-full w-full">mdi-format-text</v-icon>
+              </template>
+              <template v-slot:default="{ isActive }">
+                <v-card title="内容">
+                  <v-card-text>
+                    <p v-html="item.content" class="whitespace-pre-wrap text-gray-600" />
+                  </v-card-text>
+                  <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn
+                      text="关闭"
+                      @click="isActive.value = false"
+                    ></v-btn>
+                  </v-card-actions>
+                </v-card>
+              </template>
+            </v-dialog>
           </div>
           <div class="flex-1 px-2 overflow-hidden">
             <div class="flex items-center justify-between mt-1">
@@ -101,6 +121,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
 import { db, Tab, type Mark } from '../../../../db.ts'
 import MarkCreative from "./MarkCreative.vue";
+import MarkText from './MarkText.vue';
 import useTabStore from "../../../../stores/tab.ts"
 import useMarkStore from '../../../../stores/marks.ts';
 import useScreenshotStore from '../../../../stores/screenshot.ts'

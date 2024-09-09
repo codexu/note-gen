@@ -5,7 +5,7 @@
         :key="index"
         variant="plain"
         :icon="route.name === menu.name ? menu.icon : menu.icon + '-outline'"
-        :class="route.name === menu.name ? 'scale-125' : ''"
+        :class="route.name === menu.name ? 'opacity-100' : ''"
         v-tooltip:end="menu.tip"
         @click="menuClick(menu.name)"
       ></v-btn>
@@ -15,7 +15,7 @@
       :key="index"
       variant="plain"
       :icon="route.name === menu.name ? menu.icon : menu.icon + '-outline'"
-      :class="route.name === menu.name ? 'scale-125' : ''"
+      :class="route.name === menu.name ? 'opacity-100' : ''"
       v-tooltip:end="menu.tip"
       @click="menuClick(menu.name)"
     ></v-btn>

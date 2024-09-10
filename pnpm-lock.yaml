@@ -50,6 +50,9 @@ importers:
       store:
         specifier: ^2.0.12
         version: 2.0.12
+      tauri-plugin-clipboard-api:
+        specifier: 1.1.4
+        version: 1.1.4
       uuid:
         specifier: ^10.0.0
         version: 10.0.0
@@ -1340,6 +1343,9 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
+  tauri-plugin-clipboard-api@1.1.4:
+    resolution: {integrity: sha512-bq00ENlp4oeMrNoCBsfHvFgZh1YSkT1KszegilMsb+2vw0PEo5RwlcBfUzKvQXv5BKIzCcobYEB9C1VwiKhWTA==}
+
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -1364,6 +1370,9 @@ packages:
 
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
+
+  tslib@2.7.0:
+    resolution: {integrity: sha512-gLXCKdN1/j47AiHiOkJN69hJmcbGTHI0ImLmbYLHykhgeN0jVGola9yVjFgzCUklsZQMW55o+dW7IXv3RCXDzA==}
 
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
@@ -1511,6 +1520,9 @@ packages:
     resolution: {integrity: sha512-2wWLbGbYDiSqqIKoPjar3MPgB94ErzCtrNE1FdqGuaO0pi2JGjmE8aW8TDZwzU7vuxcGRdL/4gPQwQ7hD5AMSw==}
     engines: {node: '>= 14'}
     hasBin: true
+
+  zod@3.23.8:
+    resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
 
 snapshots:
 
@@ -2858,6 +2870,12 @@ snapshots:
     transitivePeerDependencies:
       - ts-node
 
+  tauri-plugin-clipboard-api@1.1.4:
+    dependencies:
+      '@tauri-apps/api': 1.6.0
+      tslib: 2.7.0
+      zod: 3.23.8
+
   thenify-all@1.6.0:
     dependencies:
       thenify: 3.3.1
@@ -2877,6 +2895,8 @@ snapshots:
   toggle-selection@1.0.6: {}
 
   ts-interface-checker@0.1.13: {}
+
+  tslib@2.7.0: {}
 
   typescript@5.5.4: {}
 
@@ -2978,3 +2998,5 @@ snapshots:
       cssfilter: 0.0.10
 
   yaml@2.5.0: {}
+
+  zod@3.23.8: {}

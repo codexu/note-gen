@@ -3,10 +3,10 @@
     <div>
       <v-btn size="small" variant="text" icon="mdi-vector-square-plus" v-tooltip="'截图记录'" @click="screenshot"></v-btn>
       <MarkText />
-      <v-btn size="small" variant="text" icon="mdi-image-plus-outline" v-tooltip="'图片标记'"></v-btn>
+      <MarkImage />
     </div>
   </div>
-  <div v-if="marks?.length || screenshotList.length" class="list-mark story-scroll border-e-thin" v-viewer>
+  <div v-if="marks?.length || creatingList.length" class="list-mark story-scroll border-e-thin" v-viewer>
     <div class="flex justify-between px-2 pt-3 items-end">
       <p class="text-md font-bold text-gray-700">Marks</p>
       <span class="text-xs text-gray-400">{{ statusTotoal }} / {{ total }}</span>
@@ -25,7 +25,7 @@
         <div class="flex">
           <div class="overflow-hidden cursor-pointer h-28 w-28 flex justify-center items-center bg-gray-100">
             <v-img
-              v-if="item.type === 'screenshot'"
+              v-if="item.type !== 'text'"
               class="h-28 w-28 cursor-zoom-in hover:scale-105 duration-1000 transition-transform"
               :src="item.imgPath"
               cover
@@ -61,9 +61,18 @@
           </div>
           <div class="flex-1 px-2 overflow-hidden">
             <div class="flex items-center justify-between mt-1">
-              <v-chip-group class="!py-0">
-                <v-chip label variant="flat" size="x-small" v-for="keyword in item.keywords" :key="keyword">{{ keyword }}</v-chip>
-              </v-chip-group>
+              <div class="!py-0">
+                <v-chip
+                  label
+                  variant="flat"
+                  size="x-small"
+                  v-for="keyword in item.keywords" :key="keyword"
+                  :color="item.type === 'image' ? 'primary' : 'default'"
+                  class="mr-1"
+                >
+                  {{ keyword }}
+                </v-chip>
+              </div>
               <v-checkbox class="flex items-center h-6 scale-75 translate-x-3" v-model="item.status" @click="changeStatus(item)"></v-checkbox>
             </div>
             <!-- 最多3行文字 -->
@@ -111,7 +120,7 @@
     </div>
   </div>
   <!-- 暂无记录 -->
-  <Empty v-else-if="!screenshotStore.screenshotList.length" />
+  <Empty v-else-if="!creatingList.length" />
 </template>
 
 <script lang="ts" setup>
@@ -121,23 +130,22 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import zh from 'dayjs/locale/zh-cn'
 import { db, Tab, type Mark } from '../../../../db.ts'
 import MarkCreative from "./MarkCreative.vue";
-import MarkText from './MarkText.vue';
 import useTabStore from "../../../../stores/tab.ts"
 import useMarkStore from '../../../../stores/marks.ts';
-import useScreenshotStore from '../../../../stores/screenshot.ts'
 import { storeToRefs } from 'pinia';
 import { screenshot } from '../../../../utils/screenshot.ts';
 import Empty from './Empty.vue';
 import emitter from '../../../../emitter.ts';
+import MarkText from './MarkText.vue';
+import MarkImage from './MarkImage.vue';
 
 dayjs.locale(zh)
 dayjs.extend(relativeTime)
 
 const tabStore = useTabStore()
 const markStore = useMarkStore()
-const screenshotStore = useScreenshotStore()
 
-const { screenshotList } = storeToRefs(screenshotStore)
+const { creatingList } = storeToRefs(markStore)
 
 const { checked, tabs } = storeToRefs(tabStore)
 

@@ -7,7 +7,7 @@ async function create(path: string) {
   }
 }
 export default async function createDefaultFolder() {
-  ['article', 'article/默认文件夹', 'screenshot'].forEach(async (item) => {
+  ['article', 'article/默认文件夹', 'screenshot', 'assets'].forEach(async (item) => {
     await create(item)
   })
 }

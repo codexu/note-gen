@@ -18,6 +18,7 @@ chrono = "0.4.38"
 jieba-rs = { version = "0.7", features = ["tfidf", "textrank"] }
 xcap = "0.0.1"
 leptess = "0.14.0"
+tauri-plugin-clipboard = "1.1.4"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

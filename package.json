@@ -24,6 +24,7 @@
     "mitt": "^3.0.1",
     "pinia": "^2.2.1",
     "store": "^2.0.12",
+    "tauri-plugin-clipboard-api": "1.1.4",
     "uuid": "^10.0.0",
     "v-viewer": "^3.0.11",
     "viewerjs": "^1.11.6",

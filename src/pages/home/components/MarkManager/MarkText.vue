@@ -48,9 +48,13 @@ import storage from 'store'
 import { db } from '../../../../db';
 import { invoke } from '@tauri-apps/api/tauri';
 import takeDescription from '../../../../utils/takeDescription.ts'
-import useMarkStore from '../../../../stores/marks.ts';
+import useMarkStore, { defaultCreatingStatus } from '../../../../stores/marks.ts';
+import { storeToRefs } from 'pinia';
+import { clone } from 'lodash';
+import { v4 as uuidv4 } from 'uuid';
 
 const markStore = useMarkStore()
+const { creatingList } = storeToRefs(markStore)
 
 const text = ref('')
 const readStatus = ref(false)
@@ -69,13 +73,23 @@ async function afterEnter() {
 
 async function handleSubmit(isActive: Ref<boolean>) {
   if (text.value) {
-    loading.value = true
+    isActive.value = false
+    let result = clone(defaultCreatingStatus)
+    const id = uuidv4()
+    result.id = id
+    result.screenshotProgress = '识别文字'
+    creatingList.value.unshift(clone(result))
     await nextTick();
     const keywords = await invoke("cut_words", {
       str: text.value
     }) as string[]
+    result.keywords = keywords
+    result.screenshotProgress = '分析内容'
+    markStore.updateStatus(clone(result))
     const description = await takeDescription(text.value)
-    db.marks.add({
+    result.description = description
+    markStore.updateStatus(clone(result))
+    await db.marks.add({
       content: text.value,
       type: 'text',
       status: true,
@@ -88,8 +102,7 @@ async function handleSubmit(isActive: Ref<boolean>) {
     })
     await markStore.getMarks(storage.get('currentTab'))
     text.value = ''
-    loading.value = false
-    isActive.value = false
+    markStore.complete(result.id)
   }
 }
 </script>

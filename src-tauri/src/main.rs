@@ -20,6 +20,7 @@ fn main() {
    
     let tray = SystemTray::new().with_menu(tray_menu);
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard::init()) 
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => {

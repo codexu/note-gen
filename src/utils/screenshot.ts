@@ -4,29 +4,18 @@ import { isRegistered, registerAll } from '@tauri-apps/api/globalShortcut';
 import storage from 'store'
 import { v4 as uuidv4 } from 'uuid';
 import { clone } from 'lodash'
-import useScreenshotStore, { ScreenshotListStatus } from '../stores/screenshot.ts'
 import { storeToRefs } from "pinia";
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
 import { db } from '../db.ts';
-import useMarkStore from '../stores/marks.ts';
+import useMarkStore, { defaultCreatingStatus } from '../stores/marks.ts';
 import useTabStore from '../stores/tab.ts';
 import { nextTick } from 'vue';
 import takeDescription from './takeDescription.ts'
 
-const defaultResult: ScreenshotListStatus = {
-  id: '',
-  tabId: 0,
-  path: '',
-  keywords: [],
-  description: '',
-  screenshotStatus: true,
-  screenshotProgress: '截图',
-}
-
-let result = clone(defaultResult)
+let result = clone(defaultCreatingStatus)
 
 export async function screenshot() {
-  result = clone(defaultResult)
+  result = clone(defaultCreatingStatus)
   
   const currentWindow = getCurrent()
   await currentWindow.hide();
@@ -60,13 +49,12 @@ export async function screenshot() {
 
 // webview 截图完成
 export async function screenshotEnd(event: any) {
-  const screenshotStore = useScreenshotStore()
-  const { screenshotList } = storeToRefs(screenshotStore)
+  const markStore = useMarkStore()
+  const { creatingList } = storeToRefs(markStore)
   const { id, path } = event.payload
   result.path = path
   await nextTick();
-  console.log(result);
-  screenshotList.value.unshift(clone(result))
+  creatingList.value.unshift(clone(result))
   setTimeout(() => {
     analysisScreenshot(id, path);
   }, 1000);
@@ -74,10 +62,10 @@ export async function screenshotEnd(event: any) {
 
 // 分析截图
 async function analysisScreenshot (id: string, path: string) {
-  const screenshotStore = useScreenshotStore()
+  const markStore = useMarkStore()
 
   result.screenshotProgress = '识别文字'
-  screenshotStore.updateStatus(clone(result))
+  markStore.updateStatus(clone(result))
   await notificationScreenshot()
       
   // 文字识别
@@ -85,7 +73,7 @@ async function analysisScreenshot (id: string, path: string) {
 
   // 分析关键词
   result.screenshotProgress = '分析关键词'
-  screenshotStore.updateStatus(clone(result))
+  markStore.updateStatus(clone(result))
   const keywords = await invoke("cut_words", {
     str: content
   }) as string[]
@@ -93,14 +81,14 @@ async function analysisScreenshot (id: string, path: string) {
 
   // 分析内容，提取描述
   result.screenshotProgress = '分析内容'
-  screenshotStore.updateStatus(clone(result))
+  markStore.updateStatus(clone(result))
   const description = await takeDescription(content)
   result.description = description
 
   // 保存
   const currentTab = storage.get('currentTab')
   result.screenshotProgress = '保存'
-  screenshotStore.updateStatus(clone(result))
+  markStore.updateStatus(clone(result))
   await db.marks.add({
     imgPath: path,
     type: 'screenshot',
@@ -112,12 +100,11 @@ async function analysisScreenshot (id: string, path: string) {
     deleted: false,
     createdAt: new Date().getTime()
   })
-  screenshotStore.complete(id)
+  markStore.complete(id)
 
   const tabStore = useTabStore()
   await tabStore.queryTabs()
 
-  const markStore = useMarkStore()
   const tabId = storage.get('currentTab')
   await markStore.getMarks(tabId)
 }

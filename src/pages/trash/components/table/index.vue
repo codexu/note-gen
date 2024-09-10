@@ -72,13 +72,13 @@ const page = ref(1)
 const pageCount = ref(0)
 const itemsPerPage = ref(100)
 const headers = [
-  { title: '索引', key: 'index', sortable: false, align: 'center' },
-  { title: '记录', key: 'imgPath', sortable: false, align: 'center' },
+  { title: '索引', key: 'index', sortable: false, align: 'center', width: 80 },
+  { title: '记录', key: 'imgPath', sortable: false, align: 'center', width: 64 },
   { title: '关键词', key: 'keywords', sortable: false },
   { title: '描述', key: 'description', sortable: false },
-  { title: '来源于', key: 'tabName' },
-  { title: '删除于', key: 'deletedAt' },
-  { title: '操作', key: 'actions', sortable: false, align: 'center' },
+  { title: '来源于', key: 'tabName', width: 140 },
+  { title: '删除于', key: 'deletedAt', width: 100 },
+  { title: '操作', key: 'actions', sortable: false, align: 'center', width: 100 },
 ]
 
 interface DeletedMark extends Mark {

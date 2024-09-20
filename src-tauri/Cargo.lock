@@ -2510,7 +2510,7 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 
 [[package]]
 name = "note-gen"
-version = "0.0.0"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "jieba-rs",

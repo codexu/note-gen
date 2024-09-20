@@ -4,10 +4,13 @@
     fixed-header
     show-select
     :height="height"
+    v-model="selected"
     v-model:page="page"
     :headers="(headers as any)"
     :items="desserts"
     :items-per-page="itemsPerPage"
+    :update:itemsPerPage="getDeletedMarks"
+    items-per-page-text="每页记录数"
     v-viewer
   >
     <template v-slot:item.index="{ index }">
@@ -54,6 +57,20 @@
       </v-dialog>
       <v-btn icon="mdi-recycle-variant" variant="text" color="error" size="small" v-tooltip="'还原'" @click="recycle(item)"></v-btn>
     </template>
+    <template v-slot:footer.prepend>
+      <div class="flex-1 px-1">
+        <v-btn
+          :disabled="selected.length === 0"
+          size="small"
+          variant="text"
+          icon="mdi-delete"
+          color="error"
+          @click="deleteSelected"
+          v-tooltip="'产出选中项'"
+        >
+        </v-btn>
+      </div>
+    </template>
   </v-data-table>
 </template>
 
@@ -71,6 +88,7 @@ dayjs.extend(relativeTime)
 const page = ref(1)
 const pageCount = ref(0)
 const itemsPerPage = ref(100)
+const selected = ref<number[]>([])
 const headers = [
   { title: '索引', key: 'index', sortable: false, align: 'center', width: 80 },
   { title: '记录', key: 'imgPath', sortable: false, align: 'center', width: 64 },
@@ -90,11 +108,13 @@ const desserts = ref<DeletedMark[]>([])
 // 获取 marks
 async function getDeletedMarks() {
   desserts.value = []
+  const cache: DeletedMark[] = []
   const res = (await db.marks.filter(item => item.deleted).sortBy('deletedAt')).reverse()
-  res.forEach(async(item) => {
-    const tabName = await db.tabs.get(item.tab).then(tab => tab?.name) || ''
-    desserts.value.push({ tabName, ...item })
-  })
+  for (const element of res) {
+    const tabName = await db.tabs.get(element.tab).then(tab => tab?.name) || ''
+    cache.push({ tabName, ...element })
+  }
+  desserts.value = [...cache]
   pageCount.value = Math.ceil(desserts.value.length / itemsPerPage.value)
 }
 
@@ -102,6 +122,12 @@ const height = computed(() => {
   // 屏幕高度
   return window.innerHeight - 62
 })
+
+async function deleteSelected() {
+  await db.marks.bulkDelete(selected.value)
+  selected.value = []
+  getDeletedMarks()
+}
 
 onMounted(() => {
   getDeletedMarks()

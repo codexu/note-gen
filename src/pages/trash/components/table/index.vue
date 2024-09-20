@@ -3,6 +3,7 @@
     density="compact"
     fixed-header
     show-select
+    :loading="loading"
     :height="height"
     v-model="selected"
     v-model:page="page"
@@ -89,6 +90,7 @@ const page = ref(1)
 const pageCount = ref(0)
 const itemsPerPage = ref(100)
 const selected = ref<number[]>([])
+const loading = ref(false)
 const headers = [
   { title: '索引', key: 'index', sortable: false, align: 'center', width: 80 },
   { title: '记录', key: 'imgPath', sortable: false, align: 'center', width: 64 },
@@ -107,6 +109,7 @@ const desserts = ref<DeletedMark[]>([])
 
 // 获取 marks
 async function getDeletedMarks() {
+  loading.value = true
   desserts.value = []
   const cache: DeletedMark[] = []
   const res = (await db.marks.filter(item => item.deleted).sortBy('deletedAt')).reverse()
@@ -116,6 +119,7 @@ async function getDeletedMarks() {
   }
   desserts.value = [...cache]
   pageCount.value = Math.ceil(desserts.value.length / itemsPerPage.value)
+  loading.value = false
 }
 
 const height = computed(() => {

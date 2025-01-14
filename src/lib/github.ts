@@ -104,7 +104,12 @@ export async function getFiles({ path, repo }: { path: string, repo: RepoNames }
     return res.data;
   } catch (error) {
     console.log(error);
-    return false
+    toast({
+      title: '同步失败',
+      description: '请检查网络或配置是否正确。',
+      variant: 'destructive',
+    })
+    return [];
   }
 }
 

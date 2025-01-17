@@ -19,7 +19,7 @@ export default function Question({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       mdRef.current?.focus()
       const req = `
         参考原文：${currentArticle}
-        根据体温：${selectedText}，直接返回回答内容。
+        根据提问：${selectedText}，直接返回回答内容。
       `
       const res = await fetchAi(req)
       mdRef.current?.insert(() => ({

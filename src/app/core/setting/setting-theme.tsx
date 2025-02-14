@@ -2,7 +2,7 @@ import { SettingRow, SettingType } from "./setting-base";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { _t } from '@/locales';
 
 export function PreviewThemeSelect() {
@@ -85,6 +85,15 @@ export function CodeThemeSelect() {
 }
 
 export function SettingTheme({id, icon}: {id: string, icon?: React.ReactNode}) {
+  const [ isClient, setIsClient ] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, [])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   return (
     <SettingType id={id} icon={icon} title={_t('theme_settings_title')}>

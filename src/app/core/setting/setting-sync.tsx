@@ -1,7 +1,7 @@
 'use client'
 import { Input } from "@/components/ui/input";
 import { FormItem, SettingRow, SettingType } from "./setting-base";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
 import useSyncStore, { SyncStateEnum } from "@/stores/sync";
@@ -17,6 +17,7 @@ dayjs.locale(zh)
 
 export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { accessToken, setAccessToken } = useSettingStore()
+  const [ isClient, setIsClient ] = useState(false);
   const {
     imageRepoState,
     setImageRepoState,
@@ -52,7 +53,12 @@ export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
       }
     }
     init()
+    setIsClient(true);
   }, [])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   return (
     <SettingType id={id} icon={icon} title={_t('sync_settings_title')}>

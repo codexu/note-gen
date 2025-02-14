@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { FormItem, SettingRow, SettingType } from "./setting-base";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
 import { OpenBroswer } from "@/components/open-broswer";
@@ -8,6 +8,7 @@ import { _t } from '@/locales';
 
 export function SettingOCR({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { tesseractList, setTesseractList } = useSettingStore()
+  const [ isClient, setIsClient ] = useState(false);
 
   async function changeHandler(e: React.ChangeEvent<HTMLInputElement>) {
     setTesseractList(e.target.value)
@@ -26,7 +27,12 @@ export function SettingOCR({id, icon}: {id: string, icon?: React.ReactNode}) {
       }
     }
     init()
+    setIsClient(true);
   }, [])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   return (
     <SettingType id={id} icon={icon} title={_t('ocr_settings_title')}>

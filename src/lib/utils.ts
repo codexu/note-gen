@@ -26,3 +26,11 @@ export function arrayBuffer2String(buffer: ArrayBuffer) {
   const decoder = new TextDecoder('iso-8859-1');
   return decoder.decode(buffer);
 }
+
+export const isTauri = () => {
+  try {
+    return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+  } catch {
+    return false;
+  }
+}

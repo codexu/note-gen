@@ -14,13 +14,14 @@ import { XIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { _t } from '@/locales/index';
 
 export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { templateList, setTemplateList } = useSettingStore()
+  const [ isClient, setIsClient ] = useState(false);
 
   function changeHandler(current: GenTemplate, key: keyof GenTemplate, value: any) {
     console.log(current, key, value);
@@ -51,7 +52,12 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
   }
 
   useEffect(() => {
+    setIsClient(true);
   }, [templateList])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   return (
     <SettingType id={id} icon={icon} title={_t('template_settings_title')}>

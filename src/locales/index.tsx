@@ -1,6 +1,7 @@
 import en from './en.tsx';
 import zh_cn from './zh_cn.tsx';
 import { Store } from '@tauri-apps/plugin-store';
+import { isTauri } from '@/lib/utils';
 
 export const supportedLocales = [
   { code: 'en', name: 'English', translations: en },
@@ -10,14 +11,21 @@ export const supportedLocales = [
 let currentLang: string | null = 'en'; // 初始化 currentLang 為 'en'
 
 async function loadLanguageFromStore() {
-  const store = await Store.load('store.json');
-  currentLang = await store.get<string>('language') || 'en';
+  if (!isTauri()) {
+    return;
+  }
+
+  try {
+    const store = await Store.load('store.json');
+    currentLang = await store.get<string>('language') || 'en';
+  } catch (error) {
+    console.error('Failed to load language from store:', error);
+  }
 }
 
 (async () => {
   await loadLanguageFromStore();
 })();
-
 
 export function _t(key: string, ...args: any[]): string {
   const lang = currentLang || 'en';
@@ -32,4 +40,5 @@ export function _t(key: string, ...args: any[]): string {
 
 export async function updateLanguage(lang: string) {
   currentLang = lang;
+  window.location.reload();
 }

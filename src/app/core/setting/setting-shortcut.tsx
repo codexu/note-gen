@@ -70,6 +70,15 @@ const shortcutMap: ShortcutMap[] = [
 ]
 
 export function SettingShortcut({id, icon}: {id: string, icon?: React.ReactNode}) {
+  const [ isClient, setIsClient ] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, [])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   return (
     <SettingType id={id} icon={icon} title={_t('shortcut_settings_title')}>

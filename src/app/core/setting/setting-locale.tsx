@@ -1,7 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormItem, SettingRow, SettingType } from "./setting-base";
 import useSettingStore from "@/stores/setting"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Store } from "@tauri-apps/plugin-store";
 import { _t, updateLanguage } from "@/locales" // 引入 updateLanguage
 import { supportedLocales } from "@/locales" // 引入 supportedLocales
@@ -9,11 +9,16 @@ import { toast } from "@/hooks/use-toast";
 
 export function SettingLocale({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { language, setLanguage, initSettingData } = useSettingStore()
+  const [ isClient, setIsClient ] = useState(false);
 
   useEffect(() => {
     initSettingData()
+    setIsClient(true);
   }, [initSettingData])
 
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   async function localeSelectChange(value: string) {
     await setLanguage(value)

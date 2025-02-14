@@ -1,4 +1,5 @@
 import { SettingRow, SettingType } from "./setting-base";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { BaseDirectory, exists, remove } from "@tauri-apps/plugin-fs";
@@ -9,6 +10,15 @@ import { _t } from '@/locales/index';
 
 export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { toast } = useToast()
+  const [ isClient, setIsClient ] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, [])
+
+  if (!isClient) {
+    return null; // or a loading state
+  }
 
   async function handleClearData() {
     const res = await confirm(_t('setting_dev_confirm_clear_data_message'), {

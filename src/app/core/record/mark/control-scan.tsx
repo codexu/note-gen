@@ -16,6 +16,7 @@ import emitter from "@/lib/emitter"
 import { EmitterShortcutEvents } from "@/config/emitters"
 import { ShortcutDefault, ShortcutSettings } from "@/config/shortcut"
 import { Store } from "@tauri-apps/plugin-store"
+import { _t } from '@/locales';
  
 export function ControlScan() {
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
@@ -52,16 +53,16 @@ export function ControlScan() {
     const unlisten = await webview.listen("save-success", async e => {
       if (typeof e.payload === 'string') {
         const queueId = uuid()
-        addQueue({ queueId, progress: ' OCR 识别', type: 'scan', startTime: Date.now() })
+        addQueue({ queueId, progress: _t('ocr_recognition_progress'), type: 'scan', startTime: Date.now() })
         const content = await ocr(`screenshot/${e.payload}`)
         let desc = ''
         if (apiKey) {
-          setQueue(queueId, { progress: ' AI 内容识别' });
+          setQueue(queueId, { progress: _t('ai_content_recognition_progress') });
           desc = await fetchAiDesc(content).then(res => res ? res : content) || content
         } else {
           desc = content
         }
-        setQueue(queueId, { progress: '保存' });
+        setQueue(queueId, { progress: _t('saving_progress') });
         await insertMark({ tagId: currentTagId, type: 'scan', content, url: e.payload, desc })
         removeQueue(queueId)
         await fetchMarks()
@@ -114,6 +115,6 @@ export function ControlScan() {
   }, [])
 
   return (
-    <TooltipButton icon={<ScanText />} tooltipText="截图" onClick={createScreenShot} />
+    <TooltipButton icon={<ScanText />} tooltipText={_t('screenshot_action')} onClick={createScreenShot} />
   )
 }

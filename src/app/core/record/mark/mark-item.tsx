@@ -27,6 +27,7 @@ import { convertImage } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
+import { _t } from '@/locales';
 
 dayjs.extend(relativeTime)
 dayjs.locale(zh)
@@ -77,7 +78,7 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
       <SheetContent className="min-w-[400px] p-0">
         <SheetHeader className="p-4 border-b">
           <SheetTitle>{MarkType[mark.type]}</SheetTitle>
-          <span className="mt-4 text-xs text-zinc-500">创建于：{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
+          <span className="mt-4 text-xs text-zinc-500">{_t('created_at')}：{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
         </SheetHeader>
         <div className="h-[calc(100vh-88px)] overflow-y-auto p-4">
           {
@@ -93,14 +94,14 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
             {
               mark.type === 'text' || mark.desc === mark.content ? null :
               <>
-                <span className="block my-4 text-md text-zinc-900 font-bold">描述</span>
+                <span className="block my-4 text-md text-zinc-900 font-bold">{_t('description')}</span>
                 <span className="leading-6">{mark.desc}</span>
               </>
             }
-            <span className="block my-4 text-md text-zinc-900 font-bold">内容</span>
+            <span className="block my-4 text-md text-zinc-900 font-bold">{_t('content')}</span>
             {
-              mark.type === "text" ? 
-              <Textarea placeholder="在此输入文本记录内容..." rows={14} value={value} onChange={textMarkChangeHandler} /> :
+              mark.type === "text" ?
+              <Textarea placeholder={_t('enter_text_record_content_here')} rows={14} value={value} onChange={textMarkChangeHandler} /> :
               <span className="leading-6">{mark.content}</span>
             }
           </SheetDescription>
@@ -221,7 +222,7 @@ export function MarkItem({mark}: {mark: Mark}) {
   async function handleCopyLink() {
     await navigator.clipboard.writeText(mark.url)
     toast({
-      title: '已复制到剪切板'
+      title: _t('copied_to_clipboard')
     })
   }
 
@@ -236,7 +237,7 @@ export function MarkItem({mark}: {mark: Mark}) {
         {
           trashState ? null :
           <ContextMenuSub>
-            <ContextMenuSubTrigger inset>转移标签</ContextMenuSubTrigger>
+            <ContextMenuSubTrigger inset>{_t('transfer_tag')}</ContextMenuSubTrigger>
             <ContextMenuSubContent>
               {
                 tags.map((tag) => (
@@ -249,33 +250,33 @@ export function MarkItem({mark}: {mark: Mark}) {
           </ContextMenuSub>
         }
         <ContextMenuItem inset disabled>
-          转换为{mark.type === 'scan' ? '插图' : '截图'}
+          {_t('convert_to')} {mark.type === 'scan' ? _t('illustration') : _t('screenshot')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled={!mark.url} onClick={handleCopyLink}>
-          复制链接
+          {_t('copy_link')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled={mark.type === 'text'} onClick={regenerateDesc}>
-          重新生成描述
+          {_t('regenerate_description')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem inset disabled={mark.type === 'text'} onClick={handelShowInFolder}>
-          查看目录
+          {_t('view_directory')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled={mark.type === 'text'} onClick={handelShowInFile}>
-          查看原文件
+          {_t('view_original_file')}
         </ContextMenuItem>
         {
-          trashState ? 
+          trashState ?
           <>
             <ContextMenuItem inset onClick={handleRestore}>
-              还原
+              {_t('restore')}
             </ContextMenuItem>
             <ContextMenuItem inset onClick={handleDelForever}>
-              <span className="text-red-900">彻底删除</span>
+              <span className="text-red-900">{_t('delete_forever')}</span>
             </ContextMenuItem>
           </> :
           <ContextMenuItem inset onClick={handleDelMark}>
-            <span className="text-red-900">删除</span>
+            <span className="text-red-900">{_t('delete_mark')}</span>
           </ContextMenuItem>
         }
       </ContextMenuContent>

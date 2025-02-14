@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
 import { OpenBroswer } from "@/components/open-broswer";
+import { _t } from '@/locales';
 
 export function SettingOCR({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { tesseractList, setTesseractList } = useSettingStore()
@@ -28,16 +29,16 @@ export function SettingOCR({id, icon}: {id: string, icon?: React.ReactNode}) {
   }, [])
 
   return (
-    <SettingType id={id} icon={icon} title="OCR">
+    <SettingType id={id} icon={icon} title={_t('ocr_settings_title')}>
       <SettingRow>
-        <FormItem title="语言包">
+        <FormItem title={_t('language_package')}>
           <Input value={tesseractList} onChange={changeHandler} />
         </FormItem>
       </SettingRow>
       <SettingRow>
         <span>
-          <OpenBroswer title="在此查询全部模型" url="https://tesseract-ocr.github.io/tessdoc/Data-Files#data-files-for-version-400-november-29-2016" />
-          ，以逗号分隔，例如：eng,chi_sim。
+          <OpenBroswer title={_t('query_all_models')} url="https://tesseract-ocr.github.io/tessdoc/Data-Files#data-files-for-version-400-november-29-2016" />
+          ，{_t('separate_by_commas')}
         </span>
       </SettingRow>
     </SettingType>

@@ -8,6 +8,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import useSettingStore from "@/stores/setting"
 import { useRouter } from "next/navigation";
 import { RepoNames } from "@/lib/github.types"
+import { _t } from '@/locales/index'
 
 export function FileToolbar() {
   const { newFolder, loadFileTree, newFile, fileTreeLoading } = useArticleStore()
@@ -29,20 +30,20 @@ export function FileToolbar() {
           accessToken ? (
             <TooltipButton
               icon={fileTreeLoading ? <LoaderCircle className="animate-spin size-4" /> : <FolderGit2 />}
-              tooltipText={fileTreeLoading ? '正在加载同步信息' : '访问仓库'}
+              tooltipText={fileTreeLoading ? _t('loading_sync_info') : _t('access_repository')}
               disabled={githubUsername? false : true}
               onClick={openFolder}
             />
           ) : (
-            <TooltipButton icon={<CloudCog className="text-red-800" />} tooltipText="配置同步" onClick={handleSetting} />
+            <TooltipButton icon={<CloudCog className="text-red-800" />} tooltipText={_t('configure_sync')} onClick={handleSetting} />
           )
         }
       </div>
       <div>
         <TooltipProvider>
-          <TooltipButton icon={<FilePlus />} tooltipText="新建文章" onClick={newFile} />
-          <TooltipButton icon={<FolderPlus />} tooltipText="新建文件夹" onClick={newFolder} />
-          <TooltipButton icon={<FolderSync />} tooltipText="刷新" onClick={loadFileTree} />
+          <TooltipButton icon={<FilePlus />} tooltipText={_t('new_article')} onClick={newFile} />
+          <TooltipButton icon={<FolderPlus />} tooltipText={_t('new_folder')} onClick={newFolder} />
+          <TooltipButton icon={<FolderSync />} tooltipText={_t('refresh')} onClick={loadFileTree} />
         </TooltipProvider>
       </div>
     </div>

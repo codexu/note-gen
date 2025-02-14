@@ -1,10 +1,11 @@
 import { getDb } from "./index"
 import { BaseDirectory, exists, mkdir } from "@tauri-apps/plugin-fs"
+import { _t } from '@/locales';
 
 export enum MarkType {
-  scan = '截图',
-  text = '文本',
-  image = '插图',
+  scan = 'screenshot',
+  text = 'text_record',
+  image = 'illustration',
 }
 
 export interface Mark {

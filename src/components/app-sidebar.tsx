@@ -17,17 +17,18 @@ import { ModeToggle } from "./mode-toggle"
 import Link from "next/link"
 import AppStatus from "./app-status"
 import { Store } from "@tauri-apps/plugin-store"
+import { _t } from '@/locales/index'
  
 // Menu items.
 const items = [
   {
-    title: "记录",
+    title: _t('record'),
     url: "/core/record",
     icon: Highlighter,
     isActive: true,
   },
   {
-    title: "写作",
+    title: _t('article'),
     url: "/core/article",
     icon: SquarePen,
   },
@@ -37,12 +38,12 @@ const items = [
   //   icon: PencilRuler,
   // },
   {
-    title: "搜索",
+    title: _t('search'),
     url: "/core/search",
     icon: Search,
   },
   {
-    title: "图床",
+    title: _t('image'),
     url: "/core/image",
     icon: ImageUp,
   },
@@ -97,7 +98,7 @@ export function AppSidebar() {
         <ModeToggle />
         <SidebarMenuButton isActive={pathname === '/core/setting'} asChild className="md:h-8 md:p-0"
           tooltip={{
-            children: '设置',
+            children: _t("settings"),
             hidden: false,
           }}
         >

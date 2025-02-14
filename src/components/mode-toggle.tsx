@@ -6,6 +6,7 @@ import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
 import { SidebarMenuButton } from "./ui/sidebar"
+import { _t } from '@/locales/index';
 
 function Toggle() {
   const { theme, setTheme } = useTheme()
@@ -26,7 +27,7 @@ export function ModeToggle() {
   return (
     <SidebarMenuButton asChild className="md:h-8 md:p-0"
       tooltip={{
-        children: '主题',
+        children: _t("theme"),
         hidden: false,
       }}
     >

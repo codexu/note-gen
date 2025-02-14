@@ -6,6 +6,7 @@ import { Languages } from "lucide-react";
 import React, { useEffect } from "react";
 import { locales } from "@/lib/locales";
 import useChatStore from "@/stores/chat";
+import { _t } from "@/locales";
 
 export function LocaleSet() {
   const { setLocale, locale, getLocale } = useChatStore()
@@ -22,13 +23,13 @@ export function LocaleSet() {
     <Popover>
       <PopoverTrigger asChild>
         <div>
-          <TooltipButton icon={<Languages />} tooltipText="语言" />
+          <TooltipButton icon={<Languages />} tooltipText={_t('language')} />
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-36" side="bottom" align="start">
         <div className="grid gap-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">选择语言</h4>
+            <h4 className="font-medium leading-none">{_t('select_language')}</h4>
           </div>
           <RadioGroup defaultValue={locale} onValueChange={localeChange}>
             {

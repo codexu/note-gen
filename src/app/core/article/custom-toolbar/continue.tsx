@@ -5,6 +5,7 @@ import useSettingStore from "@/stores/setting";
 import { ListPlus } from "lucide-react";
 import { ExposeParam } from "md-editor-rt";
 import { RefObject } from "react";
+import { _t } from '@/locales/index';
 
 export default function Continue({mdRef}: {mdRef: RefObject<ExposeParam>}) {
 
@@ -16,11 +17,7 @@ export default function Continue({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     mdRef.current?.focus()
     const startContent = currentArticle.slice(0, index);
     const endContent = currentArticle.slice(index, currentArticle.length);
-    const req = `
-      参考前文：${startContent}，
-      在目前的位置上续写一些内容，直接返回结果，内容不要超过100字。
-      可以参考后文：${endContent}，尽量不要于其重复。
-    `
+    const req = _t('continue_writing_prompt', startContent, endContent)
     const res = await fetchAi(req)
     mdRef.current?.insert(() => ({
       targetValue: res,
@@ -28,7 +25,6 @@ export default function Continue({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     setLoading(false)
   }
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<ListPlus />} tooltipText="续写" onClick={handler}>
-    </TooltipButton>
+    <TooltipButton disabled={loading || !apiKey} icon={<ListPlus />} tooltipText={_t('continue_writing')} onClick={handler} />
   )
 }

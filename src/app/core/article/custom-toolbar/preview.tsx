@@ -7,15 +7,16 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { Store } from "@tauri-apps/plugin-store";
+import { _t } from '@/locales/index';
 
 export default function Preview({mdRef}: {mdRef: RefObject<ExposeParam>}) {
 
   const [defaultType, setDefaultType] = useState('code')
 
   const previewTypes = [
-    {type: 'code', name: '编辑模式', icon: <SquareMIcon className="size-4" />},
-    {type: 'preview', name: '分屏模式', icon: <SquareSplitHorizontal className="size-4" />},
-    {type: 'preview-only', name: '预览模式', icon: <ViewIcon className="size-4" />},
+    {type: 'code', name: _t('edit_mode'), icon: <SquareMIcon className="size-4" />},
+    {type: 'preview', name: _t('split_mode'), icon: <SquareSplitHorizontal className="size-4" />},
+    {type: 'preview-only', name: _t('preview_mode'), icon: <ViewIcon className="size-4" />},
   ]
 
   async function initType() {

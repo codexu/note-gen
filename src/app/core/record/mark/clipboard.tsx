@@ -15,6 +15,7 @@ import { RepoNames } from "@/lib/github.types";
 import { CheckCircle, CircleX } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { convertBytesToSize } from "@/lib/utils";
+import { _t } from '@/locales';
 
 export function Clipboard() {
   const [type, setType] = useState<'image' | 'text'>('image')
@@ -43,7 +44,7 @@ export function Clipboard() {
     const uint8Array = Uint8Array.from(atob(image), c => c.charCodeAt(0))
     await writeFile('clipboard.png', uint8Array, { baseDir: BaseDirectory.AppData })
     setFileSize(convertBytesToSize(uint8Array.length))
-    setImage(`data:image/png;base64, ${image}`)
+    setImage(`Data:image/png;base64, ${image}`)
   }
 
   async function handleText() {
@@ -56,17 +57,17 @@ export function Clipboard() {
     setImage('')
     const queueId = uuid()
     // 获取文件后缀
-    addQueue({ queueId, progress: '保存图片', type: 'image', startTime: Date.now() })
+    addQueue({ queueId, progress: _t('saving_image_progress'), type: 'image', startTime: Date.now() })
     const isImageFolderExists = await exists('image', { baseDir: BaseDirectory.AppData})
     if (!isImageFolderExists) {
       await mkdir('image', { baseDir: BaseDirectory.AppData})
     }
     await copyFile('clipboard.png', `image/${queueId}.png`, { fromPathBaseDir: BaseDirectory.AppData, toPathBaseDir: BaseDirectory.AppData})
-    setQueue(queueId, { progress: ' OCR 识别' });
+    setQueue(queueId, { progress: _t('ocr_recognition_progress') });
     const content = await ocr(`image/${queueId}.png`)
     let desc = ''
     if (apiKey) {
-      setQueue(queueId, { progress: ' AI 内容识别' });
+      setQueue(queueId, { progress: _t('ai_content_recognition_progress') });
       desc = await fetchAiDesc(content).then(res => res ? res : content)
     } else {
       desc = content
@@ -80,7 +81,7 @@ export function Clipboard() {
     }
     const file = await readFile(`image/${queueId}.png`, { baseDir: BaseDirectory.AppData  })
     if (githubUsername) {
-      setQueue(queueId, { progress: '上传至图床' });
+      setQueue(queueId, { progress: _t('uploading_image_server') });
       const res = await uploadFile({
         ext: 'png',
         file: uint8ArrayToBase64(file),
@@ -88,7 +89,7 @@ export function Clipboard() {
         repo: RepoNames.image
       })
       if (res) {
-        setQueue(queueId, { progress: '通知 jsdelivr 缓存' });
+        setQueue(queueId, { progress: _t('notify_jsdelivr_cache') });
         await fetch(`https://purge.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`)
         mark.url = `https://cdn.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`
       } else {
@@ -133,7 +134,7 @@ export function Clipboard() {
       image && (
         <div className="relative flex justify-center items-center">
           <div className="absolute top-0 left-0 flex gap-2 justify-between items-center mb-2 w-full z-20 p-4">
-            <p className="text-sm font-bold text-white">检测到剪贴板图片</p>
+            <p className="text-sm font-bold text-white">{_t('detected_clipboard_image_text')}</p>
             <div className="flex gap-2">
               <CircleX className="text-white size-4 cursor-pointer" onClick={handleCancle} />
               <CheckCircle className="text-white size-4 cursor-pointer" onClick={handleInset} />
@@ -148,14 +149,14 @@ export function Clipboard() {
       text && (
         <div className="flex-col justify-center items-center p-4 bg-primary">
           <div className="flex gap-2 justify-between items-center mb-2">
-            <p className="text-sm font-bold text-secondary">检测到剪贴板文本</p>
+            <p className="text-sm font-bold text-secondary">{_t('detected_clipboard_text_text')}</p>
             <div className="flex gap-2">
               <CircleX className="text-secondary size-4 cursor-pointer" onClick={handleCancle} />
               <CheckCircle className="text-secondary size-4 cursor-pointer" onClick={handleTextInset} />
             </div>
           </div>
           <p className="line-clamp-5 text-xs text-secondary mb-2">{text}</p>
-          <p className="line-clamp-5 text-xs text-secondary text-right">{text.length} 字符</p>
+          <p className="line-clamp-5 text-xs text-secondary text-right">{_t('characters', text.length)}</p>
         </div>
       )
     )

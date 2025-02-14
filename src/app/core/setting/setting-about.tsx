@@ -2,16 +2,18 @@ import useSettingStore from "@/stores/setting";
 import { OpenBroswer } from "@/components/open-broswer";
 import { SettingRow, SettingType } from "./setting-base";
 // import { Button } from "@/components/ui/button";
+import { _t } from '@/locales';
+
 export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
   const { version } = useSettingStore()
 
   return (
-    <SettingType id={id} icon={icon} title="关于">
+    <SettingType id={id} icon={icon} title={_t('about_settings_title')}>
       <SettingRow>
         <span>
-          NoteGen v{version}，<OpenBroswer title="查询历史版本" url="https://github.com/codexu/note-gen/releases" />。
+          NoteGen v{version}，<OpenBroswer title={_t('query_history_version')} url="https://github.com/codexu/note-gen/releases" />。
         </span>
-        {/* <Button disabled>检查更新</Button> */}
+        {/* <Button disabled>{_t('check_update')}</Button> */}
       </SettingRow>
     </SettingType>
   )

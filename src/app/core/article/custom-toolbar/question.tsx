@@ -6,6 +6,7 @@ import useSettingStore from "@/stores/setting";
 import { MessageCircleQuestion } from "lucide-react";
 import { ExposeParam } from "md-editor-rt";
 import { RefObject } from "react";
+import { _t } from '@/locales/index';
 
 export default function Question({mdRef}: {mdRef: RefObject<ExposeParam>}) {
 
@@ -18,8 +19,8 @@ export default function Question({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       setLoading(true)
       mdRef.current?.focus()
       const req = `
-        参考原文：${currentArticle}
-        根据提问：${selectedText}，直接返回回答内容。
+        _t('reference_original_text')${currentArticle}
+        _t('according_to_question')${selectedText}，_t('directly_return_answer')
       `
       const res = await fetchAi(req)
       mdRef.current?.insert(() => ({
@@ -28,13 +29,13 @@ export default function Question({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       setLoading(false)
     } else {
       toast({
-        title: '请先选择一段内容',
+        title: _t('please_select_content'),
         variant: 'destructive'
       })
     }
   }
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<MessageCircleQuestion />} tooltipText="问答" onClick={handleBlock}>
+    <TooltipButton disabled={loading || !apiKey} icon={<MessageCircleQuestion />} tooltipText={_t('qa')} onClick={handleBlock}>
     </TooltipButton>
   )
 }

@@ -13,6 +13,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import TurndownService from 'turndown/lib/turndown.browser.es.js';
 import { gfm } from 'turndown-plugin-gfm/lib/turndown-plugin-gfm.browser.es.js';
 import CustomFooter from './custom-footer';
+import { _t } from '@/locales';
 
 export function MdEditor() {
   const ref = useRef<ExposeParam>(null);
@@ -26,7 +27,7 @@ export function MdEditor() {
   let isChangeFile = false;
 
   const defFooters = [<CustomFooter key={"foot"} mdRef={ref} />];
-  
+
   async function handleSave(value: string) {
     if (isChangeFile) return
     if (value !== currentArticle) {
@@ -47,7 +48,7 @@ export function MdEditor() {
         return new Promise<string>(async(resolve, reject) => {
           if (!file.type.includes('image')) return
           const t = toast({
-            title: '正在上传图片',
+            title: _t('uploading_image'),
             description: file.name,
             duration: 600000,
           })

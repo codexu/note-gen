@@ -11,6 +11,7 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import zh from "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { _t } from '@/locales';
 dayjs.extend(relativeTime)
 dayjs.locale(zh)
 
@@ -54,22 +55,22 @@ export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
   }, [])
 
   return (
-    <SettingType id={id} icon={icon} title="同步">
+    <SettingType id={id} icon={icon} title={_t('sync_settings_title')}>
       <SettingRow>
-        <FormItem title="Github Access Token">
+        <FormItem title={_t('github_access_token')}>
           <Input value={accessToken} onChange={tokenChangeHandler} />
         </FormItem>
       </SettingRow>
       <SettingRow>
-        <FormItem title="仓库状态">
+        <FormItem title={_t('repository_status')}>
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardHeader className={`${syncRepoInfo ? 'border-b' : ''}`}>
                 <CardTitle className="flex justify-between items-center">
-                  <span>同步仓库（{ syncRepoInfo?.private ? '私有' : '公开' }）</span>
+                  <span>{_t('sync_repository')}（{ syncRepoInfo?.private ? _t('sync_repository_private') : _t('sync_repository_public') }）</span>
                   <Badge className={`${syncRepoState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>{syncRepoState}</Badge>
                 </CardTitle>
-                <CardDescription>同步写作中的 markdown 文件</CardDescription>
+                <CardDescription>{_t('sync_markdown_file')}</CardDescription>
               </CardHeader>
               {
                 syncRepoInfo &&
@@ -78,8 +79,8 @@ export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
                     <OpenBroswer title={syncRepoInfo?.full_name || ''} url={syncRepoInfo?.html_url || ''} />
                   </h3>
                   <CardDescription className="flex">
-                    <p className="text-zinc-500 leading-6">创建于 { dayjs(syncRepoInfo?.created_at).fromNow() }，</p>
-                    <p className="text-zinc-500 leading-6">最后更新于 { dayjs(syncRepoInfo?.updated_at).fromNow() }。</p>
+                    <p className="text-zinc-500 leading-6">{_t('created_at_prefix')} { dayjs(syncRepoInfo?.created_at).fromNow() }，</p>
+                    <p className="text-zinc-500 leading-6">{_t('updated_at_prefix')} { dayjs(syncRepoInfo?.updated_at).fromNow() }。</p>
                   </CardDescription>
                 </CardContent>
               }
@@ -87,10 +88,10 @@ export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
             <Card>
               <CardHeader className={`${imageRepoInfo ? 'border-b' : ''}`}>
                 <CardTitle className="flex justify-between items-center">
-                  <span>图床仓库 （{ imageRepoInfo?.private ? '私有' : '公开' }）</span>
+                  <span>{_t('image_repository')} （{ imageRepoInfo?.private ? _t('image_repository_private') : _t('image_repository_public') }）</span>
                   <Badge className={`${imageRepoState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>{imageRepoState}</Badge>
                 </CardTitle>
-                <CardDescription>同步你的图片到仓库，使用 jsdelivr 加速。</CardDescription>
+                <CardDescription>{_t('sync_your_images')}</CardDescription>
               </CardHeader>
               {
                 imageRepoInfo &&
@@ -99,8 +100,8 @@ export function SettingSync({id, icon}: {id: string, icon?: React.ReactNode}) {
                     <OpenBroswer title={imageRepoInfo?.full_name || ''} url={imageRepoInfo?.html_url || ''} />
                   </h3>
                   <CardDescription className="flex">
-                    <p className="text-zinc-500 leading-6">创建于 { dayjs(imageRepoInfo?.created_at).fromNow() }，</p>
-                    <p className="text-zinc-500 leading-6">最后更新于 { dayjs(imageRepoInfo?.updated_at).fromNow() }。</p>
+                    <p className="text-zinc-500 leading-6">{_t('created_at_prefix')} { dayjs(imageRepoInfo?.created_at).fromNow() }，</p>
+                    <p className="text-zinc-500 leading-6">{_t('updated_at_prefix')} { dayjs(imageRepoInfo?.updated_at).fromNow() }。</p>
                   </CardDescription>
                 </CardContent>
               }

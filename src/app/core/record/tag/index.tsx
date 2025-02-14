@@ -16,6 +16,7 @@ import { initTagsDb, insertTag, Tag } from "@/db/tags"
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
+import { _t } from '@/locales/index';
 
 export function TagManage() {
   const [open, setOpen] = React.useState(false)
@@ -76,19 +77,19 @@ export function TagManage() {
       </div>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="创建或查询标签..." onValueChange={(name) => setName(name)} />
+        <CommandInput placeholder={_t('create_or_search_tag')} onValueChange={(name) => setName(name)} />
         <CommandList>
           <CommandEmpty>
-            <p className="text-gray-600">未查询到相关标签</p>
-            <Button className="mt-4" onClick={quickAddTag}>快速创建</Button>
+            <p className="text-gray-600">{_t('no_tags_found')}</p>
+            <Button className="mt-4" onClick={quickAddTag}>{_t('quick_create')}</Button>
           </CommandEmpty>
-          <CommandGroup heading="置顶">
+          <CommandGroup heading={_t('pinned_tags')}>
             {
               tags?.filter((tag) => tag.isPin).map((tag) => 
                 <TagItem key={tag.id} tag={tag} onChange={fetchTags} onSelect={handleSelect.bind(null, tag)} />)
             }
           </CommandGroup>
-          <CommandGroup heading="其他">
+          <CommandGroup heading={_t('other_tags')}>
             {
               tags?.filter((tag) => !tag.isPin).map((tag) => 
                 <TagItem key={tag.id} tag={tag} onChange={fetchTags} onSelect={handleSelect.bind(null, tag)} />)

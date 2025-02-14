@@ -4,6 +4,7 @@ import { ExposeParam, ToolbarNames } from "md-editor-rt";
 import { RefObject, useEffect, useState } from "react";
 import { Settings } from "./settings.type";
 import { Store } from "@tauri-apps/plugin-store";
+import { _t } from '@/locales/index';
 
 const toolbars: ToolbarNames[] = [
   'bold',
@@ -64,10 +65,11 @@ export default function Toggle({mdRef, settings}: {mdRef: RefObject<ExposeParam>
     setValue(!value)
     handleSet()
   }
+
   return (
     <TooltipButton
       icon={value ? <ChevronUp /> : <ChevronDown />}
-      tooltipText={value ? '隐藏工具栏': '展开工具栏'}
+      tooltipText={value ? _t('hide_toolbar') : _t('expand_toolbar')}
       onClick={handleToggle}
     >
     </TooltipButton>

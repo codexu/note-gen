@@ -1,4 +1,4 @@
-import { BotMessageSquare, LayoutTemplate, Command, FileUp, Palette, ScanText, Store, UserRoundCog } from "lucide-react"
+import { BotMessageSquare, LayoutTemplate, Command, FileUp, Palette, ScanText, Store, UserRoundCog, Languages } from "lucide-react"
 import { SettingAbout } from "./setting-about"
 import { SettingAI } from "./setting-ai"
 import { SettingSync } from "./setting-sync"
@@ -7,52 +7,60 @@ import { SettingShortcut } from "./setting-shortcut"
 import { SettingTheme } from "./setting-theme"
 import { SettingDev } from "./setting-dev"
 import { SettingTemplate } from "./setting-template"
+import { SettingLocale } from "./setting-locale"
+import { _t } from '@/locales/index';
 
 const config = [
   {
-    title: '关于',
+    title: _t('about'),
     icon: <Store />,
     anchor: 'about',
     children: SettingAbout,
   },
   {
-    title: 'AI',
+    title: _t('ai'),
     icon: <BotMessageSquare />,
     anchor: 'ai',
     children: SettingAI,
   },
   {
-    title: '同步',
+    title: _t('sync'),
     icon: <FileUp />,
     anchor: 'sync',
     children: SettingSync,
   },
   {
-    title: 'OCR',
+    title: _t('ocr'),
     icon: <ScanText />,
     anchor: 'ocr',
     children: SettingOCR,
   },
   {
-    title: '整理模板',
+    title: _t('template_settings_title'),
     icon: <LayoutTemplate />,
     anchor: 'template',
     children: SettingTemplate,
   },
   {
-    title: '快捷键',
+    title: _t('shortcut'),
     icon: <Command />,
     anchor: 'shortcut',
     children: SettingShortcut,
   },
   {
-    title: '外观',
+    title: _t('theme'),
     icon: <Palette />,
     anchor: 'theme',
     children: SettingTheme,
   },
   {
-    title: '开发者',
+    title: _t('language'),
+    icon: <Languages />,
+    anchor: 'language',
+    children: SettingLocale,
+  },
+  {
+    title: _t('developer'),
     icon: <UserRoundCog />,
     anchor: 'dev',
     children: SettingDev,
@@ -78,7 +86,7 @@ export interface Model {
 const aiConfig = [
   {
     key: 'custom',
-    title: '自定义',
+    title: _t('custom'),
     baseURL: null,
   },
   {

@@ -3,6 +3,7 @@ import { MarkType } from "@/db/marks";
 import { MarkQueue } from "@/stores/mark";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { _t } from '@/locales';
 
 export function MarkLoading({mark}: {mark: MarkQueue}){
   const [timeNow, setTimeNow] = useState(Date.now())
@@ -27,7 +28,7 @@ export function MarkLoading({mark}: {mark: MarkQueue}){
         </span>
         <span>正在{mark.progress}...</span>
       </div>
-      <time className="text-zinc-400" suppressHydrationWarning={true}>{Math.round((timeNow - mark.startTime) / 1000)}秒</time>
+      <time className="text-zinc-400" suppressHydrationWarning={true}>{Math.round((timeNow - mark.startTime) / 1000)}{_t('seconds')}</time>
     </div>
   )
 }

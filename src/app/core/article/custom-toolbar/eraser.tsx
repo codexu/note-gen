@@ -6,6 +6,7 @@ import useSettingStore from "@/stores/setting";
 import { EraserIcon } from "lucide-react";
 import { ExposeParam } from "md-editor-rt";
 import { RefObject } from "react";
+import { _t } from '@/locales/index';
 
 export default function Eraser({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   const { loading, setLoading } = useArticleStore()
@@ -15,7 +16,7 @@ export default function Eraser({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     if (selectedText) {
       setLoading(true)
       mdRef.current?.focus()
-      const req = `精简这段文字：${selectedText}，这段文字过于臃肿，字数要求缩减一半以上，要求语言不变，直接返回优化后的结果。`
+      const req = _t('simplify_text', selectedText)
       const res = await fetchAi(req)
       mdRef.current?.insert(() => ({
         targetValue: res,
@@ -24,13 +25,13 @@ export default function Eraser({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       setLoading(false)
     } else {
       toast({
-        title: '请先选择一段内容',
+        title: _t('please_select_content'),
         variant: 'destructive'
       })
     }
   }
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<EraserIcon />} tooltipText="精简" onClick={handleBlock}>
+    <TooltipButton disabled={loading || !apiKey} icon={<EraserIcon />} tooltipText={_t('simplify')} onClick={handleBlock}>
     </TooltipButton>
   )
 }

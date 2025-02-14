@@ -8,6 +8,7 @@ import useArticleStore from "@/stores/article";
 import { toast } from "@/hooks/use-toast";
 import { TooltipButton } from "@/components/tooltip-button";
 import useSettingStore from "@/stores/setting";
+import { _t } from '@/locales/index';
 
 export default function Translation({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   const { loading, setLoading } = useArticleStore()
@@ -17,7 +18,7 @@ export default function Translation({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     if (selectedText) {
       setLoading(true)
       mdRef.current?.focus()
-      const req = `将这段文字：${selectedText}，翻译为${locale}语言，直接返回翻译后的结果。`
+      const req = _t('translate_to_locale', selectedText, locale)
       const res = await fetchAi(req)
       mdRef.current?.insert(() => ({
         targetValue: res,
@@ -26,7 +27,7 @@ export default function Translation({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       setLoading(false)
     } else {
       toast({
-        title: '请先选择一段内容',
+        title: _t('please_select_content'),
         variant: 'destructive'
       })
     }
@@ -35,11 +36,11 @@ export default function Translation({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild className="outline-none" disabled={loading || !apiKey}>
         <div>
-          <TooltipButton tooltipText="翻译" icon={<Languages />} disabled={loading || !apiKey} />
+          <TooltipButton tooltipText={_t('translate')} icon={<Languages />} disabled={loading || !apiKey} />
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>将选中的文本进行翻译</DropdownMenuLabel>
+        <DropdownMenuLabel>{_t('select_text_for_translation')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           {

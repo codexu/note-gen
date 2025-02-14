@@ -1,14 +1,15 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
+import { _t } from '@/locales/index';
 
 export enum GenTemplateRange {
-  All = '全部',
-  Today = '今天',
-  Week = '近一周',
-  Month = '近一月',
-  ThreeMonth = '近三个月',
-  Year = '近一年',
+  All = _t('genTemplateRange_all'),
+  Today = _t('genTemplateRange_today'),
+  Week = _t('genTemplateRange_week'),
+  Month = _t('genTemplateRange_month'),
+  ThreeMonth = _t('genTemplateRange_threeMonth'),
+  Year = _t('genTemplateRange_year'),
 }
 
 export interface GenTemplate {
@@ -100,10 +101,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
   autoUpdate: true,
   setAutoUpdate: (autoUpdate) => set({ autoUpdate }),
 
-  language: '简体中文',
+  language: _t('setting_language_default'),
   setLanguage: (language) => set({ language }),
 
-  aiType: 'custom',
+  aiType: _t('setting_aiType_default'),
   setAiType: (aiType) => set({ aiType }),
 
   baseURL: '',
@@ -118,18 +119,15 @@ const useSettingStore = create<SettingState>((set, get) => ({
   templateList: [
     {
       id: '0',
-      title: '笔记',
-      content: `整理成一篇详细完整的笔记。
-满足以下格式要求：
-- 如果是代码，必须完整保留，不要随意生成。
-- 文字复制的内容尽量不要修改，只处理格式化后的内容。`,
+      title: _t('setting_template_note_title'),
+      content: _t('setting_template_note_content'),
       status: true,
       range: GenTemplateRange.All
     },
     {
       id: '1',
-      title: '周报',
-      content: '最近一周的记录整理成一篇周报，将每条记录形成一句总结，每条不超过50字。',
+      title: _t('setting_template_weekly_report_title'),
+      content: _t('setting_template_weekly_report_content'),
       status: true,
       range: GenTemplateRange.Week
     }

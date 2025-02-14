@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
 import { useEffect } from "react";
+import { _t } from '@/locales';
 
 export function PreviewThemeSelect() {
   const { previewTheme, setPreviewTheme } = useSettingStore()
@@ -31,7 +32,7 @@ export function PreviewThemeSelect() {
   return (
     <Select onValueChange={changeHandler} value={previewTheme}>
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="选择主题" />
+        <SelectValue placeholder={_t('select_theme')} />
       </SelectTrigger>
       <SelectContent>
         {
@@ -70,7 +71,7 @@ export function CodeThemeSelect() {
   return (
     <Select onValueChange={changeHandler} value={codeTheme}>
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="选择主题" />
+        <SelectValue placeholder={_t('select_theme')} />
       </SelectTrigger>
       <SelectContent>
         {
@@ -86,13 +87,13 @@ export function CodeThemeSelect() {
 export function SettingTheme({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
-    <SettingType id={id} icon={icon} title="外观">
+    <SettingType id={id} icon={icon} title={_t('theme_settings_title')}>
       <SettingRow border>
-        <span>预览内容主题。</span>
+        <span>{_t('preview_content_theme')}</span>
         <PreviewThemeSelect />
       </SettingRow>
       <SettingRow border>
-        <span>代码块高亮主题。</span>
+        <span>{_t('code_block_highlight_theme')}</span>
         <CodeThemeSelect />
       </SettingRow>
     </SettingType>

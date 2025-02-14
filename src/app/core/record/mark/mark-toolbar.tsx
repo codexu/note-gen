@@ -9,6 +9,7 @@ import { ControlImage } from "./control-image"
 import { ControlFile } from "./control-file"
 import { Toggle } from "@/components/ui/toggle"
 import useMarkStore from "@/stores/mark"
+import { _t } from '@/locales';
 
 export function MarkToolbar() {
 
@@ -54,7 +55,7 @@ export function MarkToolbar() {
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              <p>回收</p>
+              <p>{_t('trash_tooltip')}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

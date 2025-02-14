@@ -9,6 +9,7 @@ import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { open } from "@tauri-apps/plugin-shell";
+import { _t } from '@/locales';
 
 export function FolderItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
@@ -29,8 +30,8 @@ export function FolderItem({ item }: { item: DirTree }) {
       }
     } catch {
       toast({
-        title: '删除失败',
-        description: '文件夹内存在文件！',
+        title: _t('delete_folder_failed'),
+        description: _t('folder_contains_files'),
         variant: 'destructive',
       })
     }
@@ -170,27 +171,27 @@ export function FolderItem({ item }: { item: DirTree }) {
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem inset onClick={newFileHandler}>
-            新建文件
+            {_t('new_file')}
           </ContextMenuItem>
           <ContextMenuItem inset onClick={handleShowFileManager}>
-            查看目录
+            {_t('view_directory')}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem inset disabled>
-            剪切
+            {_t('cut')}
           </ContextMenuItem>
           <ContextMenuItem inset disabled>
-            复制
+            {_t('copy')}
           </ContextMenuItem>
           <ContextMenuItem inset disabled>
-            粘贴
+            {_t('paste')}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem inset onClick={handleStartRename}>
-            重命名
+            {_t('rename')}
           </ContextMenuItem>
           <ContextMenuItem inset className="text-red-900" onClick={(e) => { handleDeleteFolder(e); }}>
-            删除
+            {_t('delete')}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

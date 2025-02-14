@@ -12,13 +12,14 @@ import useMarkStore from "@/stores/mark"
 import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { _t } from '@/locales';
 
 export function NoteSidebar() {
   const { trashState, marks, setMarks } = useMarkStore()
 
   async function handleClearTrash() {
-    const res = await confirm('确定清空回收站吗？', {
-      title: '清空回收站',
+    const res = await confirm(_t('clear_trash_confirm_message'), {
+      title: _t('clear_trash_title'),
       kind: 'warning',
     })
     if (res) {
@@ -32,12 +33,12 @@ export function NoteSidebar() {
       <SidebarHeader className="p-0">
         <MarkToolbar />
         {
-          trashState? 
+          trashState?
           <div className="flex pb-2 relative border-b h-6 items-center justify-center">
-            <p className="absolute text-xs text-zinc-500">共 {marks.length} 条记录可还原</p>
+            <p className="absolute text-xs text-zinc-500">{_t('trash_records_count', marks.length)}</p>
             {
               marks.length > 0 ?
-              <Button className="text-xs text-red-900 right-8 absolute" variant="link" onClick={handleClearTrash}>清空</Button> : null
+              <Button className="text-xs text-red-900 right-8 absolute" variant="link" onClick={handleClearTrash}>{_t('clear_trash_action')}</Button> : null
             }
           </div> :
           <TagManage />

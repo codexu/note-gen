@@ -1,6 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { Store } from "@tauri-apps/plugin-store";
 import { fetch } from '@tauri-apps/plugin-http'
+import { _t } from '@/locales/index';
 
 const chatURL = '/chat/completions'
 
@@ -41,15 +42,15 @@ export async function fetchAi(text: string): Promise<string> {
   const url = baseURL + `${aiType === 'ollama' ? '/api/chat' : chatURL}`
   if (!url) {
     toast({
-      title: 'AI 错误',
-      description: '请先设置 AI 地址',
+      title: _t('ai_error'),
+      description: _t('please_set_ai_address'),
       variant: 'destructive',
     })
   } else {
     const res = await (await fetch(url, requestOptions)).json()
     if (res.error) {
       toast({
-        title: 'AI 错误',
+        title: _t('ai_error'),
         description: res.error.message,
         variant: 'destructive',
       })
@@ -78,7 +79,7 @@ export async function fetchAiDesc(text: string) {
   const res = await (await fetch(url, requestOptions)).json()
   if (res.error) {
     toast({
-      title: 'AI 错误',
+      title: _t('ai_error'),
       description: res.error.message,
       variant: 'destructive',
     })

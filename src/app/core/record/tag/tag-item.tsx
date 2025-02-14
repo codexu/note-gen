@@ -11,6 +11,7 @@ import React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import useTagStore from "@/stores/tag"
+import { _t } from '@/locales/index';
 
 function ItemIcon({ isLocked=false, isPin=false }) {
   if (isLocked) {
@@ -91,13 +92,13 @@ export function TagItem(
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem inset disabled={tag.isLocked} onClick={togglePin}>
-          { tag.isPin ? "取消置顶" : "置顶" }
+          { tag.isPin ? _t('unpin_tag') : _t('pin_tag') }
         </ContextMenuItem>
         <ContextMenuItem inset disabled={isEditing} onClick={setIsEditing.bind(null, true)}>
-          重命名
+          {_t('rename_tag')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled={tag.isLocked} onClick={handleDel}>
-          删除
+          {_t('delete_tag')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

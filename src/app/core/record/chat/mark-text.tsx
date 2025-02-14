@@ -5,7 +5,8 @@ import useChatStore from "@/stores/chat"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CheckCircle, Highlighter } from "lucide-react"
- 
+import { _t } from '@/locales';
+
 export function MarkText({chat}: {chat: Chat}) {
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
@@ -28,14 +29,14 @@ ${chat.content}
   }
 
   return (
-    chat.inserted ? 
+    chat.inserted ?
       <Button variant={"ghost"} size="sm" disabled>
         <CheckCircle className="size-4" />
-        已记录
+        {_t('recorded_mark_text')}
       </Button> :
       <Button variant={"ghost"} size="sm" onClick={handleSuccess}>
         <Highlighter className="size-4" />
-        记录
+        {_t('record_mark_text_action')}
       </Button>
   )
 }

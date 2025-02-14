@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TooltipButton } from "@/components/tooltip-button";
 import { open } from "@tauri-apps/plugin-shell";
 import useSettingStore from "@/stores/setting";
+import { _t } from '@/locales/index';
 
 dayjs.extend(relativeTime)
 dayjs.locale(zh)
@@ -40,7 +41,7 @@ export default function History({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     setLoading(true)
     setSheetOpen(false)
     const cacheArticle = currentArticle;
-    setCurrentArticle('正在读取历史记录...')
+    setCurrentArticle(_t('reading_history') + '...')
     const res = await getFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync})
     if (res.content) {
       setCurrentArticle(decodeBase64ToString(res.content))
@@ -56,7 +57,7 @@ export default function History({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   return (
     <Sheet open={sheetOpen} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" title="历史记录" disabled={!accessToken}>
+        <Button variant="ghost" size="icon" title={_t('history')} disabled={!accessToken}>
           {
             loading ? <LoaderCircle className="animate-spin size-4" /> : <HistoryIcon />
           }
@@ -64,13 +65,13 @@ export default function History({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       </SheetTrigger>
       <SheetContent className="p-0 min-w-[500px]">
         <SheetHeader className="p-4 border-b">
-          <SheetTitle>历史记录</SheetTitle>
+          <SheetTitle>{_t('history')}</SheetTitle>
           <SheetDescription className="flex items-center gap-1">
             {
               commitsLoading ? <LoaderCircle className="size-4 animate-spin" /> : <HistoryIcon className="size-4" />
             }
             {
-              commitsLoading ? <span>加载中</span> : <span>{commits.length} 条记录</span>
+              commitsLoading ? <span>{_t('loading')}</span> : <span>{commits.length} {_t('records')}</span>
             }
           </SheetDescription>
         </SheetHeader>
@@ -94,7 +95,7 @@ export default function History({mdRef}: {mdRef: RefObject<ExposeParam>}) {
                   </div>
                 </div>
                 <div className="w-8">
-                  <TooltipButton icon={<GitPullRequestArrow />} tooltipText="拉取" onClick={() => handleCommit(commit.sha)} />
+                  <TooltipButton icon={<GitPullRequestArrow />} tooltipText={_t('pull')} onClick={() => handleCommit(commit.sha)} />
                 </div>
               </div>
             ))

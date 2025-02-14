@@ -11,6 +11,7 @@ import { ChatClipboard } from './chat-clipboard'
 import MessageControl from './message-control'
 import ChatEmpty from './chat-empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { _t } from '@/locales/index'
 
 export default function ChatContent() {
   const { chats, init } = useChatStore()
@@ -81,7 +82,7 @@ function Message({ chat }: { chat: Chat }) {
         {
           (!loading || index !== chats.length - 1) && <div className='w-full overflow-x-hidden'>
             <div className='flex justify-between'>
-              <p>将你的记录整理为文章：</p>
+              <p>{_t('organize_your_record')}</p>
             </div>
             <div className='note-wrapper border w-full overflow-y-auto overflow-x-hidden my-2 p-4 rounded-lg'>
               <ChatPreview text={chat.content || ''} />

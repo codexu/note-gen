@@ -8,6 +8,7 @@ import zh from "dayjs/locale/zh-cn";
 import wordsCount from 'words-count';
 import { Button } from "@/components/ui/button"
 import { clear, hasText, readText } from "tauri-plugin-clipboard-api"
+import { _t } from '@/locales';
 
 dayjs.extend(relativeTime)
 dayjs.locale(zh)
@@ -16,7 +17,7 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
   const { loading } = useChatStore()
   const count = wordsCount(chat.content || '')
   const { deleteChat } = useChatStore()
-  
+
   async function deleteHandler() {
     if (chat.type === "clipboard" && !chat.image) {
       const hasTextRes = await hasText()
@@ -43,14 +44,14 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
         count ? <>
           <Button variant={"ghost"} size="sm" disabled>
             <TypeIcon className="size-4" />
-            { count } 字
+            { count } {_t('characters')}
           </Button>
-          <Separator orientation="vertical" className="h-4" /> 
+          <Separator orientation="vertical" className="h-4" />
         </> : null
       }
       {children}
       {
-        chat.type !== "chat" && 
+        chat.type !== "chat" &&
         <>
           <Separator orientation="vertical" className="h-4" />
           <Button variant={"ghost"} size={"icon"} onClick={deleteHandler}>

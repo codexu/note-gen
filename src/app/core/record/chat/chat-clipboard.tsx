@@ -16,6 +16,7 @@ import { LocalImage } from '@/components/local-image';
 import MessageControl from './message-control';
 import useChatStore from '@/stores/chat';
 import { Button } from '@/components/ui/button';
+import { _t } from '@/locales';
 
 export function ChatClipboard({chat}: { chat: Chat }) {
   const [loading, setLoading] = useState(false)
@@ -29,7 +30,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     setLoading(true)
     const queueId = uuid()
     // 获取文件后缀
-    addQueue({ queueId, progress: '保存图片', type: 'image', startTime: Date.now() })
+    addQueue({ queueId, progress: _t('saving_image'), type: 'image', startTime: Date.now() })
     const isImageFolderExists = await exists('image', { baseDir: BaseDirectory.AppData})
     if (!isImageFolderExists) {
       await mkdir('image', { baseDir: BaseDirectory.AppData})
@@ -38,11 +39,11 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     const fromPath = chat.image.slice(1)
     const toPath = fromPath.replace('clipboard', 'image')
     await copyFile(fromPath, toPath, { fromPathBaseDir: BaseDirectory.AppData, toPathBaseDir: BaseDirectory.AppData})
-    setQueue(queueId, { progress: ' OCR 识别' });
+    setQueue(queueId, { progress: _t('ocr_recognition') });
     const content = await ocr(toPath)
     let desc = ''
     if (apiKey) {
-      setQueue(queueId, { progress: ' AI 内容识别' });
+      setQueue(queueId, { progress: _t('ai_content_recognition') });
       desc = await fetchAiDesc(content).then(res => res ? res : content)
     } else {
       desc = content
@@ -56,7 +57,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     }
     const file = await readFile(toPath, { baseDir: BaseDirectory.AppData  })
     if (githubUsername) {
-      setQueue(queueId, { progress: '上传至图床' });
+      setQueue(queueId, { progress: _t('uploading_image') });
       const res = await uploadFile({
         ext: 'png',
         file: uint8ArrayToBase64(file),
@@ -64,7 +65,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
         repo: RepoNames.image
       })
       if (res) {
-        setQueue(queueId, { progress: '通知 jsdelivr 缓存' });
+        setQueue(queueId, { progress: _t('notify_jsdelivr_cache') });
         await fetch(`https://purge.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`)
         mark.url = `https://cdn.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`
       } else {
@@ -95,44 +96,44 @@ export function ChatClipboard({chat}: { chat: Chat }) {
   }
 
   return (
-    type === 'image' && chat.image ? 
+    type === 'image' && chat.image ?
       <div className="flex-col leading-6">
-        <p>检测到剪贴板存在图片：</p>
+        <p>{_t('detected_clipboard_image')}</p>
         <LocalImage src={chat.image} alt="" width={0} height={0} className="max-h-96 max-w-96 w-auto mt-2 mb-3 border-8 rounded" />
         <MessageControl chat={chat}>
           {
-            loading ? 
+            loading ?
               <Button variant={"ghost"} size="sm" disabled>
                 <LoaderCircle className="size-4 animate-spin" />
-                正在记录
+                {_t('recording')}
               </Button> : (
               chat.inserted?
                 <Button variant={"ghost"} size="sm" disabled>
                   <CheckCircle className="size-4" />
-                  已记录
+                  {_t('recorded')}
                 </Button> :
                 <Button variant={"ghost"} size="sm" onClick={handleInset}>
                   <ImagePlus className="size-4" />
-                  记录
+                  {_t('record_action')}
                 </Button>
             )
           }
-          
+
         </MessageControl>
       </div> :
       <div className="flex-col leading-6">
-        <p>检测到剪贴板存在文本：</p>
+        <p>{_t('detected_clipboard_text')}</p>
         <p className='text-zinc-500'>{chat.content}</p>
         <MessageControl chat={chat}>
           {
-            chat.inserted ? 
+            chat.inserted ?
               <Button variant={"ghost"} size="sm" disabled>
                 <CheckCircle className="size-4" />
-                已记录
+                {_t('recorded')}
               </Button> :
               <Button variant={"ghost"} size="sm" onClick={handleTextInset}>
                 <Highlighter className="size-4" />
-                记录
+                {_t('record_action')}
               </Button>
           }
         </MessageControl>

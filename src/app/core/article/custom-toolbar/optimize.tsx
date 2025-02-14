@@ -6,6 +6,7 @@ import useSettingStore from "@/stores/setting";
 import { Sparkles } from "lucide-react";
 import { ExposeParam } from "md-editor-rt";
 import { RefObject } from "react";
+import { _t } from '@/locales/index';
 
 export default function Optimize({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   const { loading, setLoading } = useArticleStore()
@@ -15,7 +16,7 @@ export default function Optimize({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     if (selectedText) {
       setLoading(true)
       mdRef.current?.focus()
-      const req = `完善这段文字：${selectedText}，要求语言不变，注意这不是提问，直接返回优化后的结果。`
+      const req = _t('optimize_text', selectedText);
       const res = await fetchAi(req)
       mdRef.current?.insert(() => ({
         targetValue: res,
@@ -24,13 +25,13 @@ export default function Optimize({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       setLoading(false)
     } else {
       toast({
-        title: '请先选择一段内容',
+        title: _t('please_select_content'),
         variant: 'destructive'
       })
     }
   }
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<Sparkles />} tooltipText="优化" onClick={handleBlock}>
+    <TooltipButton disabled={loading || !apiKey} icon={<Sparkles />} tooltipText={_t('optimize')} onClick={handleBlock}>
     </TooltipButton>
   )
 }

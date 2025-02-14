@@ -10,6 +10,7 @@ import { deleteFile } from "@/lib/github";
 import { RepoNames } from "@/lib/github.types";
 import { cloneDeep } from "lodash-es";
 import { open } from "@tauri-apps/plugin-shell";
+import { _t } from '@/locales';
 
 export function FileItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
@@ -48,8 +49,8 @@ export function FileItem({ item }: { item: DirTree }) {
   }
 
   async function handleDeleteSyncFile() {
-    const answer = await ask('确定是否将同步文件删除?', {
-      title: 'NoteGen',
+    const answer = await ask(_t('delete_sync_file_confirm'), {
+      title: _t('notegen'),
       kind: 'warning',
     });
     if (answer) {
@@ -194,7 +195,7 @@ export function FileItem({ item }: { item: DirTree }) {
           onContextMenu={handleSelectFile}
         >
           {
-            isEditing ? 
+            isEditing ?
             <div className="flex gap-1 items-center w-full select-none">
               <span className={item.parent ? 'size-0' : 'size-4 ml-1'} />
               <File className="size-4" />
@@ -220,34 +221,34 @@ export function FileItem({ item }: { item: DirTree }) {
                   { item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" /> }
                 </div>
                 <span className="text-xs flex-1 line-clamp-1">{item.name.slice(0, -3)}</span>
-              </div> 
+              </div>
             </span>
           }
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem inset onClick={handleShowFileManager}>
-          查看目录
+          {_t('view_directory')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem inset disabled>
-          剪切
+          {_t('cut')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled>
-          复制
+          {_t('copy')}
         </ContextMenuItem>
         <ContextMenuItem inset disabled>
-          粘贴
+          {_t('paste')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem disabled={!item.isLocale} inset onClick={handleStartRename}>
-          重命名
+          {_t('rename')}
         </ContextMenuItem>
         <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile}>
-          删除同步文件
+          {_t('delete_sync_file')}
         </ContextMenuItem>
         <ContextMenuItem disabled={!item.isLocale} inset className="text-red-900" onClick={handleDeleteFile}>
-          删除本地文件
+          {_t('delete_local_file')}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

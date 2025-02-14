@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Mark, delMark } from "@/db/marks";
 import { TooltipButton } from "@/components/tooltip-button";
 import useSettingStore from "@/stores/setting";
+import { _t } from '@/locales/index';
 
 export default function MarkInsert({mdRef}: {mdRef: RefObject<ExposeParam>}) {
 
@@ -37,14 +38,14 @@ export default function MarkInsert({mdRef}: {mdRef: RefObject<ExposeParam>}) {
         break;
       default:
         if (apiKey) {
-          const req = `这是一段 OCR 识别的结果：${mark.content}进行整理，直接返回整理后的结果。`
+          const req = _t('ocr_result_processing', mark.content)
           const res = await fetchAi(req)
           mdRef.current?.insert(() => ({
             targetValue: res,
           }))
         } else {
           mdRef.current?.insert(() => ({
-            targetValue: mark.content || 'OCR 未识别到任何内容',
+            targetValue: mark.content || _t('ocr_no_content'),
           }))
         }
         break;
@@ -62,13 +63,13 @@ export default function MarkInsert({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     <Popover onOpenChange={openChangeHandler}>
       <PopoverTrigger asChild>
         <div>
-          <TooltipButton tooltipText="使用记录" icon={<Highlighter />} disabled={loading} />
+          <TooltipButton tooltipText={_t('use_records')} icon={<Highlighter />} disabled={loading} />
         </div>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 p-0">
         <div className="px-2 py-2 flex items-end">
-          <h4 className="leading-6 font-bold text-sm">使用记录</h4>
-          <span className="text-xs text-zinc-500 font-normal ml-2 leading-5">消耗记录转化为内容插入到文章。</span>
+          <h4 className="leading-6 font-bold text-sm">{_t('use_records_tooltip')}</h4>
+          <span className="text-xs text-zinc-500 font-normal ml-2 leading-5">{_t('consume_records_description')}</span>
         </div>
         <div className="max-h-[calc(100vh/1.5)] overflow-y-auto border-t">
           <Clipboard />
@@ -88,7 +89,7 @@ export default function MarkInsert({mdRef}: {mdRef: RefObject<ExposeParam>}) {
               </div>
             )) :
             <div className="flex items-center justify-center text-zinc-500 text-xs text-center h-48">
-              暂无记录
+              {_t('no_records')}
             </div>
           }
         </div>

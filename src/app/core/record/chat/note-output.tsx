@@ -22,7 +22,8 @@ import { useEffect, useState } from "react"
 import { redirect } from 'next/navigation'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Chat } from "@/db/chats"
- 
+import { _t } from '@/locales/index';
+
 export function NoteOutput({chat}: {chat: Chat}) {
   const { deleteTag, currentTagId } = useTagStore()
   const [open, setOpen] = useState(false);
@@ -60,26 +61,26 @@ export function NoteOutput({chat}: {chat: Chat}) {
       <DialogTrigger asChild>
         <a className="cursor-pointer flex items-center gap-1 hover:underline">
           <SquarePen className="size-4" />
-          写作
+          {_t('writing')}
         </a>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>转化文章</DialogTitle>
+          <DialogTitle>{_t('transform_article')}</DialogTitle>
           <DialogDescription>
-            当前的笔记是由 AI 生成且无法编辑，将当前笔记转化为文章（生成本地文件），可在写作页面中进行二次创作。
+            {_t('current_note_generated_by_ai')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 mt-2">
-          <Label>文件名</Label>
+          <Label>{_t('file_name')}</Label>
           <div className="flex border rounded-lg">
             <Select value={path} onValueChange={setPath}>
               <SelectTrigger className="w-[180px] border-none outline-none">
-                <SelectValue placeholder="选择文件夹" />
+                <SelectValue placeholder={_t('choose_folder')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="/">根目录</SelectItem>
+                  <SelectItem value="/">{_t('root_directory')}</SelectItem>
                   {
                     folders.map((folder, index) => {
                       return <SelectItem key={index} value={folder}>{folder}</SelectItem>
@@ -96,14 +97,14 @@ export function NoteOutput({chat}: {chat: Chat}) {
               htmlFor="terms"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              删除当前标签、记录和笔记（回收站可恢复）
+              {_t('delete_current_tag_record_note')}
             </label>
           </div>
         </div>
         <DialogFooter>
           <div className="flex items-center justify-end gap-2 pt-4">
-            <p className="text-xs text-zinc-400 flex items-center gap-1"><TriangleAlert className="size-4" />转换后将跳转到写作页面。</p>
-            <Button type="submit" onClick={handleTransform}>转化</Button>
+            <p className="text-xs text-zinc-400 flex items-center gap-1"><TriangleAlert className="size-4" />{_t('transform_after_redirect')}</p>
+            <Button type="submit" onClick={handleTransform}>{_t('transform')}</Button>
           </div>
         </DialogFooter>
       </DialogContent>

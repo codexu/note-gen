@@ -11,6 +11,7 @@ import useSettingStore from "@/stores/setting"
 import { v4 as uuid } from 'uuid'
 import { RepoNames } from "@/lib/github.types"
 import { open } from '@tauri-apps/plugin-dialog';
+import { _t } from '@/locales';
 
 export function ControlImage() {
 
@@ -35,7 +36,7 @@ export function ControlImage() {
 
   async function uploadImage(path: string) {
     const queueId = uuid()
-    addQueue({ queueId, progress: '缓存图片', type: 'image', startTime: Date.now() })
+    addQueue({ queueId, progress: _t('cache_image'), type: 'image', startTime: Date.now() })
     const ext = path.substring(path.lastIndexOf('.') + 1)
     const isImageFolderExists = await exists('image', { baseDir: BaseDirectory.AppData})
     if (!isImageFolderExists) {
@@ -44,9 +45,9 @@ export function ControlImage() {
     await copyFile(path, `image/${queueId}.${ext}`, { toPathBaseDir: BaseDirectory.AppData})
     const file = await readFile(path)
     const filename = `${queueId}.${ext}`
-    setQueue(queueId, { progress: ' OCR 识别' });
+    setQueue(queueId, { progress: _t('ocr_recognition_progress') });
     const content = await ocr(`image/${filename}`)
-    setQueue(queueId, { progress: ' AI 内容识别' });
+    setQueue(queueId, { progress: _t('ai_content_recognition_progress') });
     let desc = ''
     if (apiKey) {
       desc = await fetchAiDesc(content).then(res => res ? res : content) || content
@@ -61,7 +62,7 @@ export function ControlImage() {
       desc,
     }
     if (githubUsername) {
-      setQueue(queueId, { progress: '上传至图床' });
+      setQueue(queueId, { progress: _t('uploading_to_server') });
       const res = await uploadFile({
         ext,
         file: uint8ArrayToBase64(file),
@@ -69,7 +70,7 @@ export function ControlImage() {
         repo: RepoNames.image
       })
       if (res) {
-        setQueue(queueId, { progress: '通知 jsdelivr 缓存' });
+        setQueue(queueId, { progress: _t('notify_jsdelivr') });
         await fetch(`https://purge.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`)
         mark.url = `https://cdn.jsdelivr.net/gh/${githubUsername}/${RepoNames.image}@main/${res.data.content.name}`
       } else {
@@ -84,6 +85,6 @@ export function ControlImage() {
   }
 
   return (
-    <TooltipButton icon={<ImagePlus />} tooltipText="插图" onClick={selectImages} />
+    <TooltipButton icon={<ImagePlus />} tooltipText={_t('illustration_action')} onClick={selectImages} />
   )
 }

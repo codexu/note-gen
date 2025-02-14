@@ -132,7 +132,7 @@ export function MarkGen() {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>将记录整理成...</AlertDialogTitle> 
+          <AlertDialogTitle>{_t('organize_record_to')}</AlertDialogTitle> 
           <Tabs defaultValue={tab} onValueChange={value => setTab(value)}>
             <TabsList>
               {
@@ -145,18 +145,18 @@ export function MarkGen() {
         </AlertDialogHeader>
         <div className="px-2 space-y-2">
           <div className="space-y-1">
-            <Label htmlFor="name">模板内容</Label>
+            <Label htmlFor="name">{_t('template_content')}</Label>
             <p className="text-xs text-muted-foreground whitespace-pre-wrap">{ genTemplate.find(item => item.id === tab)?.content }</p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="username">记录选择范围</Label>
+            <Label htmlFor="username">{_t('record_select_range')}</Label>
             <p className="text-xs text-muted-foreground">{ genTemplate.find(item => item.id === tab)?.range }</p>
           </div>
         </div>
         <AlertDialogFooter>
-          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>管理模板</Button>
+          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>{_t('manage_template')}</Button>
           <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction onClick={handleGen}>开始整理</AlertDialogAction>
+          <AlertDialogAction onClick={handleGen}>{_t('start_organize')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

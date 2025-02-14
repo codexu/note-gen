@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { TooltipButton } from "@/components/tooltip-button"
 import useChatStore from "@/stores/chat"
 import useTagStore from "@/stores/tag"
+import { _t } from '@/locales/index';
 
 dayjs.extend(relativeTime)
 dayjs.locale(zh)
@@ -47,7 +48,7 @@ export function ChatHeader() {
           </div> :
           <div className="flex gap-1 items-center">
             <Button variant="ghost" className="text-red-800" onClick={handleSetting}>
-              <CircleAlert /> 配置 API KEY
+              <CircleAlert /> {_t('config_api_key')}
             </Button>
           </div>
         }
@@ -55,7 +56,7 @@ export function ChatHeader() {
       </div>
       <div className="flex justify-end items-center h-6 gap-1">
         <TooltipProvider>
-          <TooltipButton icon={<Eraser />} tooltipText="清空对话" onClick={clearHandler}/>
+          <TooltipButton icon={<Eraser />} tooltipText={_t('clear_chat')} onClick={clearHandler}/>
         </TooltipProvider>
       </div>
     </header>

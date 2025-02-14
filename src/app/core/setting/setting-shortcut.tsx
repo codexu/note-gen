@@ -8,6 +8,7 @@ import { ShortcutDefault, ShortcutSettings } from "@/config/shortcut"
 import { Store } from "@tauri-apps/plugin-store";
 import { CopySlash, RotateCcw, ScanText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { _t } from '@/locales';
 
 const keyMap = {
   Backquote: '`',
@@ -55,14 +56,14 @@ const shortcutMap: ShortcutMap[] = [
   {
     id: ShortcutSettings.screenshot,
     mittId: EmitterShortcutEvents.screenshot,
-    title: '截图记录',
+    title: _t('shortcut_screenshot_record'),
     icon: <ScanText className="size-4" />,
     defaultKey: ShortcutDefault.screenshot,
   },
   {
     id: ShortcutSettings.text,
     mittId: EmitterShortcutEvents.text,
-    title: '文本记录',
+    title: _t('shortcut_text_record'),
     icon: <CopySlash className="size-4" />,
     defaultKey: ShortcutDefault.text,
   }
@@ -71,7 +72,7 @@ const shortcutMap: ShortcutMap[] = [
 export function SettingShortcut({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
-    <SettingType id={id} icon={icon} title="快捷键">
+    <SettingType id={id} icon={icon} title={_t('shortcut_settings_title')}>
       {
         shortcutMap.map((item) => {
           return (

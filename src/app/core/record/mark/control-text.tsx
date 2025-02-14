@@ -22,6 +22,7 @@ import { CopySlash } from "lucide-react"
 import { useEffect, useState } from "react"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useRouter, usePathname } from "next/navigation";
+import { _t } from '@/locales/index';
 
 export function ControlText() {
   const [open, setOpen] = useState(false);
@@ -96,19 +97,19 @@ export function ControlText() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <TooltipButton icon={<CopySlash />} tooltipText="文本" />
+        <TooltipButton icon={<CopySlash />} tooltipText={_t('text')} />
       </DialogTrigger>
       <DialogContent className="min-w-[650px]">
         <DialogHeader>
-          <DialogTitle>记录文本</DialogTitle>
+          <DialogTitle>{_t('record_text')}</DialogTitle>
           <DialogDescription>
-            记录一段文本，笔记整理时将插入到合适的位置。
+            {_t('record_text_description')}
           </DialogDescription>
         </DialogHeader>
         <Textarea id="username" rows={10} defaultValue={text} onChange={(e) => setText(e.target.value)} />
         <DialogFooter className="flex items-center justify-between">
-          <p className="text-sm text-zinc-500 mr-4">{text.length} 字符</p>
-          <Button type="submit" onClick={handleSuccess}>记录</Button>
+          <p className="text-sm text-zinc-500 mr-4">{text.length} {_t('characters')}</p>
+          <Button type="submit" onClick={handleSuccess}>{_t('record')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

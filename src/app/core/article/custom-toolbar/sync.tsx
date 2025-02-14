@@ -10,6 +10,7 @@ import { ExposeParam } from "md-editor-rt";
 import { RefObject, useState } from "react";
 import { diffWordsWithSpace } from 'diff';
 import useSettingStore from "@/stores/setting";
+import { _t } from '@/locales/index';
 
 export default function Sync({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   const { activeFilePath, currentArticle } = useArticleStore()
@@ -19,7 +20,7 @@ export default function Sync({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     setLoading(true)
     mdRef.current?.focus()
     // 获取上一次提交的记录内容
-    let message = `Upload ${activeFilePath}`
+    let message = _t('upload_file_commit_message', activeFilePath)
     const commits = await getFileCommits({ path: activeFilePath, repo: RepoNames.sync })
     if (commits?.length > 0) {
       const lastCommit = commits[0]
@@ -27,12 +28,7 @@ export default function Sync({mdRef}: {mdRef: RefObject<ExposeParam>}) {
       const diff = diffWordsWithSpace(decodeBase64ToString(latContent?.content || ''), currentArticle)
       const addDiff = diff.filter(item => item.added).map(item => item.value).join('')
       const removeDiff = diff.filter(item => item.removed).map(item => item.value).join('')
-      const text = `
-        根据两篇内容的diff：
-        增加了内容：${addDiff}
-        删除了内容：${removeDiff}
-        对比后对本次修改返回一条标准的提交描述，仅返回描述内容，字数不能超过50个字。
-      `
+      const text = _t('ai_diff_request', addDiff, removeDiff)
       message = await fetchAi(text)
     }
     const res = await getFiles({path: activeFilePath, repo: RepoNames.sync})
@@ -53,9 +49,9 @@ export default function Sync({mdRef}: {mdRef: RefObject<ExposeParam>}) {
     })
     if (uploadRes?.status === 200 || uploadRes?.status === 201) {
       if (uploadRes.data.content?.sha === sha) {
-        toast({title: '内容未改变，无需提交', variant: 'destructive'})
+        toast({title: _t('no_changes_to_commit'), variant: 'destructive'})
       } else {
-        toast({title: '同步成功', description: uploadRes.data?.commit.message})
+        toast({title: _t('sync_successful'), description: uploadRes.data?.commit.message})
       }
     }
     setLoading(false)
@@ -63,7 +59,7 @@ export default function Sync({mdRef}: {mdRef: RefObject<ExposeParam>}) {
   return (
     <TooltipButton
       icon={loading ? <LoaderCircle className="animate-spin size-4" /> : <CloudUpload />}
-      tooltipText="同步"
+      tooltipText={_t('sync')}
       onClick={handleSync}
       disabled={!accessToken}
     >

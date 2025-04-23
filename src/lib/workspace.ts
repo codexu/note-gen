@@ -95,9 +95,10 @@ export async function getGenericPathOptions(path: string, prefix?: string): Prom
 export async function toWorkspaceRelativePath(path: string): Promise<string> {
   const workspace = await getWorkspacePath()
   
+  const isDefaultDirRegex = /^(article[\\\/])/
   // 如果是默认工作区，移除"article/"前缀
-  if (!workspace.isCustom && path.startsWith('article/')) {
-    return path.replace('article/', '')
+  if (!workspace.isCustom && isDefaultDirRegex.test(path)) {
+    return path.replace(/article[\\\/]/g, '')
   }
   
   // 如果是自定义工作区，移除工作区路径前缀

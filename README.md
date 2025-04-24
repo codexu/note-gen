@@ -8,7 +8,7 @@
 ![](https://img.shields.io/github/downloads/codexu/note-gen/total)
 ![](https://img.shields.io/github/commit-activity/m/codexu/note-gen)
 
-English | [简体中文](README.CN.md)
+English | [简体中文](README.CN.md) | [日本語](README.JP.md)
 
 NoteGen is a cross-platform `Markdown` note-taking application dedicated to using AI to bridge recording and writing, organizing fragmented knowledge into a readable note.
 

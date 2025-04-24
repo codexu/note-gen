@@ -8,7 +8,7 @@
 ![](https://img.shields.io/github/downloads/codexu/note-gen/total)
 ![](https://img.shields.io/github/commit-activity/m/codexu/note-gen)
 
-[English](README.md) | 简体中文
+[English](README.md) | 简体中文 | [日本語](README.JP.md)
 
 NoteGen 是一款的跨端的 `Markdown` 笔记应用，致力于使用 AI 建立记录和写作的桥梁，将碎片化知识整理成一篇可读的笔记。
 

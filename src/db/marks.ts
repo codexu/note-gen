@@ -66,7 +66,7 @@ export async function updateMark(mark: Mark) {
     tagId = ${mark.tagId},
     url = "${mark.url}",
     desc = "${mark.desc}",
-    content = "${mark.content}",
+    content = ${mark.content ? `"${encodeURIComponent(mark?.content)}"`: null},
     createdAt = ${mark.createdAt}
     where id = ${mark.id}`
   )

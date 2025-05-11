@@ -40,13 +40,13 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: docs/.vitepress/dist #要推送的内容（打包后的博客文件夹）
           publish_branch: gh-pages #分支名
-      # - name: deploy aliyun      # 为 step 指定一个名称，将会在 github action 的控制台中显示
-      #   uses: easingthemes/ssh-deploy@v5.0.3      #可以访问的仓库，实现的上传服务器步骤被封装在此action
-      #   env:
-      #     SSH_PRIVATE_KEY: ${{ secrets.TREE_HOLE }}  #这个是阿里云的私钥
-      #     SOURCE: "./dist/"
-      #     ARGS: "-avzr --delete --exclude '.user.ini'"
-      #     REMOTE_HOST: ${{ secrets.HOST }}    #阿里云的 ip
-      #     REMOTE_USER: ${{ secrets.USER }}    #阿里云用户
-      #     REMOTE_PORT : "22" #远程服务器的端口
-      #     TARGET: ${{ secrets.TARGET }}       #被部署的服务器路径
+      - name: deploy aliyun # 为 step 指定一个名称，将会在 github action 的控制台中显示
+        uses: easingthemes/ssh-deploy@v5.0.3 #可以访问的仓库，实现的上传服务器步骤被封装在此action
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }} #这个是阿里云的私钥
+          SOURCE: "./dist/"
+          ARGS: "-avzr --delete --exclude '.user.ini'"
+          REMOTE_HOST: ${{ secrets.HOST }} #阿里云的 ip
+          REMOTE_USER: ${{ secrets.USER }} #阿里云用户
+          REMOTE_PORT: "22" #远程服务器的端口
+          TARGET: ${{ secrets.TARGET }} #被部署的服务器路径

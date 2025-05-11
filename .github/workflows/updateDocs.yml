@@ -44,7 +44,7 @@ jobs:
         uses: easingthemes/ssh-deploy@v5.0.3 #可以访问的仓库，实现的上传服务器步骤被封装在此action
         env:
           SSH_PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }} #这个是阿里云的私钥
-          SOURCE: "./dist/"
+          SOURCE: "/docs/.vitepress/dist/"
           ARGS: "-avzr --delete --exclude '.user.ini'"
           REMOTE_HOST: ${{ secrets.HOST }} #阿里云的 ip
           REMOTE_USER: ${{ secrets.USER }} #阿里云用户

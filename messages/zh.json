@@ -11,6 +11,9 @@
     "edit": "编辑",
     "create": "创建",
     "theme": "主题",
+    "light": "亮色",
+    "dark": "暗色",
+    "system": "跟随系统",
     "pin": "置顶",
     "unpin": "取消置顶",
     "settings": "设置",
@@ -110,6 +113,7 @@
     },
     "theme": {
       "title": "外观",
+      "appTheme": "应用配色",
       "previewTheme": "预览内容主题",
       "codeTheme": "代码块高亮主题",
       "selectTheme": "选择主题"

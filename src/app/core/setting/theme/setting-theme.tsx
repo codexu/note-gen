@@ -4,6 +4,7 @@ import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
 import { useTranslations } from 'next-intl';
 import { useEffect } from "react";
+import { useTheme } from "next-themes";
 
 export function PreviewThemeSelect() {
   const t = useTranslations();
@@ -46,10 +47,37 @@ export function PreviewThemeSelect() {
   )
 }
 
+export function AppThemeSelect() {
+  const t = useTranslations();
+  const { theme, setTheme } = useTheme()
+
+  const themes = [
+    { value: 'light', label: '亮色' },
+    { value: 'dark', label: '暗色' },
+    { value: 'system', label: '跟随系统' }
+  ]
+
+  return (
+    <Select onValueChange={setTheme} value={theme}>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder={t('settings.theme.selectTheme')} />
+      </SelectTrigger>
+      <SelectContent>
+        {
+          themes.map((theme) => (
+            <SelectItem key={theme.value} value={theme.value}>{theme.label}</SelectItem>
+          ))
+        }
+      </SelectContent>
+    </Select>
+  )
+}
+
 export function CodeThemeSelect() {
   const t = useTranslations();
   const { codeTheme, setCodeTheme } = useSettingStore()
-  const themes = ['github', 'atom', 'a11y', 'gradient', 'kimbie', 'paraiso', 'qtcreator', 'stackoverflow']
+
+  const themes = ['github', 'github-dark', 'material-darker', 'material-palenight', 'one-dark']
 
   async function changeHandler(e: string) {
     setCodeTheme(e)
@@ -91,6 +119,10 @@ export function SettingTheme({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
     <SettingType id={id} icon={icon} title={t('settings.theme.title')}>
+      <SettingRow border>
+        <span>{t('settings.theme.appTheme') || '应用配色'}。</span>
+        <AppThemeSelect />
+      </SettingRow>
       <SettingRow border>
         <span>{t('settings.theme.previewTheme')}。</span>
         <PreviewThemeSelect />

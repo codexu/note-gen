@@ -11,8 +11,11 @@
     "edit": "編集",
     "create": "作成",
     "theme": "テーマ",
+    "light": "ライトモード",
+    "dark": "ダークモード",
+    "system": "システム設定に従う",
     "pin": "ピン留め",
-    "unpin": "キャンセルピン留め",
+    "unpin": "ピン留めを解除",
     "settings": "設定",
     "sync": "同期",
     "language": "言語",
@@ -110,6 +113,7 @@
     },
     "theme": {
       "title": "外観",
+      "appTheme": "アプリテーマ",
       "previewTheme": "プレビュー用テーマ",
       "codeTheme": "コードブロックのハイライトテーマ",
       "selectTheme": "テーマを選択"

@@ -59,10 +59,33 @@
     },
     "about": {
       "title": "关于",
+      "desc": "一款专注于记录与写作的 AI 笔记。",
       "version": "NoteGen v{version}",
       "checkReleases": "查询历史版本",
+      "language": "语言",
       "checkUpdate": "检查更新",
-      "language": "语言"
+      "checkError": "检查更新失败",
+      "updateAvailable": "检测到新版本",
+      "updateDownloading": "更新中 {downloaded} / {contentLength}",
+      "updateInstalled": "重启应用",
+      "items": {
+        "github": {
+          "title": "GitHub",
+          "buttonName": "查看"
+        },
+        "releases": {
+          "title": "更新日志",
+          "buttonName": "查看"
+        },
+        "issues": {
+          "title": "问题反馈",
+          "buttonName": "反馈"
+        },
+        "discussions": {
+          "title": "交流讨论",
+          "buttonName": "讨论"
+        }
+      }
     },
     "sync": {
       "title": "同步",

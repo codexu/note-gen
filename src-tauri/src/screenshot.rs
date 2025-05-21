@@ -5,11 +5,16 @@ use xcap::{image, Monitor};
 #[tauri::command]
 pub fn screenshot(app: AppHandle) -> String {
     let monitors = Monitor::all().unwrap();
-    let mut path    = String::new();
+    let mut path = String::new();
     for monitor in monitors {
-        let current_monitor = app.get_webview_window("main").unwrap().current_monitor().unwrap().unwrap();
+        let current_monitor = app
+            .get_webview_window("main")
+            .unwrap()
+            .current_monitor()
+            .unwrap()
+            .unwrap();
         let current_monitor_name = current_monitor.name().unwrap().to_string();
-        
+
         if monitor.name() == current_monitor_name {
             let image = monitor.capture_image().unwrap();
             // 获取 app data 目录

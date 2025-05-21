@@ -59,10 +59,33 @@
     },
     "about": {
       "title": "このアプリについて",
+      "desc": "A note-taking assistant focused on record and writing.",
       "version": "NoteGen v{version}",
       "checkReleases": "過去のバージョンを確認",
+      "language": "言語",
       "checkUpdate": "アップデートを確認",
-      "language": "言語"
+      "checkError": "アップデートの確認に失敗しました",
+      "updateAvailable": "新しいバージョンが利用可能です",
+      "updateDownloading": "Updating {downloaded} / {contentLength}",
+      "updateInstalled": "Restart app",
+      "items": {
+        "github": {
+          "title": "GitHub",
+          "buttonName": "View"
+        },
+        "releases": {
+          "title": "Update Log",
+          "buttonName": "View"
+        },
+        "issues": {
+          "title": "Issue Feedback",
+          "buttonName": "Feedback"
+        },
+        "discussions": {
+          "title": "Discussions",
+          "buttonName": "Discuss"
+        }
+      }
     },
     "sync": {
       "title": "同期",

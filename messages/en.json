@@ -27,10 +27,33 @@
   "settings": {
     "about": {
       "title": "About",
+      "desc": "A note-taking assistant focused on record and writing.",
       "version": "NoteGen v{version}",
       "checkReleases": "Check Release History",
+      "language": "Language",
       "checkUpdate": "Check for Updates",
-      "language": "Language"
+      "checkError": "Failed to check for updates",
+      "updateAvailable": "New version available",
+      "updateDownloading": "Updating {downloaded} / {contentLength}",
+      "updateInstalled": "Restart app",
+      "items": {
+        "github": {
+          "title": "GitHub",
+          "buttonName": "View"
+        },
+        "releases": {
+          "title": "Update Log",
+          "buttonName": "View"
+        },
+        "issues": {
+          "title": "Issue Feedback",
+          "buttonName": "Feedback"
+        },
+        "discussions": {
+          "title": "Discussions",
+          "buttonName": "Discuss"
+        }
+      }
     },
     "defaultModel": {
       "title": "Default Model",

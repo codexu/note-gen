@@ -11,25 +11,25 @@ export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   const items = [
     {
-      url: "https://github.com/codexu/NoteGen",
+      url: "https://github.com/codexu/note-gen",
       title: t('items.github.title'),
       icon: <Github className="size-4" />,
       buttonName: t('items.github.buttonName')
     },
     {
-      url: "https://github.com/codexu/NoteGen/releases",
+      url: "https://github.com/codexu/note-gen/releases",
       title: t('items.releases.title'),
       icon: <DownloadIcon className="size-4" />,
       buttonName: t('items.releases.buttonName')
     },
     {
-      url: "https://github.com/codexu/NoteGen/issues",
+      url: "https://github.com/codexu/note-gen/issues",
       title: t('items.issues.title'),
       icon: <Bug className="size-4" />,
       buttonName: t('items.issues.buttonName')
     },
     {
-      url: "https://github.com/codexu/NoteGen/discussions",
+      url: "https://github.com/codexu/note-gen/discussions",
       title: t('items.discussions.title'),
       icon: <MessageSquare className="size-4" />,
       buttonName: t('items.discussions.buttonName')

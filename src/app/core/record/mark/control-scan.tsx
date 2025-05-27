@@ -1,121 +1,70 @@
 import { TooltipButton } from "@/components/tooltip-button"
-import { insertMark } from "@/db/marks"
 import { useTranslations } from 'next-intl'
-import { fetchAiDesc } from "@/lib/ai"
-import ocr from "@/lib/ocr"
-import useMarkStore from "@/stores/mark"
-import useTagStore from "@/stores/tag"
 import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow"
-import { currentMonitor } from '@tauri-apps/api/window';
 import { ScanText } from "lucide-react"
-import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut';
-import { useEffect } from "react"
-import { v4 as uuid } from 'uuid'
-import useSettingStore from "@/stores/setting"
-import emitter from "@/lib/emitter"
-import { EmitterShortcutEvents } from "@/config/emitters"
-import { ShortcutDefault, ShortcutSettings } from "@/config/shortcut"
-import { Store } from "@tauri-apps/plugin-store"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useState } from "react"
+import Image from "next/image"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+import { Card, CardContent } from "@/components/ui/card"
  
 export function ControlScan() {
   const t = useTranslations();
-  const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
-  const { apiKey } = useSettingStore()
-
+  const [path, setPath] = useState<string | null>(null)
+  const [paths, setPaths] = useState<string[]>([])
   async function createScreenShot() {
-    const currentWindow = getCurrentWebviewWindow()
-    await currentWindow.hide()
-
-    await invoke('screenshot')
-    
-    const monitor = await currentMonitor();
-
-    if (!monitor) return;
-    
-    const webview = new WebviewWindow('screenshot', {
-      url: '/screenshot',
-      decorations: false,
-    });
-
-    webview.setPosition(monitor?.position)
-    webview.setSize(monitor?.size)
-
-    webview.onCloseRequested(async () => {
-      if (!await currentWindow.isVisible()) {
-        await currentWindow.show()
-      } else {
-        await currentWindow.setFocus()
-      }
-      unlisten()
-    })
-
-    const unlisten = await webview.listen("save-success", async e => {
-      if (typeof e.payload === 'string') {
-        const queueId = uuid()
-        addQueue({ queueId, progress: t('record.mark.progress.ocr'), type: 'scan', startTime: Date.now() })
-        const content = await ocr(`screenshot/${e.payload}`)
-        let desc = ''
-        if (apiKey) {
-          setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
-          desc = await fetchAiDesc(content).then(res => res ? res : content) || content
-        } else {
-          desc = content
-        }
-        setQueue(queueId, { progress: t('record.mark.progress.save') });
-        await insertMark({ tagId: currentTagId, type: 'scan', content, url: e.payload, desc })
-        removeQueue(queueId)
-        await fetchMarks()
-        await fetchTags()
-        getCurrentTag()
-      }
-      unlisten()
-    });
+    const fileNames = await invoke<string[]>('screenshot')
+    console.log(fileNames)
+    const paths = fileNames.map((fileName: string) => convertFileSrc(fileName))
+    console.log(paths)
+    setPaths(paths)
+    setPath(paths[0])
   }
-
-  async function initRegister() {
-    const store = await Store.load('store.json')
-    let lastKey = await store.get<string>(ShortcutSettings.screenshot)
-    if (!lastKey) {
-      await store.set(ShortcutSettings.screenshot, ShortcutDefault.screenshot)
-      lastKey = ShortcutDefault.screenshot
-    }
-    const isEscRegistered = await isRegistered(lastKey);
-    if (isEscRegistered) {
-      await unregister(lastKey);
-    }
-    await register(lastKey, async (e) => {
-      if (e.state === 'Pressed') {
-        await createScreenShot()
-      }
-    }).catch(() => {})
-  }
-
-  async function linstenRegister(key?: string) {
-    if (!key) return
-    const store = await Store.load('store.json')
-    const lastKey = await store.get<string>(ShortcutSettings.screenshot)
-    if (lastKey) {
-      const isEscRegistered = await isRegistered(lastKey);
-      if (isEscRegistered) {
-        await unregister(lastKey);
-      }
-    }
-    await store.set(ShortcutSettings.screenshot, key)
-    await register(key, async (e) => {
-      if (e.state === 'Pressed') {
-        await createScreenShot()
-      }
-    }).catch(() => {})
-  }
-
-  useEffect(() => {
-    initRegister()
-    emitter.on(EmitterShortcutEvents.screenshot, (res) => linstenRegister(res as string))
-  }, [])
 
   return (
-    <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
+    <Dialog>
+      <DialogTrigger asChild>
+        <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
+      </DialogTrigger>
+      <DialogContent className="max-w-[calc(100vw-40px)] h-[calc(100vh-40px)] flex flex-col items-center justify-center overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          {path && (
+            <Image className="h-full w-full object-contain" src={path} alt="" width={200} height={200} />
+          )}
+        </div>
+        <Carousel
+          opts={{
+            align: "start",
+          }}
+          orientation="horizontal"
+          className="w-full max-w-xl h-24"
+        >
+          <CarouselContent>
+            {paths.map((path, index) => (
+              <CarouselItem key={index} className="pt-1 md:basis-1/5">
+                <Card className="size-24 overflow-hidden cursor-pointer" onClick={() => setPath(path)}>
+                  <CardContent className="flex items-center justify-center p-0 overflow-hidden">
+                    <Image className="size-24 object-cover" src={path} alt="" width={200} height={200} />
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious />
+          <CarouselNext />
+        </Carousel>
+      </DialogContent>
+    </Dialog>
   )
 }

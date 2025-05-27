@@ -1,33 +1,69 @@
 use tauri::{path::BaseDirectory, AppHandle, Manager};
-use xcap::{image, Monitor};
+use xcap::{image, Window};
+
+fn normalized(s: &str) -> String {
+    s.replace(" ", "-")
+    .replace("/", "-")
+    .replace("\\", "-")
+    .replace("*", "-")
+    .replace("?", "-")
+    .replace(":", "-")
+    .replace("<", "-")
+    .replace(">", "-")
+    .replace("|", "-")
+}
 
 #[allow(dead_code)]
 #[tauri::command]
-pub fn screenshot(app: AppHandle) -> String {
-    let monitors = Monitor::all().unwrap();
-    let mut path = String::new();
-    for monitor in monitors {
-        let current_monitor = app
-            .get_webview_window("main")
-            .unwrap()
-            .current_monitor()
-            .unwrap()
-            .unwrap();
-        let current_monitor_name = current_monitor.name().unwrap().to_string();
+pub fn screenshot(app: AppHandle) -> Vec<String> {
+    let windows = Window::all().unwrap();
 
-        if monitor.name() == current_monitor_name {
-            let image = monitor.capture_image().unwrap();
-            // 获取 app data 目录
-            let file_path = app
-                .path()
-                .resolve("temp_screenshot.png", BaseDirectory::AppData)
-                .unwrap();
-            image.save(&file_path).unwrap();
-            path = file_path.to_str().unwrap().to_string();
+    let temp_screenshot_folder = app
+        .path()
+        .resolve("temp_screenshot", BaseDirectory::AppData)
+        .unwrap();
+    
+    std::fs::remove_dir_all(&temp_screenshot_folder).unwrap();
+    std::fs::create_dir(&temp_screenshot_folder).unwrap();
+
+    let mut file_names = Vec::new();
+
+    let mut i = 0;
+    for window in windows {
+        // 已最小化的窗口跳过
+        if window.is_minimized().unwrap() {
+            continue;
+        }
+        
+        // 获取窗口属性
+        let title = window.title().unwrap_or_default();
+        let width = window.width().unwrap_or(0);
+        let height = window.height().unwrap_or(0);
+        let system_titles = vec!["Dock", "Menu Bar", "MenuBar", "Status", "Notification Center", "", "Desktop", "NoteGen"];
+        
+        if system_titles.contains(&title.as_str()) || 
+           title.len() < 2 ||
+           width < 150 || 
+           height < 150 {
+            continue;
+        }
+        
+        let image = window.capture_image().unwrap();
+        let path = format!(
+            "{}/window-{}-{}.png",
+            temp_screenshot_folder.display(),
+            i,
+            normalized(&window.title().unwrap())
+        );
+        match image.save(&path) {
+            Ok(_) => println!("保存成功: {:?}", path),
+            Err(e) => println!("保存失败: {:?}", e),
         };
+        file_names.push(path);
+
+        i += 1;
     }
-    path
-    /* `std::string::String` value */
+    file_names
 }
 
 #[allow(dead_code)]

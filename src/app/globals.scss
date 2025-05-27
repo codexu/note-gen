@@ -173,3 +173,9 @@ html, body {
 ol {
   list-style-type: decimal;
 }
+
+.ReactCrop__child-wrapper{
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}

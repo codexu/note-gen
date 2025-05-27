@@ -1,5 +1,17 @@
 use tauri::{path::BaseDirectory, AppHandle, Manager};
-use xcap::{image, Window};
+use xcap::{Window};
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone)]
+pub struct ScreenshotImage {
+    name: String,
+    path: String,
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+    z: i32,
+}
 
 fn normalized(s: &str) -> String {
     s.replace(" ", "-")
@@ -15,7 +27,8 @@ fn normalized(s: &str) -> String {
 
 #[allow(dead_code)]
 #[tauri::command]
-pub fn screenshot(app: AppHandle) -> Vec<String> {
+pub fn screenshot(app: AppHandle) -> Vec<ScreenshotImage> {
+
     let windows = Window::all().unwrap();
 
     let temp_screenshot_folder = app
@@ -26,7 +39,7 @@ pub fn screenshot(app: AppHandle) -> Vec<String> {
     std::fs::remove_dir_all(&temp_screenshot_folder).unwrap();
     std::fs::create_dir(&temp_screenshot_folder).unwrap();
 
-    let mut file_names = Vec::new();
+    let mut files: Vec<ScreenshotImage> = Vec::new();
 
     let mut i = 0;
     for window in windows {
@@ -39,6 +52,9 @@ pub fn screenshot(app: AppHandle) -> Vec<String> {
         let title = window.title().unwrap_or_default();
         let width = window.width().unwrap_or(0);
         let height = window.height().unwrap_or(0);
+        let x = window.x().unwrap_or(0);
+        let y = window.y().unwrap_or(0);
+        let z = window.z().unwrap_or(0);
         let system_titles = vec!["Dock", "Menu Bar", "MenuBar", "Status", "Notification Center", "", "Desktop", "NoteGen"];
         
         if system_titles.contains(&title.as_str()) || 
@@ -59,32 +75,17 @@ pub fn screenshot(app: AppHandle) -> Vec<String> {
             Ok(_) => println!("保存成功: {:?}", path),
             Err(e) => println!("保存失败: {:?}", e),
         };
-        file_names.push(path);
+        files.push(ScreenshotImage {
+            name: title,
+            path,
+            width,
+            height,
+            x,
+            y,
+            z,
+        });
 
         i += 1;
     }
-    file_names
-}
-
-#[allow(dead_code)]
-#[tauri::command]
-pub fn screenshot_save(app: AppHandle, x: u32, y: u32, width: u32, height: u32) -> String {
-    let file_path = app
-        .path()
-        .resolve("temp_screenshot.png", BaseDirectory::AppData)
-        .unwrap();
-    let image = image::open(&file_path).unwrap();
-    let image = image.crop_imm(x, y, width, height);
-    let timestamp = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
-    let save_path = app
-        .path()
-        .resolve(
-            format!("screenshot/{}.png", &timestamp),
-            BaseDirectory::AppData,
-        )
-        .unwrap();
-    image.save(&save_path).unwrap();
-    std::fs::remove_file(&file_path).unwrap();
-    let file_name = format!("{}.png", timestamp);
-    file_name
+    files
 }

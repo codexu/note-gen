@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod screenshot;
-use screenshot::{screenshot, screenshot_save};
+use screenshot::{screenshot};
 mod webdav;
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -42,7 +42,6 @@ fn main() {
         .plugin(tauri_plugin_clipboard::init())
         .invoke_handler(tauri::generate_handler![
             screenshot,
-            screenshot_save,
             webdav_test,
             webdav_backup,
             webdav_sync

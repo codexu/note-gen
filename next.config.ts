@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
     silenceDeprecations: ['legacy-js-api'],
   },
   reactStrictMode: false,
-  turbopack: {}
+  turbopack: {},
 };
 
 export default withNextIntl(nextConfig);

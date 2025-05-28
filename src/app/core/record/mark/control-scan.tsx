@@ -1,3 +1,4 @@
+'use client'
 import { TooltipButton } from "@/components/tooltip-button"
 import { useTranslations } from 'next-intl'
 import { invoke } from "@tauri-apps/api/core"
@@ -8,8 +9,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useState } from "react"
-import Image from "next/image"
+import { useEffect, useState } from "react"
 import {
   Carousel,
   CarouselContent,
@@ -18,20 +18,51 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
-import Cropper, { ReactCropperElement } from "react-cropper";
 import { useRef } from "react";
-import "cropperjs/dist/cropper.css";
-import "./crop.scss"
 import { ScreenshotImage } from "note-gen/screenshot"
+import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs"
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
+import Image from 'next/image'
+import useTagStore from "@/stores/tag"
+import useMarkStore from "@/stores/mark"
+import { v4 as uuid } from "uuid"
+import useSettingStore from "@/stores/setting"
+import ocr from "@/lib/ocr"
+import { fetchAiDesc } from "@/lib/ai"
+import { insertMark } from "@/db/marks"
 
 export function ControlScan() {
   const t = useTranslations();
-  const [image, setImage] = useState<string>();
+  const [open, setOpen] = useState(false)
+  const [image, setImage] = useState<HTMLImageElement>();
   const [files, setFiles] = useState<ScreenshotImage[]>([])
-  const cropperRef = useRef<ReactCropperElement>(null);
+  const cropperRef = useRef<Cropper | null>(null);
+  const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
+  const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
+  const { apiKey } = useSettingStore()
+
+  function initCropper() {
+    if (cropperRef.current) {
+      cropperRef.current.destroy()
+    }
+    const image = document.getElementById('cropper') as HTMLImageElement;
+    if (!image) return
+    // 绑定双击事件
+    cropperRef.current = new Cropper(image, {
+      background: false,
+      viewMode: 1,
+      toggleDragModeOnDblclick: false
+    });
+    setTimeout(() => {
+      document.querySelector('.cropper-crop-box')?.addEventListener('dblclick', () => {
+        cropEnd()
+      })
+    }, 100)
+  }
+
   async function createScreenShot() {
     const fileNames = await invoke<ScreenshotImage[]>('screenshot')
-    console.log(fileNames);
     const convertedFiles = fileNames.map((fileName: ScreenshotImage) => {
       return {
         ...fileName,
@@ -39,16 +70,55 @@ export function ControlScan() {
       }
     })
     setFiles(convertedFiles)
-    setImage(convertedFiles[0].path)
+    const image = new window.Image();
+    image.src = convertedFiles[0].path;
+    setImage(image)
   }
 
-  const onCrop = () => {
-    const cropper = cropperRef.current?.cropper;
-    console.log(cropper);
+  function selectImage(file: ScreenshotImage) {
+    const image = new window.Image();
+    image.src = file.path;
+    setImage(image)
+  }
+
+  async function cropEnd() {
+    setOpen(false)
+    const queueId = uuid()
+    if (!cropperRef.current) return
+    const canvas = cropperRef.current.getCroppedCanvas();
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8Array = new Uint8Array(arrayBuffer)
+      await writeFile(`screenshot/${queueId}.png`, uint8Array, {
+        baseDir: BaseDirectory.AppData
+      })
+      addQueue({ queueId, progress: t('record.mark.progress.ocr'), type: 'scan', startTime: Date.now() })
+      const content = await ocr(`screenshot/${queueId}.png`)
+      let desc = ''
+      if (apiKey) {
+        setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
+        desc = await fetchAiDesc(content).then(res => res ? res : content) || content
+      } else {
+        desc = content
+      }
+      setQueue(queueId, { progress: t('record.mark.progress.save') });
+      await insertMark({ tagId: currentTagId, type: 'scan', content, url: `${queueId}.png`, desc })
+      removeQueue(queueId)
+      await fetchMarks()
+      await fetchTags()
+      getCurrentTag()
+    })
   };
 
+  useEffect(() => {
+    if (open) {
+      initCropper()
+    }
+  }, [image, open])
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
       </DialogTrigger>
@@ -56,13 +126,7 @@ export function ControlScan() {
         <div className="flex-1 overflow-hidden">
           {
             image && (
-              <Cropper
-                ref={cropperRef}
-                src={image}
-                className="w-full h-full"
-                guides={true}
-                crop={onCrop}
-              />
+              <Image id="cropper" className="size-full object-contain" width={0} height={0} src={image.src} alt="" />
             )
           }
         </div>
@@ -76,9 +140,13 @@ export function ControlScan() {
           <CarouselContent>
             {files.map((file, index) => (
               <CarouselItem key={index} className="pt-1 md:basis-1/5">
-                <Card className={`size-24 overflow-hidden cursor-pointer border-0 ${image === file.path ? 'border-2 border-white' : ''}`} onClick={() => setImage(file.path)}>
-                  <CardContent className="flex items-center justify-center p-0 overflow-hidden">
-                    <Image className="size-24 object-cover" src={file.path} alt="" width={1200} height={1200} />
+                <Card
+                  className={`size-24 overflow-hidden cursor-pointer border-2 border-black ${image?.src === file.path ? 'border-white' : ''}`}
+                  onClick={() => selectImage(file)}
+                >
+                  <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
+                    <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
+                    <p className="text-xs line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
                   </CardContent>
                 </Card>
               </CarouselItem>

@@ -122,7 +122,7 @@ export function ControlScan() {
       <DialogTrigger asChild>
         <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
       </DialogTrigger>
-      <DialogContent className="max-w-[calc(100vw-40px)] h-[calc(100vh-40px)] bg-black border-none flex flex-col items-center justify-center overflow-hidden">
+      <DialogContent className="max-w-screen h-screen text-white bg-black border-none flex flex-col items-center justify-center overflow-hidden">
         <div className="flex-1 overflow-hidden">
           {
             image && (
@@ -146,14 +146,14 @@ export function ControlScan() {
                 >
                   <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
                     <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
-                    <p className="text-xs line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
+                    <p className="text-xs text-white line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
                   </CardContent>
                 </Card>
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
+          <CarouselPrevious className="text-white bg-black border-white" />
+          <CarouselNext className="text-white bg-black border-white" />
         </Carousel>
       </DialogContent>
     </Dialog>

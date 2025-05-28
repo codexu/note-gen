@@ -245,7 +245,7 @@
       "empty": "暂无记录",
       "loading": "加载中...",
       "type": {
-        "scan": "扫描",
+        "scan": "截图",
         "image": "插图",
         "screenshot": "截图",
         "text": "文本",

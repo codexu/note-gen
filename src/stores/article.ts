@@ -1,6 +1,9 @@
-import { decodeBase64ToString, getFiles } from '@/lib/github'
+import { decodeBase64ToString, getFiles as getGithubFiles } from '@/lib/github'
 import { GithubContent, RepoNames } from '@/lib/github.types'
+import { decodeBase64ToString as giteeDecodeBase64ToString, getFiles as getGiteeFiles } from '@/lib/gitee'
+import { GiteeFile } from '@/lib/gitee'
 import { getCurrentFolder } from '@/lib/path'
+import useVectorStore from './vector'
 import { join } from '@tauri-apps/api/path'
 import { BaseDirectory, DirEntry, exists, mkdir, readDir, readTextFile, writeTextFile, stat } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
@@ -309,18 +312,37 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const sortedDirs = get().sortFileTree(dirs)
     set({ fileTree: sortedDirs })
     
-    // 读取 github 同步文件
+    // 读取 github/gitee 同步文件
     const store = await Store.load('store.json');
-    const accessToken = await store.get<string>('accessToken')
-    if (!accessToken) {
-      set({ fileTreeLoading: false })
-      return
+    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    
+    if (primaryBackupMethod === 'github') {
+      const accessToken = await store.get<string>('accessToken')
+      if (!accessToken) {
+        set({ fileTreeLoading: false })
+        return
+      }
+    } else {
+      const giteeAccessToken = await store.get<string>('giteeAccessToken')
+      if (!giteeAccessToken) {
+        set({ fileTreeLoading: false })
+        return
+      }
     }
     const collapsibleList = ['', ...get().collapsibleList];
     collapsibleList.forEach(async path => {
-      const githubFiles = await getFiles({ path, repo: RepoNames.sync })
-      if (githubFiles) {
-        githubFiles.forEach((file: GithubContent) => {
+      const store = await Store.load('store.json');
+      const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+      
+      let files;
+      if (primaryBackupMethod === 'github') {
+        files = await getGithubFiles({ path, repo: RepoNames.sync });
+      } else {
+        files = await getGiteeFiles({ path, repo: RepoNames.sync });
+      }
+      
+      if (files) {
+        files.forEach((file: GithubContent | GiteeFile) => {
           const itemPath = file.path;
           let currentFolder: DirTree | undefined
           if (file.type === 'dir') {
@@ -369,16 +391,24 @@ const useArticleStore = create<NoteState>((set, get) => ({
         set({ fileTreeLoading: false })
       }
     })
-    
   },
-  // 加载文件夹内部的 Github 仓库文件
+  // 加载文件夹内部的 Github/Gitee 仓库文件
   loadCollapsibleFiles: async (fullpath: string) => {
     const cacheTree: DirTree[] = get().fileTree
     const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
-    const githubFiles = await getFiles({ path: fullpath, repo: RepoNames.sync })
-    if (githubFiles && currentFolder) {
-      githubFiles.forEach((file: GithubContent) => {
+    const store = await Store.load('store.json');
+    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    
+    let files;
+    if (primaryBackupMethod === 'github') {
+      files = await getGithubFiles({ path: fullpath, repo: RepoNames.sync });
+    } else {
+      files = await getGiteeFiles({ path: fullpath, repo: RepoNames.sync });
+    }
+    
+    if (files && currentFolder) {
+      files.forEach((file: GithubContent | GiteeFile) => {
         const index = currentFolder.children?.findIndex(item => item.name === file.name)
         if (index !== undefined && index !== -1 && currentFolder.children) {
           currentFolder.children[index].sha = file.sha
@@ -631,32 +661,49 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   currentArticle: '',
   readArticle: async (path: string, sha?: string, isLocale = true) => {
-    if (!path) return
     get().setLoading(true)
     if (isLocale) {
-      let res = ''
       try {
-        // 获取文件路径选项（根据是否是自定义工作区）
+        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-        if (pathOptions.baseDir) {
-          // 默认工作区
-          res = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        let content = ''
+        if (workspace.isCustom) {
+          content = await readTextFile(pathOptions.path)
         } else {
-          // 自定义工作区
-          res = await readTextFile(pathOptions.path)
+          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
+        set({ currentArticle: content })
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
-        try{
-          res = decodeBase64ToString(await getFiles({ path, repo: RepoNames.sync }))
+      } catch (_) {
+        try {
+          // 如果本地文件不存在，尝试从Github/Gitee读取
+          const store = await Store.load('store.json');
+          const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+          
+          let content = '';
+          if (primaryBackupMethod === 'github') {
+            content = decodeBase64ToString(await getGithubFiles({ path, repo: RepoNames.sync }))
+          } else {
+            content = giteeDecodeBase64ToString(await getGiteeFiles({ path, repo: RepoNames.sync }))
+          }
+          set({ currentArticle: content })
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (error) {
+        } catch (_) {
+          // 文件既不在本地也不在远程
         }
       }
-      set({ currentArticle: res })
     } else {
-      const res = await getFiles({ path, repo: RepoNames.sync })
-      set({ currentArticle: decodeBase64ToString(res.content) })
+      const store = await Store.load('store.json');
+      const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+      
+      let res;
+      if (primaryBackupMethod === 'github') {
+        res = await getGithubFiles({ path, repo: RepoNames.sync })
+        set({ currentArticle: decodeBase64ToString(res.content) })
+      } else {
+        res = await getGiteeFiles({ path, repo: RepoNames.sync })
+        set({ currentArticle: giteeDecodeBase64ToString(res.content) })
+      }
     }
     get().setLoading(false)
   },
@@ -718,6 +765,21 @@ const useArticleStore = create<NoteState>((set, get) => ({
           current.isLocale = true
         }
         set({ fileTree: cacheTree })
+      }
+      
+      // 如果文件是Markdown文件，且向量数据库已启用，则更新向量
+      if (path.endsWith('.md')) {
+        try {
+          // 访问向量存储
+          const vectorStore = useVectorStore.getState()
+          // 如果向量数据库已启用，更新向量
+          if (vectorStore.isVectorDbEnabled) {
+            // 异步处理文档向量，无需等待完成
+            vectorStore.processDocument(path, content)
+          }
+        } catch (error) {
+          console.error('更新文档向量失败:', error)
+        }
       }
     }
   },

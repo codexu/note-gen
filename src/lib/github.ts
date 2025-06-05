@@ -380,3 +380,44 @@ export async function createSyncRepo(name: string, isPrivate?: boolean) {
     return undefined;
   }
 }
+
+// 读取 release
+export async function getRelease() {
+  const store = await Store.load('store.json');
+  const accessToken = await store.get('accessToken')
+  if (!accessToken) return;
+  
+  // 获取代理设置
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? {
+    all: proxyUrl
+  } : undefined
+  
+  try {
+    // 设置请求头
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${accessToken}`);
+    headers.append('Accept', 'application/vnd.github+json');
+    headers.append('X-GitHub-Api-Version', '2022-11-28');
+    headers.append('If-None-Match', '');
+    
+    const requestOptions = {
+      method: 'GET',
+      headers,
+      proxy
+    };
+    
+    const url = `https://api.github.com/repos/codexu/note-gen/releases/latest`;
+    const response = await fetch(url, requestOptions);
+    
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json();
+      return data;
+    }
+    
+    throw new Error('获取 release 失败');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (error) {
+    return false
+  }
+}

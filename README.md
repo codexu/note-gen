@@ -1,4 +1,4 @@
-<img src="https://cdn.jsdelivr.net/gh/codexu/note-gen@dev/app-icon.png" width="128" height="128" />
+<img src="https://s2.loli.net/2025/05/26/YMNgxKVDrB84ZtW.png" width="128" height="128" />
 
 # NoteGen
 
@@ -8,31 +8,43 @@
 ![](https://img.shields.io/github/downloads/codexu/note-gen/total)
 ![](https://img.shields.io/github/commit-activity/m/codexu/note-gen)
 
-English | [简体中文](docs/zh/guide.md) | [日本語](docs/ja/guide.md)
+English | [简体中文](.github/README.zh.md) | [日本語](.github/README.ja.md)
 
 NoteGen is a cross-platform `Markdown` note-taking application dedicated to using AI to bridge recording and writing, organizing fragmented knowledge into a readable note.
 
+## Guide
+
+🖥️ Official Document: [https://notegen.top](https://notegen.top)
+
+💬 Join [WeChat/QQ Group](https://github.com/codexu/note-gen/discussions/110) | [Discord](https://discord.gg/9vs3qFkb)
+
 ## Why Choose NoteGen?
 
-- Lightweight: [Installation package](https://github.com/codexu/note-gen/releases) is **only about 10MB**, free with no ads or bundled software.
+- Lightweight: [Installation package](https://github.com/codexu/note-gen/releases) is **only 20MB**, free with no ads or bundled software.
 - Cross-platform: Supports Mac, Windows, Linux, and thanks to `Tauri2`'s cross-platform capabilities, will support iOS and Android in the future.
 - Supports multiple recording methods including `screenshots`, `text`, `illustrations`, `files`, `links`, etc., meeting fragmented recording needs across various scenarios.
-- Native offline usage with `Markdown(.md)` as the storage format, while also supporting real-time synchronization to `private GitHub repositories` with history rollback.
-- AI-enhanced: Configurable with ChatGPT, Gemini, Ollama, LM Studio, DeepSeek, and other models, with support for custom third-party model configuration.
+- Native `Markdown(.md)` as storage format, no modifications, easy to migrate.
+- Native offline usage, supporting real-time synchronization to `GitHub, Gitee private repositories` with history rollback, and WebDAV synchronization.
+- AI-enhanced: Configurable with ChatGPT, Gemini, Ollama, LM Studio, Grok, and other models, with support for custom third-party model configuration.
+- RAG: Your notes are your knowledge base. Support embedding models and reranking models.
 
 ## Screenshots
 
+
+https://github.com/user-attachments/assets/4f8a3bc5-17f5-4b36-9b17-d87128685257
+
+
 Recording:
 
-![record](https://s2.loli.net/2025/04/14/NxhiWjMZT7RtusS.png)
+![1.png](https://s2.loli.net/2025/05/19/Cs5viKfkqb2HJmd.png)
 
 Writing:
 
-![writing](https://s2.loli.net/2025/04/16/LcgMvUa86IpRi4V.png)
+![2.png](https://s2.loli.net/2025/05/19/5vwQBPoLr6jzgUA.png)
 
-Dark Mode:
+Theme:
 
-![dark](https://s2.loli.net/2025/04/14/9JhgTie2X4tZLdz.png)
+![3.png](https://s2.loli.net/2025/05/19/8yU72prmWdsCHeu.png)
 
 ## From Recording to Writing
 
@@ -92,15 +104,9 @@ Currently supports Mac, Windows, and Linux. Thanks to Tauri2's cross-platform ca
 
 The note-taking application can be used directly without configuration. If you want a better experience, please open the settings page to configure AI and synchronization.
 
-## Community
-
-Welcome to join the NoteGen community group where you can ask questions, share usage experiences, or suggest improvements. You can also join to learn about Tauri and discuss it with me.
-
-Scan the QR code to join the [discussion group](https://github.com/codexu/note-gen/discussions/110). If the QR code expires, you can add WeChat xu461229187 to join the group.
-
 ## Contribute
 
-- [Read contribution guide](CONTRIBUTING.md)
+- [Read contribution guide](.github/CONTRIBUTING.md)
 - [Update plans](https://github.com/codexu/note-gen/issues/46)
 - [Submit bugs or improvement suggestions](https://github.com/codexu/note-gen/issues)
 - [Discussions](https://github.com/codexu/note-gen/discussions)

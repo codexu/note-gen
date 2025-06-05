@@ -1,5 +1,9 @@
 .vditor {
   @apply border-none;
+
+  pre {
+    @apply dark:bg-zinc-950 !important;
+  }
 }
 
 .vditor-toolbar{
@@ -28,7 +32,7 @@
 
 .vditor--dark .vditor-reset{
   h1, h2, h3, h4, h5, h6, p, span, li {
-    color: #fff !important;
+    @apply text-zinc-100 !important;
   }
 }
 

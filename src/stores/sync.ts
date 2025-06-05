@@ -1,4 +1,5 @@
 import { GithubRepoInfo, UserInfo } from '@/lib/github.types'
+import { GiteeRepoInfo } from '@/lib/gitee'
 import { create } from 'zustand'
 
 export enum SyncStateEnum {
@@ -9,7 +10,7 @@ export enum SyncStateEnum {
 }
 
 interface SyncState {
-
+  // Github 相关状态
   userInfo?: UserInfo
   setUserInfo: (userInfo?: UserInfo) => void
 
@@ -22,9 +23,19 @@ interface SyncState {
   setSyncRepoState: (syncRepoState: SyncStateEnum) => void
   syncRepoInfo?: GithubRepoInfo
   setSyncRepoInfo: (syncRepoInfo?: GithubRepoInfo) => void
+
+  // Gitee 相关状态
+  giteeUserInfo?: any
+  setGiteeUserInfo: (giteeUserInfo?: any) => void
+
+  giteeSyncRepoState: SyncStateEnum
+  setGiteeSyncRepoState: (giteeSyncRepoState: SyncStateEnum) => void
+  giteeSyncRepoInfo?: GiteeRepoInfo
+  setGiteeSyncRepoInfo: (giteeSyncRepoInfo?: GiteeRepoInfo) => void
 }
 
 const useSyncStore = create<SyncState>((set) => ({
+  // Github 相关状态
   userInfo: undefined,
   setUserInfo: (userInfo) => {
     set({ userInfo })
@@ -46,6 +57,21 @@ const useSyncStore = create<SyncState>((set) => ({
   syncRepoInfo: undefined,
   setSyncRepoInfo: (syncRepoInfo) => {
     set({ syncRepoInfo })
+  },
+
+  // Gitee 相关状态
+  giteeUserInfo: undefined,
+  setGiteeUserInfo: (giteeUserInfo) => {
+    set({ giteeUserInfo })
+  },
+
+  giteeSyncRepoState: SyncStateEnum.fail,
+  setGiteeSyncRepoState: (giteeSyncRepoState) => {
+    set({ giteeSyncRepoState })
+  },
+  giteeSyncRepoInfo: undefined,
+  setGiteeSyncRepoInfo: (giteeSyncRepoInfo) => {
+    set({ giteeSyncRepoInfo })
   },
 }))
 

@@ -219,7 +219,7 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
   return (
     <AlertDialog onOpenChange={openGen} open={open}>
       <AlertDialogTrigger className="relative" asChild>
-        <TooltipButton icon={<NotebookPen />} disabled={loading || !apiKey} tooltipText="整理" />
+        <TooltipButton size="sm" variant={"default"} icon={<NotebookPen />} disabled={loading || !apiKey} tooltipText="整理" />
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

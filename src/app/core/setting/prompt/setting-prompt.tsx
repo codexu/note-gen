@@ -25,7 +25,7 @@ export function SettingPrompt({id, icon}: {id: string, icon?: React.ReactNode}) 
     initPromptData()
   }, [])
 
-  // 添加新面具
+  // 添加新prompt
   const handleAddPrompt = async () => {
     if (!newTitle.trim()) return
     await addPrompt({
@@ -38,7 +38,7 @@ export function SettingPrompt({id, icon}: {id: string, icon?: React.ReactNode}) 
     setDialogOpen(false)
   }
 
-  // 保存编辑中的面具
+  // 保存编辑中的prompt
   const handleSaveEdit = async (id: string) => {
     const prompt = promptList.find(p => p.id === id)
     if (!prompt) return
@@ -64,7 +64,7 @@ export function SettingPrompt({id, icon}: {id: string, icon?: React.ReactNode}) 
     setNewContent(prompt.content)
   }
 
-  // 删除面具
+  // 删除prompt
   const handleDeletePrompt = async (id: string) => {
     await deletePrompt(id)
   }

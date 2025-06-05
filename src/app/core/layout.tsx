@@ -5,11 +5,12 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import useSettingStore from "@/stores/setting"
 import { useEffect } from "react";
-import { initChatsDb } from "@/db/chats"
+import { initAllDatabases } from "@/db"
 import dayjs from "dayjs"
 import zh from "dayjs/locale/zh-cn";
 import en from "dayjs/locale/en";
 import { useI18n } from "@/hooks/useI18n"
+import useVectorStore from "@/stores/vector"
 
 export default function RootLayout({
   children,
@@ -20,7 +21,14 @@ export default function RootLayout({
   const { currentLocale } = useI18n()
   useEffect(() => {
     initSettingData()
-    initChatsDb()
+    initAllDatabases()
+  }, [])
+
+  const { initVectorDb } = useVectorStore()
+  
+  // 初始化向量数据库
+  useEffect(() => {
+    initVectorDb()
   }, [])
 
   useEffect(() => {

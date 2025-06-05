@@ -8,6 +8,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Store } from "@tauri-apps/plugin-store";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
+import SetConfig from "./set-config";
 
 export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations();
@@ -81,6 +82,7 @@ export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
         <span>清理文件，包括图片、文章。</span>
         <Button variant={"destructive"} onClick={handleClearFile}>清理</Button>
       </SettingRow>
+      <SetConfig />
     </SettingType>
   )
 }

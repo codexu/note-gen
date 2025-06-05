@@ -9,6 +9,10 @@ interface ChatState {
 
   isLinkMark: boolean // 是否关联记录
   setIsLinkMark: (isLinkMark: boolean) => void
+
+  isPlaceholderEnabled: boolean // 是否启用AI提示占位符
+  setPlaceholderEnabled: (isEnabled: boolean) => void
+
   chats: Chat[]
   init: (tagId: number) => Promise<void> // 初始化 chats
   insert: (chat: Omit<Chat, 'id' | 'createdAt'>) => Promise<Chat | null> // 插入一条 chat
@@ -34,6 +38,11 @@ const useChatStore = create<ChatState>((set, get) => ({
   isLinkMark: true,
   setIsLinkMark: (isLinkMark: boolean) => {
     set({ isLinkMark })
+  },
+
+  isPlaceholderEnabled: true,
+  setPlaceholderEnabled: (isEnabled: boolean) => {
+    set({ isPlaceholderEnabled: isEnabled })
   },
   chats: [],
   init: async (tagId: number) => {

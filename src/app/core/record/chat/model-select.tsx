@@ -1,26 +1,34 @@
 import * as React from "react"
-
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useEffect, useState } from "react"
 import { AiConfig } from "../../setting/config"
 import { Store } from "@tauri-apps/plugin-store"
 import useSettingStore from "@/stores/setting"
-import { CircleAlert } from "lucide-react"
+import { BotMessageSquare, BotOff } from "lucide-react"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Check,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useTranslations } from "next-intl"
-import { useRouter } from "next/navigation"
+import { TooltipButton } from "@/components/tooltip-button"
 
 export function ModelSelect() {
   const [list, setList] = useState<AiConfig[]>([])
-  const { aiType, apiKey, setAiType, setModel, setApiKey, setBaseURL } = useSettingStore()
-  const t = useTranslations('record.chat.header')
-  const router = useRouter()
+  const { aiType, setAiType, setModel, setApiKey, setBaseURL } = useSettingStore()
+  const [open, setOpen] = React.useState(false)
+  const t = useTranslations('record.chat.input.modelSelect')
 
   async function initModelList() {
     const store = await Store.load('store.json');
@@ -46,34 +54,48 @@ export function ModelSelect() {
     setBaseURL(model.baseURL || '')
   }
 
-  async function toSettingHandler() {
-    router.push('/core/setting/ai');
-  }
-
   useEffect(() => {
     initModelList()
   }, [])
   return (
-    list.length > 0 && apiKey ? (
-      <Select value={aiType} onValueChange={modelSelectChangeHandler} disabled={list.length === 0}>
-        <SelectTrigger className="border-none shadow-none outline-none ring-0 focus:ring-0 justify-center gap-2">
-          <SelectValue placeholder="选择模型" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {
-              list?.map((item, index) => {
-                return <SelectItem key={index} value={item.key}>{item.model} ({item.title})</SelectItem>
-              })
-            }
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    ) : (
-      <div className="text-red-800 text-sm flex items-center gap-2 justify-center cursor-pointer" onClick={toSettingHandler}>
-        <CircleAlert className="size-4" />
-        <span>{t('configApiKey')}</span>
-      </div>
-    )
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div>
+          <TooltipButton
+            icon={list.length > 0 ? <BotMessageSquare className="size-4" /> : <BotOff className="size-4" />}
+            tooltipText={t('tooltip')}
+            size="icon"
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-[360px] p-0">
+        <Command>
+          <CommandInput placeholder={t('placeholder')} className="h-9" />
+          <CommandList>
+            <CommandEmpty>No model found.</CommandEmpty>
+            <CommandGroup>
+              {list.filter(item => item.modelType === 'chat' || !item.modelType).map((item) => (
+                <CommandItem
+                  key={item.key}
+                  value={item.key}
+                  onSelect={(currentValue) => {
+                    modelSelectChangeHandler(currentValue)
+                    setOpen(false)
+                  }}
+                >
+                  {`${item.model}(${item.title})`}
+                  <Check
+                    className={cn(
+                      "ml-auto",
+                      aiType === item.key ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

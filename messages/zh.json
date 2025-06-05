@@ -11,32 +11,91 @@
     "edit": "编辑",
     "create": "创建",
     "theme": "主题",
+    "light": "亮色",
+    "dark": "暗色",
+    "system": "跟随系统",
     "pin": "置顶",
     "unpin": "取消置顶",
     "settings": "设置",
     "sync": "同步",
-    "language": "语言"
+    "language": "语言",
+    "success": "成功",
+    "error": "失败"
   },
   "settings": {
     "prompt": {
-      "title": "面具",
-      "promptTitle": "面具名称",
-      "desc": "在这里，你可以添加和管理面具，帮助 AI 更好地理解你的需求。",
-      "addPrompt": "新增面具",
-      "selectPrompt": "选择面具",
-      "configPrompt": "配置面具",
+      "title": "Prompt",
+      "promptTitle": "Prompt 名称",
+      "desc": "在这里，你可以添加和管理 Prompt，帮助 AI 更好地理解你的需求。",
+      "addPrompt": "新增 Prompt",
+      "selectPrompt": "选择 Prompt",
+      "configPrompt": "配置 Prompt",
       "noContent": "暂无内容",
-      "addPromptDesc": "请输入面具名称和内容，帮助AI更好地理解你的需求。",
-      "promptTitlePlaceholder": "请输入面具名称",
-      "promptContentPlaceholder": "请输入面具内容",
-      "promptContent": "面具内容"
+      "addPromptDesc": "请输入 Prompt 名称和内容，帮助AI更好地理解你的需求。",
+      "promptTitlePlaceholder": "请输入 Prompt 名称",
+      "promptContentPlaceholder": "请输入 Prompt 内容",
+      "promptContent": "Prompt 内容"
+    },
+    "defaultModel": {
+      "title": "默认模型",
+      "desc": "在这里，你可以针对不同的场景使用不同的模型，提高效率降低成本。",
+      "tooltip": "使用主要模型",
+      "noModel": "不使用模型",
+      "placeholder": "请选择或搜索模型",
+      "mainModel": "主要模型",
+      "options" : {
+        "markDesc": {
+          "title": "记录描述",
+          "desc": "用于处理 OCR 识别后的记录，生成记录描述。"
+        },
+        "placeholder": {
+          "title": "AI 建议",
+          "desc": "AI 建议提示作用于记录页面 AI 对话 placeholder 内容生成。"
+        },
+        "translate": {
+          "title": "翻译",
+          "desc": "用于翻译内容的场景。"
+        },
+        "embedding": {
+          "title": "嵌入模型",
+          "desc": "用于处理文本嵌入和向量化的场景。"
+        },
+        "reranking": {
+          "title": "重排模型",
+          "desc": "用于搜索结果的重新排序和优化。"
+        }
+      }
     },
     "about": {
       "title": "关于",
+      "desc": "一款专注于记录与写作的 AI 笔记。",
       "version": "NoteGen v{version}",
       "checkReleases": "查询历史版本",
+      "language": "语言",
       "checkUpdate": "检查更新",
-      "language": "语言"
+      "checkError": "检查更新失败",
+      "updateAvailable": "更新至最新版本",
+      "updateDownloading": "更新中 {downloaded} / {contentLength}",
+      "updateInstalled": "重启应用",
+      "noUpdate": "当前已是最新版本",
+      "items": {
+        "github": {
+          "title": "GitHub",
+          "buttonName": "查看"
+        },
+        "releases": {
+          "title": "更新日志",
+          "buttonName": "查看"
+        },
+        "issues": {
+          "title": "问题反馈",
+          "buttonName": "反馈"
+        },
+        "discussions": {
+          "title": "交流讨论",
+          "buttonName": "讨论"
+        }
+      }
     },
     "sync": {
       "title": "同步",
@@ -52,10 +111,26 @@
       "updatedAt": "最后更新于 {time}",
       "newToken": "创建 access token",
       "newTokenDesc": "新建 token 时，请务必勾选 repo 权限，配置后将自动创建文件仓库（私有）和图床仓库。",
+      "giteeTokenDesc": "Gitee 私人令牌用于同步数据，需要有仓库的读写权限，配置后将自动创建文件仓库（私有）和图床仓库。",
       "imageRepoSetting": "本地/图床",
       "imageRepoSettingDesc": "你已经配置了图床仓库，开启此项将使用图床仓库，否则将使用本地存储。",
       "jsdelivrSetting": "jsDelivr",
-      "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。"
+      "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。",
+      "autoSync": "自动同步",
+      "giteeAutoSyncDesc": "启用后，编辑器在输入停止10秒后将自动同步到Gitee",
+      "backupMethod": "备份方式",
+      "backupMethodDesc": "设置为主要备份方式后，写作中的所有同步相关功能将使用当前备份方式（图床功能除外）",
+      "isPrimaryBackup": "当前 {type} 为主要备份方式",
+      "setPrimaryBackup": "设为主要备份方式",
+      "autoSyncOptions": {
+        "placeholder": "选择自动同步时间",
+        "disabled": "关闭",
+        "10s": "10 秒",
+        "30s": "30 秒",
+        "1m": "1 分钟",
+        "5m": "5 分钟",
+        "30m": "30 分钟"
+      }
     },
     "template": {
       "title": "整理模板",
@@ -80,6 +155,7 @@
     },
     "theme": {
       "title": "外观",
+      "appTheme": "应用配色",
       "previewTheme": "预览内容主题",
       "codeTheme": "代码块高亮主题",
       "selectTheme": "选择主题"
@@ -96,11 +172,22 @@
       "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",
       "modelTitle": "自定义名称",
       "custom": "自定义",
-      "addCustomModel": "新增",
+      "addCustomModel": "自定义",
       "deleteCustomModel": "删除",
       "deleteCustomModelConfirm": "确认删除此自定义模型配置吗?",
+      "copyConfig": "复制",
       "builtin": "内置",
       "modelSupport": "仅支持 openai 协议的 AI 模型",
+      "modelType": {
+        "title": "模型类型",
+        "desc": "根据 AI 模型能力选择模型类型，用以调用不同的接口。",
+        "chat": "对话",
+        "image": "生图",
+        "video": "视频",
+        "audio": "语音",
+        "embedding": "嵌入",
+        "rerank": "重排序"
+      },
       "modelList": {
         "error": {
           "title": "获取模型列表失败",
@@ -177,7 +264,7 @@
       "empty": "暂无记录",
       "loading": "加载中...",
       "type": {
-        "scan": "扫描",
+        "scan": "截图",
         "image": "插图",
         "screenshot": "截图",
         "text": "文本",
@@ -232,13 +319,15 @@
         "chat": {
           "placeholder": {
             "default": "你可以提问或将记录整理为文章...",
-            "noApiKey": "未配置 API Key，无法使用 AI 对话功能..."
+            "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
+            "on": "AI建议开启",
+            "off": "AI建议关闭"
           },
           "header": {
             "configApiKey": "配置 API KEY",
             "clearChat": "清空对话",
-            "configPrompt": "配置面具",
-            "selectPrompt": "选择面具"
+            "configPrompt": "配置 Prompt",
+            "selectPrompt": "选择 Prompt"
           },
           "clipboard": {
             "image": {
@@ -359,21 +448,63 @@
           }
         ]
       },
+      "newChat": "使用新标签开始对话",
+      "removeChat": "删除当前标签对话",
+      "confirmNew": "创建新标签",
+      "confirmNewDescription": "请确认要创建一个新的标签开始对话吗？",
+      "confirmRemove": "删除标签",
+      "confirmRemoveDescription": "请注意，删除此标签会连带删除内部的记录，请再次确认。",
       "input": {
         "organize": "整理",
         "chat": "聊天",
         "placeholder": {
-          "default": "输入消息...",
-          "noApiKey": "无 API KEY 配置，无法使用 AI 聊天..."
+          "default": "你可以提问或将记录整理为文章...",
+          "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
+          "on": "AI 建议 (开启)",
+          "off": "AI 建议 (关闭)"
+        },
+        "translate": {
+          "tooltip": "翻译",
+          "translating": "翻译中...",
+          "showOriginal": "显示原文",
+          "alreadyTranslated": "已翻译为"
+        },
+        "clipboardMonitor": {
+          "enable": "剪贴板监听(开启)",
+          "disable": "剪贴板监听(关闭)"
         },
         "send": "发送",
-        "terminate": "终止"
+        "terminate": "终止",
+        "tagLink": {
+          "on": "已关联标签",
+          "off": "未关联标签"
+        },
+        "modelSelect": {
+          "tooltip": "选择 AI 模型",
+          "placeholder": "搜索 AI 模型"
+        },
+        "promptSelect": {
+          "tooltip": "选择 Prompt",
+          "placeholder": "搜索 Prompt"
+        },
+        "clearChat": "清空对话",
+        "clearContext": {
+          "tooltip": "清除上下文"
+        },
+        "chatLanguage": {
+          "tooltip": "选择对话语言",
+          "placeholder": "搜索语言"
+        },
+        "rag": {
+          "enabled": "知识库检索（开启）",
+          "disabled": "知识库检索（关闭）"
+        }
       },
       "header": {
         "configApiKey": "配置 API KEY",
         "clearChat": "清空聊天",
-        "configPrompt": "配置面具",
-        "selectPrompt": "选择面具"
+        "configPrompt": "配置 Prompt",
+        "selectPrompt": "选择 Prompt"
       },
       "clipboard": {
         "image": {
@@ -437,7 +568,11 @@
     "record": "记录",
     "write": "写作",
     "search": "搜索",
-    "gallery": "图床"
+    "gallery": "图床",
+    "login": "登录",
+    "loading": "加载中",
+    "view": "查看",
+    "logout": "登出"
   },
   "marks": {
     "types": {
@@ -478,7 +613,10 @@
         "sortByModified": "按修改时间排序",
         "sortAsc": "升序排列",
         "sortDesc": "降序排列",
-        "sort": "排序"
+        "sort": "排序",
+        "processingVectors": "正在处理向量数据",
+        "calculateVectors": "知识库计算（全量）",
+        "enableVectorDb": "启用向量数据库"
       },
       "context": {
         "viewDirectory": "查看目录",
@@ -490,7 +628,9 @@
         "deleteLocalFile": "删除本地文件",
         "delete": "删除",
         "newFile": "新建文件",
-        "newFolder": "新建文件夹"
+        "newFolder": "新建文件夹",
+        "deleteSyncFileSuccess": "删除成功",
+        "deleteSyncFileError": "删除失败"
       },
       "error": {
         "fileExists": "文件名已存在"
@@ -503,9 +643,12 @@
         "empty": "剪贴板为空",
         "confirmOverwrite": "文件已存在，是否覆盖？",
         "notSupported": "不支持此操作"
-      }
+      },
+      "deleteConfirm": "确认删除此文件吗？"
     },
     "editor": {
+      "copySuccess": "复制成功",
+      "copySuccessDescription": "已复制到剪贴板",
       "upload": {
         "error": "上传失败",
         "needToken": "上传图片需配置 accessToken",

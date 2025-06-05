@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react"
 
 export function AiCheck() {
   const [state, setState] = useState<'ok' | 'error' | 'checking'>('checking')
-  const { aiType, apiKey, model, baseURL } = useSettingStore()
+  const { aiType, apiKey, model, baseURL, embeddingModel, rerankingModel } = useSettingStore()
 
   async function check() {
     setState('checking')
@@ -26,7 +26,7 @@ export function AiCheck() {
 
   useEffect(() => {
     debouncedCheck()
-  }, [aiType, apiKey, model, baseURL])
+  }, [aiType, apiKey, model, baseURL, embeddingModel, rerankingModel])
 
   if (state === 'ok') {
     return <CircleCheck className="text-green-500 size-4" />

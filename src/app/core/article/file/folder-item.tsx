@@ -123,8 +123,12 @@ export function FolderItem({ item }: { item: DirTree }) {
     } else {
       // 新建文件夹
       if (name !== '') {
+        // 将空格替换为下划线
+        const sanitizedName = name.replace(/ /g, '_')
+        setName(sanitizedName) // 更新状态中的名称
+        
         // 检查文件夹是否已存在
-        const newFolderPath = `${path}/${name}`
+        const newFolderPath = `${path}/${sanitizedName}`
         const pathOptions = await getFilePathOptions(newFolderPath)
         
         let isExists = false
@@ -148,11 +152,11 @@ export function FolderItem({ item }: { item: DirTree }) {
           // 更新缓存树
           if (parentFolder && parentFolder.children) {
             const index = parentFolder.children?.findIndex(item => item.name === '')
-            parentFolder.children[index].name = name
+            parentFolder.children[index].name = sanitizedName
             parentFolder.children[index].isEditing = false
           } else {
             const index = cacheTree?.findIndex(item => item.name === '')
-            cacheTree[index].name = name
+            cacheTree[index].name = sanitizedName
             cacheTree[index].isEditing = false
           }
         }

@@ -43,6 +43,21 @@ interface SettingState {
   model: string
   setModel: (language: string) => void
 
+  placeholderModel: string
+  setPlaceholderModel: (placeholderModel: string) => Promise<void>
+
+  translateModel: string
+  setTranslateModel: (translateModel: string) => Promise<void>
+
+  markDescModel: string
+  setMarkDescModel: (markDescModel: string) => Promise<void>
+
+  embeddingModel: string
+  setEmbeddingModel: (embeddingModel: string) => Promise<void>
+
+  rerankingModel: string
+  setRerankingModel: (rerankingModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -58,6 +73,7 @@ interface SettingState {
   tesseractList: string
   setTesseractList: (tesseractList: string) => void
 
+  // Github 相关设置
   githubUsername: string
   setGithubUsername: (githubUsername: string) => Promise<void>
 
@@ -70,8 +86,19 @@ interface SettingState {
   useImageRepo: boolean
   setUseImageRepo: (useImageRepo: boolean) => Promise<void>
 
-  autoSync: boolean
-  setAutoSync: (autoSync: boolean) => Promise<void>
+  autoSync: string
+  setAutoSync: (autoSync: string) => Promise<void>
+  
+  // Gitee 相关设置
+  giteeAccessToken: string
+  setGiteeAccessToken: (giteeAccessToken: string) => void
+
+  giteeAutoSync: string
+  setGiteeAutoSync: (giteeAutoSync: string) => Promise<void>
+  
+  // 主要备份方式设置
+  primaryBackupMethod: 'github' | 'gitee'
+  setPrimaryBackupMethod: (method: 'github' | 'gitee') => Promise<void>
   
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -126,6 +153,41 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   model: '',
   setModel: (model) => set({ model }),
+
+  placeholderModel: '',
+  setPlaceholderModel: async (placeholderModel) => {
+    const store = await Store.load('store.json');
+    await store.set('placeholderModel', placeholderModel)
+    set({ placeholderModel })
+  },
+
+  translateModel: '',
+  setTranslateModel: async (translateModel) => {
+    const store = await Store.load('store.json');
+    await store.set('translateModel', translateModel)
+    set({ translateModel })
+  },
+
+  markDescModel: '',
+  setMarkDescModel: async (markDescModel) => {
+    const store = await Store.load('store.json');
+    await store.set('markDescModel', markDescModel)
+    set({ markDescModel })
+  },
+
+  embeddingModel: '',
+  setEmbeddingModel: async (embeddingModel) => {
+    const store = await Store.load('store.json');
+    await store.set('embeddingModel', embeddingModel)
+    set({ embeddingModel })
+  },
+
+  rerankingModel: '',
+  setRerankingModel: async (rerankingModel) => {
+    const store = await Store.load('store.json');
+    await store.set('rerankingModel', rerankingModel)
+    set({ rerankingModel })
+  },
 
   templateList: [
     {
@@ -195,8 +257,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.set('useImageRepo', useImageRepo)
   },
 
-  autoSync: true,
-  setAutoSync: async (autoSync: boolean) => {
+  autoSync: 'disabled',
+  setAutoSync: async (autoSync: string) => {
     set({ autoSync })
     const store = await Store.load('store.json');
     await store.set('autoSync', autoSync)
@@ -215,6 +277,29 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('workspacePath', path)
   },
+  
+  // Gitee 相关设置
+  giteeAccessToken: '',
+  setGiteeAccessToken: async (giteeAccessToken: string) => {
+    set({ giteeAccessToken })
+    const store = await Store.load('store.json');
+    await store.set('giteeAccessToken', giteeAccessToken)
+  },
+
+  giteeAutoSync: 'disabled',
+  setGiteeAutoSync: async (giteeAutoSync: string) => {
+    set({ giteeAutoSync })
+    const store = await Store.load('store.json');
+    await store.set('giteeAutoSync', giteeAutoSync)
+  },
+  
+  // 默认使用 GitHub 作为主要备份方式
+  primaryBackupMethod: 'github',
+  setPrimaryBackupMethod: async (method: 'github' | 'gitee') => {
+    set({ primaryBackupMethod: method })
+    const store = await Store.load('store.json');
+    await store.set('primaryBackupMethod', method)
+  }
 }))
 
 export default useSettingStore

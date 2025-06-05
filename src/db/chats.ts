@@ -1,7 +1,7 @@
 import { getDb } from "./index"
 
 export type Role = 'system' | 'user'
-export type ChatType = 'chat' | 'note' | 'clipboard'
+export type ChatType = 'chat' | 'note' | 'clipboard' | 'clear'
 
 export interface Chat {
   id: number

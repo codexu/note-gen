@@ -1,121 +1,161 @@
+'use client'
 import { TooltipButton } from "@/components/tooltip-button"
-import { insertMark } from "@/db/marks"
 import { useTranslations } from 'next-intl'
-import { fetchAiDesc } from "@/lib/ai"
-import ocr from "@/lib/ocr"
-import useMarkStore from "@/stores/mark"
-import useTagStore from "@/stores/tag"
 import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow"
-import { currentMonitor } from '@tauri-apps/api/window';
 import { ScanText } from "lucide-react"
-import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut';
-import { useEffect } from "react"
-import { v4 as uuid } from 'uuid'
+import { convertFileSrc } from "@tauri-apps/api/core"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useEffect, useState } from "react"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+import { Card, CardContent } from "@/components/ui/card"
+import { useRef } from "react";
+import { ScreenshotImage } from "note-gen/screenshot"
+import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs"
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
+import Image from 'next/image'
+import useTagStore from "@/stores/tag"
+import useMarkStore from "@/stores/mark"
+import { v4 as uuid } from "uuid"
 import useSettingStore from "@/stores/setting"
-import emitter from "@/lib/emitter"
-import { EmitterShortcutEvents } from "@/config/emitters"
-import { ShortcutDefault, ShortcutSettings } from "@/config/shortcut"
-import { Store } from "@tauri-apps/plugin-store"
- 
+import ocr from "@/lib/ocr"
+import { fetchAiDesc } from "@/lib/ai"
+import { insertMark } from "@/db/marks"
+
 export function ControlScan() {
   const t = useTranslations();
+  const [open, setOpen] = useState(false)
+  const [image, setImage] = useState<HTMLImageElement>();
+  const [files, setFiles] = useState<ScreenshotImage[]>([])
+  const cropperRef = useRef<Cropper | null>(null);
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
+  const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
   const { apiKey } = useSettingStore()
 
+  function initCropper() {
+    if (cropperRef.current) {
+      cropperRef.current.destroy()
+    }
+    const image = document.getElementById('cropper') as HTMLImageElement;
+    if (!image) return
+    // 绑定双击事件
+    cropperRef.current = new Cropper(image, {
+      background: false,
+      viewMode: 1,
+      toggleDragModeOnDblclick: false
+    });
+    setTimeout(() => {
+      document.querySelector('.cropper-crop-box')?.addEventListener('dblclick', () => {
+        cropEnd()
+      })
+    }, 100)
+  }
+
   async function createScreenShot() {
-    const currentWindow = getCurrentWebviewWindow()
-    await currentWindow.hide()
-
-    await invoke('screenshot')
-    
-    const monitor = await currentMonitor();
-
-    if (!monitor) return;
-    
-    const webview = new WebviewWindow('screenshot', {
-      url: '/screenshot',
-      decorations: false,
-    });
-
-    webview.setPosition(monitor?.position)
-    webview.setSize(monitor?.size)
-
-    webview.onCloseRequested(async () => {
-      if (!await currentWindow.isVisible()) {
-        await currentWindow.show()
-      } else {
-        await currentWindow.setFocus()
+    const fileNames = await invoke<ScreenshotImage[]>('screenshot')
+    const convertedFiles = fileNames.map((fileName: ScreenshotImage) => {
+      return {
+        ...fileName,
+        path: convertFileSrc(fileName.path),
       }
-      unlisten()
     })
-
-    const unlisten = await webview.listen("save-success", async e => {
-      if (typeof e.payload === 'string') {
-        const queueId = uuid()
-        addQueue({ queueId, progress: t('record.mark.progress.ocr'), type: 'scan', startTime: Date.now() })
-        const content = await ocr(`screenshot/${e.payload}`)
-        let desc = ''
-        if (apiKey) {
-          setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
-          desc = await fetchAiDesc(content).then(res => res ? res : content) || content
-        } else {
-          desc = content
-        }
-        setQueue(queueId, { progress: t('record.mark.progress.save') });
-        await insertMark({ tagId: currentTagId, type: 'scan', content, url: e.payload, desc })
-        removeQueue(queueId)
-        await fetchMarks()
-        await fetchTags()
-        getCurrentTag()
-      }
-      unlisten()
-    });
+    setFiles(convertedFiles)
+    const image = new window.Image();
+    image.src = convertedFiles[0].path;
+    setImage(image)
   }
 
-  async function initRegister() {
-    const store = await Store.load('store.json')
-    let lastKey = await store.get<string>(ShortcutSettings.screenshot)
-    if (!lastKey) {
-      await store.set(ShortcutSettings.screenshot, ShortcutDefault.screenshot)
-      lastKey = ShortcutDefault.screenshot
-    }
-    const isEscRegistered = await isRegistered(lastKey);
-    if (isEscRegistered) {
-      await unregister(lastKey);
-    }
-    await register(lastKey, async (e) => {
-      if (e.state === 'Pressed') {
-        await createScreenShot()
-      }
-    }).catch(() => {})
+  function selectImage(file: ScreenshotImage) {
+    const image = new window.Image();
+    image.src = file.path;
+    setImage(image)
   }
 
-  async function linstenRegister(key?: string) {
-    if (!key) return
-    const store = await Store.load('store.json')
-    const lastKey = await store.get<string>(ShortcutSettings.screenshot)
-    if (lastKey) {
-      const isEscRegistered = await isRegistered(lastKey);
-      if (isEscRegistered) {
-        await unregister(lastKey);
+  async function cropEnd() {
+    setOpen(false)
+    const queueId = uuid()
+    if (!cropperRef.current) return
+    const canvas = cropperRef.current.getCroppedCanvas();
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8Array = new Uint8Array(arrayBuffer)
+      await writeFile(`screenshot/${queueId}.png`, uint8Array, {
+        baseDir: BaseDirectory.AppData
+      })
+      addQueue({ queueId, progress: t('record.mark.progress.ocr'), type: 'scan', startTime: Date.now() })
+      const content = await ocr(`screenshot/${queueId}.png`)
+      let desc = ''
+      if (apiKey) {
+        setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
+        desc = await fetchAiDesc(content).then(res => res ? res : content) || content
+      } else {
+        desc = content
       }
-    }
-    await store.set(ShortcutSettings.screenshot, key)
-    await register(key, async (e) => {
-      if (e.state === 'Pressed') {
-        await createScreenShot()
-      }
-    }).catch(() => {})
-  }
+      setQueue(queueId, { progress: t('record.mark.progress.save') });
+      await insertMark({ tagId: currentTagId, type: 'scan', content, url: `${queueId}.png`, desc })
+      removeQueue(queueId)
+      await fetchMarks()
+      await fetchTags()
+      getCurrentTag()
+    })
+  };
 
   useEffect(() => {
-    initRegister()
-    emitter.on(EmitterShortcutEvents.screenshot, (res) => linstenRegister(res as string))
-  }, [])
+    if (open) {
+      initCropper()
+    }
+  }, [image, open])
 
   return (
-    <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
+      </DialogTrigger>
+      <DialogContent className="max-w-screen h-screen text-white bg-black border-none flex flex-col items-center justify-center overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          {
+            image && (
+              <Image id="cropper" className="size-full object-contain" width={0} height={0} src={image.src} alt="" />
+            )
+          }
+        </div>
+        <Carousel
+          opts={{
+            align: "start",
+          }}
+          orientation="horizontal"
+          className="w-full max-w-xl h-24"
+        >
+          <CarouselContent>
+            {files.map((file, index) => (
+              <CarouselItem key={index} className="pt-1 md:basis-1/5">
+                <Card
+                  className={`size-24 overflow-hidden cursor-pointer border-2 border-black ${image?.src === file.path ? 'border-white' : ''}`}
+                  onClick={() => selectImage(file)}
+                >
+                  <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
+                    <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
+                    <p className="text-xs text-white line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className="text-white bg-black border-white" />
+          <CarouselNext className="text-white bg-black border-white" />
+        </Carousel>
+      </DialogContent>
+    </Dialog>
   )
 }

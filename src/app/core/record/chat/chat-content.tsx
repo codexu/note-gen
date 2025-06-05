@@ -1,7 +1,7 @@
 import useChatStore from '@/stores/chat'
 import useTagStore from '@/stores/tag'
-import { BotMessageSquare, ClipboardCheck, LoaderPinwheel, UserRound } from 'lucide-react'
-import { useEffect } from 'react'
+import { ArrowDownToLine, BotMessageSquare, ClipboardCheck, LoaderPinwheel, Undo2, UserRound, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Chat } from '@/db/chats'
 import ChatPreview from './chat-preview'
 import './chat.scss'
@@ -14,30 +14,49 @@ import { useTranslations } from 'next-intl'
 import useSyncStore from '@/stores/sync'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import ChatThinking from './chat-thinking'
+import { Separator } from '@/components/ui/separator'
+import { scrollToBottom } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import emitter from '@/lib/emitter'
 
 export default function ChatContent() {
   const { chats, init } = useChatStore()
   const { currentTagId } = useTagStore()
+  const [isOnBottom, setIsOnBottom] = useState(true)
 
+  function handleScroll() {
+    const md = document.querySelector('#chats-wrapper')
+    if (!md) return
+    setIsOnBottom(md.scrollHeight - md.scrollTop - md.clientHeight < 1)
+  }
+
+  useEffect(() => {
+    const md = document.querySelector('#chats-wrapper')
+    if (!md) return
+    md.addEventListener('scroll', handleScroll)
+    setTimeout(() => scrollToBottom(), 1000)
+    return () => md.removeEventListener('scroll', handleScroll)
+  }, [])
+  
   useEffect(() => {
     init(currentTagId)
   }, [currentTagId])
 
   useEffect(() => {
-    const md = document.querySelector('#chats-wrapper')
-    if (md) {
-      md.scroll(0, md.scrollHeight)
-      setTimeout(() => {
-        md.scroll(0, md.scrollHeight)
-      }, 500)
-    }
+    if (!isOnBottom) return
+    scrollToBottom()
   }, [chats])
 
-  return <div id="chats-wrapper" className="flex-1 overflow-y-auto overflow-x-hidden w-full flex flex-col items-end p-4 gap-6">
+  return <div id="chats-wrapper" className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col items-end p-4 gap-6">
     {
       chats.length ? chats.map((chat) => {
         return <Message key={chat.id} chat={chat} />
       }) : <ChatEmpty />
+    }
+    {
+      !isOnBottom && <Button variant="outline" className='sticky bottom-0 size-8 right-0' onClick={scrollToBottom}>
+        <ArrowDownToLine className='size-4' />
+      </Button>
     }
   </div>
 }
@@ -45,6 +64,10 @@ export default function ChatContent() {
 function MessageWrapper({ chat, children }: { chat: Chat, children: React.ReactNode }) {
   const { chats, loading } = useChatStore()
   const { userInfo } = useSyncStore()
+
+  const revertChat = () => {
+    emitter.emit('revertChat', chat.content)
+  }
 
   const index = chats.findIndex(item => item.id === chat.id)
   if (chat.role === 'system') {
@@ -58,26 +81,45 @@ function MessageWrapper({ chat, children }: { chat: Chat, children: React.ReactN
       </div>
     </div>
   } else {
-    return <div className="flex items-center gap-4">
+    return <div className="flex group items-center gap-4">
       <div className="bg-primary text-primary-foreground px-4 py-2 rounded-lg max-w-[calc(100vw-600px)]">
         {chat.content}
       </div>
-      {
-        userInfo?.avatar_url ?
-          <Avatar className='rounded size-9'>
-            <AvatarImage src={userInfo?.avatar_url} />
-          </Avatar> :
-          <UserRound />
-      }
+      <div className="relative">
+        <Avatar className='rounded size-9 flex items-center justify-center'>
+          {
+            userInfo?.avatar_url ?
+            <AvatarImage src={userInfo?.avatar_url} /> : <UserRound />
+          }
+        </Avatar>
+        <Button onClick={revertChat} size="icon" className="absolute top-0 right-0 hidden group-hover:flex">
+          <Undo2 />
+        </Button>
+      </div>
     </div>
   }
 }
 
 function Message({ chat }: { chat: Chat }) {
   const t = useTranslations()
+  const { deleteChat } = useChatStore()
   const content = chat.content?.includes('thinking') ? chat.content.split('<thinking>')[2] : chat.content
 
+  const handleRemoveClearContext = () => {
+    deleteChat(chat.id)
+  }
+
   switch (chat.type) {
+    case 'clear':
+      return <div className="w-full flex justify-center items-center gap-4 px-10">
+        <Separator className='flex-1' />
+        <div className="flex justify-center items-center gap-2 w-32 group h-8">
+          <p className="text-sm text-center text-muted-foreground">{t('record.chat.input.clearContext.tooltip')}</p>
+          <X className="size-4 hidden group-hover:flex cursor-pointer" onClick={handleRemoveClearContext} />
+        </div>
+        <Separator className='flex-1' />
+      </div>
+
     case 'clipboard':
       return <MessageWrapper chat={chat}>
         <ChatClipboard chat={chat} />

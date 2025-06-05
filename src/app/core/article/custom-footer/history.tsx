@@ -1,7 +1,8 @@
 import { GitPullRequestArrow, HistoryIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { decodeBase64ToString, getFileCommits, getFiles } from "@/lib/github";
+import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles } from "@/lib/github";
+import { decodeBase64ToString as giteeDecodeBase64ToString, getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles } from "@/lib/gitee";
 import { useTranslations } from "next-intl";
 import useArticleStore from "@/stores/article";
 import { RepoNames, ResCommit } from "@/lib/github.types";
@@ -13,6 +14,7 @@ import { TooltipButton } from "@/components/tooltip-button";
 import { open } from "@tauri-apps/plugin-shell";
 import useSettingStore from "@/stores/setting";
 import Vditor from "vditor";
+import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -21,8 +23,8 @@ dayjs.extend(relativeTime)
 
 export default function History({editor}: {editor?: Vditor}) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { activeFilePath, setCurrentArticle, currentArticle } = useArticleStore()
-  const { accessToken } = useSettingStore()
+  const { activeFilePath, setCurrentArticle, currentArticle, loadFileTree } = useArticleStore()
+  const { accessToken, giteeAccessToken, primaryBackupMethod } = useSettingStore()
   const [commits, setCommits] = useState<ResCommit[]>([])
   const [commitsLoading, setCommitsLoading] = useState(false)
   const [filterQuick, setFilterQuick] = useState(false)
@@ -36,7 +38,22 @@ export default function History({editor}: {editor?: Vditor}) {
     setCommitsLoading(true)
     setCommits([])
     editor?.focus()
-    const res = await getFileCommits({ path: activeFilePath, repo: RepoNames.sync })
+    
+    // 根据主要备份方式获取提交历史
+    let res;
+    const store = await Store.load('store.json');
+    const backupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    
+    if (backupMethod === 'github') {
+      res = await getGithubFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+    } else {
+      res = (await getGiteeFileCommits({ path: activeFilePath, repo: RepoNames.sync }))?.data;
+      // 确保返回结果是数组
+      if (res && !Array.isArray(res)) {
+        res = [];
+      }
+    }
+
     setCommits(res || [])
     setCommitsLoading(false)
   }
@@ -46,13 +63,29 @@ export default function History({editor}: {editor?: Vditor}) {
     setSheetOpen(false)
     const cacheArticle = currentArticle;
     setCurrentArticle(t('loadingHistory'))
-    const res = await getFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync})
-    if (res.content) {
-      setCurrentArticle(decodeBase64ToString(res.content))
+    
+    // 根据主要备份方式获取历史内容
+    const store = await Store.load('store.json');
+    const backupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    
+    let res;
+    if (backupMethod === 'github') {
+      res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+      if (res && res.content) {
+        setCurrentArticle(decodeBase64ToString(res.content));
+      } else {
+        setCurrentArticle(cacheArticle);
+      }
     } else {
-      setCurrentArticle(cacheArticle)
+      res = await getGiteeFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+      if (res && res.content) {
+        setCurrentArticle(giteeDecodeBase64ToString(res.content));
+      } else {
+        setCurrentArticle(cacheArticle);
+      }
     }
-    setCommitsLoading(false)
+    
+    setCommitsLoading(false);
   }
 
   function openHandler(url: string) {
@@ -64,23 +97,31 @@ export default function History({editor}: {editor?: Vditor}) {
   }, [activeFilePath])
 
   useEffect(() => {
-    emitter.on('sync-success', () => {
-      fetchCommits()
+    emitter.on('sync-success', async () => {
+      await loadFileTree()
+      await fetchCommits()
     })
     return () => {
       emitter.off('sync-success')
     }
-  }, [])
+  }, [activeFilePath])
 
   return (
     <Sheet open={sheetOpen} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="sm" disabled={!accessToken || commitsLoading} className="outline-none">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          disabled={(primaryBackupMethod === 'github' && !accessToken) || 
+                  (primaryBackupMethod === 'gitee' && !giteeAccessToken) || 
+                  commitsLoading} 
+          className="outline-none">
           {
             commitsLoading && <LoaderCircle className="animate-spin !size-3" />
           }
           <span className="text-xs">
-            {commitsLoading ? t('loadingHistory') : commits.length ? `${t('historyRecords')}(${commits.length})` : t('noHistory')}
+            {commitsLoading ? t('loadingHistory') : commits.length ? 
+              `${t('historyRecords')} (${dayjs(commits[0].commit.committer.date).fromNow()})` : t('noHistory')}
           </span>
         </Button>
       </SheetTrigger>

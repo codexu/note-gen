@@ -42,7 +42,7 @@ const usePromptStore = create<PromptState>((set, get) => ({
       await store.set('promptList', defaultPromptList);
     }
     
-    // 设置当前使用的面具
+    // 设置当前使用的prompt
     const currentPromptId = await store.get<string>('currentPromptId');
     if (currentPromptId) {
       const prompt = get().promptList.find(item => item.id === currentPromptId);
@@ -50,7 +50,7 @@ const usePromptStore = create<PromptState>((set, get) => ({
         set({ currentPrompt: prompt });
       }
     } else {
-      // 默认使用第一个面具
+      // 默认使用第一个prompt
       const defaultPrompt = get().promptList[0];
       set({ currentPrompt: defaultPrompt });
       await store.set('currentPromptId', defaultPrompt.id);
@@ -80,7 +80,7 @@ const usePromptStore = create<PromptState>((set, get) => ({
     
     await get().setPromptList(promptList);
     
-    // 如果更新的是当前选中的面具，同时更新currentPrompt
+    // 如果更新的是当前选中的prompt，同时更新currentPrompt
     const currentPrompt = get().currentPrompt;
     if (currentPrompt && currentPrompt.id === updatedPrompt.id) {
       set({ currentPrompt: updatedPrompt });
@@ -88,14 +88,14 @@ const usePromptStore = create<PromptState>((set, get) => ({
   },
   
   deletePrompt: async (id) => {
-    // 不允许删除默认面具
+    // 不允许删除默认prompt
     const promptToDelete = get().promptList.find(prompt => prompt.id === id);
     if (promptToDelete?.isDefault) return;
     
     const promptList = get().promptList.filter(prompt => prompt.id !== id);
     await get().setPromptList(promptList);
     
-    // 如果删除的是当前选中的面具，将当前面具设置为默认面具
+    // 如果删除的是当前选中的prompt，将当前prompt设置为默认prompt
     const currentPrompt = get().currentPrompt;
     if (currentPrompt && currentPrompt.id === id) {
       const defaultPrompt = get().promptList.find(prompt => prompt.isDefault);

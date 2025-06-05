@@ -20,11 +20,12 @@ import { v4 as uuid } from 'uuid'
 import { convertImage } from '@/lib/utils'
 import CustomFooter from './custom-footer'
 import { useLocalStorage } from 'react-use'
+import { open } from '@tauri-apps/plugin-shell'
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
   const { currentArticle, saveCurrentArticle, loading, activeFilePath, matchPosition, setMatchPosition } = useArticleStore()
-  const { theme, setTheme } = useTheme()
+  const { theme } = useTheme()
   const t = useTranslations('article.editor')
   const { currentLocale } = useI18n()
   const [localMode, setLocalMode] = useLocalStorage<'ir' | 'sv' | 'wysiwyg'>('useLocalMode', 'ir')
@@ -41,7 +42,6 @@ export function MdEditor() {
   }
 
   function init() {
-
     const toolbarConfig = [
       { name: 'undo', tipPosition: 's' },
       { name: 'redo', tipPosition: 's' },
@@ -114,6 +114,14 @@ export function MdEditor() {
       cdn: '',
       theme: theme === 'dark' ? 'dark' : 'classic',
       toolbar: toolbarConfig,
+      link: {
+        isOpen: false,
+        click: (dom: Element) => {
+          const href = dom.getAttribute('href') || dom.innerHTML
+          if (!href) return
+          open(href)
+        }
+      },
       hint: {
         extend: [
           {
@@ -322,6 +330,48 @@ export function MdEditor() {
     }
   }
 
+  function setTheme(theme: string) {
+    if (editor) {
+      const editorTheme = theme === 'dark' ? 'dark' : 'light'
+      const contentTheme = theme === 'dark' ? 'dark' : 'light'
+      const codeTheme = theme === 'dark' ? 'github-dark' : 'github-light'
+      editor.setTheme(editorTheme === 'dark' ? 'dark' : 'classic', contentTheme, codeTheme)
+    }
+  }
+
+  useEffect(() => {
+    emitter.on('toolbar-copy-html', () => {
+      const html = editor?.getHTML()
+      navigator.clipboard.writeText(html || '')
+      toast({
+        title: t('copySuccess'),
+        description: `HTML ${t('copySuccessDescription')}`,
+      })
+    })
+    emitter.on('toolbar-copy-markdown', () => {
+      const markdown = editor?.getValue()
+      navigator.clipboard.writeText(markdown || '')
+      toast({
+        title: t('copySuccess'),
+        description: `Markdown ${t('copySuccessDescription')}`,
+      })
+    })  
+    emitter.on('toolbar-copy-json', () => {
+      const markdown = editor?.getValue()
+      const json = editor?.exportJSON(markdown || '')
+      navigator.clipboard.writeText(json || '')
+      toast({
+        title: t('copySuccess'),
+        description: `JSON ${t('copySuccessDescription')}`,
+      })
+    })
+    return () => {
+      emitter.off('toolbar-copy-html')
+      emitter.off('toolbar-copy-markdown')
+      emitter.off('toolbar-copy-json')
+    }
+  }, [editor])
+
   useEffect(() => {
     if (!activeFilePath) {
       editor?.destroy()
@@ -351,19 +401,30 @@ export function MdEditor() {
   }, [loading])
 
   useEffect(() => {
+    let editorTheme: string | undefined
     if (theme === 'system') {
       if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        setTheme('dark')  
-      } else {
-        setTheme('light')
+        editorTheme = 'dark'
       }
     } else {
-      if (editor) {
-        const editorTheme = theme === 'dark' ? 'dark' : 'light'
-        const contentTheme = theme === 'dark' ? 'dark' : 'light'
-        const codeTheme = theme === 'dark' ? 'github-dark' : 'github-light'
-        editor.setTheme(editorTheme === 'dark' ? 'dark' : 'classic', contentTheme, codeTheme)
+      editorTheme = theme
+    }
+    if (editor) {
+      setTheme(editorTheme || 'light')
+    }
+  }, [theme, editor])
+
+  useEffect(() => {
+    const matchMedia = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = () => {
+      if (editor && theme === 'system') {
+        const editorTheme = matchMedia.matches ? 'dark' : 'light'
+        setTheme(editorTheme)
       }
+    }
+    matchMedia.addEventListener('change', handler)
+    return () => {
+      matchMedia.removeEventListener('change', handler)
     }
   }, [theme, editor])
 
@@ -371,7 +432,7 @@ export function MdEditor() {
     setContent(currentArticle)
   }, [currentArticle])
 
-  return <div className='flex-1 h-screen flex flex-col overflow-hidden'>
+  return <div className='flex-1 h-screen flex flex-col overflow-hidden dark:bg-zinc-950'>
     {
       editor && <CustomToolbar editor={editor} />
     }

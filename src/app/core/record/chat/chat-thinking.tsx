@@ -6,7 +6,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Button } from '@/components/ui/button'
-import { ChevronsUpDown, LoaderCircle } from 'lucide-react'
+import { Brain, ChevronsUpDown, LoaderCircle } from 'lucide-react'
 import { useTranslations } from "next-intl";
 
 
@@ -24,8 +24,10 @@ export default function ChatThinking({chat}: { chat: Chat }) {
     >
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold flex items-center gap-2">
-          <span>{t('ai.thinking')}</span>
-          {!content && <LoaderCircle className="animate-spin size-4" />}
+          <span className="ml-auto">
+            {content ? <Brain className="size-4" /> : <LoaderCircle className="animate-spin size-4" />}
+          </span>
+          <span className="font-bold">{t('ai.thinking')}</span>
         </h4>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm">
@@ -35,7 +37,7 @@ export default function ChatThinking({chat}: { chat: Chat }) {
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent>
-        <p className='mt-2 text-justify'>{thinkingContent}</p>
+        <p className='mt-2 text-justify text-muted-foreground'>{thinkingContent}</p>
       </CollapsibleContent>
     </Collapsible>
   )

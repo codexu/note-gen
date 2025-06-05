@@ -97,6 +97,10 @@ html, body {
   }
 }
 
+.md-editor-dark {
+  background-color: var(--foreground) !important;
+}
+
 .md-editor-preview-wrapper ul li {
   list-style: disc;
 }

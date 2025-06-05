@@ -6,7 +6,7 @@ import { appDataDir } from '@tauri-apps/api/path';
 import { Cloud, CloudDownload, File } from "lucide-react"
 import { useEffect, useRef, useState } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
-import { deleteFile } from "@/lib/github";
+import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/github.types";
 import { cloneDeep } from "lodash-es";
 import { open } from "@tauri-apps/plugin-shell";
@@ -35,67 +35,103 @@ export function FileItem({ item }: { item: DirTree }) {
   }
 
   async function handleDeleteFile() {
-    // 获取工作区路径信息
-    const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-    const workspace = await getWorkspacePath()
+    // 添加确认弹窗
+    const answer = await ask(t('deleteConfirm'), {
+      title: 'NoteGen',
+      kind: 'warning',
+    });
     
-    // 根据工作区类型正确删除文件
-    const pathOptions = await getFilePathOptions(path)
-    if (workspace.isCustom) {
-      // 自定义工作区
-      try {
-        await remove(pathOptions.path)
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      // 默认工作区
-      try {
-        await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    
-    // 更新文件树
-    if (currentFolder) {
-      const index = currentFolder.children?.findIndex(file => file.name === item.name)
-      if (index !== undefined && index !== -1 && currentFolder.children) {
-        const current = currentFolder.children[index]
-        if (current.sha) {
-          current.isLocale = false
-        } else {
-          currentFolder.children.splice(index, 1)
+    // 如果用户确认删除，则继续执行
+    if (answer) {
+      // 获取工作区路径信息
+      const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+      const workspace = await getWorkspacePath()
+      
+      // 根据工作区类型正确删除文件
+      const pathOptions = await getFilePathOptions(path)
+      if (workspace.isCustom) {
+        // 自定义工作区
+        try {
+          await remove(pathOptions.path)
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        // 默认工作区
+        try {
+          await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
+        } catch (e) {
+          console.error(e);
         }
       }
-    } else {
-      const index = cacheTree.findIndex(file => file.name === item.name)
-      if (index !== undefined && index !== -1) {
-        const current = cacheTree[index]
-        if (current.sha) {
-          current.isLocale = false
-        } else {
-          cacheTree.splice(index, 1)
+      
+      // 更新文件树
+      if (currentFolder) {
+        const index = currentFolder.children?.findIndex(file => file.name === item.name)
+        if (index !== undefined && index !== -1 && currentFolder.children) {
+          const current = currentFolder.children[index]
+          if (current.sha) {
+            current.isLocale = false
+          } else {
+            currentFolder.children.splice(index, 1)
+          }
+        }
+      } else {
+        const index = cacheTree.findIndex(file => file.name === item.name)
+        if (index !== undefined && index !== -1) {
+          const current = cacheTree[index]
+          if (current.sha) {
+            current.isLocale = false
+          } else {
+            cacheTree.splice(index, 1)
+          }
         }
       }
+      setFileTree(cacheTree)
+      setActiveFilePath('')
+      setCurrentArticle('')
     }
-    setFileTree(cacheTree)
-    setActiveFilePath('')
-    setCurrentArticle('')
   }
 
   async function handleDeleteSyncFile() {
-    const answer = await ask('确定是否将同步文件删除?', {
+    const answer = await ask(t('context.deleteSyncFile') + '?', {
       title: 'NoteGen',
       kind: 'warning',
     });
     if (answer) {
-      await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync })
-      const index = currentFolder?.children?.findIndex(file => file.name === item.name)
-      if (index !== undefined && index !== -1 && currentFolder?.children) {
-        currentFolder.children[index].sha = ''
+      try {
+        // 获取当前主要备份方式
+        const store = await Store.load('store.json');
+        const backupMethod = await store.get<'github' | 'gitee'>('primaryBackupMethod') || 'github';
+        
+        if (backupMethod === 'github') {
+          // 使用GitHub API删除文件
+          const { deleteFile } = await import('@/lib/github');
+          await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+        } else {
+          // 使用Gitee API删除文件
+          const { deleteFile } = await import('@/lib/gitee');
+          await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+        }
+        
+        const index = currentFolder?.children?.findIndex(file => file.name === item.name);
+        if (index !== undefined && index !== -1 && currentFolder?.children) {
+          currentFolder.children[index].sha = '';
+        }
+        setFileTree(cacheTree);
+        
+        toast({
+          title: t('context.delete'),
+          description: t('context.deleteSyncFileSuccess'),
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: t('context.delete'),
+          description: t('context.deleteSyncFileError'),
+          variant: 'destructive',
+        });
       }
-      setFileTree(cacheTree)
     }
   }
 
@@ -332,7 +368,7 @@ export function FileItem({ item }: { item: DirTree }) {
     <ContextMenu>
       <ContextMenuTrigger>
         <div
-          className={`${path === activeFilePath ? 'file-manange-item active' : 'file-manange-item'} ${!isRoot && 'translate-x-5'}`}
+          className={`${path === activeFilePath ? 'file-manange-item active' : 'file-manange-item'} ${!isRoot && 'translate-x-5 !w-[calc(100%-22px)]'}`}
           onClick={handleSelectFile}
           onContextMenu={handleSelectFile}
         >

@@ -13,17 +13,11 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   assetPrefix: isProd ? undefined : `http://${internalHost}:3456`,
-  devIndicators: {
-    appIsrStatus: false,
-  },
   sassOptions: {
     silenceDeprecations: ['legacy-js-api'],
   },
   reactStrictMode: false,
-  webpack: (config) => {
-    config.output.chunkLoadTimeout = 60000;
-    return config;
-  },
+  turbopack: {},
 };
 
 export default withNextIntl(nextConfig);

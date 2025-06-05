@@ -10,6 +10,9 @@
     "edit": "Edit",
     "create": "Create",
     "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
     "pin": "Pin",
     "unpin": "Unpin",
     "settings": "Settings",
@@ -17,15 +20,71 @@
     "language": "Language",
     "confirm": "Confirm",
     "selectPrompt": "Select Prompt",
-    "prompt": "Prompt"
+    "prompt": "Prompt",
+    "success": "Success",
+    "error": "Failed"
   },
   "settings": {
     "about": {
       "title": "About",
+      "desc": "A note-taking assistant focused on record and writing.",
       "version": "NoteGen v{version}",
       "checkReleases": "Check Release History",
+      "language": "Language",
       "checkUpdate": "Check for Updates",
-      "language": "Language"
+      "checkError": "Failed to check for updates",
+      "updateAvailable": "Update to new version",
+      "updateDownloading": "Updating {downloaded} / {contentLength}",
+      "updateInstalled": "Restart app",
+      "noUpdate": "Current version is the latest",
+      "items": {
+        "github": {
+          "title": "GitHub",
+          "buttonName": "View"
+        },
+        "releases": {
+          "title": "Update Log",
+          "buttonName": "View"
+        },
+        "issues": {
+          "title": "Issue Feedback",
+          "buttonName": "Feedback"
+        },
+        "discussions": {
+          "title": "Discussions",
+          "buttonName": "Discuss"
+        }
+      }
+    },
+    "defaultModel": {
+      "title": "Default Model",
+      "desc": "Here, you can use different models for different scenes, to improve efficiency and reduce costs.",
+      "tooltip": "Use main model",
+      "noModel": "Do not use",
+      "placeholder": "Please select or search for models",
+      "main": "Main model",
+      "options" : {
+        "markDesc": {
+          "title": "Record Description",
+          "desc": "Used to process records after OCR recognition, generating record descriptions."
+        },
+        "placeholder": {
+          "title": "AI Suggestion",
+          "desc": "AI suggestion prompts are used for content generation in the placeholder of the record page AI conversation."
+        },
+        "translate": {
+          "title": "Translation",
+          "desc": "Used for translation content scenes."
+        },
+        "embedding": {
+          "title": "Embedding Model",
+          "desc": "Used for text embedding and vectorization scenarios."
+        },
+        "reranking": {
+          "title": "Reranking Model",
+          "desc": "Used for reordering and optimizing search results."
+        }
+      }
     },
     "prompt": {
       "title": "Prompt",
@@ -54,10 +113,26 @@
       "updatedAt": "Last updated {time}",
       "newToken": "Create Access Token",
       "newTokenDesc": "When creating a new token, please make sure to check the repo permission, and after configuration, it will automatically create a file repository (private) and an image repository.",
+      "giteeTokenDesc": "Gitee personal access token is used for data synchronization. It needs repository read and write permissions. After configuration, it will automatically create a file repository (private) and an image repository.",
       "imageRepoSetting": "Local/Cloud Storage",
       "imageRepoSettingDesc": "You have already configured an image repository, you can choose to use the image repository or use local storage.",
       "jsdelivrSetting": "jsDelivr",
-      "jsdelivrSettingDesc": "Use jsdelivr to speed up image access."
+      "jsdelivrSettingDesc": "Use jsdelivr to speed up image access.",
+      "autoSync": "Auto Sync",
+      "giteeAutoSyncDesc": "When enabled, the editor will automatically sync to Gitee 10 seconds after input stops",
+      "backupMethod": "Backup Method",
+      "backupMethodDesc": "After setting as the primary backup method, all sync-related functions in writing will use the current backup method (except for image hosting)",
+      "isPrimaryBackup": "{type} is current primary backup",
+      "setPrimaryBackup": "Set as Primary Backup",
+      "autoSyncOptions": {
+        "placeholder": "Select auto sync time",
+        "disabled": "Disabled",
+        "10s": "10 seconds",
+        "30s": "30 seconds",
+        "1m": "1 minute",
+        "5m": "5 minutes",
+        "30m": "30 minutes"
+      }
     },
     "template": {
       "title": "Template",
@@ -82,6 +157,7 @@
     },
     "theme": {
       "title": "Appearance",
+      "appTheme": "Application theme",
       "previewTheme": "Preview content theme",
       "codeTheme": "Code block highlight theme",
       "selectTheme": "Select Theme"
@@ -98,11 +174,22 @@
       "desc": "Here, you can add and manage various custom model services. After configuration, you will unlock AI-related features, such as organization and conversation functions.",
       "modelTitle": "Custom Name",
       "custom": "Custom",
-      "addCustomModel": "Add",
+      "addCustomModel": "Custom",
       "deleteCustomModel": "Delete",
       "deleteCustomModelConfirm": "Are you sure to delete this custom model?",
+      "copyConfig": "Copy",
       "builtin": "Built-in",
       "modelSupport": "Only supports AI models with OpenAI protocol",
+      "modelType": {
+        "title": "Model Type",
+        "desc": "Select the type of AI model based on its capability",
+        "chat": "Chat",
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio",
+        "embedding": "Embedding",
+        "rerank": "Reranking"
+      },
       "modelList": {
         "error": {
           "title": "Failed to get model list",
@@ -214,6 +301,7 @@
         "characterCount": "{count} characters",
         "save": "Save"
       },
+
       "link": {
         "title": "Record Link",
         "description": "Enter a webpage link, and the system will automatically crawl the page content and save it",
@@ -352,7 +440,10 @@
         "sortByModified": "Sort by Modified",
         "sortAsc": "Sort Ascending",
         "sortDesc": "Sort Descending",
-        "sort": "Sort"
+        "sort": "Sort",
+        "processingVectors": "Processing Vector Data",
+        "calculateVectors": "Calculate Document Vectors",
+        "enableVectorDb": "Enable Vector Database"
       }
     },
     "chat": {
@@ -372,6 +463,12 @@
           }
         ]
       },
+      "newChat": "New Chat with New Tag",
+      "removeChat": "Remove Chat with Current Tag",
+      "confirmNew": "Create New Tag",
+      "confirmNewDescription": "Are you sure you want to create a new tag to start a conversation?",
+      "confirmRemove": "Delete Tag",
+      "confirmRemoveDescription": "Please note that deleting this tag will also delete all records within it. Please confirm again.",
       "content": {
         "organize": "Organize your records into an article:"
       },
@@ -395,10 +492,46 @@
         "chat": "Chat",
         "placeholder": {
           "default": "Type a message...",
-          "noApiKey": "No API Key configured, can't use AI chat..."
+          "noApiKey": "No API Key configured, can't use AI chat...",
+          "on": "AI suggestions on",
+          "off": "AI suggestions off"
+        },
+        "translate": {
+          "tooltip": "Translate",
+          "translating": "Translating...",
+          "showOriginal": "Show Original",
+          "alreadyTranslated": "Translated to"
+        },
+        "clipboardMonitor": {
+          "enable": "Clipboard monitoring (on)",
+          "disable": "Clipboard monitoring (off)"
         },
         "send": "Send",
-        "terminate": "Terminate"
+        "terminate": "Terminate",
+        "tagLink": {
+          "on": "Linked to tag",
+          "off": "Not linked to tag"
+        },
+        "modelSelect": {
+          "tooltip": "Select AI model",
+          "placeholder": "Search AI models"
+        },
+        "promptSelect": {
+          "tooltip": "Select prompt",
+          "placeholder": "Search prompts"
+        },
+        "clearChat": "Clear conversation",
+        "clearContext": {
+          "tooltip": "Clear context"
+        },
+        "chatLanguage": {
+          "tooltip": "Select chat language",
+          "placeholder": "Search language"
+        },
+        "rag": {
+          "enabled": "Knowledge Base Search (Enabled)",
+          "disabled": "Knowledge Base Search (Disabled)"
+        }
       },
       "header": {
         "configApiKey": "Configure API KEY",
@@ -449,7 +582,11 @@
     "record": "Record",
     "write": "Write",
     "search": "Search",
-    "gallery": "Gallery"
+    "gallery": "Gallery",
+    "login": "Login",
+    "loading": "Loading",
+    "view": "View",
+    "logout": "Logout"
   },
   "marks": {
     "types": {
@@ -490,7 +627,10 @@
         "sortByModified": "Sort by Modified",
         "sortAsc": "Sort Ascending",
         "sortDesc": "Sort Descending",
-        "sort": "Sort"
+        "sort": "Sort",
+        "processingVectors": "Processing Vector Data",
+        "calculateVectors": "Knowledge Base Calculation (Full)",
+        "enableVectorDb": "Enable Vector Database"
       },
       "context": {
         "viewDirectory": "View Directory",
@@ -502,7 +642,9 @@
         "deleteLocalFile": "Delete Local File",
         "delete": "Delete",
         "newFile": "New File",
-        "newFolder": "New Folder"
+        "newFolder": "New Folder",
+        "deleteSyncFileSuccess": "Delete Sync File Success",
+        "deleteSyncFileError": "Delete Sync File Error"
       },
       "error": {
         "fileExists": "File name already exists"
@@ -515,9 +657,12 @@
         "empty": "Clipboard is empty",
         "confirmOverwrite": "File already exists, do you want to overwrite it?",
         "notSupported": "Operation not supported"
-      }
+      },
+      "deleteConfirm": "Are you sure you want to delete this file?"
     },
     "editor": {
+      "copySuccess": "Copied to clipboard",
+      "copySuccessDescription": "Copied to clipboard",
       "upload": {
         "error": "Upload Failed",
         "needToken": "Upload image requires accessToken configuration",

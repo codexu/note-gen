@@ -1,3 +1,5 @@
+![note-gen](https://socialify.git.ci/codexu/note-gen/image?custom_description=Cross-Platform+%7C+LLM+%7C+Markdown+%7C++Recording++%26+Writing&description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fcamo.githubusercontent.com%2Fbe4a3a39f8724658ad5bc549d63f0454ad4ca98564c73b7b0778704ca5212509%2F68747470733a2f2f73322e6c6f6c692e6e65742f323032352f30352f32362f594d4e67784b5644724238345a74572e706e67&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Light)
+
 # NoteGen
 
 NoteGenは、AIを使用して記録と執筆を橋渡しし、断片化された知識を読みやすいノートに整理することに専念するクロスプラットフォームの`Markdown`ノートアプリケーションです。
@@ -96,6 +98,12 @@ NoteGenは`記録`と`執筆`のページに分かれており、次の関係が
 - [更新計画](https://github.com/codexu/note-gen/issues/46)
 - [バグや改善提案を提出する](https://github.com/codexu/note-gen/issues)
 - [ディスカッション](https://github.com/codexu/note-gen/discussions)
+
+## 貢献者
+
+<a href="https://github.com/codexu/note-gen/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=codexu/note-gen" />
+</a>
 
 ## Star History
 

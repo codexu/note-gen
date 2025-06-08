@@ -147,7 +147,7 @@ export function FileItem({ item }: { item: DirTree }) {
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
   
-    if (name && name !== item.name) {
+    if (name && name.trim() !== '' && name !== item.name) {
       // 确保新文件名如果需要.md后缀则添加后缀
       let displayName = name;
       if (item.name === '' && !displayName.endsWith('.md')) {
@@ -231,14 +231,30 @@ export function FileItem({ item }: { item: DirTree }) {
       readArticle(newPath, '', true)
     } else {
       // 处理取消创建或无变更的情况
-      if (currentFolder && currentFolder.children) {
-        const index = currentFolder?.children?.findIndex(item => item.name === '')
-        if (index !== undefined && index !== -1 && currentFolder?.children) {
-          currentFolder?.children?.splice(index, 1)
+      if (item.name === '') {
+        // 只有当原文件名为空（新建文件）时才删除列表项
+        if (currentFolder && currentFolder.children) {
+          const index = currentFolder?.children?.findIndex(item => item.name === '')
+          if (index !== undefined && index !== -1 && currentFolder?.children) {
+            currentFolder?.children?.splice(index, 1)
+          }
+        } else {
+          const index = cacheTree.findIndex(item => item.name === '')
+          cacheTree.splice(index, 1)
         }
       } else {
-        const index = cacheTree.findIndex(item => item.name === '')
-        cacheTree.splice(index, 1)
+        // 对于重命名现有文件，如果没有输入新名称，则保持原状态
+        if (currentFolder && currentFolder.children) {
+          const fileIndex = currentFolder?.children?.findIndex(file => file.name === item.name)
+          if (fileIndex !== undefined && fileIndex !== -1) {
+            currentFolder.children[fileIndex].isEditing = false
+          }
+        } else {
+          const fileIndex = cacheTree.findIndex(file => file.name === item.name)
+          if (fileIndex !== -1 && fileIndex !== undefined) {
+            cacheTree[fileIndex].isEditing = false
+          }
+        }
       }
     }
     
@@ -384,7 +400,7 @@ export function FileItem({ item }: { item: DirTree }) {
                 onBlur={handleRename}
                 onChange={(e) => { setName(e.target.value) }}
                 onKeyDown={(e) => {
-                  if (e.code === 'Enter') {
+                  if (e.code === 'Enter' && !e.nativeEvent.isComposing) {
                     handleRename()
                   } else if (e.code === 'Escape') {
                     handleEditEnd()

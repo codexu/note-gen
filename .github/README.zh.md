@@ -1,7 +1,8 @@
+![note-gen](https://socialify.git.ci/codexu/note-gen/image?custom_description=Cross-Platform+%7C+LLM+%7C+Markdown+%7C++Recording++%26+Writing&description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fcamo.githubusercontent.com%2Fbe4a3a39f8724658ad5bc549d63f0454ad4ca98564c73b7b0778704ca5212509%2F68747470733a2f2f73322e6c6f6c692e6e65742f323032352f30352f32362f594d4e67784b5644724238345a74572e706e67&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Light)
 
 # NoteGen
 
-NoteGen 是一款的跨端的 `Markdown` 笔记应用，致力于使用 AI 建立记录和写作的桥梁，将碎片化知识整理成一篇可读的笔记。
+NoteGen 是一款跨端的 `Markdown` 笔记应用，致力于使用 AI 建立记录和写作的桥梁，将碎片化知识整理成一篇可读的笔记。
 
 ## 指南
 
@@ -91,12 +92,18 @@ NoteGen 分为`记录`和`写作`两个页面，其关系是：
 
 笔记本身可以无配置直接使用，如果你想得到更好的体验，请打开设置页面，对 AI 和同步进行配置。
 
-## Contribute
+## 贡献
 
 - [阅读贡献指南](CONTRIBUTING.md)
 - [更新计划](https://github.com/codexu/note-gen/issues/46)
 - [提交 Bug 或改进建议](https://github.com/codexu/note-gen/issues)
 - [讨论](https://github.com/codexu/note-gen/discussions)
+
+## 贡献者
+
+<a href="https://github.com/codexu/note-gen/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=codexu/note-gen" />
+</a>
 
 ## Star History
 

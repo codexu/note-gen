@@ -1,27 +1,57 @@
+// Database module with browser compatibility
 
-import Database from '@tauri-apps/plugin-sql';
+let db: any = null;
 
-// 导出数据库实例
-export const db = await Database.load('sqlite:note.db');
+// Check if we're in Tauri environment
+const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__;
 
-// 获取数据库实例(兼容旧代码)
+// Export database instance
+if (isTauri) {
+  try {
+    const Database = await import('@tauri-apps/plugin-sql');
+    db = await Database.default.load('sqlite:note.db');
+  } catch (error) {
+    console.log('Failed to load Tauri database:', error);
+    db = null;
+  }
+} else {
+  console.log('Running in browser mode - database not available');
+  db = null;
+}
+
+export { db };
+
+// Get database instance (compatibility with legacy code)
 export async function getDb() {
+  if (!isTauri) {
+    console.log('Database not available in browser mode');
+    return null;
+  }
   return db;
 }
 
-// 初始化所有数据库
+// Initialize all databases
 export async function initAllDatabases() {
-  // 引入各数据库初始化函数
-  const { initChatsDb } = await import('./chats');
-  const { initMarksDb } = await import('./marks');
-  const { initNotesDb } = await import('./notes');
-  const { initTagsDb } = await import('./tags');
-  const { initVectorDb } = await import('./vector');
-  
-  // 执行初始化
-  await initChatsDb();
-  await initMarksDb();
-  await initNotesDb();
-  await initTagsDb();
-  await initVectorDb();
+  if (!isTauri) {
+    console.log('Skipping database initialization in browser mode');
+    return;
+  }
+
+  try {
+    // Import database initialization functions
+    const { initChatsDb } = await import('./chats');
+    const { initMarksDb } = await import('./marks');
+    const { initNotesDb } = await import('./notes');
+    const { initTagsDb } = await import('./tags');
+    const { initVectorDb } = await import('./vector');
+    
+    // Execute initialization
+    await initChatsDb();
+    await initMarksDb();
+    await initNotesDb();
+    await initTagsDb();
+    await initVectorDb();
+  } catch (error) {
+    console.log('Database initialization failed:', error);
+  }
 }

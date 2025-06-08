@@ -1,3 +1,5 @@
+'use client';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,13 +8,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useI18n } from "@/hooks/useI18n";
 import { Languages } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Button } from "./ui/button";
+import { languages } from "@/config";
 
 export function LanguageSwitch() {
   const { currentLocale, changeLanguage } = useI18n();
   const t = useTranslations('common');
+  const locale = useLocale();
+
+  const handleLanguageChange = (newLocale: string) => {
+    // Use the simple localStorage approach
+    changeLanguage(newLocale);
+  };
 
   return (
     <DropdownMenu>
@@ -36,15 +45,15 @@ export function LanguageSwitch() {
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="right">
-        <DropdownMenuItem onClick={() => changeLanguage("en")}>
-          English {currentLocale === "en" && "✓"}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => changeLanguage("zh")}>
-          中文 {currentLocale === "zh" && "✓"}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => changeLanguage("ja")}>
-          日本語 {currentLocale === "ja" && "✓"}
-        </DropdownMenuItem>
+        {languages.map((language) => (
+          <DropdownMenuItem 
+            key={language.code}
+            onClick={() => handleLanguageChange(language.code)}
+          >
+            <span className="mr-2">{language.flag}</span>
+            {language.name} {(currentLocale === language.code || locale === language.code) && "✓"}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

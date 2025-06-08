@@ -1,6 +1,8 @@
-import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { getVersion } from '@tauri-apps/api/app'
+import { Store } from '@tauri-apps/plugin-store'
+
+// Check if we're in Tauri environment
+const isTauri = typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__;
 
 export enum GenTemplateRange {
   All = '全部',
@@ -20,6 +22,31 @@ export interface GenTemplate {
 }
 
 interface SettingState {
+  // GitHub settings
+  accessToken: string;
+  githubUsername: string;
+  
+  // Gitee settings
+  giteeAccessToken: string;
+  giteeUsername: string;
+  
+  // Primary backup method
+  primaryBackupMethod: 'github' | 'gitee';
+  
+  // Proxy settings
+  proxy: string;
+  
+  // Initialization functions
+  initialize: () => Promise<void>;
+  
+  // Setting functions
+  setAccessToken: (token: string) => Promise<void>;
+  setGithubUsername: (username: string) => Promise<void>;
+  setGiteeAccessToken: (token: string) => Promise<void>; 
+  setGiteeUsername: (username: string) => Promise<void>;
+  setPrimaryBackupMethod: (method: 'github' | 'gitee') => Promise<void>;
+  setProxy: (proxy: string) => Promise<void>;
+
   initSettingData: () => Promise<void>
 
   version: string
@@ -73,13 +100,6 @@ interface SettingState {
   tesseractList: string
   setTesseractList: (tesseractList: string) => void
 
-  // Github 相关设置
-  githubUsername: string
-  setGithubUsername: (githubUsername: string) => Promise<void>
-
-  accessToken: string
-  setAccessToken: (accessToken: string) => void
-
   jsdelivr: boolean
   setJsdelivr: (jsdelivr: boolean) => void
 
@@ -88,17 +108,6 @@ interface SettingState {
 
   autoSync: string
   setAutoSync: (autoSync: string) => Promise<void>
-  
-  // Gitee 相关设置
-  giteeAccessToken: string
-  setGiteeAccessToken: (giteeAccessToken: string) => void
-
-  giteeAutoSync: string
-  setGiteeAutoSync: (giteeAutoSync: string) => Promise<void>
-  
-  // 主要备份方式设置
-  primaryBackupMethod: 'github' | 'gitee'
-  setPrimaryBackupMethod: (method: 'github' | 'gitee') => Promise<void>
   
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -109,31 +118,184 @@ interface SettingState {
 
 
 const useSettingStore = create<SettingState>((set, get) => ({
+  accessToken: '',
+  githubUsername: '',
+  giteeAccessToken: '',
+  giteeUsername: '',
+  primaryBackupMethod: 'github',
+  proxy: '',
+
+  // Initialize store
+  initialize: async () => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      
+      const accessToken = await store.get<string>('accessToken') || '';
+      const githubUsername = await store.get<string>('githubUsername') || '';
+      const giteeAccessToken = await store.get<string>('giteeAccessToken') || '';
+      const giteeUsername = await store.get<string>('giteeUsername') || '';
+      const primaryBackupMethod = await store.get<'github' | 'gitee'>('primaryBackupMethod') || 'github';
+      const proxy = await store.get<string>('proxy') || '';
+      
+      set({ 
+        accessToken, 
+        githubUsername,
+        giteeAccessToken,
+        giteeUsername,
+        primaryBackupMethod,
+        proxy
+      });
+    } catch (error) {
+      console.error('Failed to initialize settings:', error);
+    }
+  },
+
+  // Set GitHub access token
+  setAccessToken: async (token: string) => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('accessToken', token);
+      set({ accessToken: token });
+    } catch (error) {
+      console.error('Failed to save access token:', error);
+    }
+  },
+
+  // Set GitHub username
+  setGithubUsername: async (username: string) => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('githubUsername', username);
+      set({ githubUsername: username });
+    } catch (error) {
+      console.error('Failed to save GitHub username:', error);
+    }
+  },
+
+  // Set Gitee access token
+  setGiteeAccessToken: async (token: string) => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('giteeAccessToken', token);
+      set({ giteeAccessToken: token });
+    } catch (error) {
+      console.error('Failed to save Gitee access token:', error);
+    }
+  },
+
+  // Set Gitee username
+  setGiteeUsername: async (username: string) => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('giteeUsername', username);
+      set({ giteeUsername: username });
+    } catch (error) {
+      console.error('Failed to save Gitee username:', error);
+    }
+  },
+
+  // Set primary backup method
+  setPrimaryBackupMethod: async (method: 'github' | 'gitee') => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('primaryBackupMethod', method);
+      set({ primaryBackupMethod: method });
+    } catch (error) {
+      console.error('Failed to save primary backup method:', error);
+    }
+  },
+
+  // Set proxy
+  setProxy: async (proxy: string) => {
+    if (!isTauri) {
+      console.log('Settings not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await store.set('proxy', proxy);
+      set({ proxy });
+    } catch (error) {
+      console.error('Failed to save proxy settings:', error);
+    }
+  },
+
   initSettingData: async () => {
-    const store = await Store.load('store.json');
-    await get().setVersion()
-    Object.entries(get()).forEach(async([key, value]) => {
-      const res = await store.get(key)
-      if (typeof value === 'function') return
-      if (res !== undefined && key!== 'version') {
-        if (key === 'templateList') {
-          set({ [key]: [] })
-          setTimeout(() => {
-            set({ [key]: res as GenTemplate[] })
-          }, 0);
+    if (!isTauri) {
+      console.log('Settings data not available in browser mode');
+      return;
+    }
+
+    try {
+      const store = await Store.load('store.json');
+      await get().setVersion()
+      Object.entries(get()).forEach(async([key, value]) => {
+        const res = await store.get(key)
+        if (typeof value === 'function') return
+        if (res !== undefined && key!== 'version') {
+          if (key === 'templateList') {
+            set({ [key]: [] })
+            setTimeout(() => {
+              set({ [key]: res as GenTemplate[] })
+            }, 0);
+          } else {
+            set({ [key]: res })
+          }
         } else {
-          set({ [key]: res })
+          await store.set(key, value)
         }
-      } else {
-        await store.set(key, value)
-      }
-    })
+      })
+    } catch (error) {
+      console.log('Failed to initialize settings data:', error);
+    }
   },
 
   version: '',
   setVersion: async() => {
-    const version = await getVersion()
-    set({ version })
+    if (!isTauri) {
+      set({ version: 'browser-mode' });
+      return;
+    }
+
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app');
+      const version = await getVersion();
+      set({ version });
+    } catch (error) {
+      console.log('Failed to get version:', error);
+      set({ version: 'unknown' });
+    }
   },
 
   autoUpdate: true,
@@ -156,37 +318,87 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   placeholderModel: '',
   setPlaceholderModel: async (placeholderModel) => {
-    const store = await Store.load('store.json');
-    await store.set('placeholderModel', placeholderModel)
     set({ placeholderModel })
+    
+    if (!isTauri) {
+      console.log('Model settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('placeholderModel', placeholderModel)
+    } catch (error) {
+      console.error('Failed to save placeholder model:', error);
+    }
   },
 
   translateModel: '',
   setTranslateModel: async (translateModel) => {
-    const store = await Store.load('store.json');
-    await store.set('translateModel', translateModel)
     set({ translateModel })
+    
+    if (!isTauri) {
+      console.log('Model settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('translateModel', translateModel)
+    } catch (error) {
+      console.error('Failed to save translate model:', error);
+    }
   },
 
   markDescModel: '',
   setMarkDescModel: async (markDescModel) => {
-    const store = await Store.load('store.json');
-    await store.set('markDescModel', markDescModel)
     set({ markDescModel })
+    
+    if (!isTauri) {
+      console.log('Model settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('markDescModel', markDescModel)
+    } catch (error) {
+      console.error('Failed to save mark description model:', error);
+    }
   },
 
   embeddingModel: '',
   setEmbeddingModel: async (embeddingModel) => {
-    const store = await Store.load('store.json');
-    await store.set('embeddingModel', embeddingModel)
     set({ embeddingModel })
+    
+    if (!isTauri) {
+      console.log('Model settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('embeddingModel', embeddingModel)
+    } catch (error) {
+      console.error('Failed to save embedding model:', error);
+    }
   },
 
   rerankingModel: '',
   setRerankingModel: async (rerankingModel) => {
-    const store = await Store.load('store.json');
-    await store.set('rerankingModel', rerankingModel)
     set({ rerankingModel })
+    
+    if (!isTauri) {
+      console.log('Model settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('rerankingModel', rerankingModel)
+    } catch (error) {
+      console.error('Failed to save reranking model:', error);
+    }
   },
 
   templateList: [
@@ -210,8 +422,18 @@ const useSettingStore = create<SettingState>((set, get) => ({
   ],
   setTemplateList: async (templateList) => {
     set({ templateList })
-    const store = await Store.load('store.json')
-    await store.set('templateList', templateList)
+    
+    if (!isTauri) {
+      console.log('Template settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json')
+      await store.set('templateList', templateList)
+    } catch (error) {
+      console.error('Failed to save template list:', error);
+    }
   },
 
   darkMode: 'system',
@@ -226,80 +448,90 @@ const useSettingStore = create<SettingState>((set, get) => ({
   tesseractList: 'eng,chi_sim',
   setTesseractList: (tesseractList) => set({ tesseractList }),
 
-  githubUsername: '',
-  setGithubUsername: async(githubUsername) => {
-    set({ githubUsername })
-    const store = await Store.load('store.json');
-    store.set('githubUsername', githubUsername)
-  },
-
-  accessToken: '',
-  setAccessToken: async (accessToken) => {
-    const store = await Store.load('store.json');
-    const hasAccessToken = await store.get('accessToken') === accessToken
-    if (!hasAccessToken) {
-      await get().setGithubUsername('')
-    }
-    set({ accessToken })
-  },
-
   jsdelivr: true,
   setJsdelivr: async (jsdelivr: boolean) => {
     set({ jsdelivr })
-    const store = await Store.load('store.json');
-    await store.set('jsdelivr', jsdelivr)
+    
+    if (!isTauri) {
+      console.log('JSDelivr settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('jsdelivr', jsdelivr)
+    } catch (error) {
+      console.error('Failed to save jsdelivr setting:', error);
+    }
   },
 
   useImageRepo: true,
   setUseImageRepo: async (useImageRepo: boolean) => {
     set({ useImageRepo })
-    const store = await Store.load('store.json');
-    await store.set('useImageRepo', useImageRepo)
+    
+    if (!isTauri) {
+      console.log('Image repository settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('useImageRepo', useImageRepo)
+    } catch (error) {
+      console.error('Failed to save image repository setting:', error);
+    }
   },
 
   autoSync: 'disabled',
   setAutoSync: async (autoSync: string) => {
     set({ autoSync })
-    const store = await Store.load('store.json');
-    await store.set('autoSync', autoSync)
+    
+    if (!isTauri) {
+      console.log('Auto sync settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('autoSync', autoSync)
+    } catch (error) {
+      console.error('Failed to save auto sync setting:', error);
+    }
   },
   
   lastSettingPage: 'ai',
   setLastSettingPage: async (page: string) => {
     set({ lastSettingPage: page })
-    const store = await Store.load('store.json');
-    await store.set('lastSettingPage', page)
+    
+    if (!isTauri) {
+      console.log('Settings persistence not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('lastSettingPage', page)
+    } catch (error) {
+      console.error('Failed to save last setting page:', error);
+    }
   },
 
   workspacePath: '',
   setWorkspacePath: async (path: string) => {
     set({ workspacePath: path })
-    const store = await Store.load('store.json');
-    await store.set('workspacePath', path)
+    
+    if (!isTauri) {
+      console.log('Workspace settings not available in browser mode');
+      return;
+    }
+    
+    try {
+      const store = await Store.load('store.json');
+      await store.set('workspacePath', path)
+    } catch (error) {
+      console.error('Failed to save workspace path:', error);
+    }
   },
-  
-  // Gitee 相关设置
-  giteeAccessToken: '',
-  setGiteeAccessToken: async (giteeAccessToken: string) => {
-    set({ giteeAccessToken })
-    const store = await Store.load('store.json');
-    await store.set('giteeAccessToken', giteeAccessToken)
-  },
-
-  giteeAutoSync: 'disabled',
-  setGiteeAutoSync: async (giteeAutoSync: string) => {
-    set({ giteeAutoSync })
-    const store = await Store.load('store.json');
-    await store.set('giteeAutoSync', giteeAutoSync)
-  },
-  
-  // 默认使用 GitHub 作为主要备份方式
-  primaryBackupMethod: 'github',
-  setPrimaryBackupMethod: async (method: 'github' | 'gitee') => {
-    set({ primaryBackupMethod: method })
-    const store = await Store.load('store.json');
-    await store.set('primaryBackupMethod', method)
-  }
 }))
 
 export default useSettingStore

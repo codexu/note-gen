@@ -1,55 +1,60 @@
 'use client';
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
+import React from 'react';
+import { Button } from './ui/button';
 
-interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
-}
-
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
-  error: Error | null;
+  error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: React.ComponentType<{ error?: Error; retry: () => void }>;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('组件错误:', error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Component error:', error, errorInfo);
   }
 
-  render(): ReactNode {
+  retry = () => {
+    this.setState({ hasError: false, error: undefined });
+  };
+
+  render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback;
+        const Fallback = this.props.fallback;
+        return <Fallback error={this.state.error} retry={this.retry} />;
       }
-      
+
       return (
-        <div className="p-3 border rounded-md bg-muted/10">
-          <h3 className="text-sm font-medium mb-2">组件错误</h3>
-          <p className="text-xs text-muted-foreground mb-2">
-            此组件加载失败，但不影响其他功能
+        <div className="flex flex-col items-center justify-center p-6 border border-destructive/20 rounded-lg bg-destructive/5">
+          <h3 className="text-sm font-medium mb-2">Component Error</h3>
+          <p className="text-xs text-muted-foreground mb-4 text-center">
+            This component failed to load, but other features are not affected
           </p>
           {this.state.error && (
-            <p className="text-xs bg-muted p-2 rounded mb-2 overflow-auto max-h-[60px]">
+            <pre className="text-xs bg-muted p-2 rounded mb-4 max-w-full overflow-auto">
               {this.state.error.message}
-            </p>
+            </pre>
           )}
           <Button 
-            onClick={() => this.setState({ hasError: false, error: null })} 
+            size="sm" 
             variant="outline" 
-            size="sm"
+            onClick={this.retry}
           >
-            重试
+            Retry
           </Button>
         </div>
       );

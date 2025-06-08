@@ -1,39 +1,43 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { AlertCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
 export default function GlobalError({
   error,
+  reset,
 }: {
   error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
-    console.error('全局错误:', error);
+    console.error('Global error:', error);
   }, [error]);
-
-  function reloadPage() {
-    window.location.reload();
-  }
 
   return (
     <html lang="zh">
       <body>
-        <div className="flex flex-col items-center justify-center h-screen p-4">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border shadow max-w-md w-full">
-            <h2 className="text-lg font-semibold mb-4">系统错误</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              应用程序遇到了问题，但我们正在努力修复。
-            </p>
-            <p className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mb-4 overflow-auto max-h-[120px]">
-              {error.message || '未知错误'}
-            </p>
-            <div className="flex justify-end">
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <div className="w-full max-w-md space-y-4 text-center">
+            <div className="flex justify-center">
+              <AlertCircle className="h-16 w-16 text-red-500" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold mb-4">System Error</h2>
+              <p className="text-sm text-muted-foreground">
+                The application has encountered a problem, but we are working to fix it.
+              </p>
+              <div className="bg-muted p-3 rounded-md text-left text-xs">
+                {error.message || 'Unknown error'}
+              </div>
+            </div>
+            <div className="space-y-2">
               <Button 
-                onClick={reloadPage} 
-                className="px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                onClick={reset}
+                className="w-full"
               >
-                重试
+                Retry
               </Button>
             </div>
           </div>

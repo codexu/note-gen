@@ -1,186 +1,161 @@
-import { SidebarMenuButton } from "./ui/sidebar";
-import { createSyncRepo, checkSyncRepoState, getUserInfo } from "@/lib/github";
-import { useEffect } from "react";
-import useSettingStore from "@/stores/setting";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { CircleUserRound } from "lucide-react";
-import { UserInfo } from "@/lib/github.types";
-import { RepoNames } from "@/lib/github.types";
-import useSyncStore, { SyncStateEnum } from "@/stores/sync";
-import { open } from '@tauri-apps/plugin-shell'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { CircleX, CircleCheck, CircleDot, Cloud, Database, Github } from 'lucide-react'
+import useSettingStore from '@/stores/setting'
+import { getUserInfo as getGithubUser, checkSyncRepoState as checkGithubRepo } from '@/lib/github'
+import { getUserInfo as getGiteeUser, checkSyncRepoState as checkGiteeRepo } from '@/lib/gitee'
+import { useTranslations } from 'next-intl'
+
+type SyncStatus = 'checking' | 'synced' | 'error' | 'offline'
+
+interface StatusInfo {
+  status: SyncStatus
+  message?: string
+  user?: { 
+    username: string
+    avatar?: string 
+  }
+}
+
+const StatusIcon = ({ status }: { status: SyncStatus }) => {
+  switch (status) {
+    case 'checking': return <CircleDot className="h-4 w-4 text-blue-500 animate-pulse" />
+    case 'synced': return <CircleCheck className="h-4 w-4 text-green-500" />
+    case 'error': return <CircleX className="h-4 w-4 text-red-500" />
+    case 'offline': return <Database className="h-4 w-4 text-gray-400" />
+  }
+}
 
 export default function AppStatus() {
-  const { accessToken, giteeAccessToken, primaryBackupMethod, setGithubUsername } = useSettingStore()
-  const { 
-    userInfo, 
-    giteeUserInfo, 
-    setUserInfo, 
-    setGiteeUserInfo,
-    setImageRepoState,
-    setImageRepoInfo,
-    syncRepoState,
-    setSyncRepoState,
-    setSyncRepoInfo,
-    giteeSyncRepoState,
-    setGiteeSyncRepoState,
-    setGiteeSyncRepoInfo 
-  } = useSyncStore()
-
-  // 获取当前主要备份方式的用户信息
-  async function handleGetUserInfo() {
-    try {
-      if (accessToken) {
-        // 获取 GitHub 用户信息
-        setImageRepoInfo(undefined)
-        setSyncRepoInfo(undefined)
-        setImageRepoState(SyncStateEnum.checking)
-        setSyncRepoState(SyncStateEnum.checking)
-        const res = await getUserInfo()
-        if (res) {
-          setUserInfo(res.data as UserInfo)
-          setGithubUsername(res.data.login)
-        }
-
-        // 检查仓库状态 - GitHub
-        await checkGithubRepos()
-      } else if (giteeAccessToken) {
-        // 获取 Gitee 用户信息
-        setGiteeSyncRepoInfo(undefined)
-        setGiteeSyncRepoState(SyncStateEnum.checking)
-        const res = await import('@/lib/gitee').then(module => module.getUserInfo())
-        if (res) {
-          setGiteeUserInfo(res)
-        }
-
-        // 检查仓库状态 - Gitee
-        await checkGiteeRepos()
-      } else {
-        setUserInfo(undefined)
-        setGiteeUserInfo(undefined)
-      }
-    } catch (err) {
-      console.error('Failed to get user info:', err)
-    }
-  }
-
-  // 检查 GitHub 仓库状态
-  async function checkGithubRepos() {
-    try {
-      // 检查图床仓库状态
-      const imageRepo = await checkSyncRepoState(RepoNames.image)
-      if (imageRepo) {
-        setImageRepoInfo(imageRepo)
-        setImageRepoState(SyncStateEnum.success)
-      } else {
-        setImageRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(RepoNames.image)
-        if (info) {
-          setImageRepoInfo(info)
-          setImageRepoState(SyncStateEnum.success)
-        } else {
-          setImageRepoState(SyncStateEnum.fail)
-        }
-      }
-      
-      // 检查同步仓库状态
-      const syncRepo = await checkSyncRepoState(RepoNames.sync)
-      if (syncRepo) {
-        setSyncRepoInfo(syncRepo)
-        setSyncRepoState(SyncStateEnum.success)
-      } else {
-        setSyncRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(RepoNames.sync, true)
-        if (info) {
-          setSyncRepoInfo(info)
-          setSyncRepoState(SyncStateEnum.success)
-        } else {
-          setSyncRepoState(SyncStateEnum.fail)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to check GitHub repos:', err)
-      setImageRepoState(SyncStateEnum.fail)
-      setSyncRepoState(SyncStateEnum.fail)
-    }
-  }
+  const t = useTranslations('common')
   
-  // 检查 Gitee 仓库状态
-  async function checkGiteeRepos() {
-    try {
-      const { checkSyncRepoState, createSyncRepo } = await import('@/lib/gitee')
-      
-      // 检查同步仓库状态
-      const syncRepo = await checkSyncRepoState(RepoNames.sync)
-      if (syncRepo) {
-        setGiteeSyncRepoInfo(syncRepo)
-        setGiteeSyncRepoState(SyncStateEnum.success)
-      } else {
-        // 仓库不存在，尝试创建
-        setGiteeSyncRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(RepoNames.sync, true) // 默认创建私有仓库
-        if (info) {
-          setGiteeSyncRepoInfo(info)
-          setGiteeSyncRepoState(SyncStateEnum.success)
-        } else {
-          setGiteeSyncRepoState(SyncStateEnum.fail)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to check Gitee repos:', err)
-      setGiteeSyncRepoState(SyncStateEnum.fail)
-    }
-  }
+  // Get current primary backup method user info
+  const { accessToken, githubUsername, giteeAccessToken, primaryBackupMethod } = useSettingStore()
+  
+  // Get GitHub user info
+  const [githubStatus, setGithubStatus] = useState<StatusInfo>({
+    status: 'offline'
+  })
+  
+  // Get Gitee user info  
+  const [giteeStatus, setGiteeStatus] = useState<StatusInfo>({
+    status: 'offline'
+  })
 
-  function openUserHome() {
-    if (primaryBackupMethod === 'github') {
-      if (!userInfo) return
-      open(`https://github.com/${userInfo?.login}`)
-    } else if (primaryBackupMethod === 'gitee') {
-      if (!giteeUserInfo) return
-      open(`https://gitee.com/${giteeUserInfo?.login}`)
-    }
-  }
-
-  // 监听 token 变化，获取用户信息
   useEffect(() => {
-    if (accessToken || giteeAccessToken) {
-      handleGetUserInfo()
+    if (accessToken) {
+      // Check repository status - GitHub
+      checkGithubStatus()
+    }
+    
+    if (giteeAccessToken) {
+      // Get Gitee user info
+      checkGiteeStatus()
     }
   }, [accessToken, giteeAccessToken])
 
-  return (
-    <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
-      <div className="relative flex items-center gap-2 cursor-pointer" onClick={openUserHome} >
-        <Avatar className="h-8 w-8 rounded">
-          {primaryBackupMethod === 'github' ? (
-            <>
-              <AvatarImage src={userInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground">{userInfo? userInfo.login.slice(0, 1): <CircleUserRound className="size-5"/>}</AvatarFallback>
-            </>
-          ) : primaryBackupMethod === 'gitee' ? (
-            <>
-              <AvatarImage src={giteeUserInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground">{giteeUserInfo? giteeUserInfo.login.slice(0, 1): <CircleUserRound className="size-5"/>}</AvatarFallback>
-            </>
-          ) : (
-            <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
-          )}
-        </Avatar>
-        {
-          primaryBackupMethod === 'github' ? (  
-            <div className={`
-              absolute right-0.5 bottom-0.5 rounded-full size-2 
-              ${syncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
-                syncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : primaryBackupMethod === 'gitee' ? (
-            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
-              ${giteeSyncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
-              giteeSyncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : null
+  const checkGithubStatus = async () => {
+    if (!accessToken) return
+    
+    setGithubStatus({ status: 'checking' })
+    
+    try {
+      // Check GitHub repository status
+      const userResponse = await getGithubUser()
+      
+      if (userResponse && userResponse.data) {
+        const user = userResponse.data
+        setGithubStatus({
+          status: 'synced',
+          user: {
+            username: user.login,
+            avatar: user.avatar_url
+          },
+          message: `Connected as ${user.login}`
+        })
+        
+        // Check sync repository status
+        if (githubUsername) {
+          const noteRepo = await checkGithubRepo(`${githubUsername}-note`)
+          if (!noteRepo) {
+            setGithubStatus(prev => ({
+              ...prev,
+              status: 'error',
+              message: 'Note repository not found'
+            }))
+          }
         }
-      </div>
-    </SidebarMenuButton>
+      } else {
+        setGithubStatus({
+          status: 'error',
+          message: 'Failed to connect to GitHub'
+        })
+      }
+    } catch (error) {
+      setGithubStatus({
+        status: 'error',
+        message: 'GitHub connection failed'
+      })
+    }
+  }
+
+  const checkGiteeStatus = async () => {
+    if (!giteeAccessToken) return
+    
+    setGiteeStatus({ status: 'checking' })
+    
+    try {
+      // Check Gitee repository status
+      const user = await getGiteeUser()
+      
+      if (user) {
+        setGiteeStatus({
+          status: 'synced',
+          user: {
+            username: user.login,
+            avatar: user.avatar_url
+          },
+          message: `Connected as ${user.login}`
+        })
+        
+        // Check sync repository status
+        if (user.login) {
+          const noteRepo = await checkGiteeRepo(`${user.login}-note`)
+          if (!noteRepo) {
+            setGiteeStatus(prev => ({
+              ...prev,
+              status: 'error',
+              message: 'Note repository not found'
+            }))
+          }
+        }
+      } else {
+        setGiteeStatus({
+          status: 'error',
+          message: 'Failed to connect to Gitee'
+        })
+      }
+    } catch (error) {
+      setGiteeStatus({
+        status: 'error',
+        message: 'Gitee connection failed'
+      })
+    }
+  }
+
+  const currentStatus = primaryBackupMethod === 'github' ? githubStatus : giteeStatus
+  const currentIcon = primaryBackupMethod === 'github' ? <Github className="h-4 w-4" /> : <Cloud className="h-4 w-4" />
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-sidebar-accent/10">
+      {currentIcon}
+      <StatusIcon status={currentStatus.status} />
+      {currentStatus.user && (
+        <span className="text-xs text-sidebar-foreground/70 truncate">
+          {currentStatus.user.username}
+        </span>
+      )}
+    </div>
   )
 }

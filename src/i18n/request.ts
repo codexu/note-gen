@@ -1,15 +1,14 @@
-import {getRequestConfig} from 'next-intl/server';
-import {notFound} from 'next/navigation';
- 
-// 支持的语言列表
-export const locales = ['en', 'zh'];
-export const defaultLocale = 'zh';
- 
-export default getRequestConfig(async ({locale}) => {
-  // 验证语言是否支持
-  if (!locales.includes(locale as any)) notFound();
- 
-  return {
-    messages: (await import(`../messages/${locale}.json`)).default
-  };
-});
+// Supported languages list
+export const locales = ['en', 'zh', 'ja'];
+export const defaultLocale = 'en';
+
+// Simple function to load messages for client-side use
+export async function loadMessages(locale: string) {
+  try {
+    return (await import(`../../messages/${locale}.json`)).default;
+  } catch (error) {
+    console.error(`Failed to load messages for locale: ${locale}`, error);
+    // If loading fails, return English as fallback
+    return (await import(`../../messages/en.json`)).default;
+  }
+}

@@ -1,28 +1,58 @@
 'use client'
-import Image from "next/image"
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { convertImage } from '@/lib/utils'
 
-export function LocalImage({ onLoad, src, ...props }: React.ComponentProps<typeof Image>) {
-  const [localSrc, setLocalSrc] = useState<string>('')
+interface LocalImageProps {
+  src: string
+  localSrc?: string
+  alt: string
+  width?: number
+  height?: number
+  className?: string
+}
 
-  async function getAppDataDir() {
-    if (src.toString().includes('http')) {
-      setLocalSrc(src.toString())
-    } else {
-      const covertFileSrcPath = await convertImage(src as string)
-      setLocalSrc(covertFileSrcPath)
+export function LocalImage({ 
+  src, 
+  localSrc, 
+  alt, 
+  width, 
+  height, 
+  className 
+}: LocalImageProps) {
+  const [imageSrc, setImageSrc] = useState(src)
+  const [loading, setLoading] = useState(true)
+  
+  // If localSrc exists
+  useEffect(() => {
+    if (localSrc) {
+      setImageSrc(localSrc)
     }
+  }, [localSrc])
+
+  const handleImageError = () => {
+    setImageSrc(src)
+    setLoading(false)
   }
 
-  React.useEffect(() => {
-    getAppDataDir()
-  }, [src])
+  const handleImageLoad = () => {
+    setLoading(false)
+  }
 
-  // 如果 loaclSrc 存在
   return (
-    localSrc ?
-    <Image onLoad={onLoad} src={localSrc} alt="" width={0} height={0} className={props.className} style={props.style} /> :
-    null
+    <div className={`relative ${className || ''}`}>
+      {loading && (
+        <div className="absolute inset-0 bg-gray-200 animate-pulse rounded" />
+      )}
+      <Image
+        src={imageSrc}
+        alt={alt}
+        width={width || 500}
+        height={height || 300}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
+        className={`transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
+      />
+    </div>
   )
 }

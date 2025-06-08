@@ -26,7 +26,7 @@ import { TooltipButton } from "@/components/tooltip-button"
 
 export function ModelSelect() {
   const [list, setList] = useState<AiConfig[]>([])
-  const { aiType, setAiType, setModel, setApiKey, setBaseURL } = useSettingStore()
+  const { aiType, setAiType, setAiTitle, setModel, setApiKey, setBaseURL } = useSettingStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
 
@@ -52,6 +52,8 @@ export function ModelSelect() {
     setApiKey(model.apiKey || '')
     store.set('baseURL', model.baseURL)
     setBaseURL(model.baseURL || '')
+    store.set('aiTitle', model.title || '')
+    setAiTitle(model.title || '')
   }
 
   useEffect(() => {

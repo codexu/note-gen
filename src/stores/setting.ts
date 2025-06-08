@@ -23,7 +23,7 @@ interface SettingState {
   initSettingData: () => Promise<void>
 
   version: string
-  setVersion:  () => Promise<void>
+  setVersion: () => Promise<void>
 
   autoUpdate: boolean
   setAutoUpdate: (autoUpdate: boolean) => void
@@ -33,6 +33,10 @@ interface SettingState {
 
   aiType: string
   setAiType: (aiType: string) => void
+
+  // Ai title 与设置中Model Provider的下拉名称保持一致
+  aiTitle: string
+  setAiTitle: (aiTitle: string) => void
 
   baseURL: string
   setBaseURL: (baseURL: string) => void
@@ -88,18 +92,18 @@ interface SettingState {
 
   autoSync: string
   setAutoSync: (autoSync: string) => Promise<void>
-  
+
   // Gitee 相关设置
   giteeAccessToken: string
   setGiteeAccessToken: (giteeAccessToken: string) => void
 
   giteeAutoSync: string
   setGiteeAutoSync: (giteeAutoSync: string) => Promise<void>
-  
+
   // 主要备份方式设置
   primaryBackupMethod: 'github' | 'gitee'
   setPrimaryBackupMethod: (method: 'github' | 'gitee') => Promise<void>
-  
+
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
 
@@ -112,10 +116,11 @@ const useSettingStore = create<SettingState>((set, get) => ({
   initSettingData: async () => {
     const store = await Store.load('store.json');
     await get().setVersion()
-    Object.entries(get()).forEach(async([key, value]) => {
+    Object.entries(get()).forEach(async ([key, value]) => {
       const res = await store.get(key)
+
       if (typeof value === 'function') return
-      if (res !== undefined && key!== 'version') {
+      if (res !== undefined && key !== 'version') {
         if (key === 'templateList') {
           set({ [key]: [] })
           setTimeout(() => {
@@ -131,7 +136,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
   },
 
   version: '',
-  setVersion: async() => {
+  setVersion: async () => {
     const version = await getVersion()
     set({ version })
   },
@@ -150,6 +155,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   apiKey: '',
   setApiKey: (apiKey) => set({ apiKey }),
+
+  aiTitle: '',
+  setAiTitle: (aiTitle) => set({ aiTitle }),
 
   model: '',
   setModel: (model) => set({ model }),
@@ -227,7 +235,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
   setTesseractList: (tesseractList) => set({ tesseractList }),
 
   githubUsername: '',
-  setGithubUsername: async(githubUsername) => {
+  setGithubUsername: async (githubUsername) => {
     set({ githubUsername })
     const store = await Store.load('store.json');
     store.set('githubUsername', githubUsername)
@@ -263,7 +271,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('autoSync', autoSync)
   },
-  
+
   lastSettingPage: 'ai',
   setLastSettingPage: async (page: string) => {
     set({ lastSettingPage: page })
@@ -277,7 +285,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('workspacePath', path)
   },
-  
+
   // Gitee 相关设置
   giteeAccessToken: '',
   setGiteeAccessToken: async (giteeAccessToken: string) => {
@@ -292,7 +300,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('giteeAutoSync', giteeAutoSync)
   },
-  
+
   // 默认使用 GitHub 作为主要备份方式
   primaryBackupMethod: 'github',
   setPrimaryBackupMethod: async (method: 'github' | 'gitee') => {

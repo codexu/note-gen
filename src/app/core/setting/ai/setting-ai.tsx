@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 
 export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations('settings.ai');
-  const { aiType, setAiType, apiKey, setApiKey, baseURL, setBaseURL, setModel } = useSettingStore()
+  const { aiType, setAiType, apiKey, setApiKey, baseURL, setBaseURL, setModel, setAiTitle } = useSettingStore()
   const [aiConfig, setAiConfig] = useState<AiConfig[]>(baseAiConfig)
   const [currentAi, setCurrentAi] = useState<AiConfig | undefined>(undefined)
   const [title, setTitle] = useState<string>('')
@@ -96,6 +96,8 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
     aiModelList[aiModelList.findIndex(item => item.key === aiType)] = model
     setAiConfig(aiModelList)
     await store.set('aiModelList', aiModelList)
+    await store.set('aiTitle', model.title || '')
+    setAiTitle(model.title || '')
   }
 
   // 基础 URL 变更
@@ -132,13 +134,13 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
   async function addCustomModelHandler() {
     const id = v4()
     setAiType(id)
-    const newModel: AiConfig = { 
-      key: id, 
-      baseURL: '', 
-      type: 'custom', 
-      title: 'Untitled', 
-      temperature: 0.7, 
-      topP: 1.0, 
+    const newModel: AiConfig = {
+      key: id,
+      baseURL: '',
+      type: 'custom',
+      title: 'Untitled',
+      temperature: 0.7,
+      topP: 1.0,
       modelType: modelType // Use the current modelType
     }
     const store = await Store.load('store.json');
@@ -181,7 +183,7 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
     await store.set('aiModelList', aiModelList)
     await store.set('temperature', value[0])
   }
-  
+
   // topP 变更处理
   async function topPChangeHandler(value: number[]) {
     setTopP(value[0])
@@ -195,7 +197,7 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
     await store.set('aiModelList', aiModelList)
     await store.set('topP', value[0] || 0.1)
   }
-  
+
   // 模型类型变更处理
   async function modelTypeChangeHandler(value: ModelType) {
     setModelType(value)
@@ -212,16 +214,16 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
     }
     const aiModelList = await store.get<AiConfig[]>('aiModelList')
     if (!aiModelList) return
-    
+
     const modelIndex = aiModelList.findIndex(item => item.key === aiType);
     if (modelIndex === -1) return;
-    
+
     const model = aiModelList[modelIndex];
     model.modelType = value;
-    
+
     aiModelList[modelIndex] = model;
     await store.set('aiModelList', aiModelList);
-    
+
     // 重新测试 AI 状态
     // 通过触发 baseURL 的改变，间接让 AiCheck 组件重新检测
     // 先保存当前值，然后再恢复以触发检测
@@ -236,7 +238,7 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
   async function copyConfig() {
     const model = await getModelByStore(aiType)
     if (!model) return
-    
+
     const id = v4()
     const newModel: AiConfig = {
       ...model,
@@ -245,19 +247,19 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
       type: 'custom',
       modelType: model.modelType || 'chat', // Preserve the model type or default to chat
     }
-    
+
     const store = await Store.load('store.json');
     const aiModelList = await store.get<AiConfig[]>('aiModelList')
     if (!aiModelList) return
-    
+
     const updatedList = [...aiModelList, newModel]
     await store.set('aiModelList', updatedList)
     setAiConfig(updatedList)
-    
+
     selectChangeHandler(id)
     setCurrentAi(newModel)
   }
-  
+
   useEffect(() => {
     async function init() {
       const store = await Store.load('store.json');
@@ -426,11 +428,11 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
             <SettingRow>
               <FormItem title="Temperature" desc={t('temperatureDesc')}>
                 <div className="flex gap-2 py-2">
-                  <Slider 
+                  <Slider
                     className="w-64"
-                    value={[temperature]} 
-                  max={2} 
-                  step={0.01} 
+                    value={[temperature]}
+                  max={2}
+                  step={0.01}
                   onValueChange={temperatureChangeHandler}
                   />
                   <span className="text-zinc-500">{temperature}</span>
@@ -440,16 +442,16 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
           <SettingRow>
             <FormItem title="Top P" desc={t('topPDesc')}>
               <div className="flex gap-2 py-2">
-                <Slider 
+                <Slider
                   className="w-64"
-                  value={[topP]} 
-                  max={1} 
+                  value={[topP]}
+                  max={1}
                   min={0}
-                  step={0.01} 
+                  step={0.01}
                   onValueChange={topPChangeHandler}
                 />
                 <span className="text-zinc-500">{topP}</span>
-              </div>  
+              </div>
             </FormItem>
           </SettingRow>
         </>)

@@ -575,8 +575,19 @@
       "placeholder": "Enter tag name"
     }
   },
+  "search": {
+    "placeholder": "Search notes and articles...",
+    "results": "{count} search results",
+    "noResults": "No search results"
+  },
   "image": {
-    "root": "Image Repository"
+    "root": "Image Repository",
+    "noData": {
+      "title": "Sync feature not enabled",
+      "desc": "Please go to the system settings page to configure Github sync.",
+      "goToSettings": "Go to Settings",
+      "howToUse": "How to use sync feature?"
+    }
   },
   "navigation": {
     "record": "Record",

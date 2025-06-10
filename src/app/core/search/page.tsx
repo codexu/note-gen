@@ -9,11 +9,13 @@ import { SearchItem } from "./search-item";
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Search } from "lucide-react";
+import { useTranslations } from 'next-intl';
 
 dayjs.extend(relativeTime)
 
 const searchList: Partial<SearchResult>[] = []
 export default function Page() {
+  const t = useTranslations();
   const [searchValue, setSearchValue] = useState('')
   const { fetchAllMarks, allMarks } = useMarkStore()
   const [searchResult, setSearchResult] = useState<FuseResult<Partial<SearchResult>>[]>([])
@@ -63,12 +65,12 @@ export default function Page() {
           value={searchValue}
           onChange={(e) => handleSearch(e)}
           className="w-[560px] mx-auto pl-8 pr-24"
-          placeholder="搜索笔记和文章..."
+          placeholder={t('search.placeholder')}
         />
         <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
         {
           searchResult.length ? 
-          <p className="absolute right-2 top-1/2 text-xs -translate-y-1/2 select-none opacity-50">{searchResult.length} 个搜索结果</p> : null
+          <p className="absolute right-2 top-1/2 text-xs -translate-y-1/2 select-none opacity-50">{t('search.results', {count: searchResult.length})}</p> : null
         }
       </div>
     </div>
@@ -77,7 +79,7 @@ export default function Page() {
       <div className="flex-1 w-full overflow-y-auto">
         {
           searchResult.length === 0 && searchValue ? 
-          <div className="text-center mt-12 text-gray-400 text-sm">暂无搜索结果</div> :
+          <div className="text-center mt-12 text-gray-400 text-sm">{t('search.noResults')}</div> :
           searchResult.map((item: FuseResult<Partial<SearchResult>>) => {
             return <SearchItem key={item.refIndex} item={item} />
           })

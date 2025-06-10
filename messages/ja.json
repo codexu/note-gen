@@ -553,14 +553,25 @@
     },
     "tag": {
       "add": "添加标签",
-      "edit": "編集标签",
-      "delete": "削除标签",
+      "edit": "編集タグ",
+      "delete": "削除タグ",
       "deleteConfirm": "本当に削除しますか？",
       "placeholder": "入力するタグ名"
     }
   },
+  "search": {
+    "placeholder": "ノートと記事を検索...",
+    "results": "{count} 件の検索結果",
+    "noResults": "検索結果がありません"
+  },
   "image": {
-    "root": "画像ホスティング倉庫"
+    "root": "画像ホスティング倉庫",
+    "noData": {
+      "title": "同期機能が有効になっていません",
+      "desc": "システム設定ページに移動して、Github同期を設定してください。",
+      "goToSettings": "設定へ移動",
+      "howToUse": "同期機能の使い方は？"
+    }
   },
   "navigation": {
     "record": "記録",

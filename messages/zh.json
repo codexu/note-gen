@@ -561,8 +561,19 @@
       "placeholder": "输入标签名称"
     }
   },
+  "search": {
+    "placeholder": "搜索笔记和文章...",
+    "results": "{count} 个搜索结果",
+    "noResults": "暂无搜索结果"
+  },
   "image": {
-    "root": "图床仓库"
+    "root": "图床仓库",
+    "noData": {
+      "title": "同步功能未开启",
+      "desc": "请先跳转至系统设置页面，配置 Github 同步。",
+      "goToSettings": "前往设置",
+      "howToUse": "如何使用同步功能？"
+    }
   },
   "navigation": {
     "record": "记录",

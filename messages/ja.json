@@ -68,7 +68,7 @@
     },
     "about": {
       "title": "このアプリについて",
-      "desc": "A note-taking assistant focused on record and writing.",
+      "desc": "記録と執筆に特化したメモ取りアシスタント。",
       "version": "NoteGen v{version}",
       "checkReleases": "過去のバージョンを確認",
       "language": "言語",
@@ -81,19 +81,19 @@
       "items": {
         "github": {
           "title": "GitHub",
-          "buttonName": "View"
+          "buttonName": "表示"
         },
         "releases": {
-          "title": "Update Log",
-          "buttonName": "View"
+          "title": "更新履歴",
+          "buttonName": "表示"
         },
         "issues": {
-          "title": "Issue Feedback",
-          "buttonName": "Feedback"
+          "title": "問題報告",
+          "buttonName": "報告"
         },
         "discussions": {
-          "title": "Discussions",
-          "buttonName": "Discuss"
+          "title": "ディスカッション",
+          "buttonName": "参加"
         }
       }
     },
@@ -365,7 +365,7 @@
           "note": {
             "writing": "執筆",
             "convert": "文章に変換",
-            "description": "当前的笔记是由 AI 生成且无法編集，将当前笔记转化为文章（生成本地文件），可在執筆页面中进行二次创作。",
+            "description": "現在のノートはAIによって生成されており、編集できません。現在のノートを記事に変換（ローカルファイルの生成）して、執筆ページで二次創作を行うことができます。",
             "filename": "ファイル名",
             "selectFolder": "フォルダを選択",
             "rootDirectory": "ルートディレクトリ",
@@ -562,7 +562,13 @@
   "search": {
     "placeholder": "ノートと記事を検索...",
     "results": "{count} 件の検索結果",
-    "noResults": "検索結果がありません"
+    "noResults": "検索結果がありません",
+    "item": {
+      "record": "記録",
+      "article": "記事",
+      "matches": "{count}件の一致",
+      "scanType": "スキャン"
+    }
   },
   "image": {
     "root": "画像ホスティング倉庫",
@@ -667,28 +673,28 @@
         "mark": {
           "title": "使用記録",
           "tooltip": "使用記録",
-          "description": "消耗記録转化为内容插入到文章。",
+          "description": "消費記録をコンテンツとして記事に挿入する。",
           "noRecords": "記録なし",
-          "ocrNoContent": "OCR 未识别到任何内容"
+          "ocrNoContent": "OCRはコンテンツを認識しませんでした"
         },
         "question": {
-          "tooltip": "问答",
+          "tooltip": "質問応答",
           "selectContent": "先に内容を選択してください",
-          "promptTemplate": "参考原文：{content}\n根据提问：{question}，直接返回回答内容。"
+          "promptTemplate": "参考文：{content}\n質問内容：{question}に基づいて、直接回答を返してください。"
         },
         "continue": {
-          "tooltip": "续写",
-          "promptTemplate": "根据前文：\"{content}\" 内容，直接返回续写内容，不要超过100字。\n内容可以参考后文：\"{endContent}\"，不要与后文内容重复。"
+          "tooltip": "文章続き",
+          "promptTemplate": "前文：\"{content}\"に基づいて、100文字以内で続きを書いてください。\n後文：\"{endContent}\"を参考にしても良いですが、重複は避けてください。"
         },
         "polish": {
-          "tooltip": "优化",
+          "tooltip": "最適化",
           "selectContent": "先に内容を選択してください",
-          "promptTemplate": "润色这段文字：{content}，要求言語不变，修复错别字和病句，直接返回润色后的结果。"
+          "promptTemplate": "この文章を校正してください：{content}。言語はそのままに、誤字脱字や不自然な表現を修正し、校正後の結果を直接返してください。"
         },
         "eraser": {
-          "tooltip": "精简",
+          "tooltip": "簡潔化",
           "selectContent": "先に内容を選択してください",
-          "promptTemplate": "精简这段文字：{content}，这段文字过于臃肿，字数要求缩减一半以上，要求言語不变，直接返回优化后的结果。"
+          "promptTemplate": "この文章を要約してください：{content}。文章があまりに冗長なので、文字数を半分以上に減らしてください。言語は変更しないで、要約した結果を直接返してください。"
         },
         "translation": {
           "tooltip": "翻訳",

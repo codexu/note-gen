@@ -564,7 +564,13 @@
   "search": {
     "placeholder": "搜索笔记和文章...",
     "results": "{count} 个搜索结果",
-    "noResults": "暂无搜索结果"
+    "noResults": "暂无搜索结果",
+    "item": {
+      "record": "记录",
+      "article": "文章",
+      "matches": "{count}个匹配项",
+      "scanType": "截图"
+    }
   },
   "image": {
     "root": "图床仓库",

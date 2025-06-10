@@ -578,7 +578,13 @@
   "search": {
     "placeholder": "Search notes and articles...",
     "results": "{count} search results",
-    "noResults": "No search results"
+    "noResults": "No search results",
+    "item": {
+      "record": "Record",
+      "article": "Article",
+      "matches": "{count} matches",
+      "scanType": "scan"
+    }
   },
   "image": {
     "root": "Image Repository",

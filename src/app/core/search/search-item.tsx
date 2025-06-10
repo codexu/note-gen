@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import useTagStore from '@/stores/tag'
 import { useRouter } from 'next/navigation'
 import useArticleStore from '@/stores/article'
+import { useTranslations } from 'next-intl'
 
 function highlightMatches(inputString: string, matches: readonly RangeTuple[]): string[] {
   const highlightedStringArray: string[] = [];
@@ -27,6 +28,7 @@ function SearchMark({
 }: {
   item: FuseResult<Partial<SearchResult>>
 }) {
+  const t = useTranslations();
   const path = item.item?.type === 'scan' ? 'screenshot' : 'image'
 
   return (
@@ -34,22 +36,20 @@ function SearchMark({
       <div className='flex flex-col justify-between'>
         <div className='flex gap-1 mb-2 items-center'>
           <RouteTo item={item} />
-          <Badge>记录</Badge>
+          <Badge>{t('search.item.record')}</Badge>
         </div>
         <p className='text-sm line-clamp-1 mb-4' dangerouslySetInnerHTML={
           {__html: highlightMatches(item.item?.desc || '', item.matches?.[0].indices || []).join('')}
         }>
         </p>
         <div className='flex gap-1'>
-          <Badge variant={'secondary'}>{item.matches?.[0].indices.length}个匹配项</Badge>
-          <Badge variant={'secondary'}>{item.item.type || 'scan'}</Badge>
+          <Badge variant={'secondary'}>{t('search.item.matches', { count: item.matches?.[0].indices.length })}</Badge>
+          <Badge variant={'secondary'}>{item.item.type || t('search.item.scanType')}</Badge>
           <Badge variant={'secondary'}>{dayjs(item.item.createdAt).fromNow()}</Badge>
         </div>
       </div>
       {
-        item.item?.type === 'text' ? (
-          null
-        ) : (
+        item.item?.type === 'text' ? null : (
           <LocalImage
             src={item.item?.url?.includes('http') ? item.item.url : `/${path}/${item.item.url}`}
             alt=""
@@ -66,6 +66,7 @@ function SearchArticle({
 }: {
   item: FuseResult<Partial<SearchResult>>
 }) {
+  const t = useTranslations();
   const hightlightArticle = highlightMatches(item.item?.article || '', item.matches?.[0].indices || []).join('')
 
   return (
@@ -73,7 +74,7 @@ function SearchArticle({
       <div className='flex flex-col flex-1 justify-between'>
         <div className='flex gap-1 mb-2 items-center'>
           <RouteTo item={item} />
-          <Badge>文章</Badge>
+          <Badge>{t('search.item.article')}</Badge>
         </div>
         <div className='flex flex-col gap-1 flex-1 mb-4'>
           {
@@ -88,7 +89,7 @@ function SearchArticle({
           }
         </div>
         <div className='flex gap-1 items-center'>
-          <Badge variant={'secondary'}>{item.matches?.[0].indices.length}个匹配项</Badge>
+          <Badge variant={'secondary'}>{t('search.item.matches', { count: item.matches?.[0].indices.length })}</Badge>
           <Badge variant={'secondary'}>{item.item.path}</Badge>
         </div>
       </div>

@@ -21,7 +21,7 @@ export default function Page() {
 
   function search(value: string) {
     const fuse = new Fuse(searchList, {
-      keys: ['desc', 'article'],
+      keys: ['desc', 'article', 'title'],
       includeMatches: true,
       includeScore: true,
       threshold: 0.3,
@@ -39,11 +39,22 @@ export default function Page() {
     await loadAllArticle()
   }
 
+  function extractTitleFromPath(path: string): string {
+    if (!path) return ''
+    const parts = path.split(/[\/\\]/)
+    const fileName = parts[parts.length - 1]
+    return fileName.includes('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName
+  }
+
   function setSearchData() {
     const marks = allMarks.map(item => ({...item, searchType: 'mark'}))
     searchList.push(...marks)
-    const articles = allArticle.map(item => ({...item, searchType: 'article'}))
+    const articles = allArticle.map(item => {
+      const title = extractTitleFromPath(item.path || '')
+      return {...item, searchType: 'article', title}
+    })
     searchList.push(...articles)
+    console.log('searchList', searchList)
   }
 
   useEffect(() => {

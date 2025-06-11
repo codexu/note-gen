@@ -35,18 +35,23 @@ export default function RootLayout({
     <>
       <html lang="en" suppressHydrationWarning>
         <head>
-        {/* Define isSpace function globally to fix markdown-it issues with Next.js + Turbopack
+          {/* 移动端视口设置 */}
+          <meta 
+            name="viewport" 
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, height=device-height"
+          />
+          {/* Define isSpace function globally to fix markdown-it issues with Next.js + Turbopack
           https://github.com/markdown-it/markdown-it/issues/1082#issuecomment-2749656365 */}
-        <Script id="markdown-it-fix" strategy="beforeInteractive">
-          {`
-            if (typeof window !== 'undefined' && typeof window.isSpace === 'undefined') {
-              window.isSpace = function(code) {
-                return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0B || code === 0x0C || code === 0x0D;
-              };
-            }
-          `}
-        </Script>
-      </head>
+          <Script id="markdown-it-fix" strategy="beforeInteractive">
+            {`
+              if (typeof window !== 'undefined' && typeof window.isSpace === 'undefined') {
+                window.isSpace = function(code) {
+                  return code === 0x20 || code === 0x09 || code === 0x0A || code === 0x0B || code === 0x0C || code === 0x0D;
+                };
+              }
+            `}
+          </Script>
+        </head>
         <body suppressHydrationWarning>
           <Suspense>
             <NextIntlProvider>

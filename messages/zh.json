@@ -565,6 +565,7 @@
     "root": "图床仓库"
   },
   "navigation": {
+    "chat": "对话",
     "record": "记录",
     "write": "写作",
     "search": "搜索",
@@ -572,7 +573,8 @@
     "login": "登录",
     "loading": "加载中",
     "view": "查看",
-    "logout": "登出"
+    "logout": "登出",
+    "setting": "设置"
   },
   "marks": {
     "types": {

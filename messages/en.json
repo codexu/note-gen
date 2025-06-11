@@ -579,6 +579,7 @@
     "root": "Image Repository"
   },
   "navigation": {
+    "chat": "Chat",
     "record": "Record",
     "write": "Write",
     "search": "Search",
@@ -586,7 +587,8 @@
     "login": "Login",
     "loading": "Loading",
     "view": "View",
-    "logout": "Logout"
+    "logout": "Logout",
+    "setting": "Setting"
   },
   "marks": {
     "types": {

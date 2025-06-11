@@ -563,6 +563,7 @@
     "root": "画像ホスティング倉庫"
   },
   "navigation": {
+    "chat": "チャット",
     "record": "記録",
     "write": "執筆",
     "search": "検索",
@@ -570,7 +571,8 @@
     "login": "ログイン",
     "loading": "読み込み中",
     "view": "表示",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "setting": "設定"
   },
   "marks": {
     "types": {

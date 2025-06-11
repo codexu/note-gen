@@ -7,12 +7,29 @@ import 'react-photo-view/dist/react-photo-view.css';
 import { Suspense } from "react";
 import { NextIntlProvider } from "@/components/providers/NextIntlProvider";
 import Script from "next/script";
+import { Store } from '@tauri-apps/plugin-store'
+import { redirect } from 'next/navigation'
+import { useEffect } from 'react'
+import { isMobileDevice } from '@/lib/check'
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  async function init() {
+    const store = await Store.load('store.json')
+    const currentPage = await store.get<string>('currentPage')
+    if (isMobileDevice()) {
+      redirect('/mobile/chat')
+    } else {
+      redirect(currentPage || '/core/record')
+    }
+  }
+  useEffect(() => {
+    init()
+  }, [])
 
   return (
     <>

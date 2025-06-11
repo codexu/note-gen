@@ -52,7 +52,7 @@ export default function RootLayout({
       disableTransitionOnChange
     >
       <TooltipProvider>
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-[calc(100vh-122px)]">
           <main className="flex flex-1">
             {children}
           </main>

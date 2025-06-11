@@ -16,7 +16,6 @@
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-unregister-all",
     "window-state:default",
-    "dialog:default",
     "http:default",
     "os:default",
     "core:window:allow-set-always-on-top",

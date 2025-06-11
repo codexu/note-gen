@@ -28,18 +28,20 @@ export function RagSwitch() {
   }
 
   return (
-    <TooltipButton
-      variant="ghost"
-      size="icon"
-      icon={
-        isRagEnabled ? (
-          <BookCheck />
-        ) : (
-          <Book />
-        )
-      }
-      tooltipText={isRagEnabled ? t('rag.enabled') : t('rag.disabled')}
-      onClick={handleClick}
-    />
+    <div className="hidden lg:block">
+      <TooltipButton
+        variant="ghost"
+        size="icon"
+        icon={
+          isRagEnabled ? (
+            <BookCheck />
+          ) : (
+            <Book />
+          )
+        }
+        tooltipText={isRagEnabled ? t('rag.enabled') : t('rag.disabled')}
+        onClick={handleClick}
+      />
+    </div>
   )
 }

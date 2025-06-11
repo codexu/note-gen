@@ -51,7 +51,7 @@ export default function RootLayout({
       disableTransitionOnChange
     >
       <div className="flex flex-col h-screen">
-        <main className="flex flex-1 flex-col overflow-hidden w-[calc(100vw-48px)]">
+        <main className="flex flex-1">
           {children}
         </main>
         <AppFootbar />

@@ -10,6 +10,7 @@ import en from "dayjs/locale/en";
 import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import { AppFootbar } from "@/components/app-footbar"
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function RootLayout({
   children,
@@ -50,12 +51,14 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
-      <div className="flex flex-col h-screen">
-        <main className="flex flex-1">
-          {children}
-        </main>
-        <AppFootbar />
-      </div>
+      <TooltipProvider>
+        <div className="flex flex-col h-screen">
+          <main className="flex flex-1">
+            {children}
+          </main>
+          <AppFootbar />
+        </div>
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

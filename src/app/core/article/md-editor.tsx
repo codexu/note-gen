@@ -432,13 +432,9 @@ export function MdEditor() {
     setContent(currentArticle)
   }, [currentArticle])
 
-  return <div className='flex-1 h-screen flex flex-col overflow-hidden dark:bg-zinc-950'>
-    {
-      editor && <CustomToolbar editor={editor} />
-    }
+  return <div className='flex-1 w-full h-full lg:h-screen flex flex-col overflow-hidden dark:bg-zinc-950'>
+    <CustomToolbar editor={editor} />
     <div id="aritcle-md-editor" className='flex-1'></div>
-    {
-      editor && <CustomFooter editor={editor} />
-    }
+    <CustomFooter editor={editor} />
   </div>
 }

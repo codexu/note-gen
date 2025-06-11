@@ -1,5 +1,7 @@
 'use client'
 
+import { MdEditor } from '@/app/core/article/md-editor'
+
 export default function Writing() {
-  return <div>Writing</div>
+  return <div className='w-full'><MdEditor /></div>
 }

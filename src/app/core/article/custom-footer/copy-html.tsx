@@ -3,7 +3,7 @@ import emitter from "@/lib/emitter";
 
 export default function CopyHtml() {
 
-  return <div className="flex items-center gap-1">
+  return <div className="items-center gap-1 hidden lg:flex">
     <Button 
       variant="ghost" 
       size="sm" 

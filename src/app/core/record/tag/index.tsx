@@ -63,7 +63,7 @@ export function TagManage() {
 
   return (
     <>
-      <div className="flex gap-1 w-full items-center justify-between px-2">
+      <div className="flex gap-1 w-full items-center justify-between px-0 lg:px-2 mt-2 lg:mt-0">
         <div
           className="w-full h-9 border cursor-pointer rounded flex justify-between items-center px-3 bg-white hover:bg-gray-50
             dark:bg-black dark:hover:bg-zinc-800"

@@ -118,44 +118,46 @@ export function ControlScan() {
   }, [image, open])
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
-      </DialogTrigger>
-      <DialogContent className="max-w-screen h-screen text-white bg-black border-none flex flex-col items-center justify-center overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          {
-            image && (
-              <Image id="cropper" className="size-full object-contain" width={0} height={0} src={image.src} alt="" />
-            )
-          }
-        </div>
-        <Carousel
-          opts={{
-            align: "start",
-          }}
-          orientation="horizontal"
-          className="w-full max-w-xl h-24"
-        >
-          <CarouselContent>
-            {files.map((file, index) => (
-              <CarouselItem key={index} className="pt-1 md:basis-1/5">
-                <Card
-                  className={`size-24 overflow-hidden cursor-pointer border-2 border-black ${image?.src === file.path ? 'border-white' : ''}`}
-                  onClick={() => selectImage(file)}
-                >
-                  <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
-                    <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
-                    <p className="text-xs text-white line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
-                  </CardContent>
-                </Card>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          <CarouselPrevious className="text-white bg-black border-white" />
-          <CarouselNext className="text-white bg-black border-white" />
-        </Carousel>
-      </DialogContent>
-    </Dialog>
+    <div className="hidden lg:block">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
+        </DialogTrigger>
+        <DialogContent className="max-w-screen h-screen text-white bg-black border-none flex flex-col items-center justify-center overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            {
+              image && (
+                <Image id="cropper" className="size-full object-contain" width={0} height={0} src={image.src} alt="" />
+              )
+            }
+          </div>
+          <Carousel
+            opts={{
+              align: "start",
+            }}
+            orientation="horizontal"
+            className="w-full max-w-xl h-24"
+          >
+            <CarouselContent>
+              {files.map((file, index) => (
+                <CarouselItem key={index} className="pt-1 md:basis-1/5">
+                  <Card
+                    className={`size-24 overflow-hidden cursor-pointer border-2 border-black ${image?.src === file.path ? 'border-white' : ''}`}
+                    onClick={() => selectImage(file)}
+                  >
+                    <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
+                      <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
+                      <p className="text-xs text-white line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
+                    </CardContent>
+                  </Card>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="text-white bg-black border-white" />
+            <CarouselNext className="text-white bg-black border-white" />
+          </Carousel>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

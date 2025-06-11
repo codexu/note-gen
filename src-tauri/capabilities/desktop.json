@@ -10,14 +10,23 @@
   ],
   "permissions": [
     "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-register-all",
+    "global-shortcut:allow-is-registered",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
     "window-state:default",
     "dialog:default",
     "http:default",
     "os:default",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-start-dragging",
+    "clipboard:allow-read-image-base64",
+    "clipboard:read-all",
+    "clipboard:allow-clear",
+    "clipboard:allow-write-text",
+    "clipboard:allow-start-monitor",
     "updater:default",
-    "process:default",
-    "process:default",
     "process:default"
   ]
 }

@@ -5,6 +5,7 @@ node_modules
 
 ./dist
 dist-ssr
+src-tauri/gen
 *.local
 
 /.pnp

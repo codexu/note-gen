@@ -6,7 +6,7 @@ import { ChatHeader } from '@/app/core/record/chat/chat-header'
 
 export default function Chat() {
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-[calc(100vh-128px)] w-full overflow-x-hidden">
       <ChatHeader />  
       <ChatContent />
       <ClipboardListener />

@@ -31,7 +31,22 @@ export default function Question({editor}: {editor?: Vditor}) {
   }
 
   useEffect(() => {
-    emitter.on('toolbar-question', handleBlock)
+    // Ignore subsequence emits while function handleBock is running
+    let running = false
+    const guardedHandler = async () => {
+      if (running) return
+      running = true
+      try {
+        await handleBlock()
+      } finally {
+        running = false
+      }
+    }
+
+    emitter.on('toolbar-question', guardedHandler)
+    return () => {
+      emitter.off('toolbar-question', guardedHandler)
+    }
   }, [])
   return (
     <TooltipButton disabled={!apiKey} icon={<MessageCircleQuestion />} tooltipText={t('tooltip')} onClick={handleBlock}>

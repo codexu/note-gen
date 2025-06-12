@@ -110,7 +110,7 @@ export function GiteeSync() {
       </SettingRow>
       <SettingRow>
         <FormItem title={t('settings.sync.repoStatus')}>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className={`${giteeSyncRepoInfo ? 'border-b' : ''}`}>
                 <CardTitle className="flex justify-between items-center">

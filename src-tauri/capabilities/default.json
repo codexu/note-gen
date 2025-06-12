@@ -109,6 +109,7 @@
       ]
     },
     "os:default",
-    "dialog:default"
+    "dialog:default",
+    "http:default"
   ]
 }

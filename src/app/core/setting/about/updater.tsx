@@ -77,7 +77,7 @@ export default function Updater() {
 
     return (
       <div className="flex flex-col gap-4 w-full">
-        <div className="flex justify-between w-full items-center">
+        <div className="flex flex-col lg:flex-row lg:justify-between w-full lg:items-center gap-4 lg:gap-0">
           <div className="flex items-center gap-4">
             <div>
               <Image src="/app-icon.png" alt="logo" className="size-24 dark:invert" width={0} height={0} />

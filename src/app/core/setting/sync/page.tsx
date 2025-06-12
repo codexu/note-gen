@@ -13,7 +13,7 @@ export default function SyncPage() {
   return (
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
       <Tabs defaultValue="Github">
-        <TabsList className="grid grid-cols-3 w-[600px] mb-8">
+        <TabsList className="grid grid-cols-3 w-full lg:w-[600px] mb-8">
           <TabsTrigger value="Github">Github</TabsTrigger>
           <TabsTrigger value="Gitee">Gitee</TabsTrigger>
           <TabsTrigger value="Webdav">Webdav</TabsTrigger>

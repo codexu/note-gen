@@ -92,7 +92,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-[480px] justify-between"
+              className="w-full lg:w-[480px] justify-between"
             >
               {model
                 ? `${list.find((item) => item.key === model)?.model}(${list.find((item) => item.key === model)?.title})`
@@ -122,7 +122,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
           )
         }
       </div>
-      <PopoverContent align="start" className="w-[480px] p-0">
+      <PopoverContent align="start" className="w-full lg:w-[480px] p-0">
         <Command>
           <CommandInput placeholder={t('placeholder')} className="h-9" />
           <CommandList>

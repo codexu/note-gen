@@ -53,7 +53,7 @@ export default function RootLayout({
     >
       <TooltipProvider>
         <div className="flex flex-col h-[calc(100vh-122px)]">
-          <main className="flex flex-1">
+          <main className="flex flex-1 w-full">
             {children}
           </main>
           <AppFootbar />

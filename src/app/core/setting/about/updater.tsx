@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowBigRightDash, Link, Loader2 } from 'lucide-react';
 import { getRelease } from '@/lib/github';
 import { open } from '@tauri-apps/plugin-shell';
+import { isMobileDevice } from '@/lib/check';
 
 export default function Updater() {
     const t = useTranslations('settings.about');
@@ -18,9 +19,9 @@ export default function Updater() {
     const { version } = useSettingStore();
     const [update, setUpdate] = useState<Update | null>(null);
     const [latestBody, setLatestBody] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
 
     async function checkUpdate() {
-      setChecking(true);
       try {
         setUpdate(await check({
           headers: {
@@ -72,7 +73,11 @@ export default function Updater() {
     }
 
     useEffect(() => {
-      checkUpdate();
+      const _isMobile = isMobileDevice();
+      setIsMobile(_isMobile);
+      if (!_isMobile) {
+        checkUpdate();
+      }
     }, []);
 
     return (
@@ -100,10 +105,14 @@ export default function Updater() {
               </div>
             </div>
           </div>
-          <Button disabled={!update || loading || checking} onClick={checkVersion}>
-            {checking || loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {checking ? t('checkUpdate') : update ? t('updateAvailable') : t('noUpdate')}
-          </Button>
+          {
+            !isMobile ? (
+              <Button disabled={!update || loading || checking} onClick={checkVersion}>
+                {checking || loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {checking ? t('checkUpdate') : update ? t('updateAvailable') : t('noUpdate')}
+              </Button>
+            ) : null
+          }
         </div>
         {
           update && latestBody ? (

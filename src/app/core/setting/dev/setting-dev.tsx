@@ -70,15 +70,15 @@ export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
     <SettingType id={id} icon={icon} title={t('settings.dev.title')}>
-      <SettingRow border className="gap-4">
+      <SettingRow border className="gap-4 flex-col lg:flex-row !items-start lg:items-center">
         <span>{t('settings.dev.proxy')}</span>
         <Input className="max-w-[400px]" placeholder={t('settings.dev.proxyPlaceholder')} value={proxy} onChange={proxyChangeHandler} />
       </SettingRow>
-      <SettingRow border>
+      <SettingRow border className="gap-4 flex-col lg:flex-row !items-start lg:items-center">
         <span>清理数据信息，包括系统配置信息、数据库（包含记录）。</span>
         <Button variant={"destructive"} onClick={handleClearData}>清理</Button>
       </SettingRow>
-      <SettingRow border>
+      <SettingRow border className="gap-4 flex-col lg:flex-row !items-start lg:items-center">
         <span>清理文件，包括图片、文章。</span>
         <Button variant={"destructive"} onClick={handleClearFile}>清理</Button>
       </SettingRow>

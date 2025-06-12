@@ -29,7 +29,7 @@ export default function SetConfig() {
       }
     }
     return (
-    <SettingRow border>
+    <SettingRow border className="gap-4 flex-col lg:flex-row !items-start lg:items-center">
       <span>配置文件导入与导出，导入配置文件将覆盖当前配置，并且重启后生效。</span>
       <div className="flex gap-2">
         <Button onClick={handleImport}><HardDriveDownload />导入</Button>

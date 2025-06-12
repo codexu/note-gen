@@ -38,8 +38,11 @@ export default function RootLayout({
           {/* 移动端视口设置 */}
           <meta 
             name="viewport" 
-            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, height=device-height"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, height=device-height"
           />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
           {/* Define isSpace function globally to fix markdown-it issues with Next.js + Turbopack
           https://github.com/markdown-it/markdown-it/issues/1082#issuecomment-2749656365 */}
           <Script id="markdown-it-fix" strategy="beforeInteractive">

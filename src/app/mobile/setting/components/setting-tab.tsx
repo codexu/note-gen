@@ -19,7 +19,7 @@ export function SettingTab() {
   }
 
   return (
-    <ul className="flex flex-col mt-24 w-full">
+    <ul className="flex flex-col mt-12 w-full">
       {
         config.map(item => {
           return (

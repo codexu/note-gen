@@ -345,9 +345,9 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
     <SettingType id={id} icon={icon} title={t('title')} desc={t('desc')}>
       <SettingRow>
         <FormItem title="Model Provider" desc={t('modelProviderDesc')}>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-col lg:flex-row gap-2 lg:items-center">
             <Select value={aiType} onValueChange={selectChangeHandler}>
-              <SelectTrigger className="w-[240px] flex">
+              <SelectTrigger className="w-full lg:w-[240px] flex">
                 <div className="flex items-center gap-2">
                   <AiCheck />
                   <SelectValue placeholder="Select a fruit" />
@@ -375,14 +375,16 @@ export function SettingAI({id, icon}: {id: string, icon?: React.ReactNode}) {
                 </SelectGroup>
               </SelectContent>
             </Select>
-            {
-              currentAi?.type === 'custom' && (
-                <Button variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
-              )
-            }
-            {/* 复制当前配置 */}
-            <Button onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
-            <Button onClick={addCustomModelHandler}><Plus />{t('addCustomModel')}</Button>
+            <div className="flex gap-2">
+              {
+                currentAi?.type === 'custom' && (
+                  <Button variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
+                )
+              }
+              {/* 复制当前配置 */}
+              <Button onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
+              <Button onClick={addCustomModelHandler}><Plus />{t('addCustomModel')}</Button>
+            </div>
           </div>
         </FormItem>
       </SettingRow>

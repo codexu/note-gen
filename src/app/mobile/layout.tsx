@@ -1,6 +1,7 @@
 'use client'
 
 import { ThemeProvider } from "@/components/theme-provider"
+import './mobile-styles.css'
 import useSettingStore from "@/stores/setting"
 import { useEffect } from "react";
 import { initAllDatabases } from "@/db"
@@ -52,8 +53,8 @@ export default function RootLayout({
       disableTransitionOnChange
     >
       <TooltipProvider>
-        <div className="flex flex-col h-[calc(100vh-122px)]">
-          <main className="flex flex-1 w-full">
+        <div className="flex flex-col h-screen">
+          <main className="flex flex-1 w-full overflow-hidden">
             {children}
           </main>
           <AppFootbar />

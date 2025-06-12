@@ -14,7 +14,7 @@ export function SettingType(
   </div>
 }
 export function SettingRow({border = false, children, className}: { border?: boolean, children: React.ReactNode, className?: string}) {
-  return <div className={`${border ? "border-b py-4" : ""} flex gap-4 lg:gap-0 flex-col lg:flex-row lg:justify-between text-sm flex:items-center ${className}`}>
+  return <div className={`${border ? "border-b py-4" : ""} flex justify-between text-sm items-center ${className}`}>
     {children}
   </div>
 }

@@ -21,6 +21,7 @@ import { convertImage } from '@/lib/utils'
 import CustomFooter from './custom-footer'
 import { useLocalStorage } from 'react-use'
 import { open } from '@tauri-apps/plugin-shell'
+import { isMobileDevice } from '@/lib/check'
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
@@ -42,7 +43,7 @@ export function MdEditor() {
   }
 
   function init() {
-    const toolbarConfig = [
+    let toolbarConfig = [
       { name: 'undo', tipPosition: 's' },
       { name: 'redo', tipPosition: 's' },
       '|',{
@@ -106,6 +107,10 @@ export function MdEditor() {
       { name: 'preview', tipPosition: 's' },
       { name: 'outline', tipPosition: 's' },
     ]
+
+    if (isMobileDevice()) {
+      toolbarConfig = toolbarConfig.slice(0, 12).filter((item) => item !== '|')
+    }
     
     const vditor = new Vditor('aritcle-md-editor', {
       lang: getLang(),

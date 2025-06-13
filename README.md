@@ -1,4 +1,4 @@
-![note-gen](https://socialify.git.ci/codexu/note-gen/image?custom_description=Cross-Platform+%7C+LLM+%7C+Markdown+%7C++Recording++%26+Writing&description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fcamo.githubusercontent.com%2Fbe4a3a39f8724658ad5bc549d63f0454ad4ca98564c73b7b0778704ca5212509%2F68747470733a2f2f73322e6c6f6c692e6e65742f323032352f30352f32362f594d4e67784b5644724238345a74572e706e67&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Light)
+![](https://s2.loli.net/2025/06/13/UbVGPrhFl3etnQz.png)
 
 # NoteGen
 
@@ -27,30 +27,12 @@ NoteGen is a cross-platform `Markdown` note-taking application dedicated to usin
 ## Why Choose NoteGen?
 
 - Lightweight: [Installation package](https://github.com/codexu/note-gen/releases) is **only 20MB**, free with no ads or bundled software.
-- Cross-platform: Supports Mac, Windows, Linux, and thanks to `Tauri2`'s cross-platform capabilities, will support iOS and Android in the future.
+- Cross-platform: Supports Mac, Windows, Linux, and thanks to `Tauri2`'s cross-platform capabilities, IOS and Android are currently under development.
 - Supports multiple recording methods including `screenshots`, `text`, `illustrations`, `files`, `links`, etc., meeting fragmented recording needs across various scenarios.
 - Native `Markdown(.md)` as storage format, no modifications, easy to migrate.
 - Native offline usage, supporting real-time synchronization to `GitHub, Gitee private repositories` with history rollback, and WebDAV synchronization.
 - AI-enhanced: Configurable with ChatGPT, Gemini, Ollama, LM Studio, Grok, and other models, with support for custom third-party model configuration.
 - RAG: Your notes are your knowledge base. Support embedding models and reranking models.
-
-## Screenshots
-
-
-https://github.com/user-attachments/assets/4f8a3bc5-17f5-4b36-9b17-d87128685257
-
-
-Recording:
-
-![1.png](https://s2.loli.net/2025/05/19/Cs5viKfkqb2HJmd.png)
-
-Writing:
-
-![2.png](https://s2.loli.net/2025/05/19/5vwQBPoLr6jzgUA.png)
-
-Theme:
-
-![3.png](https://s2.loli.net/2025/05/19/8yU72prmWdsCHeu.png)
 
 ## From Recording to Writing
 

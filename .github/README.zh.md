@@ -1,5 +1,3 @@
-![note-gen](https://socialify.git.ci/codexu/note-gen/image?custom_description=Cross-Platform+%7C+LLM+%7C+Markdown+%7C++Recording++%26+Writing&description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fcamo.githubusercontent.com%2Fbe4a3a39f8724658ad5bc549d63f0454ad4ca98564c73b7b0778704ca5212509%2F68747470733a2f2f73322e6c6f6c692e6e65742f323032352f30352f32362f594d4e67784b5644724238345a74572e706e67&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Light)
-
 # NoteGen
 
 NoteGen 是一款跨端的 `Markdown` 笔记应用，致力于使用 AI 建立记录和写作的桥梁，将碎片化知识整理成一篇可读的笔记。
@@ -13,7 +11,7 @@ NoteGen 是一款跨端的 `Markdown` 笔记应用，致力于使用 AI 建立�
 ## 为什么选择 NoteGen？
 
 - 轻量，[安装包](https://github.com/codexu/note-gen/releases)**仅20MB**，免费且无任何广告，无任何捆绑。
-- 跨端，支持 Mac、Windows、Linux，得益于 `Tauri2` 的跨平台能力，未来将支持 IOS、Android。
+- 跨端，支持 Mac、Windows、Linux，得益于 `Tauri2` 的跨平台能力，IOS、Android 正在开发中。
 - 支持`截图`、`文本`、`插图`、`文件`、`链接`等多种记录方式，满足各类场景的碎片化记录需求。
 - 原生 `Markdown(.md)` 作为存储格式，拒绝魔改，方便迁移。
 - 默认支持本地离线使用，支持实时同步到 `Github、Gitee 私有仓库`，支持历史回滚，支持 WebDAV 同步。

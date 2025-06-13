@@ -1,5 +1,3 @@
-![note-gen](https://socialify.git.ci/codexu/note-gen/image?custom_description=Cross-Platform+%7C+LLM+%7C+Markdown+%7C++Recording++%26+Writing&description=1&font=Raleway&forks=1&issues=1&logo=https%3A%2F%2Fcamo.githubusercontent.com%2Fbe4a3a39f8724658ad5bc549d63f0454ad4ca98564c73b7b0778704ca5212509%2F68747470733a2f2f73322e6c6f6c692e6e65742f323032352f30352f32362f594d4e67784b5644724238345a74572e706e67&name=1&owner=1&pattern=Circuit+Board&stargazers=1&theme=Light)
-
 # NoteGen
 
 NoteGenは、AIを使用して記録と執筆を橋渡しし、断片化された知識を読みやすいノートに整理することに専念するクロスプラットフォームの`Markdown`ノートアプリケーションです。
@@ -13,7 +11,7 @@ NoteGenは、AIを使用して記録と執筆を橋渡しし、断片化され�
 ## なぜNoteGenを選ぶのか？
 
 - 軽量：[インストールパッケージ](https://github.com/codexu/note-gen/releases)は**わずか20MB**、無料で広告やバンドルソフトウェアはありません。
-- クロスプラットフォーム：Mac、Windows、Linuxをサポートし、`Tauri2`のクロスプラットフォーム機能のおかげで、将来的にはiOSとAndroidもサポートします。
+- クロスプラットフォーム：Mac、Windows、Linuxをサポートし、`Tauri2`のクロスプラットフォーム機能のおかげで、IOS、Androidもサポートします。
 - `スクリーンショット`、`テキスト`、`イラスト`、`ファイル`、`リンク`など、さまざまな記録方法をサポートし、さまざまなシナリオでの断片化された記録ニーズに対応します。
 - ネイティブの`Markdown(.md)`をストレージ形式として使用し、修正を加えず、簡単に移行できます。
 - ネイティブのオフライン使用をサポートし、`GitHub、Giteeプライベートリポジトリ`へのリアルタイム同期と履歴のロールバック、WebDAV同期をサポートします。

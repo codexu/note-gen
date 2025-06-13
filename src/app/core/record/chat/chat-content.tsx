@@ -72,7 +72,7 @@ function MessageWrapper({ chat, children }: { chat: Chat, children: React.ReactN
   const index = chats.findIndex(item => item.id === chat.id)
   if (chat.role === 'system') {
     return <div className="flex w-full lg:gap-4">
-      <div className='hidden lg:flex items-center'>
+      <div className='hidden lg:flex'>
         {loading && index === chats.length - 1 && chat.type === 'chat' ?
           <LoaderPinwheel className="animate-spin" /> :
           chat.type === 'clipboard' ? <ClipboardCheck /> : <BotMessageSquare />

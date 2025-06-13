@@ -84,12 +84,12 @@ export default function Updater() {
       <div className="flex flex-col gap-4 w-full">
         <div className="flex flex-col lg:flex-row lg:justify-between w-full lg:items-center gap-4 lg:gap-0">
           <div className="flex items-center gap-4">
-            <div>
+            <div className="size-24">
               <Image src="/app-icon.png" alt="logo" className="size-24 dark:invert" width={0} height={0} />
             </div>
-            <div className="h-24 flex flex-col justify-between">
-              <span className="text-2xl font-bold flex items-center gap-2">NoteGen</span>
-              <span>
+            <div className="h-24 flex-1 flex flex-col justify-between">
+              <span className="text-xl lg:text-2xl font-bold flex items-center gap-2">NoteGen</span>
+              <span className='text-sm lg:text-base'>
                 {t('desc')}
               </span>
               <div className="flex items-center gap-2">

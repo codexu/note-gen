@@ -9,6 +9,7 @@ import { Languages } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Button } from "./ui/button";
+import { isMobileDevice } from "@/lib/check";
 
 export function LanguageSwitch() {
   const { currentLocale, changeLanguage } = useI18n();
@@ -17,25 +18,31 @@ export function LanguageSwitch() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton asChild className="md:h-8 md:p-0"
-          tooltip={{
-            children: t('language'),
-            hidden: false,
-          }}
-        >
-          <a href="#">
-            <div className="flex size-8 items-center justify-center rounded-lg">
-              <Button
-                variant="ghost"
-                size="sm" 
-              >
-                <Languages className="h-[1.2rem] w-[1.2rem]" />
-              </Button>
-            </div>
-          </a>
-        </SidebarMenuButton>
+        {
+          !isMobileDevice() ? 
+          <SidebarMenuButton asChild className="md:h-8 md:p-0"
+            tooltip={{
+              children: t('language'),
+              hidden: false,
+            }}
+          >
+            <a href="#">
+              <div className="flex size-8 items-center justify-center rounded-lg">
+                <Button
+                  variant="ghost"
+                  size="sm" 
+                >
+                  <Languages className="h-[1.2rem] w-[1.2rem]" />
+                </Button>
+              </div>
+            </a>
+          </SidebarMenuButton> : 
+          <Button variant="ghost" size="icon" onClick={() => changeLanguage("en")}>
+            <Languages className="h-[1.2rem] w-[1.2rem]" />
+          </Button>
+        }
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="right">
+      <DropdownMenuContent align={isMobileDevice() ? "end" : "start"} side={isMobileDevice() ? "right" : "bottom"}>
         <DropdownMenuItem onClick={() => changeLanguage("en")}>
           English {currentLocale === "en" && "✓"}
         </DropdownMenuItem>

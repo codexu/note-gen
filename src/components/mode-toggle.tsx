@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { isMobileDevice } from "@/lib/check";
 
 export function ModeToggle() {
   const t = useTranslations();
@@ -21,10 +22,12 @@ export function ModeToggle() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuButton asChild className="md:h-8 md:p-0"  
-          tooltip={{
-            children: t('common.theme'),
-            hidden: false,
+        {
+          !isMobileDevice() ? 
+          <SidebarMenuButton asChild className="md:h-8 md:p-0"  
+            tooltip={{
+              children: t('common.theme'),
+              hidden: false,
           }}
         >
           <a href="#">
@@ -38,6 +41,10 @@ export function ModeToggle() {
             </div>
           </a>
         </SidebarMenuButton>
+        : <Button variant="ghost" size="icon" onClick={() => setTheme("light")}>
+          <ThemeIcon theme={theme} />
+        </Button>
+        }
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="right">
         <DropdownMenuItem onClick={() => setTheme("light")}>

@@ -124,10 +124,6 @@ html, body {
   @apply rounded-full bg-border border-[1px] border-transparent border-solid bg-clip-padding;
 }
 
-.md-editor-code{
-  max-width: calc(100vw - 370px);
-}
-
 .md-editor-toolbar-wrapper, .md-editor-toolbar{
   @apply flex gap-0 px-1 overflow-hidden w-full;
 }

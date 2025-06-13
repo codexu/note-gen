@@ -7,7 +7,7 @@
         @apply text-sm mb-1 leading-6;
       }
       .md-editor-code{
-        @apply max-w-[calc(100vw-450px)]
+        @apply max-w-[calc(100vw-28px)] lg:max-w-[calc(100vw-450px)];
       }
     }
   }

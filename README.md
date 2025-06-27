@@ -1,3 +1,37 @@
+
+
+  
+<div align="right" >
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="right">
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=en">English</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=zh-CN">简体中文</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=zh-TW">繁體中文</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=ja">日本語</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=ko">한국어</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=hi">हिन्दी</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=th">ไทย</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=fr">Français</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=de">Deutsch</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=es">Español</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=it">Itapano</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=ru">Русский</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=pt">Português</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=nl">Nederlands</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=pl">Polski</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=ar">العربية</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=fa">فارسی</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=tr">Türkçe</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=vi">Tiếng Việt</a></p>
+        <p><a href="https://openaitx.github.io/view.html?user=codexu&project=note-gen&lang=id">Bahasa Indonesia</a></p>
+      </div>
+    </div>
+  </details>
+</div>
+
+
 # NoteGen
 
 ![](https://img.shields.io/badge/free-pricing?logo=free&color=%20%23155EEF&label=pricing&labelColor=%20%23528bff)

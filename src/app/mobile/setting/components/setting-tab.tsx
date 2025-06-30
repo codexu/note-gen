@@ -8,12 +8,13 @@ import { ChevronRight } from "lucide-react";
 export function SettingTab() {
   const router = useRouter()
   const t = useTranslations('settings')
+  const notMobilePages = ['about', 'file']
   
   // Add translations to the config
   const config = baseConfig.filter(item => typeof item !== 'string').map(item => ({
     ...item,
     title: t(`${item.anchor}.title`)
-  })).filter(item => item.anchor !== 'about')
+  })).filter(item => !notMobilePages.includes(item.anchor))
 
   function handleNavigation(anchor: string) {
     router.push(`/mobile/setting/pages/${anchor}`)

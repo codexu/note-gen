@@ -52,6 +52,10 @@
       "placeholder": "请选择或搜索模型",
       "mainModel": "主要模型",
       "options" : {
+        "primaryModel": {
+          "title": "主要模型",
+          "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。"
+        },
         "markDesc": {
           "title": "记录描述",
           "desc": "用于处理 OCR 识别后的记录，生成记录描述。"
@@ -215,6 +219,11 @@
       "title": "模型配置",
       "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",
       "modelTitle": "自定义名称",
+      "modelConfigTitle": "模型配置",
+      "modelConfigDesc": "每一个配置对应一个 AI 模型，你可以通过模板或自定义创建新的配置。",
+      "create": "创建新配置",
+      "createDesc": "选择空配置或使用供应商模板创建新的配置。",
+      "config": "配置单",
       "custom": "自定义",
       "addCustomModel": "自定义",
       "deleteCustomModel": "删除",
@@ -222,6 +231,7 @@
       "copyConfig": "复制",
       "builtin": "内置",
       "modelSupport": "仅支持 openai 协议的 AI 模型",
+      "apiKeyUrl": "创建 API Key",
       "modelType": {
         "title": "模型类型",
         "desc": "根据 AI 模型能力选择模型类型，用以调用不同的接口。",
@@ -239,13 +249,6 @@
         }
       },
       "selectModel": "请选择模型",
-      "providers": {
-        "chatgpt": "ChatGPT",
-        "gemini": "Gemini",
-        "ollama": "Ollama",
-        "lmstudio": "LM Studio",
-        "deepseek": "DeepSeek"
-      },
       "modelProviderDesc": "自定义模型仅支持 openai 协议的 AI 模型。",
       "modelTitleDesc": "自定义名称，用于标识 AI 模型，请勿重复。",
       "modelBaseUrlDesc": "你只需要配置到版本号即可，例如：https://api.openai.com/v1，后缀会自动添加。",
@@ -515,7 +518,8 @@
           "default": "你可以提问或将记录整理为文章...",
           "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
           "on": "AI 建议 (开启)",
-          "off": "AI 建议 (关闭)"
+          "off": "AI 建议 (关闭)",
+          "noPrimaryModel": "未配置主模型，无法使用 AI 对话功能..."
         },
         "translate": {
           "tooltip": "翻译",

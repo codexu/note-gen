@@ -18,7 +18,7 @@ import { useTranslations } from "next-intl";
 
 export default function Sync({editor}: {editor?: Vditor}) {
   const { currentArticle } = useArticleStore()
-  const { accessToken, giteeAccessToken, autoSync, giteeAutoSync, primaryBackupMethod, apiKey } = useSettingStore()
+  const { accessToken, giteeAccessToken, autoSync, giteeAutoSync, primaryBackupMethod, primaryModel } = useSettingStore()
   const [isLoading, setIsLoading] = useState(false)
   const syncTimeoutRef = useRef<number | null>(null)
   const t = useTranslations('article.footer.sync')
@@ -46,7 +46,7 @@ export default function Sync({editor}: {editor?: Vditor}) {
       let message = `Upload ${activeFilePath}`;
       
       // 如果有AI API Key，使用AI生成提交信息
-      if (apiKey) {
+      if (primaryModel) {
         let contentText = '';
         
         // 根据备份方式获取提交历史和内容

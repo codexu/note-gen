@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 
 export default function Polish({editor}: {editor?: Vditor}) {
   const { loading } = useArticleStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const t = useTranslations('article.editor.toolbar.polish')
   async function handler() {
     const button = (editor?.vditor.toolbar?.elements?.polish.childNodes[0] as HTMLButtonElement)
@@ -37,10 +37,10 @@ export default function Polish({editor}: {editor?: Vditor}) {
     return () => {
       emitter.off('toolbar-polish', handler)
     }
-  }, [])
+  }, [editor])
 
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<Sparkles />} tooltipText={t('tooltip')} onClick={handler}>
+    <TooltipButton disabled={loading || !primaryModel} icon={<Sparkles />} tooltipText={t('tooltip')} onClick={handler}>
     </TooltipButton>
   )
 }

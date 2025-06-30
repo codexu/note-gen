@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 export default function Question({editor}: {editor?: Vditor}) {
 
   const { currentArticle } = useArticleStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const t = useTranslations('article.editor.toolbar.question')
   
   async function handleBlock() {
@@ -47,9 +47,9 @@ export default function Question({editor}: {editor?: Vditor}) {
     return () => {
       emitter.off('toolbar-question', guardedHandler)
     }
-  }, [])
+  }, [editor])
   return (
-    <TooltipButton disabled={!apiKey} icon={<MessageCircleQuestion />} tooltipText={t('tooltip')} onClick={handleBlock}>
+    <TooltipButton disabled={!primaryModel} icon={<MessageCircleQuestion />} tooltipText={t('tooltip')} onClick={handleBlock}>
     </TooltipButton>
   )
 }

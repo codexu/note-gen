@@ -15,7 +15,7 @@ import { uploadImage } from "@/lib/imageHosting"
 export function ControlImage() {
   const t = useTranslations();
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { apiKey, githubUsername } = useSettingStore()
+  const { primaryModel, githubUsername } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
 
   async function selectImages() {
@@ -48,7 +48,7 @@ export function ControlImage() {
     const content = await ocr(`image/${filename}`)
     setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
     let desc = ''
-    if (apiKey) {
+    if (primaryModel) {
       desc = await fetchAiDesc(content).then(res => res ? res : content) || content
     } else {
       desc = content

@@ -17,7 +17,7 @@ import { useTranslations } from "next-intl";
 export default function MarkInsert({editor}: {editor?: Vditor}) {
   const [open, setOpen] = useState(false)
   const { loading, setLoading } = useArticleStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const { allMarks, queues, fetchAllMarks } = useMarkStore()
   const t = useTranslations('article.editor.toolbar.mark')
 
@@ -34,7 +34,7 @@ export default function MarkInsert({editor}: {editor?: Vditor}) {
         editor?.insertValue(`![${mark.desc}](${mark.url})`)
         break;
       default:
-        if (apiKey) {
+        if (primaryModel) {
           const req = `这是一段 OCR 识别的结果：${mark.content}进行整理，直接返回整理后的结果。`
           const res = await fetchAi(req)
           editor?.insertValue(res)
@@ -62,7 +62,7 @@ export default function MarkInsert({editor}: {editor?: Vditor}) {
         openChangeHandler(false)
       })
     }
-  }, [])
+  }, [editor])
 
   return (
     <Sheet open={open} onOpenChange={openChangeHandler}>

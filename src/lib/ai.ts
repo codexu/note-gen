@@ -1,7 +1,6 @@
 import { toast } from "@/hooks/use-toast";
 import { Store } from "@tauri-apps/plugin-store";
 import OpenAI from 'openai';
-import { GoogleGenAI } from "@google/genai";
 import { AiConfig } from "@/app/core/setting/config";
 import { fetch } from "@tauri-apps/plugin-http";
 
@@ -29,26 +28,15 @@ async function getPromptContent(): Promise<string> {
 /**
  * 获取AI设置
  */
-async function getAISettings() {
+async function getAISettings(modelType?: string): Promise<AiConfig | undefined> {
   const store = await Store.load('store.json')
-  const baseURL = await store.get<string>('baseURL')
-  const apiKey = await store.get<string>('apiKey')
-  const model = await store.get<string>('model') || 'gpt-3.5-turbo'
-  const aiType = await store.get<string>('aiType') || 'openai'
-  const temperature = await store.get<number>('temperature') || 0.7
-  const topP = await store.get<number>('topP') || 1
-  const chatLanguage = await store.get<string>('chatLanguage') || 'en'
-  const proxyUrl = await store.get<string>('proxy')
-  
-  return {
-    baseURL,
-    apiKey,
-    model,
-    aiType,
-    temperature,
-    topP,
-    chatLanguage,
-    proxyUrl
+  const aiConfigs = await store.get<AiConfig[]>('aiModelList')
+  const modelKey = await store.get(modelType || 'primaryModel')
+  if (!modelKey) {
+    const primaryModel = await store.get<string>('primaryModel')
+    return aiConfigs?.find(item => item.key === primaryModel)
+  } else {
+    return aiConfigs?.find(item => item.key === modelKey)
   }
 }
 
@@ -312,7 +300,7 @@ export async function rerankDocuments(
 /**
  * 为不同AI类型准备消息
  */
-async function prepareMessages(text: string, aiType: string, includeLanguage = false): Promise<{
+async function prepareMessages(text: string, includeLanguage = false): Promise<{
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   geminiText?: string
 }> {
@@ -326,32 +314,20 @@ async function prepareMessages(text: string, aiType: string, includeLanguage = f
   }
   
   // 定义消息数组
-  let messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
   let geminiText: string | undefined
   
-  // 根据不同AI类型构建请求
-  if (aiType === 'gemini') {
-    // 对于Gemini，我们将使用@google/genai库
-    const finalText = promptContent ? `${promptContent}\n\n${text}` : text
-    messages = [{
-      role: 'user', 
-      content: finalText
-    }]
-    geminiText = finalText
-  } else {
-    // OpenAI/Ollama 请求
-    if (promptContent) {
-      messages.push({
-        role: 'system',
-        content: promptContent
-      })
-    }
-    
+  if (promptContent) {
     messages.push({
-      role: 'user',
-      content: text
+      role: 'system',
+      content: promptContent
     })
   }
+  
+  messages.push({
+    role: 'user',
+    content: text
+  })
   
   return { messages, geminiText }
 }
@@ -359,7 +335,7 @@ async function prepareMessages(text: string, aiType: string, includeLanguage = f
 /**
  * 创建OpenAI客户端，适用于所有AI类型
  */
-async function createOpenAIClient(AiConfig?: AiConfig) {
+export async function createOpenAIClient(AiConfig?: AiConfig) {
   const store = await Store.load('store.json')
   let baseURL
   let apiKey
@@ -391,72 +367,30 @@ async function createOpenAIClient(AiConfig?: AiConfig) {
   })
 }
 
-// 创建Google Gemini客户端
-async function createGeminiClient(AiConfig?: AiConfig) {
-  let apiKey: string | undefined
-  const store = await Store.load('store.json')
-  if (AiConfig?.apiKey) {
-    apiKey = AiConfig.apiKey
-  } else {
-    apiKey = await store.get<string>('apiKey')
-  }
-  
-  // 创建Gemini客户端
-  return new GoogleGenAI({apiKey: apiKey || ''});
-}
-
-// 根据名称获取模型信息
-async function getModelInfo(name: string) {
-  const store = await Store.load('store.json')
-  const aiModelList = await store.get<AiConfig[]>('aiModelList')
-  if (!aiModelList) return
-  const modelConfig = aiModelList.find(item => item.key === name)
-  if (!modelConfig) return
-  return modelConfig
-}
-
 /**
  * 非流式方式获取AI结果
  */
 export async function fetchAi(text: string): Promise<string> {
   try {
     // 获取AI设置
-    const { baseURL, model, aiType, temperature, topP } = await getAISettings()
+    const aiConfig = await getAISettings()
     
     // 验证AI服务
-    if (validateAIService(baseURL) === null) return ''
+    if (validateAIService(aiConfig?.baseURL) === null) return ''
     
     // 准备消息
-    const { messages, geminiText } = await prepareMessages(text, aiType)
+    const { messages } = await prepareMessages(text)
+
+    const openai = await createOpenAIClient(aiConfig)
     
-    // 根据不同AI类型构建请求
-    if (aiType === 'gemini') {
-      // 创建Gemini客户端
-      const genAI = await createGeminiClient()
-      
-      const result = await genAI.models.generateContent({
-        model: model,
-        contents: {
-          parts: [{ text: geminiText || text }]
-        },
-        temperature: temperature,
-        topP: topP
-      })
-      
-      return result.text || ''
-    } else {
-      // OpenAI/Ollama请求
-      const openai = await createOpenAIClient()
-      
-      const completion = await openai.chat.completions.create({
-        model: model,
-        messages: messages,
-        temperature: temperature,
-        top_p: topP,
-      })
-      
-      return completion.choices[0].message.content || ''
-    }
+    const completion = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: messages,
+      temperature: aiConfig?.temperature || 1,
+      top_p: aiConfig?.topP || 1,
+    })
+    
+    return completion.choices[0].message.content || ''
   } catch (error) {
     return handleAIError(error) || ''
   }
@@ -471,73 +405,44 @@ export async function fetchAi(text: string): Promise<string> {
 export async function fetchAiStream(text: string, onUpdate: (content: string) => void, abortSignal?: AbortSignal): Promise<string> {
   try {
     // 获取AI设置
-    const { baseURL, model, aiType, temperature, topP } = await getAISettings()
+    const aiConfig = await getAISettings()
     
     // 验证AI服务
-    if (await validateAIService(baseURL) === null) return ''
+    if (await validateAIService(aiConfig?.baseURL) === null) return ''
     
     // 准备消息
-    const { messages, geminiText } = await prepareMessages(text, aiType, true)
+    const { messages } = await prepareMessages(text, true)
 
-    // 根据不同AI类型进行流式请求
-    if (aiType === 'gemini') {
-      // Gemini API流式请求使用@google/genai
-      const genAI = await createGeminiClient()
-      
-      let fullContent = ''
-      const response = await genAI.models.generateContentStream({
-        model: model,
-        contents: {
-          parts: [{ text: geminiText || text }]
-        },
-        temperature: temperature,
-        topP: topP
-      })
-      
-      for await (const chunk of response) {
-        if (abortSignal?.aborted) {
-          break;
-        }
-        
-        if (chunk.text) {
-          fullContent += chunk.text
-          onUpdate(fullContent)
-        }
+    const openai = await createOpenAIClient(aiConfig)
+    const stream = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: messages,
+      temperature: aiConfig?.temperature,
+      top_p: aiConfig?.topP,
+      stream: true,
+    })
+    
+    let thinking = ''
+    let fullContent = ''
+    
+    for await (const chunk of stream) {
+      if (abortSignal?.aborted) {
+        break;
       }
       
-      return fullContent
-    } else {
-      const openai = await createOpenAIClient()
-      const stream = await openai.chat.completions.create({
-        model: model,
-        messages: messages,
-        temperature: temperature,
-        top_p: topP,
-        stream: true,
-      })
-      
-      let thinking = ''
-      let fullContent = ''
-      
-      for await (const chunk of stream) {
-        if (abortSignal?.aborted) {
-          break;
-        }
-        
-        const thinkingContent = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
-        const content = chunk.choices[0]?.delta?.content || ''
-        if (thinkingContent) {
-          thinking += thinkingContent
-          fullContent = `<thinking>${thinking}<thinking>`
-        }
-        if (content) {
-          fullContent += content
-        }
-        onUpdate(fullContent)
+      const thinkingContent = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
+      const content = chunk.choices[0]?.delta?.content || ''
+      if (thinkingContent) {
+        thinking += thinkingContent
+        fullContent = `<thinking>${thinking}<thinking>`
       }
-      
-      return fullContent
+      if (content) {
+        fullContent += content
+      }
+      onUpdate(fullContent)
     }
+    
+    return fullContent
   } catch (error) {
     return handleAIError(error) || ''
   }
@@ -551,54 +456,31 @@ export async function fetchAiStream(text: string, onUpdate: (content: string) =>
 export async function fetchAiStreamToken(text: string, onUpdate: (content: string) => void): Promise<string> {
   try {
     // 获取AI设置
-    const { baseURL, model, aiType, temperature, topP } = await getAISettings()
+    const aiConfig = await getAISettings()
     
     // 验证AI服务
-    if (await validateAIService(baseURL) === null) return ''
+    if (await validateAIService(aiConfig?.baseURL) === null) return ''
     
     // 准备消息
-    const { messages, geminiText } = await prepareMessages(text, aiType, true)
+    const { messages } = await prepareMessages(text, true)
+  
+    const openai = await createOpenAIClient(aiConfig)
+    const stream = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: messages,
+      temperature: aiConfig?.temperature,
+      top_p: aiConfig?.topP,
+      stream: true,
+    })
     
-    // 根据不同AI类型进行流式请求
-    if (aiType === 'gemini') {
-      // Gemini API流式请求使用@google/genai
-      const genAI = await createGeminiClient()
-      
-      const streamingResult = await genAI.models.generateContentStream({
-        model: model,
-        contents: {
-          parts: [{ text: geminiText || text }]
-        },
-        temperature: temperature,
-        topP: topP
-      })
-      
-      for await (const chunk of streamingResult) {
-        if (chunk.text) {
-          onUpdate(chunk.text)
-        }
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || ''
+      if (content) {
+        onUpdate(content)
       }
-      
-      return ''
-    } else {
-      const openai = await createOpenAIClient()
-      const stream = await openai.chat.completions.create({
-        model: model,
-        messages: messages,
-        temperature: temperature,
-        top_p: topP,
-        stream: true,
-      })
-      
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || ''
-        if (content) {
-          onUpdate(content)
-        }
-      }
-      
-      return ''
     }
+    
+    return ''
   } catch (error) {
     return handleAIError(error) || ''
   }
@@ -608,50 +490,24 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
 export async function fetchAiDesc(text: string) {
   try {
     // 获取AI设置
-    const { model, temperature, topP } = await getAISettings()
+    const aiConfig = await getAISettings('markDescPrimaryModel')
     
-    const descContent = `
-      根据截图的内容：${text}，返回一条描述，不要超过50字，不要包含特殊字符。
-    `
+    const descContent = `根据截图的内容：${text}，返回一条描述，不要超过50字，不要包含特殊字符。`
     
-    const store = await Store.load('store.json');
-    const markDescModel = await store.get<string>('markDescModel')
-
-    const modelInfo = await getModelInfo(markDescModel || '')
-
-    // 根据不同AI类型构建请求
-    if (modelInfo?.key === 'gemini') {
-      // 创建 Gemini 客户端
-      const genAI = await createGeminiClient(modelInfo)
-      
-      // 使用 Gemini API
-      const result = await genAI.models.generateContent({
-        model: modelInfo?.model || model,
-        contents: {
-          parts: [{ text: descContent }]
-        },
-        temperature: temperature,
-        topP: modelInfo?.topP || topP
-      })
-      
-      // 获取响应文本
-      return result.candidates?.[0]?.content?.parts?.[0]?.text || ''      
-    } else {
-      const openai = await createOpenAIClient(modelInfo)
-      const completion = await openai.chat.completions.create({
-        model: modelInfo?.model || model,
-        messages: [{
-          role: 'user' as const,
-          content: descContent
-        }],
-        temperature: temperature,
-        top_p: topP,
-      })
-      
-      return completion.choices[0].message.content || ''
-    }
+    const openai = await createOpenAIClient(aiConfig)
+    const completion = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: [{
+        role: 'user' as const,
+        content: descContent
+      }],
+      temperature: aiConfig?.temperature || 1,
+      top_p: aiConfig?.topP || 1,
+    })
+    
+    return completion.choices[0].message.content || ''
   } catch (error) {
-    await handleAIError(error, false)
+    handleAIError(error, false)
     return null
   }
 }
@@ -660,46 +516,26 @@ export async function fetchAiDesc(text: string) {
 export async function fetchAiPlaceholder(text: string): Promise<string> {
   try {
     // 获取AI设置
-    const { model, temperature, topP } = await getAISettings()
-    
+    const aiConfig = await getAISettings('placeholderPrimaryModel')
+
     // 构建 placeholder 提示词
     const placeholderPrompt = `Generate a placeholder for the following text: ${text}`
-    
-    const store = await Store.load('store.json');
-    const placeholderModel = await store.get<string>('placeholderModel')
-
-    const modelInfo = await getModelInfo(placeholderModel || '')
 
     // 准备消息
-    const { messages, geminiText } = await prepareMessages(`${placeholderPrompt}\n\n${text}`, modelInfo?.key || 'openai', false)
+    const { messages } = await prepareMessages(`${placeholderPrompt}\n\n${text}`, false)
     
-    // 根据不同AI类型构建请求
-    if (modelInfo?.key === 'gemini') {
-      // 创建Gemini客户端
-      const genAI = await createGeminiClient(modelInfo)
+    const openai = await createOpenAIClient(aiConfig)
       
-      const result = await genAI.models.generateContent({
-        model: modelInfo?.model || model,
-        contents: {
-          parts: [{ text: geminiText || `${placeholderPrompt}\n\n${text}` }]
-        },
-        temperature: temperature,
-        topP: modelInfo?.topP || topP
-      })
-      
-      return result.text || ''
-    } else {
-      const openai = await createOpenAIClient(modelInfo)
-      
-      const completion = await openai.chat.completions.create({
-        model: modelInfo?.model || model,
-        messages: messages,
-        temperature: temperature,
-        top_p: modelInfo?.topP || topP
-      })
-      
-      return completion.choices[0]?.message?.content || ''
-    }
+    const completion = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: messages,
+      temperature: aiConfig?.temperature || 1,
+      top_p: aiConfig?.topP || 1,
+    })
+
+    const result = completion.choices[0]?.message?.content || ''
+    // 去掉所有换行符和各种特殊符号
+    return result.replace(/\n/g, '').replace(/\s/g, '')
   } catch (error) {
     return handleAIError(error) || ''
   }
@@ -709,46 +545,23 @@ export async function fetchAiPlaceholder(text: string): Promise<string> {
 export async function fetchAiTranslate(text: string, targetLanguage: string): Promise<string> {
   try {
     // 获取AI设置
-    const { model, temperature, topP } = await getAISettings()
+    const aiConfig = await getAISettings('translatePrimaryModel')
     
     // 构建翻译提示词
     const translationPrompt = `Translate the following text to ${targetLanguage}. Maintain the original formatting, markdown syntax, and structure:`
     
-    const store = await Store.load('store.json');
-    const translateModel = await store.get<string>('translateModel')
-
-    const modelInfo = await getModelInfo(translateModel || '')
-
     // 准备消息
-    const { messages, geminiText } = await prepareMessages(`${translationPrompt}\n\n${text}`, modelInfo?.key || 'openai', false)
+    const { messages } = await prepareMessages(`${translationPrompt}\n\n${text}`, false)
+    const openai = await createOpenAIClient(aiConfig)
     
-    // 根据不同AI类型构建请求
-    if (modelInfo?.key === 'gemini') {
-      // 创建Gemini客户端
-      const genAI = await createGeminiClient(modelInfo)
-      
-      const result = await genAI.models.generateContent({
-        model: modelInfo?.model || model,
-        contents: {
-          parts: [{ text: geminiText || `${translationPrompt}\n\n${text}` }]
-        },
-        temperature: temperature,
-        topP: modelInfo?.topP || topP
-      })
-      
-      return result.text || ''
-    } else {
-      const openai = await createOpenAIClient(modelInfo)
-      
-      const completion = await openai.chat.completions.create({
-        model: modelInfo?.model || model,
-        messages: messages,
-        temperature: temperature,
-        top_p: modelInfo?.topP || topP
-      })
-      
-      return completion.choices[0]?.message?.content || ''
-    }
+    const completion = await openai.chat.completions.create({
+      model: aiConfig?.model || '',
+      messages: messages,
+      temperature: aiConfig?.temperature || 1,
+      top_p: aiConfig?.topP || 1,
+    })
+    
+    return completion.choices[0]?.message?.content || ''
   } catch (error) {
     return handleAIError(error) || ''
   }
@@ -757,16 +570,16 @@ export async function fetchAiTranslate(text: string, targetLanguage: string): Pr
 export async function checkAiStatus() {
   try {
     // 获取AI设置
-    const { baseURL, model, aiType } = await getAISettings()
+    const aiConfig = await getAISettings()
     
-    if (!baseURL || !aiType) return false
+    if (!aiConfig?.baseURL || !aiConfig?.model) return false
     
     // 获取模型配置信息
     const store = await Store.load('store.json');
     const aiModelList = await store.get<AiConfig[]>('aiModelList');
     if (!aiModelList) return false;
     
-    const modelConfig = aiModelList.find(item => item.key === aiType);
+    const modelConfig = aiModelList.find(item => item.key === aiConfig?.model);
     if (!modelConfig) return false;
     // 根据模型类型选择测试方法
     if (modelConfig.modelType === 'rerank') {
@@ -778,14 +591,14 @@ export async function checkAiStatus() {
       ];
       
       // 发送重排序测试请求
-      const response = await fetch(baseURL + '/rerank', {
+      const response = await fetch(aiConfig?.baseURL + '/rerank', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${modelConfig.apiKey}`
         },
         body: JSON.stringify({
-          model: model,
+          model: aiConfig?.model,
           query: testQuery,
           documents: testDocuments
         })
@@ -807,28 +620,14 @@ export async function checkAiStatus() {
         throw new Error('嵌入模型测试失败');
       }
     } else {
-      // 对话模型测试 (!modelConfig.modelType || modelConfig.modelType === 'chat')
-      if (aiType === 'gemini') {
-        // Gemini - 使用@google/genai
-        const genAI = await createGeminiClient()
-        
-        await genAI.models.generateContent({
-          model: model,
-          contents: {
-            parts: [{ text: 'Hello' }]
-          }
-        })
-      } else {
-        // OpenAI/Ollama
-        const openai = await createOpenAIClient()
-        await openai.chat.completions.create({
-          model,
-          messages: [{
-            role: 'user' as const,
-            content: 'Hello'
-          }],
-        })
-      }
+      const openai = await createOpenAIClient()
+      await openai.chat.completions.create({
+        model: aiConfig?.model,
+        messages: [{
+          role: 'user' as const,
+          content: 'Hello'
+        }],
+      })
     }
     
     return true
@@ -836,26 +635,5 @@ export async function checkAiStatus() {
     // 捕获错误但不处理
     console.error('AI 状态检查失败:', error);
     return false
-  }
-}
-
-export async function getModels() {
-  try {
-    // 获取AI设置
-    const { baseURL, aiType } = await getAISettings()
-    
-    if (!baseURL || !aiType) return []
-    
-    if (aiType === 'gemini') {
-      return []
-    } else {
-      // OpenAI/Ollama模型列表
-      const openai = await createOpenAIClient()
-      const models = await openai.models.list()
-      const uniqueModels = models.data.filter((model, index) => models.data.findIndex(m => m.id === model.id) === index)
-      return uniqueModels
-    }
-  } catch {
-    return []
   }
 }

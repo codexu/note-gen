@@ -24,7 +24,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
   const [countdown, setCountdown] = useState(5) // 5 seconds countdown
   const [isCountingDown, setIsCountingDown] = useState(!chat.inserted) // Start countdown if not recorded
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { apiKey, githubUsername } = useSettingStore()
+  const { primaryModel, githubUsername } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
   const { updateInsert, deleteChat } = useChatStore()
   const t = useTranslations('record.queue')
@@ -78,7 +78,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     setQueue(queueId, { progress: t('ocr') });
     const content = await ocr(toPath)
     let desc = ''
-    if (apiKey) {
+    if (primaryModel) {
       setQueue(queueId, { progress: t('ai') });
       desc = await fetchAiDesc(content).then(res => res ? res : content)
     } else {

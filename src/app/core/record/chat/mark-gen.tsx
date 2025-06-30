@@ -35,7 +35,7 @@ interface MarkGenProps {
 
 export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inputValue }, ref) => {
   const [open, setOpen] = useState(false)
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
   const { insert, loading, setLoading, saveChat, locale } = useChatStore()
   const { fetchMarks, marks } = useMarkStore()
@@ -90,7 +90,7 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
 
   async function handleGen() {
     setOpen(false)
-    if (!apiKey) return
+    if (!primaryModel) return
     setLoading(true)
     const message = await insert({
       tagId: currentTagId,
@@ -219,7 +219,7 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
   return (
     <AlertDialog onOpenChange={openGen} open={open}>
       <AlertDialogTrigger className="relative" asChild>
-        <TooltipButton size="sm" variant={"default"} icon={<NotebookPen />} disabled={loading || !apiKey} tooltipText="整理" />
+        <TooltipButton size="sm" variant={"default"} icon={<NotebookPen />} disabled={loading || !primaryModel} tooltipText="整理" />
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

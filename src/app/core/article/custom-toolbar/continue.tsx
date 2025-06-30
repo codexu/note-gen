@@ -8,8 +8,10 @@ export default function Continue({editor}: {editor?: Vditor}) {
   const t = useTranslations('article.editor.toolbar.continue')
 
   async function handler() {
-    const button = (editor?.vditor.toolbar?.elements?.continue.childNodes[0] as HTMLButtonElement)
-    button.classList.add('vditor-menu--disabled')
+    const button = editor?.vditor.toolbar?.elements?.continue?.childNodes[0] as HTMLButtonElement
+    if (button) {
+      button.classList.add('vditor-menu--disabled')
+    }
     const content = editor?.getValue()
     editor?.focus()
     if (!content) return
@@ -24,7 +26,9 @@ export default function Continue({editor}: {editor?: Vditor}) {
     await fetchAiStreamToken(req, (text) => {
       editor?.insertValue(text)
     })
-    button.classList.remove('vditor-menu--disabled')
+    if (button) {
+      button.classList.remove('vditor-menu--disabled')
+    }
   }
 
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function Continue({editor}: {editor?: Vditor}) {
     return () => {
       emitter.off('toolbar-continue', handler)
     }
-  }, [])
+  }, [editor])
 
   return (
     <></>

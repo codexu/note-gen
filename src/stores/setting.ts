@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
+import { AiConfig } from '@/app/core/setting/config'
 
 export enum GenTemplateRange {
   All = '全部',
@@ -31,21 +32,15 @@ interface SettingState {
   language: string
   setLanguage: (language: string) => void
 
-  aiType: string
-  setAiType: (aiType: string) => void
+  // setting - ai - 当前选择的模型 key
+  currentAi: string
+  setCurrentAi: (currentAi: string) => void
 
-  // Ai title 与设置中Model Provider的下拉名称保持一致
-  aiTitle: string
-  setAiTitle: (aiTitle: string) => void
+  aiModelList: AiConfig[]
+  setAiModelList: (aiModelList: AiConfig[]) => void
 
-  baseURL: string
-  setBaseURL: (baseURL: string) => void
-
-  apiKey: string
-  setApiKey: (apiKey: string) => void
-
-  model: string
-  setModel: (language: string) => void
+  primaryModel: string
+  setPrimaryModel: (primaryModel: string) => void
 
   placeholderModel: string
   setPlaceholderModel: (placeholderModel: string) => Promise<void>
@@ -154,20 +149,14 @@ const useSettingStore = create<SettingState>((set, get) => ({
   language: '简体中文',
   setLanguage: (language) => set({ language }),
 
-  aiType: 'chatgpt',
-  setAiType: (aiType) => set({ aiType }),
+  currentAi: '',
+  setCurrentAi: (currentAi) => set({ currentAi }),
 
-  baseURL: '',
-  setBaseURL: (baseURL) => set({ baseURL }),
+  aiModelList: [],
+  setAiModelList: (aiModelList) => set({ aiModelList }),
 
-  apiKey: '',
-  setApiKey: (apiKey) => set({ apiKey }),
-
-  aiTitle: '',
-  setAiTitle: (aiTitle) => set({ aiTitle }),
-
-  model: '',
-  setModel: (model) => set({ model }),
+  primaryModel: '',
+  setPrimaryModel: (primaryModel) => set({ primaryModel }),
 
   placeholderModel: '',
   setPlaceholderModel: async (placeholderModel) => {

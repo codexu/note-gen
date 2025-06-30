@@ -24,7 +24,7 @@ export function Clipboard() {
   const [image, setImage] = useState('')
   const [fileSize, setFileSize] = useState('')
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { apiKey, githubUsername } = useSettingStore()
+  const { primaryModel, githubUsername } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
 
   async function readHandler() {
@@ -67,7 +67,7 @@ export function Clipboard() {
     setQueue(queueId, { progress: t('record.mark.progress.ocr') });
     const content = await ocr(`image/${queueId}.png`)
     let desc = ''
-    if (apiKey) {
+    if (primaryModel) {
       setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
       desc = await fetchAiDesc(content).then(res => res ? res : content)
     } else {

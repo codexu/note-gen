@@ -1,5 +1,5 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { fetchAi } from "@/lib/ai";
+import { fetchAiTranslate } from "@/lib/ai";
 import { useEffect, useState } from "react";
 import emitter from "@/lib/emitter";
 import { Languages } from "lucide-react";
@@ -14,7 +14,7 @@ import { useTranslations } from "next-intl";
 export default function Translation({editor}: {editor?: Vditor}) {
   const [open, setOpen] = useState(false)
   const { loading, setLoading } = useArticleStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const [selectedText, setSelectedText] = useState('')
   const [range, setRange] = useState<Range | null>(null)
   const [offsetTop, setOffsetTop] = useState(0)
@@ -40,11 +40,7 @@ export default function Translation({editor}: {editor?: Vditor}) {
     if (selectedText) {
       setLoading(true)
       editor?.blur()
-      const req = t('promptTemplate', {
-        content: selectedText,
-        language: locale
-      })
-      const res = await fetchAi(req)
+      const res = await fetchAiTranslate(selectedText, locale)
       setLoading(false)
       if (range) {
         const selection = document.getSelection()
@@ -72,13 +68,13 @@ export default function Translation({editor}: {editor?: Vditor}) {
         openHander(false)
       })
     }
-  }, [])
+  }, [editor])
 
   return (
     <DropdownMenu open={open} onOpenChange={openHander}>
-      <DropdownMenuTrigger asChild className="outline-none" disabled={loading || !apiKey}>
+      <DropdownMenuTrigger asChild className="outline-none" disabled={loading || !primaryModel}>
         <div>
-          <TooltipButton tooltipText={t('tooltip')} icon={<Languages />} disabled={loading || !apiKey} />
+          <TooltipButton tooltipText={t('tooltip')} icon={<Languages />} disabled={loading || !primaryModel} />
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56 fixed" style={{ top: offsetTop + 32, left: offsetLeft }}>

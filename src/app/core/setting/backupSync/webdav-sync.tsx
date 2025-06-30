@@ -83,7 +83,7 @@ export default function WebdavSync() {
                 </CardTitle>
                 <CardDescription>{t('description')}</CardDescription>
               </CardHeader>
-              <CardContent className="flex gap-4">
+              <CardContent className="flex flex-col lg:flex-row gap-4">
                 <Button 
                   onClick={handleBackupToWebDAV} 
                   variant="outline" 

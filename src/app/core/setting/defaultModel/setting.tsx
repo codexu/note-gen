@@ -1,13 +1,16 @@
 import { FormItem, SettingRow, SettingType } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "./model-select";
-import useSettingStore from "@/stores/setting";
 
 export function Setting({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations('settings.defaultModel');
-  const { model, aiType } = useSettingStore()
 
   const options = [
+    {
+      title: t('options.primaryModel.title'),
+      desc: t('options.primaryModel.desc'),
+      modelKey: 'primaryModel'
+    },
     {
       title: t('options.markDesc.title'),
       desc: t('options.markDesc.desc'),
@@ -37,11 +40,6 @@ export function Setting({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
     <SettingType id={id} icon={icon} title={t('title')} desc={t('desc')}>
-      <SettingRow>
-        <FormItem title={t('mainModel')}>
-          <p>{`${model}(${aiType})`}</p>
-        </FormItem>
-      </SettingRow>
       {options.map((option) => (
         <SettingRow key={option.modelKey}>
           <FormItem title={option.title} desc={option.desc}>

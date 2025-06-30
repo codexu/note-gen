@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 
 export default function Eraser({editor}: {editor?: Vditor}) {
   const { loading, setLoading } = useArticleStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const t = useTranslations('article.editor.toolbar.eraser')
   async function handleBlock() {
     const selectedText = editor?.getSelection()
@@ -28,7 +28,7 @@ export default function Eraser({editor}: {editor?: Vditor}) {
     }
   }
   return (
-    <TooltipButton disabled={loading || !apiKey} icon={<EraserIcon />} tooltipText={t('tooltip')} onClick={handleBlock}>
+    <TooltipButton disabled={loading || !primaryModel} icon={<EraserIcon />} tooltipText={t('tooltip')} onClick={handleBlock}>
     </TooltipButton>
   )
 }

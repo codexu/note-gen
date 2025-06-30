@@ -72,6 +72,10 @@
       "placeholder": "Please select or search for models",
       "main": "Main model",
       "options" : {
+        "primaryModel": {
+          "title": "Main model",
+          "desc": "As the main model for all scenarios, this model is used if other dialogue models do not select the default model."
+        },
         "markDesc": {
           "title": "Record Description",
           "desc": "Used to process records after OCR recognition, generating record descriptions."
@@ -217,6 +221,11 @@
       "title": "Model Management",
       "desc": "Here, you can add and manage various custom model services. After configuration, you will unlock AI-related features, such as organization and conversation functions.",
       "modelTitle": "Custom Name",
+      "modelConfigTitle": "Model Config",
+      "modelConfigDesc": "Every configuration corresponds to an AI model, you can create new configurations through templates or custom.",
+      "create": "Create",
+      "createDesc": "Select an empty configuration or create a new configuration using the supplier template.",
+      "config": "Config",
       "custom": "Custom",
       "addCustomModel": "Custom",
       "deleteCustomModel": "Delete",
@@ -224,6 +233,7 @@
       "copyConfig": "Copy",
       "builtin": "Built-in",
       "modelSupport": "Only supports AI models with OpenAI protocol",
+      "apiKeyUrl": "Create API Key",
       "modelType": {
         "title": "Model Type",
         "desc": "Select the type of AI model based on its capability",
@@ -241,18 +251,6 @@
         }
       },
       "selectModel": "Please select a model",
-      "providers": {
-        "chatgpt": "ChatGPT",
-        "gemini": "Gemini",
-        "chatanywhere": "ChatAnyWhere",
-        "ollama": "Ollama",
-        "lmstudio": "LM Studio",
-        "volcengine": "VolcEngine",
-        "aliyun": "TongYi QianWen",
-        "moonshot": "Kimi",
-        "deepseek": "DeepSeek",
-        "tongyi": "Tongyi Qianwen"
-      },
       "modelProviderDesc": "Custom models only support AI models with OpenAI protocol.",
       "modelTitleDesc": "Custom name, used to identify AI models, please do not repeat.",
       "modelBaseUrlDesc": "You only need to configure the version number, for example: https://api.openai.com/v1, the suffix will be automatically added.",
@@ -548,7 +546,8 @@
           "default": "Type a message...",
           "noApiKey": "No API Key configured, can't use AI chat...",
           "on": "AI suggestions on",
-          "off": "AI suggestions off"
+          "off": "AI suggestions off",
+          "noPrimaryModel": "No primary model configured, can't use AI chat..."
         },
         "translate": {
           "tooltip": "Translate",

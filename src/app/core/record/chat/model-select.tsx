@@ -26,7 +26,7 @@ import { TooltipButton } from "@/components/tooltip-button"
 
 export function ModelSelect() {
   const [list, setList] = useState<AiConfig[]>([])
-  const { aiType, setAiType, setAiTitle, setModel, setApiKey, setBaseURL } = useSettingStore()
+  const { primaryModel, setPrimaryModel } = useSettingStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
 
@@ -40,25 +40,16 @@ export function ModelSelect() {
     setList(filteredModels)
   }
 
-  async function modelSelectChangeHandler(e: string) {
-    setAiType(e)
+  async function modelSelectChangeHandler(key: string) {
+    setPrimaryModel(key)
     const store = await Store.load('store.json');
-    store.set('aiType', e)
-    const model = list.find(item => item.key === e)
-    if (!model) return
-    store.set('model', model.model)
-    setModel(model.model || '')
-    store.set('apiKey', model.apiKey)
-    setApiKey(model.apiKey || '')
-    store.set('baseURL', model.baseURL)
-    setBaseURL(model.baseURL || '')
-    store.set('aiTitle', model.title || '')
-    setAiTitle(model.title || '')
+    store.set('primaryModel', key)
   }
 
   useEffect(() => {
     initModelList()
   }, [])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -89,7 +80,7 @@ export function ModelSelect() {
                   <Check
                     className={cn(
                       "ml-auto",
-                      aiType === item.key ? "opacity-100" : "opacity-0"
+                      primaryModel === item.key ? "opacity-100" : "opacity-0"
                     )}
                   />
                 </CommandItem>

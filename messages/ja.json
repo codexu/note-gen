@@ -52,6 +52,10 @@
       "placeholder": "モデルを選択または検索してください",
       "main": "メインモデル",
       "options" : {
+        "primaryModel": {
+          "title": "メインモデル",
+          "desc": "すべてのシーンのメインモデルとして、他の会話モデルがデフォルトモデルを選択していない場合、このモデルを使用します。"
+        },
         "markDesc": {
           "title": "記録の説明",
           "desc": "OCR認識後の記録を処理し、記録の説明を生成します。"
@@ -215,6 +219,11 @@
       "title": "モデル管理",
       "desc": "ここでさまざまなカスタムモデルサービスを追加・管理できます。設定後、整理や会話などAI機能が有効になります。",
       "modelTitle": "カスタム名",
+      "modelConfigTitle": "モデル配置",
+      "modelConfigDesc": "それぞれの構成はAIモデルに対応しており、テンプレートやカスタムで新しい構成を作成することができます。",
+      "create": "作成",
+      "createDesc": "空の設定を選択するか、供給元のテンプレートを使用して新しい設定を作成します。",
+      "config": "配置单",
       "custom": "自定義",
       "addCustomModel": "自定義",
       "deleteCustomModel": "削除",
@@ -222,6 +231,7 @@
       "copyConfig": "コピー",
       "builtin": "内蔵",
       "modelSupport": "OpenAIプロトコル対応のAIモデルのみサポート",
+      "apiKeyUrl": "Create API Key",
       "modelType": {
         "title": "モデルタイプ",
         "desc": "能力に基づいてAIモデルのタイプを選択します",
@@ -239,13 +249,6 @@
         }
       },
       "selectModel": "モデルを選択してください",
-      "providers": {
-        "chatgpt": "ChatGPT",
-        "gemini": "Gemini",
-        "ollama": "Ollama",
-        "lmstudio": "LM Studio",
-        "deepseek": "DeepSeek"
-      },
       "modelProviderDesc": "自定義モデルOpenAIプロトコル対応のAIモデルのみサポート。",
       "modelTitleDesc": "カスタム名、用于标识 AI 模型，请勿重复。",
       "modelBaseUrlDesc": "バージョン番号まで設定すればOKです（例：https://api.openai.com/v1）。サフィックスは自動で追加されます。",
@@ -513,7 +516,8 @@
           "default": "メッセージを入力...",
           "noApiKey": "無 API KEY 設定、AI 話題できません...",
           "on": "AIサジェスト有効",
-          "off": "AIサジェスト無効"
+          "off": "AIサジェスト無効",
+          "noPrimaryModel": "無主模型設定、AI 話題できません..."
         },
         "translate": {
           "tooltip": "翻訳",

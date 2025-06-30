@@ -31,7 +31,7 @@ import useVectorStore from "@/stores/vector"
 
 export function ChatInput() {
   const [text, setText] = useState("")
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
   const { insert, loading, setLoading, saveChat, chats, isPlaceholderEnabled } = useChatStore()
   const { fetchMarks, marks, trashState } = useMarkStore()
@@ -179,7 +179,7 @@ ${ragContext}
   // 获取输入框占位符
   async function genInputPlaceholder() {
     setPlaceholder('...')
-    if (!apiKey) return
+    if (!primaryModel) return
     if (trashState) return
     // 检查是否启用了AI占位符功能
     if (!isPlaceholderEnabled) {
@@ -231,8 +231,8 @@ ${ragContext}
   }
 
   useEffect(() => {
-    if (!apiKey) {
-      setPlaceholder(t('record.chat.input.placeholder.noApiKey'))
+    if (!primaryModel) {
+      setPlaceholder(t('record.chat.input.placeholder.noPrimaryModel'))
       return
     }
     if (marks.length === 0) {
@@ -244,7 +244,7 @@ ${ragContext}
       return
     }
     genInputPlaceholder()
-  }, [apiKey, marks, isLinkMark, isPlaceholderEnabled, t])
+  }, [primaryModel, marks, isLinkMark, isPlaceholderEnabled, t])
 
   useEffect(() => {
     if (!isPlaceholderEnabled) {
@@ -267,7 +267,7 @@ ${ragContext}
         <Textarea
           className="flex-1 p-2 relative border-none text-xs placeholder:text-xs lg:placeholder:text-sm lg:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
           rows={1}
-          disabled={!apiKey || loading}
+          disabled={!primaryModel || loading}
           value={text}
           onChange={(e) => {
             setText(e.target.value)
@@ -331,7 +331,7 @@ ${ragContext}
                   variant={"default"}
                   size="sm"
                   icon={<Send className="size-4" />} 
-                  disabled={!apiKey} 
+                  disabled={!primaryModel} 
                   tooltipText={t('record.chat.input.send')} 
                   onClick={handleSubmit} 
                 />

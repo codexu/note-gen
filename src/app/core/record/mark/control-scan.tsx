@@ -40,7 +40,7 @@ export function ControlScan() {
   const cropperRef = useRef<Cropper | null>(null);
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
-  const { apiKey } = useSettingStore()
+  const { primaryModel } = useSettingStore()
 
   function initCropper() {
     if (cropperRef.current) {
@@ -96,7 +96,7 @@ export function ControlScan() {
       addQueue({ queueId, progress: t('record.mark.progress.ocr'), type: 'scan', startTime: Date.now() })
       const content = await ocr(`screenshot/${queueId}.png`)
       let desc = ''
-      if (apiKey) {
+      if (primaryModel) {
         setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
         desc = await fetchAiDesc(content).then(res => res ? res : content) || content
       } else {

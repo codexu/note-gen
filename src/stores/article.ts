@@ -10,6 +10,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
+import { getFileHandler } from '@/lib/fileHandlers'
 
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
@@ -69,7 +70,7 @@ interface NoteState {
   toggleAllFolders: () => Promise<void>
   clearCollapsibleList: () => Promise<void>
 
-  currentArticle: string
+  currentArticle: any
   readArticle: (path: string, sha?: string, isLocale?: boolean) => Promise<void>
   setCurrentArticle: (content: string) => void
   saveCurrentArticle: (content: string) => Promise<void>
@@ -672,6 +673,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
   currentArticle: '',
   readArticle: async (path: string, sha?: string, isLocale = true) => {
     get().setLoading(true)
+    const handler = getFileHandler(path)
+    if (!handler) {
+      console.error(`No file handler found for path: ${path}`)
+      get().setLoading(false)
+      return
+    }
+
     if (isLocale) {
       try {
         const workspace = await getWorkspacePath()
@@ -682,7 +690,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         } else {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
-        set({ currentArticle: content })
+        set({ currentArticle: handler.load(content) })
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (_) {
         try {
@@ -696,7 +704,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
           } else {
             content = giteeDecodeBase64ToString(await getGiteeFiles({ path, repo: RepoNames.sync }))
           }
-          set({ currentArticle: content })
+          set({ currentArticle: handler.load(content) })
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (_) {
           // 文件既不在本地也不在远程
@@ -709,10 +717,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
       let res;
       if (primaryBackupMethod === 'github') {
         res = await getGithubFiles({ path, repo: RepoNames.sync })
-        set({ currentArticle: decodeBase64ToString(res.content) })
+        set({ currentArticle: handler.load(decodeBase64ToString(res.content)) })
       } else {
         res = await getGiteeFiles({ path, repo: RepoNames.sync })
-        set({ currentArticle: giteeDecodeBase64ToString(res.content) })
+        set({ currentArticle: handler.load(giteeDecodeBase64ToString(res.content)) })
       }
     }
     get().setLoading(false)
@@ -725,7 +733,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (content) {
       const path = get().activeFilePath
       const workspace = await getWorkspacePath()
-      
+      const handler = getFileHandler(path)
+      if (!handler) {
+        console.error(`No file handler found for path: ${path}`)
+        return
+      }
+
       // 检查文件是否存在（根据是否是自定义工作区）
       let isLocale = false
       const pathOptions = await getFilePathOptions(path)
@@ -762,9 +775,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       
       // 保存文件内容
       if (workspace.isCustom) {
-        await writeTextFile(pathOptions.path, content)
+        await writeTextFile(pathOptions.path, handler.save(content))
       } else {
-        await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+        await writeTextFile(pathOptions.path, handler.save(content), { baseDir: pathOptions.baseDir })
       }
       
       // 更新缓存树
@@ -778,7 +791,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
       
       // 如果文件是Markdown文件，且向量数据库已启用，则更新向量
-      if (path.endsWith('.md')) {
+      if (handler.type === 'markdown') {
         try {
           // 访问向量存储
           const vectorStore = useVectorStore.getState()

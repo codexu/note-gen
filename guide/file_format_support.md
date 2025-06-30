@@ -1,8 +1,8 @@
-# File Format Support in NoteGen
+# Comprehensive File Format Support in NoteGen
 
 ## 1. Introduction
 
-This document outlines the architectural approach for adding support for various file formats (e.g., `.txt`, `.json`) within the NoteGen application. The goal is to create a flexible and extensible system that allows for seamless integration of new file types with minimal changes to the core application logic.
+This document details the new, centralized file handling architecture within the NoteGen application. This robust system is designed to provide comprehensive support for various file formats, including the recently added `.txt` format, and is built for future extensibility. The primary goal is to enable seamless integration of new file types with minimal changes to the core application logic, ensuring a future-proof and adaptable system.
 
 ## 2. Core Concept: FileHandler Interface
 
@@ -30,6 +30,8 @@ export interface FileHandler {
 ```
 
 ## 3. Implementation Details
+
+This section delves into the practical implementation of the `FileHandler` system, showcasing how individual file types are managed and integrated into the application. The successful integration of `.txt` file support serves as a prime example of this architecture's effectiveness and extensibility.
 
 ### 3.1. Individual File Handlers
 

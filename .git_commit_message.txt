@@ -1,0 +1,4 @@
+chore: Update version to 0.20.0
+
+Updated project version in package.json and src-tauri/tauri.conf.json
+to 0.20.0 to reflect new features and align with upstream versioning.

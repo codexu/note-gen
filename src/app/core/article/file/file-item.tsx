@@ -15,7 +15,7 @@ import { useTranslations } from "next-intl";
 import useClipboardStore from "@/stores/clipboard";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import { convertImageByWorkspace } from "@/lib/utils";
-import { appDataDir } from '@tauri-apps/api/path';
+import { appDataDir, join } from '@tauri-apps/api/path';
 
 export function FileItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
@@ -292,7 +292,7 @@ export function FileItem({ item }: { item: DirTree }) {
     } else {
       // 默认工作区 - 使用 AppData 目录
       const appDir = await appDataDir()
-      open(`${appDir}/article${folderPath ? '/'+folderPath : ''}`)
+      open(await join(appDir, 'article', folderPath))
     }
   }
 

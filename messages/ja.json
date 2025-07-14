@@ -174,7 +174,15 @@
       "title": "画像ホスティング",
       "desc": "ここでは、画像ホスティングを設定できます。",
       "isPrimaryBackup": "現在の {type} 主要バックアップ方法",
-      "setPrimaryBackup": "主要バックアップ方法として設定"
+      "setPrimaryBackup": "主要バックアップ方法として設定",
+      "smms": {
+        "token": {
+          "desc": "SM.MS Token を入力してください。",
+          "createToken": "Token を作成"
+        },
+        "disk": "磁盘使用",
+        "error": "取得失敗、ネットワークや Token の正しさを確認してください。"
+      }
     },
     "backupSync": {
       "title": "備用方案",

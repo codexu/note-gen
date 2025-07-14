@@ -6,18 +6,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GithubImageHosting } from "./github";
 import SMMSImageHosting from "./smms";
 import useImageStore from "@/stores/imageHosting";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 
 export default function ImageHostingPage() {
   const t = useTranslations();
   const { mainImageHosting, setMainImageHosting } = useImageStore()
+  const [value, setValue] = useState(mainImageHosting)
 
   async function init() {
     const store = await Store.load('store.json');
     const imageHosting = await store.get<string>('mainImageHosting')
     if (imageHosting) {
       setMainImageHosting(imageHosting)
+      setValue(imageHosting)
     }
   }
 
@@ -27,8 +29,8 @@ export default function ImageHostingPage() {
   
   return (
     <SettingType id="imageHosting" icon={<ImageUp />} title={t('settings.imageHosting.title')} desc={t('settings.imageHosting.desc')}>
-      <Tabs defaultValue={mainImageHosting}>
-        <TabsList className="grid grid-cols-2 w-full mb-8">
+      <Tabs value={value} defaultValue={mainImageHosting} onValueChange={(value) => {setValue(value)}}>
+        <TabsList className="grid grid-cols-3 w-full mb-8">
           <TabsTrigger value="github" className="flex items-center gap-2">
             Github
             {mainImageHosting === 'github' && <SquareCheckBig className="size-4" />}
@@ -36,6 +38,9 @@ export default function ImageHostingPage() {
           <TabsTrigger value="smms" className="flex items-center gap-2">
             SM.MS
             {mainImageHosting === 'smms' && <SquareCheckBig className="size-4" />}
+          </TabsTrigger>
+          <TabsTrigger value="none" disabled>
+            Under development...
           </TabsTrigger>
         </TabsList>
         <TabsContent value="github">

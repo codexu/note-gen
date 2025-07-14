@@ -3,12 +3,13 @@ import { FormItem } from "../components/setting-base"
 import { useTranslations } from 'next-intl';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-shell";
 import { Store } from "@tauri-apps/plugin-store";
-import { SMMSImageHostingSetting } from "@/lib/imageHosting/imageHosting.d";
+import { type SMMSUserInfo, type SMMSImageHostingSetting } from "@/lib/imageHosting/smms";
 import useImageStore from "@/stores/imageHosting";
+import { getUserInfo } from "@/lib/imageHosting/smms";
 
 const CREATE_TOKEN_URL = 'https://sm.ms/api/v2/token'
 
@@ -16,8 +17,10 @@ export default function SMMSImageHosting() {
   const t = useTranslations('settings.imageHosting');
   const { mainImageHosting, setMainImageHosting } = useImageStore()
 
+  const [loading, setLoading] = useState(false)
   const [token, setToken] = useState('')
   const [tokenVisible, setTokenVisible] = useState(false)
+  const [userInfo, setUserInfo] = useState<SMMSUserInfo | null>(null)
 
   async function init() {
     const store = await Store.load('store.json');
@@ -40,9 +43,24 @@ export default function SMMSImageHosting() {
     await store.save()
   }
 
+  // 获取用户信息
+  async function handleSetUserInfo() {
+    setLoading(true)
+    setUserInfo(null)
+    const user = await getUserInfo()
+    if (user) {
+      setUserInfo(user)
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
     init()
   }, [])
+
+  useEffect(() => {
+    handleSetUserInfo()
+  }, [token])
 
   return <div>
     <SettingRow>
@@ -65,6 +83,16 @@ export default function SMMSImageHosting() {
         </div>
       </FormItem>
     </SettingRow>
+    {
+      token &&
+      <SettingRow>
+        <FormItem title="磁盘使用">
+          {loading && <LoaderCircle className="animate-spin mr-2" />}
+          {!loading && userInfo && <span>{userInfo?.disk_usage} / {userInfo?.disk_limit}</span>}
+          {!loading && !userInfo && <span>{t('smms.error')}</span>}
+        </FormItem>
+      </SettingRow>
+    }
     <SettingRow className="mb-4">
       {mainImageHosting === 'smms' ? (
         <Button disabled variant="outline">

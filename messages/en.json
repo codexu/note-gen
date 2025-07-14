@@ -176,7 +176,15 @@
       "title": "Image Hosting",
       "desc": "Here, you can configure image hosting, uploading images to the image hosting service.",
       "isPrimaryBackup": "Current {type} primary image hosting method",
-      "setPrimaryBackup": "Set as Primary Image Hosting"
+      "setPrimaryBackup": "Set as Primary Image Hosting",
+      "smms": {
+        "token": {
+          "desc": "Please create and input SM.MS Token.",
+          "createToken": "Create Token"
+        },
+        "disk": "Disk Usage",
+        "error": "Failed to get, please check network or Token is correct."
+      }
     },
     "backupSync": {
       "title": "Backup Data",

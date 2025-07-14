@@ -187,7 +187,9 @@
         "token": {
           "desc": "请创建并输入 SM.MS Token。",
           "createToken": "创建 Token"
-        }
+        },
+        "disk": "磁盘使用情况",
+        "error": "获取失败，请检查网络或 Token 是否正确。"
       }
     },
     "backupSync": {

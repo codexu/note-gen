@@ -29,7 +29,10 @@ interface MarkState {
 const useImageStore = create<MarkState>((set, get) => ({
   initMainHosting: async () => {
     const store = await Store.load('store.json');
-    await store.set('mainImageHosting', get().mainImageHosting)
+    const mainImageHosting = await store.get<string>('mainImageHosting')
+    if (mainImageHosting) {
+      set({ mainImageHosting })
+    }
   },
   path: '',
   setPath: (path) => set({ path }),

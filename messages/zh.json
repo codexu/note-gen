@@ -182,7 +182,13 @@
       "title": "图床",
       "desc": "在这里，你可以配置图床，将图片上传到图床。",
       "isPrimaryBackup": "当前 {type} 为主要图床",
-      "setPrimaryBackup": "设为主要图床"
+      "setPrimaryBackup": "设为主要图床",
+      "smms": {
+        "token": {
+          "desc": "请创建并输入 SM.MS Token。",
+          "createToken": "创建 Token"
+        }
+      }
     },
     "backupSync": {
       "title": "备用方案",

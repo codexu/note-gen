@@ -8,6 +8,7 @@ import SMMSImageHosting from "./smms";
 import useImageStore from "@/stores/imageHosting";
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
+import PicgoImageHosting from "./picgo";
 
 export default function ImageHostingPage() {
   const t = useTranslations();
@@ -30,7 +31,7 @@ export default function ImageHostingPage() {
   return (
     <SettingType id="imageHosting" icon={<ImageUp />} title={t('settings.imageHosting.title')} desc={t('settings.imageHosting.desc')}>
       <Tabs value={value} defaultValue={mainImageHosting} onValueChange={(value) => {setValue(value)}}>
-        <TabsList className="grid grid-cols-3 w-full mb-8">
+        <TabsList className="grid grid-cols-4 w-full mb-8">
           <TabsTrigger value="github" className="flex items-center gap-2">
             Github
             {mainImageHosting === 'github' && <SquareCheckBig className="size-4" />}
@@ -38,6 +39,10 @@ export default function ImageHostingPage() {
           <TabsTrigger value="smms" className="flex items-center gap-2">
             SM.MS
             {mainImageHosting === 'smms' && <SquareCheckBig className="size-4" />}
+          </TabsTrigger>
+          <TabsTrigger value="picgo" className="flex items-center gap-2">
+            PicGo
+            {mainImageHosting === 'picgo' && <SquareCheckBig className="size-4" />}
           </TabsTrigger>
           <TabsTrigger value="none" disabled>
             Under development...
@@ -48,6 +53,9 @@ export default function ImageHostingPage() {
         </TabsContent>
         <TabsContent value="smms">
           <SMMSImageHosting />
+        </TabsContent>
+        <TabsContent value="picgo">
+          <PicgoImageHosting />
         </TabsContent>
       </Tabs>
     </SettingType>

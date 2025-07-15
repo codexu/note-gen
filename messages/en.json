@@ -184,6 +184,11 @@
         },
         "disk": "Disk Usage",
         "error": "Failed to get, please check network or Token is correct."
+      },
+      "picgo": {
+        "desc": "PicGo server URL",
+        "ok": "Service is running, please ensure PicGo image hosting is configured.",
+        "error": "Service is not running, please ensure PicGo (v2.2.0+) is running, otherwise image upload will fail."
       }
     },
     "backupSync": {

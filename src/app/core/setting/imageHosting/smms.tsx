@@ -11,7 +11,7 @@ import { type SMMSUserInfo, type SMMSImageHostingSetting } from "@/lib/imageHost
 import useImageStore from "@/stores/imageHosting";
 import { getUserInfo } from "@/lib/imageHosting/smms";
 
-const CREATE_TOKEN_URL = 'https://sm.ms/api/v2/token'
+const CREATE_TOKEN_URL = 'https://sm.ms/home/apitoken'
 
 export default function SMMSImageHosting() {
   const t = useTranslations('settings.imageHosting');

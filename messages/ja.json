@@ -745,7 +745,19 @@
         "sort": "並べ替え",
         "processingVectors": "ベクトルデータ処理中",
         "calculateVectors": "知識庫計算（全量）",
-        "enableVectorDb": "ベクトルデータベースを有効化"
+        "enableVectorDb": "ベクトルデータベースを有効化",
+        "exportPDF": "PDFエクスポート",
+        "PDFstatus":{
+          "exportPDFeditorNotReady": "エディタ準備未完了",
+          "exportPDFnoFileSelected": "ファイルが選択されていません",
+          "exportPDFselectFileFirst": "まずエクスポートするファイルを選択してください",
+          "exportPDFfileIsEmpty": "ファイルは空です",
+          "exportPDFinputFileFirst": "まず内容を入力してください",
+          "exportPDFexporting": "PDF出力中",
+          "exportPDFinstructions": "プリンタ：「PDFとして保存」を選択",
+          "exportPDFfailed": "エクスポートに失敗しました",
+          "exportPDFerrorMessage": "エクスポート処理中にエラーが発生しました" 
+        }
       },
       "context": {
         "viewDirectory": "ディレクトリを表示",
@@ -778,6 +790,32 @@
     "editor": {
       "copySuccess": "コピー成功",
       "copySuccessDescription": "クリップボードにコピーしました",
+      "empty":{
+        "title": "Markdown編集エリア",
+        "description": "コンテンツを直接入力すると、ヒントが自動的に非表示になります",
+        "WindowCreateFail": "ウィンドウ作成失敗：",
+        "WindowOpenFail": "ウィンドウオープン失敗:",        
+        "exportPDF":{
+          "about": "PDFエクスポートについて",
+          "desc": "ブラウザを呼び出して高品質で生成、すべてのタイプの要素をロスレスでエクスポート",                    
+          "style": {
+            "title": "クリック@PDFエクスポートのスタイルと効果",
+            "desc": "MDファイル名をヘッダーとして使用；H1-ページ中央上部で中央揃え・太字；H2-ページ上部で中央揃え・太字；H3-行中央揃え・太字；H4-左揃え......",
+            "url": "./guide/ExportPDFstyleJP.html",
+            "externalLinkTitle": "PDFエクスポートのスタイルと効果"
+          },
+          "font": {
+            "title": "クリック@源ノフォントインストールガイド",
+            "desc": "見出しはデフォルトで源ノ角ゴシック、本文はデフォルトで源ノ明朝にマッピング\n源ノフォントまたは華文宋体が不足している場合、本文の太字と斜体は通常スタイルにフォールバック",
+            "url": "./guide/NotoFontsInstallationGuideJP.html",
+            "externalLinkTitle": "源ノフォントインストールガイド"
+          }
+        },
+        "AI":{
+          "about": "AIによる編集補助について",
+          "desc": "コンテンツを選択し、フローティングバーでAI質問、推敲、簡素化、拡張をクリック"
+        }
+      },
       "upload": {
         "error": "画像のアップロードに失敗しました",
         "needToken": "画像のアップロードには accessToken の設定が必要です",

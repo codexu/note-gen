@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoteGen PDFエクスポートスタイルと効果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f5ff 100%);
+            color: #333;
+            line-height: 1.6;
+            background-attachment: fixed;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* 再設計された背景：エレガントな幾何学グラデーション */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(106, 90, 249, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(74, 108, 247, 0.04) 0%, transparent 25%),
+                linear-gradient(45deg, rgba(255,255,255,0.8) 0%, rgba(245,248,255,0.9) 100%);
+            z-index: -1;
+            opacity: 1;
+        }
+    
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+    
+        .preview-section {
+            width: 100%;
+            background: linear-gradient(to bottom, #ffffff, #fafcff);
+            border-radius: 18px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+            padding: 35px;
+            margin-bottom: 20px 35px;
+            border: 1px solid #e8edf7;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .preview-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        }
+        
+        .preview-section::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .preview-section::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.1), rgba(138, 99, 210, 0.1));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+    
+        .style-details {
+            background: linear-gradient(to right, #f8faff, #f2f6ff);
+            border-left: 4px solid #5a7cff;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+            box-shadow: inset 4px 0 8px rgba(90, 124, 255, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .style-details::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(90, 124, 255, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(106, 90, 249, 0.03) 0%, transparent 20%);
+            opacity: 0.3;
+            z-index: 0;
+        }
+    
+        .style-details h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2rem;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details ul {
+            padding-left: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 0;
+            font-weight: 500;
+            color: #444;
+        }
+        
+        .style-details strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+    
+        h1.page-title {
+            text-align: center;
+            color: #2c3e50;
+            margin: 25px 0 50px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #eef2f9;
+            position: relative;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            font-size: 2.8rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+        
+        h1.page-title::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 180px;
+            height: 5px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 3px;
+        }
+    
+        .section-title {
+            color: #2c3e50;
+            padding-bottom: 15px;
+            margin: 0 0 30px;
+            font-weight: 700;
+            position: relative;
+            font-size: 1.8rem;
+        }
+        
+        .section-title::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2);
+            border-radius: 4px;
+        }
+        
+        .title-font-family {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 15px 20px;
+            border-radius: 0 12px 12px 0;
+            margin: -20px 0 30px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        /* 新規スタイル */
+        .title-font-family--small {
+            margin: -50px 0 5px 0; /* 下部マージンをさらに縮小 */
+        }
+        
+        .title-font-family::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .title-font-family h4 {
+            color: #2c54b3;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.2rem;
+        }
+        
+        .title-font-family p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+            color: #3a5ad9;
+        }
+
+        .note {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 25px;
+            border-radius: 0 12px 12px 0;
+            margin: 20px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        
+        .note::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .note h3 {
+            color: #2c54b3;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.4rem;
+        }
+        
+        .note ul {
+            padding-left: 30px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .note li {
+            margin-bottom: 12px;
+            position: relative;
+            padding-left: 25px;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: #445588;
+        }
+        
+        .note li::before {
+            content: "➤";
+            color: #5a7cff;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+    
+        .element-card {
+            background: linear-gradient(to bottom, #ffffff, #fbfdff);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+            transition: all 0.4s ease;
+            height: 100%;
+            border: 1px solid #e8edf7;
+            position: relative;
+        }
+        
+        .element-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(90, 124, 255, 0.15);
+        }
+        
+        .element-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(90, 124, 255, 0.02) 0%, rgba(106, 90, 249, 0.02) 100%);
+            z-index: 0;
+        }
+    
+        .card-header {
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            padding: 20px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            position: relative;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+    
+        .card-content {
+            padding: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+    
+        .print-btn {
+            display: block;
+            margin: 20px auto 20px;
+            padding: 16px 45px;
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+        
+        .print-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #4a6cf7, #5a4ae9);
+            z-index: -1;
+            transition: transform 0.5s;
+            transform: scaleX(0);
+            transform-origin: right;
+        }
+        
+        .print-btn:hover::before {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        
+        .print-btn:hover {
+            box-shadow: 0 12px 25px rgba(90, 124, 255, 0.6);
+        }
+        
+        /* 新規レイアウトスタイル */
+        .section-container {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+        
+        .heading-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .heading-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .text-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .text-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 768px) {
+            .heading-row,
+            .text-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .preview-section {
+                padding: 25px 20px;
+            }
+        }
+        
+        /* ヘッダー装飾 */
+        .header-decor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(138, 99, 210, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        /* フッター */
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 40px;
+            border-top: 1px solid #eaeff8;
+            background: rgba(255,255,255,0.7);
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-decor"></div>
+    
+    <h1 class="page-title">
+        PDFエクスポートスタイルと効果
+    </h1>
+  
+    <div class="note">
+        <h3>重要な説明</h3>
+        <ul>
+            <li>ブラウザのエクスポート機能を呼び出すと、ページにA4用紙サイズと15mmの余白が自動適用されます。対応ブラウザ：<strong>Edge</strong>、Chrome、Firefoxなど。</li>
+            <li>ヘッダーに<strong>MDファイル名</strong>が中央揃え、フッターにページ番号が中央揃えされます</li>
+            <li>すべての要素はデフォルトで<strong>源ノ字体</strong>がマッピングされ、PDFエクスポートを保証するためにシステムフォントが補助として使用されます</li>
+            <li>MDエディタのすべての要素の太字と斜体効果はエクスポート時にレンダリング可能ですが、以下に注意してください：
+                <p><strong>1. システムに源ノ明朝と華文宋体がインストールされていない場合、テキスト、リスト、表の簡体字中国語の太字と斜体は通常スタイルに戻ります</strong></p>
+                <p><strong>2. 1～3レベルの見出しはエクスポート時に自動的に太字になるため、MDエディタで手動で太字にすることは推奨されません（太字が重複します）</strong></p>
+            </li>
+        </ul>
+    </div>
+
+    <button class="print-btn">エクスポートPDFの実際の効果を確認</button>
+    
+    <div class="container">
+        <div class="section-container">
+            <!-- 見出し要素セクション -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    見出し要素
+                </h2>
+                
+                <!-- 見出しフォントファミリー説明 -->
+                <div class="title-font-family">
+                    <h4>見出しフォントファミリー</h4>
+                    <p>サンセリフ体："源ノ角ゴシック"(Noto Sans JP/Noto Sans CJK JP), "Arial", "Meiryo", "Microsoft YaHei", sans-serif</p>
+                </div>
+                
+                <div class="heading-section">
+                    <div class="heading-row">
+                        <!-- H1 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H1 - レベル1見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 前改ページ、後改ページ回避</li>
+                                        <li><strong>位置</strong>: ページ中上部中央</li>
+                                        <li><strong>フォントサイズ</strong>: 22pt</li>
+                                        <li><strong>フォントウェイト</strong>: 太字</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 80mm</li>  
+                                        <li><strong>下余白</strong>: 1.5em</li>                                       
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H2 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H2 - レベル2見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 前改ページ、後改ページ回避</li>
+                                        <li><strong>位置</strong>: ページ上部中央</li>
+                                        <li><strong>フォントサイズ</strong>: 18pt</li>
+                                        <li><strong>フォントウェイト</strong>: 太字</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 1em</li>
+                                        <li><strong>下余白</strong>: 1em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H3 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H3 - レベル3見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 後改ページ回避</li>
+                                        <li><strong>位置</strong>: 中央</li>
+                                        <li><strong>フォントサイズ</strong>: 16pt</li>
+                                        <li><strong>フォントウェイト</strong>: 太字</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 1em</li>
+                                        <li><strong>下余白</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H4 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H4 - レベル4見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 後改ページ回避</li>
+                                        <li><strong>位置</strong>: 左揃え</li>
+                                        <li><strong>フォントサイズ</strong>: 15pt</li>
+                                        <li><strong>フォントウェイト</strong>: 通常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 0.8em</li>
+                                        <li><strong>下余白</strong>: 0.4em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H5 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H5 - レベル5見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 後改ページ回避</li>
+                                        <li><strong>位置</strong>: 左揃えインデント</li>
+                                        <li><strong>フォントサイズ</strong>: 14pt</li>
+                                        <li><strong>フォントウェイト</strong>: 通常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 0.6em</li>
+                                        <li><strong>下余白</strong>: 0.3em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H6 カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H6 - レベル6見出し
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>改ページ制御</strong>: 後改ページ回避</li>
+                                        <li><strong>位置</strong>: 左揃えインデント</li>
+                                        <li><strong>フォントサイズ</strong>: 12pt</li>
+                                        <li><strong>フォントウェイト</strong>: 通常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上余白</strong>: 0.4em</li>
+                                        <li><strong>下余白</strong>: 0.2em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- テキストと組版要素セクション -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    テキストと組版要素
+                </h2>
+                
+                <!-- 本文フォントファミリー説明 -->
+                <div class="title-font-family">
+                    <h4>テキストフォントファミリー</h4>
+                    <p>セリフ体："源ノ明朝"(Noto Serif JP/Noto Serif CJK JP), "Times New Roman", "STSong", "宋体", serif</p>
+                </div>
+                
+                <div class="text-section">
+                    <div class="text-row">
+                        <!-- 本文段落カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                本文段落
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>フォントサイズ</strong>: 12pt</li>
+                                        <li><strong>行高</strong>: 1.5</li>                                        
+                                        <li><strong>字下げ</strong>: 2em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 引用ブロックカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                引用ブロック
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>ブロックコンテナ</strong>: 左側ダークグレーの縦棒、ライトグレーの背景</li>                                        
+                                        <li><strong>フォントサイズ</strong>: 本文より5%大きい</li>
+                                        <li><strong>内余白</strong>: 上下1em 左右2rem</li>
+                                        <li><strong>外余白</strong>: 上下8pt 左右0</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- リンクカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                リンク
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>URL表示</strong>: リンクテキスト後にURLを表示</li>
+                                        <li><strong>URLスタイル</strong>: フォントサイズ90%、ライトグレー</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 区切り線カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                区切り線
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>余白</strong>: 上下各1em</li>
+                                        <li><strong>デフォルトスタイル</strong>: 水平線</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            リスト要素
+                        </h3>
+                    </div>
+                    
+                    <!-- 新規フォントファミリー説明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>リストフォントファミリー</h4>
+                        <p>テキストフォントファミリーと同じ</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- 順序なしリストカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                順序なしリスト
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>リストマーカー</strong>: 塗りつぶし丸、中抜き丸、四角</li>                                        
+                                        <li><strong>左インデント</strong>: 40px</li>
+                                        <li><strong>垂直間隔</strong>: 1em</li>
+                                        <li><strong>項目間隔</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 順序付きリストカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                順序付きリスト
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>リストマーカー</strong>: 10進数字</li>
+                                        <li><strong>左インデント</strong>: 40px</li>
+                                        <li><strong>垂直間隔</strong>: 1em</li>
+                                        <li><strong>項目間隔</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            表と画像
+                        </h3>
+                    </div>
+                    
+                    <!-- 新規フォントファミリー説明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>表フォントファミリー</h4>
+                        <p>テキストフォントファミリーと同じ</p>
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- 表カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                表
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>幅</strong>: 100%</li>                                                                             
+                                        <li><strong>セル内余白</strong>: 8px</li>
+                                        <li><strong>配置</strong>: 水平垂直中央</li>
+                                        <li><strong>外余白</strong>: 上下各8pt</li>
+                                        <li><strong>改ページ制御</strong>: 内部改ページ回避</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 画像カード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                画像
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>最大サイズ</strong>: 幅高さ100%</li>
+                                        <li><strong>表示方法</strong>: プレースホルダー表示</li>
+                                        <li><strong>配置</strong>: 水平中央</li>
+                                        <li><strong>外余白</strong>: 上下各8pt</li>
+                                        <li><strong>改ページ制御</strong>: 内部改ページ回避</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            コード要素
+                        </h3>
+                    </div>
+                    
+                    <!-- 新規フォントファミリー説明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>コードフォントファミリー</h4>
+                        <p>サンセリフ体："源ノ角ゴシック"(Noto Sans JP/Noto Sans CJK JP), "Consolas", "Courier New", sans-serif</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- インラインコードカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                インラインコード
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>背景</strong>: ライトグレー</li>
+                                        <li><strong>フォントサイズ</strong>: 12pt（テキストと同じ）</li>
+                                        <li><strong>内余白</strong>: 上下0.15em 左右0.4em</li>                                        
+                                        <li><strong>角丸</strong>: 4px</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- コードブロックカード -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                コードブロック
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>スタイル属性：</h3>
+                                    <ul>
+                                        <li><strong>ブロックコンテナ</strong>: 上部バー（ダークグレー）、背景（ライトグレー）</li>                                        
+                                        <li><strong>フォントサイズ</strong>: 10pt</li>
+                                        <li><strong>行高</strong>: 1.2</li>
+                                        <li><strong>内余白</strong>: 15px</li>
+                                        <li><strong>改ページ制御</strong>: 内部改ページ回避</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="print-btn">エクスポートPDFの実際の効果を確認</button>
+  
+    <div class="note">
+        <h3>重要な説明：</h3>
+        <ul>
+            <li>ブラウザのエクスポート機能を呼び出すと、ページにA4用紙サイズと15mmの余白が自動適用されます。対応ブラウザ：<strong>Edge</strong>、Chrome、Firefoxなど。</li>
+            <li>ヘッダーに<strong>MDファイル名</strong>が中央揃え、フッターにページ番号が中央揃えされます</li>
+            <li>すべての要素はデフォルトで<strong>源ノ字体</strong>がマッピングされ、PDFエクスポートを保証するためにシステムフォントが補助として使用されます</li>
+            <li>MDエディタのすべての要素の太字と斜体効果はエクスポート時にレンダリング可能ですが、以下に注意してください：
+                <p><strong>1. システムに源ノ明朝と華文宋体がインストールされていない場合、テキスト、リスト、表の簡体字中国語の太字と斜体は通常スタイルに戻ります</strong></p>
+                <p><strong>2. 1～3レベルの見出しはエクスポート時に自動的に太字になるため、MDエディタで手動で太字にすることは推奨されません（太字が重複します）</strong></p>
+            </li>
+        </ul>
+    </div>
+    
+    <footer>
+        <p>© NoteGen PDFエクスポートスタイルと効果</p>
+    </footer>
+</body>
+</html>
+
+<script>
+    // ノート印刷レイアウトを追加
+    const ContentContainer = document.createElement('div');
+    ContentContainer.id = 'content-container';
+    ContentContainer.style.position = 'absolute';
+    ContentContainer.style.left = '-9999px';
+    document.body.appendChild(ContentContainer);
+
+    // ファイル名を抽出（拡張子なし）
+    const fileName = 'MDファイル名';
+    document.title = fileName;
+
+    // 印刷コンテンツを作成
+    ContentContainer.innerHTML = `
+        <div id="only-content">
+            <div id="editorContent">
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h1>レベル1見出し (H1)</h1>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h2>レベル2見出し (H2)</h2>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h3>レベル3見出し (H3)</h3>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h4>レベル4見出し (H4)</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h5>レベル5見出し (H5)</h5>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。</p>
+                <h6>レベル6見出し (H6)</h6>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。以下は区切り線です：</p>
+                <hr>
+                <p>これはエクスポートスタイルの段落効果を示すサンプル本文テキストです。エクスポートプロセス中、本文テキストはセリフフォントファミリーを使用します。右側の括弧内はそれぞれ太字効果と斜体効果を示しています（<strong>太字</strong>）、（<em>斜体</em>）。括弧内が簡体字中国語で太字や斜体効果が表示されない場合、システムに源ノ明朝と華文宋体がインストールされておらず、システム標準の宋体にフォールバックしたため、太字と斜体をレンダリングできません。</p>
+                <p>2番目の段落は連続する段落の効果を示します。すべての本文コンテンツは一貫したフォント、サイズ、インデント設定を維持します。</p>
+  
+                <h4>リストスタイル</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです。リストはTabキーで複数階層にネストできますが、順序なしリストの3階層以上のマーカーは同じ四角形です</p>
+                <ul>
+                    <li>順序なしリスト項目1</li>
+                    <li>順序なしリスト項目2
+                        <ul>
+                            <li>ネストリスト項目 A</li>
+                            <li>ネストリスト項目 B
+                                <ul>
+                                    <li>3階層項目</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li>順序なしリスト項目3</li>
+                </ul>
+
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+  
+                <ol>
+                    <li>順序付きリスト項目1</li>
+                    <li>順序付きリスト項目2
+                        <ol>
+                            <li>ネストリスト項目 A</li>
+                            <li>ネストリスト項目 B
+                                <ol>
+                                    <li>3階層項目</li>
+                                </ol>
+                            </li>
+                        </ol>
+                    </li>
+                    <li>順序付きリスト項目3</li>
+                </ol>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+  
+                <h4>コードスタイル</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <p>インラインコード例: <code>console.log("Hello World");</code></p>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <pre><code>function calculateSum(a, b) {
+                    // これはコードブロックの例です
+                    return a + b;
+                }
+
+                console.log(calculateSum(5, 10));</code></pre>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <h4>表スタイル</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>名前</th>
+                            <th>役職</th>
+                            <th>部門</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>張三</td>
+                            <td>フロントエンドエンジニア</td>
+                            <td>技術部</td>
+                        </tr>
+                        <tr>
+                            <td>李四</td>
+                            <td>プロダクトマネージャー</td>
+                            <td>製品部</td>
+                        </tr>
+                        <tr>
+                            <td>王五</td>
+                            <td>UIデザイナー</td>
+                            <td>デザイン部</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+  
+                <h4>引用スタイル</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <blockquote>
+                    これは引用テキストの例です。印刷出力では、引用ブロックは左側の縦棒マーカーと薄い灰色の背景を含む特別なスタイルで表示されます。
+                    引用テキストは本文とは異なるフォントファミリーを使用し、サイズがやや大きく、独特の外観を持ちます。
+                </blockquote>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+  
+                <h4>リンクスタイル</h4>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <p>リンク: <a href="https://notegen.top/en/">NoteGen</a></p>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+  
+                <h4>画像スタイル</h4>
+                <p>画像はエクスポート時に中央揃えのプレースホルダーとして表示されます</p>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+                <div style="width: 100%; height: 360px; background: linear-gradient(135deg, #6a5af9, #4a6cf7); 
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; display: flex; margin: 8pt 0;
+                align-items: center; text-indent: 0 !important;  justify-content: center; color: white; font-size: 22pt; font-weight: bold;">
+                これは画像です
+                </div>
+                <p>これは要素の改ページ属性と余白効果を示すための本文テキストです</p>
+            </div>
+        </div> 
+    `;
+
+    // 初期状態で印刷コンテナを完全に非表示
+    ContentContainer.style.display = 'none';
+
+    // 動的に印刷スタイルを追加
+    const ContentStyle = document.createElement('style');
+    ContentStyle.textContent = `
+      @media print {
+        /* === ルート要素の高さ制限問題を修正 === */
+        html, body {
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* 印刷不要な要素を非表示 */
+        body > *:not(#content-container) {
+          display: none !important;
+        }
+  
+        /* 印刷コンテナスタイル */
+        #content-container {
+          position: static;
+          display: block ! important;
+          left: 0 !important;
+          width: 100% !important;
+          padding: 0;
+          margin: 0;
+        }
+
+        /* ページレイアウト */
+        @page {
+          /* ブラウザデフォルトのヘッダー/フッターを非表示 */
+          margin-top: 15mm; 
+          margin-bottom: 15mm; 
+          margin-left: 15mm;
+          margin-right: 15mm;
+          size: A4; /*297mm*210mm*/
+
+          @top-center {
+          content: "${fileName}";
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+
+          @bottom-center {
+          content: counter(page) " / " counter(pages); /* 中央にページ番号表示 */
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+        }  
+
+        /* メインコンテンツコンテナ */
+        #only-content {
+          position: relative;
+          width: 100%;
+          top: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+        }   
+        /* コンテンツエリア */
+        #editorContent {
+          top: 0;
+          font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Times New Roman", "STSong", "宋体", serif;
+          font-size: 12pt;
+          /*letter-spacing: 0.1em;*/
+          line-height: 1.5;
+          color: #000;
+          height: 267mm !important;
+          text-indent: 2em;  
+          /* 改ページサポート */
+          page-break-inside: always;
+        }  
+        /* 改ページ制御 */
+        .page-break {
+          page-break-before: always;
+        }
+
+        /* コードスタイル(コードブロックとインラインコードを含む) */
+        code {
+          padding: 0.15em 0.4em;
+          background: #dddbdbff;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 4px;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 1em; 
+          vertical-align: baseline; /* ベースライン揃え */
+        }
+        pre code {
+          padding: 0em  !important;
+          background: none !important;
+          border-radius: 0px  !important;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important; 
+          vertical-align: baseline; /* ベースライン揃え */
+        }
+        /* コードブロック印刷の最適化 */
+        pre {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important;
+          line-height: 1.2 !important;
+          orphans: 3 !important;
+          white-space: pre-wrap !important;
+          word-break: break-word !important;
+          background-color: #f5f5f5 !important;
+          border: 1px solid #ddd !important;
+          padding: 15px !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 5px !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        /* コードブロックタイトル */
+        pre::before {
+          content: " ";
+          display: block;
+          background: #555;
+          color: white;
+          padding: 5px 10px;
+          font-size: 0.9em;
+          margin: -15px -15px 15px -15px;
+          border-radius: 4px 4px 0 0;
+          text-indent: 0 !important;
+        }
+
+        /* リンクのURL表示 */
+        a::after {
+          content: " (" attr(href) ")";
+          font-size: 90%;
+          color: #666;
+        }
+
+        /* 順序なしリスト(ul)と順序付きリスト(ol)の基本スタイル */
+        /* デフォルトのリストスタイルを復元 */
+        ul, ol {
+          margin: 1em 0; /* デフォルトの垂直間隔を復元 */
+          padding-left: 40px; /* デフォルトの左インデント */
+          text-indent: 0; /* テキストインデントを削除 */
+        }
+        ul {
+          list-style-type: disc; /* 1階層順序なしリストは塗りつぶし丸 */
+        }
+        ul ul {
+          list-style-type: circle; /* 2階層順序なしリストは中抜き丸 */
+        }
+        ul ul ul {
+          list-style-type: square; /* 3階層順序なしリストは四角 */
+        }
+        ol {
+          list-style-type: decimal; /* 順序付きリストは10進数字 */
+        }
+        li {
+          position: static; /* デフォルトの位置を復元 */
+          padding-left: 0; /* カスタム左内余白を削除 */
+          margin-bottom: 0.5em; /* 適切なリスト項目間隔 */
+        }
+        li::before {
+          content: none; /* カスタム疑似要素を削除 */
+        }
+
+        /* 表印刷の最適化 */
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;  
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          font-size: 10pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        th, td {
+          border: 1px solid #ddd !important;
+          padding: 8px !important;
+          /* 水平中央 */
+          text-align: center !important;        
+          /* 垂直中央 */
+          vertical-align: middle !important;
+          border: 1px solid #ddd !important;
+        }
+
+        /* 引用スタイル */
+        blockquote {
+            background: #f5f5f5;
+            border: 1px solid #ddd1;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;          
+            margin: 8pt 0;
+            border-radius: 4px;
+            text-indent: 0 !important;
+            font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Constantia", "STSong", "宋体", serif !important;
+            font-size: 1.05em; /* 本文より5%大きい */
+            padding: 1em 2rem;
+            position: relative;
+        }      
+        blockquote::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background: #555;
+        }
+
+        /*区切り線*/
+        hr {
+          margin: 1em 0;              /* 上下余白 */
+        }
+  
+        /* 見出しスタイル */
+        h1, h2, h3, h4, h5, h6 {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Arial", "Meiryo", "Microsoft YaHei", sans-serif !important;
+          page-break-before: auto;
+          page-break-after: avoid;
+        }  
+        h1 {         
+          font-size: 22pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 80mm !important;
+          margin-left: 15mm !important;
+          margin-right: 15mm !important;
+          margin-bottom: 1.5em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h2 { 
+          font-size: 18pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 1em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h3 { 
+          font-size: 16pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 0.5em !important;        
+          text-indent: 0 !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h4 { 
+          font-size: 15pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.8em !important;
+          margin-bottom: 0.4em !important;
+          text-indent: 0em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h5 { 
+          font-size: 14pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.6em !important;
+          margin-bottom: 0.3em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h6 { 
+          font-size: 12pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.4em !important;
+          margin-bottom: 0.2em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+  
+        /* 画像最適化 */
+        img {
+          max-width: 100% !important;
+          max-height: 100% !important;
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          page-break-inside: avoid;
+        }   
+      }
+    `;
+    document.head.appendChild(ContentStyle);
+  
+    document.querySelectorAll('.print-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            window.print();
+        });
+    });
+</script>

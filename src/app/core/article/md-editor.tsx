@@ -24,6 +24,8 @@ import useSettingStore from '@/stores/setting'
 import { uploadImage } from '@/lib/imageHosting'
 import FloatBar from './floatbar'
 import { createToolbarConfig } from './toolbar.config'
+import { exportToPdf } from "./file/export-pdf"; 
+import EmptyPrompt from './empty-prompt';
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
@@ -35,6 +37,7 @@ export function MdEditor() {
   const t = useTranslations('article.editor')
   const { currentLocale } = useI18n()
   const [localMode, setLocalMode] = useLocalStorage<'ir' | 'sv' | 'wysiwyg'>('useLocalMode', 'ir')
+  const [isEmpty, setIsEmpty] = useState(true); // 新增：编辑器空状态
 
   function getLang() {
     switch (currentLocale) {
@@ -112,6 +115,7 @@ export function MdEditor() {
         })
         if (activeFilePath === '') {
           vditor.setValue('', true)
+          setIsEmpty(true); // 明确设置为空
         }
         setEditorPadding(vditor)
       },
@@ -119,6 +123,8 @@ export function MdEditor() {
         saveCurrentArticle(value)
         emitter.emit('editor-input')
         handleLocalImage(vditor)
+        // 检查内容是否为空
+        setIsEmpty(!value || value.trim() === '');
       },
       mode: localMode,
       upload: {
@@ -241,6 +247,9 @@ export function MdEditor() {
   // 设置编辑器内容并滚动到匹配位置
   const setContent = (content: string) => {
     if (!editor) return
+    // 更新内容前先更新空状态
+    const contentIsEmpty = !content || content.trim() === '';
+    setIsEmpty(contentIsEmpty);
     editor.setValue(content)
     editor.renderPreview(content)
     
@@ -336,6 +345,28 @@ export function MdEditor() {
       editor.setTheme(editorTheme === 'dark' ? 'dark' : 'classic', contentTheme, codeTheme)
     }
   }
+
+  const tPDF = useTranslations('article.file.toolbar.PDFstatus'); // 获取PDF相关翻译
+  // 新增导出 PDF 函数
+  const handleExportPdf = () => {   
+    exportToPdf(editor, activeFilePath, isEmpty, tPDF)
+  };
+  
+  // 监听导出事件
+  useEffect(() => {
+    emitter.on('toolbar-export-pdf', handleExportPdf);
+    return () => {
+    emitter.off('toolbar-export-pdf', handleExportPdf);
+    };
+  }, [editor, activeFilePath, isEmpty]);
+
+  // 在 useEffect 中处理初始加载
+  useEffect(() => {
+    if (activeFilePath && editor) {
+      // 确保内容加载后更新状态
+      setContent(currentArticle);
+    }
+  }, [activeFilePath, currentArticle, editor]);
 
   useEffect(() => {
     emitter.on('toolbar-copy-html', () => {
@@ -451,6 +482,8 @@ export function MdEditor() {
   return <div className='flex-1 relative w-full h-full lg:h-screen flex flex-col overflow-hidden dark:bg-zinc-950'>
     <CustomToolbar editor={editor} />
     <div id="aritcle-md-editor" className='flex-1'></div>
+    {/* 新增PDF导出说明作为空状态提示 */}
+    {isEmpty && !loading && <EmptyPrompt />}
     <CustomFooter editor={editor} />
     <FloatBar left={floatBarPosition?.left} top={floatBarPosition?.top} value={selectedText} editor={editor} />
   </div>

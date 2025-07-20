@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoteGen PDF Export Style and Effect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f5ff 100%);
+            color: #333;
+            line-height: 1.6;
+            background-attachment: fixed;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Redesigned background: elegant geometric gradient */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(106, 90, 249, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(74, 108, 247, 0.04) 0%, transparent 25%),
+                linear-gradient(45deg, rgba(255,255,255,0.8) 0%, rgba(245,248,255,0.9) 100%);
+            z-index: -1;
+            opacity: 1;
+        }
+    
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+    
+        .preview-section {
+            width: 100%;
+            background: linear-gradient(to bottom, #ffffff, #fafcff);
+            border-radius: 18px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+            padding: 35px;
+            margin-bottom: 20px 35px;
+            border: 1px solid #e8edf7;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .preview-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        }
+        
+        .preview-section::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .preview-section::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.1), rgba(138, 99, 210, 0.1));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+    
+        .style-details {
+            background: linear-gradient(to right, #f8faff, #f2f6ff);
+            border-left: 4px solid #5a7cff;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+            box-shadow: inset 4px 0 8px rgba(90, 124, 255, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .style-details::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(90, 124, 255, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(106, 90, 249, 0.03) 0%, transparent 20%);
+            opacity: 0.3;
+            z-index: 0;
+        }
+    
+        .style-details h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2rem;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details ul {
+            padding-left: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 0;
+            font-weight: 500;
+            color: #444;
+        }
+        
+        .style-details strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+    
+        h1.page-title {
+            text-align: center;
+            color: #2c3e50;
+            margin: 25px 0 50px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #eef2f9;
+            position: relative;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            font-size: 2.8rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+        
+        h1.page-title::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 180px;
+            height: 5px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 3px;
+        }
+    
+        .section-title {
+            color: #2c3e50;
+            padding-bottom: 15px;
+            margin: 0 0 30px;
+            font-weight: 700;
+            position: relative;
+            font-size: 1.8rem;
+        }
+        
+        .section-title::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2);
+            border-radius: 4px;
+        }
+        
+        .title-font-family {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 15px 20px;
+            border-radius: 0 12px 12px 0;
+            margin: -20px 0 30px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        /* New style */
+        .title-font-family--small {
+            margin: -50px 0 5px 0; /* Further reduced bottom margin */
+        }
+        
+        .title-font-family::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .title-font-family h4 {
+            color: #2c54b3;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.2rem;
+        }
+        
+        .title-font-family p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+            color: #3a5ad9;
+        }
+
+        .note {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 25px;
+            border-radius: 0 12px 12px 0;
+            margin: 20px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        
+        .note::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .note h3 {
+            color: #2c54b3;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.4rem;
+        }
+        
+        .note ul {
+            padding-left: 30px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .note li {
+            margin-bottom: 12px;
+            position: relative;
+            padding-left: 25px;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: #445588;
+        }
+        
+        .note li::before {
+            content: "➤";
+            color: #5a7cff;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+    
+        .element-card {
+            background: linear-gradient(to bottom, #ffffff, #fbfdff);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+            transition: all 0.4s ease;
+            height: 100%;
+            border: 1px solid #e8edf7;
+            position: relative;
+        }
+        
+        .element-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(90, 124, 255, 0.15);
+        }
+        
+        .element-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(90, 124, 255, 0.02) 0%, rgba(106, 90, 249, 0.02) 100%);
+            z-index: 0;
+        }
+    
+        .card-header {
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            padding: 20px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            position: relative;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+    
+        .card-content {
+            padding: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+    
+        .print-btn {
+            display: block;
+            margin: 20px auto 20px;
+            padding: 16px 45px;
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+        
+        .print-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #4a6cf7, #5a4ae9);
+            z-index: -1;
+            transition: transform 0.5s;
+            transform: scaleX(0);
+            transform-origin: right;
+        }
+        
+        .print-btn:hover::before {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        
+        .print-btn:hover {
+            box-shadow: 0 12px 25px rgba(90, 124, 255, 0.6);
+        }
+        
+        /* New layout styles */
+        .section-container {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+        
+        .heading-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .heading-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .text-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .text-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 768px) {
+            .heading-row,
+            .text-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .preview-section {
+                padding: 25px 20px;
+            }
+        }
+        
+        /* Header decoration */
+        .header-decor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(138, 99, 210, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 40px;
+            border-top: 1px solid #eaeff8;
+            background: rgba(255,255,255,0.7);
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-decor"></div>
+    
+    <h1 class="page-title">
+        PDF Export Style and Effect
+    </h1>
+  
+    <div class="note">
+        <h3>Important Notes</h3>
+        <ul>
+            <li>Invoke browser export, pages are automatically set to A4 paper size and 15mm margins. Supported browsers: <strong>Edge</strong>, Chrome, Firefox, etc.</li>
+            <li>The <strong>MD file name</strong> is centered in the header, and page numbers are centered in the footer</li>
+            <li>All elements default to <strong>Noto fonts</strong>(also called Source Han fonts), with system fonts as fallbacks to ensure PDF export</li>
+            <li>Bold and italic effects for all element fonts in the MD editor can be rendered during export, but note:
+                <p><strong>1. If the system does not have Noto Serif and STSong installed, bold and italic styles for Simplified Chinese in text, lists, and tables will revert to normal</strong></p>
+                <p><strong>2. Level 1-3 headings are automatically bolded during export, so manual bolding in the MD editor is not recommended as it will stack</strong></p>
+            </li>
+        </ul>
+    </div>
+
+    <button class="print-btn">Click to view actual exported PDF effect</button>
+    
+    <div class="container">
+        <div class="section-container">
+            <!-- Heading elements section -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    Heading Elements
+                </h2>
+                
+                <!-- Heading font family description -->
+                <div class="title-font-family">
+                    <h4>Heading Font Family</h4>
+                    <p>Sans-serif: "Noto Sans SC/Noto Sans CJK SC", "Arial", "Meiryo", "Microsoft YaHei", sans-serif</p>
+                </div>
+                
+                <div class="heading-section">
+                    <div class="heading-row">
+                        <!-- H1 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H1 - Level 1 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Page break before, avoid after</li>
+                                        <li><strong>Position</strong>: Centered in upper-middle of page</li>
+                                        <li><strong>Font Size</strong>: 22pt</li>
+                                        <li><strong>Font Weight</strong>: Bold</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 80mm</li>  
+                                        <li><strong>Bottom Margin</strong>: 1.5em</li>                                       
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H2 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H2 - Level 2 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Page break before, avoid after</li>
+                                        <li><strong>Position</strong>: Centered at top of page</li>
+                                        <li><strong>Font Size</strong>: 18pt</li>
+                                        <li><strong>Font Weight</strong>: Bold</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 1em</li>
+                                        <li><strong>Bottom Margin</strong>: 1em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H3 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H3 - Level 3 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Avoid after</li>
+                                        <li><strong>Position</strong>: Centered</li>
+                                        <li><strong>Font Size</strong>: 16pt</li>
+                                        <li><strong>Font Weight</strong>: Bold</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 1em</li>
+                                        <li><strong>Bottom Margin</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H4 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H4 - Level 4 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Avoid after</li>
+                                        <li><strong>Position</strong>: Left-aligned</li>
+                                        <li><strong>Font Size</strong>: 15pt</li>
+                                        <li><strong>Font Weight</strong>: Normal</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 0.8em</li>
+                                        <li><strong>Bottom Margin</strong>: 0.4em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H5 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H5 - Level 5 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Avoid after</li>
+                                        <li><strong>Position</strong>: Left-aligned with indent</li>
+                                        <li><strong>Font Size</strong>: 14pt</li>
+                                        <li><strong>Font Weight</strong>: Normal</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 0.6em</li>
+                                        <li><strong>Bottom Margin</strong>: 0.3em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H6 card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H6 - Level 6 Heading
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Page Break Control</strong>: Avoid after</li>
+                                        <li><strong>Position</strong>: Left-aligned with indent</li>
+                                        <li><strong>Font Size</strong>: 12pt</li>
+                                        <li><strong>Font Weight</strong>: Normal</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>
+                                        <li><strong>Top Margin</strong>: 0.4em</li>
+                                        <li><strong>Bottom Margin</strong>: 0.2em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Text and Typography Elements section -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    Text and Typography Elements
+                </h2>
+                
+                <!-- Body text font family description -->
+                <div class="title-font-family">
+                    <h4>Text Font Family</h4>
+                    <p>Serif: "Noto Serif SC/Noto Serif CJK SC", "Times New Roman", "STSong", "SimSun", serif</p>
+                </div>
+                
+                <div class="text-section">
+                    <div class="text-row">
+                        <!-- Paragraph card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Paragraph
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Font Size</strong>: 12pt</li>
+                                        <li><strong>Line Height</strong>: 1.5</li>                                        
+                                        <li><strong>First Line Indent</strong>: 2em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Blockquote card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Blockquote
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Block Container</strong>: Dark gray left bar, light gray background</li>                                        
+                                        <li><strong>Font Size</strong>: 5% larger than body text</li>
+                                        <li><strong>Padding</strong>: 1em top/bottom, 2rem left/right</li>
+                                        <li><strong>Margin</strong>: 8pt top/bottom, 0 left/right</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- Link card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Links
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>URL Display</strong>: Show URL after link text</li>
+                                        <li><strong>URL Style</strong>: 90% font size, light gray</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Horizontal rule card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Horizontal Rule
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Margin</strong>: 1em top/bottom</li>
+                                        <li><strong>Default Style</strong>: Horizontal line</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            List Elements
+                        </h3>
+                    </div>
+                    
+                    <!-- New font family description -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>List Font Family</h4>
+                        <p>Same as text font family</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- Unordered list card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Unordered List
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>List Markers</strong>: Solid circle, hollow circle, square</li>                                        
+                                        <li><strong>Left Indent</strong>: 40px</li>
+                                        <li><strong>Vertical Spacing</strong>: 1em</li>
+                                        <li><strong>Item Spacing</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ordered list card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Ordered List
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>List Markers</strong>: Decimal numbers</li>
+                                        <li><strong>Left Indent</strong>: 40px</li>
+                                        <li><strong>Vertical Spacing</strong>: 1em</li>
+                                        <li><strong>Item Spacing</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            Tables and Images
+                        </h3>
+                    </div>
+                    
+                    <!-- New font family description -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>Table Font Family</h4>
+                        <p>Same as text font family</p>
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- Table card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Table
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Width</strong>: 100%</li>                                                                             
+                                        <li><strong>Cell Padding</strong>: 8px</li>
+                                        <li><strong>Alignment</strong>: Horizontal and vertical center</li>
+                                        <li><strong>Margin</strong>: 8pt top/bottom</li>
+                                        <li><strong>Page Break Control</strong>: Avoid internal breaks</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Image card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Image
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Max Size</strong>: 100% width/height</li>
+                                        <li><strong>Display Method</strong>: Placeholder display</li>
+                                        <li><strong>Alignment</strong>: Horizontal center</li>
+                                        <li><strong>Margin</strong>: 8pt top/bottom</li>
+                                        <li><strong>Page Break Control</strong>: Avoid internal breaks</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            Code Elements
+                        </h3>
+                    </div>
+                    
+                    <!-- New font family description -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>Code Font Family</h4>
+                        <p>Sans-serif: "Noto Sans SC/Noto Sans CJK SC", "Consolas", "Courier New", sans-serif</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- Inline code card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Inline Code
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Background</strong>: Light gray</li>
+                                        <li><strong>Font Size</strong>: 12pt (same as text)</li>
+                                        <li><strong>Padding</strong>: 0.15em top/bottom, 0.4em left/right</li>                                        
+                                        <li><strong>Border Radius</strong>: 4px</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Code block card -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                Code Block
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>Style Properties:</h3>
+                                    <ul>
+                                        <li><strong>Block Container</strong>: Dark gray top bar, light gray background</li>                                        
+                                        <li><strong>Font Size</strong>: 10pt</li>
+                                        <li><strong>Line Height</strong>: 1.2</li>
+                                        <li><strong>Padding</strong>: 15px</li>
+                                        <li><strong>Page Break Control</strong>: Avoid internal breaks</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="print-btn">Click to view actual exported PDF effect</button>
+  
+    <div class="note">
+        <h3>Important Notes:</h3>
+        <ul>
+            <li>Invoke browser export, pages are automatically set to A4 paper size and 15mm margins. Supported browsers: <strong>Edge</strong>, Chrome, Firefox, etc.</li>
+            <li>The <strong>MD file name</strong> is centered in the header, and page numbers are centered in the footer</li>
+            <li>All elements default to <strong>Noto fonts</strong>(also called Source Han fonts), with system fonts as fallbacks to ensure PDF export</li>
+            <li>Bold and italic effects for all element fonts in the MD editor can be rendered during export, but note:
+                <p><strong>1. If the system does not have Noto Serif and STSong installed, bold and italic styles for Simplified Chinese in text, lists, and tables will revert to normal</strong></p>
+                <p><strong>2. Level 1-3 headings are automatically bolded during export, so manual bolding in the MD editor is not recommended as it will stack</strong></p>
+            </li>
+        </ul>
+    </div>
+    
+    <footer>
+        <p>© NoteGen PDF Export Style and Effect</p>
+    </footer>
+</body>
+</html>
+
+<script>
+    // Add print layout
+    const ContentContainer = document.createElement('div');
+    ContentContainer.id = 'content-container';
+    ContentContainer.style.position = 'absolute';
+    ContentContainer.style.left = '-9999px';
+    document.body.appendChild(ContentContainer);
+
+    // Extract filename (without extension)
+    const fileName = 'MD File Name';
+    document.title = fileName;
+
+    // Create print content
+    ContentContainer.innerHTML = `
+        <div id="only-content">
+            <div id="editorContent">
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h1>Level 1 Heading (H1)</h1>
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h2>Level 2 Heading (H2)</h2>
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h3>Level 3 Heading (H3)</h3>
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h4>Level 4 Heading (H4)</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h5>Level 5 Heading (H5)</h5>
+                <p>This is body text to demonstrate element pagination properties and margin effects.</p>
+                <h6>Level 6 Heading (H6)</h6>
+                <p>This is body text to demonstrate element pagination properties and margin effects, followed by a horizontal rule:</p>
+                <hr>
+                <p>This is sample body text demonstrating paragraph effects in export styles. During export, body text uses a serif font family. The right parentheses show bold and italic effects (<strong>bold</strong>), (<em>italic</em>). If the parentheses contain Simplified Chinese without bold/italic effects, your system lacks Source Han Serif/STSong fonts and has fallen back to system Song font.</p>
+                <p>A second paragraph demonstrates continuous paragraph effects. All body content maintains consistent font, size, and indentation.</p>
+  
+                <h4>List Styles</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects. Lists support multi-level nesting via Tab key, but unordered lists beyond level 3 use the same square marker</p>
+                <ul>
+                    <li>Unordered list item 1</li>
+                    <li>Unordered list item 2
+                        <ul>
+                            <li>Nested item A</li>
+                            <li>Nested item B
+                                <ul>
+                                    <li>Third-level item</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li>Unordered list item 3</li>
+                </ul>
+
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+  
+                <ol>
+                    <li>Ordered list item 1</li>
+                    <li>Ordered list item 2
+                        <ol>
+                            <li>Nested item A</li>
+                            <li>Nested item B
+                                <ol>
+                                    <li>Third-level item</li>
+                                </ol>
+                            </li>
+                        </ol>
+                    </li>
+                    <li>Ordered list item 3</li>
+                </ol>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+  
+                <h4>Code Styles</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <p>Inline code example: <code>console.log("Hello World");</code></p>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <pre><code>function calculateSum(a, b) {
+                    // This is a code block example
+                    return a + b;
+                }
+
+                console.log(calculateSum(5, 10));</code></pre>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <h4>Table Styles</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Department</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Zhang San</td>
+                            <td>Frontend Engineer</td>
+                            <td>Tech Department</td>
+                        </tr>
+                        <tr>
+                            <td>Li Si</td>
+                            <td>Product Manager</td>
+                            <td>Product Department</td>
+                        </tr>
+                        <tr>
+                            <td>Wang Wu</td>
+                            <td>UI Designer</td>
+                            <td>Design Department</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+  
+                <h4>Blockquote Style</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <blockquote>
+                    This is a blockquote example. In printed output, blockquotes display special styling including a left vertical bar marker and light gray background.
+                    Blockquote text uses a different font family than body text, with slightly larger size for distinct appearance.
+                </blockquote>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+  
+                <h4>Link Style</h4>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <p>Link: <a href="https://notegen.top/en/">NoteGen</a></p>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+  
+                <h4>Image Style</h4>
+                <p>Images will be displayed as centered placeholders during export</p>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+                <div style="width: 100%; height: 360px; background: linear-gradient(135deg, #6a5af9, #4a6cf7); 
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; display: flex; margin: 8pt 0;
+                align-items: center; text-indent: 0 !important;  justify-content: center; color: white; font-size: 22pt; font-weight: bold;">
+                This is an image
+                </div>
+                <p>This is body text to demonstrate element pagination properties and margin effects</p>
+            </div>
+        </div> 
+    `;
+
+    // Initially hide print container
+    ContentContainer.style.display = 'none';
+
+    // Dynamically add print styles
+    const ContentStyle = document.createElement('style');
+    ContentStyle.textContent = `
+      @media print {
+        /* === Fix root element height issues === */
+        html, body {
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Hide non-print elements */
+        body > *:not(#content-container) {
+          display: none !important;
+        }
+  
+        /* Print container styles */
+        #content-container {
+          position: static;
+          display: block ! important;
+          left: 0 !important;
+          width: 100% !important;
+          padding: 0;
+          margin: 0;
+        }
+
+        /* Page layout */
+        @page {
+          /* Hide browser default headers/footers */
+          margin-top: 15mm; 
+          margin-bottom: 15mm; 
+          margin-left: 15mm;
+          margin-right: 15mm;
+          size: A4; /*297mm*210mm*/
+
+          @top-center {
+          content: "${fileName}";
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+
+          @bottom-center {
+          content: counter(page) " / " counter(pages); /* Center page numbers */
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+        }  
+
+        /* Main content container */
+        #only-content {
+          position: relative;
+          width: 100%;
+          top: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+        }   
+        /* Content area */
+        #editorContent {
+          top: 0;
+          font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Times New Roman", "STSong", "SimSun", serif;
+          font-size: 12pt;
+          /*letter-spacing: 0.1em;*/
+          line-height: 1.5;
+          color: #000;
+          height: 267mm !important;
+          text-indent: 2em;  
+          /* Page break support */
+          page-break-inside: always;
+        }  
+        /* Page break control */
+        .page-break {
+          page-break-before: always;
+        }
+
+        /* Code styles (including blocks and inline) */
+        code {
+          padding: 0.15em 0.4em;
+          background: #dddbdbff;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 4px;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 1em; 
+          vertical-align: baseline; /* Baseline alignment */
+        }
+        pre code {
+          padding: 0em  !important;
+          background: none !important;
+          border-radius: 0px  !important;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important; 
+          vertical-align: baseline; /* Baseline alignment */
+        }
+        /* Optimize code block printing */
+        pre {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important;
+          line-height: 1.2 !important;
+          orphans: 3 !important;
+          white-space: pre-wrap !important;
+          word-break: break-word !important;
+          background-color: #f5f5f5 !important;
+          border: 1px solid #ddd !important;
+          padding: 15px !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 5px !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        /* Code block title */
+        pre::before {
+          content: " ";
+          display: block;
+          background: #555;
+          color: white;
+          padding: 5px 10px;
+          font-size: 0.9em;
+          margin: -15px -15px 15px -15px;
+          border-radius: 4px 4px 0 0;
+          text-indent: 0 !important;
+        }
+
+        /* Display URL after links */
+        a::after {
+          content: " (" attr(href) ")";
+          font-size: 90%;
+          color: #666;
+        }
+
+        /* Base styles for both ul and ol */
+        /* Restore default list styles */
+        ul, ol {
+          margin: 1em 0; /* Restore default vertical spacing */
+          padding-left: 40px; /* Default left indent */
+          text-indent: 0; /* Remove text indent */
+        }
+        ul {
+          list-style-type: disc; /* Level 1: solid circle */
+        }
+        ul ul {
+          list-style-type: circle; /* Level 2: hollow circle */
+        }
+        ul ul ul {
+          list-style-type: square; /* Level 3+: square */
+        }
+        ol {
+          list-style-type: decimal; /* Ordered lists: decimal numbers */
+        }
+        li {
+          position: static; /* Restore default positioning */
+          padding-left: 0; /* Remove custom left padding */
+          margin-bottom: 0.5em; /* Appropriate list item spacing */
+        }
+        li::before {
+          content: none; /* Remove custom pseudo-element */
+        }
+
+        /* Optimize table printing */
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;  
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          font-size: 10pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        th, td {
+          border: 1px solid #ddd !important;
+          padding: 8px !important;
+          /* Horizontal center */
+          text-align: center !important;        
+          /* Vertical center */
+          vertical-align: middle !important;
+          border: 1px solid #ddd !important;
+        }
+
+        /* Blockquote styles */
+        blockquote {
+            background: #f5f5f5;
+            border: 1px solid #ddd1;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;          
+            margin: 8pt 0;
+            border-radius: 4px;
+            text-indent: 0 !important;
+            font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Constantia", "STSong", "SimSun", serif !important;
+            font-size: 1.05em; /* 5% larger than body */
+            padding: 1em 2rem;
+            position: relative;
+        }      
+        blockquote::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background: #555;
+        }
+
+        /*Horizontal rule*/
+        hr {
+          margin: 1em 0;              /* Top/bottom margin */
+        }
+  
+        /* Heading styles */
+        h1, h2, h3, h4, h5, h6 {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Arial", "Meiryo", "Microsoft YaHei", sans-serif !important;
+          page-break-before: auto;
+          page-break-after: avoid;
+        }  
+        h1 {         
+          font-size: 22pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 80mm !important;
+          margin-left: 15mm !important;
+          margin-right: 15mm !important;
+          margin-bottom: 1.5em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h2 { 
+          font-size: 18pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 1em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h3 { 
+          font-size: 16pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 0.5em !important;        
+          text-indent: 0 !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h4 { 
+          font-size: 15pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.8em !important;
+          margin-bottom: 0.4em !important;
+          text-indent: 0em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h5 { 
+          font-size: 14pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.6em !important;
+          margin-bottom: 0.3em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h6 { 
+          font-size: 12pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.4em !important;
+          margin-bottom: 0.2em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+  
+        /* Image optimization */
+        img {
+          max-width: 100% !important;
+          max-height: 100% !important;
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          page-break-inside: avoid;
+        }   
+      }
+    `;
+    document.head.appendChild(ContentStyle);
+  
+    document.querySelectorAll('.print-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            window.print();
+        });
+    });
+</script>

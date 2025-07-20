@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Han Fonts Installation Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+      
+        :root {
+            --primary: #8b0000;
+            --secondary: #003366;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #28a745;
+            --warning: #ffc107;
+        }
+      
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+      
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+      
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(120deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+      
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(30deg);
+        }
+      
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 2;
+        }
+      
+        .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+      
+        .info-box {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-left: 5px solid var(--primary);
+        }
+      
+        .info-box h2 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+      
+        .steps-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 40px 0;
+        }
+      
+        .step-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+      
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.12);
+        }
+      
+        .step-number {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            font-size: 1.8rem;
+            font-weight: bold;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom-left-radius: 30px;
+        }
+      
+        .step-card h3 {
+            color: var(--secondary);
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+            padding-right: 50px;
+        }
+      
+        .step-content {
+            margin-bottom: 15px;
+        }
+      
+        .path {
+            background: #f0f5ff;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 12px 0;
+            font-family: monospace;
+            color: #d6336c;
+            font-size: 0.95rem;
+            border-left: 3px solid var(--primary);
+            overflow-x: auto;
+        }
+      
+        .notes {
+            background: #fff9db;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 25px 0;
+            border-left: 4px solid var(--warning);
+        }
+      
+        .notes h3 {
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+      
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+      
+        .file-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e9ecef;
+        }
+      
+        .file-card h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--secondary);
+            margin-bottom: 8px;
+        }
+      
+        .file-card .path {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+        }
+      
+        .faq-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 40px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+      
+        .faq-section h2 {
+            color: var(--primary);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+      
+        .faq-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 20px;
+        }
+      
+        .faq-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+      
+        .faq-item h3 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+      
+        footer {
+            text-align: center;
+            padding: 10px;
+            margin-top: 10px;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+      
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            border: 2px solid var(--primary);
+        }
+      
+        .btn:hover {
+            background: transparent;
+            color: var(--primary);
+            transform: translateY(-3px);
+        }
+      
+        .btn-secondary {
+            background: var(--secondary);
+            border-color: var(--secondary);
+        }
+      
+        .btn-secondary:hover {
+            color: var(--secondary);
+        }
+      
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+          
+            .subtitle {
+                font-size: 1.1rem;
+            }
+          
+            .steps-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Noto Fonts Installation Guide</h1>
+            <p class="subtitle">Noto fonts have no commercial copyright risks and offer aesthetic appeal for both display and printing</p>
+        </header>
+      
+        <div class="info-box">
+            <h2>Guide Description</h2>
+            <p>Noto fonts (also called Source Han fonts) are free open-source fonts co-developed by Adobe and Google. These fonts perfectly support English, Chinese, Japanese and other characters, making them an ideal choice for design and development work. This guide will help you download and install high-quality Noto fonts from Google's GitHub repository.</p>
+            <div class="path">
+                Target fonts: NotoSansCJKsc-VF.otf and NotoSerifCJKsc-VF.otf
+            </div>
+        </div>
+      
+        <div class="steps-container">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h3>Access Google's GitHub Repository</h3>
+                <div class="step-content">
+                    <p>Open your browser and access Google's GitHub repository:</p>
+                    <div class="path">https://github.com/notofonts/noto-cjk</div>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h3>Select Font Type</h3>
+                <div class="step-content">
+                    <p>In the repository, you'll see two main folders:</p>
+                    <ul style="padding-left: 20px; margin-top: 10px;">
+                        <li><strong>Sans</strong> - Noto Sans</li>
+                        <li><strong>Serif</strong> - Noto Serif</li>
+                    </ul>
+                    <p style="margin-top: 10px;">Enter each of these folders respectively.</p>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h3>Download Font Files</h3>
+                <div class="step-content">
+                    <p>In both Sans and Serif folders, navigate through two subdirectories to "Variable/OTF", then locate and download the target font files:</p>
+                    <div class="path">NotoSansCJKsc-VF.otf<br>NotoSerifCJKsc-VF.otf</div>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">4</div>
+                <h3>Install Fonts on System</h3>
+                <div class="step-content">
+                    <p>Locate the downloaded target fonts on your local machine (supports English and Simplified Chinese):</p>
+                    <ul style="padding-left: 20px; margin-top: 10px;">
+                        <li>NotoSansCJKsc-VF.otf</li>
+                        <li>NotoSerifCJKsc-VF.otf</li>
+                    </ul>
+                    <p style="margin-top: 10px;">Drag and drop them to the system fonts directory:</p>
+                    <div class="path">C:/Windows/Fonts</div>
+                </div>
+            </div>
+        </div>
+      
+        <div class="notes">
+            <h3>Japanese Font Installation Instructions</h3>
+            <p>If you need to handle Japanese content, additionally install these Japanese font files:</p>
+            <div class="file-grid">
+                <div class="file-card">
+                    <h4>Sans Japanese Font</h4>
+                    <div class="path">NotoSansCJKjp-VF.otf</div>
+                    <p>Sans-serif font containing Japanese glyphs</p>
+                </div>
+                <div class="file-card">
+                    <h4>Serif Japanese Font</h4>
+                    <div class="path">NotoSerifCJKjp-VF.otf</div>
+                    <p>Serif font containing Japanese glyphs</p>
+                </div>
+            </div>
+            <p>Similarly drag and drop these files into the <span class="path">C:/Windows/Fonts</span> directory to complete installation.</p>
+        </div>
+      
+        <div class="info-box">
+            <h2>Installation Complete</h2>
+            <p>After completing these steps, you have successfully installed Noto fonts. You can now use these fonts in any application that supports font selection.</p>
+        </div>
+      
+        <div class="faq-section">
+            <h2>Frequently Asked Questions</h2>
+          
+            <div class="faq-item">
+                <h3>What's the difference between OTF and TTF formats?</h3>
+                <p>OTF (OpenType Format) typically contains more advanced typographic features and supports more languages and special characters. TTF (TrueType Format) is more universal with better compatibility. This guide selects OTF format for optimal typographic results.</p>
+            </div>
+          
+            <div class="faq-item">
+                <h3>What are Variable Fonts (VF)?</h3>
+                <p>Variable fonts integrate multiple variations of a font (such as different weights and widths) into a single file, allowing designers to adjust font properties via sliders. This provides greater design flexibility and reduces file quantity.</p>
+            </div>
+          
+            <div class="faq-item">
+                <h3>How to use these fonts in software after installation?</h3>
+                <p>After installation, restart your design software (such as Adobe suite, Office, etc.), then search for "Noto Sans CJK SC" or "Noto Serif CJK SC" in the font list to use them.</p>
+            </div>
+        </div>
+      
+        <footer>
+        </footer>
+    </div>
+</body>
+</html>

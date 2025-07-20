@@ -757,7 +757,19 @@
         "sort": "排序",
         "processingVectors": "正在处理向量数据",
         "calculateVectors": "知识库计算（全量）",
-        "enableVectorDb": "启用向量数据库"
+        "enableVectorDb": "启用向量数据库",
+        "exportPDF": "导出PDF",
+        "PDFstatus":{
+          "exportPDFeditorNotReady": "编辑器未就绪",
+          "exportPDFnoFileSelected": "未选择文件",
+          "exportPDFselectFileFirst": "请先选择要导出的文件",
+          "exportPDFfileIsEmpty": "文件为空",
+          "exportPDFinputFileFirst": "请先输入内容",
+          "exportPDFexporting": "正在导出PDF",
+          "exportPDFinstructions": "打印机：选择'另存为PDF'",
+          "exportPDFfailed": "导出失败",
+          "exportPDFerrorMessage": "导出过程中发生错误"
+        }
       },
       "context": {
         "viewDirectory": "查看目录",
@@ -790,6 +802,32 @@
     "editor": {
       "copySuccess": "复制成功",
       "copySuccessDescription": "已复制到剪贴板",
+      "empty":{
+        "title": "Markdown编辑区",
+        "description": "直接输入内容，提示自动隐藏",
+        "WindowCreateFail": "窗口创建失败：",
+        "WindowOpenFail": "打开窗口失败:",        
+        "exportPDF":{
+          "about": "关于导出PDF",
+          "desc": "调用浏览器高质量生成，无损导出所有类型元素",                    
+          "style": {
+            "title": "点击@PDF导出样式及效果",
+            "desc": "MD文件名-页眉；H1-页面中上部居中加粗；H2-页面顶部居中加粗；H3-行居中加粗；H4-左对齐......",
+            "url": "./guide/ExportPDFstyleZH.html",
+            "externalLinkTitle": "PDF导出样式及效果"
+          },
+          "font": {
+            "title": "点击@思源字体安装指南",
+            "desc": "标题默认映射思源黑体，正文默认映射思源宋体\n当缺失思源及华文宋体时，正文的粗体与斜体将回退常规",
+            "url": "./guide/NotoFontsInstallationGuideZH.html",
+            "externalLinkTitle": "思源字体安装指南"
+          }
+        },
+        "AI":{
+          "about": "关于AI辅助编辑",
+          "desc": "选中内容在浮动栏点选AI问答、润色、精简、扩写"
+        }
+      },
       "upload": {
         "error": "上传失败",
         "needToken": "上传图片需配置 accessToken",

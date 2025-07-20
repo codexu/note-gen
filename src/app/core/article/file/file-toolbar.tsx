@@ -15,7 +15,9 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   BookA,
+  FileSymlink
 } from "lucide-react"
+import emitter from "@/lib/emitter";
 import * as React from "react"
 import { TooltipButton } from "@/components/tooltip-button"
 import useArticleStore from "@/stores/article"
@@ -40,6 +42,12 @@ export function FileToolbar() {
   const router = useRouter()
   const t = useTranslations('article.file.toolbar')
 
+  // 处理PDF导出
+  const handleExportPdf = () => {
+    // 触发导出事件
+    emitter.emit('toolbar-export-pdf');
+  };
+
   const debounceNewFile = debounce(newFile, 200)
   const debounceNewFolder = debounce(newFolder, 200)
 
@@ -58,6 +66,8 @@ export function FileToolbar() {
         <TooltipButton icon={<FilePlus />} tooltipText={t('newArticle')} onClick={debounceNewFile} />
         {/* 新建文件夹 */}
         <TooltipButton icon={<FolderPlus />} tooltipText={t('newFolder')} onClick={debounceNewFolder} />
+        {/* 导出PDF */}
+        <TooltipButton icon={<FileSymlink />} tooltipText={t('exportPDF')} onClick={handleExportPdf} />
         <TooltipButton 
           icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className={isVectorDbEnabled ? "text-primary" : ""} />} 
           tooltipText={isProcessing ? t('processingVectors') : (isVectorDbEnabled ? t('calculateVectors') : t('enableVectorDb'))} 

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思源字体安装指南</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+      
+        :root {
+            --primary: #8b0000;
+            --secondary: #003366;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #28a745;
+            --warning: #ffc107;
+        }
+      
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+      
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+      
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(120deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+      
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(30deg);
+        }
+      
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 2;
+        }
+      
+        .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+      
+        .info-box {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-left: 5px solid var(--primary);
+        }
+      
+        .info-box h2 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+      
+        .steps-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 40px 0;
+        }
+      
+        .step-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+      
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.12);
+        }
+      
+        .step-number {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            font-size: 1.8rem;
+            font-weight: bold;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom-left-radius: 30px;
+        }
+      
+        .step-card h3 {
+            color: var(--secondary);
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+            padding-right: 50px;
+        }
+      
+        .step-content {
+            margin-bottom: 15px;
+        }
+      
+        .path {
+            background: #f0f5ff;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 12px 0;
+            font-family: monospace;
+            color: #d6336c;
+            font-size: 0.95rem;
+            border-left: 3px solid var(--primary);
+            overflow-x: auto;
+        }
+      
+        .notes {
+            background: #fff9db;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 25px 0;
+            border-left: 4px solid var(--warning);
+        }
+      
+        .notes h3 {
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+      
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+      
+        .file-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e9ecef;
+        }
+      
+        .file-card h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--secondary);
+            margin-bottom: 8px;
+        }
+      
+        .file-card .path {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+        }
+      
+        .faq-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 40px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+      
+        .faq-section h2 {
+            color: var(--primary);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+      
+        .faq-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 20px;
+        }
+      
+        .faq-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+      
+        .faq-item h3 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+      
+        footer {
+            text-align: center;
+            padding: 10px;
+            margin-top: 10px;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+      
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            border: 2px solid var(--primary);
+        }
+      
+        .btn:hover {
+            background: transparent;
+            color: var(--primary);
+            transform: translateY(-3px);
+        }
+      
+        .btn-secondary {
+            background: var(--secondary);
+            border-color: var(--secondary);
+        }
+      
+        .btn-secondary:hover {
+            color: var(--secondary);
+        }
+      
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.2rem;
+            }
+          
+            .subtitle {
+                font-size: 1.1rem;
+            }
+          
+            .steps-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>思源字体安装指南</h1>
+            <p class="subtitle">思源字体无商业版权风险，兼具显示与打印的美观性</p>
+        </header>
+      
+        <div class="info-box">
+            <h2>指南说明</h2>
+            <p>思源字体是由Adobe和Google合作开发的免费开源字体，这些字体完美支持中文、英文和日文等字符，是设计和开发工作的理想选择。本指南将帮助您从清华大学开源软件镜像站下载并安装高质量的思源字体。</p>
+            <div class="path">
+                目标字体：NotoSansCJKsc-VF.otf（思源黑体） 和 NotoSerifCJKsc-VF.otf（思源宋体）
+            </div>
+        </div>
+      
+        <div class="steps-container">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h3>访问清华镜像站</h3>
+                <div class="step-content">
+                    <p>打开浏览器，访问清华大学开源软件镜像站：</p>
+                    <div class="path">https://mirrors.tuna.tsinghua.edu.cn/</div>
+                    <p>在搜索框中输入 "googlefonts" 并进入该目录。</p>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h3>进入字体目录</h3>
+                <div class="step-content">
+                    <p>在googlefonts目录中，找到并进入 "noto-cjk" 文件夹。</p>
+                    <p>这个目录包含所有Noto CJK字体文件。</p>
+                    <div class="path">/googlefonts/noto-cjk/</div>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h3>选择字体类型</h3>
+                <div class="step-content">
+                    <p>在noto-cjk目录中，您会看到两个主要文件夹：</p>
+                    <ul style="padding-left: 20px; margin-top: 10px;">
+                        <li><strong>Noto Sans CJK</strong> - 无衬线字体 (思源黑体)</li>
+                        <li><strong>Noto Serif CJK</strong> - 衬线字体 (思源宋体)</li>
+                    </ul>
+                    <p style="margin-top: 10px;">分别进入这两个目录。</p>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">4</div>
+                <h3>下载字体文件</h3>
+                <div class="step-content">
+                    <p>在Sans和Serif目录中，找到并下载以 "OTF-VF.zip" 结尾的压缩文件：</p>
+                    <div class="path">NotoSansCJK-OTF-VF.zip<br>NotoSerifCJK-OTF-VF.zip</div>
+                    <p>这些文件包含可变字体版本。</p>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">5</div>
+                <h3>解压字体文件</h3>
+                <div class="step-content">
+                    <p>下载完成后，解压两个ZIP文件。</p>
+                    <p>进入解压后的文件夹，找到以下路径：</p>
+                    <div class="path">Variable/OTF</div>
+                    <p>这个目录包含所有可用的OpenType可变字体文件。</p>
+                </div>
+            </div>
+          
+            <div class="step-card">
+                <div class="step-number">6</div>
+                <h3>系统安装字体</h3>
+                <div class="step-content">
+                    <p>在 "Variable/OTF" 目录中找到"sc"版本（支持简体中文和英文）字体：</p>
+                    <ul style="padding-left: 20px; margin-top: 10px;">
+                        <li>NotoSansCJKsc-VF.otf</li>
+                        <li>NotoSerifCJKsc-VF.otf</li>
+                    </ul>
+                    <p style="margin-top: 10px;">将它们拖拽到系统字体目录：</p>
+                    <div class="path">C:/Windows/Fonts</div>
+                </div>
+            </div>
+        </div>
+      
+        <div class="notes">
+            <h3>日文字体安装说明</h3>
+            <p>如果您需要处理日文内容，请额外安装日文字体文件：</p>
+            <div class="file-grid">
+                <div class="file-card">
+                    <h4>Sans日文字体</h4>
+                    <div class="path">NotoSansCJKjp-VF.otf</div>
+                    <p>包含日文字形的无衬线字体</p>
+                </div>
+                <div class="file-card">
+                    <h4>Serif日文字体</h4>
+                    <div class="path">NotoSerifCJKjp-VF.otf</div>
+                    <p>包含日文字形的衬线字体</p>
+                </div>
+            </div>
+            <p>同样将这些文件拖拽到 <span class="path">C:/Windows/Fonts</span> 目录即可完成安装。</p>
+        </div>
+      
+        <div class="info-box">
+            <h2>安装完成</h2>
+            <p>完成以上步骤后，您已成功安装思源字体。现在您可以在任何支持字体选择的应用程序中使用这些字体。</p>
+        </div>
+      
+        <div class="faq-section">
+            <h2>常见问题解答</h2>
+          
+            <div class="faq-item">
+                <h3>为什么选择清华镜像站下载？</h3>
+                <p>清华镜像站提供高速下载服务，尤其适合中国大陆用户。它同步维护Google Fonts的最新版本，确保您获取到最新的字体文件。</p>
+            </div>
+          
+            <div class="faq-item">
+                <h3>OTF和TTF格式有什么区别？</h3>
+                <p>OTF（OpenType Format）通常包含更多高级排版特性，支持更多语言和特殊字符。TTF（TrueType Format）则更通用，兼容性更好。本指南选择OTF格式以获得最佳排版效果。</p>
+            </div>
+          
+            <div class="faq-item">
+                <h3>什么是可变字体(VF)？</h3>
+                <p>可变字体将字体的多个变体（如不同字重、宽度）整合到单个文件中，允许设计师通过滑块调整字体属性，提供更大的设计灵活性并减少文件数量。</p>
+            </div>
+          
+            <div class="faq-item">
+                <h3>安装后如何在软件中使用这些字体？</h3>
+                <p>安装完成后，重启您的设计软件（如Adobe系列、Office等），在字体列表中搜索"Noto Sans CJK SC"或"Noto Serif CJK SC"即可使用。</p>
+            </div>
+        </div>
+      
+        <footer>
+        </footer>
+    </div>
+</body>
+</html>

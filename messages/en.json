@@ -756,7 +756,19 @@
         "sort": "Sort",
         "processingVectors": "Processing Vector Data",
         "calculateVectors": "Knowledge Base Calculation (Full)",
-        "enableVectorDb": "Enable Vector Database"
+        "enableVectorDb": "Enable Vector Database",
+        "exportPDF": "Export PDF",
+        "PDFstatus":{
+          "exportPDFeditorNotReady": "Editor not ready",
+          "exportPDFnoFileSelected": "No file selected",
+          "exportPDFselectFileFirst": "Please select a file first",
+          "exportPDFfileIsEmpty": "File is empty",
+          "exportPDFinputFileFirst": "Please enter content first",
+          "exportPDFexporting": "Exporting PDF",
+          "exportPDFinstructions": "Printer: Select 'Save as PDF'",
+          "exportPDFfailed": "Export failed",
+          "exportPDFerrorMessage": "An error occurred while exporting"
+        }
       },
       "context": {
         "viewDirectory": "View Directory",
@@ -789,6 +801,32 @@
     "editor": {
       "copySuccess": "Copied to clipboard",
       "copySuccessDescription": "Copied to clipboard",
+      "empty":{
+        "title": "Markdown Editor",
+        "description": "Type directly, prompts will auto-hide",
+        "WindowCreateFail": "Failed to create window: ",
+        "WindowOpenFail": "Failed to open window:",        
+        "exportPDF":{
+          "about": "About Exporting PDF",
+          "desc": "Utilizes browser for high-quality generation, lossless export of all element types",                    
+          "style": {
+            "title": "Click for @PDF Export Styles & Effects",
+            "desc": "MD File Name-Header；H1-Centered, bold in upper middle of page; H2-Centered, bold at page top; H3-Centered, bold; H4-Left-aligned......",
+            "url": "./guide/ExportPDFstyleEN.html",
+            "externalLinkTitle": "PDF Export Styles & Effects"
+          },
+          "font": {
+            "title": "Click for @Noto Fonts Installation Guide",
+            "desc": "Noto fonts have no commercial copyright risks and offer aesthetic appeal for display & printing\nTitles & body default to Noto Sans & Serif respectively",
+            "url": "./guide/NotoFontsInstallationGuideEN.html",
+            "externalLinkTitle": "Noto Fonts Installation Guide"
+          }
+        },
+        "AI":{
+          "about": "About AI-assisted Editing",
+          "desc": "Select content and click AI Q&A, polish, simplify, or expand in the floating toolbar"
+        }
+      },
       "upload": {
         "error": "Upload Failed",
         "needToken": "Upload image requires accessToken configuration",

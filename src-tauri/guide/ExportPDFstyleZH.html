@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoteGen PDF导出样式及效果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f5ff 100%);
+            color: #333;
+            line-height: 1.6;
+            background-attachment: fixed;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* 重新设计的背景：优雅的几何渐变 */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(106, 90, 249, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(74, 108, 247, 0.04) 0%, transparent 25%),
+                linear-gradient(45deg, rgba(255,255,255,0.8) 0%, rgba(245,248,255,0.9) 100%);
+            z-index: -1;
+            opacity: 1;
+        }
+    
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+    
+        .preview-section {
+            width: 100%;
+            background: linear-gradient(to bottom, #ffffff, #fafcff);
+            border-radius: 18px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+            padding: 35px;
+            margin-bottom: 20px 35px;
+            border: 1px solid #e8edf7;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .preview-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        }
+        
+        .preview-section::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .preview-section::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.1), rgba(138, 99, 210, 0.1));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+    
+        .style-details {
+            background: linear-gradient(to right, #f8faff, #f2f6ff);
+            border-left: 4px solid #5a7cff;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+            box-shadow: inset 4px 0 8px rgba(90, 124, 255, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .style-details::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(90, 124, 255, 0.03) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(106, 90, 249, 0.03) 0%, transparent 20%);
+            opacity: 0.3;
+            z-index: 0;
+        }
+    
+        .style-details h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2rem;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details ul {
+            padding-left: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+        .style-details li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 0;
+            font-weight: 500;
+            color: #444;
+        }
+        
+        .style-details strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+    
+        h1.page-title {
+            text-align: center;
+            color: #2c3e50;
+            margin: 25px 0 50px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #eef2f9;
+            position: relative;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            font-size: 2.8rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+        
+        h1.page-title::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 180px;
+            height: 5px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2, #6a5af9);
+            border-radius: 3px;
+        }
+    
+        .section-title {
+            color: #2c3e50;
+            padding-bottom: 15px;
+            margin: 0 0 30px;
+            font-weight: 700;
+            position: relative;
+            font-size: 1.8rem;
+        }
+        
+        .section-title::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(to right, #5a7cff, #8a63d2);
+            border-radius: 4px;
+        }
+        
+        .title-font-family {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 15px 20px;
+            border-radius: 0 12px 12px 0;
+            margin: -20px 0 30px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        /* 新增样式 */
+        .title-font-family--small {
+            margin: -50px 0 5px 0; /* 下边距进一步减小 */
+        }
+        
+        .title-font-family::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .title-font-family h4 {
+            color: #2c54b3;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.2rem;
+        }
+        
+        .title-font-family p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+            color: #3a5ad9;
+        }
+
+        .note {
+            background: linear-gradient(to right, #e9f2ff, #e0ecff);
+            border-left: 4px solid #5a7cff;
+            padding: 25px;
+            border-radius: 0 12px 12px 0;
+            margin: 20px 0;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(90, 124, 255, 0.15);
+        }
+        
+        .note::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(74, 108, 247, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        .note h3 {
+            color: #2c54b3;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+            font-size: 1.4rem;
+        }
+        
+        .note ul {
+            padding-left: 30px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .note li {
+            margin-bottom: 12px;
+            position: relative;
+            padding-left: 25px;
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: #445588;
+        }
+        
+        .note li::before {
+            content: "➤";
+            color: #5a7cff;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+    
+        .element-card {
+            background: linear-gradient(to bottom, #ffffff, #fbfdff);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+            transition: all 0.4s ease;
+            height: 100%;
+            border: 1px solid #e8edf7;
+            position: relative;
+        }
+        
+        .element-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(90, 124, 255, 0.15);
+        }
+        
+        .element-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(90, 124, 255, 0.02) 0%, rgba(106, 90, 249, 0.02) 100%);
+            z-index: 0;
+        }
+    
+        .card-header {
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            padding: 20px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            position: relative;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+    
+        .card-content {
+            padding: 25px;
+            position: relative;
+            z-index: 1;
+        }
+    
+    
+        .print-btn {
+            display: block;
+            margin: 20px auto 20px;
+            padding: 16px 45px;
+            background: linear-gradient(to right, #5a7cff, #6a5af9);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 8px 20px rgba(90, 124, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+            letter-spacing: 0.5px;
+        }
+        
+        .print-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, #4a6cf7, #5a4ae9);
+            z-index: -1;
+            transition: transform 0.5s;
+            transform: scaleX(0);
+            transform-origin: right;
+        }
+        
+        .print-btn:hover::before {
+            transform: scaleX(1);
+            transform-origin: left;
+        }
+        
+        .print-btn:hover {
+            box-shadow: 0 12px 25px rgba(90, 124, 255, 0.6);
+        }
+        
+        /* 新增布局样式 */
+        .section-container {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+        
+        .heading-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .heading-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .text-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+        
+        .text-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 768px) {
+            .heading-row,
+            .text-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .preview-section {
+                padding: 25px 20px;
+            }
+        }
+        
+        /* 页眉装饰 */
+        .header-decor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, rgba(90, 124, 255, 0.08), rgba(138, 99, 210, 0.08));
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+        
+        /* 页脚 */
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 40px;
+            border-top: 1px solid #eaeff8;
+            background: rgba(255,255,255,0.7);
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-decor"></div>
+    
+    <h1 class="page-title">
+        PDF导出样式及效果
+    </h1>
+  
+    <div class="note">
+        <h3>重要说明</h3>
+        <ul>
+            <li>调用浏览器导出，页面自动应用A4纸张尺寸和15mm页边距，浏览器支持：<strong>Edge</strong>、Chrome、Firefox等</li>
+            <li>页眉处<strong>MD文件名</strong>居中，页脚处页码居中</li>
+            <li>各元素默认映射<strong>思源字体</strong>，辅以系统字体作为备选，以保障PDF的导出</li>
+            <li>MD编辑器所有元素字体的粗体和斜体效果可在导出时渲染，但要注意：
+                <p><strong>1. 如果系统没有安装思源宋体与华文宋体，则文本、列表与表格中简体中文的粗体及斜体将回退为正常样式</strong></p>
+                <p><strong>2. 一二三级标题在导出时字重会自动加粗，因此不建议在MD编辑器内对其手动加粗，加粗会叠加</strong></p>
+            </li>
+        </ul>
+    </div>
+
+    <button class="print-btn">点击查看导出PDF实际效果</button>
+    
+    <div class="container">
+        <div class="section-container">
+            <!-- 标题元素部分 -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    标题元素
+                </h2>
+                
+                <!-- 标题字体家族说明 -->
+                <div class="title-font-family">
+                    <h4>标题字体家族</h4>
+                    <p>无衬线字体："思源黑体"(Noto Sans SC/Noto Sans CJK SC), "Arial", "Meiryo", "微软雅黑", sans-serif</p>
+                </div>
+                
+                <div class="heading-section">
+                    <div class="heading-row">
+                        <!-- H1 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H1 - 一级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 前分页，避免后分页</li>
+                                        <li><strong>位置</strong>: 页面中上部居中</li>
+                                        <li><strong>字体大小</strong>: 22pt</li>
+                                        <li><strong>字重</strong>: 加粗</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 80mm</li>  
+                                        <li><strong>下边距</strong>: 1.5em</li>                                       
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H2 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H2 - 二级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 前分页，避免后分页</li>
+                                        <li><strong>位置</strong>: 页面顶部居中</li>
+                                        <li><strong>字体大小</strong>: 18pt</li>
+                                        <li><strong>字重</strong>: 加粗</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 1em</li>
+                                        <li><strong>下边距</strong>: 1em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H3 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H3 - 三级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 避免后分页</li>
+                                        <li><strong>位置</strong>: 居中</li>
+                                        <li><strong>字体大小</strong>: 16pt</li>
+                                        <li><strong>字重</strong>: 加粗</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 1em</li>
+                                        <li><strong>下边距</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H4 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H4 - 四级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 避免后分页</li>
+                                        <li><strong>位置</strong>: 左对齐</li>
+                                        <li><strong>字体大小</strong>: 15pt</li>
+                                        <li><strong>字重</strong>: 正常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 0.8em</li>
+                                        <li><strong>下边距</strong>: 0.4em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="heading-row">
+                        <!-- H5 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H5 - 五级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 避免后分页</li>
+                                        <li><strong>位置</strong>: 左对齐缩进</li>
+                                        <li><strong>字体大小</strong>: 14pt</li>
+                                        <li><strong>字重</strong>: 正常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 0.6em</li>
+                                        <li><strong>下边距</strong>: 0.3em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- H6 卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                H6 - 六级标题
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>分页控制</strong>: 避免后分页</li>
+                                        <li><strong>位置</strong>: 左对齐缩进</li>
+                                        <li><strong>字体大小</strong>: 12pt</li>
+                                        <li><strong>字重</strong>: 正常</li>
+                                        <li><strong>行高</strong>: 1.5</li>
+                                        <li><strong>上边距</strong>: 0.4em</li>
+                                        <li><strong>下边距</strong>: 0.2em</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 文本与排版元素部分 -->
+            <div class="preview-section">
+                <h2 class="section-title">
+                    文本与排版元素
+                </h2>
+                
+                <!-- 正文字体家族说明 -->
+                <div class="title-font-family">
+                    <h4>文本字体家族</h4>
+                    <p>衬线字体："思源宋体"(Noto Serif SC/Noto Serif CJK SC), "Times New Roman", "华文宋体", "宋体", serif</p>
+                </div>
+                
+                <div class="text-section">
+                    <div class="text-row">
+                        <!-- 正文段落卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                正文段落
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>字体大小</strong>: 12pt</li>
+                                        <li><strong>行高</strong>: 1.5</li>                                        
+                                        <li><strong>首行缩进</strong>: 2em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 引用块卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                引用块
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>块容器</strong>: 左侧深灰色竖条，背景浅灰色</li>                                        
+                                        <li><strong>字体大小</strong>: 比正文大5%</li>
+                                        <li><strong>内边距</strong>: 上下1em 左右2rem</li>
+                                        <li><strong>外边距</strong>: 上下8pt 左右0</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- 链接卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                链接
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>URL显示</strong>: 在链接文本后显示URL</li>
+                                        <li><strong>URL样式</strong>: 字号90%，浅灰色</li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 分割线卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                分割线
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>边距</strong>: 上下各1em</li>
+                                        <li><strong>默认样式</strong>: 水平线</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>                       
+                        
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            列表元素
+                        </h3>
+                    </div>
+                    
+                    <!-- 新增的字体家族说明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>列表字体家族</h4>
+                        <p>与文本字体家族相同</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- 无序列表卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                无序列表
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>列表标记</strong>: 实心圆点、空心圆点、方块</li>                                        
+                                        <li><strong>左侧缩进</strong>: 40px</li>
+                                        <li><strong>垂直间距</strong>: 1em</li>
+                                        <li><strong>项目间距</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 有序列表卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                有序列表
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>列表标记</strong>: 十进制数字</li>
+                                        <li><strong>左侧缩进</strong>: 40px</li>
+                                        <li><strong>垂直间距</strong>: 1em</li>
+                                        <li><strong>项目间距</strong>: 0.5em</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            表格与图片
+                        </h3>
+                    </div>
+                    
+                    <!-- 新增的字体家族说明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>表格字体家族</h4>
+                        <p>与文本字体家族相同</p>
+                    </div>
+                    
+                    <div class="text-row">
+                        <!-- 表格卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                表格
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>宽度</strong>: 100%</li>                                                                             
+                                        <li><strong>单元格内边距</strong>: 8px</li>
+                                        <li><strong>对齐方式</strong>: 水平垂直居中</li>
+                                        <li><strong>外边距</strong>: 上下各8pt</li>
+                                        <li><strong>分页控制</strong>: 避免内部分页</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 图片卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                图片
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>最大尺寸</strong>: 宽高100%</li>
+                                        <li><strong>显示方式</strong>: 占位显示</li>
+                                        <li><strong>对齐方式</strong>: 水平居中</li>
+                                        <li><strong>外边距</strong>: 上下各8pt</li>
+                                        <li><strong>分页控制</strong>: 避免内部分页</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="full-width">
+                        <h3 class="section-title">
+                            代码元素
+                        </h3>
+                    </div>
+                    
+                    <!-- 新增的字体家族说明 -->
+                    <div class="title-font-family title-font-family--small">
+                        <h4>代码字体家族</h4>
+                        <p>无衬线字体："思源黑体"(Noto Sans SC/Noto Sans CJK SC), "Consolas", "Courier New", sans-serif</p>
+                    </div>
+
+                    <div class="text-row">
+                        <!-- 行内代码卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                行内代码
+                            </div>
+                            <div class="card-content">
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>背景</strong>: 浅灰色</li>
+                                        <li><strong>字体大小</strong>: 12pt（与文本字体大小相同）</li>
+                                        <li><strong>内边距</strong>: 上下0.15em 左右0.4em</li>                                        
+                                        <li><strong>圆角</strong>: 4px</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 代码块卡片 -->
+                        <div class="element-card">
+                            <div class="card-header">
+                                代码块
+                            </div>
+                            <div class="card-content">                                
+                                <div class="style-details">
+                                    <h3>样式属性：</h3>
+                                    <ul>
+                                        <li><strong>块容器</strong>: 顶部栏深灰色，背景浅灰色</li>                                        
+                                        <li><strong>字体大小</strong>: 10pt</li>
+                                        <li><strong>行高</strong>: 1.2</li>
+                                        <li><strong>内边距</strong>: 15px</li>
+                                        <li><strong>分页控制</strong>: 避免内部分页</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="print-btn">点击查看导出PDF实际效果</button>
+  
+    <div class="note">
+        <h3>重要说明：</h3>
+        <ul>
+            <li>调用浏览器导出，页面自动应用A4纸张尺寸和15mm页边距，浏览器支持：<strong>Edge</strong>、Chrome、Firefox等</li>
+            <li>页眉处<strong>MD文件名</strong>居中，页脚处页码居中</li>
+            <li>各元素默认映射<strong>思源字体</strong>，辅以系统字体作为备选，以保障PDF的导出</li>
+            <li>MD编辑器所有元素字体的粗体和斜体效果可在导出时渲染，但要注意：
+                <p><strong>1. 如果系统没有安装思源宋体与华文宋体，则文本、列表与表格中简体中文的粗体及斜体将回退为正常样式</strong></p>
+                <p><strong>2. 一二三级标题在导出时字重会自动加粗，因此不建议在MD编辑器内对其手动加粗，加粗会叠加</strong></p>
+            </li>
+        </ul>
+    </div>
+    
+    <footer>
+        <p>© NoteGen PDF导出样式及效果</p>
+    </footer>
+</body>
+</html>
+
+<script>
+    // 添加笔记打印布局
+    const ContentContainer = document.createElement('div');
+    ContentContainer.id = 'content-container';
+    ContentContainer.style.position = 'absolute';
+    ContentContainer.style.left = '-9999px';
+    document.body.appendChild(ContentContainer);
+
+    // 提取文件名（不含扩展名）
+    const fileName = 'MD文件名';
+    document.title = fileName;
+
+    // 创建打印内容
+    ContentContainer.innerHTML = `
+        <div id="only-content">
+            <div id="editorContent">
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h1>一级标题 (H1)</h1>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h2>二级标题 (H2)</h2>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h3>三级标题 (H3)</h3>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h4>四级标题 (H4)</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h5>五级标题 (H5)</h5>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本。</p>
+                <h6>六级标题 (H6)</h6>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本，下面是分割线：</p>
+                <hr>
+                <p>这是正文文本示例，展示导出样式中的文段效果。在导出过程中，正文文本将使用衬线字体家族，右侧两个括号内分别为加粗效果和斜体效果展示（<strong>加粗</strong>）、（<em>斜体</em>），如果括号内为简体中文且未显示加粗或斜体效果，则说明您的系统未安装思源宋体及华文宋体，字体回退为了系统自带的宋体导致无法渲染粗体和斜体。</p>
+                <p>第二段文本用于展示连续段落的效果。所有正文内容将保持一致的字体、字号和缩进设置。</p>
+  
+                <h4>列表样式</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本，列表可通过Tab键多层嵌套，但无序列表三层及以上的标记均为相同的方块</p>
+                <ul>
+                    <li>无序列表项目一</li>
+                    <li>无序列表项目二
+                        <ul>
+                            <li>嵌套列表项目 A</li>
+                            <li>嵌套列表项目 B
+                                <ul>
+                                    <li>三级嵌套项目</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    <li>无序列表项目三</li>
+                </ul>
+
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+  
+                <ol>
+                    <li>有序列表项目一</li>
+                    <li>有序列表项目二
+                        <ol>
+                            <li>嵌套列表项目 A</li>
+                            <li>嵌套列表项目 B
+                                <ol>
+                                    <li>三级嵌套项目</li>
+                                </ol>
+                            </li>
+                        </ol>
+                    </li>
+                    <li>有序列表项目三</li>
+                </ol>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+  
+                <h4>代码样式</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <p>行内代码示例: <code>console.log("Hello World");</code></p>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <pre><code>function calculateSum(a, b) {
+                    // 这是一个代码块示例
+                    return a + b;
+                }
+
+                console.log(calculateSum(5, 10));</code></pre>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <h4>表格样式</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>职位</th>
+                            <th>部门</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>张三</td>
+                            <td>前端工程师</td>
+                            <td>技术部</td>
+                        </tr>
+                        <tr>
+                            <td>李四</td>
+                            <td>产品经理</td>
+                            <td>产品部</td>
+                        </tr>
+                        <tr>
+                            <td>王五</td>
+                            <td>UI设计师</td>
+                            <td>设计部</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+  
+                <h4>引用样式</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <blockquote>
+                    这是引用文本示例。在打印输出中，引用块将显示特殊样式，包括左侧竖条标记和浅灰色背景。
+                    引用文本使用与正文不同的字体家族，字号稍大，具有独特的外观。
+                </blockquote>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+  
+                <h4>链接样式</h4>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <p>链接: <a href="https://notegen.top/zh/">NoteGen</a></p>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+  
+                <h4>图片样式</h4>
+                <p>图片将在导出时占位居中显示</p>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+                <div style="width: 100%; height: 360px; background: linear-gradient(135deg, #6a5af9, #4a6cf7); 
+                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; display: flex; margin: 8pt 0;
+                align-items: center; text-indent: 0 !important;  justify-content: center; color: white; font-size: 22pt; font-weight: bold;">
+                这是图片
+                </div>
+                <p>这是用于展示元素分页属性及上下边距效果的正文文本</p>
+            </div>
+        </div> 
+    `;
+
+    // 初始状态完全隐藏打印容器
+    ContentContainer.style.display = 'none';
+
+    // 动态添加打印样式 /* 注意：从export-pdf.tsx复制打印样式后，需要在H4/H5/H6的样式下添加font-weight: normal !important;网页样式加粗了
+    const ContentStyle = document.createElement('style');
+    ContentStyle.textContent = `
+      @media print {
+        /* === 修复根元素高度限制问题 === */
+        html, body {
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* 隐藏不需要打印的元素 */
+        body > *:not(#content-container) {
+          display: none !important;
+        }
+  
+        /* 打印容器样式 */
+        #content-container {
+          position: static;
+          display: block ! important;
+          left: 0 !important;
+          width: 100% !important;
+          padding: 0;
+          margin: 0;
+        }
+
+        /* 页面布局 */
+        @page {
+          /* 隐藏浏览器默认的页眉页脚 */
+          margin-top: 15mm; 
+          margin-bottom: 15mm; 
+          margin-left: 15mm;
+          margin-right: 15mm;
+          size: A4; /*297mm*210mm*/
+
+          @top-center {
+          content: "${fileName}";
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+
+          @bottom-center {
+          content: counter(page) " / " counter(pages); /* 居中显示页码 */
+          font-family: "Noto Sans SC", sans-serif;
+          font-size: 8pt;
+          color: #666;
+          }
+        }  
+
+        /* 主内容容器 */
+        #only-content {
+          position: relative;
+          width: 100%;
+          top: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+        }   
+        /* 内容区域 */
+        #editorContent {
+          top: 0;
+          font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Times New Roman", "华文宋体", "宋体", serif;
+          font-size: 12pt;
+          /*letter-spacing: 0.1em;*/
+          line-height: 1.5;
+          color: #000;
+          height: 267mm !important;
+          text-indent: 2em;  
+          /* 分页支持 */
+          page-break-inside: always;
+        }  
+        /* 分页控制 */
+        .page-break {
+          page-break-before: always;
+        }
+
+        /* 代码样式(包括代码块和行内代码等) */
+        code {
+          padding: 0.15em 0.4em;
+          background: #dddbdbff;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 4px;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 1em; 
+          vertical-align: baseline; /* 基线对齐 */
+        }
+        pre code {
+          padding: 0em  !important;
+          background: none !important;
+          border-radius: 0px  !important;
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important; 
+          vertical-align: baseline; /* 基线对齐 */
+        }
+        /* 优化代码块打印 */
+        pre {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Consolas", "Courier New", "Microsoft YaHei", sans-serif !important;
+          font-size: 10pt !important;
+          line-height: 1.2 !important;
+          orphans: 3 !important;
+          white-space: pre-wrap !important;
+          word-break: break-word !important;
+          background-color: #f5f5f5 !important;
+          border: 1px solid #ddd !important;
+          padding: 15px !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          border-radius: 5px !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        /* 代码块标题 */
+        pre::before {
+          content: " ";
+          display: block;
+          background: #555;
+          color: white;
+          padding: 5px 10px;
+          font-size: 0.9em;
+          margin: -15px -15px 15px -15px;
+          border-radius: 4px 4px 0 0;
+          text-indent: 0 !important;
+        }
+
+        /* 链接显示URL */
+        a::after {
+          content: " (" attr(href) ")";
+          font-size: 90%;
+          color: #666;
+        }
+
+        /* 同时应用于无序列表(ul)和有序列表(ol)的基础样式 */
+        /* 恢复默认列表样式 */
+        ul, ol {
+          margin: 1em 0; /* 恢复默认的垂直间距 */
+          padding-left: 40px; /* 默认的左侧缩进 */
+          text-indent: 0; /* 移除文本缩进 */
+        }
+        ul {
+          list-style-type: disc; /* 一级无序列表使用实心圆点 */
+        }
+        ul ul {
+          list-style-type: circle; /* 二级无序列表使用空心圆点 */
+        }
+        ul ul ul {
+          list-style-type: square; /* 三级无序列表使用方块 */
+        }
+        ol {
+          list-style-type: decimal; /* 有序列表使用十进制数字 */
+        }
+        li {
+          position: static; /* 恢复默认定位 */
+          padding-left: 0; /* 移除自定义左侧内边距 */
+          margin-bottom: 0.5em; /* 适当的列表项间距 */
+        }
+        li::before {
+          content: none; /* 移除自定义伪元素 */
+        }
+
+        /* 优化表格打印 */
+        table {
+          width: 100% !important;
+          border-collapse: collapse !important;  
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          font-size: 10pt !important;
+          text-indent: 0 !important;
+          page-break-inside: avoid !important;
+        }  
+        th, td {
+          border: 1px solid #ddd !important;
+          padding: 8px !important;
+          /* 水平居中 */
+          text-align: center !important;        
+          /* 垂直居中 */
+          vertical-align: middle !important;
+          border: 1px solid #ddd !important;
+        }
+
+        /* 引用样式 */
+        blockquote {
+            background: #f5f5f5;
+            border: 1px solid #ddd1;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;          
+            margin: 8pt 0;
+            border-radius: 4px;
+            text-indent: 0 !important;
+            font-family: "Noto Serif SC", "Noto Serif CJK SC", "Noto Serif JP", "Noto Serif CJK JP", "Constantia", "华文宋体", "宋体", serif !important;
+            font-size: 1.05em; /* 比正文大5% */
+            padding: 1em 2rem;
+            position: relative;
+        }      
+        blockquote::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 5px;
+            height: 100%;
+            background: #555;
+        }
+
+        /*分割线*/
+        hr {
+          margin: 1em 0;              /* 上下边距 */
+        }
+  
+        /* 标题样式 */
+        h1, h2, h3, h4, h5, h6 {
+          font-family: "Noto Sans SC", "Noto Sans CJK SC", "Noto Sans JP", "Noto Sans CJK JP", "Arial", "Meiryo", "Microsoft YaHei", sans-serif !important;
+          page-break-before: auto;
+          page-break-after: avoid;
+        }  
+        h1 {         
+          font-size: 22pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 80mm !important;
+          margin-left: 15mm !important;
+          margin-right: 15mm !important;
+          margin-bottom: 1.5em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h2 { 
+          font-size: 18pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 1em !important;
+          text-indent: 0 !important;
+          page-break-before: always !important;
+          page-break-after: avoid !important;
+        }
+        h3 { 
+          font-size: 16pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          line-height: 1.5 !important;
+          margin-top: 1em !important;
+          margin-bottom: 0.5em !important;        
+          text-indent: 0 !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h4 { 
+          font-size: 15pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.8em !important;
+          margin-bottom: 0.4em !important;
+          text-indent: 0em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h5 { 
+          font-size: 14pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.6em !important;
+          margin-bottom: 0.3em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+        h6 { 
+          font-size: 12pt !important;
+          font-weight: normal !important;
+          line-height: 1.5 !important;
+          margin-top: 0.4em !important;
+          margin-bottom: 0.2em !important;
+          text-indent: 2em !important;
+          page-break-before: auto !important;
+          page-break-after: avoid !important;
+        }
+  
+        /* 图片优化 */
+        img {
+          max-width: 100% !important;
+          max-height: 100% !important;
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          margin-top: 8pt !important;
+          margin-bottom: 8pt !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          page-break-inside: avoid;
+        }   
+      }
+    `;
+    document.head.appendChild(ContentStyle);
+  
+    document.querySelectorAll('.print-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            window.print();
+        });
+    });
+</script>

@@ -1,32 +1,58 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CopyIcon } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { SquareArrowOutUpRightIcon } from "lucide-react";
 import Vditor from "vditor";
 
-type CopyFormat = "HTML" | "JSON" | "Markdown";
+type ExportFormat = "HTML" | "JSON" | "Markdown";
 
-export default function CopyFormatSelector({editor}: {editor?: Vditor}) {
+export default function ExportFormatSelector({editor}: {editor?: Vditor}) {
 
-  const handleFormatSelect = (format: CopyFormat) => {
+  const handleFormatSelect = async (format: ExportFormat) => {
+    let content = ''
     switch (format) {
       case "HTML":
-        navigator.clipboard.writeText(editor?.getHTML() || '')
+        content = editor?.getHTML() || ''
         break;
       case "JSON":
-        navigator.clipboard.writeText(editor?.exportJSON(editor?.getValue() || '') || '')
+        content = editor?.exportJSON(editor?.getValue() || '') || ''
         break;
       case "Markdown":
-        navigator.clipboard.writeText(editor?.getValue() || '')
+        content = editor?.getValue() || ''
         break;
     }
-    toast({ title: `${format}已复制到剪切板` })
+    // 保存到文件
+    let ext = 'md'
+    switch (format) {
+      case "HTML":
+        ext = 'html'
+        break;
+      case "JSON":
+        ext = 'json'
+        break;
+      case "Markdown":
+        ext = 'md'
+        break;
+    }
+    const selected = await save({
+      defaultPath: `123.${ext}`,
+      filters: [
+        {
+          name: format,
+          extensions: [ext],
+        },
+      ],
+    })
+    if (selected) {
+      await writeTextFile(selected, content)
+    }
   };
 
   return (
@@ -38,7 +64,7 @@ export default function CopyFormatSelector({editor}: {editor?: Vditor}) {
             size="icon" 
             className="outline-none"
           >
-            <CopyIcon className="!size-3" />
+            <SquareArrowOutUpRightIcon className="!size-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent 

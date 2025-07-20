@@ -131,21 +131,35 @@
       "updateInstalled": "重启应用",
       "noUpdate": "当前已是最新版本",
       "items": {
+        "home": {
+          "title": "官网",
+          "buttonName": "打开",
+          "desc": "访问官网，了解 NoteGen 的更多信息。"
+        },
+        "guide": {
+          "title": "配置指南",
+          "buttonName": "打开",
+          "desc": "查看配置指南，了解如何配置模型、同步等信息。"
+        },
         "github": {
           "title": "GitHub",
-          "buttonName": "查看"
+          "buttonName": "查看",
+          "desc": "如果 NoteGen 帮助到了你，请给颗 star 鼓励一下！"
         },
         "releases": {
           "title": "更新日志",
-          "buttonName": "查看"
+          "buttonName": "查看",
+          "desc": "查看更新日志，了解 NoteGen 的更新信息。"
         },
         "issues": {
           "title": "问题反馈",
-          "buttonName": "反馈"
+          "buttonName": "反馈",
+          "desc": "如果发现 NoteGen 有 bug，请在这里反馈。"
         },
         "discussions": {
           "title": "交流讨论",
-          "buttonName": "讨论"
+          "buttonName": "讨论",
+          "desc": "如果你想和作者或其他用户交流，可以加群讨论。"
         }
       }
     },
@@ -355,6 +369,23 @@
         "title": "写作资源路径",
         "desc": "设置写作资源的保存路径，例如图片、视频、文件等，与当前编辑的 markdown 文件同级。",
         "select": "请设置写作资源路径，例如：assets"
+      }
+    },
+    "shortcuts": {
+      "title": "快捷键",
+      "desc": "在这里，你可以配置快捷键，帮助你更高效地使用 NoteGen。",
+      "resetDefaults": "重置",
+      "clear": "清空",
+      "noShortcut": "未设置",
+      "shortcuts": {
+        "openWindow": {
+          "title": "打开/隐藏窗口",
+          "desc": "打开/隐藏程序主窗口。"
+        },
+        "quickRecordText": {
+          "title": "快速记录文本",
+          "desc": "快速打开程序主窗口，并调出文本记录。"
+        }
       }
     }
   },
@@ -668,7 +699,14 @@
         "rootDirectory": "根目录",
         "deleteTag": "删除当前标签、记录和笔记（回收站可恢复）",
         "warning": "转换后将跳转到写作页面。",
-        "convert_button": "转化"
+        "convert_button": "转化",
+        "organizeAs": "将记录整理成...",
+        "templateContent": "模板内容",
+        "recordRange": "记录选择范围",
+        "filterThinkingContent": "移除记录中的思考",
+        "startOrganize": "开始整理",
+        "manageTemplate": "管理模板",
+        "cancel": "取消"
       },
       "mark": {
         "recorded": "已记录",

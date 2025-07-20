@@ -15,7 +15,8 @@ import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CopySlash } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import emitter from "@/lib/emitter"
 
 export function ControlText() {
   const t = useTranslations();
@@ -34,6 +35,15 @@ export function ControlText() {
     setText('')
     setOpen(false)
   }
+
+  useEffect(() => {
+    emitter.on('quickRecordTextHandler', () => {
+      setOpen(true)
+    })
+    return () => {
+      emitter.off('quickRecordTextHandler')
+    }
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

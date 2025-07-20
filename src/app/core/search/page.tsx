@@ -34,7 +34,7 @@ export default function Page() {
     
     try {
       const res = await fuzzySearch.searchParallel(value);
-      setSearchResult(res.reverse());
+      setSearchResult(res);
     } catch (error) {
       console.error('Error during search:', error);
       setSearchResult([]);

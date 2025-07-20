@@ -118,8 +118,8 @@ html, body {
   }
 }
 
-.search-highlight{
-  @apply bg-secondary-foreground text-secondary px-1;
+.search-highlight i{
+  @apply bg-secondary-foreground text-secondary;
 }
 
 .setting-input {

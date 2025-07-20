@@ -27,28 +27,28 @@ export default function AppStatus() {
   // 获取当前主要备份方式的用户信息
   async function handleGetUserInfo() {
     try {
-      if (accessToken) {
-        setSyncRepoInfo(undefined)
-        setSyncRepoState(SyncStateEnum.checking)
-        const res = await getUserInfo()
-        if (res) {
-          setUserInfo(res.data as UserInfo)
-          setGithubUsername(res.data.login)
+      if (primaryBackupMethod === 'github') {
+        if (accessToken) {
+          setSyncRepoInfo(undefined)
+          setSyncRepoState(SyncStateEnum.checking)
+          const res = await getUserInfo()
+          if (res) {
+            setUserInfo(res.data as UserInfo)
+            setGithubUsername(res.data.login)
+          }
+          await checkGithubRepos()
         }
-
-        // 检查仓库状态 - GitHub
-        await checkGithubRepos()
-      } else if (giteeAccessToken) {
-        // 获取 Gitee 用户信息
-        setGiteeSyncRepoInfo(undefined)
-        setGiteeSyncRepoState(SyncStateEnum.checking)
-        const res = await import('@/lib/gitee').then(module => module.getUserInfo())
-        if (res) {
-          setGiteeUserInfo(res)
+      } else if (primaryBackupMethod === 'gitee') {
+        if (giteeAccessToken) {
+          // 获取 Gitee 用户信息
+          setGiteeSyncRepoInfo(undefined)
+          setGiteeSyncRepoState(SyncStateEnum.checking)
+          const res = await import('@/lib/gitee').then(module => module.getUserInfo())
+          if (res) {
+            setGiteeUserInfo(res)
+          }
+          await checkGiteeRepos()
         }
-
-        // 检查仓库状态 - Gitee
-        await checkGiteeRepos()
       } else {
         setUserInfo(undefined)
         setGiteeUserInfo(undefined)
@@ -124,7 +124,7 @@ export default function AppStatus() {
     if (accessToken || giteeAccessToken) {
       handleGetUserInfo()
     }
-  }, [accessToken, giteeAccessToken])
+  }, [accessToken, giteeAccessToken, primaryBackupMethod])
 
   return (
     <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
@@ -133,12 +133,12 @@ export default function AppStatus() {
           {primaryBackupMethod === 'github' ? (
             <>
               <AvatarImage src={userInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground">{userInfo? userInfo.login.slice(0, 1): <CircleUserRound className="size-5"/>}</AvatarFallback>
+              <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
             </>
           ) : primaryBackupMethod === 'gitee' ? (
             <>
               <AvatarImage src={giteeUserInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground">{giteeUserInfo? giteeUserInfo.login.slice(0, 1): <CircleUserRound className="size-5"/>}</AvatarFallback>
+              <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
             </>
           ) : (
             <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>

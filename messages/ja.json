@@ -131,6 +131,14 @@
       "updateInstalled": "Restart app",
       "noUpdate": "現在已是最新版本",
       "items": {
+        "home": {
+          "title": "公式サイト",
+          "buttonName": "表示"
+        },
+        "guide": {
+          "title": "ガイド",
+          "buttonName": "表示"
+        },
         "github": {
           "title": "GitHub",
           "buttonName": "表示"
@@ -345,6 +353,23 @@
         "title": "アセット",
         "desc": "執筆中のリソース（例：画像、ビデオ、ファイル等）の保存パスを設定します。現在編集中の markdown ファイルと同じレベルに保存されます。",
         "select": "執筆中のリソースの保存パスを設定してください"
+      }
+    },
+    "shortcuts": {
+      "title": "ショートカット",
+      "desc": "ここで、NoteGen をより効率的に使用するためのショートカットを設定できます。",
+      "resetDefaults": "リセットします",
+      "clear": "クリア",
+      "noShortcut": "未設定",
+      "shortcuts": {
+        "openWindow": {
+          "title": "ウィンドウを開く/隠す",
+          "desc": "主ウィンドウを開く/隠す。"
+        },
+        "quickRecordText": {
+          "title": "テキストを素早く記録します",
+          "desc": "主ウィンドウを開き、テキスト記録を表示します。"
+        }
       }
     }
   },
@@ -656,7 +681,14 @@
         "rootDirectory": "ルートディレクトリ",
         "deleteTag": "削除タグ、記録とノート（ゴミ箱で復元可能）",
         "warning": "変換後、執筆ページに移動します。",
-        "convert_button": "変換"
+        "convert_button": "変換",
+        "organizeAs": "記録を整理します...",
+        "templateContent": "テンプレート内容",
+        "recordRange": "記録範囲を選択",
+        "filterThinkingContent": "思考の記録を削除します",
+        "startOrganize": "開始整理",
+        "manageTemplate": "管理テンプレート",
+        "cancel": "キャンセル"
       },
       "mark": {
         "recorded": "記録済み",

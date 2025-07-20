@@ -86,6 +86,14 @@
       "updateInstalled": "Restart app",
       "noUpdate": "Current version is the latest",
       "items": {
+        "home": {
+          "title": "Home",
+          "buttonName": "Open"
+        },
+        "guide": {
+          "title": "Guide",
+          "buttonName": "Open"
+        },
         "github": {
           "title": "GitHub",
           "buttonName": "View"
@@ -348,6 +356,23 @@
         "desc": "Set the path where resources (e.g. images, videos, files etc.) used in writing will be saved. Resources will be saved at the same level as the currently edited markdown file.",
         "select": "Set the path where resources used in writing will be saved"
       }
+    },
+    "shortcuts": {
+      "title": "Shortcuts",
+      "desc": "Here, you can configure shortcuts to help you use NoteGen more efficiently.",
+      "resetDefaults": "Reset",
+      "clear": "Clear",
+      "noShortcut": "No Shortcut",
+      "shortcuts": {
+        "openWindow": {
+          "title": "Open/Hide Window",
+          "desc": "Open/Hide the main window."
+        },
+        "quickRecordText": {
+          "title": "Quick Record Text",
+          "desc": "Quickly open the main window and switch to text recording."
+        }
+      }
     }
   },
   "record": {
@@ -586,7 +611,14 @@
         "rootDirectory": "Root directory",
         "deleteTag": "Delete current tag, records and notes (can be restored from trash)",
         "warning": "After conversion, you will be redirected to the writing page.",
-        "convert_button": "Convert"
+        "convert_button": "Convert",
+        "organizeAs": "Organize your records into an article:",
+        "templateContent": "Template content",
+        "recordRange": "Record range",
+        "filterThinkingContent": "Remove thinking content from records",
+        "startOrganize": "Start organizing",
+        "manageTemplate": "Manage template",
+        "cancel": "Cancel"
       },
       "mark": {
         "recorded": "Recorded",

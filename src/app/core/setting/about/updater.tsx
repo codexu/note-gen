@@ -22,6 +22,7 @@ export default function Updater() {
     const [isMobile, setIsMobile] = useState(false);
 
     async function checkUpdate() {
+      setChecking(true);
       try {
         setUpdate(await check({
           headers: {

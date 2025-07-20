@@ -28,6 +28,8 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation";
 import dayjs, { Dayjs } from "dayjs"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useTranslations } from "next-intl"
 
 interface MarkGenProps {
   inputValue?: string;
@@ -43,6 +45,8 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
   const [genTemplate, setGenTemplate] = useState<GenTemplate[]>([])
   const router = useRouter()
   const abortControllerRef = useRef<AbortController | null>(null)
+  const [isRemoveThinking, setIsRemoveThinking] = useState(true)
+  const t = useTranslations('record.chat.note')
 
   async function initGenTemplates() {
     const store = await Store.load('store.json')
@@ -126,7 +130,13 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
     };
     const marksByRange = marks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
     const scanMarks = marksByRange.filter(item => item.type === 'scan')
-    const textMarks = marksByRange.filter(item => item.type === 'text')
+    const textMarks = marksByRange.filter(item => item.type === 'text').map(item => {
+      if (!item.content) return item
+      if (isRemoveThinking) {
+        item.content = item.content.replace(/<thinking>[\s\S]*?<thinking>/g, '');
+      }
+      return item
+    })
     const imageMarks = marksByRange.filter(item => item.type === 'image')
     const linkMarks = marksByRange.filter(item => item.type === 'link')
     const fileMarks = marksByRange.filter(item => item.type === 'file')
@@ -223,7 +233,7 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>将记录整理成...</AlertDialogTitle> 
+          <AlertDialogTitle>{t('organizeAs')}</AlertDialogTitle> 
           <Tabs defaultValue={tab} onValueChange={value => setTab(value)}>
             <TabsList>
               {
@@ -234,24 +244,27 @@ export const MarkGen = forwardRef<{ openGen: () => void }, MarkGenProps>(({ inpu
             </TabsList>
           </Tabs>
         </AlertDialogHeader>
-        <div className="px-2 space-y-2">
+        <div className="flex flex-col gap-4">
           <div className="space-y-1">
-            <Label htmlFor="name">模板内容</Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="name">{t('templateContent')}</Label>
+              <Label>{t('recordRange')}: { genTemplate.find(item => item.id === tab)?.range }</Label>
+            </div>
             <ScrollArea className="h-32 w-full p-2 rounded-md border">
               <p className="text-xs text-muted-foreground whitespace-pre-wrap">
                 { genTemplate.find(item => item.id === tab)?.content }
               </p>
             </ScrollArea>
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="username">记录选择范围</Label>
-            <p className="text-xs text-muted-foreground">{ genTemplate.find(item => item.id === tab)?.range }</p>
+          <div className="flex items-center gap-2">
+            <Checkbox id="remove-thinking" checked={isRemoveThinking} onCheckedChange={(checked) => setIsRemoveThinking(checked === true)} />
+            <Label htmlFor="remove-thinking">{t('filterThinkingContent')}</Label>
           </div>
         </div>
         <AlertDialogFooter>
-          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>管理模板</Button>
-          <Button variant={"outline"} onClick={() => setOpen(false)}>取消</Button>
-          <Button onClick={handleGen}>开始整理</Button>
+          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>{t('manageTemplate')}</Button>
+          <Button variant={"outline"} onClick={() => setOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={handleGen}>{t('startOrganize')}</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

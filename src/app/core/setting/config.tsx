@@ -1,4 +1,19 @@
-import { BotMessageSquare, LayoutTemplate, ScanText, Store, UserRoundCog, Drama, FolderOpen, Package, Database, DatabaseBackup, ImageUp, FileCog, Book } from "lucide-react"
+import {
+  BotMessageSquare,
+  LayoutTemplate,
+  ScanText,
+  Store,
+  UserRoundCog,
+  Drama,
+  FolderOpen,
+  Package,
+  Database,
+  DatabaseBackup,
+  ImageUp,
+  FileCog,
+  Book,
+  KeyboardIcon
+} from "lucide-react"
 
 const baseConfig = [
   {
@@ -47,6 +62,10 @@ const baseConfig = [
   {
     icon: <FileCog className="size-4 lg:size-6" />,
     anchor: 'editor',
+  },
+  {
+    icon: <KeyboardIcon className="size-4 lg:size-6" />,
+    anchor: 'shortcuts',
   },
   {
     icon: <ScanText className="size-4 lg:size-6" />,

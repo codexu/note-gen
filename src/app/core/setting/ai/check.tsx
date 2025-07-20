@@ -95,6 +95,7 @@ export function AiCheck() {
               role: 'user' as const,
               content: 'Hello'
             }],
+            stream: true,
           })
           return true
       }

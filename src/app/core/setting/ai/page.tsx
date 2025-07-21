@@ -118,11 +118,32 @@ export default function AiPage() {
     if (!aiModelList) return
     aiModelList.splice(aiModelList.findIndex(item => item.key === currentAi), 1)
     await store.set('aiModelList', aiModelList)
-    setAiModelList(aiModelList)
+    setAiModelList(aiModelList);
+    await deleteDefaultModel(store);
     const first = aiModelList[0]
     if (!first) return
     modelConfigSelectChange(first.key)
     setCurrentAi(first.key)
+  }
+
+  // 删除配置的默认模型
+  async function deleteDefaultModel(store:Store) {
+    const doDelete = async (key:string)=>{
+      const model = await store.get<string>(key) || '';
+      if (model == currentAi) await store.set(key, '');
+    }
+    const defaultModelKeys = [
+      'primaryModel',
+      'placeholderModel',
+      'translateModel',
+      'markDescModel',
+      'embeddingModel',
+      'rerankingModel',
+      'imageMethodModel'
+    ];
+    defaultModelKeys.forEach(key => {
+      doDelete(key)
+    })
   }
 
   // 复制当前配置

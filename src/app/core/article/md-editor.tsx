@@ -248,6 +248,7 @@ export function MdEditor() {
     if (!editor) return
     editor.setValue(content)
     editor.renderPreview(content)
+    editor.insertValue('')
     
     // 如果有匹配位置，滚动到对应位置
     if (matchPosition !== null) {

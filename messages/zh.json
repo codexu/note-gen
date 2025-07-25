@@ -1,500 +1,358 @@
 {
+  "ai": {
+    "error": {
+      "noAddress": "请先设置 AI 地址",
+      "title": "AI 错误"
+    },
+    "thinking": "思考"
+  },
   "app": {
-    "title": "笔记生成器",
-    "description": "你的 AI 驱动的笔记助手"
+    "description": "你的 AI 驱动的笔记助手",
+    "title": "笔记生成器"
   },
-  "common": {
-    "save": "保存",
-    "cancel": "取消",
-    "delete": "删除",
-    "confirm": "确认",
-    "edit": "编辑",
-    "create": "创建",
-    "theme": "主题",
-    "light": "亮色",
-    "dark": "暗色",
-    "system": "跟随系统",
-    "pin": "置顶",
-    "unpin": "取消置顶",
-    "settings": "设置",
-    "sync": "同步",
-    "language": "语言",
-    "success": "成功",
-    "error": "失败"
-  },
-  "settings": {
-    "rag": {
-      "title": "知识库",
-      "desc": "在这里，你可以配置知识库相关设置，知识库基于 RAG 技术，通过嵌入模型将文本转换为向量，然后通过向量搜索来实现智能搜索和智能回答。",
-      "settingsTitle": "参数设置",
-      "settingsDesc": "通过调解参数，可以更加精确的控制知识库的检索效果。",
-      "deleteVectorConfirm": "确定清空知识库吗？",
-      "deleteVectorSuccess": "清空知识库成功",
-      "enable": "启用知识库检索",
-      "enableDesc": "启用后，AI 将在回答问题时检索你的笔记内容，提供更准确的回答。",
-      "chunkSize": "分块大小",
-      "chunkSizeDesc": "文本分块的最大字符数，较大的分块可能包含更多上下文，但会增加向量计算的复杂度。",
-      "chunkOverlap": "重叠大小",
-      "chunkOverlapDesc": "文本分块间的重叠字符数，较大的重叠可以保持上下文连贯性。",
-      "resultCount": "检索数量",
-      "resultCountDesc": "检索时返回的相关文档数量，数量越多提供的信息可能更丰富，但也可能引入噪声。",
-      "similarityThreshold": "相似度阈值",
-      "similarityThresholdDesc": "文档与查询的最小相似度阈值，只有超过此阈值的文档才会被返回。值范围 0.0-1.0，越高要求越严格。",
-      "resetToDefaults": "重置默认值",
-      "deleteVector": "清空知识库"
-    },
+  "article": {
     "editor": {
-      "title": "Markdown 编辑器",
-      "desc": "在这里，你可以对 Markdown 编辑器进行自定义配置，打造更适合你的写作方式。",
-      "typewriterMode": "打字机模式",
-      "typewriterModeDesc": "打字机模式下，编辑器会模拟打字机效果，帮助你更好地沉浸在写作中。",
-      "outlineEnable": "默认启用大纲",
-      "outlineEnableDesc": "启用后，编辑器将默认显示大纲。",
-      "outlinePosition": "大纲位置",
-      "outlinePositionDesc": "设置大纲位置。",
-      "outlinePositionOptions": {
-        "left": "左侧",
-        "right": "右侧"
-      },
-      "pageView": "页面视图",
-      "pageViewDesc": "沉浸视图下编辑器两侧会保留大量空白，全景模式下编辑器内容占据整个编辑区域。",
-      "pageViewOptions": {
-        "immersiveView": "沉浸视图",
-        "panoramaView": "全景视图"
-      }
-    },
-    "uploadStore": {
-      "uploadConfirm": "上传配置请确保同步仓库为私有，否则数据将会泄露！",
-      "downloadConfirm": "下载配置将会覆盖本地配置，并且重启生效！",
-      "uploadSuccess": "上传成功",
-      "downloadSuccess": "下载成功",
-      "upload": "上传配置",
-      "download": "下载配置"
-    },
-    "prompt": {
-      "title": "Prompt",
-      "promptTitle": "Prompt 名称",
-      "desc": "在这里，你可以添加和管理 Prompt，帮助 AI 更好地理解你的需求。",
-      "addPrompt": "新增 Prompt",
-      "selectPrompt": "选择 Prompt",
-      "configPrompt": "配置 Prompt",
-      "noContent": "暂无内容",
-      "addPromptDesc": "请输入 Prompt 名称和内容，帮助AI更好地理解你的需求。",
-      "promptTitlePlaceholder": "请输入 Prompt 名称",
-      "promptContentPlaceholder": "请输入 Prompt 内容",
-      "promptContent": "Prompt 内容"
-    },
-    "defaultModel": {
-      "title": "默认模型",
-      "desc": "在这里，你可以针对不同的场景使用不同的模型，提高效率降低成本。",
-      "tooltip": "使用主要模型",
-      "noModel": "不使用模型",
-      "placeholder": "请选择或搜索模型",
-      "mainModel": "主要模型",
-      "options" : {
-        "primaryModel": {
-          "title": "主要模型",
-          "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。"
+      "copySuccess": "复制成功",
+      "copySuccessDescription": "已复制到剪贴板",
+      "toolbar": {
+        "continue": {
+          "promptTemplate": "根据前文：\n{content}\n内容，直接返回续写内容，不要超过100字。\n内容可以参考后文：\n{endContent}\n，不要与后文内容重复。",
+          "tooltip": "续写"
         },
-        "markDesc": {
-          "title": "记录描述",
-          "desc": "用于处理 OCR 识别后的记录，生成记录描述。"
+        "eraser": {
+          "promptTemplate": "精简这段文字：\n{content}\n这段文字过于臃肿，字数要求缩减一半以上，要求语言不变，直接返回优化后的结果。",
+          "selectContent": "请先选择一段内容",
+          "tooltip": "精简"
         },
-        "placeholder": {
-          "title": "AI 建议",
-          "desc": "AI 建议提示作用于记录页面 AI 对话 placeholder 内容生成。"
+        "expansion": {
+          "promptTemplate": "扩写这段文字：\n{content}\n这段文字过于简短，字数要求增加一倍以上，要求语言不变，直接返回扩写后的结果。",
+          "selectContent": "请先选择一段内容",
+          "tooltip": "扩写"
         },
-        "translate": {
-          "title": "翻译",
-          "desc": "用于翻译内容的场景。"
+        "mark": {
+          "description": "消耗记录转化为内容插入到文章。",
+          "noRecords": "暂无记录",
+          "ocrNoContent": "OCR 未识别到任何内容",
+          "title": "使用记录",
+          "tooltip": "使用记录"
         },
-        "embedding": {
-          "title": "嵌入模型",
-          "desc": "用于处理文本嵌入和向量化的场景。"
+        "polish": {
+          "promptTemplate": "润色这段文字：\n{content}\n要求语言不变，修复错别字和病句，直接返回润色后的结果。",
+          "selectContent": "请先选择一段内容",
+          "tooltip": "润色"
         },
-        "reranking": {
-          "title": "重排模型",
-          "desc": "用于搜索结果的重新排序和优化。"
-        }
-      }
-    },
-    "about": {
-      "title": "关于",
-      "desc": "一款专注于记录与写作的 AI 笔记。",
-      "version": "NoteGen v{version}",
-      "checkReleases": "查询历史版本",
-      "language": "语言",
-      "checkUpdate": "检查更新",
-      "checkError": "检查更新失败",
-      "updateAvailable": "更新至最新版本",
-      "updateDownloading": "更新中 {downloaded} / {contentLength}",
-      "updateInstalled": "重启应用",
-      "noUpdate": "当前已是最新版本",
-      "items": {
-        "home": {
-          "title": "官网",
-          "buttonName": "打开",
-          "desc": "访问官网，了解 NoteGen 的更多信息。"
+        "question": {
+          "promptTemplate": "参考原文：\n{content}\n根据提问：\n{question}\n，直接返回回答内容。",
+          "selectContent": "请先选择一段内容",
+          "tooltip": "问答"
         },
-        "guide": {
-          "title": "配置指南",
-          "buttonName": "打开",
-          "desc": "查看配置指南，了解如何配置模型、同步等信息。"
-        },
-        "github": {
-          "title": "GitHub",
-          "buttonName": "查看",
-          "desc": "如果 NoteGen 帮助到了你，请给颗 star 鼓励一下！"
-        },
-        "releases": {
-          "title": "更新日志",
-          "buttonName": "查看",
-          "desc": "查看更新日志，了解 NoteGen 的更新信息。"
-        },
-        "issues": {
-          "title": "问题反馈",
-          "buttonName": "反馈",
-          "desc": "如果发现 NoteGen 有 bug，请在这里反馈。"
-        },
-        "discussions": {
-          "title": "交流讨论",
-          "buttonName": "讨论",
-          "desc": "如果你想和作者或其他用户交流，可以加群讨论。"
-        }
-      }
-    },
-    "sync": {
-      "title": "同步配置",
-      "desc": "在这里，你可以配置同步仓库，它可以帮助你同步记录、markdown 文件、系统配置等信息。",
-      "repoStatus": "仓库状态",
-      "syncRepo": "同步仓库",
-      "syncRepoDesc": "同步写作中的 markdown 文件。",
-      "imageRepo": "图床仓库",
-      "imageRepoDesc": "同步你的图片到图床仓库。",
-      "private": "私有",
-      "public": "公开",
-      "createdAt": "创建于 {time}",
-      "updatedAt": "最后更新于 {time}",
-      "newToken": "创建 access token",
-      "newTokenDesc": "新建 token 时，请务必勾选 repo 权限，配置后将自动创建文件仓库（私有）和图床仓库。",
-      "giteeTokenDesc": "Gitee 私人令牌用于同步数据，需要有仓库的读写权限，配置后将自动创建文件仓库（私有）和图床仓库。",
-      "imageRepoSetting": "本地/图床",
-      "imageRepoSettingDesc": "你已经配置了图床仓库，开启此项将使用图床仓库，否则将使用本地存储。",
-      "jsdelivrSetting": "jsDelivr",
-      "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。",
-      "autoSync": "自动同步",
-      "giteeAutoSyncDesc": "启用后，编辑器在输入停止10秒后将自动同步到Gitee",
-      "backupMethod": "备份方式",
-      "backupMethodDesc": "设置为主要备份方式后，写作中的所有同步相关功能将使用当前备份方式（图床功能除外）",
-      "isPrimaryBackup": "当前 {type} 为主要备份方式",
-      "setPrimaryBackup": "设为主要备份方式",
-      "autoSyncOptions": {
-        "placeholder": "选择自动同步时间",
-        "disabled": "关闭",
-        "10s": "10 秒",
-        "30s": "30 秒",
-        "1m": "1 分钟",
-        "5m": "5 分钟",
-        "30m": "30 分钟"
-      }
-    },
-    "imageHosting": {
-      "title": "图床",
-      "desc": "在这里，你可以配置图床，将图片上传到图床。",
-      "isPrimaryBackup": "当前 {type} 为主要图床",
-      "setPrimaryBackup": "设为主要图床",
-      "smms": {
-        "token": {
-          "desc": "请创建并输入 SM.MS Token。",
-          "createToken": "创建 Token"
-        },
-        "disk": "磁盘使用情况",
-        "error": "获取失败，请检查网络或 Token 是否正确。"
-      },
-      "picgo": {
-        "desc": "PicGo 服务器地址",
-        "ok": "检测到服务正在运行，请确保 PicGo 图床已配置。",
-        "error": "服务未运行，请确保 PicGo（需要 v2.2.0+） 应用正在运行，否则无法上传图片。"
-      }
-    },
-    "backupSync": {
-      "title": "备用方案",
-      "desc": "在这里，你可以使用其他方案来备份你的数据，你可以定期进行备份，以确保数据的安全。",
-      "webdav": {
-        "connectionState": {
-          "success": "已连接",
-          "checking": "连接中",
-          "failed": "未连接"
-        },
-        "description": "WebDAV 仅作为备用备份方案，不支持自动同步、历史回滚等功能。",
-        "backupTo": "备份至 WebDAV",
-        "syncFrom": "从 WebDAV 同步",
-        "serverUrl": "WebDAV 服务器地址",
-        "serverUrlDesc": "输入WebDAV服务器的URL，例如：https://dav.example.com",
-        "serverUrlPlaceholder": "https://dav.example.com",
-        "username": "用户名",
-        "usernameDesc": "WebDAV服务器的用户名",
-        "usernamePlaceholder": "用户名",
-        "password": "密码",
-        "passwordDesc": "WebDAV服务器的密码",
-        "passwordPlaceholder": "密码",
-        "backupPath": "备份路径",
-        "backupPathDesc": "WebDAV服务器上的备份路径，例如：/backup/notes",
-        "backupPathPlaceholder": "/backup/notes",
-        "backupSuccess": "备份成功",
-        "backupSuccessDesc": "已备份 {count} 个文件至 WebDAV。",
-        "syncSuccess": "同步成功",
-        "syncSuccessDesc": "已从 WebDAV 同步至本地 {count} 个文件。"
-      }
-    },
-    "template": {
-      "title": "整理模板",
-      "customTemplate": "自定义模板",
-      "addTemplate": "新增模板",
-      "deleteConfirm": "确认删除模板吗?",
-      "status": "状态",
-      "name": "名称",
-      "content": "内容",
-      "scope": "范围",
-      "selectScope": "选择范围",
-      "addTemplateDesc": "请输入自定义模板名称和内容，帮助 AI 更好地理解你的需求。",
-      "editTemplate": "编辑自定义模板",
-      "noContent": "暂无内容"
-    },
-    "shortcut": {
-      "title": "快捷键",
-      "screenshot": "截图记录",
-      "link": "链接记录",
-      "textRecord": "文本记录",
-      "windowPin": "窗口置顶"
-    },
-    "theme": {
-      "title": "外观",
-      "appTheme": "应用配色",
-      "previewTheme": "预览内容主题",
-      "codeTheme": "代码块高亮主题",
-      "selectTheme": "选择主题"
-    },
-    "dev": {
-      "title": "开发者",
-      "clearData": "清理数据",
-      "clearDataConfirm": "确定清理数据吗？",
-      "proxy": "代理，用于解决网络问题，配置后建议重启应用。",
-      "proxyPlaceholder": "请输入代理地址"
-    },
-    "ai": {
-      "title": "模型配置",
-      "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",
-      "modelTitle": "自定义名称",
-      "modelConfigTitle": "模型配置",
-      "modelConfigDesc": "每一个配置对应一个 AI 模型，你可以通过模板或自定义创建新的配置。",
-      "create": "创建新配置",
-      "createDesc": "选择空配置或使用供应商模板创建新的配置。",
-      "config": "配置单",
-      "custom": "自定义",
-      "addCustomModel": "自定义",
-      "deleteCustomModel": "删除",
-      "deleteCustomModelConfirm": "确认删除此自定义模型配置吗?",
-      "copyConfig": "复制",
-      "builtin": "内置",
-      "modelSupport": "仅支持 openai 协议的 AI 模型",
-      "apiKeyUrl": "创建 API Key",
-      "modelType": {
-        "title": "模型类型",
-        "desc": "根据 AI 模型能力选择模型类型，用以调用不同的接口。",
-        "chat": "对话",
-        "image": "生图",
-        "video": "视频",
-        "audio": "语音",
-        "embedding": "嵌入",
-        "rerank": "重排序"
-      },
-      "modelList": {
-        "error": {
-          "title": "获取模型列表失败",
-          "description": "请检查 API Key 或网络是否正确"
+        "translation": {
+          "description": "将选中的文本进行翻译",
+          "promptTemplate": "将这段文字：\n{content}\n翻译为{language}语言，直接返回翻译后的结果。",
+          "selectContent": "请先选择一段内容",
+          "tooltip": "翻译"
         }
       },
-      "selectModel": "请选择模型",
-      "modelProviderDesc": "自定义模型仅支持 openai 协议的 AI 模型。",
-      "modelTitleDesc": "自定义名称，用于标识 AI 模型，请勿重复。",
-      "modelBaseUrlDesc": "你只需要配置到版本号即可，例如：https://api.openai.com/v1，后缀会自动添加。",
-      "modelDesc": "部分模型支持获取模型列表，如果不支持请手动配置。",
-      "temperatureDesc": "使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。",
-      "topPDesc": "一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。"
-    },
-    "imageMethod": {
-      "title": "图像识别",
-      "desc": "在这里，你可以配置图像识别相关设置，支持 OCR 和 VLM 两种方式。",
-      "setPrimary": "设置为默认",
-      "isPrimary": "{type} 已设置为默认",
-      "ocr": {
-        "title": "OCR",
-        "languagePacks": "语言包",
-        "checkModels": "在此查询全部模型",
-        "modelInstruction": "以逗号分隔，例如：eng,chi_sim"
-      },
-      "vlm": {
-        "title": "视觉语言模型",
-        "desc": "通过视觉语言模型识别图片内容。"
+      "upload": {
+        "error": "上传失败",
+        "needToken": "上传图片需配置 accessToken",
+        "uploading": "正在上传图片"
       }
     },
     "file": {
-      "title": "文件管理",
-      "desc": "在这里，你可以管理工作区设置和其他文件相关选项。",
-      "workspace": {
-        "title": "工作区设置",
-        "desc": "设置应用程序的工作区目录，文件将保存在该目录中。",
-        "current": "工作区路径",
-        "default": "当前使用默认工作区路径。",
-        "custom": "当前使用自定义工作区路径。",
-        "select": "选择工作区目录",
-        "reset": "重置为默认路径"
+      "clipboard": {
+        "confirmOverwrite": "文件已存在，是否覆盖？",
+        "copied": "已复制到剪贴板",
+        "cut": "已剪切到剪贴板",
+        "empty": "剪贴板为空",
+        "notSupported": "不支持此操作",
+        "pasteFailed": "粘贴操作失败",
+        "pasted": "已粘贴成功"
       },
-      "info": {
-        "title": "工作区说明", 
-        "desc": "更改工作区后需要重启应用程序才能完全生效。新工作区中的文件将在重启后显示。"
+      "context": {
+        "confirmDelete": "确定要删除这个文件吗？",
+        "copy": "复制",
+        "cut": "剪切",
+        "delete": "删除",
+        "deleteFailed": "删除失败",
+        "deleteLocalFile": "删除本地文件",
+        "deleteSuccess": "删除成功",
+        "deleteSyncFile": "删除同步文件",
+        "deleteSyncFileError": "删除失败",
+        "deleteSyncFileSuccess": "删除成功",
+        "newFile": "新建文件",
+        "newFolder": "新建文件夹",
+        "paste": "粘贴",
+        "rename": "重命名",
+        "syncFolder": "同步",
+        "syncFolderDesc": "同步当前文件夹下的所有 Markdown 文件",
+        "syncFolderError": "文件夹同步失败",
+        "syncFolderProgress": "正在同步文件夹...",
+        "syncFolderSuccess": "文件夹同步成功",
+        "viewDirectory": "查看目录"
       },
-      "toast": {
-        "updated": "工作区已更新",
-        "updatedDesc": "工作区已设置为: {path}",
-        "reset": "工作区已重置",
-        "resetDesc": "已恢复使用默认工作区",
-        "error": "选择工作区失败",
-        "errorDesc": "无法选择工作区目录，请重试",
-        "resetError": "重置工作区失败",
-        "resetErrorDesc": "无法重置为默认工作区，请重试"
+      "deleteConfirm": "确认删除此文件吗？",
+      "error": {
+        "fileExists": "文件名已存在"
       },
-      "assets": {
-        "title": "写作资源路径",
-        "desc": "设置写作资源的保存路径，例如图片、视频、文件等，与当前编辑的 markdown 文件同级。",
-        "select": "请设置写作资源路径，例如：assets"
+      "toolbar": {
+        "accessRepo": "访问仓库",
+        "calculateVectors": "知识库计算（全量）",
+        "collapseAll": "全部折叠",
+        "configSync": "配置同步",
+        "enableVectorDb": "启用向量数据库",
+        "expandAll": "全部展开",
+        "loadingSync": "正在加载同步信息",
+        "newArticle": "新建文章",
+        "newFolder": "新建文件夹",
+        "processingVectors": "正在处理向量数据",
+        "refresh": "刷新",
+        "sort": "排序",
+        "sortAsc": "升序排列",
+        "sortByCreated": "按创建时间排序",
+        "sortByModified": "按修改时间排序",
+        "sortByName": "按名称排序",
+        "sortDesc": "降序排列",
+        "toggleFolders": "文件夹展开折叠"
       }
     },
-    "shortcuts": {
-      "title": "快捷键",
-      "desc": "在这里，你可以配置快捷键，帮助你更高效地使用 NoteGen。",
-      "resetDefaults": "重置",
-      "clear": "清空",
-      "noShortcut": "未设置",
-      "shortcuts": {
-        "openWindow": {
-          "title": "打开/隐藏窗口",
-          "desc": "打开/隐藏程序主窗口。"
-        },
-        "quickRecordText": {
-          "title": "快速记录文本",
-          "desc": "快速打开程序主窗口，并调出文本记录。"
-        }
-      }
+    "footer": {
+      "history": {
+        "committedAt": "提交于",
+        "filterQuickSync": "过滤快速同步",
+        "historyRecords": "历史记录",
+        "loading": "加载中",
+        "loadingHistory": "正在读取历史记录",
+        "noHistory": "无历史记录",
+        "pull": "拉取",
+        "quickSync": "快速同步",
+        "recordsCount": "条记录"
+      },
+      "sync": {
+        "checkNetworkOrToken": "请检查网络连接或 GitHub 令牌",
+        "quickSync": "快速同步",
+        "sync": "同步",
+        "syncFailed": "同步失败",
+        "synced": "已同步",
+        "syncing": "同步中"
+      },
+      "wordCount": "字数"
     }
   },
+  "common": {
+    "cancel": "取消",
+    "confirm": "确认",
+    "create": "创建",
+    "dark": "暗色",
+    "delete": "删除",
+    "edit": "编辑",
+    "error": "失败",
+    "language": "语言",
+    "light": "亮色",
+    "pin": "置顶",
+    "prompt": "Prompt",
+    "save": "保存",
+    "selectPrompt": "选择 Prompt",
+    "settings": "设置",
+    "success": "成功",
+    "sync": "同步",
+    "system": "跟随系统",
+    "theme": "主题",
+    "unpin": "取消置顶"
+  },
+  "image": {
+    "noData": {
+      "desc": "请先跳转至系统设置页面，配置 Github 同步。",
+      "goToSettings": "前往设置",
+      "howToUse": "如何使用同步功能？",
+      "title": "同步功能未开启"
+    },
+    "root": "图床仓库"
+  },
+  "marks": {
+    "types": {
+      "image": "插图",
+      "screenshot": "截图",
+      "text": "文本"
+    }
+  },
+  "navigation": {
+    "chat": "对话",
+    "githubImageHosting": "Github 图床",
+    "loading": "加载中",
+    "login": "登录",
+    "logout": "登出",
+    "record": "记录",
+    "search": "搜索",
+    "setting": "设置",
+    "view": "查看",
+    "write": "写作"
+  },
   "record": {
-    "trash": {
-      "title": "清空回收站",
-      "confirm": "确定清空回收站吗？",
-      "records": "共 {count} 条记录可还原",
-      "empty": "清空",
-      "close": "关闭回收站"
-    },
-    "queue": {
-      "ocr": "OCR 识别",
-      "ai": "AI 内容识别",
-      "upload": "上传至图床",
-      "jsdelivr": "通知 jsdelivr 缓存",
-      "recording": "记录中...",
-      "recorded": "已记录",
-      "record": "记录",
-      "detected": "检测到"
-    },
-    "mark": {
-      "empty": "暂无记录",
-      "loading": "加载中...",
-      "type": {
-        "scan": "截图",
-        "image": "插图",
-        "screenshot": "截图",
-        "text": "文本",
-        "file": "文件",
-        "link": "链接",
-        "upload": "上传记录",
-        "download": "下载记录"
+    "chat": {
+      "clipboard": {
+        "image": {
+          "detected": "检测到剪贴板存在图片：",
+          "record": "记录",
+          "recorded": "已记录",
+          "recording": "正在记录"
+        },
+        "text": {
+          "detected": "检测到剪贴板存在文本：",
+          "record": "记录",
+          "recorded": "已记录"
+        }
       },
-      "uploadSuccess": "记录上传成功",
-      "downloadSuccess": "记录下载成功",
-      "desc": "描述",
-      "content": "内容",
-      "createdAt": "创建于",
-      "progress": {
-        "cacheImage": "缓存图片",
-        "ocr": "OCR 识别",
-        "aiAnalysis": "AI 内容识别",
-        "uploadImage": "上传至图床",
-        "jsdelivrCache": "通知 jsdelivr 缓存",
-        "cacheFile": "缓存文件",
-        "cacheScreenshot": "缓存截图",
-        "textAnalysis": "文本分析",
-        "save": "保存",
-        "saveImage": "保存图片"
+      "confirmNew": "创建新标签",
+      "confirmNewDescription": "请确认要创建一个新的标签开始对话吗？",
+      "confirmRemove": "删除标签",
+      "confirmRemoveDescription": "请注意，删除此标签会连带删除内部的记录，请再次确认。",
+      "content": {
+        "organize": "将你的记录整理为文章："
       },
-      "text": {
-        "title": "记录文本",
-        "description": "记录一段文本，笔记整理时将插入到合适的位置。",
-        "characterCount": "{count} 字符",
-        "save": "记录"
-      },
-      "link": {
-        "title": "链接记录",
-        "description": "输入网页链接，系统将自动爬取页面内容并保存",
+      "control": {
+        "cancel": "取消",
+        "delete": "删除",
+        "deleteConfirm": "确定要删除这条消息吗？",
+        "edit": "编辑",
         "save": "保存"
       },
+      "empty": {
+        "features": [
+          {
+            "chat": "与 AI 机器人进行聊天"
+          },
+          {
+            "linked": "已与你的记录关联"
+          },
+          {
+            "clipboard": "识别剪贴板记录"
+          },
+          {
+            "organize": "将你的记录整理为笔记"
+          }
+        ]
+      },
+      "header": {
+        "clearChat": "清空聊天",
+        "configApiKey": "配置 API KEY",
+        "configPrompt": "配置 Prompt",
+        "selectPrompt": "选择 Prompt"
+      },
+      "input": {
+        "chat": "聊天",
+        "chatLanguage": {
+          "placeholder": "搜索语言",
+          "tooltip": "选择对话语言"
+        },
+        "clearChat": "清空对话",
+        "clearContext": {
+          "tooltip": "清除上下文"
+        },
+        "clipboardMonitor": {
+          "disable": "剪贴板监听(关闭)",
+          "enable": "剪贴板监听(开启)"
+        },
+        "modelSelect": {
+          "placeholder": "搜索 AI 模型",
+          "tooltip": "选择 AI 模型"
+        },
+        "organize": "整理",
+        "placeholder": {
+          "default": "你可以提问或将记录整理为文章...",
+          "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
+          "noPrimaryModel": "未配置主模型，无法使用 AI 对话功能...",
+          "off": "AI 建议 (关闭)",
+          "on": "AI 建议 (开启)"
+        },
+        "promptSelect": {
+          "placeholder": "搜索 Prompt",
+          "tooltip": "选择 Prompt"
+        },
+        "rag": {
+          "disabled": "知识库检索（关闭）",
+          "enabled": "知识库检索（开启）",
+          "notSupported": "向量模型不可用"
+        },
+        "send": "发送",
+        "tagLink": {
+          "off": "未关联标签",
+          "on": "已关联标签"
+        },
+        "terminate": "终止",
+        "translate": {
+          "alreadyTranslated": "已翻译为",
+          "showOriginal": "显示原文",
+          "tooltip": "翻译",
+          "translating": "翻译中..."
+        }
+      },
+      "mark": {
+        "record": "记录",
+        "recorded": "已记录"
+      },
+      "messageControl": {
+        "words": "字"
+      },
+      "newChat": "使用新标签开始对话",
+      "note": {
+        "cancel": "取消",
+        "convert": "转化文章",
+        "convert_button": "转化",
+        "deleteTag": "删除当前标签、记录和笔记（回收站可恢复）",
+        "description": "当前的笔记是由 AI 生成且无法编辑，将当前笔记转化为文章（生成本地文件），可在写作页面中进行二次创作。",
+        "filename": "文件名",
+        "filterThinkingContent": "移除记录中的思考",
+        "manageTemplate": "管理模板",
+        "organizeAs": "将记录整理成...",
+        "recordRange": "记录选择范围",
+        "rootDirectory": "根目录",
+        "selectFolder": "选择文件夹",
+        "startOrganize": "开始整理",
+        "templateContent": "模板内容",
+        "warning": "转换后将跳转到写作页面。",
+        "writing": "写作"
+      },
+      "preview": {
+        "close": "关闭",
+        "copied": "已复制！",
+        "copy": "复制"
+      },
+      "removeChat": "删除当前标签对话"
+    },
+    "mark": {
       "clipboard": {
         "detectedImage": "检测到剪贴板图片",
         "detectedText": "检测到剪贴板文本"
       },
-      "tag": {
-        "searchPlaceholder": "创建或查询标签...",
-        "noResults": "未查询到相关标签",
-        "quickAdd": "快速创建",
-        "pinned": "置顶",
-        "others": "其他",
-        "rename": "重命名",
-        "delete": "删除",
-        "pin": "置顶",
-        "unpin": "取消置顶"
+      "content": "内容",
+      "createdAt": "创建于",
+      "desc": "描述",
+      "downloadSuccess": "记录下载成功",
+      "empty": "暂无记录",
+      "link": {
+        "description": "输入网页链接，系统将自动爬取页面内容并保存",
+        "save": "保存",
+        "title": "链接记录"
       },
+      "loading": "加载中...",
       "mark": {
-        "type": {
-          "text": "文本"
-        },
         "chat": {
-          "placeholder": {
-            "default": "你可以提问或将记录整理为文章...",
-            "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
-            "on": "AI建议开启",
-            "off": "AI建议关闭"
-          },
-          "header": {
-            "configApiKey": "配置 API KEY",
-            "clearChat": "清空对话",
-            "configPrompt": "配置 Prompt",
-            "selectPrompt": "选择 Prompt"
-          },
           "clipboard": {
             "image": {
               "detected": "检测到剪贴板存在图片：",
-              "recording": "正在记录",
+              "record": "记录",
               "recorded": "已记录",
-              "record": "记录"
+              "recording": "正在记录"
             },
             "text": {
               "detected": "检测到剪贴板存在文本：",
-              "recorded": "已记录",
-              "record": "记录"
+              "record": "记录",
+              "recorded": "已记录"
             }
           },
-          "messageControl": {
-            "words": "字"
+          "content": {
+            "organize": "将你的记录整理为文章："
           },
           "empty": {
             "features": [
@@ -512,393 +370,558 @@
               }
             ]
           },
-          "content": {
-            "organize": "将你的记录整理为文章："
-          },
-          "note": {
-            "writing": "写作",
-            "convert": "转化文章",
-            "description": "当前的笔记是由 AI 生成且无法编辑，将当前笔记转化为文章（生成本地文件），可在写作页面中进行二次创作。",
-            "filename": "文件名",
-            "selectFolder": "选择文件夹",
-            "rootDirectory": "根目录",
-            "deleteTag": "删除当前标签、记录和笔记（回收站可恢复）",
-            "warning": "转换后将跳转到写作页面。",
-            "convert_button": "转化"
+          "header": {
+            "clearChat": "清空对话",
+            "configApiKey": "配置 API KEY",
+            "configPrompt": "配置 Prompt",
+            "selectPrompt": "选择 Prompt"
           },
           "mark": {
-            "recorded": "已记录",
-            "record": "记录"
+            "record": "记录",
+            "recorded": "已记录"
+          },
+          "messageControl": {
+            "words": "字"
+          },
+          "note": {
+            "convert": "转化文章",
+            "convert_button": "转化",
+            "deleteTag": "删除当前标签、记录和笔记（回收站可恢复）",
+            "description": "当前的笔记是由 AI 生成且无法编辑，将当前笔记转化为文章（生成本地文件），可在写作页面中进行二次创作。",
+            "filename": "文件名",
+            "rootDirectory": "根目录",
+            "selectFolder": "选择文件夹",
+            "warning": "转换后将跳转到写作页面。",
+            "writing": "写作"
+          },
+          "placeholder": {
+            "default": "你可以提问或将记录整理为文章...",
+            "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
+            "off": "AI建议关闭",
+            "on": "AI建议开启"
           },
           "send": "发送"
-        },
-        "text": {
-          "title": "记录文本",
-          "description": "记录一段文本，笔记整理时将插入到合适的位置。",
-          "characterCount": "{count} 字符",
-          "save": "记录"
         },
         "clipboard": {
           "detectedImage": "检测到剪贴板图片",
           "detectedText": "检测到剪贴板文本"
         },
+        "progress": {
+          "aiAnalysis": "AI 内容识别",
+          "cacheFile": "缓存文件",
+          "cacheImage": "缓存图片",
+          "cacheScreenshot": "缓存截图",
+          "jsdelivrCache": "通知 jsdelivr 缓存",
+          "ocr": "OCR 识别",
+          "save": "保存",
+          "saveImage": "保存图片",
+          "textAnalysis": "文本分析",
+          "uploadImage": "上传至图床"
+        },
         "tag": {
-          "searchPlaceholder": "创建或查询标签...",
-          "noResults": "未查询到相关标签",
-          "quickAdd": "快速创建",
-          "pinned": "置顶",
-          "others": "其他",
-          "rename": "重命名",
           "delete": "删除",
+          "noResults": "未查询到相关标签",
+          "others": "其他",
           "pin": "置顶",
+          "pinned": "置顶",
+          "quickAdd": "快速创建",
+          "rename": "重命名",
+          "searchPlaceholder": "创建或查询标签...",
           "unpin": "取消置顶"
         },
-        "progress": {
-          "cacheImage": "缓存图片",
-          "ocr": "OCR 识别",
-          "aiAnalysis": "AI 内容识别",
-          "uploadImage": "上传至图床",
-          "jsdelivrCache": "通知 jsdelivr 缓存",
-          "cacheFile": "缓存文件",
-          "cacheScreenshot": "缓存截图",
-          "textAnalysis": "文本分析",
-          "save": "保存",
-          "saveImage": "保存图片"
+        "text": {
+          "characterCount": "{count} 字符",
+          "description": "记录一段文本，笔记整理时将插入到合适的位置。",
+          "save": "记录",
+          "title": "记录文本"
+        },
+        "type": {
+          "text": "文本"
         }
+      },
+      "progress": {
+        "aiAnalysis": "AI 内容识别",
+        "cacheFile": "缓存文件",
+        "cacheImage": "缓存图片",
+        "cacheScreenshot": "缓存截图",
+        "jsdelivrCache": "通知 jsdelivr 缓存",
+        "newToken": "创建访问令牌",
+        "newTokenDesc": "新令牌必须配置仓库权限，配置将自动创建文件仓库（私有）和镜像仓库。",
+        "ocr": "OCR 识别",
+        "save": "保存",
+        "saveImage": "保存图片",
+        "textAnalysis": "文本分析",
+        "uploadImage": "上传至图床"
+      },
+      "tag": {
+        "delete": "删除",
+        "noResults": "未查询到相关标签",
+        "others": "其他",
+        "pin": "置顶",
+        "pinned": "置顶",
+        "quickAdd": "快速创建",
+        "rename": "重命名",
+        "searchPlaceholder": "创建或查询标签...",
+        "unpin": "取消置顶"
+      },
+      "text": {
+        "characterCount": "{count} 字符",
+        "description": "记录一段文本，笔记整理时将插入到合适的位置。",
+        "save": "记录",
+        "title": "记录文本"
       },
       "toolbar": {
-        "search": "搜索",
-        "trash": "回收站",
-        "restore": "还原",
+        "calculateVectors": "计算文档向量",
+        "convertTo": "转换为{type}",
+        "copied": "已复制到剪切板！",
+        "copyLink": "复制链接",
         "delete": "删除",
         "deleteConfirm": "确定要删除吗？",
+        "deleteForever": "彻底删除",
+        "enableVectorDb": "启用向量数据库",
         "moveTag": "转移标签",
-        "convertTo": "转换为{type}",
-        "copyLink": "复制链接",
-        "copied": "已复制到剪切板！",
+        "processingVectors": "处理向量数据",
         "regenerateDesc": "重新生成描述",
-        "viewFolder": "查看目录",
+        "restore": "还原",
+        "search": "搜索",
+        "sort": "排序",
+        "sortAsc": "升序",
+        "sortByCreated": "按创建排序",
+        "sortByModified": "按修改排序",
+        "sortByName": "按名称排序",
+        "sortDesc": "降序",
+        "trash": "回收站",
         "viewFile": "查看原文件",
-        "deleteForever": "彻底删除"
-      }
+        "viewFolder": "查看目录"
+      },
+      "type": {
+        "download": "下载记录",
+        "file": "文件",
+        "image": "插图",
+        "link": "链接",
+        "scan": "截图",
+        "screenshot": "截图",
+        "text": "文本",
+        "upload": "上传记录"
+      },
+      "uploadSuccess": "记录上传成功"
     },
-    "chat": {
-      "empty": {
-        "features": [
-          {
-            "chat": "与 AI 机器人进行聊天"
-          },
-          {
-            "linked": "已与你的记录关联"
-          },
-          {
-            "clipboard": "识别剪贴板记录"
-          },
-          {
-            "organize": "将你的记录整理为笔记"
-          }
-        ]
-      },
-      "newChat": "使用新标签开始对话",
-      "removeChat": "删除当前标签对话",
-      "confirmNew": "创建新标签",
-      "confirmNewDescription": "请确认要创建一个新的标签开始对话吗？",
-      "confirmRemove": "删除标签",
-      "confirmRemoveDescription": "请注意，删除此标签会连带删除内部的记录，请再次确认。",
-      "input": {
-        "organize": "整理",
-        "chat": "聊天",
-        "placeholder": {
-          "default": "你可以提问或将记录整理为文章...",
-          "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
-          "on": "AI 建议 (开启)",
-          "off": "AI 建议 (关闭)",
-          "noPrimaryModel": "未配置主模型，无法使用 AI 对话功能..."
-        },
-        "translate": {
-          "tooltip": "翻译",
-          "translating": "翻译中...",
-          "showOriginal": "显示原文",
-          "alreadyTranslated": "已翻译为"
-        },
-        "clipboardMonitor": {
-          "enable": "剪贴板监听(开启)",
-          "disable": "剪贴板监听(关闭)"
-        },
-        "send": "发送",
-        "terminate": "终止",
-        "tagLink": {
-          "on": "已关联标签",
-          "off": "未关联标签"
-        },
-        "modelSelect": {
-          "tooltip": "选择 AI 模型",
-          "placeholder": "搜索 AI 模型"
-        },
-        "promptSelect": {
-          "tooltip": "选择 Prompt",
-          "placeholder": "搜索 Prompt"
-        },
-        "clearChat": "清空对话",
-        "clearContext": {
-          "tooltip": "清除上下文"
-        },
-        "chatLanguage": {
-          "tooltip": "选择对话语言",
-          "placeholder": "搜索语言"
-        },
-        "rag": {
-          "notSupported": "向量模型不可用",
-          "enabled": "知识库检索（开启）",
-          "disabled": "知识库检索（关闭）"
-        }
-      },
-      "header": {
-        "configApiKey": "配置 API KEY",
-        "clearChat": "清空聊天",
-        "configPrompt": "配置 Prompt",
-        "selectPrompt": "选择 Prompt"
-      },
-      "clipboard": {
-        "image": {
-          "detected": "检测到剪贴板存在图片：",
-          "recording": "正在记录",
-          "recorded": "已记录",
-          "record": "记录"
-        },
-        "text": {
-          "detected": "检测到剪贴板存在文本：",
-          "recorded": "已记录",
-          "record": "记录"
-        }
-      },
-      "messageControl": {
-        "words": "字"
-      },
-      "preview": {
-        "close": "关闭",
-        "copy": "复制",
-        "copied": "已复制！"
-      },
-      "control": {
-        "edit": "编辑",
-        "save": "保存",
-        "cancel": "取消",
-        "delete": "删除",
-        "deleteConfirm": "确定要删除这条消息吗？"
-      },
-      "content": {
-        "organize": "将你的记录整理为文章："
-      },
-      "note": {
-        "writing": "写作",
-        "convert": "转化文章",
-        "description": "当前的笔记是由 AI 生成且无法编辑，将当前笔记转化为文章（生成本地文件），可在写作页面中进行二次创作。",
-        "filename": "文件名",
-        "selectFolder": "选择文件夹",
-        "rootDirectory": "根目录",
-        "deleteTag": "删除当前标签、记录和笔记（回收站可恢复）",
-        "warning": "转换后将跳转到写作页面。",
-        "convert_button": "转化",
-        "organizeAs": "将记录整理成...",
-        "templateContent": "模板内容",
-        "recordRange": "记录选择范围",
-        "filterThinkingContent": "移除记录中的思考",
-        "startOrganize": "开始整理",
-        "manageTemplate": "管理模板",
-        "cancel": "取消"
-      },
-      "mark": {
-        "recorded": "已记录",
-        "record": "记录"
-      }
+    "queue": {
+      "ai": "AI 内容识别",
+      "detected": "检测到",
+      "jsdelivr": "通知 jsdelivr 缓存",
+      "ocr": "OCR 识别",
+      "record": "记录",
+      "recorded": "已记录",
+      "recording": "记录中...",
+      "upload": "上传至图床"
     },
     "tag": {
       "add": "添加标签",
-      "edit": "编辑标签",
       "delete": "删除标签",
       "deleteConfirm": "确定要删除这个标签吗？",
+      "edit": "编辑标签",
       "placeholder": "输入标签名称"
+    },
+    "trash": {
+      "close": "关闭回收站",
+      "confirm": "确定清空回收站吗？",
+      "empty": "清空",
+      "records": "共 {count} 条记录可还原",
+      "title": "清空回收站"
     }
   },
   "search": {
-    "placeholder": "搜索笔记和文章...",
-    "results": "{count} 个搜索结果",
-    "noResults": "暂无搜索结果",
     "item": {
-      "record": "记录",
       "article": "文章",
       "matches": "{count}个匹配项",
+      "record": "记录",
       "scanType": "截图"
+    },
+    "noResults": "暂无搜索结果",
+    "placeholder": "搜索笔记和文章...",
+    "results": "{count} 个搜索结果"
+  },
+  "settings": {
+    "about": {
+      "checkError": "检查更新失败",
+      "checkReleases": "查询历史版本",
+      "checkUpdate": "检查更新",
+      "desc": "一款专注于记录与写作的 AI 笔记。",
+      "items": {
+        "discussions": {
+          "buttonName": "讨论",
+          "desc": "如果你想和作者或其他用户交流，可以加群讨论。",
+          "title": "交流讨论"
+        },
+        "github": {
+          "buttonName": "查看",
+          "desc": "如果 NoteGen 帮助到了你，请给颗 star 鼓励一下！",
+          "title": "GitHub"
+        },
+        "guide": {
+          "buttonName": "打开",
+          "desc": "查看配置指南，了解如何配置模型、同步等信息。",
+          "title": "配置指南"
+        },
+        "home": {
+          "buttonName": "打开",
+          "desc": "访问官网，了解 NoteGen 的更多信息。",
+          "title": "官网"
+        },
+        "issues": {
+          "buttonName": "反馈",
+          "desc": "如果发现 NoteGen 有 bug，请在这里反馈。",
+          "title": "问题反馈"
+        },
+        "releases": {
+          "buttonName": "查看",
+          "desc": "查看更新日志，了解 NoteGen 的更新信息。",
+          "title": "更新日志"
+        }
+      },
+      "language": "语言",
+      "noUpdate": "当前已是最新版本",
+      "title": "关于",
+      "updateAvailable": "更新至最新版本",
+      "updateDownloading": "更新中 {downloaded} / {contentLength}",
+      "updateInstalled": "重启应用",
+      "version": "NoteGen v{version}"
+    },
+    "ai": {
+      "addCustomModel": "自定义",
+      "apiKeyUrl": "创建 API Key",
+      "builtin": "内置",
+      "config": "配置单",
+      "copyConfig": "复制",
+      "create": "创建新配置",
+      "createDesc": "选择空配置或使用供应商模板创建新的配置。",
+      "custom": "自定义",
+      "deleteCustomModel": "删除",
+      "deleteCustomModelConfirm": "确认删除此自定义模型配置吗?",
+      "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",
+      "modelBaseUrlDesc": "你只需要配置到版本号即可，例如：https://api.openai.com/v1，后缀会自动添加。",
+      "modelConfigDesc": "每一个配置对应一个 AI 模型，你可以通过模板或自定义创建新的配置。",
+      "modelConfigTitle": "模型配置",
+      "modelDesc": "部分模型支持获取模型列表，如果不支持请手动配置。",
+      "modelList": {
+        "error": {
+          "description": "请检查 API Key 或网络是否正确",
+          "title": "获取模型列表失败"
+        }
+      },
+      "modelProviderDesc": "自定义模型仅支持 openai 协议的 AI 模型。",
+      "modelSupport": "仅支持 openai 协议的 AI 模型",
+      "modelTitle": "自定义名称",
+      "modelTitleDesc": "自定义名称，用于标识 AI 模型，请勿重复。",
+      "modelType": {
+        "audio": "语音",
+        "chat": "对话",
+        "desc": "根据 AI 模型能力选择模型类型，用以调用不同的接口。",
+        "embedding": "嵌入",
+        "image": "生图",
+        "rerank": "重排序",
+        "title": "模型类型",
+        "video": "视频"
+      },
+      "selectModel": "请选择模型",
+      "temperatureDesc": "使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。",
+      "title": "模型配置",
+      "topPDesc": "一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。"
+    },
+    "backupSync": {
+      "desc": "在这里，你可以使用其他方案来备份你的数据，你可以定期进行备份，以确保数据的安全。",
+      "title": "备用方案",
+      "webdav": {
+        "backupPath": "备份路径",
+        "backupPathDesc": "WebDAV服务器上的备份路径，例如：/backup/notes",
+        "backupPathPlaceholder": "/backup/notes",
+        "backupSuccess": "备份成功",
+        "backupSuccessDesc": "已备份 {count} 个文件至 WebDAV。",
+        "backupTo": "备份至 WebDAV",
+        "connectionState": {
+          "checking": "连接中",
+          "failed": "未连接",
+          "success": "已连接"
+        },
+        "description": "WebDAV 仅作为备用备份方案，不支持自动同步、历史回滚等功能。",
+        "password": "密码",
+        "passwordDesc": "WebDAV服务器的密码",
+        "passwordPlaceholder": "密码",
+        "serverUrl": "WebDAV 服务器地址",
+        "serverUrlDesc": "输入WebDAV服务器的URL，例如：https://dav.example.com",
+        "serverUrlPlaceholder": "https://dav.example.com",
+        "syncFrom": "从 WebDAV 同步",
+        "syncSuccess": "同步成功",
+        "syncSuccessDesc": "已从 WebDAV 同步至本地 {count} 个文件。",
+        "username": "用户名",
+        "usernameDesc": "WebDAV服务器的用户名",
+        "usernamePlaceholder": "用户名"
+      }
+    },
+    "defaultModel": {
+      "desc": "在这里，你可以针对不同的场景使用不同的模型，提高效率降低成本。",
+      "main": "主要模型",
+      "mainModel": "主要模型",
+      "noModel": "不使用模型",
+      "options": {
+        "embedding": {
+          "desc": "用于处理文本嵌入和向量化的场景。",
+          "title": "嵌入模型"
+        },
+        "markDesc": {
+          "desc": "用于处理 OCR 识别后的记录，生成记录描述。",
+          "title": "记录描述"
+        },
+        "placeholder": {
+          "desc": "AI 建议提示作用于记录页面 AI 对话 placeholder 内容生成。",
+          "title": "AI 建议"
+        },
+        "primaryModel": {
+          "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。",
+          "title": "主要模型"
+        },
+        "reranking": {
+          "desc": "用于搜索结果的重新排序和优化。",
+          "title": "重排模型"
+        },
+        "translate": {
+          "desc": "用于翻译内容的场景。",
+          "title": "翻译"
+        }
+      },
+      "placeholder": "请选择或搜索模型",
+      "title": "默认模型",
+      "tooltip": "使用主要模型"
+    },
+    "dev": {
+      "clearData": "清理数据",
+      "clearDataConfirm": "确定清理数据吗？",
+      "proxy": "代理，用于解决网络问题，配置后建议重启应用。",
+      "proxyPlaceholder": "请输入代理地址",
+      "title": "开发者"
+    },
+    "editor": {
+      "desc": "在这里，你可以对 Markdown 编辑器进行自定义配置，打造更适合你的写作方式。",
+      "outlineEnable": "默认启用大纲",
+      "outlineEnableDesc": "启用后，编辑器将默认显示大纲。",
+      "outlinePosition": "大纲位置",
+      "outlinePositionDesc": "设置大纲位置。",
+      "outlinePositionOptions": {
+        "left": "左侧",
+        "right": "右侧"
+      },
+      "pageView": "页面视图",
+      "pageViewDesc": "沉浸视图下编辑器两侧会保留大量空白，全景模式下编辑器内容占据整个编辑区域。",
+      "pageViewOptions": {
+        "immersiveView": "沉浸视图",
+        "panoramaView": "全景视图"
+      },
+      "title": "Markdown 编辑器",
+      "typewriterMode": "打字机模式",
+      "typewriterModeDesc": "打字机模式下，编辑器会模拟打字机效果，帮助你更好地沉浸在写作中。"
+    },
+    "file": {
+      "assets": {
+        "desc": "设置写作资源的保存路径，例如图片、视频、文件等，与当前编辑的 markdown 文件同级。",
+        "select": "请设置写作资源路径，例如：assets",
+        "title": "写作资源路径"
+      },
+      "desc": "在这里，你可以管理工作区设置和其他文件相关选项。",
+      "info": {
+        "desc": "更改工作区后需要重启应用程序才能完全生效。新工作区中的文件将在重启后显示。",
+        "title": "工作区说明"
+      },
+      "title": "文件管理",
+      "toast": {
+        "error": "选择工作区失败",
+        "errorDesc": "无法选择工作区目录，请重试",
+        "reset": "工作区已重置",
+        "resetDesc": "已恢复使用默认工作区",
+        "resetError": "重置工作区失败",
+        "resetErrorDesc": "无法重置为默认工作区，请重试",
+        "updated": "工作区已更新",
+        "updatedDesc": "工作区已设置为: {path}"
+      },
+      "workspace": {
+        "current": "工作区路径",
+        "custom": "当前使用自定义工作区路径。",
+        "default": "当前使用默认工作区路径。",
+        "desc": "设置应用程序的工作区目录，文件将保存在该目录中。",
+        "reset": "重置为默认路径",
+        "select": "选择工作区目录",
+        "title": "工作区设置"
+      }
+    },
+    "imageHosting": {
+      "desc": "在这里，你可以配置图床，将图片上传到图床。",
+      "isPrimaryBackup": "当前 {type} 为主要图床",
+      "picgo": {
+        "desc": "PicGo 服务器地址",
+        "error": "服务未运行，请确保 PicGo（需要 v2.2.0+） 应用正在运行，否则无法上传图片。",
+        "ok": "检测到服务正在运行，请确保 PicGo 图床已配置。"
+      },
+      "setPrimaryBackup": "设为主要图床",
+      "smms": {
+        "disk": "磁盘使用情况",
+        "error": "获取失败，请检查网络或 Token 是否正确。",
+        "token": {
+          "createToken": "创建 Token",
+          "desc": "请创建并输入 SM.MS Token。"
+        }
+      },
+      "title": "图床"
+    },
+    "imageMethod": {
+      "desc": "在这里，你可以配置图像识别相关设置，支持 OCR 和 VLM 两种方式。",
+      "isPrimary": "{type} 已设置为默认",
+      "ocr": {
+        "checkModels": "在此查询全部模型",
+        "languagePacks": "语言包",
+        "modelInstruction": "以逗号分隔，例如：eng,chi_sim",
+        "title": "OCR"
+      },
+      "setPrimary": "设置为默认",
+      "title": "图像识别",
+      "vlm": {
+        "desc": "通过视觉语言模型识别图片内容。",
+        "title": "视觉语言模型"
+      }
+    },
+    "ocr": {
+      "checkModels": "在此查询全部模型",
+      "languagePacks": "语言包",
+      "modelInstruction": "以逗号分隔，例如：eng,chi_sim",
+      "title": "OCR"
+    },
+    "prompt": {
+      "addPrompt": "新增 Prompt",
+      "addPromptDesc": "请输入 Prompt 名称和内容，帮助AI更好地理解你的需求。",
+      "configPrompt": "配置 Prompt",
+      "desc": "在这里，你可以添加和管理 Prompt，帮助 AI 更好地理解你的需求。",
+      "noContent": "暂无内容",
+      "promptContent": "Prompt 内容",
+      "promptContentPlaceholder": "请输入 Prompt 内容",
+      "promptTitle": "Prompt 名称",
+      "promptTitlePlaceholder": "请输入 Prompt 名称",
+      "selectPrompt": "选择 Prompt",
+      "title": "Prompt"
+    },
+    "rag": {
+      "chunkOverlap": "重叠大小",
+      "chunkOverlapDesc": "文本分块间的重叠字符数，较大的重叠可以保持上下文连贯性。",
+      "chunkSize": "分块大小",
+      "chunkSizeDesc": "文本分块的最大字符数，较大的分块可能包含更多上下文，但会增加向量计算的复杂度。",
+      "deleteVector": "清空知识库",
+      "deleteVectorConfirm": "确定清空知识库吗？",
+      "deleteVectorSuccess": "清空知识库成功",
+      "desc": "在这里，你可以配置知识库相关设置，知识库基于 RAG 技术，通过嵌入模型将文本转换为向量，然后通过向量搜索来实现智能搜索和智能回答。",
+      "enable": "启用知识库检索",
+      "enableDesc": "启用后，AI 将在回答问题时检索你的笔记内容，提供更准确的回答。",
+      "resetToDefaults": "重置默认值",
+      "resultCount": "检索数量",
+      "resultCountDesc": "检索时返回的相关文档数量，数量越多提供的信息可能更丰富，但也可能引入噪声。",
+      "settingsDesc": "通过调解参数，可以更加精确的控制知识库的检索效果。",
+      "settingsTitle": "参数设置",
+      "similarityThreshold": "相似度阈值",
+      "similarityThresholdDesc": "文档与查询的最小相似度阈值，只有超过此阈值的文档才会被返回。值范围 0.0-1.0，越高要求越严格。",
+      "title": "知识库"
+    },
+    "shortcut": {
+      "link": "链接记录",
+      "screenshot": "截图记录",
+      "textRecord": "文本记录",
+      "title": "快捷键",
+      "windowPin": "窗口置顶"
+    },
+    "shortcuts": {
+      "clear": "清空",
+      "desc": "在这里，你可以配置快捷键，帮助你更高效地使用 NoteGen。",
+      "noShortcut": "未设置",
+      "resetDefaults": "重置",
+      "shortcuts": {
+        "openWindow": {
+          "desc": "打开/隐藏程序主窗口。",
+          "title": "打开/隐藏窗口"
+        },
+        "quickRecordText": {
+          "desc": "快速打开程序主窗口，并调出文本记录。",
+          "title": "快速记录文本"
+        }
+      },
+      "title": "快捷键"
+    },
+    "sync": {
+      "autoSync": "自动同步",
+      "autoSyncOptions": {
+        "10s": "10 秒",
+        "1m": "1 分钟",
+        "30m": "30 分钟",
+        "30s": "30 秒",
+        "5m": "5 分钟",
+        "disabled": "关闭",
+        "placeholder": "选择自动同步时间"
+      },
+      "backupMethod": "备份方式",
+      "backupMethodDesc": "设置为主要备份方式后，写作中的所有同步相关功能将使用当前备份方式（图床功能除外）",
+      "createdAt": "创建于 {time}",
+      "desc": "在这里，你可以配置同步仓库，它可以帮助你同步记录、markdown 文件、系统配置等信息。",
+      "giteeAutoSyncDesc": "启用后，编辑器在输入停止10秒后将自动同步到Gitee",
+      "giteeTokenDesc": "Gitee 私人令牌用于同步数据，需要有仓库的读写权限，配置后将自动创建文件仓库（私有）和图床仓库。",
+      "imageRepo": "图床仓库",
+      "imageRepoDesc": "同步你的图片到图床仓库。",
+      "imageRepoSetting": "本地/图床",
+      "imageRepoSettingDesc": "你已经配置了图床仓库，开启此项将使用图床仓库，否则将使用本地存储。",
+      "isPrimaryBackup": "当前 {type} 为主要备份方式",
+      "jsdelivrSetting": "jsDelivr",
+      "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。",
+      "newToken": "创建 access token",
+      "newTokenDesc": "新建 token 时，请务必勾选 repo 权限，配置后将自动创建文件仓库（私有）和图床仓库。",
+      "private": "私有",
+      "public": "公开",
+      "repoStatus": "仓库状态",
+      "setPrimaryBackup": "设为主要备份方式",
+      "syncRepo": "同步仓库",
+      "syncRepoDesc": "同步写作中的 markdown 文件。",
+      "title": "同步配置",
+      "updatedAt": "最后更新于 {time}"
+    },
+    "template": {
+      "addTemplate": "新增模板",
+      "addTemplateDesc": "请输入自定义模板名称和内容，帮助 AI 更好地理解你的需求。",
+      "content": "内容",
+      "customTemplate": "自定义模板",
+      "deleteConfirm": "确认删除模板吗?",
+      "editTemplate": "编辑自定义模板",
+      "name": "名称",
+      "noContent": "暂无内容",
+      "scope": "范围",
+      "selectScope": "选择范围",
+      "status": "状态",
+      "title": "整理模板"
+    },
+    "theme": {
+      "appTheme": "应用配色",
+      "codeTheme": "代码块高亮主题",
+      "previewTheme": "预览内容主题",
+      "selectTheme": "选择主题",
+      "title": "外观"
+    },
+    "uploadStore": {
+      "download": "下载配置",
+      "downloadConfirm": "下载配置将会覆盖本地配置，并且重启生效！",
+      "downloadSuccess": "下载成功",
+      "upload": "上传配置",
+      "uploadConfirm": "上传配置请确保同步仓库为私有，否则数据将会泄露！",
+      "uploadSuccess": "上传成功"
     }
   },
-  "image": {
-    "root": "图床仓库",
-    "noData": {
-      "title": "同步功能未开启",
-      "desc": "请先跳转至系统设置页面，配置 Github 同步。",
-      "goToSettings": "前往设置",
-      "howToUse": "如何使用同步功能？"
-    }
-  },
-  "navigation": {
-    "chat": "对话",
-    "record": "记录",
-    "write": "写作",
-    "search": "搜索",
-    "githubImageHosting": "Github 图床",
-    "login": "登录",
-    "loading": "加载中",
-    "view": "查看",
-    "logout": "登出",
-    "setting": "设置"
-  },
-  "marks": {
-    "types": {
-      "screenshot": "截图",
-      "text": "文本",
-      "image": "插图"
-    }
+  "sync": {
+    "articleRepo": "文章仓库",
+    "imageRepo": "图床仓库",
+    "status": "同步仓库状态"
   },
   "tags": {
     "inspiration": "灵感"
-  },
-  "sync": {
-    "status": "同步仓库状态",
-    "imageRepo": "图床仓库",
-    "articleRepo": "文章仓库"
-  },
-  "ai": {
-    "thinking": "思考",
-    "error": {
-      "title": "AI 错误",
-      "noAddress": "请先设置 AI 地址"
-    }
-  },
-  "article": {
-    "file": {
-      "toolbar": {
-        "accessRepo": "访问仓库",
-        "loadingSync": "正在加载同步信息",
-        "configSync": "配置同步",
-        "newArticle": "新建文章",
-        "newFolder": "新建文件夹",
-        "refresh": "刷新",
-        "toggleFolders": "文件夹展开折叠",
-        "expandAll": "全部展开",
-        "collapseAll": "全部折叠",
-        "sortByName": "按名称排序",
-        "sortByCreated": "按创建时间排序",
-        "sortByModified": "按修改时间排序",
-        "sortAsc": "升序排列",
-        "sortDesc": "降序排列",
-        "sort": "排序",
-        "processingVectors": "正在处理向量数据",
-        "calculateVectors": "知识库计算（全量）",
-        "enableVectorDb": "启用向量数据库"
-      },
-      "context": {
-        "viewDirectory": "查看目录",
-        "cut": "剪切",
-        "copy": "复制",
-        "paste": "粘贴",
-        "rename": "重命名",
-        "deleteSyncFile": "删除同步文件",
-        "deleteLocalFile": "删除本地文件",
-        "delete": "删除",
-        "newFile": "新建文件",
-        "newFolder": "新建文件夹",
-        "syncFolder": "同步",
-        "syncFolderDesc": "同步当前文件夹下的所有 Markdown 文件",
-        "syncFolderSuccess": "文件夹同步成功",
-        "syncFolderError": "文件夹同步失败",
-        "syncFolderProgress": "正在同步文件夹...",
-        "deleteSyncFileSuccess": "删除成功",
-        "deleteSyncFileError": "删除失败"
-      },
-      "error": {
-        "fileExists": "文件名已存在"
-      },
-      "clipboard": {
-        "copied": "已复制到剪贴板",
-        "cut": "已剪切到剪贴板",
-        "pasted": "已粘贴成功",
-        "pasteFailed": "粘贴操作失败",
-        "empty": "剪贴板为空",
-        "confirmOverwrite": "文件已存在，是否覆盖？",
-        "notSupported": "不支持此操作"
-      },
-      "deleteConfirm": "确认删除此文件吗？"
-    },
-    "editor": {
-      "copySuccess": "复制成功",
-      "copySuccessDescription": "已复制到剪贴板",
-      "upload": {
-        "error": "上传失败",
-        "needToken": "上传图片需配置 accessToken",
-        "uploading": "正在上传图片"
-      },
-      "toolbar": {
-        "mark": {
-          "title": "使用记录",
-          "tooltip": "使用记录",
-          "description": "消耗记录转化为内容插入到文章。",
-          "noRecords": "暂无记录",
-          "ocrNoContent": "OCR 未识别到任何内容"
-        },
-        "question": {
-          "tooltip": "问答",
-          "selectContent": "请先选择一段内容",
-          "promptTemplate": "参考原文：\n{content}\n根据提问：\n{question}\n，直接返回回答内容。"
-        },
-        "continue": {
-          "tooltip": "续写",
-          "promptTemplate": "根据前文：\n{content}\n内容，直接返回续写内容，不要超过100字。\n内容可以参考后文：\n{endContent}\n，不要与后文内容重复。"
-        },
-        "polish": {
-          "tooltip": "润色",
-          "selectContent": "请先选择一段内容",
-          "promptTemplate": "润色这段文字：\n{content}\n要求语言不变，修复错别字和病句，直接返回润色后的结果。"
-        },
-        "eraser": {
-          "tooltip": "精简",
-          "selectContent": "请先选择一段内容",
-          "promptTemplate": "精简这段文字：\n{content}\n这段文字过于臃肿，字数要求缩减一半以上，要求语言不变，直接返回优化后的结果。"
-        },
-        "expansion": {
-          "tooltip": "扩写",
-          "selectContent": "请先选择一段内容",
-          "promptTemplate": "扩写这段文字：\n{content}\n这段文字过于简短，字数要求增加一倍以上，要求语言不变，直接返回扩写后的结果。"
-        },
-        "translation": {
-          "tooltip": "翻译",
-          "description": "将选中的文本进行翻译",
-          "selectContent": "请先选择一段内容",
-          "promptTemplate": "将这段文字：\n{content}\n翻译为{language}语言，直接返回翻译后的结果。"
-        }
-      }
-    },
-    "footer": {
-      "wordCount": "字数",
-      "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失败",
-        "checkNetworkOrToken": "请检查网络连接或 GitHub 令牌",
-        "quickSync": "快速同步"
-      },
-      "history": {
-        "loadingHistory": "正在读取历史记录",
-        "historyRecords": "历史记录",
-        "noHistory": "无历史记录",
-        "loading": "加载中",
-        "recordsCount": "条记录",
-        "filterQuickSync": "过滤快速同步",
-        "committedAt": "提交于",
-        "pull": "拉取",
-        "quickSync": "快速同步"
-      }
-    }
   }
 }

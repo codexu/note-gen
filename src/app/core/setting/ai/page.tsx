@@ -1,5 +1,6 @@
 'use client'
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { FormItem, SettingRow, SettingType } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
@@ -44,6 +45,7 @@ export default function AiPage() {
   const [topP, setTopP] = useState<number>(1.0)
   const [modelType, setModelType] = useState<ModelType>('chat')
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
+  const [customHeaders, setCustomHeaders] = useState<string>('')
 
   // 通过本地存储查询当前的模型配置
   async function getModelByStore(key: string) {
@@ -67,6 +69,7 @@ export default function AiPage() {
     setTemperature(model.temperature || 0.7)
     setTopP(model.topP || 0.1)
     setModelType(model.modelType || 'chat')
+    setCustomHeaders(model.customHeaders ? JSON.stringify(model.customHeaders, null, 2) : '{}')
   }
 
   // 数据变化保存
@@ -94,6 +97,9 @@ export default function AiPage() {
         break;
       case 'modelType':
         setModelType(value as ModelType)
+        break;
+      case 'customHeaders':
+        setCustomHeaders(JSON.stringify(value, null, 2))
         break;
     }
     const model = await getModelByStore(currentAi)
@@ -282,6 +288,28 @@ export default function AiPage() {
             </RadioGroup>
           </FormItem>
         </SettingRow>
+        {/* 自定义Headers */}
+        {!baseAiConfig.find(config => config.baseURL === baseURL) && (
+          <SettingRow>
+            <FormItem title="自定义Headers" desc="自定义请求头 (JSON格式)">
+              <Textarea
+                value={customHeaders}
+                onChange={(e) => {
+                  setCustomHeaders(e.target.value)
+                }}
+                onBlur={(e) => {
+                  try {
+                    const headers = JSON.parse(e.target.value || '{}')
+                    valueChangeHandler('customHeaders', headers)
+                  } catch {
+                    valueChangeHandler('customHeaders', {})
+                  }
+                }}
+                className="h-24 resize-none font-mono text-sm"
+              />
+            </FormItem>
+          </SettingRow>
+        )}
         {
           modelType === 'chat' && (
             <>

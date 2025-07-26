@@ -364,6 +364,7 @@ export async function createOpenAIClient(AiConfig?: AiConfig) {
       "x-stainless-runtime": null,
       "x-stainless-runtime-version": null,
       "x-stainless-timeout": null,
+      ...(AiConfig?.customHeaders || {})
     },
     ...(proxyUrl ? { httpAgent: proxyUrl } : {})
   })

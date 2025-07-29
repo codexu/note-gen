@@ -61,7 +61,9 @@
       "pageViewOptions": {
         "immersiveView": "沉浸視图",
         "panoramaView": "全景視图"
-      }
+      },
+      "enableLineNumber": "コードブロック行番号",
+      "enableLineNumberDesc": "コードブロックに行番号を表示します。"
     },
     "uploadStore": {
       "uploadConfirm": "同期リポジトリをプライベートに設定してください。",
@@ -133,27 +135,33 @@
       "items": {
         "home": {
           "title": "公式サイト",
-          "buttonName": "表示"
+          "buttonName": "表示",
+          "desc": "公式サイトを表示して、NoteGenの詳細を確認できます。"
         },
         "guide": {
           "title": "ガイド",
-          "buttonName": "表示"
+          "buttonName": "表示",
+          "desc": "配置ガイドを表示して、モデル、同期などの情報の設定方法を学ぶことができます。"
         },
         "github": {
           "title": "GitHub",
-          "buttonName": "表示"
+          "buttonName": "表示",
+          "desc": "NoteGenが役立った場合は、鼓励するには、GitHubにスターを付けてください！"
         },
         "releases": {
-          "title": "更新履歴",
-          "buttonName": "表示"
+          "title": "更新日志",
+          "buttonName": "表示",
+          "desc": "更新日志を表示して、NoteGenの更新内容を確認できます。"
         },
         "issues": {
           "title": "問題報告",
-          "buttonName": "報告"
+          "buttonName": "報告",
+          "desc": "NoteGenにバグを見つけた場合は、ここに報告してください。"
         },
         "discussions": {
           "title": "ディスカッション",
-          "buttonName": "参加"
+          "buttonName": "参加",
+          "desc": "作者や他のユーザーとディスカッションを参加できます。"
         }
       }
     },
@@ -209,6 +217,22 @@
         "desc": "PicGo サーバー URL",
         "ok": "サービスが起動しています。PicGo の設定を確認してください。",
         "error": "サービスが起動していません。PicGo（v2.2.0+）を起動してください。"
+      }
+    },
+    "imageMethod": {
+      "title": "画像認識",
+      "desc": "ここでは、画像認識に関する設定を配置できます。OCR と VLM の二つの方法をサポートします。",
+      "setPrimary": "設定をデフォルト",
+      "isPrimary": "{type} がデフォルト設定",
+      "ocr": {
+        "title": "OCR",
+        "languagePacks": "言語パック",
+        "checkModels": "ここでは、すべてのモデルを検索できます。",
+        "modelInstruction": "逗号分隔、例如：eng,chi_sim"
+      },
+      "vlm": {
+        "title": "視覚的言語モデル",
+        "desc": "視覚的言語モデルを使用して画像内容を認識します。"
       }
     },
     "backupSync": {
@@ -730,7 +754,7 @@
     "record": "記録",
     "write": "執筆",
     "search": "検索",
-    "githubImageHosting": "Github 图床",
+    "githubImageHosting": "Github イラストホスティング倉庫",
     "login": "ログイン",
     "loading": "読み込み中",
     "view": "表示",

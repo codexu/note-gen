@@ -52,6 +52,7 @@ export function MdEditor() {
     const typewriterMode = await store.get<boolean>('typewriterMode') || false
     const outlinePosition = await store.get<'left' | 'right'>('outlinePosition') || 'left'
     const enableOutline = await store.get<boolean>('enableOutline') || false
+    const enableLineNumber = await store.get<boolean>('enableLineNumber') || false
     const toolbarConfig = createToolbarConfig(t)
 
     const vditor = new Vditor('aritcle-md-editor', {
@@ -80,6 +81,11 @@ export function MdEditor() {
           if (!href) return
           open(href)
         }
+      },
+      preview: {
+        hljs: {
+          lineNumber: enableLineNumber,
+        },
       },
       hint: {
         extend: [

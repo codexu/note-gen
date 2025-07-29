@@ -285,7 +285,7 @@ export async function rerankDocuments(
     // 将原始文档与新的相似度分数结合
     const rerankResults = data.results.map((result: any, index: number) => {
       return {
-        ...documents[result.document_index || index],
+        ...documents[result.document_index || result.index || index],
         similarity: result.relevance_score || result.score || documents[index].similarity
       };
     });

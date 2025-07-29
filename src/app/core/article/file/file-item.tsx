@@ -54,7 +54,7 @@ export function FileItem({ item }: { item: DirTree }) {
   async function handleDeleteFile() {
     // 添加确认弹窗
     const answer = await ask(t('deleteConfirm'), {
-      title: 'NoteGen',
+      title: item.name,
       kind: 'warning',
     });
     
@@ -112,7 +112,7 @@ export function FileItem({ item }: { item: DirTree }) {
 
   async function handleDeleteSyncFile() {
     const answer = await ask(t('context.deleteSyncFile') + '?', {
-      title: 'NoteGen',
+      title: item.name,
       kind: 'warning',
     });
     if (answer) {
@@ -345,7 +345,7 @@ export function FileItem({ item }: { item: DirTree }) {
       const fileExists = await exists(targetPath, { baseDir: BaseDirectory.AppData })
       if (fileExists) {
         const confirmOverwrite = await ask(t('clipboard.confirmOverwrite'), {
-          title: 'NoteGen',
+          title: item.name,
           kind: 'warning',
         })
         if (!confirmOverwrite) return

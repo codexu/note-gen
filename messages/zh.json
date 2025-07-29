@@ -61,7 +61,9 @@
       "pageViewOptions": {
         "immersiveView": "沉浸视图",
         "panoramaView": "全景视图"
-      }
+      },
+      "enableLineNumber": "代码块行号",
+      "enableLineNumberDesc": "启用后，代码块将显示行号。"
     },
     "uploadStore": {
       "uploadConfirm": "上传配置请确保同步仓库为私有，否则数据将会泄露！",

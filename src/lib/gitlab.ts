@@ -237,7 +237,6 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
       headers,
       proxy
     });
-    console.log(commitsResponse);
 
     let lastCommitId = '';
     if (commitsResponse.ok) {

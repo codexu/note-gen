@@ -1,12 +1,11 @@
 'use client'
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { FormItem, SettingRow, SettingType } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
-import { BotMessageSquare, Copy, Eye, EyeOff, X } from "lucide-react";
+import { BotMessageSquare, Copy, Eye, EyeOff, X, Plus } from "lucide-react";
 import ModelSelect from "./modelSelect";
 import { AiConfig, ModelType } from "../config";
 import * as React from "react"
@@ -45,7 +44,19 @@ export default function AiPage() {
   const [topP, setTopP] = useState<number>(1.0)
   const [modelType, setModelType] = useState<ModelType>('chat')
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
-  const [customHeaders, setCustomHeaders] = useState<string>('')
+  const [headerPairs, setHeaderPairs] = useState<Array<{key: string, value: string, id: string}>>([])
+
+  const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
+    return Object.entries(headers).map(([key, value]) => ({
+      key, value: String(value), id: Math.random().toString(36).substr(2, 9)
+    }))
+  }
+
+  const convertKeyValueToJson = (pairs: Array<{key: string, value: string}>) => {
+    const obj: Record<string, string> = {}
+    pairs.forEach(pair => { if (pair.key.trim()) obj[pair.key.trim()] = pair.value })
+    return obj
+  }
 
   // 通过本地存储查询当前的模型配置
   async function getModelByStore(key: string) {
@@ -69,7 +80,7 @@ export default function AiPage() {
     setTemperature(model.temperature || 0.7)
     setTopP(model.topP || 0.1)
     setModelType(model.modelType || 'chat')
-    setCustomHeaders(model.customHeaders ? JSON.stringify(model.customHeaders, null, 2) : '{}')
+    setHeaderPairs(parseHeadersToKeyValue(model.customHeaders))
   }
 
   // 数据变化保存
@@ -99,7 +110,8 @@ export default function AiPage() {
         setModelType(value as ModelType)
         break;
       case 'customHeaders':
-        setCustomHeaders(JSON.stringify(value, null, 2))
+        emitter.emit('getSettingModelList')
+        setHeaderPairs(parseHeadersToKeyValue(value as Record<string, string>))
         break;
     }
     const model = await getModelByStore(currentAi)
@@ -292,21 +304,63 @@ export default function AiPage() {
         {!baseAiConfig.find(config => config.baseURL === baseURL) && (
           <SettingRow>
             <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
-              <Textarea
-                value={customHeaders}
-                onChange={(e) => {
-                  setCustomHeaders(e.target.value)
-                }}
-                onBlur={(e) => {
-                  try {
-                    const headers = JSON.parse(e.target.value || '{}')
-                    valueChangeHandler('customHeaders', headers)
-                  } catch {
-                    valueChangeHandler('customHeaders', {})
-                  }
-                }}
-                className="h-24 resize-none font-mono text-sm"
-              />
+              <div className="space-y-2">
+                {headerPairs.map((pair, index) => (
+                  <div key={pair.id} className="flex gap-2 items-center">
+                    <Input
+                      placeholder={t('headerKey')}
+                      value={pair.key}
+                      onChange={(e) => {
+                        const newPairs = [...headerPairs]
+                        newPairs[index].key = e.target.value
+                        setHeaderPairs(newPairs)
+                      }}
+                      onBlur={() => {
+                        const jsonObj = convertKeyValueToJson(headerPairs)
+                        console.log('Key blur, JSON object:', jsonObj)
+                        valueChangeHandler('customHeaders', jsonObj)
+                      }}
+                      className="flex-1"
+                    />
+                    <Input
+                      placeholder={t('headerValue')}
+                      value={pair.value}
+                      onChange={(e) => {
+                        const newPairs = [...headerPairs]
+                        newPairs[index].value = e.target.value
+                        setHeaderPairs(newPairs)
+                      }}
+                      onBlur={() => {
+                        const jsonObj = convertKeyValueToJson(headerPairs)
+                        console.log('Value blur, JSON object:', jsonObj)
+                        valueChangeHandler('customHeaders', jsonObj)
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        const newPairs = headerPairs.filter((_, i) => i !== index)
+                        setHeaderPairs(newPairs)
+                        valueChangeHandler('customHeaders', convertKeyValueToJson(newPairs))
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  onClick={() => setHeaderPairs([...headerPairs, {
+                    key: '', value: '', id: Math.random().toString(36).substr(2, 9)
+                  }])}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('addHeader')}
+                </Button>
+              </div>
             </FormItem>
           </SettingRow>
         )}

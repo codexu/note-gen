@@ -341,7 +341,11 @@
       "temperatureDesc": "サンプリング温度は0から2の間で設定します。高い値（例:0.8）は出力をよりランダムに、低い値（例:0.2）はより決定的にします。通常、この値かtop_pのみを調整してください。",
       "topPDesc": "top_p（核サンプリング）は温度の代替手法です。top_p=0.1なら上位10%確率のトークンのみ考慮します。通常、この値かtemperatureのみを調整してください。",
       "customHeaders": "カスタムヘッダー",
-      "customHeadersDesc": "JSONオブジェクト形式でカスタムHTTPヘッダーを追加します。"
+      "customHeadersDesc": "キーと値のペアでカスタムHTTPヘッダーを追加します。",
+      "connectionSuccess": "AI接続テストが成功しました",
+      "headerKey": "キー",
+      "headerValue": "値",
+      "addHeader": "ヘッダーを追加"
     },
     "ocr": {
       "title": "OCR",

@@ -325,7 +325,11 @@
       "temperatureDesc": "使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。",
       "topPDesc": "一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。",
       "customHeaders": "自定义请求头",
-      "customHeadersDesc": "添加自定义 HTTP 请求头，格式为 JSON 对象。"
+      "customHeadersDesc": "添加自定义 HTTP 请求头，支持多个键值对配置。",
+      "headerKey": "键",
+      "headerValue": "值",
+      "addHeader": "添加 Header",
+      "connectionSuccess": "AI 连接测试通过"
     },
     "imageMethod": {
       "title": "图像识别",

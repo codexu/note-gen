@@ -343,7 +343,11 @@
       "temperatureDesc": "Controls randomness of output. Lower values make generated content more deterministic.",
       "topPDesc": "A nucleus sampling method, where the model considers the results of tokens with top_p probability mass. So 0.1 means only consider the top 10% probability mass. Usually we suggest to change this or temperature but not both.",
       "customHeaders": "Custom Headers",
-      "customHeadersDesc": "Add custom HTTP headers as JSON object. "
+      "customHeadersDesc": "Add custom HTTP headers with key-value pairs.",
+      "connectionSuccess": "AI connection test passed",
+      "headerKey": "Key",
+      "headerValue": "Value",
+      "addHeader": "Add Header"
     },
     "ocr": {
       "title": "OCR",

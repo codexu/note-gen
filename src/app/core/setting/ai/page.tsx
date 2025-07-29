@@ -291,7 +291,7 @@ export default function AiPage() {
         {/* 自定义Headers */}
         {!baseAiConfig.find(config => config.baseURL === baseURL) && (
           <SettingRow>
-            <FormItem title="自定义Headers" desc="自定义请求头 (JSON格式)">
+            <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
               <Textarea
                 value={customHeaders}
                 onChange={(e) => {

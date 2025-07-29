@@ -248,7 +248,7 @@
         "backupTo": "WebDAVにバックアップ",
         "syncFrom": "WebDAVから同期",
         "serverUrl": "WebDAVサーバーURL",
-        "serverUrlDesc": "WebDAVサーバーのURLを入力してください、例：https://dav.example.com",
+        "serverUrlDesc": "WebDAVサーバーのURLを入力してくださいパスを含まない、例：https://dav.example.com http://192.8.8.88:9999 ",
         "serverUrlPlaceholder": "https://dav.example.com",
         "username": "ユーザー名",
         "usernameDesc": "WebDAVサーバーのユーザー名",
@@ -262,7 +262,19 @@
         "backupSuccess": "バックアップ成功",
         "backupSuccessDesc": "{count} 個のファイルをWebDAVにバックアップしました。",
         "syncSuccess": "同期成功",
-        "syncSuccessDesc": "WebDAVからローカルに {count} 個のファイルを同期しました。"
+        "syncSuccessDesc": "WebDAVからローカルに {count} 個のファイルを同期しました。",
+        "syncFailed": "同期失敗",
+        "backupFailed": "バックアップ失敗",
+        "directoryCreated": "ディレクトリが作成されました",
+        "directoryCreatedDesc": "ディレクトリ {path} が正常に作成されました。",
+        "createDir": "ディレクトリを作成",
+        "success": "成功",
+        "failed": "失敗",
+        "error": {
+          "pathNotFound": "パスが存在しないか、サーバーにアクセスできません。",
+          "createDirFailed": "ディレクトリの作成に失敗しました",
+          "connectionTimeOut": "接続タイムアウト、ネットワークまたはサーバーを確認してください。"
+        }
       }
     },
     "template": {

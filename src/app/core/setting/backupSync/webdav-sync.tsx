@@ -1,16 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormItem, SettingRow } from "../components/setting-base";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Download, LoaderCircle } from "lucide-react";
 import useWebDAVStore, { WebDAVConnectionState } from "@/stores/webdav";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 
 export default function WebdavSync() {
-  const t = useTranslations('settings.backupSync.webdav');
+  const t = useTranslations("settings.backupSync.webdav");
   const { 
     url, setUrl,
     username, setUsername,
@@ -21,7 +21,8 @@ export default function WebdavSync() {
     syncFromWebDAV,
     initWebDAVData,
     syncState,
-    backupState
+    backupState,
+    createWebDAVDir,
   } = useWebDAVStore();
 
   useEffect(() => {
@@ -44,20 +45,92 @@ export default function WebdavSync() {
     setPath(e.target.value);
   };
 
+
   const handleBackupToWebDAV = async () => {
+    try {
     const res = await backupToWebDAV();
     toast({
-      title: t('backupSuccess'),
-      description: t('backupSuccessDesc', { count: res }),
+        title: t("backupSuccess"),
+        description: t("backupSuccessDesc", { count: res }),
     });
+    } catch (_error) {
+      const errorMessage = _error as string;
+
+      if (errorMessage.startsWith("[ERR_PATH_NOT_FOUND]")) {
+        toast({
+          variant: "destructive",
+          title: t("backupFailed"),
+          description: t("error.pathNotFound"),
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: t("backupFailed"),
+          description: t("error.connectionTimeOut"),
+        });
+      }
+    }
   };
 
   const handleSyncFromWebDAV = async () => {
+    try {
     const res = await syncFromWebDAV();
     toast({
-      title: t('syncSuccess'),
-      description: t('syncSuccessDesc', { count: res }),
+        title: t("syncSuccess"),
+        description: t("syncSuccessDesc", { count: res }),
     });
+    } catch (error) {
+      const errorMessage = error as string;
+
+      if (errorMessage.startsWith("[ERR_PATH_NOT_FOUND]")) {
+        const missingPath = errorMessage.replace("[ERR_PATH_NOT_FOUND] ", "");
+        toast({
+          variant: "destructive",
+          title: t("syncFailed"),
+          description: t("error.pathNotFound", { path: missingPath }),
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: t("syncFailed"),
+          description: t("error.connectionTimeOut"),
+        });
+      }
+    }
+  };
+
+  const { toast } = useToast();
+
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateDirectory = async () => {
+    if (!path.trim()) {
+      toast({
+        variant: "destructive",
+        title: t("error.createDirFailed"),
+        description: t("error.pathCannotBeEmpty"),
+      });
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      await createWebDAVDir(path);
+      await initWebDAVData();
+      toast({
+        title: t("success"),
+        description: t("directoryCreatedDesc", { path }),
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: t("error.createDirFailed"),
+        description: error.message || t("error.connectionTimeOut"),
+      });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -72,16 +145,16 @@ export default function WebdavSync() {
                   <Badge 
                     className={`${
                       connectionState === WebDAVConnectionState.success 
-                        ? 'bg-green-800' 
+                        ? "bg-green-800"
                         : connectionState === WebDAVConnectionState.checking 
-                          ? 'bg-yellow-800' 
-                          : 'bg-red-800'
+                        ? "bg-yellow-800"
+                        : "bg-red-800"
                     }`}
                   >
                     {t(`connectionState.${connectionState}`)}
                   </Badge>
                 </CardTitle>
-                <CardDescription>{t('description')}</CardDescription>
+                <CardDescription>{t("description")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col lg:flex-row gap-4">
                 <Button 
@@ -90,14 +163,8 @@ export default function WebdavSync() {
                   className="mt-2"
                   disabled={backupState || syncState}
                 >
-                  {
-                    backupState ? (
-                      <LoaderCircle className="animate-spin" />
-                    ) : (
-                      <Upload />
-                    )
-                  }
-                  {t('backupTo')}
+                  {backupState ? <LoaderCircle className="animate-spin" /> : <Upload />}
+                  {t("backupTo")}
                 </Button>
                 <Button 
                   onClick={handleSyncFromWebDAV} 
@@ -105,14 +172,8 @@ export default function WebdavSync() {
                   className="mt-2"
                   disabled={syncState || backupState}
                 >
-                  {
-                    syncState ? (
-                      <LoaderCircle className="animate-spin" />
-                    ) : (
-                      <Download />
-                    )
-                  }
-                  {t('syncFrom')}
+                  {syncState ? <LoaderCircle className="animate-spin" /> : <Download />}
+                  {t("syncFrom")}
                 </Button>
               </CardContent>
             </Card>
@@ -120,43 +181,47 @@ export default function WebdavSync() {
         </FormItem>
       </SettingRow>
       <SettingRow>
-        <FormItem title={t('serverUrl')} desc={t('serverUrlDesc')}>
-          <Input 
-            value={url} 
-            onChange={handleUrlChange} 
-            placeholder={t('serverUrlPlaceholder')}
-          />
+        <FormItem title={t("serverUrl")} desc={t("serverUrlDesc")}>
+          <Input value={url} onChange={handleUrlChange} placeholder={t("serverUrlPlaceholder")} />
         </FormItem>
       </SettingRow>
 
       <SettingRow>
-        <FormItem title={t('username')} desc={t('usernameDesc')}>
-          <Input 
-            value={username} 
-            onChange={handleUsernameChange} 
-            placeholder={t('usernamePlaceholder')}
-          />
+        <FormItem title={t("username")} desc={t("usernameDesc")}>
+          <Input value={username} onChange={handleUsernameChange} placeholder={t("usernamePlaceholder")} />
         </FormItem>
       </SettingRow>
 
       <SettingRow>
-        <FormItem title={t('password')} desc={t('passwordDesc')}>
+        <FormItem title={t("password")} desc={t("passwordDesc")}>
           <Input 
             value={password} 
             onChange={handlePasswordChange} 
             type="password" 
-            placeholder={t('passwordPlaceholder')}
+            placeholder={t("passwordPlaceholder")}
           />
         </FormItem>
       </SettingRow>
 
+
       <SettingRow>
-        <FormItem title={t('backupPath')} desc={t('backupPathDesc')}>
+        <FormItem title={t("backupPath")} desc={t("backupPathDesc")}>
+          <div className="flex items-center gap-2">
           <Input 
+              className="flex-grow"
             value={path} 
             onChange={handlePathChange} 
-            placeholder={t('backupPathPlaceholder')}
+              placeholder={t("backupPathPlaceholder")}
           />
+            <Button
+              variant="outline"
+              disabled={connectionState !== WebDAVConnectionState.fail || isCreating || !path.trim() || path.trim() === "/"}
+              onClick={handleCreateDirectory}
+            >
+              {isCreating && <LoaderCircle className="animate-spin" />}
+              {t("createDir")}
+            </Button>
+          </div>
         </FormItem>
       </SettingRow>
     </>

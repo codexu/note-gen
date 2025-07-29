@@ -250,7 +250,7 @@
         "backupTo": "Backup to WebDAV",
         "syncFrom": "Sync from WebDAV",
         "serverUrl": "WebDAV Server URL",
-        "serverUrlDesc": "Enter the URL of the WebDAV server, e.g: https://dav.example.com",
+        "serverUrlDesc": "Enter the URL of the WebDAV server No path included, e.g: https://dav.example.com http://192.8.8.88:9999",
         "serverUrlPlaceholder": "https://dav.example.com",
         "username": "Username",
         "usernameDesc": "WebDAV server username",
@@ -264,7 +264,19 @@
         "backupSuccess": "Backup Successful",
         "backupSuccessDesc": "Backed up {count} files to WebDAV.",
         "syncSuccess": "Sync Successful",
-        "syncSuccessDesc": "Synced {count} files from WebDAV to local."
+        "syncSuccessDesc": "Synced {count} files from WebDAV to local.",
+        "syncFailed": "Sync Failed",
+        "backupFailed": "Backup Failed",
+        "directoryCreated": "Directory Created",
+        "directoryCreatedDesc": "Directory {path} created successfully.",
+        "createDir": "Create Directory",
+        "success": "Success",
+        "failed": "Failed",
+        "error": {
+          "pathNotFound": "Path not found or server inaccessible.",
+          "createDirFailed": "Failed to create directory",
+          "connectionTimeOut": "Connection timed out, please check network or server."
+        }
       }
     },
     "template": {

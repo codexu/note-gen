@@ -232,7 +232,7 @@
         "backupTo": "备份至 WebDAV",
         "syncFrom": "从 WebDAV 同步",
         "serverUrl": "WebDAV 服务器地址",
-        "serverUrlDesc": "输入WebDAV服务器的URL，例如：https://dav.example.com",
+        "serverUrlDesc": "输入WebDAV服务器的URL不含路径，例如：https://dav.example.com http://192.8.8.88:9999 ",
         "serverUrlPlaceholder": "https://dav.example.com",
         "username": "用户名",
         "usernameDesc": "WebDAV服务器的用户名",
@@ -246,7 +246,19 @@
         "backupSuccess": "备份成功",
         "backupSuccessDesc": "已备份 {count} 个文件至 WebDAV。",
         "syncSuccess": "同步成功",
-        "syncSuccessDesc": "已从 WebDAV 同步至本地 {count} 个文件。"
+        "syncSuccessDesc": "已从 WebDAV 同步至本地 {count} 个文件。",
+        "syncFailed": "同步失败",
+        "backupFailed": "备份失败",
+        "directoryCreated": "目录已创建",
+        "directoryCreatedDesc": "目录 {path} 已成功创建。",
+        "createDir": "创建目录",
+        "success": "成功",
+        "failed": "失败",
+        "error": {
+          "pathNotFound": "路径不存在或服务器无法访问。",
+          "createDirFailed": "创建目录失败",
+          "connectionTimeOut": "连接超时，请检查网络或服务器。"
+        }
       }
     },
     "template": {

@@ -3389,6 +3389,8 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
+ "tokio",
+ "url",
  "urlencoding",
  "xcap",
 ]
@@ -6563,6 +6565,7 @@ dependencies = [
  "io-uring",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "slab",

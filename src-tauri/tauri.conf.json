@@ -54,6 +54,9 @@
       ],
       "createUpdaterArtifacts": true,
       "dangerousInsecureTransportProtocol": true
+    },
+    "shell": {
+      "open": "^(https?://|mailto:|tel:|[./]|[A-Za-z]:).*"
     }
   }
 }

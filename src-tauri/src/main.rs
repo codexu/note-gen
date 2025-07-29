@@ -9,7 +9,7 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
-use webdav::{webdav_backup, webdav_sync, webdav_test};
+use webdav::{webdav_backup, webdav_sync, webdav_test, webdav_create_dir};
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
 use keywords::{rank_keywords};
 
@@ -88,6 +88,7 @@ fn main() {
             fuzzy_search,
             fuzzy_search_parallel,
             rank_keywords,
+            webdav_create_dir,
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())

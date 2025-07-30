@@ -44,7 +44,8 @@ export default function Sync({editor}: {editor?: Vditor}) {
       
       // 获取上一次提交的记录内容
       let message = `Upload ${activeFilePath}`;
-      
+
+
       // 如果有AI API Key，使用AI生成提交信息
       const primaryModel = await store.get<string>('primaryModel');
       if (primaryModel) {

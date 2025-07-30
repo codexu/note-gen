@@ -11,10 +11,6 @@ type GiteeResponse<T> = {
   headers?: Record<string, string>;
 }
 
-export function uint8ArrayToBase64(data: Uint8Array) {
-  return Buffer.from(data).toString('base64');
-}
-
 // File 转换 Base64
 export async function fileToBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -176,6 +172,10 @@ export async function uploadFile(
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return { data } as GiteeResponse<any>;
+    }
+
+    if (response.status === 400) {
+      return null;
     }
     
     const errorData = await response.json();

@@ -29,6 +29,7 @@
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
+    "core:window:allow-unminimize",
     "os:default"
   ]
 }

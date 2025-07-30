@@ -2,7 +2,8 @@ import { GitPullRequestArrow, HistoryIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles } from "@/lib/github";
-import { decodeBase64ToString as giteeDecodeBase64ToString, getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles } from "@/lib/gitee";
+import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles } from "@/lib/gitee";
+import { getFileCommits as getGitlabFileCommits, getFileContent } from "@/lib/gitlab";
 import { useTranslations } from "next-intl";
 import useArticleStore from "@/stores/article";
 import { RepoNames, ResCommit } from "@/lib/github.types";
@@ -12,23 +13,24 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TooltipButton } from "@/components/tooltip-button";
 import { open } from "@tauri-apps/plugin-shell";
-import useSettingStore from "@/stores/setting";
 import Vditor from "vditor";
-import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import useUsername from "@/hooks/use-username";
+import { Store } from "@tauri-apps/plugin-store";
 
 dayjs.extend(relativeTime)
 
 export default function History({editor}: {editor?: Vditor}) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { activeFilePath, setCurrentArticle, currentArticle, loadFileTree } = useArticleStore()
-  const { accessToken, giteeAccessToken, primaryBackupMethod } = useSettingStore()
+  const { activeFilePath, setCurrentArticle, currentArticle, loadFileTree, saveCurrentArticle } = useArticleStore()
   const [commits, setCommits] = useState<ResCommit[]>([])
   const [commitsLoading, setCommitsLoading] = useState(false)
   const [filterQuick, setFilterQuick] = useState(false)
   const t = useTranslations('article.footer.history')
+
+  const username = useUsername()
 
   async function onOpenChange(e: boolean) {
     setSheetOpen(e)
@@ -46,8 +48,35 @@ export default function History({editor}: {editor?: Vditor}) {
     
     if (backupMethod === 'github') {
       res = await getGithubFileCommits({ path: activeFilePath, repo: RepoNames.sync });
-    } else {
+    } else if (backupMethod === 'gitee') {
       res = await getGiteeFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+    } else if (backupMethod === 'gitlab') {
+      const gitlabRes = await getGitlabFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+      if (gitlabRes?.data) {
+        // 转换 Gitlab 提交格式为通用格式
+        res = gitlabRes.data.map(commit => ({
+          sha: commit.id,
+          commit: {
+            message: commit.message,
+            author: {
+              name: commit.author_name,
+              email: commit.author_email,
+              date: commit.authored_date
+            },
+            committer: {
+              name: commit.committer_name,
+              email: commit.committer_email,
+              date: commit.committed_date
+            }
+          },
+          html_url: commit.web_url,
+          author: {
+            login: commit.author_name,
+            avatar_url: '', // Gitlab API 不直接提供头像
+            html_url: commit.web_url
+          }
+        }));
+      }
     }
 
     setCommits(res || [])
@@ -65,20 +94,55 @@ export default function History({editor}: {editor?: Vditor}) {
     const backupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
     let res;
-    if (backupMethod === 'github') {
-      res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
-      if (res && res.content) {
-        setCurrentArticle(decodeBase64ToString(res.content));
-      } else {
-        setCurrentArticle(cacheArticle);
-      }
-    } else {
-      res = await getGiteeFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
-      if (res && res.content) {
-        setCurrentArticle(giteeDecodeBase64ToString(res.content));
-      } else {
-        setCurrentArticle(cacheArticle);
-      }
+    switch (backupMethod) {
+      case 'github':
+        try {
+          res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+          if (res && res.content) {
+            const content = decodeBase64ToString(res.content)
+            setCurrentArticle(content);
+            await saveCurrentArticle(content)
+          } else {
+            setCurrentArticle(cacheArticle);
+          }
+        } catch (error) {
+          console.error('GitHub 获取文件历史内容失败:', error);
+          setCurrentArticle(cacheArticle);
+        }
+        break;
+      case 'gitee':
+        try {
+          res = await getGiteeFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+          if (res && res.content) {
+            const content = decodeBase64ToString(res.content)
+            setCurrentArticle(content);
+            await saveCurrentArticle(content)
+          } else {
+            setCurrentArticle(cacheArticle);
+          }
+        } catch (error) {
+          console.error('Gitee 获取文件历史内容失败:', error);
+          setCurrentArticle(cacheArticle);
+        }
+        break;
+      case 'gitlab':
+        try {
+          // 使用新的 getFileContent 方法获取特定 commit 的文件内容
+          const fileContent = await getFileContent({path: activeFilePath, ref: sha, repo: RepoNames.sync});
+          if (fileContent && fileContent.content) {
+            const content = decodeBase64ToString(fileContent.content)
+            setCurrentArticle(content);
+            await saveCurrentArticle(content)
+          } else {
+            setCurrentArticle(cacheArticle);
+          }
+        } catch (error) {
+          console.error('Gitlab 获取文件历史内容失败:', error);
+          setCurrentArticle(cacheArticle);
+        }
+        break;
+      default:
+        break;
     }
     
     setCommitsLoading(false);
@@ -104,21 +168,23 @@ export default function History({editor}: {editor?: Vditor}) {
   return (
     <Sheet open={sheetOpen} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          disabled={(primaryBackupMethod === 'github' && !accessToken) || 
-                  (primaryBackupMethod === 'gitee' && !giteeAccessToken) || 
-                  commitsLoading} 
-          className="outline-none">
-          {
-            commitsLoading && <LoaderCircle className="animate-spin !size-3" />
-          }
-          <span className="text-xs">
-            {commitsLoading ? t('loadingHistory') : commits.length ? 
-              `${t('historyRecords')} (${dayjs(commits[0].commit.committer.date).fromNow()})` : t('noHistory')}
-          </span>
-        </Button>
+        {
+          username ?
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              disabled={commitsLoading} 
+              className="outline-none">
+              {
+                commitsLoading && <LoaderCircle className="animate-spin !size-3" />
+              }
+              <span className="text-xs">
+                {commitsLoading ? t('loadingHistory') : commits.length ? 
+                  `${t('historyRecords')} (${dayjs(commits[0].commit.committer.date).fromNow()})` : t('noHistory')}
+              </span>
+            </Button> :
+            null
+        }
       </SheetTrigger>
       <SheetContent className="p-0 w-full lg:min-w-[500px]">
         <SheetHeader className="p-4 border-b">
@@ -137,25 +203,25 @@ export default function History({editor}: {editor?: Vditor}) {
         </SheetHeader>
         <div className="max-h-[calc(100vh-90px)] overflow-y-auto">
           {
-            commits.filter(commit => !filterQuick || !commit.commit.message.includes(t('quickSync'))).map((commit) => (
-              <div className="flex justify-between items-center gap-4 border-b px-4 py-2" key={commit.sha}>
+            commits.filter(commit => !filterQuick || !commit?.commit?.message.includes(t('quickSync'))).map((commit) => (
+              <div className="flex justify-between items-center gap-4 border-b px-4 py-2" key={commit?.sha}>
                 <div className="flex-1 flex flex-col">
                   <span
                     className="text-sm line-clamp-1 hover:underline cursor-pointer"
-                    onClick={() => openHandler(commit.html_url)}
-                  >{commit.commit.message}</span>
+                    onClick={() => openHandler(commit?.html_url)}
+                  >{commit?.commit?.message}</span>
                   <div className="flex gap-1 items-center mt-2">
                     <Avatar className="size-5">
-                      <AvatarImage src={commit.author?.avatar_url} alt={commit.author.login} />
+                      <AvatarImage src={commit?.author?.avatar_url} alt={commit?.author?.login} />
                       <AvatarFallback>CN</AvatarFallback>
                     </Avatar>
                     <span className="text-xs text-zinc-500">
-                      {commit.author.login} {t('committedAt')} {dayjs(commit.commit.committer.date).fromNow()}
+                      {commit?.author?.login} {t('committedAt')} {dayjs(commit?.commit?.committer?.date).fromNow()}
                     </span>
                   </div>
                 </div>
                 <div className="w-8">
-                  <TooltipButton icon={<GitPullRequestArrow />} tooltipText={t('pull')} onClick={() => handleCommit(commit.sha)} />
+                  <TooltipButton icon={<GitPullRequestArrow />} tooltipText={t('pull')} onClick={() => handleCommit(commit?.sha)} />
                 </div>
               </div>
             ))

@@ -43,9 +43,41 @@ export async function insertChat(chat: Omit<Chat, 'id' | 'createdAt'>) {
 // 获取所有 chats
 export async function getChats(tagId: number) {
   const db = await getDb()
-  return await db.select<Chat[]>(
+  const result = await db.select<Chat[]>(
     "select * from chats where tagId = $1 order by createdAt",
-    [tagId])
+    [tagId]
+  )
+  return result
+}
+
+// 获取所有 chats（用于同步）
+export async function getAllChats() {
+  const db = await getDb()
+  const result = await db.select<Chat[]>(
+    "select * from chats order by createdAt",
+    []
+  )
+  return result
+}
+
+// 插入多条 chat（用于同步）
+export async function insertChats(chats: Chat[]) {
+  const db = await getDb()
+  for (const chat of chats) {
+    await db.execute(
+      "insert into chats (tagId, content, role, type, image, inserted, createdAt) values ($1, $2, $3, $4, $5, $6, $7)",
+      [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.inserted ? 1 : 0, chat.createdAt]
+    )
+  }
+}
+
+// 删除所有 chats（用于同步）
+export async function deleteAllChats() {
+  const db = await getDb()
+  return await db.execute(
+    "delete from chats",
+    []
+  )
 }
 
 // 更新一条 chat

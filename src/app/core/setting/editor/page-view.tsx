@@ -31,7 +31,7 @@ export default function PageView() {
 
   return  <SettingPanel title={t('pageView')} desc={t('pageViewDesc')}>
     <Tabs defaultValue="immersiveView" value={pageView} onValueChange={(value) => setPositionHandler(value as 'immersiveView' | 'panoramaView')}>
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid lg:w-[360px] grid-cols-2">
         <TabsTrigger value="immersiveView">{t('pageViewOptions.immersiveView')}</TabsTrigger>
         <TabsTrigger value="panoramaView">{t('pageViewOptions.panoramaView')}</TabsTrigger>
       </TabsList>

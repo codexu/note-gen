@@ -3,25 +3,30 @@ import { createSyncRepo, checkSyncRepoState, getUserInfo } from "@/lib/github";
 import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { CircleUserRound } from "lucide-react";
 import { SyncStateEnum, UserInfo } from "@/lib/github.types";
 import { RepoNames } from "@/lib/github.types";
 import useSyncStore from "@/stores/sync";
 import { open } from '@tauri-apps/plugin-shell'
+import Image from "next/image";
 
 export default function AppStatus() {
-  const { accessToken, giteeAccessToken, primaryBackupMethod, setGithubUsername } = useSettingStore()
+  const { accessToken, giteeAccessToken, gitlabAccessToken, primaryBackupMethod, setGithubUsername, setGitlabUsername } = useSettingStore()
   const { 
     userInfo, 
     giteeUserInfo, 
+    gitlabUserInfo,
     setUserInfo, 
     setGiteeUserInfo,
+    setGitlabUserInfo,
     syncRepoState,
     setSyncRepoState,
     setSyncRepoInfo,
     giteeSyncRepoState,
     setGiteeSyncRepoState,
-    setGiteeSyncRepoInfo 
+    setGiteeSyncRepoInfo,
+    gitlabSyncProjectState,
+    setGitlabSyncProjectState,
+    setGitlabSyncProjectInfo
   } = useSyncStore()
 
   // 获取当前主要备份方式的用户信息
@@ -49,9 +54,23 @@ export default function AppStatus() {
           }
           await checkGiteeRepos()
         }
+      } else if (primaryBackupMethod === 'gitlab') {
+        if (gitlabAccessToken) {
+          // 获取 Gitlab 用户信息
+          setGitlabSyncProjectInfo(undefined)
+          setGitlabSyncProjectState(SyncStateEnum.checking)
+          const { getUserInfo } = await import('@/lib/gitlab')
+          const res = await getUserInfo()
+          if (res) {
+            setGitlabUserInfo(res)
+            setGitlabUsername(res.username)
+          }
+          await checkGitlabProjects()
+        }
       } else {
         setUserInfo(undefined)
         setGiteeUserInfo(undefined)
+        setGitlabUserInfo(undefined)
       }
     } catch (err) {
       console.error('Failed to get user info:', err)
@@ -79,6 +98,33 @@ export default function AppStatus() {
     } catch (err) {
       console.error('Failed to check GitHub repos:', err)
       setSyncRepoState(SyncStateEnum.fail)
+    }
+  }
+  
+  // 检查 Gitlab 项目状态
+  async function checkGitlabProjects() {
+    try {
+      const { checkSyncProjectState, createSyncProject } = await import('@/lib/gitlab')
+      
+      // 检查同步项目状态
+      const syncProject = await checkSyncProjectState(RepoNames.sync)
+      if (syncProject) {
+        setGitlabSyncProjectInfo(syncProject)
+        setGitlabSyncProjectState(SyncStateEnum.success)
+      } else {
+        // 项目不存在，尝试创建
+        setGitlabSyncProjectState(SyncStateEnum.creating)
+        const info = await createSyncProject(RepoNames.sync, true) // 默认创建私有项目
+        if (info) {
+          setGitlabSyncProjectInfo(info)
+          setGitlabSyncProjectState(SyncStateEnum.success)
+        } else {
+          setGitlabSyncProjectState(SyncStateEnum.fail)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to check Gitlab projects:', err)
+      setGitlabSyncProjectState(SyncStateEnum.fail)
     }
   }
   
@@ -116,45 +162,63 @@ export default function AppStatus() {
     } else if (primaryBackupMethod === 'gitee') {
       if (!giteeUserInfo) return
       open(`https://gitee.com/${giteeUserInfo?.login}`)
+    } else if (primaryBackupMethod === 'gitlab') {
+      if (!gitlabUserInfo) return
+      open(gitlabUserInfo.web_url)
     }
   }
 
   // 监听 token 变化，获取用户信息
   useEffect(() => {
-    if (accessToken || giteeAccessToken) {
+    if (accessToken || giteeAccessToken || gitlabAccessToken) {
       handleGetUserInfo()
     }
-  }, [accessToken, giteeAccessToken, primaryBackupMethod])
+  }, [accessToken, giteeAccessToken, gitlabAccessToken, primaryBackupMethod])
 
   return (
-    <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
+    <SidebarMenuButton size="lg" asChild className="md:size-8 md:p-0">
       <div className="relative flex items-center gap-2 cursor-pointer" onClick={openUserHome} >
-        <Avatar className="h-8 w-8 rounded">
+        <Avatar className="size-8 rounded overflow-hidden">
           {primaryBackupMethod === 'github' ? (
             <>
               <AvatarImage src={userInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
+              <AvatarFallback>
+                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
+              </AvatarFallback>
             </>
           ) : primaryBackupMethod === 'gitee' ? (
             <>
               <AvatarImage src={giteeUserInfo?.avatar_url} />
-              <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
+              <AvatarFallback>
+                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
+              </AvatarFallback>
             </>
-          ) : (
-            <AvatarFallback className="rounded bg-primary text-primary-foreground"><CircleUserRound className="size-5"/></AvatarFallback>
-          )}
+          ) : primaryBackupMethod === 'gitlab' ? (
+            <>
+              <AvatarImage src={gitlabUserInfo?.avatar_url} />
+              <AvatarFallback>
+                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
+              </AvatarFallback>
+            </>
+          ) : null
+        }
         </Avatar>
         {
-          primaryBackupMethod === 'github' ? (  
+          primaryBackupMethod === 'github' && accessToken ? (  
             <div className={`
               absolute right-0.5 bottom-0.5 rounded-full size-2 
               ${syncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
                 syncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
             </div>
-          ) : primaryBackupMethod === 'gitee' ? (
+          ) : primaryBackupMethod === 'gitee' && giteeAccessToken ? (
             <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
               ${giteeSyncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
               giteeSyncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
+            </div>
+          ) : primaryBackupMethod === 'gitlab' && gitlabAccessToken ? (
+            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
+              ${gitlabSyncProjectState === SyncStateEnum.fail ? 'bg-red-700' : 
+              gitlabSyncProjectState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
             </div>
           ) : null
         }

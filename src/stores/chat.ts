@@ -1,5 +1,9 @@
 import { create } from 'zustand'
-import { Chat, clearChatsByTagId, deleteChat, getChats, initChatsDb, insertChat, updateChat, updateChatsInsertedById } from '@/db/chats'
+import { Chat, clearChatsByTagId, deleteChat, getChats, initChatsDb, insertChat, updateChat, updateChatsInsertedById, getAllChats, deleteAllChats, insertChats } from '@/db/chats'
+import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github';
+import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee';
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab';
+import { RepoNames } from '@/lib/github.types';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
 
@@ -26,6 +30,14 @@ interface ChatState {
 
   clearChats: (tagId: number) => Promise<void> // 清空 chats
   updateInsert: (id: number) => Promise<void> // 更新 inserted
+
+  // 同步
+  syncState: boolean
+  setSyncState: (syncState: boolean) => void
+  lastSyncTime: string
+  setLastSyncTime: (lastSyncTime: string) => void
+  uploadChats: () => Promise<boolean>
+  downloadChats: () => Promise<Chat[]>
 }
 
 const useChatStore = create<ChatState>((set, get) => ({
@@ -117,6 +129,101 @@ const useChatStore = create<ChatState>((set, get) => ({
       return item
     })
     set({ chats: newChats })
+  },
+
+  // 同步
+  syncState: false,
+  setSyncState: (syncState) => {
+    set({ syncState })
+  },
+  lastSyncTime: '',
+  setLastSyncTime: (lastSyncTime) => {
+    set({ lastSyncTime })
+  },
+  uploadChats: async () => {
+    set({ syncState: true })
+    const path = '.data'
+    const filename = 'chats.json'
+    const chats = await getAllChats()
+    const store = await Store.load('store.json');
+    const jsonToBase64 = (data: Chat[]) => {
+      return Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+    }
+    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    let result = false
+    let files;
+    let res;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        res = await uploadGithubFile({
+          ext: 'json',
+          file: jsonToBase64(chats),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: files?.sha,
+        })
+        break;
+      case 'gitee':
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        res = await uploadGiteeFile({
+          ext: 'json',
+          file: jsonToBase64(chats),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: files?.sha,
+        })
+        if (res) {
+          result = true
+        }
+        break;
+      case 'gitlab':
+        files = await gitlabGetFiles({ path, repo: RepoNames.sync })
+        const chatFile = files?.find(file => file.name === filename)
+        res = await uploadGitlabFile({
+          ext: 'json',
+          file: jsonToBase64(chats),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: chatFile?.sha || '',
+        })
+        break;
+    }
+    if (res) {
+      result = true
+    }
+    set({ syncState: false })
+    return result
+  },
+  downloadChats: async () => {
+    const path = '.data'
+    const filename = 'chats.json'
+    const store = await Store.load('store.json');
+    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    let result = []
+    let files;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitee':
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitlab':
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: RepoNames.sync })
+        break;
+    }
+    if (files) {
+      const configJson = decodeBase64ToString(files.content)
+      result = JSON.parse(configJson)
+    }
+    await deleteAllChats()
+    await insertChats(result)
+    set({ syncState: false })
+    return result
   }
 }))
 

@@ -93,6 +93,7 @@ export interface AiConfig {
   modelType?: ModelType
   icon?: string
   apiKeyUrl?: string
+  customHeaders?: Record<string, string>
 }
 
 export interface Model {

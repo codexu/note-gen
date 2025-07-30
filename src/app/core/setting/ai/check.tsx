@@ -6,11 +6,13 @@ import { useEffect, useState } from "react"
 import { AiConfig } from "../config"
 import { toast } from "@/hooks/use-toast"
 import { fetch } from "@tauri-apps/plugin-http"
+import { useTranslations } from 'next-intl'
 
 // 检测当前 AI 的可用性
 export function AiCheck() {
   const [state, setState] = useState<'ok' | 'error' | 'checking' | 'init'>('init')
   const { currentAi, aiModelList } = useSettingStore()
+  const t = useTranslations('settings.ai')
 
   async function check() {
     setState('checking')
@@ -22,6 +24,10 @@ export function AiCheck() {
     const aiStatus = await checkAiStatus(model)
     if (aiStatus) {
       setState('ok')
+      toast({
+        description: t('connectionSuccess'),
+        className: 'border-green-500 bg-green-50 text-green-800'
+      })
     } else {
       setState('error')
     }

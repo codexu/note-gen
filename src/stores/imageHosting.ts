@@ -1,5 +1,6 @@
-import { getFiles, GithubFile } from '@/lib/github';
-import { GithubRepoInfo, OctokitResponse, RepoNames, SyncStateEnum, UserInfo } from '@/lib/github.types';
+import { GithubFile } from '@/lib/github';
+import { getImageFiles } from '@/lib/imageHosting/github';
+import { GithubRepoInfo, OctokitResponse, SyncStateEnum, UserInfo } from '@/lib/github.types';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 
@@ -51,7 +52,7 @@ const useImageStore = create<MarkState>((set, get) => ({
   },
   async getImages() {
     set({ images: [] })
-    const images = await getFiles({ path: get().path, repo: RepoNames.image })
+    const images = await getImageFiles({ path: get().path })
     set({ images: images || [] })
   },
 

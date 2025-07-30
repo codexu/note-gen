@@ -20,13 +20,16 @@ import { PinToggle } from "./pin-toggle"
 import { useTranslations } from 'next-intl'
 import { LanguageSwitch } from "./language-switch"
 import { useSidebarStore } from "@/stores/sidebar"
+import { useEffect, useState } from "react"
+import useImageStore from "@/stores/imageHosting"
  
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { toggleFileSidebar } = useSidebarStore()
   const t = useTranslations()
-  const items = [
+  const { imageRepoUserInfo } = useImageStore()
+  const [items, setItems] = useState([
     {
       title: t('navigation.record'),
       url: "/core/record",
@@ -43,12 +46,21 @@ export function AppSidebar() {
       url: "/core/search",
       icon: Search,
     },
-    {
-      title: t('navigation.gallery'),
-      url: "/core/image",
-      icon: ImageUp,
-    },
-  ]
+  ])
+
+  async function initGithubImageHosting() {
+    const store = await Store.load('store.json')
+    const githubImageUsername = await store.get<string>('githubImageUsername')
+    const githubImageAccessToken = await store.get<string>('githubImageAccessToken')
+    if (githubImageUsername && githubImageAccessToken && !items.find(item => item.url === '/core/image')) {
+      setItems([...items, {
+        title: t('navigation.githubImageHosting'),
+        url: "/core/image",
+        icon: ImageUp,
+      }])
+    }
+  }
+
   async function menuHandler(item: typeof items[0]) {
     if (pathname === '/core/article' && item.url === '/core/article') {
       toggleFileSidebar()
@@ -58,6 +70,10 @@ export function AppSidebar() {
     const store = await Store.load('store.json')
     store.set('currentPage', item.url)
   }
+
+  useEffect(() => {
+    initGithubImageHosting()
+  }, [imageRepoUserInfo])
 
   return (
     <Sidebar 

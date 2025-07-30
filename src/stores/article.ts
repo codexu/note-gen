@@ -1,6 +1,7 @@
 import { decodeBase64ToString, getFiles as getGithubFiles } from '@/lib/github'
 import { GithubContent, RepoNames } from '@/lib/github.types'
-import { decodeBase64ToString as giteeDecodeBase64ToString, getFiles as getGiteeFiles } from '@/lib/gitee'
+import { getFiles as getGiteeFiles } from '@/lib/gitee'
+import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } from '@/lib/gitlab'
 import { GiteeFile } from '@/lib/gitee'
 import { getCurrentFolder } from '@/lib/path'
 import useVectorStore from './vector'
@@ -335,12 +336,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
       
       let files;
-      if (primaryBackupMethod === 'github') {
-        files = await getGithubFiles({ path, repo: RepoNames.sync });
-      } else {
-        files = await getGiteeFiles({ path, repo: RepoNames.sync });
+      switch (primaryBackupMethod) {
+        case 'github':
+          files = await getGithubFiles({ path, repo: RepoNames.sync });
+          break;
+        case 'gitee':
+          files = await getGiteeFiles({ path, repo: RepoNames.sync });
+          break;
+        case 'gitlab':
+          files = await getGitlabFiles({ path, repo: RepoNames.sync });
+          break;
       }
-      
+
       if (files) {
         files.forEach((file: GithubContent | GiteeFile) => {
           // 过滤以"."开头的文件和文件夹
@@ -406,10 +413,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
     let files;
-    if (primaryBackupMethod === 'github') {
-      files = await getGithubFiles({ path: fullpath, repo: RepoNames.sync });
-    } else {
-      files = await getGiteeFiles({ path: fullpath, repo: RepoNames.sync });
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await getGithubFiles({ path: fullpath, repo: RepoNames.sync });
+        break;
+      case 'gitee':
+        files = await getGiteeFiles({ path: fullpath, repo: RepoNames.sync });
+        break;
+      case 'gitlab':
+        files = await getGitlabFiles({ path: fullpath, repo: RepoNames.sync });
+        break;
     }
     
     if (files && currentFolder) {
@@ -689,12 +702,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
           // 如果本地文件不存在，尝试从Github/Gitee读取
           const store = await Store.load('store.json');
           const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-          
           let content = '';
-          if (primaryBackupMethod === 'github') {
-            content = decodeBase64ToString(await getGithubFiles({ path, repo: RepoNames.sync }))
-          } else {
-            content = giteeDecodeBase64ToString(await getGiteeFiles({ path, repo: RepoNames.sync }))
+          switch (primaryBackupMethod) {
+            case 'github':
+              content = decodeBase64ToString(await getGithubFiles({ path, repo: RepoNames.sync }))
+              break;
+            case 'gitee':
+              content = decodeBase64ToString(await getGiteeFiles({ path, repo: RepoNames.sync }))
+              break;
+            case 'gitlab':
+              content = decodeBase64ToString((await getGitlabFileContent({ path, ref: 'main', repo: RepoNames.sync })).content)
+              break;
+            default:
+              break;
           }
           set({ currentArticle: content })
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -707,13 +727,21 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
       
       let res;
-      if (primaryBackupMethod === 'github') {
-        res = await getGithubFiles({ path, repo: RepoNames.sync })
-        set({ currentArticle: decodeBase64ToString(res.content) })
-      } else {
-        res = await getGiteeFiles({ path, repo: RepoNames.sync })
-        set({ currentArticle: giteeDecodeBase64ToString(res.content) })
+      switch (primaryBackupMethod) {
+        case 'github':
+          res = await getGithubFiles({ path, repo: RepoNames.sync })
+          break;
+        case 'gitee':
+          res = await getGiteeFiles({ path, repo: RepoNames.sync })
+          break;
+        case 'gitlab':
+          res = await getGitlabFileContent({ path, ref: 'main', repo: RepoNames.sync })
+          break;
+        default:
+          break;
       }
+      set({ currentArticle: decodeBase64ToString(res.content) })
+      get().saveCurrentArticle(decodeBase64ToString(res.content))
     }
     get().setLoading(false)
   },

@@ -1,10 +1,10 @@
 # NoteGen
 
 ![](https://img.shields.io/badge/free-pricing?logo=free&color=%20%23155EEF&label=pricing&labelColor=%20%23528bff)
+![](https://gitcode.com/codexu/note-gen/star/badge.svg)
 ![](https://github.com/codexu/note-gen/actions/workflows/release.yml/badge.svg?branch=release)
 ![](https://img.shields.io/github/v/release/codexu/note-gen)
 ![](https://img.shields.io/github/downloads/codexu/note-gen/total)
-![](https://img.shields.io/github/commit-activity/m/codexu/note-gen)
 ![](https://img.shields.io/github/issues-closed/codexu/note-gen)
 
 <div>

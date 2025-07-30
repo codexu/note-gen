@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
 import { AiConfig } from '@/app/core/setting/config'
+import { GitlabInstanceType } from '@/lib/gitlab.types'
 
 export enum GenTemplateRange {
   All = '全部',
@@ -98,9 +99,25 @@ interface SettingState {
   giteeAutoSync: string
   setGiteeAutoSync: (giteeAutoSync: string) => Promise<void>
 
+  // Gitlab 相关设置
+  gitlabInstanceType: GitlabInstanceType
+  setGitlabInstanceType: (instanceType: GitlabInstanceType) => Promise<void>
+
+  gitlabCustomUrl: string
+  setGitlabCustomUrl: (customUrl: string) => Promise<void>
+
+  gitlabAccessToken: string
+  setGitlabAccessToken: (gitlabAccessToken: string) => void
+
+  gitlabAutoSync: string
+  setGitlabAutoSync: (gitlabAutoSync: string) => Promise<void>
+
+  gitlabUsername: string
+  setGitlabUsername: (gitlabUsername: string) => Promise<void>
+
   // 主要备份方式设置
-  primaryBackupMethod: 'github' | 'gitee'
-  setPrimaryBackupMethod: (method: 'github' | 'gitee') => Promise<void>
+  primaryBackupMethod: 'github' | 'gitee' | 'gitlab'
+  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab') => Promise<void>
 
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -268,7 +285,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.set('jsdelivr', jsdelivr)
   },
 
-  useImageRepo: true,
+  useImageRepo: false,
   setUseImageRepo: async (useImageRepo: boolean) => {
     set({ useImageRepo })
     const store = await Store.load('store.json');
@@ -311,12 +328,51 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.set('giteeAutoSync', giteeAutoSync)
   },
 
+  // Gitlab 相关设置
+  gitlabInstanceType: GitlabInstanceType.OFFICIAL,
+  setGitlabInstanceType: async (instanceType: GitlabInstanceType) => {
+    const store = await Store.load('store.json')
+    await store.set('gitlabInstanceType', instanceType)
+    await store.save()
+    set({ gitlabInstanceType: instanceType })
+  },
+
+  gitlabCustomUrl: '',
+  setGitlabCustomUrl: async (customUrl: string) => {
+    const store = await Store.load('store.json')
+    await store.set('gitlabCustomUrl', customUrl)
+    await store.save()
+    set({ gitlabCustomUrl: customUrl })
+  },
+
+  gitlabAccessToken: '',
+  setGitlabAccessToken: (gitlabAccessToken: string) => {
+    set({ gitlabAccessToken })
+  },
+
+  gitlabAutoSync: 'disabled',
+  setGitlabAutoSync: async (gitlabAutoSync: string) => {
+    const store = await Store.load('store.json')
+    await store.set('gitlabAutoSync', gitlabAutoSync)
+    await store.save()
+    set({ gitlabAutoSync })
+  },
+
+  gitlabUsername: '',
+  setGitlabUsername: async (gitlabUsername: string) => {
+    const store = await Store.load('store.json')
+    await store.set('gitlabUsername', gitlabUsername)
+    await store.save()
+    set({ gitlabUsername })
+  },
+
   // 默认使用 GitHub 作为主要备份方式
   primaryBackupMethod: 'github',
-  setPrimaryBackupMethod: async (method: 'github' | 'gitee') => {
-    set({ primaryBackupMethod: method })
-    const store = await Store.load('store.json');
+  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab') => {
+    const store = await Store.load('store.json')
     await store.set('primaryBackupMethod', method)
+    await store.save()
+    set({ primaryBackupMethod: method })
   },
 
   assetsPath: 'assets',

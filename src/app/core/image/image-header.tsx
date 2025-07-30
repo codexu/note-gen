@@ -7,7 +7,6 @@ import useImageStore from "@/stores/imageHosting"
 import {Separator} from "@/components/ui/separator"
 import {convertBytesToSize} from "@/lib/utils"
 import {open} from '@tauri-apps/plugin-shell';
-import useSettingStore from "@/stores/setting"
 import { RepoNames } from '@/lib/github.types'
 import {
   Breadcrumb,
@@ -17,25 +16,41 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { useTranslations } from 'next-intl'
+import { useEffect, useMemo, useState } from "react"
+import { Store } from '@tauri-apps/plugin-store'
 
 export function ImageHeader() {
   const t = useTranslations('image')
   const {getImages, images, path, setPath} = useImageStore()
-  const { githubUsername } = useSettingStore()
-  const checkSetting = githubUsername && githubUsername.length > 0
-  const handleOpenBroswer = (path: string) => {
+  const [githubImageUsername, setGithubImageUsername] = useState('')
+  const checkSetting = useMemo(() => githubImageUsername && githubImageUsername.length > 0, [githubImageUsername])
+
+  async function init() {
+    const store = await Store.load('store.json');
+    const githubImageUsername = await store.get<string>('githubImageUsername')
+    if (githubImageUsername) {
+      setGithubImageUsername(githubImageUsername)
+    }
+  }
+
+  function handleOpenBroswer(path: string) {
     let url = ''
     if (path === '') {
-      url = `https://github.com/${githubUsername}/${RepoNames.image}`
+      url = `https://github.com/${githubImageUsername}/${RepoNames.image}`
     } else {
-      url = `https://github.com/${githubUsername}/${RepoNames.image}/tree/main/${path}`
+      url = `https://github.com/${githubImageUsername}/${RepoNames.image}/tree/main/${path}`
     }
     open(url)
   }
-  const backHandler = () => {
+
+  function backHandler() {
     setPath('')
     getImages()
   }
+
+  useEffect(() => {
+    init()
+  }, [])
 
   return (
     checkSetting ? (
@@ -44,7 +59,7 @@ export function ImageHeader() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem className="cursor-pointer">
-                <BreadcrumbLink onClick={backHandler}>{t('root')}</BreadcrumbLink>
+                <BreadcrumbLink onClick={backHandler}>Github {t('root')}</BreadcrumbLink>
               </BreadcrumbItem>
               {
                 path && (

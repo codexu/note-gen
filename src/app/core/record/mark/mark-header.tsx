@@ -8,6 +8,7 @@ import { ControlImage } from "./control-image"
 import { ControlFile } from "./control-file"
 import { ControlLink } from "./control-link"
 import useMarkStore from "@/stores/mark"
+import useChatStore from "@/stores/chat"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,18 +21,22 @@ import { DownloadCloud, LoaderCircle, Menu, Trash2, UploadCloud, XCircle } from 
 import { toast } from '@/hooks/use-toast'
 import useTagStore from '@/stores/tag'
 import { useState } from 'react'
+import useUsername from '@/hooks/use-username'
 
 export function MarkHeader() {
   const [syncState, setSyncState] = useState(false)
   const t = useTranslations('record.mark');
   const { trashState, setTrashState, fetchAllTrashMarks, fetchMarks, uploadMarks, downloadMarks } = useMarkStore()
-  const { uploadTags, downloadTags, fetchTags } = useTagStore()
+  const { uploadTags, downloadTags, fetchTags, currentTagId } = useTagStore()
+  const { uploadChats, downloadChats, init } = useChatStore()
+  const username = useUsername()
 
   async function upload() {
     setSyncState(true)
     const tagRes = await uploadTags()
     const markRes = await uploadMarks()
-    if (tagRes && markRes) {
+    const chatRes = await uploadChats()
+    if (tagRes && markRes && chatRes) {
       toast({
         description: t('uploadSuccess'),
       })
@@ -43,9 +48,11 @@ export function MarkHeader() {
     setSyncState(true)
     const tagRes = await downloadTags()
     const markRes = await downloadMarks()
-    if (tagRes && markRes) {
-      fetchTags()
-      fetchMarks()
+    const chatRes = await downloadChats()
+    if (tagRes && markRes && chatRes) {
+      await fetchTags()
+      await fetchMarks()
+      init(currentTagId)
       toast({
         description: t('downloadSuccess'),
       })
@@ -92,12 +99,16 @@ export function MarkHeader() {
                 <DropdownMenuItem onClick={() => setTrashState(true)}>
                   <Trash2 />{t('toolbar.trash')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={upload}>
-                  <UploadCloud />{t('type.upload')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={download}>
-                  <DownloadCloud />{t('type.download')}
-                </DropdownMenuItem>
+                {username ? (
+                  <>
+                    <DropdownMenuItem onClick={upload}>
+                      <UploadCloud />{t('type.upload')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={download}>
+                      <DownloadCloud />{t('type.download')}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
         }

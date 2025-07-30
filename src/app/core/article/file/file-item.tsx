@@ -16,6 +16,9 @@ import useClipboardStore from "@/stores/clipboard";
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import { convertImageByWorkspace } from "@/lib/utils";
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { deleteFile } from "@/lib/github";
+import { deleteFile as deleteGiteeFile } from "@/lib/gitee";
+import { deleteFile as deleteGitlabFile } from "@/lib/gitlab";
 
 export function FileItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
@@ -51,7 +54,7 @@ export function FileItem({ item }: { item: DirTree }) {
   async function handleDeleteFile() {
     // 添加确认弹窗
     const answer = await ask(t('deleteConfirm'), {
-      title: 'NoteGen',
+      title: item.name,
       kind: 'warning',
     });
     
@@ -109,31 +112,30 @@ export function FileItem({ item }: { item: DirTree }) {
 
   async function handleDeleteSyncFile() {
     const answer = await ask(t('context.deleteSyncFile') + '?', {
-      title: 'NoteGen',
+      title: item.name,
       kind: 'warning',
     });
     if (answer) {
       try {
         // 获取当前主要备份方式
         const store = await Store.load('store.json');
-        const backupMethod = await store.get<'github' | 'gitee'>('primaryBackupMethod') || 'github';
+        const backupMethod = await store.get<'github' | 'gitee' | 'gitlab'>('primaryBackupMethod') || 'github';
         
-        if (backupMethod === 'github') {
-          // 使用GitHub API删除文件
-          const { deleteFile } = await import('@/lib/github');
-          await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
-        } else {
-          // 使用Gitee API删除文件
-          const { deleteFile } = await import('@/lib/gitee');
-          await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+        switch (backupMethod) {
+          case 'github':
+            await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+            break;
+          case 'gitee':
+            await deleteGiteeFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+            break;
+          case 'gitlab':
+            await deleteGitlabFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
+            break;
         }
         
-        const index = currentFolder?.children?.findIndex(file => file.name === item.name);
-        if (index !== undefined && index !== -1 && currentFolder?.children) {
-          currentFolder.children[index].sha = '';
-        }
-        setFileTree(cacheTree);
-        
+        // 更新文件树
+        await loadFileTree()
+
         toast({
           title: t('context.delete'),
           description: t('context.deleteSyncFileSuccess'),
@@ -343,7 +345,7 @@ export function FileItem({ item }: { item: DirTree }) {
       const fileExists = await exists(targetPath, { baseDir: BaseDirectory.AppData })
       if (fileExists) {
         const confirmOverwrite = await ask(t('clipboard.confirmOverwrite'), {
-          title: 'NoteGen',
+          title: item.name,
           kind: 'warning',
         })
         if (!confirmOverwrite) return

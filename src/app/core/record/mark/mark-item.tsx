@@ -48,12 +48,12 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
       <SheetTrigger asChild>
         <span className="line-clamp-2 leading-4 mt-2 text-xs break-words cursor-pointer hover:underline">{content}</span>
       </SheetTrigger>
-      <SheetContent className="min-w-[800px] p-0">
+      <SheetContent className="lg:min-w-[800px] w-full mt-[env(safe-area-inset-top)] p-0">
         <SheetHeader className="p-4 border-b">
           <SheetTitle>{t(mark.type)}</SheetTitle>
           <span className="mt-4 text-xs text-zinc-500">{markT('createdAt')}：{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
         </SheetHeader>
-        <div className="h-[calc(100vh-88px)] overflow-y-auto p-8">
+        <div className="h-[calc(100vh-88px)] overflow-y-auto lg:p-8 p-2">
           {
             mark.url && (mark.type === 'image' || mark.type === 'scan') ?
             <LocalImage

@@ -85,7 +85,6 @@ const useShortcutStore = create<SettingState>((set, get) => ({
   },
 
   resetDefault: async (key: string) => {
-    console.log(key);
     const store = await Store.load('store.json');
     const newShortcuts = get().shortcuts.map((shortcut) => {
       if (shortcut.key === key) {

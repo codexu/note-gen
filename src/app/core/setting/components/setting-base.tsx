@@ -28,7 +28,7 @@ export function FormItem({title, desc, children}: { title: string, desc?: string
 }
 
 export function SettingPanel({children, title, desc, icon}: {children: React.ReactNode, title?: string, desc?: string, icon?: React.ReactNode}) {
-  return <div className="flex flex-col lg:flex-row lg:items-center justify-between rounded-lg border p-3 shadow-sm mb-4">
+  return <div className="flex flex-col lg:flex-row lg:items-center justify-between rounded-lg border p-3 shadow-sm mb-4 lg:gap-6">
     <div className="mb-2 lg:mb-0">
       <div className="flex items-center gap-2 mb-2">
         {icon}

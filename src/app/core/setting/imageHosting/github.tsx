@@ -32,7 +32,6 @@ export function GithubImageHosting() {
     githubImageAccessToken,
     setGithubImageAccessToken,
     useImageRepo,
-    setUseImageRepo,
     jsdelivr,
     setJsdelivr,
   } = useSettingStore()
@@ -148,13 +147,6 @@ export function GithubImageHosting() {
       {
         imageRepoInfo &&
         <>
-          <SettingPanel title={t('settings.sync.imageRepoSetting')} desc={t('settings.sync.imageRepoSettingDesc')}>
-            <Switch 
-              checked={useImageRepo} 
-              onCheckedChange={(checked) => setUseImageRepo(checked)} 
-              disabled={!githubImageAccessToken || imageRepoState !== SyncStateEnum.success}
-            />
-          </SettingPanel>
           <SettingPanel title={t('settings.sync.jsdelivrSetting')} desc={t('settings.sync.jsdelivrSettingDesc')}>
             <Switch 
               checked={jsdelivr} 

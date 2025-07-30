@@ -2,9 +2,9 @@ import { Button } from "@/components/ui/button";
 import useSettingStore from "@/stores/setting";
 
 export default function PrimarySync() {
-  const { primaryBackupMethod, accessToken, giteeAccessToken } = useSettingStore()
-  return primaryBackupMethod && primaryBackupMethod === 'github' && accessToken || primaryBackupMethod === 'gitee' && giteeAccessToken ? 
+  const { primaryBackupMethod } = useSettingStore()
+  return primaryBackupMethod ? 
   <Button variant={'ghost'} size={'sm'} className="outline-none hidden lg:block" disabled>
-    {primaryBackupMethod === 'github' ? 'GitHub' : 'Gitee'}
+    {primaryBackupMethod.charAt(0).toUpperCase() + primaryBackupMethod.slice(1)}
   </Button> : null
 }

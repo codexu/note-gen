@@ -63,7 +63,9 @@
       "pageViewOptions": {
         "immersiveView": "Immersive view",
         "panoramaView": "Panorama view"
-      }
+      },
+      "enableLineNumber": "Enable line number",
+      "enableLineNumberDesc": "Enabling it will make the line number visible in code blocks."
     },
     "uploadStore": {
       "uploadConfirm": "Upload configuration please ensure the sync repository is private, otherwise the data will be leaked!",
@@ -88,27 +90,33 @@
       "items": {
         "home": {
           "title": "Home",
-          "buttonName": "Open"
+          "buttonName": "Open",
+          "desc": "Visit the website to learn more about NoteGen."
         },
         "guide": {
           "title": "Guide",
-          "buttonName": "Open"
+          "buttonName": "Open",
+          "desc": "View configuration guide, learn how to configure models, sync, etc. information."
         },
         "github": {
           "title": "GitHub",
-          "buttonName": "View"
+          "buttonName": "View",
+          "desc": "If NoteGen helps you, please give a star to encourage!"
         },
         "releases": {
           "title": "Update Log",
-          "buttonName": "View"
+          "buttonName": "View",
+          "desc": "View update log, learn more about NoteGen's updates."
         },
         "issues": {
           "title": "Issue Feedback",
-          "buttonName": "Feedback"
+          "buttonName": "Feedback",
+          "desc": "If you find a bug in NoteGen, please feedback here."
         },
         "discussions": {
           "title": "Discussions",
-          "buttonName": "Discuss"
+          "buttonName": "Discuss",
+          "desc": "If you want to discuss with the author or other users, you can join the group discussion."
         }
       }
     },
@@ -211,6 +219,22 @@
         "desc": "PicGo server URL",
         "ok": "Service is running, please ensure PicGo image hosting is configured.",
         "error": "Service is not running, please ensure PicGo (v2.2.0+) is running, otherwise image upload will fail."
+      }
+    },
+    "imageMethod": {
+      "title": "Image Recognition",
+      "desc": "Here, you can configure image recognition related settings, supporting OCR and VLM two ways.",
+      "setPrimary": "Set as default",
+      "isPrimary": "{type} has been set as default",
+      "ocr": {
+        "title": "OCR",
+        "languagePacks": "Language Pack",
+        "checkModels": "Here you can search all models",
+        "modelInstruction": "Comma separated, for example: eng,chi_sim"
+      },
+      "vlm": {
+        "title": "Visual Language Model",
+        "desc": "Use visual language model to recognize image content."
       }
     },
     "backupSync": {
@@ -317,7 +341,13 @@
       "modelBaseUrlDesc": "You only need to configure the version number, for example: https://api.openai.com/v1, the suffix will be automatically added.",
       "modelDesc": "Some models support getting model list, if not supported please manually configure.",
       "temperatureDesc": "Controls randomness of output. Lower values make generated content more deterministic.",
-      "topPDesc": "A nucleus sampling method, where the model considers the results of tokens with top_p probability mass. So 0.1 means only consider the top 10% probability mass. Usually we suggest to change this or temperature but not both."
+      "topPDesc": "A nucleus sampling method, where the model considers the results of tokens with top_p probability mass. So 0.1 means only consider the top 10% probability mass. Usually we suggest to change this or temperature but not both.",
+      "customHeaders": "Custom Headers",
+      "customHeadersDesc": "Add custom HTTP headers with key-value pairs.",
+      "connectionSuccess": "AI connection test passed",
+      "headerKey": "Key",
+      "headerValue": "Value",
+      "addHeader": "Add Header"
     },
     "ocr": {
       "title": "OCR",
@@ -739,7 +769,7 @@
     "record": "Record",
     "write": "Write",
     "search": "Search",
-    "gallery": "Gallery",
+    "githubImageHosting": "Github Image Hosting",
     "login": "Login",
     "loading": "Loading",
     "view": "View",
@@ -801,6 +831,11 @@
         "delete": "Delete",
         "newFile": "New File",
         "newFolder": "New Folder",
+        "syncFolder": "Sync Folder",
+        "syncFolderDesc": "Sync all Markdown files in the current folder",
+        "syncFolderSuccess": "Sync folder success",
+        "syncFolderError": "Sync folder error",
+        "syncFolderProgress": "Syncing folder...",
         "deleteSyncFileSuccess": "Delete Sync File Success",
         "deleteSyncFileError": "Delete Sync File Error"
       },
@@ -873,7 +908,7 @@
         "synced": "Synced",
         "syncing": "Syncing",
         "syncFailed": "Sync Failed",
-        "checkNetworkOrToken": "Please check network connection or GitHub token",
+        "checkNetworkOrToken": "Please check network connection or token",
         "quickSync": "Quick Sync"
       },
       "history": {

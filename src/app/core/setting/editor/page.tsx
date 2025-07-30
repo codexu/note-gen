@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import TypewriterMode from './typewriter-mode';
 import Outline from './outline';
 import PageView from './page-view';
+import LineNumber from './lineNumber';
 
 export default function EditorSettingPage() {
   const t = useTranslations('settings.editor');
@@ -12,5 +13,6 @@ export default function EditorSettingPage() {
     <PageView />
     <TypewriterMode />
     <Outline />
+    <LineNumber />
   </SettingType>
 }

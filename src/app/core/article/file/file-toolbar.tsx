@@ -1,7 +1,6 @@
 "use client"
 import {TooltipProvider } from "@/components/ui/tooltip"
 import {
-  CloudCog,
   FilePlus, 
   FolderGit2, 
   FolderPlus, 
@@ -21,7 +20,6 @@ import { TooltipButton } from "@/components/tooltip-button"
 import useArticleStore from "@/stores/article"
 import { open } from '@tauri-apps/plugin-shell';
 import useSettingStore from "@/stores/setting"
-import { useRouter } from "next/navigation";
 import { RepoNames } from "@/lib/github.types"
 import { useTranslations } from "next-intl"
 import { debounce } from "lodash-es"
@@ -32,23 +30,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import useUsername from "@/hooks/use-username"
 
 export function FileToolbar() {
   const { newFolder, loadFileTree, newFile, fileTreeLoading, sortType, setSortType, sortDirection, setSortDirection, toggleAllFolders, collapsibleList } = useArticleStore()
-  const { githubUsername, accessToken } = useSettingStore()
+  const { primaryBackupMethod } = useSettingStore()
   const { processAllDocuments, isProcessing, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
-  const router = useRouter()
   const t = useTranslations('article.file.toolbar')
+
+  const username = useUsername()
 
   const debounceNewFile = debounce(newFile, 200)
   const debounceNewFolder = debounce(newFolder, 200)
 
   async function openFolder() {
-    open(`https://github.com/${githubUsername}/${RepoNames.sync}`)
-  }
-
-  function handleSetting() {
-    router.push('/core/setting/sync');
+    switch (primaryBackupMethod) {
+      case 'github':
+        open(`https://github.com/${username}/${RepoNames.sync}`)
+        break;
+      case 'gitee':
+        open(`https://gitee.com/${username}/${RepoNames.sync}`)
+        break;
+      case 'gitlab':
+        open(`https://gitlab.com/${username}/${RepoNames.sync}`)
+        break;
+    }
   }
 
   return (
@@ -58,23 +64,23 @@ export function FileToolbar() {
         <TooltipButton icon={<FilePlus />} tooltipText={t('newArticle')} onClick={debounceNewFile} />
         {/* 新建文件夹 */}
         <TooltipButton icon={<FolderPlus />} tooltipText={t('newFolder')} onClick={debounceNewFolder} />
+        {/* 向量数据库 */}
         <TooltipButton 
           icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className={isVectorDbEnabled ? "text-primary" : ""} />} 
           tooltipText={isProcessing ? t('processingVectors') : (isVectorDbEnabled ? t('calculateVectors') : t('enableVectorDb'))} 
           onClick={isVectorDbEnabled ? processAllDocuments : () => setVectorDbEnabled(true)}
           disabled={isProcessing} 
         />
+        {/* 同步 */}
         {
-          accessToken ? (
+          primaryBackupMethod && username ?
             <TooltipButton
               icon={fileTreeLoading ? <LoaderCircle className="animate-spin size-4" /> : <FolderGit2 />}
               tooltipText={fileTreeLoading ? t('loadingSync') : t('accessRepo')}
-              disabled={githubUsername? false : true}
+              disabled={!username}
               onClick={openFolder}
             />
-          ) : (
-            <TooltipButton icon={<CloudCog className="text-red-800" />} tooltipText={t('configSync')} onClick={handleSetting} />
-          )
+            : null
         }
       </div>
       <div>
@@ -123,7 +129,6 @@ export function FileToolbar() {
         />
         {/* 刷新 */}
         <TooltipButton icon={<FolderSync />} tooltipText={t('refresh')} onClick={loadFileTree} />
-        {/* 向量数据库 */}
       </div>
     </div>
   )

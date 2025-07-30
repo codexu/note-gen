@@ -94,6 +94,7 @@
     "core:path:allow-resolve-directory",
     "shell:default",
     "core:app:allow-default-window-icon",
+    "core:window:allow-unminimize",
     {
       "identifier": "http:allow-fetch",
       "allow": [

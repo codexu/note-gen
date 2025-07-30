@@ -1,6 +1,7 @@
 import { deleteAllMarks, getAllMarks, getMarks, insertMarks, Mark, updateMark } from '@/db/marks'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github';
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee';
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab';
 import { RepoNames } from '@/lib/github.types';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
@@ -153,9 +154,23 @@ const useMarkStore = create<MarkState>((set) => ({
     }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
-    if (primaryBackupMethod === 'github') {
-      const files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      const res = await uploadGithubFile({
+    let files;
+    let res;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        res = await uploadGithubFile({
+          ext: 'json',
+        file: jsonToBase64(marks),
+        repo: RepoNames.sync,
+        path,
+        filename,
+        sha: files?.sha,
+      })
+      break;
+    case 'gitee':
+      files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+      res = await uploadGiteeFile({
         ext: 'json',
         file: jsonToBase64(marks),
         repo: RepoNames.sync,
@@ -166,19 +181,22 @@ const useMarkStore = create<MarkState>((set) => ({
       if (res) {
         result = true
       }
-    } else if (primaryBackupMethod === 'gitee') {
-      const files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      const res = await uploadGiteeFile({
+      break;
+    case 'gitlab':
+      files = await gitlabGetFiles({ path, repo: RepoNames.sync })
+      const markFile = files?.find(file => file.name === filename)
+      res = await uploadGitlabFile({
         ext: 'json',
         file: jsonToBase64(marks),
         repo: RepoNames.sync,
         path,
         filename,
-        sha: files?.sha,
+        sha: markFile?.sha || '',
       })
-      if (res) {
-        result = true
-      }
+      break;
+    }
+    if (res) {
+      result = true
     }
     set({ syncState: false })
     return result
@@ -189,18 +207,21 @@ const useMarkStore = create<MarkState>((set) => ({
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = []
-    if (primaryBackupMethod === 'github') {
-      const file = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      if (file) {
-        const configJson = decodeBase64ToString(file.content)
-        result = JSON.parse(configJson)
-      }
-    } else if (primaryBackupMethod === 'gitee') {
-      const file = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      if (file) {
-        const configJson = decodeBase64ToString(file.content)
-        result = JSON.parse(configJson)
-      }
+    let files;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitee':
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitlab':
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: RepoNames.sync })
+        break;
+    }
+    if (files) {
+      const configJson = decodeBase64ToString(files.content)
+      result = JSON.parse(configJson)
     }
     await deleteAllMarks()
     await insertMarks(result)

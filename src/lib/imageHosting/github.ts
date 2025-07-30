@@ -150,3 +150,54 @@ export async function uploadImageByGithub(file: File) {
     })
   }
 }
+
+export async function getImageFiles({ path }: { path: string }) {
+  const store = await Store.load('store.json');
+  const accessToken = await store.get('githubImageAccessToken')
+  if (!accessToken) return;
+  
+  const githubImageUsername = await store.get('githubImageUsername')
+  path = path.replace(/\s/g, '_')
+  
+  // 获取代理设置
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? {
+    all: proxyUrl
+  } : undefined
+  
+  try {
+    // 设置请求头
+    const headers = new Headers();
+    headers.append('Authorization', `Bearer ${accessToken}`);
+    headers.append('Accept', 'application/vnd.github+json');
+    headers.append('X-GitHub-Api-Version', '2022-11-28');
+    headers.append('If-None-Match', '');
+    
+    const requestOptions = {
+      method: 'GET',
+      headers,
+      proxy
+    };
+    
+    const url = `https://api.github.com/repos/${githubImageUsername}/${RepoNames.image}/contents/${path}`;
+    
+    try {
+      const response = await fetch(url, requestOptions);
+      if (response.status >= 200 && response.status < 300) {
+        const data = await response.json();
+        return data;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  } catch (error) {
+    if ((error as GithubError).status !== 404) {
+      toast({
+        title: '查询失败',
+        description: (error as GithubError).message,
+        variant: 'destructive',
+      })
+    }
+  }
+}

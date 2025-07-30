@@ -7,7 +7,7 @@ export function NoData() {
   const t = useTranslations();
 
   function handelRouteToSetting() {
-    router.push('/core/setting/sync');
+    router.push('/core/setting/imageHosting');
   }
 
   return (
@@ -17,9 +17,6 @@ export function NoData() {
       <div className="flex gap-2">
         <Button onClick={handelRouteToSetting}>
           {t('image.noData.goToSettings')}
-        </Button>
-        <Button variant={'outline'}>
-          {t('image.noData.howToUse')}
         </Button>
       </div>
     </div>

@@ -8,7 +8,7 @@ import { ChevronRight } from "lucide-react";
 export function SettingTab() {
   const router = useRouter()
   const t = useTranslations('settings')
-  const notMobilePages = ['about', 'file']
+  const notMobilePages = ['about', 'file', 'shortcuts']
   
   // Add translations to the config
   const config = baseConfig.filter(item => typeof item !== 'string').map(item => ({

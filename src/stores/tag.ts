@@ -1,6 +1,7 @@
 import { Tag, delTag, getTags, insertTags, deleteAllTags } from '@/db/tags'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github';
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee';
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab';
 import { RepoNames } from '@/lib/github.types';
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
@@ -85,32 +86,46 @@ const useTagStore = create<TagState>((set, get) => ({
     }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
-    if (primaryBackupMethod === 'github') {
-      const files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      const res = await uploadGithubFile({
-        ext: 'json',
-        file: jsonToBase64(tags),
-        repo: RepoNames.sync,
-        path,
-        filename,
-        sha: files?.sha,
-      })
-      if (res) {
-        result = true
-      }
-    } else if (primaryBackupMethod === 'gitee') {
-      const files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      const res = await uploadGiteeFile({
-        ext: 'json',
-        file: jsonToBase64(tags),
-        repo: RepoNames.sync,
-        path,
-        filename,
-        sha: files?.sha,
-      })
-      if (res) {
-        result = true
-      }
+    let res;
+    let files;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        res = await uploadGithubFile({
+          ext: 'json',
+          file: jsonToBase64(tags),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: files?.sha,
+        })
+        break;
+      case 'gitee':
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        res = await uploadGiteeFile({
+          ext: 'json',
+          file: jsonToBase64(tags),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: files?.sha,
+        })
+        break;
+      case 'gitlab':
+        files = await gitlabGetFiles({ path, repo: RepoNames.sync })
+        const tagFile = files?.find(file => file.name === filename)
+        res = await uploadGitlabFile({
+          ext: 'json',
+          file: jsonToBase64(tags),
+          repo: RepoNames.sync,
+          path,
+          filename,
+          sha: tagFile?.sha || '',
+        })
+        break;
+    }
+    if (res) {
+      result = true
     }
     set({ syncState: false })
     return result
@@ -121,18 +136,21 @@ const useTagStore = create<TagState>((set, get) => ({
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = []
-    if (primaryBackupMethod === 'github') {
-      const file = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      if (file) {
-        const configJson = decodeBase64ToString(file.content)
-        result = JSON.parse(configJson)
-      }
-    } else if (primaryBackupMethod === 'gitee') {
-      const file = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
-      if (file) {
-        const configJson = decodeBase64ToString(file.content)
-        result = JSON.parse(configJson)
-      }
+    let files;
+    switch (primaryBackupMethod) {
+      case 'github':
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitee':
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        break;
+      case 'gitlab':
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: RepoNames.sync })
+        break;
+    }
+    if (files) {
+      const configJson = decodeBase64ToString(files.content)
+      result = JSON.parse(configJson)
     }
     await deleteAllTags()
     await insertTags(result)

@@ -99,6 +99,10 @@ export async function uploadFile(
       const data = await response.json();
       return { data } as OctokitResponse<any>;
     }
+
+    if (response.status === 400) {
+      return null;
+    }
     
     const errorData = await response.json();
     throw {

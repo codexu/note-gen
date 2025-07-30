@@ -1,27 +1,30 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
-import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import { appDataDir } from '@tauri-apps/api/path';
+import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
 import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot } from "lucide-react"
 import { useEffect, useRef, useState } from "react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
-import { open } from "@tauri-apps/plugin-shell";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
-import { useTranslations } from "next-intl";
-import useClipboardStore from "@/stores/clipboard";
-import { ask } from '@tauri-apps/plugin-dialog';
 import useSettingStore from '@/stores/setting'
+import SyncFolder from './sync-folder'
+import { NewFile } from './new-file'
+import { NewFolder } from './new-folder'
+import { ViewDirectory } from './view-directory'
+import { CutFolder } from './cut-folder'
+import { CopyFolder } from './copy-folder'
+import { PasteInFolder } from './paste-in-folder'
+import { RenameFolder } from './rename-folder'
+import { DeleteFolder } from './delete-folder'
 
 export function FolderItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const t = useTranslations('article.file')
-  const { setClipboardItem, clipboardItem, clipboardOperation } = useClipboardStore()
+
   const { assetsPath } = useSettingStore()
 
   const { 
@@ -31,8 +34,7 @@ export function FolderItem({ item }: { item: DirTree }) {
     collapsibleList,
     setCollapsibleList,
     fileTree,
-    setFileTree,
-    newFolderInFolder
+    setFileTree
   } = useArticleStore()
 
   const path = computedParentPath(item)
@@ -40,48 +42,7 @@ export function FolderItem({ item }: { item: DirTree }) {
   const currentFolder = getCurrentFolder(path, cacheTree)
   const parentFolder = currentFolder?.parent
 
-  async function handleDeleteFolder(evnet: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    evnet.stopPropagation()
-    try {
-      // 获取工作区路径信息
-      const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-      const workspace = await getWorkspacePath()
-      
-      // 根据工作区类型正确删除文件夹
-      const pathOptions = await getFilePathOptions(path)
-      if (workspace.isCustom) {
-        // 自定义工作区
-        await remove(pathOptions.path)
-      } else {
-        // 默认工作区
-        await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
-      }
-      
-      // 更新文件树
-      if (parentFolder) {
-        const index = parentFolder.children?.findIndex(folder => folder.name === currentFolder.name)
-        if (index!== -1 && index !== undefined && parentFolder.children) {
-          parentFolder.children.splice(index, 1)
-          setFileTree(cacheTree)
-        }
-      } else {
-        const index = cacheTree?.findIndex(folder => folder.name === currentFolder?.name)
-        if (index!== -1 && index !== undefined && cacheTree) {
-          cacheTree.splice(index, 1)
-          setFileTree(cacheTree)
-        }
-      }
-    } catch (error) {
-      console.error('删除文件夹失败:', error)
-      toast({
-        title: '删除失败',
-        description: '文件夹内存在文件或无法访问！',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  async function handleStartRename() {
+  function handleStartRename() {
     setIsEditing(true)
     setTimeout(() => inputRef.current?.focus(), 0);
   }
@@ -179,22 +140,7 @@ export function FolderItem({ item }: { item: DirTree }) {
     setFileTree(cacheTree)
   }
 
-  async function handleShowFileManager() {
-    // 获取工作区路径信息
-    const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-    const workspace = await getWorkspacePath()
-    
-    // 根据工作区类型确定正确的路径
-    if (workspace.isCustom) {
-      // 自定义工作区 - 直接使用工作区路径
-      const pathOptions = await getFilePathOptions(path)
-      open(pathOptions.path)
-    } else {
-      // 默认工作区 - 使用 AppData 目录
-      const appDir = await appDataDir()
-      open(`${appDir}/article/${path}`)
-    }
-  }
+
 
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault()
@@ -244,145 +190,7 @@ export function FolderItem({ item }: { item: DirTree }) {
     setIsDragging(false)
   }
 
-  function newFileHandler(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    e.stopPropagation()
-    // 创建临时文件节点，并将其设为编辑状态，与 newFile 保持一致
-    const cacheTree = cloneDeep(fileTree)
-    const currentFolder = getCurrentFolder(path, cacheTree)
-    
-    // 如果文件夹中已经有一个空名称的文件，不再创建新的
-    if (currentFolder?.children?.find(item => item.name === '' && item.isFile)) {
-      return
-    }
-    
-    // 确保文件夹是展开状态
-    if (!collapsibleList.includes(path)) {
-      setCollapsibleList(path, true)
-    }
-    
-    if (currentFolder) {
-      const newFile: DirTree = {
-        name: '',
-        isFile: true,
-        isSymlink: false,
-        parent: currentFolder,
-        isEditing: true,
-        isDirectory: false,
-        isLocale: true,
-        sha: '',
-        children: []
-      }
-      currentFolder.children?.unshift(newFile)
-      setFileTree(cacheTree)
-    }
-  }
 
-  function newFolderHandler(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    e.stopPropagation()
-    // 如果当前文件夹未展开，则先展开
-    if (!collapsibleList.includes(path)) {
-      setCollapsibleList(path, true)
-    }
-    newFolderInFolder(path)
-  }
-
-  async function handleCopyFolder() {
-    setClipboardItem({
-      path,
-      name: item.name,
-      isDirectory: true,
-      isLocale: item.isLocale
-    }, 'copy')
-    toast({ title: t('clipboard.copied') })
-  }
-
-  async function handleCutFolder() {
-    setClipboardItem({
-      path,
-      name: item.name,
-      isDirectory: true,
-      isLocale: item.isLocale
-    }, 'cut')
-    toast({ title: t('clipboard.cut') })
-  }
-
-  async function handlePasteInFolder() {
-    if (!clipboardItem) {
-      toast({ title: t('clipboard.empty'), variant: 'destructive' })
-      return
-    }
-
-    try {
-      const sourcePath = `article/${clipboardItem.path}`
-      const targetPath = `article/${path}/${clipboardItem.name}`
-      
-      // Check if target already exists
-      const targetExists = await exists(targetPath, { baseDir: BaseDirectory.AppData })
-      
-      if (targetExists) {
-        const confirmOverwrite = await ask(t('clipboard.confirmOverwrite'), {
-          title: 'NoteGen',
-          kind: 'warning',
-        })
-        if (!confirmOverwrite) return
-      }
-
-      if (clipboardItem.isDirectory) {
-        // For directories, need to copy recursively
-        // Create target directory
-        await mkdir(targetPath, { baseDir: BaseDirectory.AppData })
-        
-        // Copy recursively using readDir, readTextFile, and writeTextFile
-        const copyDirRecursively = async (src: string, dest: string) => {
-          const entries = await readDir(src, { baseDir: BaseDirectory.AppData })
-          
-          for (const entry of entries) {
-            const srcPath = `${src}/${entry.name}`
-            const destPath = `${dest}/${entry.name}`
-            
-            if (entry.isDirectory) {
-              // It's a directory
-              await mkdir(destPath, { baseDir: BaseDirectory.AppData })
-              await copyDirRecursively(srcPath, destPath)
-            } else {
-              // It's a file
-              try {
-                const content = await readTextFile(srcPath, { baseDir: BaseDirectory.AppData })
-                await writeTextFile(destPath, content, { baseDir: BaseDirectory.AppData })
-              } catch (err) {
-                console.error(`Error copying file ${srcPath}:`, err)
-              }
-            }
-          }
-        }
-        
-        await copyDirRecursively(sourcePath, targetPath)
-      } else {
-        // For files, just copy the file
-        try {
-          const content = await readTextFile(sourcePath, { baseDir: BaseDirectory.AppData })
-          await writeTextFile(targetPath, content, { baseDir: BaseDirectory.AppData })
-        } catch (err) {
-          console.error(`Error copying file ${sourcePath}:`, err)
-          throw err
-        }
-      }
-      
-      // If cut operation, delete the original
-      if (clipboardOperation === 'cut') {
-        await remove(sourcePath, { baseDir: BaseDirectory.AppData })
-        // Clear clipboard after cut & paste operation
-        setClipboardItem(null, 'none')
-      }
-
-      // Refresh file tree
-      loadFileTree()
-      toast({ title: t('clipboard.pasted') })
-    } catch (error) {
-      console.error('Paste operation failed:', error)
-      toast({ title: t('clipboard.pasteFailed'), variant: 'destructive' })
-    }
-  }
 
   function handleEditEnd() {
     if (currentFolder?.parent) {
@@ -457,32 +265,18 @@ export function FolderItem({ item }: { item: DirTree }) {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem inset disabled={!!item.sha && !item.isLocale} onClick={newFileHandler}>
-            {t('context.newFile')}
-          </ContextMenuItem>
-          <ContextMenuItem inset disabled={!!item.sha && !item.isLocale} onClick={newFolderHandler}>
-            {t('context.newFolder')}
-          </ContextMenuItem>
-          <ContextMenuItem inset onClick={handleShowFileManager}>
-            {t('context.viewDirectory')}
-          </ContextMenuItem>
+          <NewFile item={item} />
+          <NewFolder item={item} />
+          <ViewDirectory item={item} />
           <ContextMenuSeparator />
-          <ContextMenuItem inset disabled={!item.isLocale} onClick={handleCutFolder}>
-            {t('context.cut')}
-          </ContextMenuItem>
-          <ContextMenuItem inset onClick={handleCopyFolder}>
-            {t('context.copy')}
-          </ContextMenuItem>
-          <ContextMenuItem inset disabled={!clipboardItem} onClick={handlePasteInFolder}>
-            {t('context.paste')}
-          </ContextMenuItem>
+          <CutFolder item={item} />
+          <CopyFolder item={item} />
+          <PasteInFolder item={item} />
           <ContextMenuSeparator />
-          <ContextMenuItem inset onClick={handleStartRename}>
-            {t('context.rename')}
-          </ContextMenuItem>
-          <ContextMenuItem inset className="text-red-900" onClick={(e) => { handleDeleteFolder(e); }}>
-            {t('context.delete')}
-          </ContextMenuItem>
+          <SyncFolder item={item} />
+          <ContextMenuSeparator />
+          <RenameFolder item={item} onStartRename={handleStartRename} />
+          <DeleteFolder item={item} />
         </ContextMenuContent>
       </ContextMenu>
     </CollapsibleTrigger>

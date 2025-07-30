@@ -9,6 +9,7 @@ import useImageStore from "@/stores/imageHosting";
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import PicgoImageHosting from "./picgo";
+import { SettingSwitch } from "./setting-switch";
 
 export default function ImageHostingPage() {
   const t = useTranslations();
@@ -30,7 +31,8 @@ export default function ImageHostingPage() {
   
   return (
     <SettingType id="imageHosting" icon={<ImageUp />} title={t('settings.imageHosting.title')} desc={t('settings.imageHosting.desc')}>
-      <Tabs value={value} defaultValue={mainImageHosting} onValueChange={(value) => {setValue(value)}}>
+      <SettingSwitch />
+      <Tabs className="mt-4" value={value} defaultValue={mainImageHosting} onValueChange={(value) => {setValue(value)}}>
         <TabsList className="grid grid-cols-4 w-full mb-8">
           <TabsTrigger value="github" className="flex items-center gap-2">
             Github

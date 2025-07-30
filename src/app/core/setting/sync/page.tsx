@@ -3,6 +3,7 @@ import { FileUp } from "lucide-react"
 import { useTranslations } from 'next-intl';
 import { GithubSync } from "./github-sync";
 import { GiteeSync } from "./gitee-sync";
+import { GitlabSync } from "./gitlab-sync";
 import { SettingType } from '../components/setting-base';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SquareCheckBig } from "lucide-react"
@@ -15,13 +16,13 @@ export default function SyncPage() {
   const t = useTranslations();
   const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
 
-  const tabs = ['github', 'gitee']
+  const tabs = ['github', 'gitee', 'gitlab']
 
   const [tab, setTab] = useState(primaryBackupMethod)
 
   async function init () {
     const store = await Store.load('store.json')
-    const primaryBackupMethod = await store.get<'github' | 'gitee'>('primaryBackupMethod')
+    const primaryBackupMethod = await store.get<'github' | 'gitee' | 'gitlab'>('primaryBackupMethod')
     if (primaryBackupMethod) {
       setPrimaryBackupMethod(primaryBackupMethod)
       setTab(primaryBackupMethod)
@@ -34,8 +35,8 @@ export default function SyncPage() {
   
   return (
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'github' | 'gitee')}>
-        <TabsList className="grid grid-cols-2 w-full mb-8">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'github' | 'gitee' | 'gitlab')}>
+        <TabsList className="grid grid-cols-3 w-full mb-8">
           {
             tabs.map((item) => (
               <TabsTrigger value={item} key={item} className="flex items-center gap-2">
@@ -50,6 +51,9 @@ export default function SyncPage() {
         </TabsContent>
         <TabsContent value="gitee">
           <GiteeSync />
+        </TabsContent>
+        <TabsContent value="gitlab">
+          <GitlabSync />
         </TabsContent>
       </Tabs>
     </SettingType>

@@ -3,7 +3,7 @@ import { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath } from "@/lib/path";
 import { appDataDir } from '@tauri-apps/api/path';
-import { open } from "@tauri-apps/plugin-shell";
+import { openPath } from "@tauri-apps/plugin-opener";
 
 interface ViewDirectoryProps {
   item: DirTree;
@@ -22,11 +22,11 @@ export function ViewDirectory({ item }: ViewDirectoryProps) {
     if (workspace.isCustom) {
       // 自定义工作区 - 直接使用工作区路径
       const pathOptions = await getFilePathOptions(path);
-      open(pathOptions.path);
+      openPath(pathOptions.path);
     } else {
       // 默认工作区 - 使用 AppData 目录
       const appDir = await appDataDir();
-      open(`${appDir}/article/${path}`);
+      openPath(`${appDir}/article/${path}`);
     }
   }
 

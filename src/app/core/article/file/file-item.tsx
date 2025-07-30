@@ -8,7 +8,7 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/github.types";
 import { cloneDeep } from "lodash-es";
-import { open } from "@tauri-apps/plugin-shell";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
@@ -290,11 +290,11 @@ export function FileItem({ item }: { item: DirTree }) {
     if (workspace.isCustom) {
       // 自定义工作区 - 直接使用工作区路径
       const pathOptions = await getFilePathOptions(folderPath)
-      open(pathOptions.path)
+      openPath(pathOptions.path)
     } else {
       // 默认工作区 - 使用 AppData 目录
       const appDir = await appDataDir()
-      open(await join(appDir, 'article', folderPath))
+      openPath(await join(appDir, 'article', folderPath))
     }
   }
 

@@ -20,7 +20,7 @@ import useUsername from "@/hooks/use-username";
 
 export default function Sync({editor}: {editor?: Vditor}) {
   const { currentArticle } = useArticleStore()
-  const { accessToken, giteeAccessToken, gitlabAccessToken, autoSync, giteeAutoSync, gitlabAutoSync, primaryBackupMethod, primaryModel } = useSettingStore()
+  const { accessToken, giteeAccessToken, gitlabAccessToken, autoSync, giteeAutoSync, gitlabAutoSync, primaryBackupMethod} = useSettingStore()
   const [isLoading, setIsLoading] = useState(false)
   const syncTimeoutRef = useRef<number | null>(null)
   const t = useTranslations('article.footer.sync')
@@ -49,6 +49,7 @@ export default function Sync({editor}: {editor?: Vditor}) {
       let message = `Upload ${activeFilePath}`;
       
       // 如果有AI API Key，使用AI生成提交信息
+      const primaryModel = await store.get<string>('primaryModel');
       if (primaryModel) {
         let contentText = '';
         

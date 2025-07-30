@@ -47,6 +47,9 @@ reqwest_dav = "=0.2.1"
 tauri-plugin-process = "=2.0.0"
 jieba-rs = { version = "0.7", features = ["textrank"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.23"
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies.tauri]
 version = "2"
 features = ["tray-icon"]

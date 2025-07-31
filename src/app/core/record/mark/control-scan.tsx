@@ -70,9 +70,11 @@ export function ControlScan() {
       }
     })
     setFiles(convertedFiles)
-    const image = new window.Image();
-    image.src = convertedFiles[0].path;
-    setImage(image)
+    if (convertedFiles.length > 0) {
+      const image = new window.Image();
+      image.src = convertedFiles[0].path;
+      setImage(image)
+    }
   }
 
   function selectImage(file: ScreenshotImage) {

@@ -353,7 +353,13 @@
       "modelBaseUrlDesc": "You only need to configure the version number, for example: https://api.openai.com/v1, the suffix will be automatically added.",
       "modelDesc": "Some models support getting model list, if not supported please manually configure.",
       "temperatureDesc": "Controls randomness of output. Lower values make generated content more deterministic.",
-      "topPDesc": "A nucleus sampling method, where the model considers the results of tokens with top_p probability mass. So 0.1 means only consider the top 10% probability mass. Usually we suggest to change this or temperature but not both."
+      "topPDesc": "A nucleus sampling method, where the model considers the results of tokens with top_p probability mass. So 0.1 means only consider the top 10% probability mass. Usually we suggest to change this or temperature but not both.",
+      "customHeaders": "Custom Headers",
+      "customHeadersDesc": "Add custom HTTP headers with key-value pairs.",
+      "connectionSuccess": "AI connection test passed",
+      "headerKey": "Key",
+      "headerValue": "Value",
+      "addHeader": "Add Header"
     },
     "ocr": {
       "title": "OCR",
@@ -835,6 +841,9 @@
         "deleteSyncFile": "Delete Sync File",
         "deleteLocalFile": "Delete Local File",
         "delete": "Delete",
+        "confirmDelete": "Are you sure you want to delete the folder \"{name}\"? This will delete the folder and all its contents.",
+        "deleteSuccess": "Deleted successfully",
+        "deleteFailed": "Delete failed",
         "newFile": "New File",
         "newFolder": "New Folder",
         "syncFolder": "Sync Folder",
@@ -914,7 +923,7 @@
         "synced": "Synced",
         "syncing": "Syncing",
         "syncFailed": "Sync Failed",
-        "checkNetworkOrToken": "Please check network connection or GitHub token",
+        "checkNetworkOrToken": "Please check network connection or token",
         "quickSync": "Quick Sync"
       },
       "history": {

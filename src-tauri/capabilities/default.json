@@ -114,6 +114,14 @@
     },
     "os:default",
     "dialog:default",
-    "http:default"
+    "http:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
   ]
 }

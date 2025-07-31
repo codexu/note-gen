@@ -103,7 +103,7 @@ export function FolderItem({ item }: { item: DirTree }) {
         
         if (isExists) {
           toast({ title: '文件夹名已存在' })
-          setTimeout(() => inputRef.current?.focus(), 300);
+          return
         } else {
           // 创建新文件夹
           if (workspace.isCustom) {

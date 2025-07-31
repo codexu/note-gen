@@ -34,7 +34,7 @@ export function DeleteFolder({ item }: DeleteFolderProps) {
       
       // 确认删除操作
       const confirmed = await ask(t('context.confirmDelete', { name: item.name }), {
-        title: 'NoteGen',
+        title: item.name,
         kind: 'warning',
       });
       
@@ -44,9 +44,9 @@ export function DeleteFolder({ item }: DeleteFolderProps) {
       const pathOptions = await getFilePathOptions(path);
       
       if (workspace.isCustom) {
-        await remove(pathOptions.path);
+        await remove(pathOptions.path, { recursive: true });
       } else {
-        await remove(pathOptions.path, { baseDir: pathOptions.baseDir });
+        await remove(pathOptions.path, { baseDir: pathOptions.baseDir, recursive: true });
       }
 
       // 如果删除的文件夹包含当前活动文件，清除活动文件路径

@@ -351,7 +351,13 @@
       "modelBaseUrlDesc": "バージョン番号まで設定すればOKです（例：https://api.openai.com/v1）。サフィックスは自動で追加されます。",
       "modelDesc": "一部モデルはリスト取得に対応しています。未対応の場合は手動で設定してください。",
       "temperatureDesc": "サンプリング温度は0から2の間で設定します。高い値（例:0.8）は出力をよりランダムに、低い値（例:0.2）はより決定的にします。通常、この値かtop_pのみを調整してください。",
-      "topPDesc": "top_p（核サンプリング）は温度の代替手法です。top_p=0.1なら上位10%確率のトークンのみ考慮します。通常、この値かtemperatureのみを調整してください。"
+      "topPDesc": "top_p（核サンプリング）は温度の代替手法です。top_p=0.1なら上位10%確率のトークンのみ考慮します。通常、この値かtemperatureのみを調整してください。",
+      "customHeaders": "カスタムヘッダー",
+      "customHeadersDesc": "キーと値のペアでカスタムHTTPヘッダーを追加します。",
+      "connectionSuccess": "AI接続テストが成功しました",
+      "headerKey": "キー",
+      "headerValue": "値",
+      "addHeader": "ヘッダーを追加"
     },
     "ocr": {
       "title": "OCR",
@@ -824,6 +830,9 @@
         "deleteSyncFile": "同期ファイルを削除",
         "deleteLocalFile": "ローカルファイルを削除",
         "delete": "削除",
+        "confirmDelete": "フォルダ \"{name}\" を削除してもよろしいですか？この操作により、フォルダとその内容がすべて削除されます。",
+        "deleteSuccess": "削除しました",
+        "deleteFailed": "削除に失敗しました",
         "newFile": "新規ファイル",
         "newFolder": "新規フォルダ",
         "syncFolder": "同期",
@@ -903,7 +912,7 @@
         "synced": "同期済み",
         "syncing": "同期中",
         "syncFailed": "同期に失敗しました",
-        "checkNetworkOrToken": "ネットワーク接続またはGitHubトークンを確認してください",
+        "checkNetworkOrToken": "ネットワーク接続またはトークンを確認してください",
         "quickSync": "クイック同期"
       },
       "history": {

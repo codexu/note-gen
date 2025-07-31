@@ -1,6 +1,9 @@
 use tauri::{path::BaseDirectory, AppHandle, Manager};
 use xcap::{Window};
 
+#[cfg(target_os = "macos")]
+use core_graphics::display::CGDisplay;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone)]
 pub struct ScreenshotImage {
@@ -28,7 +31,12 @@ fn normalized(s: &str) -> String {
 #[allow(dead_code)]
 #[tauri::command]
 pub fn screenshot(app: AppHandle) -> Vec<ScreenshotImage> {
-
+    #[cfg(target_os = "macos")]
+    {
+        let display = CGDisplay::main();
+        let _ = display.image();
+    }
+    
     let windows = Window::all().unwrap();
 
     let temp_screenshot_folder = app

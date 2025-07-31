@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { checkSyncRepoState, getUserInfo } from "@/lib/gitee";
+import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/gitee";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
@@ -54,7 +54,14 @@ export function GiteeSync() {
         setGiteeSyncRepoInfo(syncRepo);
         setGiteeSyncRepoState(SyncStateEnum.success);
       } else {
-        setGiteeSyncRepoState(SyncStateEnum.fail);
+        setGiteeSyncRepoState(SyncStateEnum.creating)
+        const info = await createSyncRepo(RepoNames.sync, true)
+        if (info) {
+          setGiteeSyncRepoInfo(info)
+          setGiteeSyncRepoState(SyncStateEnum.success)
+        } else {
+          setGiteeSyncRepoState(SyncStateEnum.fail)
+        }
       }
     } catch (error) {
       // 失败时将状态设置为不可用

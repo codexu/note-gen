@@ -35,6 +35,7 @@ rayon = "1.8.0"
 tokio = { version = "1", features = ["full"] } 
 url = "2.5"
 reqwest_dav = "=0.2.1"
+tauri-plugin-opener = "2.4.0"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
@@ -49,6 +50,9 @@ xcap = "=0.6.0"
 reqwest_dav = "=0.2.1"
 tauri-plugin-process = "=2.0.0"
 jieba-rs = { version = "0.7", features = ["textrank"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.23"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies.tauri]
 version = "2"

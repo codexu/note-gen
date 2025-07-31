@@ -93,6 +93,33 @@ export function AiCheck() {
             throw new Error('嵌入模型测试失败');
           }
           return true
+        // 音频模型测试
+        case 'audio':
+          const testAudioText = '测试音频生成';
+          const audioResponse = await fetch(model.baseURL + '/audio/speech', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${model.apiKey}`,
+              'Origin': "",
+              ...(model.customHeaders || {})
+            },
+            body: JSON.stringify({
+              model: model.model,
+              input: testAudioText,
+              voice: model.voice || 'alloy'
+            })
+          });
+          if (!audioResponse.ok) {
+            throw new Error(`音频生成请求失败: ${audioResponse.status} ${audioResponse.statusText}`);
+          }
+          
+          // 检查返回的是否为音频数据
+          const contentType = audioResponse.headers.get('content-type');
+          if (!contentType || !contentType.includes('audio')) {
+            throw new Error('音频模型返回格式不正确');
+          }
+          return true
         default:
           const openai = await createOpenAIClient(model)
           await openai.chat.completions.create({

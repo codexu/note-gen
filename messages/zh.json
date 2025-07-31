@@ -32,6 +32,12 @@
       "deleteVectorSuccess": "清空知识库成功",
       "enable": "启用知识库检索",
       "enableDesc": "启用后，AI 将在回答问题时检索你的笔记内容，提供更准确的回答。",
+      "topPDesc": "Top P 参数控制模型生成文本的多样性，值越小生成的文本越确定，值越大生成的文本越多样。",
+      "enableStreamDesc": "启用流式响应可以实时显示生成内容，但某些模型可能不支持此功能。",
+      "enableStream": "流式响应",
+      "voice": "语音类型",
+      "voiceDesc": "指定音频模型使用的语音类型，如 'alloy'、'echo'、'fable' 等。",
+      "voicePlaceholder": "请输入语音类型，如：alloy",
       "chunkSize": "分块大小",
       "chunkSizeDesc": "文本分块的最大字符数，较大的分块可能包含更多上下文，但会增加向量计算的复杂度。",
       "chunkOverlap": "重叠大小",
@@ -117,6 +123,16 @@
         "reranking": {
           "title": "重排模型",
           "desc": "用于搜索结果的重新排序和优化。"
+        }
+      }
+    },
+    "readAloud": {
+      "title": "朗读设置",
+      "desc": "在这里，你可以配置朗读相关设置，为聊天内容提供语音播放功能。",
+      "options": {
+        "audioModel": {
+          "title": "音频模型",
+          "desc": "选择用于文本转语音的AI模型，支持多种语音类型和参数配置。"
         }
       }
     },
@@ -349,7 +365,10 @@
       "headerKey": "键",
       "headerValue": "值",
       "addHeader": "添加 Header",
-      "connectionSuccess": "AI 连接测试通过"
+      "connectionSuccess": "AI 连接测试通过",
+      "voice": "语音类型",
+      "voiceDesc": "指定音频模型使用的语音类型，如 'alloy'、'echo'、'fable' 等。",
+      "voicePlaceholder": "请输入语音类型，如：alloy"
     },
     "imageMethod": {
       "title": "图像识别",
@@ -701,7 +720,9 @@
         }
       },
       "messageControl": {
-        "words": "字"
+        "words": "字",
+        "readAloud": "朗读",
+        "playing": "播放中"
       },
       "preview": {
         "close": "关闭",

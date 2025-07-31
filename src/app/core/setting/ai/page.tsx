@@ -43,6 +43,7 @@ export default function AiPage() {
   const [temperature, setTemperature] = useState<number>(0.7)
   const [topP, setTopP] = useState<number>(1.0)
   const [modelType, setModelType] = useState<ModelType>('chat')
+  const [voice, setVoice] = useState<string>('')
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
   const [headerPairs, setHeaderPairs] = useState<Array<{key: string, value: string, id: string}>>([])
 
@@ -80,6 +81,7 @@ export default function AiPage() {
     setTemperature(model.temperature || 0.7)
     setTopP(model.topP || 0.1)
     setModelType(model.modelType || 'chat')
+    setVoice(model.voice || '')
     setHeaderPairs(parseHeadersToKeyValue(model.customHeaders))
   }
 
@@ -108,6 +110,9 @@ export default function AiPage() {
         break;
       case 'modelType':
         setModelType(value as ModelType)
+        break;
+      case 'voice':
+        setVoice(value as string)
         break;
       case 'customHeaders':
         emitter.emit('getSettingModelList')
@@ -286,7 +291,7 @@ export default function AiPage() {
                 <Label htmlFor="video" className="text-muted-foreground">{t('modelType.video')}</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="audio" id="audio" disabled />
+                <RadioGroupItem value="audio" id="audio" />
                 <Label htmlFor="audio" className="text-muted-foreground">{t('modelType.audio')}</Label>
               </div>
               <div className="flex items-center space-x-2">
@@ -397,6 +402,19 @@ export default function AiPage() {
               </FormItem>
             </SettingRow>
           </>)
+        }
+        {
+          modelType === 'audio' && (
+            <SettingRow>
+              <FormItem title={t('voice')} desc={t('voiceDesc')}>
+                <Input
+                  value={voice}
+                  onChange={(e) => valueChangeHandler('voice', e.target.value)}
+                  placeholder={t('voicePlaceholder')}
+                />
+              </FormItem>
+            </SettingRow>
+          )
         }
       </>
     }

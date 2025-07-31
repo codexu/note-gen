@@ -25,37 +25,15 @@ import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { TooltipButton } from "@/components/tooltip-button"
 
-export function ModelSelect({modelKey}: {modelKey: string}) {
+export function ModelSelect() {
   const [list, setList] = useState<AiConfig[]>([])
-  const { setPlaceholderModel, setTranslateModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel } = useSettingStore()
+  const { setAudioModel } = useSettingStore()
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
 
   function setPrimaryModelHandler(primaryModel: string) {
-    setModel(primaryModel)
-    switch (modelKey) {
-      case 'primaryModel':
-        setPrimaryModel(primaryModel)
-        break;
-      case 'imageMethod':
-        setImageMethodModel(primaryModel)
-        break;
-      case 'placeholder':
-        setPlaceholderModel(primaryModel)
-        break;
-      case 'translate':
-        setTranslateModel(primaryModel)
-        break;
-      case 'markDesc':
-        setMarkDescModel(primaryModel)
-        break;
-      case 'audio':
-        setAudioModel(primaryModel)
-        break;
-      default:
-        break;
-    }
+    setAudioModel(primaryModel)
   }
 
   async function initModelList() {
@@ -66,28 +44,22 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       return item.model && item.baseURL
     })
     setList(filteredModels)
-    const primaryModel = await store.get<string>(modelKey === 'primaryModel' ? 'primaryModel' : `${modelKey}PrimaryModel`)
+    const primaryModel = await store.get<string>('audioPrimaryModel')
     if (!primaryModel) return
+    setModel(primaryModel)
     setPrimaryModelHandler(primaryModel)
   }
 
   async function modelSelectChangeHandler(e: string) {
     setPrimaryModelHandler(e)
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', e)
-    } else {
-      store.set(`${modelKey}PrimaryModel`, e)
-    }
+    store.set('audioPrimaryModel', e)
+    setModel(e)
   }
 
   async function resetDefaultModel() {
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', '')
-    } else {
-      store.set(`${modelKey}PrimaryModel`, '')
-    }
+    store.set('audioModel', '')
     setPrimaryModelHandler('')
   }
 
@@ -107,7 +79,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
             >
               {model
                 ? `${list.find((item) => item.key === model)?.model}(${list.find((item) => item.key === model)?.title})`
-                : modelKey === 'primaryModel' ? t('noModel') : t('tooltip')}
+                : t('tooltip')}
               <ChevronsUpDown className="opacity-50" />
             </Button>
           </div>
@@ -126,7 +98,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
             <CommandGroup>
-              {list.filter(item => item.modelType === 'chat' || !item.modelType).map((item) => (
+              {list.filter(item => item.modelType === 'audio').map((item) => (
                 <CommandItem
                   key={item.key}
                   value={item.key}

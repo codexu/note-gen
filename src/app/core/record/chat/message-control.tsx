@@ -2,7 +2,7 @@ import { Separator } from "@/components/ui/separator"
 import { Chat } from "@/db/chats"
 import useChatStore from "@/stores/chat"
 import dayjs from "dayjs"
-import { Clock, GlobeIcon, TypeIcon, XIcon } from "lucide-react"
+import { Clock, GlobeIcon, TypeIcon, XIcon, Volume2, VolumeX } from "lucide-react"
 import relativeTime from "dayjs/plugin/relativeTime";
 import wordsCount from 'words-count';
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,8 @@ import { clear, hasText, readText } from "tauri-plugin-clipboard-api"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { fetchAiTranslate } from "@/lib/ai"
+import { textToSpeechAndPlay } from "@/lib/audio"
+import useSettingStore from "@/stores/setting"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +26,12 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
   const { loading } = useChatStore()
   const count = wordsCount(chat.content || '')
   const { deleteChat } = useChatStore()
+  const { audioModel } = useSettingStore()
   const t = useTranslations()
   const [translatedContent, setTranslatedContent] = useState<string>('')
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
+  const [isPlaying, setIsPlaying] = useState(false)
   const translateT = useTranslations('record.chat.input.translate')
   
   // 可翻译的语言列表
@@ -81,6 +85,36 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
   function resetTranslation() {
     setTranslatedContent('')
     setSelectedLanguage('')
+  }
+  
+  // 处理朗读
+  async function handleTextToSpeech() {
+    if (!chat.content || isPlaying || !audioModel) return
+    
+    setIsPlaying(true)
+    
+    try {
+      // 使用翻译后的内容或原始内容
+      let textToRead = translatedContent || chat.content
+      
+      // 移除 <thinking> 标签及其内容
+      textToRead = textToRead.replace(/<thinking[^>]*>[\s\S]*?<thinking>/gi, '')
+      
+      // 清理多余的空白字符
+      textToRead = textToRead.trim()
+      
+      if (!textToRead) {
+        console.warn('朗读内容为空')
+        return
+      }
+      
+      await textToSpeechAndPlay(textToRead)
+    } catch (error) {
+      console.error('朗读失败:', error)
+      // 可以在这里添加错误提示
+    } finally {
+      setIsPlaying(false)
+    }
   }
 
   if (!loading) {
@@ -141,6 +175,29 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Separator orientation="vertical" className="h-4" />
+            </>
+          )}
+          
+          {/* 朗读功能 */}
+          {chat.content && chat.type === 'chat' && audioModel && (
+            <>
+              <Button 
+                variant={"ghost"} 
+                size="sm" 
+                onClick={handleTextToSpeech}
+                disabled={isPlaying || !audioModel}
+                className={isPlaying ? "bg-muted" : ""}
+              >
+                {isPlaying ? (
+                  <VolumeX className="size-4 mr-1" />
+                ) : (
+                  <Volume2 className="size-4 mr-1" />
+                )}
+                <span className="hidden lg:inline">
+                  {isPlaying ? t('record.chat.messageControl.playing') : t('record.chat.messageControl.readAloud')}
+                </span>
+              </Button>
               <Separator orientation="vertical" className="h-4" />
             </>
           )}

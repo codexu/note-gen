@@ -61,6 +61,9 @@ interface SettingState {
   imageMethodModel: string
   setImageMethodModel: (imageMethodModel: string) => Promise<void>
 
+  audioModel: string
+  setAudioModel: (audioModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -222,6 +225,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('imageMethodModel', imageMethodModel)
     set({ imageMethodModel })
+  },
+
+  audioModel: '',
+  setAudioModel: async (audioModel) => {
+    const store = await Store.load('store.json');
+    await store.set('audioPrimaryModel', audioModel)
+    set({ audioModel })
   },
 
   templateList: [

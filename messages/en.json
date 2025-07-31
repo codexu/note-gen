@@ -154,6 +154,16 @@
         }
       }
     },
+    "readAloud": {
+      "title": "Read Aloud Settings",
+      "desc": "Here, you can configure read aloud related settings to provide voice playback functionality for chat content.",
+      "options": {
+        "audioModel": {
+          "title": "Audio Model",
+          "desc": "Select the AI model for text-to-speech conversion, supporting various voice types and parameter configurations."
+        }
+      }
+    },
     "prompt": {
       "title": "Prompt",
       "promptTitle": "Prompt Title",
@@ -741,7 +751,11 @@
         }
       },
       "messageControl": {
-        "words": "words"
+        "words": "words",
+        "readAloud": "Read Aloud",
+        "playing": "Playing",
+        "loading": "Loading",
+        "stop": "Stop Playing"
       },
       "preview": {
         "close": "Close",

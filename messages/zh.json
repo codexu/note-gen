@@ -722,7 +722,9 @@
       "messageControl": {
         "words": "字",
         "readAloud": "朗读",
-        "playing": "播放中"
+        "playing": "播放中",
+        "loading": "准备中",
+        "stop": "停止播放"
       },
       "preview": {
         "close": "关闭",

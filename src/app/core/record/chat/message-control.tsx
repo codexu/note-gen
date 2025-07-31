@@ -2,15 +2,16 @@ import { Separator } from "@/components/ui/separator"
 import { Chat } from "@/db/chats"
 import useChatStore from "@/stores/chat"
 import dayjs from "dayjs"
-import { Clock, GlobeIcon, TypeIcon, XIcon, Volume2, VolumeX } from "lucide-react"
+import { Clock, GlobeIcon, TypeIcon, XIcon, Volume2, VolumeX, Loader2 } from "lucide-react"
 import relativeTime from "dayjs/plugin/relativeTime";
 import wordsCount from 'words-count';
 import { Button } from "@/components/ui/button"
+import { TooltipButton } from "@/components/tooltip-button"
 import { clear, hasText, readText } from "tauri-plugin-clipboard-api"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { fetchAiTranslate } from "@/lib/ai"
-import { textToSpeechAndPlay } from "@/lib/audio"
+import { textToSpeechAndPlay, stopCurrentAudio } from "@/lib/audio"
 import useSettingStore from "@/stores/setting"
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const translateT = useTranslations('record.chat.input.translate')
   
   // 可翻译的语言列表
@@ -87,11 +89,20 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
     setSelectedLanguage('')
   }
   
-  // 处理朗读
+  // 处理朗读/停止
   async function handleTextToSpeech() {
-    if (!chat.content || isPlaying || !audioModel) return
+    // 如果正在播放，则停止播放
+    if (isPlaying) {
+      stopCurrentAudio()
+      setIsPlaying(false)
+      setIsLoading(false)
+      return
+    }
     
-    setIsPlaying(true)
+    // 如果正在加载或没有内容，则返回
+    if (!chat.content || isLoading || !audioModel) return
+    
+    setIsLoading(true)
     
     try {
       // 使用翻译后的内容或原始内容
@@ -108,11 +119,18 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
         return
       }
       
-      await textToSpeechAndPlay(textToRead)
+      // 调用新的音频API，传入状态回调
+      await textToSpeechAndPlay(textToRead, undefined, (playing: boolean) => {
+        setIsPlaying(playing)
+        if (playing) {
+          setIsLoading(false) // 开始播放时清除loading状态
+        }
+      })
     } catch (error) {
       console.error('朗读失败:', error)
       // 可以在这里添加错误提示
     } finally {
+      setIsLoading(false)
       setIsPlaying(false)
     }
   }
@@ -180,24 +198,28 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
           )}
           
           {/* 朗读功能 */}
-          {chat.content && chat.type === 'chat' && audioModel && (
+          {chat.type === 'chat' && audioModel && (
             <>
-              <Button 
-                variant={"ghost"} 
-                size="sm" 
+              <TooltipButton
+                icon={
+                  isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isPlaying ? (
+                    <VolumeX className="h-4 w-4" />
+                  ) : (
+                    <Volume2 className="h-4 w-4" />
+                  )
+                }
+                tooltipText={
+                  isLoading ? t('record.chat.messageControl.loading') : 
+                  isPlaying ? t('record.chat.messageControl.stop') : 
+                  t('record.chat.messageControl.readAloud')
+                }
                 onClick={handleTextToSpeech}
-                disabled={isPlaying || !audioModel}
-                className={isPlaying ? "bg-muted" : ""}
-              >
-                {isPlaying ? (
-                  <VolumeX className="size-4 mr-1" />
-                ) : (
-                  <Volume2 className="size-4 mr-1" />
-                )}
-                <span className="hidden lg:inline">
-                  {isPlaying ? t('record.chat.messageControl.playing') : t('record.chat.messageControl.readAloud')}
-                </span>
-              </Button>
+                variant="ghost"
+                size="sm"
+                disabled={isLoading}
+              />
               <Separator orientation="vertical" className="h-4" />
             </>
           )}

@@ -1,8 +1,5 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod webdav;
+use webdav::{webdav_backup, webdav_create_dir, webdav_sync, webdav_test};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,7 +11,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            webdav_test,
+            webdav_backup,
+            webdav_sync,
+            webdav_create_dir,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

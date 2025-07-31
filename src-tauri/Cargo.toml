@@ -34,6 +34,7 @@ fuzzy-matcher = "0.3.7"
 rayon = "1.8.0"
 tokio = { version = "1", features = ["full"] } 
 url = "2.5"
+reqwest_dav = "=0.2.1"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]

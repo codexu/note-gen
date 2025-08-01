@@ -1,7 +1,7 @@
 import { SettingPanel } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "./model-select";
-import { Volume2, Gauge } from "lucide-react";
+import { Gauge } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -51,38 +51,14 @@ export function Setting() {
     await store.save();
   };
 
-  const options = [
-    {
-      title: t('options.audioModel.title'),
-      desc: t('options.audioModel.desc'),
-      modelKey: 'audio',
-      icon: <Volume2 className="size-4" />
-    },
-    {
-      title: t('options.speed.title'),
-      desc: t('options.speed.desc'),
-      modelKey: 'speed',
-      icon: <Gauge className="size-4" />
-    },
-  ]
-
   return (
     <>
-      <SettingPanel 
-        key={options[0].modelKey} 
-        title={options[0].title} 
-        desc={options[0].desc} 
-        icon={options[0].icon}
-      >
-        <ModelSelect />
-      </SettingPanel>
-      
+      <ModelSelect />
       {audioModel && (
         <SettingPanel 
-          key={options[1].modelKey} 
-          title={options[1].title} 
-          desc={options[1].desc} 
-          icon={options[1].icon}
+          title={t('options.speed.title')} 
+          desc={t('options.speed.desc')} 
+          icon={<Gauge className="size-4" />}
         >
           <div className="flex gap-2 py-2">
             <Slider

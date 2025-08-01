@@ -155,7 +155,7 @@
       }
     },
     "readAloud": {
-      "title": "Read Aloud Settings",
+      "title": "Read Aloud",
       "desc": "Here, you can configure read aloud related settings to provide voice playback functionality for chat content.",
       "noModel": "Do not use",
       "options": {

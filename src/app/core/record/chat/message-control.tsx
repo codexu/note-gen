@@ -100,7 +100,7 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
     }
     
     // 如果正在加载或没有内容，则返回
-    if (!chat.content || isLoading || !audioModel) return
+    if (!chat.content || isLoading) return
     
     setIsLoading(true)
     
@@ -203,7 +203,7 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
           )}
           
           {/* 朗读功能 */}
-          {chat.type === 'chat' && audioModel && (
+          {chat.type === 'chat' && (
             <>
               <TooltipButton
                 icon={

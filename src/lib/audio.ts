@@ -1,5 +1,56 @@
 import useSettingStore from '@/stores/setting'
 
+/**
+ * 使用浏览器原生语音合成API进行朗读
+ */
+export function speakWithSystemVoice(
+  text: string, 
+  speed: number = 1,
+  onStart?: () => void,
+  onEnd?: () => void
+): void {
+  if (!text.trim()) {
+    throw new Error('文本内容为空')
+  }
+
+  // 检查浏览器是否支持语音合成
+  if (!('speechSynthesis' in window)) {
+    throw new Error('当前浏览器不支持语音合成功能')
+  }
+
+  // 停止当前的语音合成
+  window.speechSynthesis.cancel()
+
+  const utterance = new SpeechSynthesisUtterance(text)
+  
+  // 设置语音参数
+  utterance.rate = Math.max(0.1, Math.min(10, speed)) // 限制速度范围
+  utterance.volume = 1
+  utterance.pitch = 1
+
+  // 设置事件监听器
+  if (onStart) {
+    utterance.onstart = onStart
+  }
+  
+  if (onEnd) {
+    utterance.onend = onEnd
+    utterance.onerror = onEnd
+  }
+
+  // 开始朗读
+  window.speechSynthesis.speak(utterance)
+}
+
+/**
+ * 停止系统语音合成
+ */
+export function stopSystemVoice(): void {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel()
+  }
+}
+
 export interface AudioSpeechRequest {
   model: string
   input: string
@@ -178,6 +229,7 @@ export function playAudioBuffer(audioBuffer: ArrayBuffer): Promise<void> {
 
 /**
  * 文本转语音并播放（支持状态回调）
+ * 如果没有配置AI音频模型，则使用系统原生朗读功能
  */
 export async function textToSpeechAndPlay(
   text: string, 
@@ -189,9 +241,52 @@ export async function textToSpeechAndPlay(
     throw new Error('文本内容为空')
   }
 
+  const { audioModel } = useSettingStore.getState()
+  
+  // 如果没有配置音频模型，使用系统朗读
+  if (!audioModel) {
+    try {
+      // 停止当前播放
+      stopCurrentAudio()
+      stopSystemVoice()
+      
+      if (onPlayingChange) {
+        onPlayingChange(true)
+      }
+      
+      const speed = customSpeed !== undefined ? customSpeed : 1
+      
+      speakWithSystemVoice(
+        text,
+        speed,
+        () => {
+          // 开始播放
+          if (onPlayingChange) {
+            onPlayingChange(true)
+          }
+        },
+        () => {
+          // 结束播放
+          if (onPlayingChange) {
+            onPlayingChange(false)
+          }
+        }
+      )
+      
+      return
+    } catch (error) {
+      if (onPlayingChange) {
+        onPlayingChange(false)
+      }
+      throw error
+    }
+  }
+
+  // 使用AI音频模型
   try {
     // 停止当前播放
     stopCurrentAudio()
+    stopSystemVoice()
     
     const audioBuffer = await fetchAudioSpeech(text, customVoice, customSpeed)
     
@@ -206,13 +301,15 @@ export async function textToSpeechAndPlay(
 }
 
 /**
- * 停止当前播放的音频
+ * 停止当前播放的音频（包括AI音频和系统朗读）
  */
 export function stopCurrentAudio(): void {
   if (currentAudioController) {
     currentAudioController.stop()
     currentAudioController = null
   }
+  // 同时停止系统朗读
+  stopSystemVoice()
 }
 
 /**

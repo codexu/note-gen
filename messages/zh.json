@@ -127,9 +127,13 @@
       }
     },
     "readAloud": {
-      "title": "朗读设置",
+      "title": "朗读",
       "desc": "在这里，你可以配置朗读相关设置，为聊天内容提供语音播放功能。",
       "noModel": "不使用模型",
+      "alert": {
+        "title": "你正在使用系统朗读",
+        "description": "当前未配置音频模型，正在使用系统朗读。"
+      },
       "options": {
         "audioModel": {
           "title": "音频模型",

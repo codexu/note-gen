@@ -157,10 +157,15 @@
     "readAloud": {
       "title": "Read Aloud Settings",
       "desc": "Here, you can configure read aloud related settings to provide voice playback functionality for chat content.",
+      "noModel": "Do not use",
       "options": {
         "audioModel": {
           "title": "Audio Model",
           "desc": "Select the AI model for text-to-speech conversion, supporting various voice types and parameter configurations."
+        },
+        "speed": {
+          "title": "Speech Rate",
+          "desc": "Adjust the playback speed of the voice, ranging from 0.25x to 4x speed, with 1x being the normal speed."
         }
       }
     },

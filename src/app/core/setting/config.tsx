@@ -100,6 +100,7 @@ export interface AiConfig {
   apiKeyUrl?: string
   customHeaders?: Record<string, string>
   voice?: string
+  speed?: number
 }
 
 export interface Model {

@@ -4,6 +4,7 @@ export interface AudioSpeechRequest {
   model: string
   input: string
   voice?: string
+  speed?: number
 }
 
 export interface AudioSpeechResponse {
@@ -13,7 +14,7 @@ export interface AudioSpeechResponse {
 /**
  * 调用音频AI模型接口生成语音
  */
-export async function fetchAudioSpeech(text: string, customVoice?: string): Promise<ArrayBuffer> {
+export async function fetchAudioSpeech(text: string, customVoice?: string, customSpeed?: number): Promise<ArrayBuffer> {
   const { aiModelList, audioModel } = useSettingStore.getState()
   
   if (!audioModel) {
@@ -32,11 +33,14 @@ export async function fetchAudioSpeech(text: string, customVoice?: string): Prom
 
   // 使用自定义voice或配置的voice，默认为alloy
   const voice = customVoice || audioConfig.voice || 'alloy'
+  // 使用自定义speed或配置的speed，默认为1
+  const speed = customSpeed !== undefined ? customSpeed : (audioConfig.speed !== undefined ? audioConfig.speed : 1)
 
   const requestBody: AudioSpeechRequest = {
     model: audioConfig.model || 'tts-1',
     input: text,
-    voice: voice
+    voice: voice,
+    speed: speed
   }
 
   const headers: Record<string, string> = {
@@ -178,6 +182,7 @@ export function playAudioBuffer(audioBuffer: ArrayBuffer): Promise<void> {
 export async function textToSpeechAndPlay(
   text: string, 
   customVoice?: string,
+  customSpeed?: number,
   onPlayingChange?: (playing: boolean) => void
 ): Promise<void> {
   if (!text.trim()) {
@@ -188,7 +193,7 @@ export async function textToSpeechAndPlay(
     // 停止当前播放
     stopCurrentAudio()
     
-    const audioBuffer = await fetchAudioSpeech(text, customVoice)
+    const audioBuffer = await fetchAudioSpeech(text, customVoice, customSpeed)
     
     // 创建新的音频控制器
     currentAudioController = new AudioController(onPlayingChange)

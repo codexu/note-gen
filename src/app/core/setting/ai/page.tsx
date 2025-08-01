@@ -322,7 +322,6 @@ export default function AiPage() {
                       }}
                       onBlur={() => {
                         const jsonObj = convertKeyValueToJson(headerPairs)
-                        console.log('Key blur, JSON object:', jsonObj)
                         valueChangeHandler('customHeaders', jsonObj)
                       }}
                       className="flex-1"
@@ -337,7 +336,6 @@ export default function AiPage() {
                       }}
                       onBlur={() => {
                         const jsonObj = convertKeyValueToJson(headerPairs)
-                        console.log('Value blur, JSON object:', jsonObj)
                         valueChangeHandler('customHeaders', jsonObj)
                       }}
                       className="flex-1"

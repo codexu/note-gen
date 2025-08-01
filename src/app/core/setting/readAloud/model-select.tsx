@@ -31,6 +31,7 @@ export function ModelSelect() {
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
+  const tReadAloud = useTranslations('settings.readAloud')
 
   function setPrimaryModelHandler(primaryModel: string) {
     setAudioModel(primaryModel)
@@ -61,6 +62,7 @@ export function ModelSelect() {
     const store = await Store.load('store.json');
     store.set('audioModel', '')
     setPrimaryModelHandler('')
+    setModel('')
   }
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export function ModelSelect() {
             >
               {model
                 ? `${list.find((item) => item.key === model)?.model}(${list.find((item) => item.key === model)?.title})`
-                : t('tooltip')}
+                : tReadAloud('noModel')}
               <ChevronsUpDown className="opacity-50" />
             </Button>
           </div>

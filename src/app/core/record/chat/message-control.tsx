@@ -119,8 +119,13 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
         return
       }
       
-      // 调用新的音频API，传入状态回调
-      await textToSpeechAndPlay(textToRead, undefined, (playing: boolean) => {
+      // 获取当前音频模型的speed配置
+      const { aiModelList } = useSettingStore.getState()
+      const audioConfig = aiModelList.find(config => config.key === audioModel)
+      const speed = audioConfig?.speed
+      
+      // 调用新的音频API，传入voice、speed和状态回调
+      await textToSpeechAndPlay(textToRead, undefined, speed, (playing: boolean) => {
         setIsPlaying(playing)
         if (playing) {
           setIsLoading(false) // 开始播放时清除loading状态

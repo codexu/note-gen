@@ -896,6 +896,13 @@
     "editor": {
       "copySuccess": "复制成功",
       "copySuccessDescription": "已复制到剪贴板",
+      "floatbar": {
+        "readAloud": {
+          "start": "朗读",
+          "stop": "停止朗读",
+          "loading": "正在加载..."
+        }
+      },
       "upload": {
         "error": "上传失败",
         "needToken": "上传图片需配置 accessToken",

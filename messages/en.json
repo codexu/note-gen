@@ -891,19 +891,6 @@
         "pasteFailed": "Paste operation failed",
         "empty": "Clipboard is empty",
         "confirmOverwrite": "File already exists, do you want to overwrite it?",
-        "notSupported": "Operation not supported"
-      },
-      "deleteConfirm": "Are you sure you want to delete this file?"
-    },
-    "editor": {
-      "copySuccess": "Copied to clipboard",
-      "copySuccessDescription": "Copied to clipboard",
-      "upload": {
-        "error": "Upload Failed",
-        "needToken": "Upload image requires accessToken configuration",
-        "uploading": "Uploading image"
-      },
-      "toolbar": {
         "mark": {
           "title": "Records",
           "tooltip": "Use Records",
@@ -941,6 +928,61 @@
           "selectContent": "Please select content first",
           "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result."
         }
+      }
+    },
+    "editor": {
+      "copySuccess": "Copy Success",
+      "copySuccessDescription": "Copied to clipboard",
+      "floatbar": {
+        "readAloud": {
+          "start": "Read Aloud",
+          "stop": "Stop Reading",
+          "loading": "Loading..."
+        }
+      },
+      "toolbar": {
+        "mark": {
+          "title": "Records",
+          "tooltip": "Records",
+          "description": "Convert records into content to insert into the article.",
+          "noRecords": "No records",
+          "ocrNoContent": "OCR did not recognize any content"
+        },
+        "question": {
+          "tooltip": "Q&A",
+          "selectContent": "Please select content first",
+          "promptTemplate": "Reference text: \n{content}\nBased on the question: \n{question}\n, directly provide the answer content."
+        },
+        "continue": {
+          "tooltip": "Continue",
+          "promptTemplate": "Based on the preceding text: \n{content}\n continue writing and return content not exceeding 100 words.\nYou can reference the following text: \n{endContent}\n, but avoid duplicating its content."
+        },
+        "polish": {
+          "tooltip": "Polish",
+          "selectContent": "Please select content first",
+          "promptTemplate": "Polish this text: \n{content}\n, keep the language unchanged, fix typos and grammatical errors, directly return the polished result."
+        },
+        "eraser": {
+          "tooltip": "Simplify",
+          "selectContent": "Please select content first",
+          "promptTemplate": "Simplify this text: \n{content}\n, this text is too verbose, reduce the word count by at least half, keep the language unchanged, directly return the optimized result."
+        },
+        "expansion": {
+          "tooltip": "Expand",
+          "selectContent": "Please select content first",
+          "promptTemplate": "Expand this text: \n{content}\n, this text is too short, increase the word count by at least half, keep the language unchanged, directly return the expanded result."
+        },
+        "translation": {
+          "tooltip": "Translate",
+          "description": "Translate the selected text",
+          "selectContent": "Please select content first",
+          "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result."
+        }
+      },
+      "upload": {
+        "error": "Upload failed",
+        "needToken": "Upload images need to configure accessToken",
+        "uploading": "Uploading image"
       }
     },
     "footer": {

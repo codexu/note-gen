@@ -892,6 +892,13 @@
         "needToken": "画像のアップロードには accessToken の設定が必要です",
         "uploading": "画像をアップロードしています"
       },
+      "floatbar": {
+        "readAloud": {
+          "start": "朗读",
+          "stop": "停止",
+          "loading": "加载中..."
+        }
+      },
       "toolbar": {
         "mark": {
           "title": "使用記録",

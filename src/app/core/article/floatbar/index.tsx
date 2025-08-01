@@ -3,6 +3,7 @@ import Question from "./question";
 import Polish from "./polish";
 import Eraser from "./eraser";
 import Expansion from "./expansion";
+import ReadAloud from "./read-aloud";
 import Vditor from "vditor";
 
 export default function FloatBar({left, top, value, editor}: {left?: number, top?: number, value?: string, editor?: Vditor}) {
@@ -17,6 +18,7 @@ export default function FloatBar({left, top, value, editor}: {left?: number, top
             <Polish editor={editor} value={value} />
             <Eraser editor={editor} value={value} />
             <Expansion editor={editor} value={value} />
+            <ReadAloud value={value} />
           </div>
         </div>
       </div>

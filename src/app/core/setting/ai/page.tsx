@@ -203,7 +203,7 @@ export default function AiPage() {
         {/* 模型配置选择 */}
         <SettingRow>
           <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 lg:flex-row flex-col">
               <Select value={currentAi} onValueChange={modelConfigSelectChange}>
                 <SelectTrigger className="w-full flex">
                   <div className="flex items-center gap-2">
@@ -228,8 +228,10 @@ export default function AiPage() {
                   }
                 </SelectContent>
               </Select>
-              <Button disabled={!aiModelList.length} variant={'outline'} onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
-              <Button disabled={!aiModelList.length} variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
+              <div className="flex items-center gap-2 lg:w-auto w-full">
+                <Button disabled={!aiModelList.length} variant={'outline'} onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
+                <Button disabled={!aiModelList.length} variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
+              </div>
             </div>
           </FormItem>
         </SettingRow>

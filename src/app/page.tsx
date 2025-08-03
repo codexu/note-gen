@@ -16,7 +16,11 @@ export default function Home() {
         router.push('/mobile/chat')
       }
     } else {
-      router.push(currentPage || '/core/record')
+      if (!currentPage?.includes('/mobile')) {
+        router.push(currentPage || '/core/record')
+      } else {
+        router.push('/core/record')
+      }
     }
   }
   useEffect(() => {

@@ -15,6 +15,18 @@ type ExportFormat = "HTML" | "JSON" | "Markdown";
 
 export default function ExportFormatSelector({editor}: {editor?: Vditor}) {
 
+    const getFileNameFromContent = (content: string): string => {
+        const titleMatch = content.match(/^#\s+(.+)$/m);
+        if (titleMatch && titleMatch[1]) {
+            return titleMatch[1].trim().substring(0, 50); // 限制长度
+        }
+
+        // 如果没有标题，使用内容的前20个字符(排除特殊字符)
+        const firstLine = content.split('\n')[0] || '';
+        const sanitized = firstLine.replace(/[\\/:*?"<>|]/g, '').trim();
+        return sanitized.substring(0, 10) || 'untitled';
+    };
+
   const handleFormatSelect = async (format: ExportFormat) => {
     let content = ''
     switch (format) {
@@ -28,6 +40,11 @@ export default function ExportFormatSelector({editor}: {editor?: Vditor}) {
         content = editor?.getValue() || ''
         break;
     }
+
+    // 获取文件名
+    const markdownContent = editor?.getValue() || '';
+    const fileName = getFileNameFromContent(markdownContent);
+
     // 保存到文件
     let ext = 'md'
     switch (format) {
@@ -42,7 +59,7 @@ export default function ExportFormatSelector({editor}: {editor?: Vditor}) {
         break;
     }
     const selected = await save({
-      defaultPath: `123.${ext}`,
+      defaultPath: `${fileName}.${ext}`,
       filters: [
         {
           name: format,

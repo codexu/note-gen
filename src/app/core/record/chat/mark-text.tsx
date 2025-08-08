@@ -6,13 +6,37 @@ import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CheckCircle, Highlighter } from "lucide-react"
 import { useTranslations } from "next-intl"
+import {useEffect, useState} from "react";
 
 export function MarkText({chat}: {chat: Chat}) {
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { fetchMarks } = useMarkStore()
+  const { fetchMarks, marks } = useMarkStore()
   const { updateInsert, chats } = useChatStore()
   const t = useTranslations('record.chat')
+  const [isRecorded, setIsRecorded] = useState(chat.inserted)
+
+  useEffect(() => {
+    const currentIndex = chats.findIndex(item => item.id === chat.id)
+    const prevChat = chats[currentIndex - 1]
+
+    if (!prevChat || !chat.content) {
+       setIsRecorded(false)
+       return
+    }
+
+    const contentToCheck = `
+${prevChat?.content}
+${chat.content}
+`.replace(/'/g, '')
+
+    const markExists = marks.some(mark =>
+       mark.type === 'text' &&
+       mark.content === contentToCheck
+    )
+
+    setIsRecorded(markExists)
+  }, [marks, chat.id, chats])
 
   async function handleSuccess() {
     const currentIndex = chats.findIndex(item => item.id === chat.id)
@@ -27,10 +51,11 @@ ${chat.content}
     await fetchMarks()
     await fetchTags()
     getCurrentTag()
+    setIsRecorded(true)
   }
 
   return (
-    chat.inserted ? 
+    isRecorded ?
       <Button variant={"ghost"} size="sm" disabled>
         <CheckCircle className="size-4" />
         <span className="hidden lg:inline">{t('mark.recorded')}</span>

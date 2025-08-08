@@ -147,7 +147,7 @@ function Message({ chat }: { chat: Chat }) {
         <ChatThinking chat={chat} />
         <ChatPreview text={content || ''} />
         <MessageControl chat={chat}>
-          <MarkText chat={chat} />
+          {chat.role !== 'user' && <MarkText chat={chat} />}
         </MessageControl>
       </MessageWrapper>
   }

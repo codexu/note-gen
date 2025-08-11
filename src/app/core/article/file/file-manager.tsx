@@ -91,6 +91,7 @@ export function FileManager() {
           const text = await file.text()
           // 处理文件名，将空格替换为下划线以保持一致性
           const sanitizedFileName = file.name.replace(/\s+/g, '_')
+          
           await writeTextFile(`article/${sanitizedFileName}`, text, { baseDir: BaseDirectory.AppData })
           addFile({
             name: sanitizedFileName,

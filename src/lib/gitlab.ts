@@ -15,7 +15,8 @@ import {
 } from './gitlab.types';
 import { RepoNames } from './github.types';
 
-// 获取 Gitlab 实例的 API 基础 URL
+// 获取 Gitlab 实例的 API 基础 URL 
+
 async function getGitlabApiBaseUrl(): Promise<string> {
   const store = await Store.load('store.json');
   const instanceType = await store.get<GitlabInstanceType>('gitlabInstanceType') || GitlabInstanceType.OFFICIAL;

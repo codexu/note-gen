@@ -57,56 +57,57 @@ export function FileItem({ item }: { item: DirTree }) {
       title: item.name,
       kind: 'warning',
     });
-    
     // 如果用户确认删除，则继续执行
     if (answer) {
-      // 获取工作区路径信息
-      const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-      const workspace = await getWorkspacePath()
-      
-      // 根据工作区类型正确删除文件
-      const pathOptions = await getFilePathOptions(path)
-      if (workspace.isCustom) {
-        // 自定义工作区
-        try {
+      try {
+        // 获取工作区路径信息
+        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+        const workspace = await getWorkspacePath()
+        
+        // 根据工作区类型正确删除文件
+        const pathOptions = await getFilePathOptions(path)
+        
+        if (workspace.isCustom) {
+          // 自定义工作区
           await remove(pathOptions.path)
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        // 默认工作区
-        try {
+        } else {
+          // 默认工作区
           await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
-        } catch (e) {
-          console.error(e);
         }
-      }
-      
-      // 更新文件树
-      if (currentFolder) {
-        const index = currentFolder.children?.findIndex(file => file.name === item.name)
-        if (index !== undefined && index !== -1 && currentFolder.children) {
-          const current = currentFolder.children[index]
-          if (current.sha) {
-            current.isLocale = false
-          } else {
-            currentFolder.children.splice(index, 1)
+        
+        // 更新文件树
+        if (currentFolder) {
+          const index = currentFolder.children?.findIndex(file => file.name === item.name)
+          if (index !== undefined && index !== -1 && currentFolder.children) {
+            const current = currentFolder.children[index]
+            if (current.sha) {
+              current.isLocale = false
+            } else {
+              currentFolder.children.splice(index, 1)
+            }
+          }
+        } else {
+          const index = cacheTree.findIndex(file => file.name === item.name)
+          if (index !== undefined && index !== -1) {
+            const current = cacheTree[index]
+            if (current.sha) {
+              current.isLocale = false
+            } else {
+              cacheTree.splice(index, 1)
+            }
           }
         }
-      } else {
-        const index = cacheTree.findIndex(file => file.name === item.name)
-        if (index !== undefined && index !== -1) {
-          const current = cacheTree[index]
-          if (current.sha) {
-            current.isLocale = false
-          } else {
-            cacheTree.splice(index, 1)
-          }
-        }
+        setFileTree(cacheTree)
+        setActiveFilePath('')
+        setCurrentArticle('')
+      } catch (error) {
+        console.error('Delete file failed:', error)
+        toast({
+          title: t('context.deleteLocalFile'),
+          description: '删除文件失败: ' + error,
+          variant: 'destructive'
+        })
       }
-      setFileTree(cacheTree)
-      setActiveFilePath('')
-      setCurrentArticle('')
     }
   }
 
@@ -192,7 +193,7 @@ export function FileItem({ item }: { item: DirTree }) {
         // 重命名现有文件
         // 获取源路径和目标路径
         const oldPathOptions = await getFilePathOptions(path)
-        const newPathRelative = path.split('/').slice(0, -1).join('/') + '/' + name
+        const newPathRelative = path.split('/').slice(0, -1).join('/') + '/' + displayName
         const newPathOptions = await getFilePathOptions(newPathRelative)
         
         // 根据工作区类型执行重命名操作
@@ -206,7 +207,7 @@ export function FileItem({ item }: { item: DirTree }) {
         }
       } else {
         // 创建新文件
-        let newFilePath = name
+        let newFilePath = sanitizedName
         if (!newFilePath.endsWith('.md')) {
           newFilePath += '.md'
         }
@@ -258,7 +259,9 @@ export function FileItem({ item }: { item: DirTree }) {
           }
         } else {
           const index = cacheTree.findIndex(item => item.name === '')
-          cacheTree.splice(index, 1)
+          if (index !== -1) {
+            cacheTree.splice(index, 1)
+          }
         }
       } else {
         // 对于重命名现有文件，如果没有输入新名称，则保持原状态
@@ -488,7 +491,7 @@ export function FileItem({ item }: { item: DirTree }) {
           <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile}>
             {t('context.deleteSyncFile')}
           </ContextMenuItem>
-          <ContextMenuItem disabled={!item.isLocale} inset className="text-red-900" onClick={handleDeleteFile}>
+          <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile}>
             {t('context.deleteLocalFile')}
           </ContextMenuItem>
         </ContextMenuContent>

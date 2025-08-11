@@ -24,6 +24,7 @@ import useSettingStore from '@/stores/setting'
 import { uploadImage } from '@/lib/imageHosting'
 import FloatBar from './floatbar'
 import { createToolbarConfig } from './toolbar.config'
+import { set } from 'lodash-es'
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
@@ -133,7 +134,7 @@ export function MdEditor() {
           const useImageRepo = await store.get('useImageRepo')
           if (useImageRepo) {
             const filesUrls = await uploadImages(files)
-            if (vditor) {
+            if (vditor && typeof vditor.insertValue === 'function') {
               for (let i = 0; i < filesUrls.length; i++) {
                 vditor.insertValue(`![${files[i].name}](${filesUrls[i]})`)
               }
@@ -158,7 +159,9 @@ export function MdEditor() {
               }
               const path = `${imagesDir}/${fileName}`
               await writeFile(path, uint8Array)
-              vditor.insertValue(`![${files[i].name}](/${assetsPath}/${fileName})`)
+              if (typeof vditor.insertValue === 'function') {
+                vditor.insertValue(`![${files[i].name}](/${assetsPath}/${fileName})`)
+              }
             }
             return '图片已保存到本地'
           }
@@ -246,10 +249,12 @@ export function MdEditor() {
   // 设置编辑器内容并滚动到匹配位置
   const setContent = (content: string) => {
     if (!editor) return
-    editor.setValue(content)
-    editor.renderPreview(content)
-    editor.insertValue('')
-    
+    try {
+      editor.setValue(content)
+      editor.renderPreview(content)
+    } catch (error) {
+      console.error('Error setting editor content:', error)
+    }
     // 如果有匹配位置，滚动到对应位置
     if (matchPosition !== null) {
       setTimeout(() => {

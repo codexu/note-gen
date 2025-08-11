@@ -91,7 +91,7 @@ export function FileManager() {
           const text = await file.text()
           // 处理文件名，将空格替换为下划线以保持一致性
           const sanitizedFileName = file.name.replace(/\s+/g, '_')
-          
+
           await writeTextFile(`article/${sanitizedFileName}`, text, { baseDir: BaseDirectory.AppData })
           addFile({
             name: sanitizedFileName,
@@ -102,12 +102,13 @@ export function FileManager() {
             isSymlink: false
           })
         } else if (file.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-          // 处理图片文件
+          // 处理图片文件，同样需要处理文件名以保持一致性
           const arrayBuffer = await file.arrayBuffer()
           const uint8Array = new Uint8Array(arrayBuffer)
-          await writeFile(`article/${file.name}`, uint8Array, { baseDir: BaseDirectory.AppData })
+          const sanitizedImageFileName = file.name.replace(/\s+/g, '_')
+          await writeFile(`article/${sanitizedImageFileName}`, uint8Array, { baseDir: BaseDirectory.AppData })
           addFile({
-            name: file.name,
+            name: sanitizedImageFileName,
             isEditing: false,
             isLocale: true,
             isDirectory: false,

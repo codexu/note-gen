@@ -130,7 +130,9 @@ export function FolderItem({ item }: { item: DirTree }) {
           }
         } else {
           const index = cacheTree.findIndex(item => item.name === '')
-          cacheTree.splice(index, 1)
+          if (index !== -1) {
+            cacheTree.splice(index, 1)
+          }
         }
       }
     } 

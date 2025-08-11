@@ -101,7 +101,7 @@ The writing section is divided into two parts: **File Manager** and **Markdown E
 
 ## Contribute
 
-- [Read contribution guide](https://notegen.top/en/CONTRIBUTING.html)
+- [Read contribution guide](https://notegen.top/en/docs/contributing)
 - [Update plans](https://github.com/codexu/note-gen/issues/46)
 - [Submit bugs or improvement suggestions](https://github.com/codexu/note-gen/issues)
 - [Discussions](https://github.com/codexu/note-gen/discussions)

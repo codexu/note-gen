@@ -38,7 +38,9 @@ export function NoteOutput({chat}: {chat: Chat}) {
 
   async function handleTransform() {
     const content = chat?.content || ''
-    const writePath = `${path}/${title.replace(/ /g, '_')}`
+    // 统一处理：将空格替换为下划线，确保本地和远程文件名一致
+    const sanitizedTitle = title.replace(/\s+/g, '_')
+    const writePath = `${path}/${sanitizedTitle}`
     
     // Use workspace functions instead of directly using BaseDirectory.AppData
     const pathOptions = await getFilePathOptions(writePath)

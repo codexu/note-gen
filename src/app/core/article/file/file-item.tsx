@@ -157,15 +157,17 @@ export function FileItem({ item }: { item: DirTree }) {
   }
 
   async function handleRename() {
-    setName(name.replace(/ /g, '_')) // github 存储空格会报错，替换为下划线
+    // 统一处理：将空格替换为下划线，确保本地和远程文件名一致
+    const sanitizedName = name.replace(/\s+/g, '_')
+    setName(sanitizedName)
   
     // 获取工作区路径信息
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
   
-    if (name && name.trim() !== '' && name !== item.name) {
+    if (sanitizedName && sanitizedName.trim() !== '' && sanitizedName !== item.name) {
       // 确保新文件名如果需要.md后缀则添加后缀
-      let displayName = name;
+      let displayName = sanitizedName;
       if (item.name === '' && !displayName.endsWith('.md')) {
         displayName += '.md';
       }
@@ -415,7 +417,11 @@ export function FileItem({ item }: { item: DirTree }) {
                   className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
                   value={name}
                   onBlur={handleRename}
-                  onChange={(e) => { setName(e.target.value) }}
+                  onChange={(e) => { 
+                    // 实时将空格替换为下划线，保持与同步逻辑一致
+                    const sanitizedValue = e.target.value.replace(/\s+/g, '_')
+                    setName(sanitizedValue)
+                  }}
                   onKeyDown={(e) => {
                     if (e.code === 'Enter' && !e.nativeEvent.isComposing) {
                       handleRename()

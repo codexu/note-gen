@@ -89,9 +89,11 @@ export function FileManager() {
         // 接受 markdown 和图片文件
         if (file.name.endsWith('.md')) {
           const text = await file.text()
-          await writeTextFile(`article/${file.name}`, text, { baseDir: BaseDirectory.AppData })
+          // 处理文件名，将空格替换为下划线以保持一致性
+          const sanitizedFileName = file.name.replace(/\s+/g, '_')
+          await writeTextFile(`article/${sanitizedFileName}`, text, { baseDir: BaseDirectory.AppData })
           addFile({
-            name: file.name,
+            name: sanitizedFileName,
             isEditing: false,
             isLocale: true,
             isDirectory: false,

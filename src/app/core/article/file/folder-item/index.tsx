@@ -49,30 +49,32 @@ export function FolderItem({ item }: { item: DirTree }) {
 
   // 创建或修改文件夹名称
   async function handleRename() {
-    setName(name.replace(/ /g, '_')) // github 存储空格会报错，替换为下划线
+    // 统一处理：将空格替换为下划线，确保本地和远程文件名一致
+    const sanitizedName = name.replace(/\s+/g, '_')
+    setName(sanitizedName)
   
     // 获取工作区路径信息
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
   
     // 修改文件夹名称
-    if (name && name !== item.name && item.name !== '') {
+    if (sanitizedName && sanitizedName !== item.name && item.name !== '') {
       // 更新缓存树中的名称
       if (parentFolder && parentFolder.children) {
         const folderIndex = parentFolder?.children?.findIndex(folder => folder.name === item.name)
         if (folderIndex !== undefined && folderIndex !== -1) {
-          parentFolder.children[folderIndex].name = name
+          parentFolder.children[folderIndex].name = sanitizedName
           parentFolder.children[folderIndex].isEditing = false
         }
       } else {
         const folderIndex = cacheTree.findIndex(folder => folder.name === item.name)
-        cacheTree[folderIndex].name = name
+        cacheTree[folderIndex].name = sanitizedName
         cacheTree[folderIndex].isEditing = false
       }
       
       // 获取源路径和目标路径
       const oldPathOptions = await getFilePathOptions(path)
-      const newPathOptions = await getFilePathOptions(`${path.split('/').slice(0, -1).join('/')}/${name}`)
+      const newPathOptions = await getFilePathOptions(`${path.split('/').slice(0, -1).join('/')}/${sanitizedName}`)
       
       // 根据工作区类型执行重命名操作
       if (workspace.isCustom) {
@@ -85,11 +87,7 @@ export function FolderItem({ item }: { item: DirTree }) {
       }
     } else {
       // 新建文件夹
-      if (name !== '') {
-        // 将空格替换为下划线
-        const sanitizedName = name.replace(/ /g, '_')
-        setName(sanitizedName) // 更新状态中的名称
-        
+      if (sanitizedName !== '') {
         // 检查文件夹是否已存在
         const newFolderPath = `${path}/${sanitizedName}`
         const pathOptions = await getFilePathOptions(newFolderPath)
@@ -234,7 +232,11 @@ export function FolderItem({ item }: { item: DirTree }) {
                     className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
                     value={name}
                     onBlur={handleRename}
-                    onChange={(e) => { setName(e.target.value) }}
+                    onChange={(e) => { 
+                      // 实时将空格替换为下划线，保持与同步逻辑一致
+                      const sanitizedValue = e.target.value.replace(/\s+/g, '_')
+                      setName(sanitizedValue)
+                    }}
                     onKeyDown={(e) => {
                       if (e.code === 'Enter') {
                         handleRename()

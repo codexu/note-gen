@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { Cloud, CloudDownload, File, ImageIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/github.types";
@@ -34,6 +34,31 @@ export function FileItem({ item }: { item: DirTree }) {
   const folderPath = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
   const cacheTree = cloneDeep(fileTree)
   const currentFolder = getCurrentFolder(folderPath, cacheTree)
+
+  // 防止输入框失去焦点，性能优化
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target
+    const value = input.value
+    const cursorPos = input.selectionStart || 0
+    
+    // 检查当前输入的字符是否为空格
+    const lastChar = value[cursorPos - 1]
+    if (lastChar === ' ') {
+      // 只在用户刚输入空格时进行替换
+      const newValue = value.replace(/\s+/g, '_')
+      setName(newValue)
+      
+      // 直接设置光标位置，无需 setTimeout
+      requestAnimationFrame(() => {
+        if (input.selectionStart !== null) {
+          input.setSelectionRange(cursorPos, cursorPos)
+        }
+      })
+    } else {
+      // 非空格字符直接更新
+      setName(value)
+    }
+  }, [])
 
   async function handleSelectFile() {
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
@@ -420,11 +445,7 @@ export function FileItem({ item }: { item: DirTree }) {
                   className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
                   value={name}
                   onBlur={handleRename}
-                  onChange={(e) => { 
-                    // 实时将空格替换为下划线，保持与同步逻辑一致
-                    const sanitizedValue = e.target.value.replace(/\s+/g, '_')
-                    setName(sanitizedValue)
-                  }}
+                  onChange={handleInputChange}
                   onKeyDown={(e) => {
                     if (e.code === 'Enter' && !e.nativeEvent.isComposing) {
                       handleRename()

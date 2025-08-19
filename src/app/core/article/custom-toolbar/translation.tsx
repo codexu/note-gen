@@ -49,8 +49,10 @@ export default function Translation({editor}: {editor?: Vditor}) {
           selection.addRange(range)
         }
       }
-      editor?.focus()
-      editor?.insertValue(res)
+      if(res && !res.includes('请求失败')){
+        editor?.focus()
+        editor?.insertValue(res)
+      }
     } else {
       toast({
         title: t('selectContent'),

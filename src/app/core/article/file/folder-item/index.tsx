@@ -50,7 +50,9 @@ export function FolderItem({ item }: { item: DirTree }) {
 
   // 优化的输入处理，支持输入法
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
+    const input = e.target
+    const value = input.value
+    const cursorPosition = input.selectionStart || 0
     
     // 如果正在使用输入法合成，不进行空格替换
     if (isComposing) {
@@ -58,9 +60,20 @@ export function FolderItem({ item }: { item: DirTree }) {
       return
     }
     
-    // 只在非合成状态下才替换空格
-    const sanitizedValue = value.replace(/\s+/g, '_')
-    setName(sanitizedValue)
+    // 检查是否包含空格，只有包含空格时才需要处理光标位置
+    if (value.includes(' ')) {
+      const sanitizedValue = value.replace(/\s+/g, '_')
+      setName(sanitizedValue)
+      
+      // 保持光标位置
+      requestAnimationFrame(() => {
+        if (input.selectionStart !== null) {
+          input.setSelectionRange(cursorPosition, cursorPosition)
+        }
+      })
+    } else {
+      setName(value)
+    }
   }, [isComposing])
 
   // 输入法合成开始
@@ -71,9 +84,24 @@ export function FolderItem({ item }: { item: DirTree }) {
   // 输入法合成结束，进行空格替换
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
     setIsComposing(false)
-    const value = e.currentTarget.value
-    const sanitizedValue = value.replace(/\s+/g, '_')
-    setName(sanitizedValue)
+    const input = e.currentTarget
+    const value = input.value
+    const cursorPosition = input.selectionStart || 0
+    
+    // 只有当值包含空格时才需要替换和恢复光标位置
+    if (value.includes(' ')) {
+      const sanitizedValue = value.replace(/\s+/g, '_')
+      setName(sanitizedValue)
+      
+      // 计算新的光标位置（空格变为下划线，长度不变，所以位置保持不变）
+      requestAnimationFrame(() => {
+        if (input.selectionStart !== null) {
+          input.setSelectionRange(cursorPosition, cursorPosition)
+        }
+      })
+    } else {
+      setName(value)
+    }
   }, [])
 
   // 创建或修改文件夹名称

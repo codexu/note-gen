@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
 import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot } from "lucide-react"
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
@@ -22,6 +22,7 @@ import { DeleteFolder } from './delete-folder'
 export function FolderItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
+  const [isComposing, setIsComposing] = useState(false) 
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -46,6 +47,34 @@ export function FolderItem({ item }: { item: DirTree }) {
     setIsEditing(true)
     setTimeout(() => inputRef.current?.focus(), 0);
   }
+
+  // 优化的输入处理，支持输入法
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    
+    // 如果正在使用输入法合成，不进行空格替换
+    if (isComposing) {
+      setName(value)
+      return
+    }
+    
+    // 只在非合成状态下才替换空格
+    const sanitizedValue = value.replace(/\s+/g, '_')
+    setName(sanitizedValue)
+  }, [isComposing])
+
+  // 输入法合成开始
+  const handleCompositionStart = useCallback(() => {
+    setIsComposing(true)
+  }, [])
+
+  // 输入法合成结束，进行空格替换
+  const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(false)
+    const value = e.currentTarget.value
+    const sanitizedValue = value.replace(/\s+/g, '_')
+    setName(sanitizedValue)
+  }, [])
 
   // 创建或修改文件夹名称
   async function handleRename() {
@@ -234,13 +263,11 @@ export function FolderItem({ item }: { item: DirTree }) {
                     className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
                     value={name}
                     onBlur={handleRename}
-                    onChange={(e) => { 
-                      // 实时将空格替换为下划线，保持与同步逻辑一致
-                      const sanitizedValue = e.target.value.replace(/\s+/g, '_')
-                      setName(sanitizedValue)
-                    }}
+                    onChange={handleInputChange}
+                    onCompositionStart={handleCompositionStart}
+                    onCompositionEnd={handleCompositionEnd}
                     onKeyDown={(e) => {
-                      if (e.code === 'Enter') {
+                      if (e.code === 'Enter' && !e.nativeEvent.isComposing) {
                         handleRename()
                       } else if (e.code === 'Escape') {
                         handleEditEnd()

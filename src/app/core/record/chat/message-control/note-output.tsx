@@ -88,7 +88,6 @@ export function NoteOutput({chat}: {chat: Chat}) {
       <DialogTrigger asChild>
         <a className="cursor-pointer flex items-center gap-1 hover:underline">
           <SquarePen className="size-4" />
-          {t('note.writing')}
         </a>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px]">

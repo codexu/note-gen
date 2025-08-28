@@ -75,7 +75,9 @@ export function ChatInput() {
     `.trim()
     // 使用非流式请求获取placeholder内容
     const content = await fetchAiPlaceholder(request_content)
-    setPlaceholder(content + ' [Tab]')
+    if (content) {
+      setPlaceholder(content + ' [Tab]')
+    }
   }
 
   // 切换输入类型

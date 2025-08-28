@@ -60,6 +60,7 @@ export function MdEditor() {
       height: document.documentElement.clientHeight - 100,
       icon: 'material',
       cdn: '',
+      tab: '\t',
       theme: theme === 'dark' ? 'dark' : 'classic',
       toolbar: toolbarConfig,
       typewriterMode,

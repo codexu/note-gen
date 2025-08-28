@@ -23,6 +23,26 @@
     "error": "失败"
   },
   "settings": {
+    "general": {
+      "title": "常规设置",
+      "desc": "在这里，你可以配置应用的基本设置，包括界面主题、语言等选项。",
+      "interface": {
+        "title": "界面设置",
+        "theme": {
+          "title": "主题",
+          "desc": "选择应用的外观主题",
+          "options": {
+            "light": "亮色",
+            "dark": "暗色",
+            "system": "跟随系统"
+          }
+        },
+        "language": {
+          "title": "语言",
+          "desc": "选择应用的显示语言"
+        }
+      }
+    },
     "rag": {
       "title": "知识库",
       "desc": "在这里，你可以配置知识库相关设置，知识库基于 RAG 技术，通过嵌入模型将文本转换为向量，然后通过向量搜索来实现智能搜索和智能回答。",
@@ -297,6 +317,33 @@
           "createDirFailed": "创建目录失败",
           "connectionTimeOut": "连接超时，请检查网络或服务器。"
         }
+      },
+      "localBackup": {
+        "tabTitle": "本地备份",
+        "export": {
+          "title": "导出备份",
+          "desc": "将应用数据打包为 .zip 文件，保存到指定位置。",
+          "button": "选择位置并导出",
+          "exporting": "导出中..."
+        },
+        "import": {
+          "title": "导入备份",
+          "desc": "从 .zip 文件恢复应用数据，将覆盖当前所有数据。",
+          "button": "选择文件并导入",
+          "importing": "导入中...",
+          "warning": "导入操作将覆盖所有当前数据，请确保已备份重要内容！"
+        },
+        "exportDialog": {
+          "title": "选择备份文件保存位置"
+        },
+        "importDialog": {
+          "title": "选择要导入的备份文件"
+        },
+        "exportSuccess": "备份导出成功！",
+        "exportError": "备份导出失败",
+        "importSuccess": "备份导入成功！应用将重启以应用更改。",
+        "importError": "备份导入失败",
+        "restartConfirm": "导入完成！是否立即重启应用以应用更改？"
       }
     },
     "template": {
@@ -769,7 +816,9 @@
         "readAloud": "朗读",
         "playing": "播放中",
         "loading": "准备中",
-        "stop": "停止播放"
+        "stop": "停止播放",
+        "copy": "复制",
+        "copied": "已复制"
       },
       "preview": {
         "close": "关闭",

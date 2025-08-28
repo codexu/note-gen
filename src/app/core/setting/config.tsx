@@ -13,13 +13,18 @@ import {
   FileCog,
   Book,
   KeyboardIcon,
-  Volume2
+  Volume2,
+  Settings
 } from "lucide-react"
 
 const baseConfig = [
   {
     icon: <Store className="size-4 md:size-6" />,
     anchor: 'about',
+  },
+  {
+    icon: <Settings className="size-4 md:size-6" />,
+    anchor: 'general',
   },
   '-',
   {

@@ -8,11 +8,13 @@ mod keywords;
 mod tray;
 mod window;
 mod app_setup;
+mod backup;
 
 use screenshot::{screenshot};
 use webdav::{webdav_backup, webdav_sync, webdav_test, webdav_create_dir};
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
 use keywords::{rank_keywords};
+use backup::{export_app_data, import_app_data};
 use tauri::RunEvent;
 
 fn main() {
@@ -49,6 +51,8 @@ fn main() {
             fuzzy_search_parallel,
             rank_keywords,
             webdav_create_dir,
+            export_app_data,
+            import_app_data,
         ])
         
         // 应用设置 - 在所有插件和命令注册后

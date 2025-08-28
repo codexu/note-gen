@@ -139,7 +139,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
         <p className="flex items-center">
           {t('detected')}
           {isCountingDown && (
-            <span className="text-red-500 animate-pulse">{countdown}s</span>
+            <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
           )}
         </p>
         <LocalImage src={chat.image} alt="" width={0} height={0} className="max-h-96 max-w-96 w-auto mt-2 mb-3 border-8 rounded" />
@@ -148,29 +148,25 @@ export function ChatClipboard({chat}: { chat: Chat }) {
             loading ? 
               <Button variant={"ghost"} size="sm" disabled>
                 <LoaderCircle className="size-4 animate-spin" />
-                {t('recording')}
               </Button> : (
               chat.inserted?
                 <Button variant={"ghost"} size="sm" disabled>
                   <CheckCircle className="size-4" />
-                  {t('recorded')}
                 </Button> :
                 <div className="flex items-center gap-2">
                   <Button variant={"ghost"} size="sm" onClick={handleInset}>
                     <ImagePlus className="size-4" />
-                    {t('record')}
                   </Button>
                 </div>
             )
           }
-          
         </MessageControl>
       </div> :
       <div className="flex-col leading-6">
         <p className='flex items-center'>
           {t('detected')}
           {isCountingDown && (
-            <span className="text-red-500 animate-pulse">{countdown}s</span>
+            <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
           )}
         </p>
         <p className='text-zinc-500'>{chat.content}</p>
@@ -179,12 +175,10 @@ export function ChatClipboard({chat}: { chat: Chat }) {
             chat.inserted ? 
               <Button variant={"ghost"} size="sm" disabled>
                 <CheckCircle className="size-4" />
-                {t('recorded')}
               </Button> :
               <div className="flex items-center gap-2">
                 <Button variant={"ghost"} size="sm" onClick={handleTextInset}>
                   <Highlighter className="size-4" />
-                  {t('record')}
                 </Button>
               </div>
           }

@@ -1,20 +1,20 @@
-import { Button } from "@/components/ui/button"
+import { TooltipButton } from "@/components/tooltip-button"
 import { Chat } from "@/db/chats"
 import { insertMark } from "@/db/marks"
 import useChatStore from "@/stores/chat"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CheckCircle, Highlighter } from "lucide-react"
-import { useTranslations } from "next-intl"
 import {useEffect, useState} from "react";
+import { useTranslations } from 'next-intl';
 
 export function MarkText({chat}: {chat: Chat}) {
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, marks } = useMarkStore()
   const { updateInsert, chats } = useChatStore()
-  const t = useTranslations('record.chat')
   const [isRecorded, setIsRecorded] = useState(chat.inserted)
+  const t = useTranslations('record.queue')
 
   useEffect(() => {
     const currentIndex = chats.findIndex(item => item.id === chat.id)
@@ -56,13 +56,7 @@ ${chat.content}
 
   return (
     isRecorded ?
-      <Button variant={"ghost"} size="sm" disabled>
-        <CheckCircle className="size-4" />
-        <span className="hidden md:inline">{t('mark.recorded')}</span>
-      </Button> :
-      <Button variant={"ghost"} size="sm" onClick={handleSuccess}>
-        <Highlighter className="size-4" />
-        <span className="hidden md:inline">{t('mark.record')}</span>
-      </Button>
+      <TooltipButton icon={<CheckCircle className="size-4" />} tooltipText={t('recorded')} variant={"ghost"} size="sm" disabled/> :
+      <TooltipButton icon={<Highlighter className="size-4" />} tooltipText={t('record')} variant={"ghost"} size="sm" onClick={handleSuccess}/>
   )
 }

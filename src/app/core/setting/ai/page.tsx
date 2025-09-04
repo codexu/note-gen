@@ -21,6 +21,7 @@ import { v4 } from 'uuid';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { AiCheck } from "./check";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import CreateConfig from "./create";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +35,9 @@ export default function AiPage() {
     currentAi,
     setCurrentAi,
     aiModelList,
-    setAiModelList
+    setAiModelList,
+    aiAutoCheck,
+    setAiAutoCheck
   } = useSettingStore()
   const [apiKey, setApiKey] = useState<string>('')
   const [baseURL, setBaseURL] = useState<string>('')
@@ -253,6 +256,15 @@ export default function AiPage() {
                 <Button disabled={!aiModelList.length} variant={'outline'} onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
                 <Button disabled={!aiModelList.length} variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
               </div>
+            </div>
+          </FormItem>
+        </SettingRow>
+        {/* 自动连通性检测开关 */}
+        <SettingRow>
+          <FormItem title={t('autoCheckTitle', { default: '自动连通性检测' })} desc={t('autoCheckDesc', { default: '关闭后不会在切换或修改配置时自动请求测试' })}>
+            <div className="flex items-center gap-3">
+              <Switch checked={aiAutoCheck} onCheckedChange={(v) => setAiAutoCheck(!!v)} />
+              <span className="text-sm text-muted-foreground">{aiAutoCheck ? t('enabled', { default: '已开启' }) : t('disabled', { default: '已关闭' })}</span>
             </div>
           </FormItem>
         </SettingRow>

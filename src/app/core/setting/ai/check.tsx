@@ -12,7 +12,7 @@ import { debounce } from "lodash-es"
 // 检测当前 AI 的可用性
 export function AiCheck() {
   const [state, setState] = useState<'ok' | 'error' | 'checking' | 'init'>('init')
-  const { currentAi, aiModelList } = useSettingStore()
+  const { currentAi, aiModelList, aiAutoCheck } = useSettingStore()
   const t = useTranslations('settings.ai')
   const abortControllerRef = useRef<AbortController | null>(null)
   const debouncedCheckRef = useRef<ReturnType<typeof debounce> | null>(null)
@@ -171,12 +171,16 @@ export function AiCheck() {
 
   useEffect(() => {
     const model = aiModelList.find(item => item.key === currentAi)
+    if (!aiAutoCheck) {
+      setState('init')
+      return
+    }
     if (model?.model) {
       debouncedCheckRef.current?.()
     } else {
       setState('init')
     }
-  }, [aiModelList, currentAi])
+  }, [aiModelList, currentAi, aiAutoCheck])
 
   // 组件卸载时清理资源
   useEffect(() => {

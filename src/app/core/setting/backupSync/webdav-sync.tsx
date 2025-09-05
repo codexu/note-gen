@@ -12,12 +12,16 @@ import useArticleStore from "@/stores/article";
 
 export default function WebdavSync() {
   const t = useTranslations("settings.backupSync.webdav");
-  const { 
-    url, setUrl,
-    username, setUsername,
-    password, setPassword,
-    path, setPath,
-    connectionState, 
+  const {
+    url,
+    setUrl,
+    username,
+    setUsername,
+    password,
+    setPassword,
+    path,
+    setPath,
+    connectionState,
     backupToWebDAV,
     syncFromWebDAV,
     initWebDAVData,
@@ -25,8 +29,7 @@ export default function WebdavSync() {
     backupState,
     createWebDAVDir,
   } = useWebDAVStore();
-  const { loadFileTree } = useArticleStore()
-
+  const { loadFileTree } = useArticleStore();
 
   useEffect(() => {
     initWebDAVData();
@@ -48,17 +51,15 @@ export default function WebdavSync() {
     setPath(e.target.value);
   };
 
-
   const handleBackupToWebDAV = async () => {
     try {
-    const res = await backupToWebDAV();
-    toast({
+      const res = await backupToWebDAV();
+      toast({
         title: t("backupSuccess"),
         description: t("backupSuccessDesc", { count: res }),
-    });
+      });
     } catch (_error) {
       const errorMessage = _error as string;
-
       if (errorMessage.startsWith("[ERR_PATH_NOT_FOUND]")) {
         toast({
           variant: "destructive",
@@ -77,11 +78,11 @@ export default function WebdavSync() {
 
   const handleSyncFromWebDAV = async () => {
     try {
-    const res = await syncFromWebDAV();
-    toast({
+      const res = await syncFromWebDAV();
+      toast({
         title: t("syncSuccess"),
         description: t("syncSuccessDesc", { count: res }),
-    });
+      });
     } catch (error) {
       const errorMessage = error as string;
 
@@ -100,7 +101,7 @@ export default function WebdavSync() {
         });
       }
     } finally {
-      loadFileTree()
+      loadFileTree();
     }
   };
 
@@ -147,34 +148,25 @@ export default function WebdavSync() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-4">
                   <span className="text-base font-bold">WebDAV</span>
-                  <Badge 
+                  <Badge
                     className={`${
-                      connectionState === WebDAVConnectionState.success 
+                      connectionState === WebDAVConnectionState.success
                         ? "bg-green-800"
-                        : connectionState === WebDAVConnectionState.checking 
+                        : connectionState === WebDAVConnectionState.checking
                         ? "bg-yellow-800"
                         : "bg-red-800"
-                    }`}
-                  >
+                    }`}>
                     {t(`connectionState.${connectionState}`)}
                   </Badge>
                 </CardTitle>
                 <CardDescription>{t("description")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col md:flex-row gap-4">
-                <Button 
-                  onClick={handleBackupToWebDAV} 
-                  className="mt-2"
-                  disabled={backupState || syncState}
-                >
+                <Button onClick={handleBackupToWebDAV} className="mt-2" disabled={backupState || syncState}>
                   {backupState ? <LoaderCircle className="animate-spin" /> : <Upload />}
                   {t("backupTo")}
                 </Button>
-                <Button 
-                  onClick={handleSyncFromWebDAV} 
-                  className="mt-2"
-                  disabled={syncState || backupState}
-                >
+                <Button onClick={handleSyncFromWebDAV} className="mt-2" disabled={syncState || backupState}>
                   {syncState ? <LoaderCircle className="animate-spin" /> : <Download />}
                   {t("syncFrom")}
                 </Button>
@@ -197,30 +189,30 @@ export default function WebdavSync() {
 
       <SettingRow>
         <FormItem title={t("password")} desc={t("passwordDesc")}>
-          <Input 
-            value={password} 
-            onChange={handlePasswordChange} 
-            type="password" 
+          <Input
+            value={password}
+            onChange={handlePasswordChange}
+            type="password"
             placeholder={t("passwordPlaceholder")}
           />
         </FormItem>
       </SettingRow>
 
-
       <SettingRow>
         <FormItem title={t("backupPath")} desc={t("backupPathDesc")}>
           <div className="flex items-center gap-2">
-          <Input 
+            <Input
               className="flex-grow"
-            value={path} 
-            onChange={handlePathChange} 
+              value={path}
+              onChange={handlePathChange}
               placeholder={t("backupPathPlaceholder")}
-          />
+            />
             <Button
               variant="outline"
-              disabled={connectionState !== WebDAVConnectionState.fail || isCreating || !path.trim() || path.trim() === "/"}
-              onClick={handleCreateDirectory}
-            >
+              disabled={
+                connectionState !== WebDAVConnectionState.fail || isCreating || !path.trim() || path.trim() === "/"
+              }
+              onClick={handleCreateDirectory}>
               {isCreating && <LoaderCircle className="animate-spin" />}
               {t("createDir")}
             </Button>

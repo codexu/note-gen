@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { OpenBroswer } from "@/components/open-broswer";
 import { baseAiConfig } from "../config";
 import emitter from "@/lib/emitter";
+import DefaultModelsSection from "./default-models";
 
 export default function AiPage() {
   const t = useTranslations('settings.ai');
@@ -237,7 +238,10 @@ export default function AiPage() {
 
   return (
     <SettingType id="ai" icon={<BotMessageSquare />} title={t('title')} desc={t('desc')}>
-      <CreateConfig />
+      {/* 当没有用户自定义模型时显示默认模型区域 */}
+      {userCustomModels.length === 0 && <DefaultModelsSection />}
+      
+      <CreateConfig hasCustomModels={userCustomModels.length > 0} />
       {
         userCustomModels.length > 0 && <>
         {/* 模型配置选择 */}

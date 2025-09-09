@@ -446,6 +446,10 @@
       "modelConfigDesc": "それぞれの構成はAIモデルに対応しており、テンプレートやカスタムで新しい構成を作成することができます。",
       "create": "作成",
       "createDesc": "空の設定を選択するか、供給元のテンプレートを使用して新しい設定を作成します。",
+      "createSection": {
+        "title": "カスタムモデル設定",
+        "descWithoutModels": "カスタムAIモデル設定を追加して、より強力なモデルサービスを使用しましょう。"
+      },
       "config": "配置单",
       "custom": "自定義",
       "addCustomModel": "自定義",
@@ -483,7 +487,30 @@
       "connectionSuccess": "AI接続テストが成功しました",
       "headerKey": "キー",
       "headerValue": "値",
-      "addHeader": "ヘッダーを追加"
+      "addHeader": "ヘッダーを追加",
+      "voice": "音声タイプ",
+      "voiceDesc": "音声モデルで使用する音声タイプを指定します（例：'alloy'、'echo'、'fable'など）。",
+      "voicePlaceholder": "音声タイプを入力してください（例：alloy）",
+      "defaultModels": {
+        "title": "デフォルト無料モデル",
+        "desc": "NoteGenはユーザーに無料のAIモデルサービスを提供し、設定なしで基本機能を使用できます。",
+        "chatModel": {
+          "name": "Qwen/Qwen3-8B",
+          "type": "チャットモデル",
+          "desc": "日常会話やテキスト生成に適用"
+        },
+        "embeddingModel": {
+          "name": "BAAI/bge-m3",
+          "type": "埋め込みモデル",
+          "desc": "テキストベクトル化や意味検索に使用"
+        },
+        "visionModel": {
+          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "type": "ビジョンモデル",
+          "desc": "画像理解やOCR認識などの視覚タスクをサポート"
+        },
+        "poweredBy": "SiliconFlowによる技術サポート"
+      }
     },
     "ocr": {
       "title": "OCR",

@@ -18,6 +18,7 @@ import { v4 } from 'uuid';
 import { AvatarImage } from "@/components/ui/avatar";
 import { Avatar } from "@radix-ui/react-avatar";
 import useSettingStore from "@/stores/setting";
+import { noteGenDefaultModels } from "@/app/model-config";
 
 export default function CreateConfig() {
   const t = useTranslations('settings.ai');
@@ -55,6 +56,38 @@ export default function CreateConfig() {
     setOpen(false)
   }
 
+  // 添加NoteGen默认模型
+  async function addNoteGenModelsHandler() {
+    const store = await Store.load('store.json');
+    let aiModelList = await store.get<AiConfig[]>('aiModelList')
+    if (!aiModelList) {
+      await store.set('aiModelList', [])
+      aiModelList = []
+    }
+
+    // 检查现有模型，只添加不存在的模型
+    const existingKeys = aiModelList.map(model => model.key)
+    const modelsToAdd = noteGenDefaultModels.filter(model => !existingKeys.includes(model.key))
+    
+    if (modelsToAdd.length === 0) {
+      alert('NoteGen 模型已存在，无需重复创建')
+      setOpen(false)
+      return
+    }
+
+    const updatedList = [...aiModelList, ...modelsToAdd]
+    setAiModelList(updatedList)
+    
+    // 设置第一个新添加的模型为当前模型
+    if (modelsToAdd.length > 0) {
+      setCurrentAi(modelsToAdd[0].key)
+    }
+    
+    await store.set('aiModelList', updatedList)
+    await store.save()
+    setOpen(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <form>
@@ -72,6 +105,14 @@ export default function CreateConfig() {
           </DialogHeader>
           <div className="overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
             <ProviderItem item={customModel} onClick={() => addCustomModelHandler(customModel)}/>
+            <ProviderItem 
+              item={{
+                key: 'notegen-api',
+                title: 'NoteGen API',
+                icon: 'https://s2.loli.net/2025/06/25/cVMf586WTBYAju4.png'
+              }} 
+              onClick={() => addNoteGenModelsHandler()}
+            />
             {
               baseAiConfig.map((item, index) => (
                 <ProviderItem key={index} item={item} onClick={() => addCustomModelHandler(item)}/>

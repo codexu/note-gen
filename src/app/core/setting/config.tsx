@@ -121,7 +121,7 @@ const baseAiConfig: AiConfig[] = [
     key: 'siliconflow',
     title: 'SiliconFlow',
     baseURL: 'https://api.siliconflow.cn/v1',
-    icon: 'https://s2.loli.net/2025/06/25/pPAmrXclsMUZV9o.png',
+    icon: 'https://s2.loli.net/2025/09/09/D8Al2raSvewN5xn.jpg',
     apiKeyUrl: 'https://cloud.siliconflow.cn/i/O2ciJeZw'
   },
   {

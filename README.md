@@ -28,11 +28,11 @@ NoteGen is a cross-platform `Markdown` note-taking application dedicated to usin
 
 - Lightweight: [Installation package](https://github.com/codexu/note-gen/releases) is **only 20MB**, free with no ads or bundled software.
 - Cross-platform capabilities of `Tauri2`, it supports Windows, MacOS, Linux, iOS, and Android, and it supports free multi-device data synchronization.
+- AI-enhanced: Free AI features powered by [SiliconFlow](https://cloud.siliconflow.cn/i/O2ciJeZw), with support for custom third-party models including ChatGPT, Gemini, Ollama, LM Studio, Grok, and more.
+- RAG: Your notes are your knowledge base. Support embedding models and reranking models.
 - Supports multiple recording methods including `screenshots`, `text`, `illustrations`, `files`, `links`, etc., meeting fragmented recording needs across various scenarios.
 - Native `Markdown(.md)` as storage format, no modifications, easy to migrate.
-- Native offline usage, supporting real-time synchronization to `GitHub, Gitee private repositories` with history rollback, and WebDAV synchronization.
-- AI-enhanced: Configurable with ChatGPT, Gemini, Ollama, LM Studio, Grok, and other models, with support for custom third-party model configuration.
-- RAG: Your notes are your knowledge base. Support embedding models and reranking models.
+- Offline, supporting real-time synchronization to `Github、Gitee、Gitlab private repositories` with history rollback, and WebDAV synchronization.
 
 ## How to Use?
 
@@ -112,17 +112,29 @@ The writing section is divided into two parts: **File Manager** and **Markdown E
   <img src="https://contrib.rocks/image?repo=codexu/note-gen" />
 </a>
 
-## Sponsors
+## Thanks
+
+Special thanks to our technology partners who make NoteGen better:
+
+**[SiliconFlow](https://cloud.siliconflow.cn/i/O2ciJeZw)** - Providing free AI model services, powering NoteGen's intelligent features with high-quality AI capabilities.
+
+<a href="https://cloud.siliconflow.cn/i/O2ciJeZw" target="_blank">
+  <img width="240" src="https://s2.loli.net/2025/09/09/GX1uFTIy9hgAD7M.png" />
+</a>
+
+**[UpgradeLink](http://upgrade.toolsetlink.com/upgrade/example/tauri-example.html)** - Providing reliable installation and upgrade services, ensuring seamless software updates for users.
+
+<a href="http://upgrade.toolsetlink.com/upgrade/example/tauri-example.html" target="_blank">
+  <img width="240" src="https://s2.loli.net/2025/09/10/Ks4EayU9HguXDMF.png" />
+</a>
+
+---
+
+We also thank other partners for their service support
 
 <div>
-  <a href="https://cloud.siliconflow.cn/i/O2ciJeZw" target="_blank">
-    <img src="https://s2.loli.net/2025/06/11/65TLRh813e2YFzr.png" />
-  </a>
   <a href="https://www.qiniu.com/products/ai-token-api?utm_source=NoteGen" target="_blank">
     <img src="https://s2.loli.net/2025/06/11/OKJq542lTs7U9xg.png" />
-  </a>
-  <a href="http://upgrade.toolsetlink.com/upgrade/example/tauri-example.html" target="_blank">
-    <img src="https://s2.loli.net/2025/06/11/r2dqNIWVXp4RaFe.png" />
   </a>
   <a href="https://share.302.ai/jfFrIP" target="_blank">
     <img src="https://s2.loli.net/2025/07/01/dPlkU1tejnDyV4S.png" />

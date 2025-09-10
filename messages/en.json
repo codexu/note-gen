@@ -689,10 +689,10 @@
                 "chat": "Chat with AI bot"
               },
               {
-                "linked": "Linked with your records"
+                "linked": "Linked with your records or notes"
               },
               {
-                "clipboard": "Recognize clipboard records"
+                "clipboard": "Recognize clipboard records or images"
               },
               {
                 "organize": "Organize your records into notes"
@@ -785,10 +785,10 @@
             "chat": "Chat with AI bot"
           },
           {
-            "linked": "Linked with your records"
+            "linked": "Linked with your records or notes"
           },
           {
-            "clipboard": "Recognize clipboard records"
+            "clipboard": "Recognize clipboard records or images"
           },
           {
             "organize": "Organize your records into notes"

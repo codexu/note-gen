@@ -96,7 +96,7 @@ interface EmbeddingResponse {
  */
 async function getEmbeddingModelInfo() {
   const store = await Store.load('store.json');
-  const embeddingModel = await store.get<string>('embeddingPrimaryModel');
+  const embeddingModel = await store.get<string>('embeddingModel');
   if (!embeddingModel) return null;
   
   const aiModelList = await store.get<AiConfig[]>('aiModelList');

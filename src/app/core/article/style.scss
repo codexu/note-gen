@@ -30,8 +30,16 @@
   }
 }
 
-.vditor--dark .vditor-reset{
-  h1, h2, h3, h4, h5, h6, p, span, li {
+.vditor--dark .vditor-reset {
+  h1:not(code h1),
+  h2:not(code h2),
+  h3:not(code h3),
+  h4:not(code h4),
+  h5:not(code h5),
+  h6:not(code h6),
+  p:not(code p),
+  span:not(code span),
+  li:not(code li) {
     @apply text-zinc-100 !important;
   }
 }

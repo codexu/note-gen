@@ -21,6 +21,8 @@ import { TranslateSend } from "./translate-send"
 import ChatPlaceholder from "./chat-placeholder"
 import { ClipboardMonitor } from "./clipboard-monitor"
 import { RagSwitch } from "./rag-switch"
+import { FileLink, LinkedFileDisplay } from "./file-link"
+import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
 
 
@@ -33,14 +35,66 @@ export function ChatInput() {
   const [placeholder, setPlaceholder] = useState('')
   const t = useTranslations()
   const [inputType, setInputType] = useLocalStorage('chat-input-type', 'chat')
+  const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [linkedFile, setLinkedFile] = useState<MarkdownFile | null>(null)
   const markGenRef = useRef<any>(null)
   const chatSendRef = useRef<any>(null)
   const translateSendRef = useRef<any>(null)
 
 
+  // 添加输入到历史记录
+  function addToHistory(input: string) {
+    if (!input.trim()) return
+    
+    const newHistory = [input, ...(inputHistory || []).filter(item => item !== input)]
+    // 限制历史记录数量为50条
+    const limitedHistory = newHistory.slice(0, 50)
+    setInputHistory(limitedHistory)
+  }
+
+  // 处理历史记录导航
+  function navigateHistory(direction: 'up' | 'down') {
+    if (!inputHistory || inputHistory.length === 0) return
+
+    let newIndex: number
+    if (direction === 'up') {
+      newIndex = historyIndex + 1
+      if (newIndex >= inputHistory.length) {
+        newIndex = inputHistory.length - 1
+      }
+    } else {
+      newIndex = historyIndex - 1
+      if (newIndex < -1) {
+        newIndex = -1
+      }
+    }
+
+    setHistoryIndex(newIndex)
+    
+    if (newIndex === -1) {
+      setText('')
+    } else {
+      setText(inputHistory[newIndex])
+    }
+  }
+
+  // 处理文件选择
+  function handleFileSelect(file: MarkdownFile) {
+    setLinkedFile(file)
+  }
+
+  // 移除关联文件
+  function removeLinkedFile() {
+    setLinkedFile(null)
+  }
+
   // 处理发送后的清理工作
   function handleSent() {
+    // 添加到历史记录
+    addToHistory(text)
     setText('')
+    setHistoryIndex(-1)
     // 重置 textarea 的高度为默认值
     const textarea = document.querySelector('textarea')
     if (textarea) {
@@ -155,6 +209,14 @@ export function ChatInput() {
               e.preventDefault()
               insertPlaceholder()
             }
+            if (e.key === "ArrowUp" && !isComposing) {
+              e.preventDefault()
+              navigateHistory('up')
+            }
+            if (e.key === "ArrowDown" && !isComposing) {
+              e.preventDefault()
+              navigateHistory('down')
+            }
             if (e.key === "Backspace") {
               if (text === '') {
                 setPlaceholder(t('record.chat.input.placeholder.default'))
@@ -167,12 +229,24 @@ export function ChatInput() {
           }, 0)}
         />
       </div>
+
+      <LinkedFileDisplay
+        linkedFile={linkedFile}
+        onFileRemove={removeLinkedFile}
+      />
+      
       <div className="flex justify-between items-center w-full">
         <div className="flex">
           <ModelSelect />
           <PromptSelect />
           <ChatLanguage />
           <ChatLink inputType={inputType} />
+          <FileLink
+            linkedFile={linkedFile}
+            onFileSelect={handleFileSelect}
+            onFileRemove={removeLinkedFile}
+            disabled={!primaryModel || loading}
+          />
           <RagSwitch />
           <ChatPlaceholder />
           <ClipboardMonitor />
@@ -185,7 +259,7 @@ export function ChatInput() {
             inputType === 'gen' ? (
               <MarkGen inputValue={text} ref={markGenRef} />
             ) : inputType === 'chat' ? (
-              <ChatSend inputValue={text} onSent={handleSent} ref={chatSendRef} />
+              <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} ref={chatSendRef} />
             ) : inputType === 'translate' ? (
               <TranslateSend inputValue={text} onSent={handleSent} ref={translateSendRef} />
             ) : null

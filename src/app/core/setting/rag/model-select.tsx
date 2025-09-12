@@ -54,7 +54,10 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       return item.model && item.baseURL
     })
     setList(filteredModels)
-    const primaryModel = await store.get<string>(`${modelKey}PrimaryModel`)
+    const storeKey = modelKey === 'embedding' ? 'embeddingModel' : 
+                     modelKey === 'reranking' ? 'rerankingModel' : 
+                     `${modelKey}Model`
+    const primaryModel = await store.get<string>(storeKey)
     if (!primaryModel) return
     setPrimaryModelHandler(primaryModel)
   }
@@ -62,20 +65,20 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
   async function modelSelectChangeHandler(e: string) {
     setPrimaryModelHandler(e)
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', e)
-    } else {
-      store.set(`${modelKey}PrimaryModel`, e)
-    }
+    const storeKey = modelKey === 'embedding' ? 'embeddingModel' : 
+                     modelKey === 'reranking' ? 'rerankingModel' : 
+                     modelKey === 'primaryModel' ? 'primaryModel' :
+                     `${modelKey}Model`
+    store.set(storeKey, e)
   }
 
   async function resetDefaultModel() {
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', '')
-    } else {
-      store.set(`${modelKey}PrimaryModel`, '')
-    }
+    const storeKey = modelKey === 'embedding' ? 'embeddingModel' : 
+                     modelKey === 'reranking' ? 'rerankingModel' : 
+                     modelKey === 'primaryModel' ? 'primaryModel' :
+                     `${modelKey}Model`
+    store.set(storeKey, '')
     setPrimaryModelHandler('')
   }
 

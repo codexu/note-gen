@@ -31,6 +31,15 @@ interface MarkState {
   setQueue: (queueId: string, mark: Partial<MarkQueue>) => void
   removeQueue: (queueId: string) => void
 
+  // 多选状态
+  selectedMarkIds: Set<number>
+  setSelectedMarkIds: (ids: Set<number>) => void
+  toggleMarkSelection: (id: number) => void
+  clearSelection: () => void
+  selectAll: () => void
+  isMultiSelectMode: boolean
+  setMultiSelectMode: (mode: boolean) => void
+
   // 同步
   syncState: boolean
   setSyncState: (syncState: boolean) => void
@@ -40,7 +49,7 @@ interface MarkState {
   downloadMarks: () => Promise<Mark[]>
 }
 
-const useMarkStore = create<MarkState>((set) => ({
+const useMarkStore = create<MarkState>((set, get) => ({
   trashState: false,
   setTrashState: (flag) => {
     set({ trashState: flag })
@@ -134,6 +143,39 @@ const useMarkStore = create<MarkState>((set) => ({
       }
     })
   },
+
+  // 多选状态
+  selectedMarkIds: new Set<number>(),
+  setSelectedMarkIds: (ids) => {
+    set({ selectedMarkIds: ids })
+  },
+  toggleMarkSelection: (id) => {
+    set((state) => {
+      const newSelectedIds = new Set(state.selectedMarkIds)
+      if (newSelectedIds.has(id)) {
+        newSelectedIds.delete(id)
+      } else {
+        newSelectedIds.add(id)
+      }
+      return { selectedMarkIds: newSelectedIds }
+    })
+  },
+  clearSelection: () => {
+    set({ selectedMarkIds: new Set<number>(), isMultiSelectMode: false })
+  },
+  selectAll: () => {
+    const { marks } = get()
+    const allIds = new Set(marks.map(mark => mark.id))
+    set({ selectedMarkIds: allIds, isMultiSelectMode: true })
+  },
+  isMultiSelectMode: false,
+  setMultiSelectMode: (mode) => {
+    set({ isMultiSelectMode: mode })
+    if (!mode) {
+      set({ selectedMarkIds: new Set<number>() })
+    }
+  },
+
   // 同步
   syncState: false,
   setSyncState: (syncState) => {

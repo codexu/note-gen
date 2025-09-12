@@ -8,6 +8,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import { BotMessageSquare, Copy, Eye, EyeOff, X, Plus } from "lucide-react";
 import ModelSelect from "./modelSelect";
 import { AiConfig, ModelType } from "../config";
+import { noteGenModelKeys } from '@/app/model-config';
 import * as React from "react"
 import {
   Select,
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { OpenBroswer } from "@/components/open-broswer";
 import { baseAiConfig } from "../config";
 import emitter from "@/lib/emitter";
+import DefaultModelsSection from "./default-models";
 
 export default function AiPage() {
   const t = useTranslations('settings.ai');
@@ -36,6 +38,9 @@ export default function AiPage() {
     aiModelList,
     setAiModelList
   } = useSettingStore()
+
+  // 过滤掉默认模型，只显示用户自定义模型
+  const userCustomModels = aiModelList.filter(model => !noteGenModelKeys.includes(model.key))
   const [apiKey, setApiKey] = useState<string>('')
   const [baseURL, setBaseURL] = useState<string>('')
   const [model, setModel] = useState<string>('')
@@ -143,10 +148,17 @@ export default function AiPage() {
     await store.set('aiModelList', aiModelList)
     setAiModelList(aiModelList);
     await deleteDefaultModel(store);
-    const first = aiModelList[0]
-    if (!first) return
-    modelConfigSelectChange(first.key)
-    setCurrentAi(first.key)
+    
+    // 删除后选择下一个用户自定义模型
+    const remainingUserModels = aiModelList.filter(model => !noteGenModelKeys.includes(model.key))
+    if (remainingUserModels.length > 0) {
+      const nextModel = remainingUserModels[0]
+      modelConfigSelectChange(nextModel.key)
+      setCurrentAi(nextModel.key)
+    } else {
+      // 如果没有用户自定义模型了，清空选择
+      setCurrentAi('')
+    }
   }
 
   // 删除配置的默认模型
@@ -199,14 +211,22 @@ export default function AiPage() {
       const store = await Store.load('store.json');
       const aiModelList = await store.get<AiConfig[]>('aiModelList')
       const currentAi = await store.get<string>('currentAi')
-      if (currentAi) {
+      
+      // 过滤出用户自定义模型
+      const userModels = aiModelList?.filter(model => !noteGenModelKeys.includes(model.key)) || []
+      
+      if (currentAi && userModels.find(model => model.key === currentAi)) {
+        // 如果当前选中的是用户自定义模型，则加载它
         setCurrentAi(currentAi)
         modelConfigSelectChange(currentAi)
+      } else if (userModels.length > 0) {
+        // 如果有用户自定义模型，选择第一个
+        const firstUserModel = userModels[0]
+        setCurrentAi(firstUserModel.key)
+        modelConfigSelectChange(firstUserModel.key)
       } else {
-        const firstKey = aiModelList?.[0]?.key
-        if (!firstKey) return
-        setCurrentAi(firstKey)
-        modelConfigSelectChange(firstKey)
+        // 如果没有用户自定义模型，清空当前选择
+        setCurrentAi('')
       }
     }
     init()
@@ -218,9 +238,12 @@ export default function AiPage() {
 
   return (
     <SettingType id="ai" icon={<BotMessageSquare />} title={t('title')} desc={t('desc')}>
-      <CreateConfig />
+      {/* 当没有用户自定义模型时显示默认模型区域 */}
+      {userCustomModels.length === 0 && <DefaultModelsSection />}
+      
+      <CreateConfig hasCustomModels={userCustomModels.length > 0} />
       {
-        aiModelList.length > 0 && <>
+        userCustomModels.length > 0 && <>
         {/* 模型配置选择 */}
         <SettingRow>
           <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
@@ -229,13 +252,13 @@ export default function AiPage() {
                 <SelectTrigger className="w-full flex">
                   <div className="flex items-center gap-2">
                     <AiCheck />
-                    { aiModelList.find(item => item.key === currentAi)?.title}
-                    { aiModelList.find(item => item.key === currentAi)?.model && <span>({aiModelList.find(item => item.key === currentAi)?.model})</span>}
+                    { userCustomModels.find(item => item.key === currentAi)?.title}
+                    { userCustomModels.find(item => item.key === currentAi)?.model && <span>({userCustomModels.find(item => item.key === currentAi)?.model})</span>}
                   </div>
                 </SelectTrigger>
                 <SelectContent>
                   {
-                    aiModelList.map((item) => (
+                    userCustomModels.map((item) => (
                       <SelectItem value={item.key} key={item.key}>
                         <div className="flex items-center gap-2">
                           <Badge>
@@ -250,8 +273,8 @@ export default function AiPage() {
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-2 md:w-auto w-full">
-                <Button disabled={!aiModelList.length} variant={'outline'} onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
-                <Button disabled={!aiModelList.length} variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
+                <Button disabled={!userCustomModels.length} variant={'outline'} onClick={copyConfig}><Copy />{t('copyConfig')}</Button>
+                <Button disabled={!userCustomModels.length} variant={'destructive'} onClick={deleteCustomModelHandler}><X />{t('deleteCustomModel')}</Button>
               </div>
             </div>
           </FormItem>

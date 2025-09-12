@@ -26,6 +26,7 @@ import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageViewer } from "@/components/image-viewer";
 import ChatPreview from "../chat/chat-preview";
+import { Checkbox } from "@/components/ui/checkbox";
 
 dayjs.extend(relativeTime)
 
@@ -91,10 +92,16 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
 
 export function MarkWrapper({mark}: {mark: Mark}) {
   const t = useTranslations('record.mark.type');
-  switch (mark.type) {
+  const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
+  
+  const handleCheckboxChange = () => {
+    toggleMarkSelection(mark.id);
+  };
+
+  const renderContent = () => {
+    switch (mark.type) {
     case 'scan':
     return (
-      <div className="flex p-2">
         <div className="pr-2 flex-1 overflow-hidden text-xs">
           <div className="flex w-full items-center gap-2 text-zinc-500">
             <span className="flex items-center gap-1 bg-cyan-900 text-white px-1 rounded">
@@ -104,14 +111,9 @@ export function MarkWrapper({mark}: {mark: Mark}) {
           </div>
           <DetailViewer mark={mark} content={mark.desc || ''} path="screenshot" />
         </div>
-        <div className="bg-zinc-900 flex items-center justify-center">
-          <ImageViewer url={mark.url} path="screenshot" />
-        </div>
-      </div>
     )
     case 'image':
     return (
-      <div className="flex p-2">
         <div className="pr-2 flex-1 overflow-hidden text-xs">
           <div className="flex w-full items-center gap-2 text-zinc-500">
             <span className="flex items-center gap-1 bg-fuchsia-900 text-white px-1 rounded">
@@ -122,76 +124,120 @@ export function MarkWrapper({mark}: {mark: Mark}) {
           </div>
           <DetailViewer mark={mark} content={mark.desc || ''} path="image" />
         </div>
-        <div className="bg-zinc-900 flex items-center justify-center">
-          <ImageViewer url={mark.url} path="image" />
-        </div>
-      </div>
     )
     case 'link':
     return (
-      <div className="p-2 flex-1">
-        <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
-          <span className="flex items-center gap-1 bg-blue-900 text-white px-1 rounded">
-            {t(mark.type)}
-          </span>
-          <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+        <div className="flex-1">
+          <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+            <span className="flex items-center gap-1 bg-blue-900 text-white px-1 rounded">
+              {t(mark.type)}
+            </span>
+            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+          </div>
+          <DetailViewer mark={mark} content={mark.desc || ''} />
+          <div className="mt-1">
+            <a 
+              href={mark.url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-blue-500 hover:underline truncate block"
+            >
+              {mark.url}
+            </a>
+          </div>
         </div>
-        <DetailViewer mark={mark} content={mark.desc || ''} />
-        <div className="mt-1">
-          <a 
-            href={mark.url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-xs text-blue-500 hover:underline truncate block"
-          >
-            {mark.url}
-          </a>
-        </div>
-      </div>
     )
     case 'text':
       return (
-        <div className="p-2 flex-1">
-          <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
-            <span className="flex items-center gap-1 bg-lime-900 text-white px-1 rounded">
-              {t(mark.type)}
-            </span>
-            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+          <div className="flex-1">
+            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+              <span className="flex items-center gap-1 bg-lime-900 text-white px-1 rounded">
+                {t(mark.type)}
+              </span>
+              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            </div>
+            <DetailViewer mark={mark} content={mark.content || ''} />
           </div>
-          <DetailViewer mark={mark} content={mark.content || ''} />
-        </div>
       )
     case 'file':
       return (
-        <div className="p-2 flex-1">
-          <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
-            <span className="flex items-center gap-1 bg-orange-800 text-white px-1 rounded">
-              {t(mark.type)}
-            </span>
-            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+          <div className="flex-1">
+            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+              <span className="flex items-center gap-1 bg-orange-800 text-white px-1 rounded">
+                {t(mark.type)}
+              </span>
+              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            </div>
+            <DetailViewer mark={mark} content={mark.content || ''} />
           </div>
-          <DetailViewer mark={mark} content={mark.content || ''} />
-        </div>
       )
     default:
       return null
+    }
   }
+
+  return (
+    <div className="flex p-2">
+      {isMultiSelectMode && (
+        <div className="pr-2 flex items-start">
+          <Checkbox
+            checked={selectedMarkIds.has(mark.id)}
+            onCheckedChange={handleCheckboxChange}
+          />
+        </div>
+      )}
+      {renderContent()}
+      {(mark.type === 'scan' || mark.type === 'image') && (
+        <div className="bg-zinc-900 flex items-center justify-center">
+          <ImageViewer url={mark.url} path={mark.type === 'scan' ? 'screenshot' : 'image'} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function MarkItem({mark}: {mark: Mark}) {
   const t = useTranslations();
-  const { fetchMarks, trashState, fetchAllTrashMarks } = useMarkStore()
+  const { 
+    marks,
+    fetchMarks, 
+    trashState, 
+    fetchAllTrashMarks, 
+    isMultiSelectMode, 
+    selectedMarkIds, 
+    clearSelection 
+  } = useMarkStore()
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
 
   async function handleDelMark() {
-    await delMark(mark.id)
+    if (isMultiSelectMode && selectedMarkIds.size > 0) {
+      // 多选删除
+      const selectedMarks = Array.from(selectedMarkIds)
+      for (const markId of selectedMarks) {
+        await delMark(markId)
+      }
+      clearSelection()
+    } else {
+      // 单个删除
+      await delMark(mark.id)
+    }
     await fetchMarks()
     await fetchTags()
     getCurrentTag()
   }
 
   async function handleDelForever() {
-    await delMarkForever(mark.id)
+    if (isMultiSelectMode && selectedMarkIds.size > 0) {
+      // 多选永久删除
+      const selectedMarks = Array.from(selectedMarkIds)
+      for (const markId of selectedMarks) {
+        await delMarkForever(markId)
+      }
+      clearSelection()
+    } else {
+      // 单个永久删除
+      await delMarkForever(mark.id)
+    }
     await fetchAllTrashMarks()
   }
 
@@ -205,7 +251,21 @@ export function MarkItem({mark}: {mark: Mark}) {
   }
 
   async function handleTransfer(tagId: number) {
-    await updateMark({ ...mark, tagId })
+    if (isMultiSelectMode && selectedMarkIds.size > 0) {
+      // 多选转移 - 只处理选中的记录
+      const selectedMarks = Array.from(selectedMarkIds)
+      for (const markId of selectedMarks) {
+        // 获取完整的mark对象并更新tagId
+        const existingMark = marks.find((m: Mark) => m.id === markId)
+        if (existingMark) {
+          await updateMark({ ...existingMark, tagId })
+        }
+      }
+      clearSelection()
+    } else {
+      // 单个转移
+      await updateMark({ ...mark, tagId })
+    }
     await fetchTags()
     getCurrentTag()
     fetchMarks()
@@ -251,11 +311,20 @@ export function MarkItem({mark}: {mark: Mark}) {
         {
           trashState ? null :
           <ContextMenuSub>
-            <ContextMenuSubTrigger inset>{t('record.mark.toolbar.moveTag')}</ContextMenuSubTrigger>
+            <ContextMenuSubTrigger inset>
+              {isMultiSelectMode && selectedMarkIds.size > 0 
+                ? t('record.mark.toolbar.moveSelectedTags', { count: selectedMarkIds.size })
+                : t('record.mark.toolbar.moveTag')
+              }
+            </ContextMenuSubTrigger>
             <ContextMenuSubContent>
               {
                 tags.map((tag) => (
-                  <ContextMenuItem disabled={tag.id === currentTagId} key={tag.id} onClick={() => handleTransfer(tag.id)}>
+                  <ContextMenuItem 
+                    disabled={tag.id === currentTagId} 
+                    key={tag.id} 
+                    onClick={() => handleTransfer(tag.id)}
+                  >
                     {tag.name}
                   </ContextMenuItem>
                 ))
@@ -263,34 +332,44 @@ export function MarkItem({mark}: {mark: Mark}) {
             </ContextMenuSubContent>
           </ContextMenuSub>
         }
-        <ContextMenuItem inset disabled>
+        <ContextMenuItem inset disabled={isMultiSelectMode || true}>
           {t('record.mark.toolbar.convertTo', { type: mark.type === 'scan' ? t('record.mark.type.image') : t('record.mark.type.screenshot') })}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={!mark.url} onClick={handleCopyLink}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || !mark.url} onClick={handleCopyLink}>
           {t('record.mark.toolbar.copyLink')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={mark.type === 'text'} onClick={regenerateDesc}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc}>
           {t('record.mark.toolbar.regenerateDesc')}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem inset disabled={mark.type === 'text'} onClick={handelShowInFolder}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFolder}>
           {t('record.mark.toolbar.viewFolder')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={mark.type === 'text'} onClick={handelShowInFile}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFile}>
           {t('record.mark.toolbar.viewFile')}
         </ContextMenuItem>
         {
           trashState ? 
           <>
-            <ContextMenuItem inset onClick={handleRestore}>
+            <ContextMenuItem inset disabled={isMultiSelectMode} onClick={handleRestore}>
               {t('record.mark.toolbar.restore')}
             </ContextMenuItem>
             <ContextMenuItem inset onClick={handleDelForever}>
-              <span className="text-red-900">{t('record.mark.toolbar.deleteForever')}</span>
+              <span className="text-red-900">
+                {isMultiSelectMode && selectedMarkIds.size > 0 
+                  ? t('record.mark.toolbar.deleteSelectedForever', { count: selectedMarkIds.size })
+                  : t('record.mark.toolbar.deleteForever')
+                }
+              </span>
             </ContextMenuItem>
           </> :
           <ContextMenuItem inset onClick={handleDelMark}>
-            <span className="text-red-900">{t('record.mark.toolbar.delete')}</span>
+            <span className="text-red-900">
+              {isMultiSelectMode && selectedMarkIds.size > 0 
+                ? t('record.mark.toolbar.deleteSelected', { count: selectedMarkIds.size })
+                : t('record.mark.toolbar.delete')
+              }
+            </span>
           </ContextMenuItem>
         }
       </ContextMenuContent>

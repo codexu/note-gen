@@ -96,7 +96,7 @@ interface EmbeddingResponse {
  */
 async function getEmbeddingModelInfo() {
   const store = await Store.load('store.json');
-  const embeddingModel = await store.get<string>('embeddingPrimaryModel');
+  const embeddingModel = await store.get<string>('embeddingModel');
   if (!embeddingModel) return null;
   
   const aiModelList = await store.get<AiConfig[]>('aiModelList');
@@ -535,7 +535,7 @@ export async function fetchAiDesc(text: string) {
 export async function fetchAiDescByImage(base64: string) {
   try {
     // 获取AI设置
-    const aiConfig = await getAISettings('imageMethodPrimaryModel')
+    const aiConfig = await getAISettings('imageMethodModel')
 
     const descContent = `根据截图的内容，返回一条描述。`
     

@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
 import { AiConfig } from '@/app/core/setting/config'
 import { GitlabInstanceType } from '@/lib/gitlab.types'
+import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 
 export enum GenTemplateRange {
   All = 'all',
@@ -155,6 +156,47 @@ const useSettingStore = create<SettingState>((set, get) => ({
   initSettingData: async () => {
     const store = await Store.load('store.json');
     await get().setVersion()
+    
+    // 初始化默认的NoteGen模型配置
+    const existingAiModelList = (await store.get('aiModelList') as AiConfig[]) || []
+    const hasNoteGenModels = existingAiModelList.some(model => 
+      noteGenModelKeys.includes(model.key)
+    )
+    
+    let finalAiModelList = existingAiModelList
+    if (!hasNoteGenModels) {
+      finalAiModelList = [...existingAiModelList, ...noteGenDefaultModels]
+      await store.set('aiModelList', finalAiModelList)
+      set({ aiModelList: finalAiModelList })
+    }
+
+    // 检查是否设置了主要模型，如果没有且存在note-gen-chat，则设置为主要模型
+    const currentPrimaryModel = await store.get('primaryModel') as string
+    const hasNoteGenChat = finalAiModelList.some(model => model.key === 'note-gen-chat')
+    
+    if (!currentPrimaryModel && hasNoteGenChat) {
+      await store.set('primaryModel', 'note-gen-chat')
+      set({ primaryModel: 'note-gen-chat' })
+    }
+
+    // 检查是否设置了嵌入模型，如果没有且存在note-gen-embedding，则设置为默认嵌入模型
+    const currentEmbeddingModel = await store.get('embeddingModel') as string
+    const hasNoteGenEmbedding = finalAiModelList.some(model => model.key === 'note-gen-embedding')
+    
+    if (!currentEmbeddingModel && hasNoteGenEmbedding) {
+      await store.set('embeddingModel', 'note-gen-embedding')
+      set({ embeddingModel: 'note-gen-embedding' })
+    }
+
+    // 检查是否设置了视觉语言模型，如果没有且存在note-gen-vlm，则设置为默认视觉语言模型
+    const currentImageMethodModel = await store.get('imageMethodModel') as string
+    const hasNoteGenVlm = finalAiModelList.some(model => model.key === 'note-gen-vlm')
+    
+    if (!currentImageMethodModel && hasNoteGenVlm) {
+      await store.set('imageMethodModel', 'note-gen-vlm')
+      set({ imageMethodModel: 'note-gen-vlm' })
+    }
+
     Object.entries(get()).forEach(async ([key, value]) => {
       const res = await store.get(key)
 
@@ -165,7 +207,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
           setTimeout(() => {
             set({ [key]: res as GenTemplate[] })
           }, 0);
-        } else {
+        } else if (key === 'aiModelList' && hasNoteGenModels) {
+          // 如果已经有NoteGen模型，使用存储的配置
+          set({ [key]: res as AiConfig[] })
+        } else if (key !== 'aiModelList') {
           set({ [key]: res })
         }
       } else {

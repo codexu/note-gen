@@ -9,6 +9,7 @@ import React from "react"
 import { TagManage } from '../tag'
 import { MarkHeader } from './mark-header'
 import { MarkList } from './mark-list'
+import { MarkToolbar } from './mark-toolbar'
 import useMarkStore from "@/stores/mark"
 import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
@@ -30,7 +31,7 @@ export function NoteSidebar() {
   }
 
   return (
-    <Sidebar collapsible="none" className="border-r w-full hidden md:flex md:w-[300px]">
+    <Sidebar collapsible="none" className="border-r w-full hidden md:flex md:w-[300px] flex-col">
       <SidebarHeader className="p-0">
         <MarkHeader />
         {
@@ -46,6 +47,7 @@ export function NoteSidebar() {
         }
       </SidebarHeader>
       <MarkList />
+      <MarkToolbar />
     </Sidebar>
   )
 }

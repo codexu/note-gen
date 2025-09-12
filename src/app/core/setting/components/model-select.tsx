@@ -32,6 +32,26 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
 
+  // 获取正确的存储键名
+  function getStoreKey(modelKey: string): string {
+    switch (modelKey) {
+      case 'primaryModel':
+        return 'primaryModel'
+      case 'imageMethod':
+        return 'imageMethodModel'
+      case 'placeholder':
+        return 'placeholderModel'
+      case 'translate':
+        return 'translateModel'
+      case 'markDesc':
+        return 'markDescModel'
+      case 'audio':
+        return 'audioModel'
+      default:
+        return `${modelKey}Model`
+    }
+  }
+
   function setPrimaryModelHandler(primaryModel: string) {
     setModel(primaryModel)
     switch (modelKey) {
@@ -66,7 +86,9 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       return item.model && item.baseURL
     })
     setList(filteredModels)
-    const primaryModel = await store.get<string>(modelKey === 'primaryModel' ? 'primaryModel' : `${modelKey}PrimaryModel`)
+    
+    const storeKey = getStoreKey(modelKey)
+    const primaryModel = await store.get<string>(storeKey)
     if (!primaryModel) return
     setPrimaryModelHandler(primaryModel)
   }
@@ -74,20 +96,14 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
   async function modelSelectChangeHandler(e: string) {
     setPrimaryModelHandler(e)
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', e)
-    } else {
-      store.set(`${modelKey}PrimaryModel`, e)
-    }
+    const storeKey = getStoreKey(modelKey)
+    store.set(storeKey, e)
   }
 
   async function resetDefaultModel() {
     const store = await Store.load('store.json');
-    if (modelKey === 'primaryModel') {
-      store.set('primaryModel', '')
-    } else {
-      store.set(`${modelKey}PrimaryModel`, '')
-    }
+    const storeKey = getStoreKey(modelKey)
+    store.set(storeKey, '')
     setPrimaryModelHandler('')
   }
 

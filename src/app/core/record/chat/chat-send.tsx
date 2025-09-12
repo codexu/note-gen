@@ -11,13 +11,17 @@ import { useTranslations } from "next-intl"
 import useVectorStore from "@/stores/vector"
 import { getContextForQuery } from '@/lib/rag'
 import { invoke } from "@tauri-apps/api/core"
+import { MarkdownFile } from "@/lib/files"
+import { readTextFile } from "@tauri-apps/plugin-fs"
+import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 
 interface ChatSendProps {
   inputValue: string;
   onSent?: () => void;
+  linkedFile?: MarkdownFile | null;
 }
 
-export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent }, ref) => {
+export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedFile }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
   const { insert, loading, setLoading, saveChat, chats, locale } = useChatStore()
@@ -67,6 +71,29 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     
     // 准备请求内容
     let ragContext = ''
+    let linkedFileContent = ''
+    
+    // 如果有关联文件，读取文件内容
+    if (linkedFile) {
+      try {
+        const workspace = await getWorkspacePath()
+        if (workspace.isCustom) {
+          linkedFileContent = await readTextFile(linkedFile.path)
+        } else {
+          const { path, baseDir } = await getFilePathOptions(linkedFile.path)
+          linkedFileContent = await readTextFile(path, { baseDir })
+        }
+        
+        if (linkedFileContent) {
+          linkedFileContent = `
+The following is the content of the linked file "${linkedFile.name}" (${linkedFile.relativePath}):
+${linkedFileContent}
+`
+        }
+      } catch (error) {
+        console.error('Failed to read linked file:', error)
+      }
+    }
     
     // 如果启用RAG，获取相关上下文
     if (isRagEnabled) {
@@ -108,6 +135,7 @@ ${ragContext}
           .map((item, index) => `${index + 1}. ${item.content}`)
           .join(';\n\n')
       }
+      ${linkedFileContent.trim()}
       ${ragContext.trim()}
       ${inputValue.trim()}
     `.trim()

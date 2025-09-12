@@ -26,19 +26,9 @@ import { TooltipButton } from "@/components/tooltip-button"
 
 export function ModelSelect() {
   const [list, setList] = useState<AiConfig[]>([])
-  const { primaryModel, setPrimaryModel } = useSettingStore()
+  const { primaryModel, setPrimaryModel, aiModelList } = useSettingStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
-
-  async function initModelList() {
-    const store = await Store.load('store.json');
-    const models = await store.get<AiConfig[]>('aiModelList')
-    if (!models) return
-    const filteredModels = models.filter(item => {
-      return item.model && item.baseURL
-    })
-    setList(filteredModels)
-  }
 
   async function modelSelectChangeHandler(key: string) {
     setPrimaryModel(key)
@@ -46,9 +36,15 @@ export function ModelSelect() {
     store.set('primaryModel', key)
   }
 
+  // 监听 aiModelList 变化，实时更新本地列表
   useEffect(() => {
-    initModelList()
-  }, [])
+    if (aiModelList && aiModelList.length > 0) {
+      const filteredModels = aiModelList.filter(item => {
+        return item.model && item.baseURL
+      })
+      setList(filteredModels)
+    }
+  }, [aiModelList])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

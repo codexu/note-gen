@@ -10,12 +10,14 @@ import { MarkItem } from "./mark-item";
 import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
-
 export function MarkList() {
-  const { marks, queues } = useMarkStore()
+  const { 
+    marks, 
+    queues
+  } = useMarkStore()
 
   return (
-    <SidebarContent>
+    <SidebarContent className="flex-1">
       <SidebarGroup className="px-0">
         <SidebarGroupContent>
           {

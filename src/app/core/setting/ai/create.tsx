@@ -5,12 +5,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { baseAiConfig } from "../config";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { BotMessageSquare, ChevronRight, Plus } from "lucide-react";
+import { BotMessageSquare, ChevronRight, Plus, Settings } from "lucide-react";
 import { Store } from "@tauri-apps/plugin-store";
 import { AiConfig } from "../config";
 import * as React from "react"
@@ -19,11 +19,14 @@ import { AvatarImage } from "@/components/ui/avatar";
 import { Avatar } from "@radix-ui/react-avatar";
 import useSettingStore from "@/stores/setting";
 
-export default function CreateConfig() {
+interface CreateConfigProps {
+  hasCustomModels?: boolean;
+}
+
+// 独立的创建配置对话框组件
+function CreateConfigDialog({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) {
   const t = useTranslations('settings.ai');
   const { setCurrentAi, setAiModelList } = useSettingStore()
-
-  const [open, setOpen] = useState(false)
 
   const customModel: AiConfig = {
     key: '',
@@ -57,30 +60,63 @@ export default function CreateConfig() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <form>
-        <DialogTrigger asChild>
-          <Button className="mb-8">
-            <Plus />{t('create')}
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="max-w-[650px]">
-          <DialogHeader>
-            <DialogTitle>{t('create')}</DialogTitle>
-            <DialogDescription>
-              {t('createDesc')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
-            <ProviderItem item={customModel} onClick={() => addCustomModelHandler(customModel)}/>
-            {
-              baseAiConfig.map((item, index) => (
-                <ProviderItem key={index} item={item} onClick={() => addCustomModelHandler(item)}/>
-              ))
-            }
-          </div>
-        </DialogContent>
-      </form>
+      <DialogContent className="max-w-[650px]">
+        <DialogHeader>
+          <DialogTitle>{t('create')}</DialogTitle>
+          <DialogDescription>
+            {t('createDesc')}
+          </DialogDescription>
+        </DialogHeader>
+        <ProviderItem item={customModel} onClick={() => addCustomModelHandler(customModel)}/>
+        <p className="text-xs text-muted-foreground">供应商模板</p>
+        <div className="overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+          {
+            baseAiConfig.map((item, index) => (
+              <ProviderItem key={index} item={item} onClick={() => addCustomModelHandler(item)}/>
+            ))
+          }
+        </div>
+      </DialogContent>
     </Dialog>
+  )
+}
+
+export default function CreateConfig({ hasCustomModels = false }: CreateConfigProps) {
+  const t = useTranslations('settings.ai');
+  const [open, setOpen] = useState(false)
+
+
+  if (hasCustomModels) {
+    // 有自定义模型时，只显示按钮
+    return (
+      <div className="mb-6">
+        <Button onClick={() => setOpen(true)}>
+          <Plus />{t('create')}
+        </Button>
+        <CreateConfigDialog open={open} setOpen={setOpen} />
+      </div>
+    )
+  }
+
+  // 没有自定义模型时，显示完整的Card
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Settings className="h-5 w-5" />
+          {t('createSection.title')}
+        </CardTitle>
+        <CardDescription>
+          {t('createSection.descWithoutModels')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={() => setOpen(true)}>
+          <Plus />{t('create')}
+        </Button>
+        <CreateConfigDialog open={open} setOpen={setOpen} />
+      </CardContent>
+    </Card>
   )
 }
 

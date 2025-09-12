@@ -118,6 +118,13 @@ export interface Model {
 // Define base AI configuration without translations
 const baseAiConfig: AiConfig[] = [
   {
+    key: 'siliconflow',
+    title: 'SiliconFlow',
+    baseURL: 'https://api.siliconflow.cn/v1',
+    icon: 'https://s2.loli.net/2025/09/09/D8Al2raSvewN5xn.jpg',
+    apiKeyUrl: 'https://cloud.siliconflow.cn/i/O2ciJeZw'
+  },
+  {
     key: 'chatgpt',
     title: 'ChatGPT',
     baseURL: 'https://api.openai.com/v1',
@@ -158,25 +165,11 @@ const baseAiConfig: AiConfig[] = [
     apiKeyUrl: 'https://platform.deepseek.com/api_keys'
   },
   {
-    key: '302',
-    title: '302.AI',
-    baseURL: 'https://api.302.ai/v1',
-    icon: 'https://s2.loli.net/2025/06/26/4CJOQ2U9ibvoGpR.png',
-    apiKeyUrl: 'https://share.302.ai/jfFrIP'
-  },
-  {
     key: 'openrouter',
     title: 'OpenRouter',
     baseURL: 'https://openrouter.ai/api/v1',
     icon: 'https://s2.loli.net/2025/06/25/CTjSDHLl4XdvxM5.png',
     apiKeyUrl: 'https://openrouter.ai/api-keys'
-  },
-  {
-    key: 'siliconflow',
-    title: 'SiliconFlow',
-    baseURL: 'https://api.siliconflow.cn/v1',
-    icon: 'https://s2.loli.net/2025/06/25/pPAmrXclsMUZV9o.png',
-    apiKeyUrl: 'https://cloud.siliconflow.cn/i/O2ciJeZw'
   },
 ]
 

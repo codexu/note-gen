@@ -252,6 +252,8 @@
       "setPrimaryBackup": "设为主要备份方式",
       "createRepo": "创建仓库",
       "creating": "创建中",
+      "checkRepo": "检查仓库",
+      "checking": "检查中",
       "defaultRepoName": "默认: {name}",
       "gitlabInstanceType": "GitLab 实例类型",
       "gitlabInstanceTypeDesc": "选择要连接的 GitLab 实例类型",
@@ -261,6 +263,7 @@
         "selfHostedDesc": "输入您的自建 GitLab 服务器地址（如：https://gitlab.example.com）"
       },
       "gitlabAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要 api 权限",
+      "autoSync": "自动同步",
       "autoSyncOptions": {
         "placeholder": "选择自动同步时间",
         "disabled": "关闭",

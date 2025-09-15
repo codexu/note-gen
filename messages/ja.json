@@ -243,6 +243,8 @@
       "setPrimaryBackup": "主要バックアップ方法として設定",
       "createRepo": "リポジトリを作成",
       "creating": "作成中",
+      "checkRepo": "リポジトリを確認",
+      "checking": "確認中",
       "gitlabInstanceType": "GitLab インスタンスタイプ",
       "gitlabInstanceTypeDesc": "接続する GitLab インスタンスタイプを選択してください",
       "gitlabInstanceTypePlaceholder": "GitLab インスタンスタイプを選択してください",

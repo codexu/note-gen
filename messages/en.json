@@ -243,6 +243,8 @@
       "setPrimaryBackup": "Set as Primary Backup",
       "createRepo": "Create Repository",
       "creating": "Creating",
+      "checkRepo": "Check Repository",
+      "checking": "Checking",
       "defaultRepoName": "Default: {name}",
       "gitlabInstanceType": "GitLab Instance Type",
       "gitlabInstanceTypeDesc": "Select the type of GitLab instance to connect to",

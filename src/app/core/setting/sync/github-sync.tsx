@@ -15,7 +15,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { Button } from "@/components/ui/button";
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/github";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
-import { DatabaseBackup, Eye, EyeOff, Plus } from "lucide-react";
+import { DatabaseBackup, Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 dayjs.extend(relativeTime)
@@ -46,13 +46,17 @@ export function GithubSync() {
   }
 
   // 检查 GitHub 仓库状态（仅检查，不创建）
+
   async function checkGithubRepos() {
     try {
       setSyncRepoState(SyncStateEnum.checking)
+      // 先清空之前的仓库信息
+      setSyncRepoInfo(undefined)
+      
       await getUserInfo();
-      // 检查同步仓库状态
       const repoName = getRepoName()
       const syncRepo = await checkSyncRepoState(repoName)
+      
       if (syncRepo) {
         setSyncRepoInfo(syncRepo)
         setSyncRepoState(SyncStateEnum.success)
@@ -62,6 +66,7 @@ export function GithubSync() {
       }
     } catch (err) {
       console.error('Failed to check GitHub repos:', err)
+      setSyncRepoInfo(undefined)
       setSyncRepoState(SyncStateEnum.fail)
     }
   }
@@ -93,9 +98,6 @@ export function GithubSync() {
     setAccessToken(value)
     const store = await Store.load('store.json');
     await store.set('accessToken', value)
-    if (value) {
-      checkGithubRepos()
-    }
   }
 
   useEffect(() => {
@@ -109,10 +111,8 @@ export function GithubSync() {
       }
     }
     init()
-    if (accessToken) {
-      checkGithubRepos()
-    }
   }, [])
+
 
   return (
     <div className="mt-4">
@@ -133,10 +133,6 @@ export function GithubSync() {
             value={githubCustomSyncRepo} 
             onChange={(e) => {
               setGithubCustomSyncRepo(e.target.value)
-              // 如果有token，重新检查仓库状态（仅检查，不创建）
-              if (accessToken) {
-                setTimeout(() => checkGithubRepos(), 500)
-              }
             }}
             placeholder={RepoNames.sync}
           />
@@ -156,17 +152,28 @@ export function GithubSync() {
               <CardDescription>
                 <span>{t('settings.sync.syncRepoDesc')}</span>
               </CardDescription>
-              {/* 创建按钮和创建中状态放在卡片左侧最下方 */}
-              {syncRepoState === SyncStateEnum.fail && accessToken && (
-                <div className="mt-3">
+              {/* 手动检测和创建按钮 */}
+              {accessToken && (
+                <div className="mt-3 flex gap-2">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={createGithubRepo}
+                    onClick={checkGithubRepos}
+                    disabled={syncRepoState === SyncStateEnum.checking}
                   >
-                    <Plus className="size-4 mr-1" />
-                    {t('settings.sync.createRepo')}
+                    <RefreshCcw className="size-4 mr-1" />
+                    {syncRepoState === SyncStateEnum.checking ? t('settings.sync.checking') : t('settings.sync.checkRepo')}
                   </Button>
+                  {syncRepoState === SyncStateEnum.fail && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={createGithubRepo}
+                    >
+                      <Plus className="size-4 mr-1" />
+                      {t('settings.sync.createRepo')}
+                    </Button>
+                  )}
                 </div>
               )}
             </CardHeader>
@@ -193,7 +200,7 @@ export function GithubSync() {
       {
         syncRepoInfo &&
         <>
-          <SettingPanel title="自动同步" desc="选择编辑器在输入停止后自动同步的时间间隔">
+          <SettingPanel title={t('settings.sync.autoSync')} desc={t('settings.sync.autoSyncDesc')}>
             <Select
               value={autoSync}
               onValueChange={(value) => setAutoSync(value)}

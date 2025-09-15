@@ -13,10 +13,9 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/gitee";
-import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
-import { DatabaseBackup, Eye, EyeOff, Plus } from "lucide-react";
+import { DatabaseBackup, Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
 
 dayjs.extend(relativeTime)
 
@@ -47,35 +46,29 @@ export function GiteeSync() {
     return giteeCustomSyncRepo.trim() || RepoNames.sync
   }
 
+
   // 检查 Gitee 仓库状态（仅检查，不创建）
   async function checkRepoState() {
     try {
-      // 设置检测中状态
-      setGiteeSyncRepoState(SyncStateEnum.checking);
+      setGiteeSyncRepoState(SyncStateEnum.checking)
+      // 先清空之前的仓库信息
+      setGiteeSyncRepoInfo(undefined)
       
-      // 先获取用户信息，确保有用户名
       await getUserInfo();
-      
-      // 检查同步仓库
       const repoName = getRepoName()
-      const syncRepo = await checkSyncRepoState(repoName);
-      if (syncRepo) {
-        setGiteeSyncRepoInfo(syncRepo);
-        setGiteeSyncRepoState(SyncStateEnum.success);
-      } else {
-        setGiteeSyncRepoInfo(undefined);
-        setGiteeSyncRepoState(SyncStateEnum.fail);
-      }
-    } catch (error) {
-      // 失败时将状态设置为不可用
-      setGiteeSyncRepoState(SyncStateEnum.fail);
-      setGiteeSyncRepoInfo(undefined);
+      const syncRepo = await checkSyncRepoState(repoName)
       
-      toast({
-        title: '检查仓库状态失败',
-        description: (error as any).message,
-        variant: 'destructive',
-      });
+      if (syncRepo) {
+        setGiteeSyncRepoInfo(syncRepo)
+        setGiteeSyncRepoState(SyncStateEnum.success)
+      } else {
+        setGiteeSyncRepoInfo(undefined)
+        setGiteeSyncRepoState(SyncStateEnum.fail)
+      }
+    } catch (err) {
+      console.error('Failed to check Gitee repos:', err)
+      setGiteeSyncRepoInfo(undefined)
+      setGiteeSyncRepoState(SyncStateEnum.fail)
     }
   }
 
@@ -102,18 +95,10 @@ export function GiteeSync() {
     if (value === '') {
       setGiteeSyncRepoState(SyncStateEnum.fail)
       setGiteeSyncRepoInfo(undefined)
-    } else {
-      // 有新的令牌值，但还未验证时先显示检测中状态
-      setGiteeSyncRepoState(SyncStateEnum.checking)
     }
     setGiteeAccessToken(value)
     const store = await Store.load('store.json');
     await store.set('giteeAccessToken', value)
-    
-    // 如果有令牌，尝试检查仓库状态
-    if (value) {
-      checkRepoState();
-    }
   }
 
   useEffect(() => {
@@ -122,14 +107,13 @@ export function GiteeSync() {
       const token = await store.get<string>('giteeAccessToken')
       if (token) {
         setGiteeAccessToken(token)
-        // 初始化时检查仓库状态
-        checkRepoState();
       } else {
         setGiteeAccessToken('')
       }
     }
     init()
   }, [])
+
 
   return (
     <div className="mt-4">
@@ -150,10 +134,6 @@ export function GiteeSync() {
             value={giteeCustomSyncRepo} 
             onChange={(e) => {
               setGiteeCustomSyncRepo(e.target.value)
-              // 如果有token，重新检查仓库状态（仅检查，不创建）
-              if (giteeAccessToken) {
-                setTimeout(() => checkRepoState(), 500)
-              }
             }}
             placeholder={RepoNames.sync}
           />
@@ -173,17 +153,28 @@ export function GiteeSync() {
               <CardDescription>
                 <span>{t('settings.sync.syncRepoDesc')}</span>
               </CardDescription>
-              {/* 创建按钮和创建中状态放在卡片左侧最下方 */}
-              {giteeSyncRepoState === SyncStateEnum.fail && giteeAccessToken && (
-                <div className="mt-3">
+              {/* 手动检测和创建按钮 */}
+              {giteeAccessToken && (
+                <div className="mt-3 flex gap-2">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={createGiteeRepo}
+                    onClick={checkRepoState}
+                    disabled={giteeSyncRepoState === SyncStateEnum.checking}
                   >
-                    <Plus className="size-4 mr-1" />
-                    {t('settings.sync.createRepo')}
+                    <RefreshCcw className="size-4 mr-1" />
+                    {giteeSyncRepoState === SyncStateEnum.checking ? t('settings.sync.checking') : t('settings.sync.checkRepo')}
                   </Button>
+                  {giteeSyncRepoState === SyncStateEnum.fail && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={createGiteeRepo}
+                    >
+                      <Plus className="size-4 mr-1" />
+                      {t('settings.sync.createRepo')}
+                    </Button>
+                  )}
                 </div>
               )}
             </CardHeader>

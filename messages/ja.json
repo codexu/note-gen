@@ -283,9 +283,33 @@
         "ok": "サービスが起動しています。PicGo の設定を確認してください。",
         "error": "サービスが起動していません。PicGo（v2.2.0+）を起動してください。"
       },
+      "github": {
+        "title": "GitHub画像ホスティング",
+        "description": "GitHubリポジトリを画像ストレージサービスとして使用",
+        "repoStatus": "リポジトリステータス",
+        "repoExists": "リポジトリが存在します",
+        "repoNotExists": "リポジトリが見つかりません",
+        "checking": "確認中",
+        "creating": "作成中",
+        "manualCreateTitle": "手動でリポジトリ作成が必要",
+        "manualCreateDesc": "以下の手順で画像ホスティングリポジトリを作成してください：",
+        "createSteps": {
+          "step1": "GitHubにアクセスしてアカウントにログイン",
+          "step2": "右上の「+」ボタンをクリックし、「New repository」を選択",
+          "step3": "リポジトリ名を設定：",
+          "step4": "プライベートリポジトリに設定することも可能（推奨）",
+          "step5": "「Create repository」をクリックして作成完了",
+          "step6": "作成後、下の「再確認」ボタンをクリック"
+        },
+        "createNewRepo": "新しいリポジトリを作成",
+        "recheckRepo": "再確認",
+        "recheckingRepo": "確認中...",
+        "createRepo": "リポジトリを作成",
+        "creatingRepo": "作成中..."
+      },
       "s3": {
-        "title": "S3 オブジェクトストレージ",
-        "description": "AWS S3 または S3 互換のオブジェクトストレージサービスを画像ホスティングとして設定",
+        "title": "S3オブジェクトストレージ",
+        "description": "AWS S3またはS3互換オブジェクトストレージサービスを画像ホスティングとして設定",
         "status": "接続状態",
         "connected": "接続済み",
         "connecting": "接続中",

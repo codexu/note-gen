@@ -294,6 +294,28 @@
         "ok": "检测到服务正在运行，请确保 PicGo 图床已配置。",
         "error": "服务未运行，请确保 PicGo（需要 v2.2.0+） 应用正在运行，否则无法上传图片。"
       },
+      "github": {
+        "title": "GitHub 图床",
+        "description": "使用 GitHub 仓库作为图片存储服务",
+        "repoStatus": "仓库状态",
+        "repoExists": "仓库已存在",
+        "repoNotExists": "仓库不存在",
+        "checking": "检测中",
+        "creating": "创建中",
+        "manualCreateTitle": "需要手动创建图床仓库",
+        "manualCreateDesc": "请按以下步骤创建图床仓库：",
+        "createSteps": {
+          "step1": "访问 GitHub 并登录您的账户",
+          "step2": "点击右上角的 \"+\" 按钮，选择 \"New repository\"",
+          "step3": "仓库名称设置为：",
+          "step4": "可以选择设置为私有仓库（推荐）",
+          "step5": "点击 \"Create repository\" 完成创建",
+          "step6": "创建完成后，点击下方的\"重新检测\"按钮"
+        },
+        "createNewRepo": "创建新仓库",
+        "recheckRepo": "重新检测",
+        "recheckingRepo": "检测中..."
+      },
       "s3": {
         "title": "S3 对象存储",
         "description": "配置 AWS S3 或兼容 S3 协议的对象存储服务作为图床",

@@ -284,6 +284,30 @@
         "ok": "Service is running, please ensure PicGo image hosting is configured.",
         "error": "Service is not running, please ensure PicGo (v2.2.0+) is running, otherwise image upload will fail."
       },
+      "github": {
+        "title": "GitHub Image Hosting",
+        "description": "Use GitHub repository as image storage service",
+        "repoStatus": "Repository Status",
+        "repoExists": "Repository Exists",
+        "repoNotExists": "Repository Not Found",
+        "checking": "Checking",
+        "creating": "Creating",
+        "manualCreateTitle": "Manual Repository Creation Required",
+        "manualCreateDesc": "Please follow these steps to create the image hosting repository:",
+        "createSteps": {
+          "step1": "Visit GitHub and log in to your account",
+          "step2": "Click the \"+\" button in the top right corner, select \"New repository\"",
+          "step3": "Set repository name to:",
+          "step4": "Optionally set as private repository (recommended)",
+          "step5": "Click \"Create repository\" to complete creation",
+          "step6": "After creation, click the \"Recheck\" button below"
+        },
+        "createNewRepo": "Create New Repository",
+        "recheckRepo": "Recheck",
+        "recheckingRepo": "Checking...",
+        "createRepo": "Create Repository",
+        "creatingRepo": "Creating..."
+      },
       "s3": {
         "title": "S3 Object Storage",
         "description": "Configure AWS S3 or S3-compatible object storage service as image hosting",

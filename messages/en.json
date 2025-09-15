@@ -241,6 +241,8 @@
       "backupMethodDesc": "After setting as the primary backup method, all sync-related functions in writing will use the current backup method (except for image hosting)",
       "isPrimaryBackup": "{type} is current primary backup",
       "setPrimaryBackup": "Set as Primary Backup",
+      "createRepo": "Create Repository",
+      "creating": "Creating",
       "defaultRepoName": "Default: {name}",
       "gitlabInstanceType": "GitLab Instance Type",
       "gitlabInstanceTypeDesc": "Select the type of GitLab instance to connect to",

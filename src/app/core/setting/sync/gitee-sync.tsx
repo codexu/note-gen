@@ -16,7 +16,7 @@ import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/gitee";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
-import { DatabaseBackup, Eye, EyeOff } from "lucide-react";
+import { DatabaseBackup, Eye, EyeOff, Plus } from "lucide-react";
 
 dayjs.extend(relativeTime)
 
@@ -47,6 +47,7 @@ export function GiteeSync() {
     return giteeCustomSyncRepo.trim() || RepoNames.sync
   }
 
+  // 检查 Gitee 仓库状态（仅检查，不创建）
   async function checkRepoState() {
     try {
       // 设置检测中状态
@@ -62,14 +63,8 @@ export function GiteeSync() {
         setGiteeSyncRepoInfo(syncRepo);
         setGiteeSyncRepoState(SyncStateEnum.success);
       } else {
-        setGiteeSyncRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(repoName, true)
-        if (info) {
-          setGiteeSyncRepoInfo(info)
-          setGiteeSyncRepoState(SyncStateEnum.success)
-        } else {
-          setGiteeSyncRepoState(SyncStateEnum.fail)
-        }
+        setGiteeSyncRepoInfo(undefined);
+        setGiteeSyncRepoState(SyncStateEnum.fail);
       }
     } catch (error) {
       // 失败时将状态设置为不可用
@@ -81,6 +76,24 @@ export function GiteeSync() {
         description: (error as any).message,
         variant: 'destructive',
       });
+    }
+  }
+
+  // 手动创建仓库
+  async function createGiteeRepo() {
+    try {
+      setGiteeSyncRepoState(SyncStateEnum.creating)
+      const repoName = getRepoName()
+      const info = await createSyncRepo(repoName, true)
+      if (info) {
+        setGiteeSyncRepoInfo(info)
+        setGiteeSyncRepoState(SyncStateEnum.success)
+      } else {
+        setGiteeSyncRepoState(SyncStateEnum.fail)
+      }
+    } catch (err) {
+      console.error('Failed to create Gitee repo:', err)
+      setGiteeSyncRepoState(SyncStateEnum.fail)
     }
   }
 
@@ -137,8 +150,8 @@ export function GiteeSync() {
             value={giteeCustomSyncRepo} 
             onChange={(e) => {
               setGiteeCustomSyncRepo(e.target.value)
-              // 如果有token且输入不为空，重新检查仓库状态
-              if (giteeAccessToken && e.target.value.trim()) {
+              // 如果有token，重新检查仓库状态（仅检查，不创建）
+              if (giteeAccessToken) {
                 setTimeout(() => checkRepoState(), 500)
               }
             }}
@@ -157,7 +170,22 @@ export function GiteeSync() {
                 </div>
                 <Badge className={`${giteeSyncRepoState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>{giteeSyncRepoState}</Badge>
               </CardTitle>
-              <CardDescription>{t('settings.sync.syncRepoDesc')}</CardDescription>
+              <CardDescription>
+                <span>{t('settings.sync.syncRepoDesc')}</span>
+              </CardDescription>
+              {/* 创建按钮和创建中状态放在卡片左侧最下方 */}
+              {giteeSyncRepoState === SyncStateEnum.fail && giteeAccessToken && (
+                <div className="mt-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={createGiteeRepo}
+                  >
+                    <Plus className="size-4 mr-1" />
+                    {t('settings.sync.createRepo')}
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             {
               giteeSyncRepoInfo &&

@@ -250,6 +250,8 @@
       "backupMethodDesc": "设置为主要备份方式后，写作中的所有同步相关功能将使用当前备份方式（图床功能除外）",
       "isPrimaryBackup": "当前 {type} 为主要备份方式",
       "setPrimaryBackup": "设为主要备份方式",
+      "createRepo": "创建仓库",
+      "creating": "创建中",
       "defaultRepoName": "默认: {name}",
       "gitlabInstanceType": "GitLab 实例类型",
       "gitlabInstanceTypeDesc": "选择要连接的 GitLab 实例类型",

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { checkSyncProjectState, createSyncProject, getUserInfo } from "@/lib/gitlab";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
 import { GitlabInstanceType, GITLAB_INSTANCES } from "@/lib/gitlab.types";
-import { DatabaseBackup, Eye, EyeOff, Globe, Server } from "lucide-react";
+import { DatabaseBackup, Eye, EyeOff, Globe, Server, Plus } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 dayjs.extend(relativeTime)
@@ -53,7 +53,7 @@ export function GitlabSync() {
     return gitlabCustomSyncRepo.trim() || RepoNames.sync
   }
 
-  // 检查 Gitlab 项目状态
+  // 检查 Gitlab 项目状态（仅检查，不创建）
   async function checkGitlabProjects() {
     try {
       setGitlabSyncProjectState(SyncStateEnum.checking)
@@ -65,17 +65,29 @@ export function GitlabSync() {
         setGitlabSyncProjectInfo(syncProject)
         setGitlabSyncProjectState(SyncStateEnum.success)
       } else {
-        setGitlabSyncProjectState(SyncStateEnum.creating)
-        const info = await createSyncProject(repoName, true)
-        if (info) {
-          setGitlabSyncProjectInfo(info)
-          setGitlabSyncProjectState(SyncStateEnum.success)
-        } else {
-          setGitlabSyncProjectState(SyncStateEnum.fail)
-        }
+        setGitlabSyncProjectInfo(undefined)
+        setGitlabSyncProjectState(SyncStateEnum.fail)
       }
     } catch (err) {
       console.error('Failed to check Gitlab projects:', err)
+      setGitlabSyncProjectState(SyncStateEnum.fail)
+    }
+  }
+
+  // 手动创建项目
+  async function createGitlabProject() {
+    try {
+      setGitlabSyncProjectState(SyncStateEnum.creating)
+      const repoName = getRepoName()
+      const info = await createSyncProject(repoName, true)
+      if (info) {
+        setGitlabSyncProjectInfo(info)
+        setGitlabSyncProjectState(SyncStateEnum.success)
+      } else {
+        setGitlabSyncProjectState(SyncStateEnum.fail)
+      }
+    } catch (err) {
+      console.error('Failed to create Gitlab project:', err)
       setGitlabSyncProjectState(SyncStateEnum.fail)
     }
   }
@@ -246,8 +258,8 @@ export function GitlabSync() {
             value={gitlabCustomSyncRepo} 
             onChange={(e) => {
               setGitlabCustomSyncRepo(e.target.value)
-              // 如果有token且输入不为空，重新检查项目状态
-              if (gitlabAccessToken && e.target.value.trim()) {
+              // 如果有token，重新检查项目状态（仅检查，不创建）
+              if (gitlabAccessToken) {
                 setTimeout(() => checkGitlabProjects(), 500)
               }
             }}
@@ -270,7 +282,22 @@ export function GitlabSync() {
                   {gitlabSyncProjectState}
                 </Badge>
               </CardTitle>
-              <CardDescription>{t('settings.sync.syncRepoDesc')}</CardDescription>
+              <CardDescription>
+                <span>{t('settings.sync.syncRepoDesc')}</span>
+              </CardDescription>
+              {/* 创建按钮和创建中状态放在卡片左侧最下方 */}
+              {gitlabSyncProjectState === SyncStateEnum.fail && gitlabAccessToken && (
+                <div className="mt-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={createGitlabProject}
+                  >
+                    <Plus className="size-4 mr-1" />
+                    {t('settings.sync.createRepo')}
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             {
               gitlabSyncProjectInfo &&

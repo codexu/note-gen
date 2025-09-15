@@ -1,9 +1,9 @@
 import { toast } from "@/hooks/use-toast";
 import { fetchAi } from "@/lib/ai";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, uint8ArrayToBase64, uploadFile as uploadGithubFile } from "@/lib/github";
-import { RepoNames } from "@/lib/github.types";
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
 import { getFileContent as getGitlabFileContent, uploadFile as uploadGitlabFile, getFileCommits as getGitlabFileCommits } from "@/lib/gitlab";
+import { getSyncRepoName } from "@/lib/repo-utils";
 import useArticleStore from "@/stores/article";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { diffWordsWithSpace } from 'diff';
@@ -57,10 +57,11 @@ export default function Sync({editor}: {editor?: Vditor}) {
         switch (backupMethod) {
           case 'github':
             // 获取GitHub提交历史
-            const githubCommits = await getGithubFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+            const githubRepo = await getSyncRepoName('github');
+            const githubCommits = await getGithubFileCommits({ path: activeFilePath, repo: githubRepo });
             if (githubCommits?.length > 0) {
               const lastCommit = githubCommits[0];
-              const githubContent = await getGithubFiles({path: `${activeFilePath}?ref=${lastCommit.sha}`, repo: RepoNames.sync});
+              const githubContent = await getGithubFiles({path: `${activeFilePath}?ref=${lastCommit.sha}`, repo: githubRepo});
               if (githubContent?.content) {
                 contentText = decodeBase64ToString(githubContent.content);
               }
@@ -68,17 +69,19 @@ export default function Sync({editor}: {editor?: Vditor}) {
             break;
           case 'gitee':
             // 获取Gitee提交历史
-            const giteeCommits = await getGiteeFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+            const giteeRepo = await getSyncRepoName('gitee');
+            const giteeCommits = await getGiteeFileCommits({ path: activeFilePath, repo: giteeRepo });
             if (Array.isArray(giteeCommits) && giteeCommits.length > 0) {
               const lastCommit = giteeCommits[0];
-              const giteeContent = await getGiteeFiles({path: `${activeFilePath}?ref=${lastCommit.sha}`, repo: RepoNames.sync});
+              const giteeContent = await getGiteeFiles({path: `${activeFilePath}?ref=${lastCommit.sha}`, repo: giteeRepo});
               if (giteeContent?.content) {
                 contentText = decodeBase64ToString(giteeContent.content);
               }
             }
             break;
           case 'gitlab':
-            const { content } = await getGitlabFileContent({path: activeFilePath, ref: 'main', repo: RepoNames.sync});
+            const gitlabRepo = await getSyncRepoName('gitlab');
+            const { content } = await getGitlabFileContent({path: activeFilePath, ref: 'main', repo: gitlabRepo});
             contentText = decodeBase64ToString(content);
             break;
         } 
@@ -105,11 +108,14 @@ export default function Sync({editor}: {editor?: Vditor}) {
       let sha = undefined;
       
       if (backupMethod === 'github') {
-        res = await getGithubFiles({path: activeFilePath, repo: RepoNames.sync});
+        const githubRepo2 = await getSyncRepoName('github');
+        res = await getGithubFiles({path: activeFilePath, repo: githubRepo2});
       } else if (backupMethod === 'gitee') {
-        res = await getGiteeFiles({path: activeFilePath, repo: RepoNames.sync});
+        const giteeRepo2 = await getSyncRepoName('gitee');
+        res = await getGiteeFiles({path: activeFilePath, repo: giteeRepo2});
       } else if (backupMethod === 'gitlab') {
-        const { data } = await getGitlabFileCommits({path: activeFilePath, repo: RepoNames.sync});
+        const gitlabRepo2 = await getSyncRepoName('gitlab');
+        const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
         res = { sha: data?.[0]?.id };
       }
       
@@ -127,33 +133,36 @@ export default function Sync({editor}: {editor?: Vditor}) {
       let uploadRes;
       switch (backupMethod) {
         case 'github':
+          const githubRepo3 = await getSyncRepoName('github');
           uploadRes = await uploadGithubFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: githubRepo3
           });
           break;
         case 'gitee':
+          const giteeRepo3 = await getSyncRepoName('gitee');
           uploadRes = await uploadGiteeFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: giteeRepo3
           });
           break;
         case 'gitlab':
+          const gitlabRepo3 = await getSyncRepoName('gitlab');
           uploadRes = await uploadGitlabFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: gitlabRepo3
           });
           break;
         default:
@@ -205,13 +214,16 @@ export default function Sync({editor}: {editor?: Vditor}) {
       
       switch (backupMethod) {
         case 'github':
-          res = await getGithubFiles({path: activeFilePath, repo: RepoNames.sync});
+          const githubRepo2 = await getSyncRepoName('github');
+          res = await getGithubFiles({path: activeFilePath, repo: githubRepo2});
           break;
         case 'gitee':
-          res = await getGiteeFiles({path: activeFilePath, repo: RepoNames.sync});
+          const giteeRepo2 = await getSyncRepoName('gitee');
+          res = await getGiteeFiles({path: activeFilePath, repo: giteeRepo2});
           break;
         case 'gitlab':
-          const { data } = await getGitlabFileCommits({path: activeFilePath, repo: RepoNames.sync});
+          const gitlabRepo2 = await getSyncRepoName('gitlab');
+          const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
           res = { sha: data[0].id };
           break;
       }
@@ -230,33 +242,36 @@ export default function Sync({editor}: {editor?: Vditor}) {
       let uploadRes;
       switch (backupMethod) {
         case 'github':
+          const githubRepo4 = await getSyncRepoName('github');
           uploadRes = await uploadGithubFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: githubRepo4
           });
           break;
         case 'gitee':
+          const giteeRepo4 = await getSyncRepoName('gitee');
           uploadRes = await uploadGiteeFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: giteeRepo4
           });
           break;
         case 'gitlab':
+          const gitlabRepo4 = await getSyncRepoName('gitlab');
           uploadRes = await uploadGitlabFile({
             ext: 'md',
             file: uint8ArrayToBase64(file),
             filename: `${_path && _path + '/'}${filename}`,
             sha,
             message,
-            repo: RepoNames.sync
+            repo: gitlabRepo4
           }); 
           break;
         default:

@@ -1,8 +1,9 @@
 import { decodeBase64ToString, getFiles as getGithubFiles } from '@/lib/github'
-import { GithubContent, RepoNames } from '@/lib/github.types'
+import { GithubContent } from '@/lib/github.types'
 import { getFiles as getGiteeFiles } from '@/lib/gitee'
 import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } from '@/lib/gitlab'
 import { GiteeFile } from '@/lib/gitee'
+import { getSyncRepoName } from '@/lib/repo-utils'
 import { getCurrentFolder } from '@/lib/path'
 import useVectorStore from './vector'
 import { join } from '@tauri-apps/api/path'
@@ -338,13 +339,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
       let files;
       switch (primaryBackupMethod) {
         case 'github':
-          files = await getGithubFiles({ path, repo: RepoNames.sync });
+          const githubRepo = await getSyncRepoName('github');
+          files = await getGithubFiles({ path, repo: githubRepo });
           break;
         case 'gitee':
-          files = await getGiteeFiles({ path, repo: RepoNames.sync });
+          const giteeRepo = await getSyncRepoName('gitee');
+          files = await getGiteeFiles({ path, repo: giteeRepo });
           break;
         case 'gitlab':
-          files = await getGitlabFiles({ path, repo: RepoNames.sync });
+          const gitlabRepo = await getSyncRepoName('gitlab');
+          files = await getGitlabFiles({ path, repo: gitlabRepo });
           break;
       }
 
@@ -415,13 +419,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
     let files;
     switch (primaryBackupMethod) {
       case 'github':
-        files = await getGithubFiles({ path: fullpath, repo: RepoNames.sync });
+        const githubRepo1 = await getSyncRepoName('github');
+        files = await getGithubFiles({ path: fullpath, repo: githubRepo1 });
         break;
       case 'gitee':
-        files = await getGiteeFiles({ path: fullpath, repo: RepoNames.sync });
+        const giteeRepo1 = await getSyncRepoName('gitee');
+        files = await getGiteeFiles({ path: fullpath, repo: giteeRepo1 });
         break;
       case 'gitlab':
-        files = await getGitlabFiles({ path: fullpath, repo: RepoNames.sync });
+        const gitlabRepo1 = await getSyncRepoName('gitlab');
+        files = await getGitlabFiles({ path: fullpath, repo: gitlabRepo1 });
         break;
     }
     
@@ -705,13 +712,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
           let content = '';
           switch (primaryBackupMethod) {
             case 'github':
-              content = decodeBase64ToString(await getGithubFiles({ path, repo: RepoNames.sync }))
+              const githubRepo2 = await getSyncRepoName('github');
+              content = decodeBase64ToString(await getGithubFiles({ path, repo: githubRepo2 }))
               break;
             case 'gitee':
-              content = decodeBase64ToString(await getGiteeFiles({ path, repo: RepoNames.sync }))
+              const giteeRepo2 = await getSyncRepoName('gitee');
+              content = decodeBase64ToString(await getGiteeFiles({ path, repo: giteeRepo2 }))
               break;
             case 'gitlab':
-              content = decodeBase64ToString((await getGitlabFileContent({ path, ref: 'main', repo: RepoNames.sync })).content)
+              const gitlabRepo2 = await getSyncRepoName('gitlab');
+              content = decodeBase64ToString((await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo2 })).content)
               break;
             default:
               break;
@@ -729,13 +739,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
       let res;
       switch (primaryBackupMethod) {
         case 'github':
-          res = await getGithubFiles({ path, repo: RepoNames.sync })
+          const githubRepo3 = await getSyncRepoName('github');
+          res = await getGithubFiles({ path, repo: githubRepo3 })
           break;
         case 'gitee':
-          res = await getGiteeFiles({ path, repo: RepoNames.sync })
+          const giteeRepo3 = await getSyncRepoName('gitee');
+          res = await getGiteeFiles({ path, repo: giteeRepo3 })
           break;
         case 'gitlab':
-          res = await getGitlabFileContent({ path, ref: 'main', repo: RepoNames.sync })
+          const gitlabRepo3 = await getSyncRepoName('gitlab');
+          res = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo3 })
           break;
         default:
           break;

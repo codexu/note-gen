@@ -6,7 +6,8 @@ import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles } from
 import { getFileCommits as getGitlabFileCommits, getFileContent } from "@/lib/gitlab";
 import { useTranslations } from "next-intl";
 import useArticleStore from "@/stores/article";
-import { RepoNames, ResCommit } from "@/lib/github.types";
+import { ResCommit } from "@/lib/github.types";
+import { getSyncRepoName } from "@/lib/repo-utils";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -47,11 +48,14 @@ export default function History({editor}: {editor?: Vditor}) {
     const backupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
     if (backupMethod === 'github') {
-      res = await getGithubFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+      const githubRepo = await getSyncRepoName('github');
+      res = await getGithubFileCommits({ path: activeFilePath, repo: githubRepo });
     } else if (backupMethod === 'gitee') {
-      res = await getGiteeFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+      const giteeRepo = await getSyncRepoName('gitee');
+      res = await getGiteeFileCommits({ path: activeFilePath, repo: giteeRepo });
     } else if (backupMethod === 'gitlab') {
-      const gitlabRes = await getGitlabFileCommits({ path: activeFilePath, repo: RepoNames.sync });
+      const gitlabRepo = await getSyncRepoName('gitlab');
+      const gitlabRes = await getGitlabFileCommits({ path: activeFilePath, repo: gitlabRepo });
       if (gitlabRes?.data) {
         // 转换 Gitlab 提交格式为通用格式
         res = gitlabRes.data.map(commit => ({
@@ -97,7 +101,8 @@ export default function History({editor}: {editor?: Vditor}) {
     switch (backupMethod) {
       case 'github':
         try {
-          res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+          const githubRepo2 = await getSyncRepoName('github');
+          res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: githubRepo2});
           if (res && res.content) {
             const content = decodeBase64ToString(res.content)
             setCurrentArticle(content);
@@ -112,7 +117,8 @@ export default function History({editor}: {editor?: Vditor}) {
         break;
       case 'gitee':
         try {
-          res = await getGiteeFiles({path: `${activeFilePath}?ref=${sha}`, repo: RepoNames.sync});
+          const giteeRepo2 = await getSyncRepoName('gitee');
+          res = await getGiteeFiles({path: `${activeFilePath}?ref=${sha}`, repo: giteeRepo2});
           if (res && res.content) {
             const content = decodeBase64ToString(res.content)
             setCurrentArticle(content);
@@ -128,7 +134,8 @@ export default function History({editor}: {editor?: Vditor}) {
       case 'gitlab':
         try {
           // 使用新的 getFileContent 方法获取特定 commit 的文件内容
-          const fileContent = await getFileContent({path: activeFilePath, ref: sha, repo: RepoNames.sync});
+          const gitlabRepo2 = await getSyncRepoName('gitlab');
+          const fileContent = await getFileContent({path: activeFilePath, ref: sha, repo: gitlabRepo2});
           if (fileContent && fileContent.content) {
             const content = decodeBase64ToString(fileContent.content)
             setCurrentArticle(content);

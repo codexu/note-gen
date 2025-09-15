@@ -3,7 +3,7 @@ import { Chat, clearChatsByTagId, deleteChat, getChats, initChatsDb, insertChat,
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github';
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee';
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab';
-import { RepoNames } from '@/lib/github.types';
+import { getSyncRepoName } from '@/lib/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
 
@@ -155,37 +155,37 @@ const useChatStore = create<ChatState>((set, get) => ({
     let res;
     switch (primaryBackupMethod) {
       case 'github':
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        const githubRepo = await getSyncRepoName('github')
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
         res = await uploadGithubFile({
           ext: 'json',
           file: jsonToBase64(chats),
-          repo: RepoNames.sync,
+          repo: githubRepo,
           path,
           filename,
           sha: files?.sha,
         })
         break;
       case 'gitee':
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        const giteeRepo = await getSyncRepoName('gitee')
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
         res = await uploadGiteeFile({
           ext: 'json',
           file: jsonToBase64(chats),
-          repo: RepoNames.sync,
+          repo: giteeRepo,
           path,
           filename,
           sha: files?.sha,
         })
-        if (res) {
-          result = true
-        }
         break;
       case 'gitlab':
-        files = await gitlabGetFiles({ path, repo: RepoNames.sync })
+        const gitlabRepo = await getSyncRepoName('gitlab')
+        files = await gitlabGetFiles({ path, repo: gitlabRepo })
         const chatFile = files?.find(file => file.name === filename)
         res = await uploadGitlabFile({
           ext: 'json',
           file: jsonToBase64(chats),
-          repo: RepoNames.sync,
+          repo: gitlabRepo,
           path,
           filename,
           sha: chatFile?.sha || '',
@@ -207,13 +207,16 @@ const useChatStore = create<ChatState>((set, get) => ({
     let files;
     switch (primaryBackupMethod) {
       case 'github':
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        const githubRepo2 = await getSyncRepoName('github')
+        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo2 })
         break;
       case 'gitee':
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: RepoNames.sync })
+        const giteeRepo2 = await getSyncRepoName('gitee')
+        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo2 })
         break;
       case 'gitlab':
-        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: RepoNames.sync })
+        const gitlabRepo2 = await getSyncRepoName('gitlab')
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo2 })
         break;
     }
     if (files) {

@@ -1,7 +1,7 @@
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
-import { GithubError, GithubRepoInfo, OctokitResponse, RepoNames } from './github.types';
+import { GithubError, GithubRepoInfo, OctokitResponse } from './github.types';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 
 export function uint8ArrayToBase64(data: Uint8Array) {
@@ -50,7 +50,7 @@ interface Links {
 
 export async function uploadFile(
   { ext, file, filename, sha, message, repo, path }:
-  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: RepoNames, path?: string }) 
+  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string }) 
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
@@ -118,7 +118,7 @@ export async function uploadFile(
   }
 }
 
-export async function getFiles({ path, repo }: { path: string, repo: RepoNames }) {
+export async function getFiles({ path, repo }: { path: string, repo: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
   if (!accessToken) return;
@@ -171,7 +171,7 @@ export async function getFiles({ path, repo }: { path: string, repo: RepoNames }
 
 export async function deleteFile(
   { path, sha, repo, token, username }: 
-  { path: string, sha: string, repo: RepoNames, token?: string, username?: string }
+  { path: string, sha: string, repo: string, token?: string, username?: string }
 ) {
   const store = await Store.load('store.json');
   const accessToken = token || await store.get('accessToken')
@@ -217,7 +217,7 @@ export async function deleteFile(
   }
 }
 
-export async function getFileCommits({ path, repo }: { path: string, repo: RepoNames }) {
+export async function getFileCommits({ path, repo }: { path: string, repo: string }) {
   if (!path) return;
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')

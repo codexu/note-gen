@@ -28,7 +28,9 @@ export function GiteeSync() {
     giteeAutoSync, 
     setGiteeAutoSync,
     primaryBackupMethod,
-    setPrimaryBackupMethod 
+    setPrimaryBackupMethod,
+    giteeCustomSyncRepo,
+    setGiteeCustomSyncRepo
   } = useSettingStore()
   
   const {
@@ -40,6 +42,11 @@ export function GiteeSync() {
 
   const [giteeAccessTokenVisible, setGiteeAccessTokenVisible] = useState<boolean>(false)
 
+  // 获取实际使用的仓库名称
+  const getRepoName = () => {
+    return giteeCustomSyncRepo.trim() || RepoNames.sync
+  }
+
   async function checkRepoState() {
     try {
       // 设置检测中状态
@@ -49,13 +56,14 @@ export function GiteeSync() {
       await getUserInfo();
       
       // 检查同步仓库
-      const syncRepo = await checkSyncRepoState(RepoNames.sync);
+      const repoName = getRepoName()
+      const syncRepo = await checkSyncRepoState(repoName);
       if (syncRepo) {
         setGiteeSyncRepoInfo(syncRepo);
         setGiteeSyncRepoState(SyncStateEnum.success);
       } else {
         setGiteeSyncRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(RepoNames.sync, true)
+        const info = await createSyncRepo(repoName, true)
         if (info) {
           setGiteeSyncRepoInfo(info)
           setGiteeSyncRepoState(SyncStateEnum.success)
@@ -124,13 +132,28 @@ export function GiteeSync() {
         </FormItem>
       </SettingRow>
       <SettingRow>
+        <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+          <Input 
+            value={giteeCustomSyncRepo} 
+            onChange={(e) => {
+              setGiteeCustomSyncRepo(e.target.value)
+              // 如果有token且输入不为空，重新检查仓库状态
+              if (giteeAccessToken && e.target.value.trim()) {
+                setTimeout(() => checkRepoState(), 500)
+              }
+            }}
+            placeholder={RepoNames.sync}
+          />
+        </FormItem>
+      </SettingRow>
+      <SettingRow>
         <FormItem title={t('settings.sync.repoStatus')}>
           <Card>
             <CardHeader className={`${giteeSyncRepoInfo ? 'border-b' : ''}`}>
               <CardTitle className="flex justify-between items-center">
                 <div className="flex gap-2 items-center">
                   <DatabaseBackup className="size-4" />
-                  {t('settings.sync.syncRepo')}（{ giteeSyncRepoInfo?.private ? t('settings.sync.private') : t('settings.sync.public') }）
+                  {getRepoName()}（{ giteeSyncRepoInfo?.private ? t('settings.sync.private') : t('settings.sync.public') }）
                 </div>
                 <Badge className={`${giteeSyncRepoState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>{giteeSyncRepoState}</Badge>
               </CardTitle>

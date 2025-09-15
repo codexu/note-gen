@@ -4,16 +4,15 @@ import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http';
 import { fetch as encodeFetch } from './encode-fetch'
 import { 
-  GitlabError, 
-  GitlabUserInfo, 
+  GitlabInstanceType, 
   GitlabProjectInfo, 
-  GitlabRepositoryFile,
+  GITLAB_INSTANCES, 
+  GitlabError,
+  GitlabUserInfo,
   GitlabCommit,
   GitlabResponse,
-  GitlabInstanceType,
-  GITLAB_INSTANCES
+  GitlabRepositoryFile
 } from './gitlab.types';
-import { RepoNames } from './github.types';
 
 // 获取 Gitlab 实例的 API 基础 URL 
 
@@ -68,7 +67,7 @@ export async function uploadFile({
   filename?: string;
   sha?: string;
   message?: string;
-  repo: RepoNames;
+  repo: string;
   path?: string;
 }) {
   try {
@@ -160,7 +159,7 @@ export async function uploadFile({
  * 获取 Gitlab 项目文件列表
  * @param params 查询参数
  */
-export async function getFiles({ path, repo }: { path: string; repo: RepoNames }) {
+export async function getFiles({ path, repo }: { path: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
@@ -218,7 +217,7 @@ export async function getFiles({ path, repo }: { path: string; repo: RepoNames }
  * 删除 Gitlab 项目文件
  * @param params 删除参数
  */
-export async function deleteFile({ path, repo }: { path: string; sha?: string; repo: RepoNames }) {
+export async function deleteFile({ path, repo }: { path: string; sha?: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
@@ -285,7 +284,7 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
  * 获取文件提交历史
  * @param params 查询参数
  */
-export async function getFileCommits({ path, repo }: { path: string; repo: RepoNames }) {
+export async function getFileCommits({ path, repo }: { path: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
@@ -332,7 +331,7 @@ export async function getFileCommits({ path, repo }: { path: string; repo: RepoN
  * 获取特定 commit 的文件内容
  * @param params 查询参数
  */
-export async function getFileContent({ path, ref, repo }: { path: string; ref: string; repo: RepoNames }) {
+export async function getFileContent({ path, ref, repo }: { path: string; ref: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);

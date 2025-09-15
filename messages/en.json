@@ -231,19 +231,23 @@
       "imageRepoSetting": "Local/Cloud Storage",
       "imageRepoSettingDesc": "You have already configured an image repository, you can choose to use the image repository or use local storage.",
       "jsdelivrSetting": "jsDelivr",
-      "jsdelivrSettingDesc": "Use jsdelivr to speed up image access.",
-      "autoSync": "Auto Sync",
+      "autoSyncDesc": "When enabled, the editor will automatically sync to GitHub 10 seconds after input stops",
       "giteeAutoSyncDesc": "When enabled, the editor will automatically sync to Gitee 10 seconds after input stops",
+      "customSyncRepo": "Custom Sync Repository Name",
+      "customSyncRepoDesc": "Leave empty to use default repository name",
+      "customImageRepo": "Custom Image Repository Name",
+      "customImageRepoDesc": "Leave empty to use default repository name",
       "backupMethod": "Backup Method",
       "backupMethodDesc": "After setting as the primary backup method, all sync-related functions in writing will use the current backup method (except for image hosting)",
       "isPrimaryBackup": "{type} is current primary backup",
       "setPrimaryBackup": "Set as Primary Backup",
+      "defaultRepoName": "Default: {name}",
       "gitlabInstanceType": "GitLab Instance Type",
-      "gitlabInstanceTypeDesc": "Select the GitLab instance type to connect to",
-      "gitlabInstanceTypePlaceholder": "Select GitLab instance type",
+      "gitlabInstanceTypeDesc": "Select the type of GitLab instance to connect to",
+      "gitlabInstanceTypePlaceholder": "Select GitLab Instance Type",
       "gitlabInstanceTypeOptions": {
-        "selfHosted": "Self-hosted instance",
-        "selfHostedDesc": "Enter your self-hosted GitLab server address (e.g. https://gitlab.example.com)"
+        "selfHosted": "Self-hosted Instance",
+        "selfHostedDesc": "Enter your self-hosted GitLab server address (e.g., https://gitlab.example.com)"
       },
       "gitlabAccessTokenDesc": "Create a personal access token in {instanceDisplayName}, requires api permission",
       "autoSyncOptions": {
@@ -258,7 +262,9 @@
     },
     "imageHosting": {
       "title": "Image Hosting",
-      "desc": "Here, you can configure image hosting, uploading images to the image hosting service.",
+      "desc": "Here, you can configure image hosting services for storing and managing your images.",
+      "customRepoName": "Custom Repository Name",
+      "customRepoNameDesc": "Leave empty to use default repository name",
       "isPrimaryBackup": "Current {type} primary image hosting method",
       "setPrimaryBackup": "Set as Primary Image Hosting",
       "smms": {

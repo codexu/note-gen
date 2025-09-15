@@ -14,6 +14,7 @@ import { getUserInfo } from "@/lib/github";
 import { RepoNames, SyncStateEnum } from "@/lib/github.types";
 import useImageStore from "@/stores/imageHosting";
 import { createImageRepo, checkImageRepoState } from "@/lib/imageHosting/github";
+import { getImageRepoName } from "@/lib/repo-utils";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +32,8 @@ export function GithubImageHosting() {
     useImageRepo,
     jsdelivr,
     setJsdelivr,
+    githubCustomImageRepo,
+    setGithubCustomImageRepo,
   } = useSettingStore()
   const {
     imageRepoState,
@@ -48,14 +51,16 @@ export function GithubImageHosting() {
       const userInfo = await getUserInfo(accessToken);
       if (!userInfo) return;
       setImageRepoUserInfo(userInfo)
+      // 获取实际使用的仓库名（自定义或默认）
+      const actualRepoName = await getImageRepoName()
       // 检查图床仓库状态
-      const imageRepo = await checkImageRepoState(RepoNames.image)
+      const imageRepo = await checkImageRepoState(actualRepoName)
       if (imageRepo) {
         setImageRepoInfo(imageRepo)
         setImageRepoState(SyncStateEnum.success)
       } else {
         setImageRepoState(SyncStateEnum.creating)
-        const info = await createImageRepo(RepoNames.image)
+        const info = await createImageRepo(actualRepoName)
         if (info) {
           setImageRepoInfo(info)
           setImageRepoState(SyncStateEnum.success)
@@ -77,6 +82,15 @@ export function GithubImageHosting() {
     }
     await setGithubImageAccessToken(value)
     if (value) {
+      checkGithubRepos()
+    }
+  }
+
+  async function customRepoChangeHandler(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    await setGithubCustomImageRepo(value)
+    // 如果有token，重新检查仓库状态
+    if (githubImageAccessToken) {
       checkGithubRepos()
     }
   }
@@ -155,6 +169,17 @@ export function GithubImageHosting() {
             {getStatusIcon()}
             <span className="text-sm">{getStatusText()}</span>
           </div>
+        </div>
+
+        {/* 自定义仓库名 */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">自定义图床仓库名</label>
+          <p className="text-xs text-muted-foreground">留空则使用默认仓库名 &quot;{RepoNames.image}&quot;</p>
+          <Input 
+            value={githubCustomImageRepo} 
+            onChange={customRepoChangeHandler}
+            placeholder={`默认: ${RepoNames.image}`}
+          />
         </div>
 
         {/* Access Token 配置 */}

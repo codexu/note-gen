@@ -2,7 +2,7 @@ import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { RepoNames } from './github.types'
+// Remove unused imports - these types are not actually used in this file
 
 // 自定义类型，类似于 GitHub 的响应
 type GiteeResponse<T> = {
@@ -123,7 +123,7 @@ interface Links {
 
 export async function uploadFile(
   { ext, file, filename, sha, message, repo, path }:
-  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: RepoNames.sync, path?: string }) 
+  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string }) 
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
@@ -192,7 +192,7 @@ export async function uploadFile(
   }
 }
 
-export async function getFiles({ path, repo }: { path: string, repo: RepoNames.sync }) {
+export async function getFiles({ path, repo }: { path: string, repo: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) return;
@@ -243,7 +243,7 @@ export async function getFiles({ path, repo }: { path: string, repo: RepoNames.s
   }
 }
 
-export async function deleteFile({ path, sha, repo }: { path: string, sha: string, repo: RepoNames.sync }) {
+export async function deleteFile({ path, sha, repo }: { path: string, sha: string, repo: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
   if (!accessToken) return;
@@ -296,7 +296,7 @@ export async function deleteFile({ path, sha, repo }: { path: string, sha: strin
   }
 }
 
-export async function getFileCommits({ path, repo }: { path: string, repo: RepoNames.sync }) {
+export async function getFileCommits({ path, repo }: { path: string, repo: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) return;

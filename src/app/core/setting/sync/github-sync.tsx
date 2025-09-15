@@ -27,7 +27,9 @@ export function GithubSync() {
     autoSync,
     setAutoSync,
     primaryBackupMethod,
-    setPrimaryBackupMethod
+    setPrimaryBackupMethod,
+    githubCustomSyncRepo,
+    setGithubCustomSyncRepo
   } = useSettingStore()
   const {
     syncRepoState,
@@ -38,19 +40,25 @@ export function GithubSync() {
 
   const [accessTokenVisible, setAccessTokenVisible] = useState<boolean>(false)
 
+  // 获取实际使用的仓库名称
+  const getRepoName = () => {
+    return githubCustomSyncRepo.trim() || RepoNames.sync
+  }
+
   // 检查 GitHub 仓库状态
   async function checkGithubRepos() {
     try {
       setSyncRepoState(SyncStateEnum.checking)
       await getUserInfo();
       // 检查同步仓库状态
-      const syncRepo = await checkSyncRepoState(RepoNames.sync)
+      const repoName = getRepoName()
+      const syncRepo = await checkSyncRepoState(repoName)
       if (syncRepo) {
         setSyncRepoInfo(syncRepo)
         setSyncRepoState(SyncStateEnum.success)
       } else {
         setSyncRepoState(SyncStateEnum.creating)
-        const info = await createSyncRepo(RepoNames.sync, true)
+        const info = await createSyncRepo(repoName, true)
         if (info) {
           setSyncRepoInfo(info)
           setSyncRepoState(SyncStateEnum.success)
@@ -108,13 +116,28 @@ export function GithubSync() {
         </FormItem>
       </SettingRow>
       <SettingRow>
+        <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+          <Input 
+            value={githubCustomSyncRepo} 
+            onChange={(e) => {
+              setGithubCustomSyncRepo(e.target.value)
+              // 如果有token且输入不为空，重新检查仓库状态
+              if (accessToken && e.target.value.trim()) {
+                setTimeout(() => checkGithubRepos(), 500)
+              }
+            }}
+            placeholder={RepoNames.sync}
+          />
+        </FormItem>
+      </SettingRow>
+      <SettingRow>
         <FormItem title={t('settings.sync.repoStatus')}>
           <Card>
             <CardHeader className={`${syncRepoInfo ? 'border-b' : ''}`}>
               <CardTitle className="flex justify-between items-center">
                 <div className="flex gap-2 items-center">
                   <DatabaseBackup className="size-4" />
-                  {t('settings.sync.syncRepo')}（{ syncRepoInfo?.private === false ? t('settings.sync.public') : t('settings.sync.private') }）
+                  {getRepoName()}（{ syncRepoInfo?.private === false ? t('settings.sync.public') : t('settings.sync.private') }）
                 </div>
                 <Badge className={`${syncRepoState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>{syncRepoState}</Badge>
               </CardTitle>

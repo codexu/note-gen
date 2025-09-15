@@ -33,7 +33,9 @@ export function GitlabSync() {
     gitlabAutoSync,
     setGitlabAutoSync,
     primaryBackupMethod,
-    setPrimaryBackupMethod
+    setPrimaryBackupMethod,
+    gitlabCustomSyncRepo,
+    setGitlabCustomSyncRepo
   } = useSettingStore()
   
   const {
@@ -46,19 +48,25 @@ export function GitlabSync() {
 
   const [gitlabAccessTokenVisible, setGitlabAccessTokenVisible] = useState<boolean>(false)
 
+  // 获取实际使用的仓库名称
+  const getRepoName = () => {
+    return gitlabCustomSyncRepo.trim() || RepoNames.sync
+  }
+
   // 检查 Gitlab 项目状态
   async function checkGitlabProjects() {
     try {
       setGitlabSyncProjectState(SyncStateEnum.checking)
       await getUserInfo();
       // 检查同步项目状态
-      const syncProject = await checkSyncProjectState(RepoNames.sync)
+      const repoName = getRepoName()
+      const syncProject = await checkSyncProjectState(repoName)
       if (syncProject) {
         setGitlabSyncProjectInfo(syncProject)
         setGitlabSyncProjectState(SyncStateEnum.success)
       } else {
         setGitlabSyncProjectState(SyncStateEnum.creating)
-        const info = await createSyncProject(RepoNames.sync, true)
+        const info = await createSyncProject(repoName, true)
         if (info) {
           setGitlabSyncProjectInfo(info)
           setGitlabSyncProjectState(SyncStateEnum.success)
@@ -231,6 +239,23 @@ export function GitlabSync() {
         </FormItem>
       </SettingRow>
 
+      {/* 自定义仓库名输入 */}
+      <SettingRow>
+        <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+          <Input 
+            value={gitlabCustomSyncRepo} 
+            onChange={(e) => {
+              setGitlabCustomSyncRepo(e.target.value)
+              // 如果有token且输入不为空，重新检查项目状态
+              if (gitlabAccessToken && e.target.value.trim()) {
+                setTimeout(() => checkGitlabProjects(), 500)
+              }
+            }}
+            placeholder={RepoNames.sync}
+          />
+        </FormItem>
+      </SettingRow>
+
       {/* 项目状态显示 */}
       <SettingRow>
         <FormItem title={t('settings.sync.repoStatus')}>
@@ -239,7 +264,7 @@ export function GitlabSync() {
               <CardTitle className="flex justify-between items-center">
                 <div className="flex gap-2 items-center">
                   <DatabaseBackup className="size-4" />
-                  {t('settings.sync.syncRepo')}（{gitlabSyncProjectInfo?.visibility === 'public' ? t('settings.sync.public') : t('settings.sync.private')}）
+                  {getRepoName()}（{gitlabSyncProjectInfo?.visibility === 'public' ? t('settings.sync.public') : t('settings.sync.private')}）
                 </div>
                 <Badge className={`${gitlabSyncProjectState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>
                   {gitlabSyncProjectState}

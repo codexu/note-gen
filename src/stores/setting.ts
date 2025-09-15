@@ -142,6 +142,19 @@ interface SettingState {
   githubImageAccessToken: string
   setGithubImageAccessToken: (githubImageAccessToken: string) => Promise<void>
 
+  // 自定义仓库名称设置
+  githubCustomSyncRepo: string
+  setGithubCustomSyncRepo: (repo: string) => Promise<void>
+
+  giteeCustomSyncRepo: string
+  setGiteeCustomSyncRepo: (repo: string) => Promise<void>
+
+  gitlabCustomSyncRepo: string
+  setGitlabCustomSyncRepo: (repo: string) => Promise<void>
+
+  githubCustomImageRepo: string
+  setGithubCustomImageRepo: (repo: string) => Promise<void>
+
   // 图片识别设置
   primaryImageMethod: 'ocr' | 'vlm'
   setPrimaryImageMethod: (method: 'ocr' | 'vlm') => Promise<void>
@@ -505,6 +518,39 @@ const useSettingStore = create<SettingState>((set, get) => ({
     
     // 使用fontSize实现基于rem的缩放
     document.documentElement.style.fontSize = `${scale}%`
+  },
+
+  // 自定义仓库名称设置
+  githubCustomSyncRepo: '',
+  setGithubCustomSyncRepo: async (repo: string) => {
+    set({ githubCustomSyncRepo: repo })
+    const store = await Store.load('store.json');
+    await store.set('githubCustomSyncRepo', repo)
+    await store.save()
+  },
+
+  giteeCustomSyncRepo: '',
+  setGiteeCustomSyncRepo: async (repo: string) => {
+    set({ giteeCustomSyncRepo: repo })
+    const store = await Store.load('store.json');
+    await store.set('giteeCustomSyncRepo', repo)
+    await store.save()
+  },
+
+  gitlabCustomSyncRepo: '',
+  setGitlabCustomSyncRepo: async (repo: string) => {
+    set({ gitlabCustomSyncRepo: repo })
+    const store = await Store.load('store.json');
+    await store.set('gitlabCustomSyncRepo', repo)
+    await store.save()
+  },
+
+  githubCustomImageRepo: '',
+  setGithubCustomImageRepo: async (repo: string) => {
+    set({ githubCustomImageRepo: repo })
+    const store = await Store.load('store.json');
+    await store.set('githubCustomImageRepo', repo)
+    await store.save()
   },
 }))
 

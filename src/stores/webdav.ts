@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { Store } from '@tauri-apps/plugin-store'
 import { invoke } from '@tauri-apps/api/core'
 
 export enum WebDAVConnectionState {
@@ -37,18 +36,6 @@ interface WebDAVState {
   syncFromWebDAV: () => Promise<string>
 }
 
-// 防抖函数
-function simpleDebounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null
-
-  return (...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }
-}
 
 const useWebDAVStore = create<WebDAVState>((set, get) => {
   let isTestingInProgress = false
@@ -101,56 +88,25 @@ const useWebDAVStore = create<WebDAVState>((set, get) => {
     }
   }
 
-  // 使用防抖
-  const debouncedTest = simpleDebounce(performConnectionTest, 300)
-
   return {
     url: '',
     setUrl: async (url: string) => {
       set({ url })
-      try {
-        const store = await Store.load('store.json')
-        await store.set('webdavUrl', url)
-      } catch (error) {
-        console.error('Failed to save URL:', error)
-      }
-      debouncedTest()
     },
 
     username: '',
     setUsername: async (username: string) => {
       set({ username })
-      try {
-        const store = await Store.load('store.json')
-        await store.set('webdavUsername', username)
-      } catch (error) {
-        console.error('Failed to save username:', error)
-      }
-      debouncedTest()
     },
 
     password: '',
     setPassword: async (password: string) => {
       set({ password })
-      try {
-        const store = await Store.load('store.json')
-        await store.set('webdavPassword', password)
-      } catch (error) {
-        console.error('Failed to save password:', error)
-      }
-      debouncedTest()
     },
 
     path: '',
     setPath: async (path: string) => {
       set({ path })
-      try {
-        const store = await Store.load('store.json')
-        await store.set('webdavPath', path)
-      } catch (error) {
-        console.error('Failed to save path:', error)
-      }
-      debouncedTest()
     },
 
     connectionState: WebDAVConnectionState.fail,
@@ -163,21 +119,8 @@ const useWebDAVStore = create<WebDAVState>((set, get) => {
   },
 
   initWebDAVData: async () => {
-      try {
-    const store = await Store.load('store.json')
-        const url = await store.get<string>('webdavUrl') || ''
-        const username = await store.get<string>('webdavUsername') || ''
-        const password = await store.get<string>('webdavPassword') || ''
-        const path = await store.get<string>('webdavPath') || ''
-
-        set({ url, username, password, path })
-    
-        if (url && username && password) {
-          setTimeout(() => performConnectionTest(), 100)
-        }
-      } catch (error) {
-        console.error('Failed to load WebDAV data:', error)
-      }
+      // 不再从本地存储加载连接参数，也不做自动连测
+      set({ url: '', username: '', password: '', path: '' })
   },
 
   backupState: false,

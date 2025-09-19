@@ -24,6 +24,7 @@ export default function WebdavSync() {
     syncState,
     backupState,
     createWebDAVDir,
+    testConnection,
   } = useWebDAVStore();
   const { loadFileTree } = useArticleStore()
 
@@ -108,6 +109,15 @@ export default function WebdavSync() {
 
   const [isCreating, setIsCreating] = useState(false);
 
+  const handleTestConnection = async () => {
+    const ok = await testConnection();
+    if (ok) {
+      toast({ title: t("success"), description: t("connectionState.success") });
+    } else {
+      toast({ variant: "destructive", title: t("error.testFailed", { default: "Test failed" } as any), description: t("error.connectionTimeOut") });
+    }
+  };
+
   const handleCreateDirectory = async () => {
     if (!path.trim()) {
       toast({
@@ -158,6 +168,21 @@ export default function WebdavSync() {
                   >
                     {t(`connectionState.${connectionState}`)}
                   </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={handleTestConnection}
+                    disabled={
+                      connectionState === WebDAVConnectionState.checking ||
+                      !url.trim() || !username.trim() || !password.trim()
+                    }
+                  >
+                    {connectionState === WebDAVConnectionState.checking && (
+                      <LoaderCircle className="animate-spin" />
+                    )}
+                    {t("testConnection")}
+                  </Button>
                 </CardTitle>
                 <CardDescription>{t("description")}</CardDescription>
               </CardHeader>

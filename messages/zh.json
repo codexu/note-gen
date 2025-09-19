@@ -366,6 +366,7 @@
         "description": "WebDAV 仅作为备用备份方案，不支持自动同步、历史回滚等功能。",
         "backupTo": "备份至 WebDAV",
         "syncFrom": "从 WebDAV 同步",
+        "testConnection": "测试连接",
         "serverUrl": "WebDAV 服务器地址",
         "serverUrlDesc": "输入WebDAV服务器的URL不含路径，例如：https://dav.example.com http://192.8.8.88:9999 ",
         "serverUrlPlaceholder": "https://dav.example.com",
@@ -390,6 +391,7 @@
         "success": "成功",
         "failed": "失败",
         "error": {
+          "testFailed": "连接测试失败",
           "pathNotFound": "路径不存在或服务器无法访问。",
           "createDirFailed": "创建目录失败",
           "connectionTimeOut": "连接超时，请检查网络或服务器。"

@@ -373,6 +373,7 @@
         "description": "WebDAVはバックアップソリューションとしてのみ使用され、自動同期や履歴ロールバックなどの機能はサポートしていません。",
         "backupTo": "WebDAVにバックアップ",
         "syncFrom": "WebDAVから同期",
+        "testConnection": "接続テスト",
         "serverUrl": "WebDAVサーバーURL",
         "serverUrlDesc": "WebDAVサーバーのURLを入力してくださいパスを含まない、例：https://dav.example.com http://192.8.8.88:9999 ",
         "serverUrlPlaceholder": "https://dav.example.com",
@@ -397,6 +398,7 @@
         "success": "成功",
         "failed": "失敗",
         "error": {
+          "testFailed": "接続テストに失敗しました",
           "pathNotFound": "パスが存在しないか、サーバーにアクセスできません。",
           "createDirFailed": "ディレクトリの作成に失敗しました",
           "connectionTimeOut": "接続タイムアウト、ネットワークまたはサーバーを確認してください。"

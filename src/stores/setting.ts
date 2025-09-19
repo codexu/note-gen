@@ -82,6 +82,10 @@ interface SettingState {
   tesseractList: string
   setTesseractList: (tesseractList: string) => void
 
+  // AI 设置 - 自动连通性检测
+  aiAutoCheck: boolean
+  setAiAutoCheck: (aiAutoCheck: boolean) => Promise<void>
+
   // Github 相关设置
   githubUsername: string
   setGithubUsername: (githubUsername: string) => Promise<void>
@@ -372,6 +376,15 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   tesseractList: 'eng,chi_sim',
   setTesseractList: (tesseractList) => set({ tesseractList }),
+
+  // AI 设置 - 自动连通性检测（默认开启）
+  aiAutoCheck: true,
+  setAiAutoCheck: async (aiAutoCheck: boolean) => {
+    const store = await Store.load('store.json');
+    await store.set('aiAutoCheck', aiAutoCheck)
+    await store.save()
+    set({ aiAutoCheck })
+  },
 
   githubUsername: '',
   setGithubUsername: async (githubUsername) => {

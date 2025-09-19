@@ -374,6 +374,7 @@
         "description": "WebDAV is only used as a backup solution and does not support auto-sync, history rollback, and other features.",
         "backupTo": "Backup to WebDAV",
         "syncFrom": "Sync from WebDAV",
+        "testConnection": "Test Connection",
         "serverUrl": "WebDAV Server URL",
         "serverUrlDesc": "Enter the URL of the WebDAV server No path included, e.g: https://dav.example.com http://192.8.8.88:9999",
         "serverUrlPlaceholder": "https://dav.example.com",
@@ -398,6 +399,7 @@
         "success": "Success",
         "failed": "Failed",
         "error": {
+          "testFailed": "Connection test failed",
           "pathNotFound": "Path not found or server inaccessible.",
           "createDirFailed": "Failed to create directory",
           "connectionTimeOut": "Connection timed out, please check network or server."

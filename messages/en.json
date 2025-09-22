@@ -898,7 +898,8 @@
         },
         "modelSelect": {
           "tooltip": "Select AI model",
-          "placeholder": "Search AI models"
+          "placeholder": "Search AI models",
+          "noModel": "No model found"
         },
         "promptSelect": {
           "tooltip": "Select prompt",

@@ -880,7 +880,8 @@
         },
         "modelSelect": {
           "tooltip": "选择 AI 模型",
-          "placeholder": "搜索 AI 模型"
+          "placeholder": "搜索 AI 模型",
+          "noModel": "未找到模型"
         },
         "promptSelect": {
           "tooltip": "选择 Prompt",

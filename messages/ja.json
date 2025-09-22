@@ -861,7 +861,8 @@
         },
         "modelSelect": {
           "tooltip": "AIモデルを選択",
-          "placeholder": "AIモデルを検索"
+          "placeholder": "AIモデルを検索",
+          "noModel": "モデルが見つかりません"
         },
         "promptSelect": {
           "tooltip": "プロンプトを選択",

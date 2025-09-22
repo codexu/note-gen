@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { AiConfig } from "../../setting/config"
+import { AiConfig, ModelConfig } from "../../setting/config"
 import { Store } from "@tauri-apps/plugin-store"
 import useSettingStore from "@/stores/setting"
 import { ChevronsUpDown, X } from "lucide-react"
@@ -25,8 +25,14 @@ import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { TooltipButton } from "@/components/tooltip-button"
 
+interface GroupedModel {
+  configKey: string
+  configTitle: string
+  model: ModelConfig
+}
+
 export function ModelSelect({modelKey}: {modelKey: string}) {
-  const [list, setList] = useState<AiConfig[]>([])
+  const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
   const { setPlaceholderModel, setTranslateModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel } = useSettingStore()
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
@@ -80,12 +86,48 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
 
   async function initModelList() {
     const store = await Store.load('store.json');
-    const models = await store.get<AiConfig[]>('aiModelList')
-    if (!models) return
-    const filteredModels = models.filter(item => {
-      return item.model && item.baseURL
+    const aiConfigs = await store.get<AiConfig[]>('aiModelList')
+    if (!aiConfigs) return
+    
+    const models: GroupedModel[] = []
+    
+    aiConfigs.forEach(config => {
+      // 检查配置是否有效
+      if (!config.baseURL) return
+      
+      // 处理新的 models 数组结构
+      if (config.models && config.models.length > 0) {
+        config.models.forEach(model => {
+          // 只显示 chat 类型的模型（默认模型设置通常只需要chat类型）
+          if (model.modelType === 'chat' && model.model) {
+            models.push({
+              configKey: config.key,
+              configTitle: config.title,
+              model: model
+            })
+          }
+        })
+      } else {
+        // 向后兼容：处理旧的单模型结构
+        if ((config.modelType === 'chat' || !config.modelType) && config.model) {
+          models.push({
+            configKey: config.key,
+            configTitle: config.title,
+            model: {
+              id: config.key,
+              model: config.model,
+              modelType: config.modelType || 'chat',
+              temperature: config.temperature,
+              topP: config.topP,
+              voice: config.voice,
+              enableStream: config.enableStream
+            }
+          })
+        }
+      }
     })
-    setList(filteredModels)
+    
+    setGroupedModels(models)
     
     const storeKey = getStoreKey(modelKey)
     const primaryModel = await store.get<string>(storeKey)
@@ -98,18 +140,42 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
     const store = await Store.load('store.json');
     const storeKey = getStoreKey(modelKey)
     store.set(storeKey, e)
+    await store.save()
   }
 
   async function resetDefaultModel() {
     const store = await Store.load('store.json');
     const storeKey = getStoreKey(modelKey)
     store.set(storeKey, '')
+    await store.save()
     setPrimaryModelHandler('')
   }
+
+  // 查找当前选中的模型显示信息
+  const findSelectedModelDisplay = () => {
+    if (!model || !groupedModels.length) return null
+    
+    const selectedItem = groupedModels.find(item => item.model.id === model)
+    if (selectedItem) {
+      return `${selectedItem.model.model}(${selectedItem.configTitle})`
+    }
+    
+    return null
+  }
+
+  // 按配置分组模型
+  const groupedByConfig = groupedModels.reduce((acc, item) => {
+    if (!acc[item.configTitle]) {
+      acc[item.configTitle] = []
+    }
+    acc[item.configTitle].push(item)
+    return acc
+  }, {} as Record<string, GroupedModel[]>)
 
   useEffect(() => {
     initModelList()
   }, [])
+  
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <div className="flex gap-2">
@@ -122,7 +188,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
               className="w-full md:w-[280px] justify-between"
             >
               {model
-                ? `${list.find((item) => item.key === model)?.model}(${list.find((item) => item.key === model)?.title})`
+                ? findSelectedModelDisplay()
                 : modelKey === 'primaryModel' ? t('noModel') : t('tooltip')}
               <ChevronsUpDown className="opacity-50" />
             </Button>
@@ -141,26 +207,28 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
           <CommandInput placeholder={t('placeholder')} className="h-9" />
           <CommandList>
             <CommandEmpty>No model found.</CommandEmpty>
-            <CommandGroup>
-              {list.filter(item => item.modelType === 'chat' || !item.modelType).map((item) => (
-                <CommandItem
-                  key={item.key}
-                  value={item.key}
-                  onSelect={(currentValue) => {
-                    modelSelectChangeHandler(currentValue)
-                    setOpen(false)
-                  }}
-                >
-                  {`${item.model}(${item.title})`}
-                  <Check
-                    className={cn(
-                      "ml-auto",
-                      model === item.key ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {Object.entries(groupedByConfig).map(([configTitle, models]) => (
+              <CommandGroup key={configTitle} heading={configTitle}>
+                {models.map((item) => (
+                  <CommandItem
+                    key={item.model.id}
+                    value={item.model.id}
+                    onSelect={(currentValue) => {
+                      modelSelectChangeHandler(currentValue)
+                      setOpen(false)
+                    }}
+                  >
+                    {item.model.model}
+                    <Check
+                      className={cn(
+                        "ml-auto",
+                        model === item.model.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

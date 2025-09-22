@@ -480,6 +480,8 @@
       "modelTitle": "Custom Name",
       "modelConfigTitle": "Model Config",
       "modelConfigDesc": "Every configuration corresponds to an AI model, you can create new configurations through templates or custom.",
+      "providerInfo": "Provider Information",
+      "providerInfoDesc": "This configuration is created based on a provider template, with name and URL pre-configured.",
       "create": "Create",
       "createDesc": "Select an empty configuration or create a new configuration using the supplier template.",
       "createSection": {

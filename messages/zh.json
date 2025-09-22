@@ -467,6 +467,8 @@
       "modelTitle": "自定义名称",
       "modelConfigTitle": "模型配置",
       "modelConfigDesc": "每一个配置对应一个 AI 模型，你可以通过模板或自定义创建新的配置。",
+      "providerInfo": "供应商信息",
+      "providerInfoDesc": "此配置基于供应商模板创建，名称和地址已预设，无需修改。",
       "create": "创建新配置",
       "createDesc": "选择空配置或使用供应商模板创建新的配置。",
       "createSection": {

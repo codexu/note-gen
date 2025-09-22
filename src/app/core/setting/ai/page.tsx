@@ -1,30 +1,33 @@
 'use client'
-import { Input } from "@/components/ui/input";
-import { FormItem, SettingRow, SettingType } from "../components/setting-base";
+import { useState, useEffect } from "react";
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from "react";
-import useSettingStore from "@/stores/setting";
-import { useLocalStorage } from "react-use";
+import { useLocalStorage } from 'react-use';
 import { Store } from "@tauri-apps/plugin-store";
-import { BotMessageSquare, Eye, EyeOff, Plus, X, Copy, Trash2 } from "lucide-react";
-import { Accordion } from "@/components/ui/accordion";
-import { AiConfig, ModelConfig } from "../config";
-import { noteGenModelKeys } from '@/app/model-config';
-import * as React from "react"
+import { v4 } from 'uuid';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button";
-import { v4 } from 'uuid';
-import { confirm } from '@tauri-apps/plugin-dialog';
+import {
+  Accordion,
+} from "@/components/ui/accordion"
+import Image from "next/image";
+
+import { SettingType, SettingRow, FormItem } from "../components/setting-base";
+import { AiConfig, ModelConfig, baseAiConfig } from "../config";
+import useSettingStore from "@/stores/setting";
+import { noteGenModelKeys } from "@/app/model-config";
+import { BotMessageSquare, Copy, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
 import { OpenBroswer } from "@/components/open-broswer";
-import { baseAiConfig } from "../config";
 import DefaultModelsSection from "./default-models";
 import ModelCard from "./model-card";
 import CreateConfig from "./create";
+
 
 export default function AiPage() {
   const t = useTranslations('settings.ai');
@@ -316,25 +319,52 @@ export default function AiPage() {
           {/* 当前配置的基础设置 */}
           {currentConfig && (
             <>
-              {/* 配置名称 */}
-              <SettingRow>
-                <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
-                  <Input 
-                    value={currentConfig.title} 
-                    onChange={(e) => updateAiConfig({...currentConfig, title: e.target.value})} 
-                  />
-                </FormItem>
-              </SettingRow>
+              {/* 供应商模板配置信息显示 */}
+              {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+                <SettingRow>
+                  <FormItem title={t('providerInfo')}>
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                      {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon && (
+                        <Image 
+                          src={baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon || ''} 
+                          alt={currentConfig.title}
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded"
+                        />
+                      )}
+                      <div>
+                        <div className="font-medium">{currentConfig.title}</div>
+                        <div className="text-sm text-muted-foreground">{currentConfig.baseURL}</div>
+                      </div>
+                    </div>
+                  </FormItem>
+                </SettingRow>
+              )}
 
-              {/* BaseURL */}
-              <SettingRow>
-                <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
-                  <Input 
-                    value={currentConfig.baseURL || ''} 
-                    onChange={(e) => updateAiConfig({...currentConfig, baseURL: e.target.value})} 
-                  />
-                </FormItem>
-              </SettingRow>
+              {/* 配置名称 - 只有非供应商模板配置才显示 */}
+              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+                <SettingRow>
+                  <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
+                    <Input 
+                      value={currentConfig.title} 
+                      onChange={(e) => updateAiConfig({...currentConfig, title: e.target.value})} 
+                    />
+                  </FormItem>
+                </SettingRow>
+              )}
+
+              {/* BaseURL - 只有非供应商模板配置才显示 */}
+              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+                <SettingRow>
+                  <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
+                    <Input 
+                      value={currentConfig.baseURL || ''} 
+                      onChange={(e) => updateAiConfig({...currentConfig, baseURL: e.target.value})} 
+                    />
+                  </FormItem>
+                </SettingRow>
+              )}
 
               {/* API Key */}
               <SettingRow>

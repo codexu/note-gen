@@ -53,7 +53,7 @@ function CreateConfigDialog({ open, setOpen, onConfigCreated }: { open: boolean;
       key: id,
       modelType: 'chat'
     }
-    const updatedList = [...aiModelList, newModel]
+    const updatedList = [newModel, ...aiModelList]
     setAiModelList(updatedList)
     
     // 设置新建的配置为当前选中的配置

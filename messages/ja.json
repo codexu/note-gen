@@ -479,6 +479,8 @@
       "modelTitle": "カスタム名",
       "modelConfigTitle": "モデル配置",
       "modelConfigDesc": "それぞれの構成はAIモデルに対応しており、テンプレートやカスタムで新しい構成を作成することができます。",
+      "providerInfo": "プロバイダー情報",
+      "providerInfoDesc": "この設定はプロバイダーテンプレートに基づいて作成され、名前とURLが事前設定されています。",
       "create": "作成",
       "createDesc": "空の設定を選択するか、供給元のテンプレートを使用して新しい設定を作成します。",
       "createSection": {

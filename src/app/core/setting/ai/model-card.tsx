@@ -190,16 +190,20 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
   return (
     <AccordionItem value={modelConfig.id} className="border rounded-lg">
-      <div className="flex items-center justify-between">
-        <AccordionTrigger className="flex-1 px-4 py-4 hover:no-underline">
-          <span className="text-base font-semibold">
-            {modelConfig.model || t('newModel')}
-          </span>
-          <Badge variant="secondary" className="mr-4">
-            {t(`modelType.${modelConfig.modelType}`)}
-          </Badge>
-        </AccordionTrigger>
-        <div className="flex items-center justify-end gap-2 pr-2">
+      <div className="flex items-center justify-between flex-wrap">
+        <div className="flex-1">
+          <AccordionTrigger className="w-full px-4 py-4 hover:no-underline">
+            <div className="flex items-center">
+              <span className="text-base font-semibold">
+                {modelConfig.model || t('newModel')}
+              </span>
+              <Badge variant="secondary" className="ml-2">
+                {t(`modelType.${modelConfig.modelType}`)}
+              </Badge>
+            </div>
+          </AccordionTrigger>
+        </div>
+        <div className="flex items-center justify-end gap-2 p-2">
           <Button
             variant="outline"
             size="sm"

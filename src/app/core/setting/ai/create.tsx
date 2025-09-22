@@ -58,7 +58,6 @@ function CreateConfigDialog({ open, setOpen, onConfigCreated }: { open: boolean;
     
     // 设置新建的配置为当前选中的配置
     setSelectedAiConfig(id)
-    console.log('新建配置ID:', id, '设置为选中配置')
     
     await store.set('aiModelList', updatedList)
     await store.save()

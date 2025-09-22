@@ -45,9 +45,6 @@ export default function AiPage() {
   // 当前选中的AI配置
   const currentConfig = userCustomModels.find(model => model.key === selectedAiConfig)
   
-  // 调试信息
-  console.log('当前selectedAiConfig:', selectedAiConfig, '找到的配置:', currentConfig?.title)
-
   const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
     return Object.entries(headers).map(([key, value]) => ({
       key, value: String(value), id: Math.random().toString(36).substr(2, 9)
@@ -270,7 +267,6 @@ export default function AiPage() {
       <CreateConfig 
         hasCustomModels={userCustomModels.length > 0} 
         onConfigCreated={(configId) => {
-          console.log('收到新建配置通知:', configId)
           setSelectedAiConfig(configId)
         }}
       />
@@ -439,14 +435,13 @@ export default function AiPage() {
                       onValueChange={setExpandedModels}
                     >
                       {(currentConfig.models || []).map((modelConfig) => (
-                        <div key={modelConfig.id}>
-                          <ModelCard
-                            modelConfig={modelConfig}
-                            aiConfig={currentConfig}
-                            onUpdate={updateModelConfig}
-                            onDelete={deleteModel}
-                          />
-                        </div>
+                        <ModelCard
+                          key={modelConfig.id}
+                          modelConfig={modelConfig}
+                          aiConfig={currentConfig}
+                          onUpdate={updateModelConfig}
+                          onDelete={deleteModel}
+                        />
                       ))}
                     </Accordion>
                     {/* 添加模型按钮 */}

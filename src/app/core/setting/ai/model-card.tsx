@@ -190,37 +190,34 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
   return (
     <AccordionItem value={modelConfig.id} className="border rounded-lg">
-      <AccordionTrigger className="px-4 py-3 hover:no-underline">
-        <div className="flex items-center justify-between w-full mr-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold">
-              {modelConfig.model || t('newModel')}
-            </span>
-            <Badge variant="secondary">
-              {t(`modelType.${modelConfig.modelType}`)}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCheck}
-              disabled={!modelConfig.model || checkState === 'checking'}
-            >
-              {renderCheckIcon()}
-              {t('checkConnection')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDelete(modelConfig.id)}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
+      <div className="flex items-center justify-between">
+        <AccordionTrigger className="flex-1 px-4 py-4 hover:no-underline">
+          <span className="text-base font-semibold">
+            {modelConfig.model || t('newModel')}
+          </span>
+          <Badge variant="secondary" className="mr-4">
+            {t(`modelType.${modelConfig.modelType}`)}
+          </Badge>
+        </AccordionTrigger>
+        <div className="flex items-center justify-end gap-2 pr-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCheck}
+            disabled={!modelConfig.model || checkState === 'checking'}
+          >
+            {renderCheckIcon()}
+            {t('checkConnection')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDelete(modelConfig.id)}
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
-      </AccordionTrigger>
-      
+      </div>      
       <AccordionContent className="px-4 pb-4 space-y-4">
         {/* 模型选择 */}
         <div className="space-y-2">

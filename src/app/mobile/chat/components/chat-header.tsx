@@ -1,13 +1,12 @@
 "use client"
 
 import { BotMessageSquare, BotOff, Check, Drama } from "lucide-react"
-import usePromptStore from "@/stores/prompt"
-import useSettingStore from "@/stores/setting"
-import { Store } from "@tauri-apps/plugin-store"
-import { AiConfig } from "@/app/core/setting/config"
-import { useEffect, useState } from "react"
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react"
+import { AiConfig, ModelConfig } from "../../../core/setting/config"
+import { Store } from "@tauri-apps/plugin-store"
+import useSettingStore from "@/stores/setting"
+import usePromptStore from "@/stores/prompt"
 import {
   Popover,
   PopoverContent,
@@ -21,30 +20,74 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import { cn } from "@/lib/utils"
+
+interface GroupedModel {
+  configKey: string
+  configTitle: string
+  model: ModelConfig
+}
 
 export function ChatHeader() {
   const { promptList, currentPrompt, setCurrentPrompt } = usePromptStore()
   const { primaryModel, setPrimaryModel } = useSettingStore()
 
-  const [models, setModels] = useState<AiConfig[]>([])
+  const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
   const [promptOpen, setPromptOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
 
   async function getModels() {
-    const store = await Store.load('store.json');
-    const aiModelList = await store.get<AiConfig[]>('aiModelList');
-    if (!aiModelList) return [];
-    const filteredModels = aiModelList.filter(item => {
-      return item.model && item.baseURL
+    const store = await Store.load('store.json')
+    const aiConfigs = await store.get<AiConfig[]>('aiModelList')
+    if (!aiConfigs) return []
+    
+    const models: GroupedModel[] = []
+    
+    aiConfigs.forEach(config => {
+      // 检查配置是否有效
+      if (!config.baseURL) return
+      
+      // 处理新的 models 数组结构
+      if (config.models && config.models.length > 0) {
+        config.models.forEach(model => {
+          // 只显示 chat 类型的模型
+          if (model.modelType === 'chat' && model.model) {
+            models.push({
+              configKey: config.key,
+              configTitle: config.title,
+              model: model
+            })
+          }
+        })
+      } else {
+        // 向后兼容：处理旧的单模型结构
+        if ((config.modelType === 'chat' || !config.modelType) && config.model) {
+          models.push({
+            configKey: config.key,
+            configTitle: config.title,
+            model: {
+              id: config.key,
+              model: config.model,
+              modelType: config.modelType || 'chat',
+              temperature: config.temperature,
+              topP: config.topP,
+              voice: config.voice,
+              enableStream: config.enableStream
+            }
+          })
+        }
+      }
     })
-    setModels(filteredModels)
-    return filteredModels;
+    
+    setGroupedModels(models)
+    return models;
   }
 
-  async function modelSelectChangeHandler(key: string) {
-    setPrimaryModel(key)
+  async function modelSelectChangeHandler(modelId: string) {
+    setPrimaryModel(modelId)
     const store = await Store.load('store.json');
-    store.set('primaryModel', key)
+    store.set('primaryModel', modelId)
+    await store.save()
     setModelOpen(false)
   }
 
@@ -101,9 +144,9 @@ export function ChatHeader() {
       <Popover open={modelOpen} onOpenChange={setModelOpen}>
         <PopoverTrigger asChild>
           <div className="flex items-center justify-center gap-1 cursor-pointer hover:opacity-80">
-            {models.length > 0 ? <BotMessageSquare className="!size-4" /> : <BotOff className="size-4" />}
+            {groupedModels.length > 0 ? <BotMessageSquare className="!size-4" /> : <BotOff className="size-4" />}
             <span className="line-clamp-1 flex-1 md:flex-none">
-              {models.find(model => model.key === primaryModel)?.model}
+              {groupedModels.find(item => item.model.id === primaryModel)?.model.model}
             </span>
           </div>
         </PopoverTrigger>
@@ -112,25 +155,36 @@ export function ChatHeader() {
             <CommandInput placeholder="Search model..." className="h-9" />
             <CommandList>
               <CommandEmpty>No model found.</CommandEmpty>
-              <CommandGroup>
-                {models.filter(item => item.modelType === 'chat' || !item.modelType).map((item) => (
-                  <CommandItem
-                    key={item.key}
-                    value={item.key}
-                    onSelect={(currentValue) => {
-                      modelSelectChangeHandler(currentValue)
-                    }}
-                  >
-                    {`${item.model}(${item.title})`}
-                    <Check
-                      className={cn(
-                        "ml-auto",
-                        primaryModel === item.key ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {/* 按配置分组显示模型 */}
+              {Object.entries(
+                groupedModels.reduce((acc, item) => {
+                  if (!acc[item.configTitle]) {
+                    acc[item.configTitle] = []
+                  }
+                  acc[item.configTitle].push(item)
+                  return acc
+                }, {} as Record<string, GroupedModel[]>)
+              ).map(([configTitle, models]) => (
+                <CommandGroup key={configTitle} heading={configTitle}>
+                  {models.map((item) => (
+                    <CommandItem
+                      key={item.model.id}
+                      value={item.model.id}
+                      onSelect={(currentValue) => {
+                        modelSelectChangeHandler(currentValue)
+                      }}
+                    >
+                      {item.model.model}
+                      <Check
+                        className={cn(
+                          "ml-auto",
+                          primaryModel === item.model.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
             </CommandList>
           </Command>
         </PopoverContent>

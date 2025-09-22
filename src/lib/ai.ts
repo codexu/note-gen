@@ -31,13 +31,38 @@ async function getPromptContent(): Promise<string> {
 async function getAISettings(modelType?: string): Promise<AiConfig | undefined> {
   const store = await Store.load('store.json')
   const aiConfigs = await store.get<AiConfig[]>('aiModelList')
-  const modelKey = await store.get(modelType || 'primaryModel')
-  if (!modelKey) {
-    const primaryModel = await store.get<string>('primaryModel')
-    return aiConfigs?.find(item => item.key === primaryModel)
-  } else {
-    return aiConfigs?.find(item => item.key === modelKey)
+  const modelId = await store.get(modelType || 'primaryModel')
+  
+  if (!modelId || !aiConfigs) {
+    return undefined
   }
+
+  // 在新的数据结构中，需要找到包含指定模型ID的配置
+  for (const config of aiConfigs) {
+    // 检查新的 models 数组结构
+    if (config.models && config.models.length > 0) {
+      const targetModel = config.models.find(model => model.id === modelId)
+      if (targetModel) {
+        // 返回合并了模型配置的 AiConfig
+        return {
+          ...config,
+          model: targetModel.model,
+          modelType: targetModel.modelType,
+          temperature: targetModel.temperature,
+          topP: targetModel.topP,
+          voice: targetModel.voice,
+          enableStream: targetModel.enableStream
+        }
+      }
+    } else {
+      // 向后兼容：处理旧的单模型结构
+      if (config.key === modelId) {
+        return config
+      }
+    }
+  }
+  
+  return undefined
 }
 
 /**

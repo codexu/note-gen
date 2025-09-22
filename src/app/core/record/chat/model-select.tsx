@@ -40,6 +40,7 @@ export function ModelSelect() {
     setPrimaryModel(modelId)
     const store = await Store.load('store.json');
     store.set('primaryModel', modelId)
+    await store.save()
   }
 
   function handleSetOpen(isOpen: boolean) {

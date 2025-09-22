@@ -5,7 +5,6 @@ import { AiConfig } from '@/app/core/setting/config'
 import { GitlabInstanceType } from '@/lib/gitlab.types'
 import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { fetch } from '@tauri-apps/plugin-http'
-import { v4 as uuid } from 'uuid';
 
 export enum GenTemplateRange {
   All = 'all',
@@ -174,8 +173,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
     
     // 初始化默认的NoteGen模型配置
     const existingAiModelList = (await store.get('aiModelList') as AiConfig[]) || []
-    const hasNoteGenModels = existingAiModelList.some(model => 
-      noteGenModelKeys.includes(model.key)
+    const hasNoteGenModels = existingAiModelList.some(config => 
+      config.key === 'note-gen-free' || 
+      noteGenModelKeys.includes(config.key) ||
+      config.models?.some(model => noteGenModelKeys.includes(model.id))
     )
     
     let finalAiModelList = existingAiModelList
@@ -187,7 +188,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     // 检查是否设置了主要模型，如果没有且存在note-gen-chat，则设置为主要模型
     const currentPrimaryModel = await store.get('primaryModel') as string
-    const hasNoteGenChat = finalAiModelList.some(model => model.key === 'note-gen-chat')
+    const hasNoteGenChat = finalAiModelList.some(config => 
+      config.models?.some(model => model.id === 'note-gen-chat') || config.key === 'note-gen-chat'
+    )
     
     if (!currentPrimaryModel && hasNoteGenChat) {
       await store.set('primaryModel', 'note-gen-chat')
@@ -196,7 +199,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     // 检查是否设置了嵌入模型，如果没有且存在note-gen-embedding，则设置为默认嵌入模型
     const currentEmbeddingModel = await store.get('embeddingModel') as string
-    const hasNoteGenEmbedding = finalAiModelList.some(model => model.key === 'note-gen-embedding')
+    const hasNoteGenEmbedding = finalAiModelList.some(config => 
+      config.models?.some(model => model.id === 'note-gen-embedding') || config.key === 'note-gen-embedding'
+    )
     
     if (!currentEmbeddingModel && hasNoteGenEmbedding) {
       await store.set('embeddingModel', 'note-gen-embedding')
@@ -205,7 +210,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     // 检查是否设置了视觉语言模型，如果没有且存在note-gen-vlm，则设置为默认视觉语言模型
     const currentImageMethodModel = await store.get('imageMethodModel') as string
-    const hasNoteGenVlm = finalAiModelList.some(model => model.key === 'note-gen-vlm')
+    const hasNoteGenVlm = finalAiModelList.some(config => 
+      config.models?.some(model => model.id === 'note-gen-vlm') || config.key === 'note-gen-vlm'
+    )
     
     if (!currentImageMethodModel && hasNoteGenVlm) {
       await store.set('imageMethodModel', 'note-gen-vlm')
@@ -226,22 +233,38 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const resModels = await res.json()
 
     if (resModels.data && resModels.data.length > 0) {
-      finalAiModelList = finalAiModelList.filter(model => model.title !== 'NoteGen Limited')
-      const limitFreeModels = resModels.data.filter((model: any) => {
-        return noteGenDefaultModels.every(item => item.model !== model.id)
-      }).map((model: any) => ({
-        apiKey,
-        baseURL: "http://api.notegen.top/v1",
-        "key": uuid(),
-        "model": model.id,
-        "modelType": "chat",
-        "temperature": 0.7,
-        "title": "NoteGen Limited",
-        "topP": 1
-      }))
-      finalAiModelList.unshift(...limitFreeModels)
-      await store.set('aiModelList', finalAiModelList)
-      set({ aiModelList: finalAiModelList })
+      // 移除旧的 NoteGen Limited 配置
+      finalAiModelList = finalAiModelList.filter(model => 
+        model.title !== 'NoteGen Limited' && model.key !== 'note-gen-limited'
+      )
+      
+      // 过滤出不在默认模型中的限时免费模型
+      const limitedModels = resModels.data.filter((model: any) => {
+        // 检查是否在 noteGenDefaultModels 的 models 数组中
+        return !noteGenDefaultModels[0].models?.some(defaultModel => defaultModel.model === model.id)
+      })
+      
+      // 如果有限时免费模型，创建统一的 NoteGen Limited 配置
+      if (limitedModels.length > 0) {
+        const noteGenLimitedConfig = {
+          apiKey,
+          baseURL: "http://api.notegen.top/v1",
+          key: "note-gen-limited",
+          title: "NoteGen Limited",
+          models: limitedModels.map((model: any) => ({
+            id: `note-gen-limited-${model.id}`,
+            model: model.id,
+            modelType: "chat",
+            temperature: 0.7,
+            topP: 1,
+            enableStream: true
+          }))
+        }
+        
+        finalAiModelList.push(noteGenLimitedConfig)
+        await store.set('aiModelList', finalAiModelList)
+        set({ aiModelList: finalAiModelList })
+      }
     }
 
     Object.entries(get()).forEach(async ([key, value]) => {

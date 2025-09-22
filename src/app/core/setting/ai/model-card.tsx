@@ -1,5 +1,9 @@
 'use client'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { 
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
@@ -185,18 +189,18 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+    <AccordionItem value={modelConfig.id} className="border rounded-lg">
+      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+        <div className="flex items-center justify-between w-full mr-4">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-lg">
+            <span className="text-lg font-semibold">
               {modelConfig.model || t('newModel')}
-            </CardTitle>
+            </span>
             <Badge variant="secondary">
               {t(`modelType.${modelConfig.modelType}`)}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <Button
               variant="outline"
               size="sm"
@@ -215,9 +219,9 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
             </Button>
           </div>
         </div>
-      </CardHeader>
+      </AccordionTrigger>
       
-      <CardContent className="space-y-4">
+      <AccordionContent className="px-4 pb-4 space-y-4">
         {/* 模型选择 */}
         <div className="space-y-2">
           <Label>{t('model')}</Label>
@@ -317,7 +321,7 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
             />
           </div>
         )}
-      </CardContent>
-    </Card>
+      </AccordionContent>
+    </AccordionItem>
   )
 }

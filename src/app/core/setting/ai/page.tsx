@@ -4,8 +4,10 @@ import { FormItem, SettingRow, SettingType } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import useSettingStore from "@/stores/setting";
+import { useLocalStorage } from "react-use";
 import { Store } from "@tauri-apps/plugin-store";
 import { BotMessageSquare, Eye, EyeOff, Plus, X, Copy, Trash2 } from "lucide-react";
+import { Accordion } from "@/components/ui/accordion";
 import { AiConfig, ModelConfig } from "../config";
 import { noteGenModelKeys } from '@/app/model-config';
 import * as React from "react"
@@ -27,8 +29,6 @@ import CreateConfig from "./create";
 export default function AiPage() {
   const t = useTranslations('settings.ai');
   const {
-    currentAi,
-    setCurrentAi,
     aiModelList,
     setAiModelList
   } = useSettingStore()
@@ -37,9 +37,16 @@ export default function AiPage() {
   const userCustomModels = aiModelList.filter(model => !noteGenModelKeys.includes(model.key) && model.title !== 'NoteGen Limited')
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
   const [headerPairs, setHeaderPairs] = useState<Array<{key: string, value: string, id: string}>>([])
+  const [expandedModels, setExpandedModels] = useState<string[]>([])
+  
+  // 使用 useLocalStorage 记录当前选择的AI配置
+  const [selectedAiConfig, setSelectedAiConfig] = useLocalStorage<string>('ai-config-selected', '')
   
   // 当前选中的AI配置
-  const currentConfig = userCustomModels.find(model => model.key === currentAi)
+  const currentConfig = userCustomModels.find(model => model.key === selectedAiConfig)
+  
+  // 调试信息
+  console.log('当前selectedAiConfig:', selectedAiConfig, '找到的配置:', currentConfig?.title)
 
   const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
     return Object.entries(headers).map(([key, value]) => ({
@@ -57,8 +64,9 @@ export default function AiPage() {
   const addNewModel = async () => {
     if (!currentConfig) return
     
+    const newModelId = v4()
     const newModel: ModelConfig = {
-      id: v4(),
+      id: newModelId,
       model: '',
       modelType: 'chat',
       temperature: 0.7,
@@ -72,6 +80,9 @@ export default function AiPage() {
     }
     
     await updateAiConfig(updatedConfig)
+    
+    // 自动展开新创建的模型
+    setExpandedModels(prev => [...prev, newModelId])
   }
 
   // 删除模型
@@ -87,6 +98,9 @@ export default function AiPage() {
     }
     
     await updateAiConfig(updatedConfig)
+    
+    // 从展开列表中移除被删除的模型
+    setExpandedModels(prev => prev.filter(id => id !== modelId))
   }
 
   // 更新模型配置
@@ -140,7 +154,7 @@ export default function AiPage() {
     
     await store.set('aiModelList', updatedList)
     setAiModelList(updatedList)
-    setCurrentAi(newConfig.key)
+    setSelectedAiConfig(newConfig.key)
   }
 
   // 删除当前配置
@@ -165,9 +179,9 @@ export default function AiPage() {
     // 删除后选择下一个用户自定义模型
     const remainingUserModels = updatedList.filter(model => !noteGenModelKeys.includes(model.key))
     if (remainingUserModels.length > 0) {
-      setCurrentAi(remainingUserModels[0].key)
+      setSelectedAiConfig(remainingUserModels[0].key)
     } else {
-      setCurrentAi('')
+      setSelectedAiConfig('')
     }
   }
 
@@ -213,7 +227,6 @@ export default function AiPage() {
     async function init() {
       const store = await Store.load('store.json');
       const aiModelList = await store.get<AiConfig[]>('aiModelList')
-      const currentAi = await store.get<string>('currentAi')
       
       if (aiModelList) {
         // 迁移旧配置
@@ -233,16 +246,17 @@ export default function AiPage() {
       // 过滤出用户自定义模型
       const userModels = aiModelList?.filter(model => !noteGenModelKeys.includes(model.key)) || []
       
-      if (currentAi && userModels.find(model => model.key === currentAi)) {
-        // 如果当前选中的是用户自定义模型，则加载它
-        setCurrentAi(currentAi)
+      // 如果已经有保存的选择，且该配置仍然存在，则使用它
+      if (selectedAiConfig && userModels.find(model => model.key === selectedAiConfig)) {
+        // 已经有保存的选择，不需要做任何事情
+        return
       } else if (userModels.length > 0) {
-        // 如果有用户自定义模型，选择第一个
+        // 如果没有保存的选择或选择的配置不存在，选择第一个
         const firstUserModel = userModels[0]
-        setCurrentAi(firstUserModel.key)
+        setSelectedAiConfig(firstUserModel.key)
       } else {
-        // 如果没有用户自定义模型，清空当前选择
-        setCurrentAi('')
+        // 如果没有用户自定义模型，清空选择
+        setSelectedAiConfig('')
       }
     }
     init()
@@ -253,7 +267,13 @@ export default function AiPage() {
       {/* 当没有用户自定义模型时显示默认模型区域 */}
       {userCustomModels.length === 0 && <DefaultModelsSection />}
       
-      <CreateConfig hasCustomModels={userCustomModels.length > 0} />
+      <CreateConfig 
+        hasCustomModels={userCustomModels.length > 0} 
+        onConfigCreated={(configId) => {
+          console.log('收到新建配置通知:', configId)
+          setSelectedAiConfig(configId)
+        }}
+      />
       
       {userCustomModels.length > 0 && (
         <>
@@ -261,7 +281,7 @@ export default function AiPage() {
           <SettingRow>
             <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
               <div className="flex items-center gap-2 md:flex-row flex-col">
-                <Select value={currentAi} onValueChange={setCurrentAi}>
+                <Select value={selectedAiConfig} onValueChange={setSelectedAiConfig}>
                   <SelectTrigger className="w-full">
                     <div className="flex items-center gap-2">
                       {currentConfig?.title || t('selectConfig')}
@@ -409,26 +429,31 @@ export default function AiPage() {
 
               {/* 模型配置区域 */}
               <SettingRow>
-                <FormItem title={t('models')} desc={t('modelsDesc')}>
+                <FormItem title={t('models')}>
                   <div className="space-y-4">
+                    {/* 模型卡片列表 */}
+                    <Accordion 
+                      type="multiple" 
+                      className="space-y-2"
+                      value={expandedModels}
+                      onValueChange={setExpandedModels}
+                    >
+                      {(currentConfig.models || []).map((modelConfig) => (
+                        <div key={modelConfig.id}>
+                          <ModelCard
+                            modelConfig={modelConfig}
+                            aiConfig={currentConfig}
+                            onUpdate={updateModelConfig}
+                            onDelete={deleteModel}
+                          />
+                        </div>
+                      ))}
+                    </Accordion>
                     {/* 添加模型按钮 */}
                     <Button onClick={addNewModel} className="w-full">
                       <Plus className="h-4 w-4 mr-2" />
                       {t('addModel')}
                     </Button>
-                    
-                    {/* 模型卡片列表 */}
-                    <div className="space-y-4">
-                      {(currentConfig.models || []).map((modelConfig) => (
-                        <ModelCard
-                          key={modelConfig.id}
-                          modelConfig={modelConfig}
-                          aiConfig={currentConfig}
-                          onUpdate={updateModelConfig}
-                          onDelete={deleteModel}
-                        />
-                      ))}
-                    </div>
                   </div>
                 </FormItem>
               </SettingRow>

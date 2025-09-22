@@ -1,6 +1,6 @@
 import { SettingPanel } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
-import { ModelSelect } from "./model-select";
+import { ModelSelect } from "../components/model-select";
 import { ChartScatter, ListOrdered } from "lucide-react";
 
 export function ModelSetting() {

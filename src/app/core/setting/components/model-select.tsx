@@ -33,7 +33,7 @@ interface GroupedModel {
 
 export function ModelSelect({modelKey}: {modelKey: string}) {
   const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
-  const { setPlaceholderModel, setTranslateModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel } = useSettingStore()
+  const { setPlaceholderModel, setTranslateModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel, setEmbeddingModel, setRerankingModel } = useSettingStore()
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
@@ -53,6 +53,10 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
         return 'markDescModel'
       case 'audio':
         return 'audioModel'
+      case 'embedding':
+        return 'embeddingModel'
+      case 'reranking':
+        return 'rerankingModel'
       default:
         return `${modelKey}Model`
     }
@@ -79,8 +83,26 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       case 'audio':
         setAudioModel(primaryModel)
         break;
+      case 'embedding':
+        setEmbeddingModel(primaryModel)
+        break;
+      case 'reranking':
+        setRerankingModel(primaryModel)
+        break;
       default:
         break;
+    }
+  }
+
+  // 获取需要过滤的模型类型
+  function getTargetModelType(modelKey: string): string {
+    switch (modelKey) {
+      case 'embedding':
+        return 'embedding'
+      case 'reranking':
+        return 'rerank'
+      default:
+        return 'chat'
     }
   }
 
@@ -88,8 +110,8 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
     const store = await Store.load('store.json');
     const aiConfigs = await store.get<AiConfig[]>('aiModelList')
     if (!aiConfigs) return
-    
     const models: GroupedModel[] = []
+    const targetModelType = getTargetModelType(modelKey)
     
     aiConfigs.forEach(config => {
       // 检查配置是否有效
@@ -98,25 +120,26 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       // 处理新的 models 数组结构
       if (config.models && config.models.length > 0) {
         config.models.forEach(model => {
-          // 只显示 chat 类型的模型（默认模型设置通常只需要chat类型）
-          if (model.modelType === 'chat' && model.model) {
+          // 根据modelKey过滤对应类型的模型
+          if (model.modelType === targetModelType && model.model) {
             models.push({
               configKey: config.key,
               configTitle: config.title,
-              model: model
+              model,
             })
           }
         })
       } else {
         // 向后兼容：处理旧的单模型结构
-        if ((config.modelType === 'chat' || !config.modelType) && config.model) {
+        const configModelType = config.modelType || 'chat'
+        if (configModelType === targetModelType && config.model) {
           models.push({
             configKey: config.key,
             configTitle: config.title,
             model: {
               id: config.key,
               model: config.model,
-              modelType: config.modelType || 'chat',
+              modelType: configModelType,
               temperature: config.temperature,
               topP: config.topP,
               voice: config.voice,
@@ -126,6 +149,8 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
         }
       }
     })
+
+    console.log(models);
     
     setGroupedModels(models)
     
@@ -151,11 +176,43 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
     setPrimaryModelHandler('')
   }
 
+  // 检查模型是否被选中（支持向后兼容）
+  const isModelSelected = (modelId: string): boolean => {
+    if (!model) return false
+    
+    // 首先尝试精确匹配（新格式的组合键）
+    if (model === modelId) return true
+    
+    // 向后兼容匹配（旧格式的单独ID）
+    if (modelId.includes('-')) {
+      const parts = modelId.split('-')
+      const originalId = parts.slice(2).join('-') // 去掉 config.key 部分
+      return originalId === model
+    }
+    
+    return false
+  }
+
   // 查找当前选中的模型显示信息
   const findSelectedModelDisplay = () => {
     if (!model || !groupedModels.length) return null
     
-    const selectedItem = groupedModels.find(item => item.model.id === model)
+    // 首先尝试精确匹配（新格式的组合键）
+    let selectedItem = groupedModels.find(item => item.model.id === model)
+    
+    // 如果没找到，尝试向后兼容匹配（旧格式的单独ID）
+    if (!selectedItem) {
+      selectedItem = groupedModels.find(item => {
+        // 对于新格式的组合键，提取原始ID进行匹配
+        if (item.model.id.includes('-')) {
+          const parts = item.model.id.split('-')
+          const originalId = parts.slice(2).join('-') // 去掉 config.key 部分
+          return originalId === model
+        }
+        return item.model.id === model
+      })
+    }
+    
     if (selectedItem) {
       return `${selectedItem.model.model}(${selectedItem.configTitle})`
     }
@@ -222,7 +279,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
                     <Check
                       className={cn(
                         "ml-auto",
-                        model === item.model.id ? "opacity-100" : "opacity-0"
+                        isModelSelected(item.model.id) ? "opacity-100" : "opacity-0"
                       )}
                     />
                   </CommandItem>

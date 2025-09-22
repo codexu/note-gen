@@ -20,8 +20,8 @@ import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
 
 export default function ModelSelect(
-  { model, setModel }:
-  { model: string, setModel: (model: string) => void }
+  { model, setModel, aiConfig }:
+  { model: string, setModel?: (model: string) => void, aiConfig?: AiConfig }
 ) {
   const [loading, setLoading] = useState(false)
   const { currentAi } = useSettingStore()
@@ -37,8 +37,17 @@ export default function ModelSelect(
 
   async function initModelList() {
     const store = await Store.load('store.json')
-    const aiModelList = await store.get<AiConfig[]>('aiModelList')
-    const model = aiModelList?.find(item => item.key === currentAi)
+    let model: AiConfig | undefined
+    
+    if (aiConfig) {
+      // 如果传入了aiConfig，直接使用
+      model = aiConfig
+    } else {
+      // 否则从store中获取当前AI配置
+      const aiModelList = await store.get<AiConfig[]>('aiModelList')
+      model = aiModelList?.find(item => item.key === currentAi)
+    }
+    
     if (!model) return
     
     const requestId = ++currentRequestIdRef.current
@@ -49,9 +58,15 @@ export default function ModelSelect(
     if (!models) return
     setList(models)
     
-    const modelConfig = aiModelList?.find(item => item.key === currentAi)
-    if (!modelConfig) return
-    setModel(modelConfig.model || '')
+    // 如果没有传入aiConfig，则从store中设置model值
+    if (!aiConfig && setModel) {
+      const store = await Store.load('store.json')
+      const aiModelList = await store.get<AiConfig[]>('aiModelList')
+      const modelConfig = aiModelList?.find((item: AiConfig) => item.key === currentAi)
+      if (modelConfig) {
+        setModel(modelConfig.model || '')
+      }
+    }
   }
 
   // 获取模型列表
@@ -80,15 +95,10 @@ export default function ModelSelect(
   }
 
   async function syncModelList(value: string) {
-    setModel(value)
-    const store = await Store.load('store.json')
-    const aiModelList = await store.get<AiConfig[]>('aiModelList')
-    if (!aiModelList) return
-    const modelConfig = aiModelList.find(item => item.key === currentAi)
-    if (!modelConfig) return
-    modelConfig.model = value
-    aiModelList[aiModelList.findIndex(item => item.key === currentAi)] = modelConfig
-    await store.set('aiModelList', aiModelList)
+    // 使用传递的setModel回调来更新模型
+    if (setModel) {
+      setModel(value)
+    }
   }
 
   const handleSelectOrCreate = (value: string) => {

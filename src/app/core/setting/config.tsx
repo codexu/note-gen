@@ -92,20 +92,33 @@ export default baseConfig
 
 export type ModelType = 'chat' | 'image' | 'video' | 'audio' | 'embedding' | 'rerank';
 
+export interface ModelConfig {
+  id: string
+  model: string
+  modelType: ModelType
+  temperature?: number
+  topP?: number
+  voice?: string
+  enableStream?: boolean
+}
+
 export interface AiConfig {
   key: string
   title: string
-  temperature?: number
-  topP?: number
   apiKey?: string
-  model?: string
   baseURL?: string
-  modelType?: ModelType
   icon?: string
   apiKeyUrl?: string
   customHeaders?: Record<string, string>
+  models?: ModelConfig[]
+  // 保持向后兼容
+  model?: string
+  temperature?: number
+  topP?: number
+  modelType?: ModelType
   voice?: string
   speed?: number
+  enableStream?: boolean
 }
 
 export interface Model {

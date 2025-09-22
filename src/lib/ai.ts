@@ -127,11 +127,34 @@ async function getEmbeddingModelInfo() {
   const aiModelList = await store.get<AiConfig[]>('aiModelList');
   if (!aiModelList) return null;
   
-  const modelInfo = aiModelList.find(item => 
-    item.key === embeddingModel && item.modelType === 'embedding'
-  );
+  // 在新的数据结构中，需要找到包含指定模型ID的配置
+  for (const config of aiModelList) {
+    // 检查新的 models 数组结构
+    if (config.models && config.models.length > 0) {
+      const targetModel = config.models.find(model => 
+        model.id === embeddingModel && model.modelType === 'embedding'
+      );
+      if (targetModel) {
+        // 返回合并了模型配置的 AiConfig
+        return {
+          ...config,
+          model: targetModel.model,
+          modelType: targetModel.modelType,
+          temperature: targetModel.temperature,
+          topP: targetModel.topP,
+          voice: targetModel.voice,
+          enableStream: targetModel.enableStream
+        };
+      }
+    } else {
+      // 向后兼容：处理旧的单模型结构
+      if (config.key === embeddingModel && config.modelType === 'embedding') {
+        return config;
+      }
+    }
+  }
   
-  return modelInfo || null;
+  return null;
 }
 
 /**
@@ -139,17 +162,40 @@ async function getEmbeddingModelInfo() {
  */
 export async function getRerankModelInfo() {
   const store = await Store.load('store.json');
-  const rerankModel = await store.get<string>('rerankPrimaryModel');
+  const rerankModel = await store.get<string>('rerankingModel');
   if (!rerankModel) return null;
   
   const aiModelList = await store.get<AiConfig[]>('aiModelList');
   if (!aiModelList) return null;
   
-  const modelInfo = aiModelList.find(item => 
-    item.key === rerankModel && item.modelType === 'rerank'
-  );
+  // 在新的数据结构中，需要找到包含指定模型ID的配置
+  for (const config of aiModelList) {
+    // 检查新的 models 数组结构
+    if (config.models && config.models.length > 0) {
+      const targetModel = config.models.find(model => 
+        model.id === rerankModel && model.modelType === 'rerank'
+      );
+      if (targetModel) {
+        // 返回合并了模型配置的 AiConfig
+        return {
+          ...config,
+          model: targetModel.model,
+          modelType: targetModel.modelType,
+          temperature: targetModel.temperature,
+          topP: targetModel.topP,
+          voice: targetModel.voice,
+          enableStream: targetModel.enableStream
+        };
+      }
+    } else {
+      // 向后兼容：处理旧的单模型结构
+      if (config.key === rerankModel && config.modelType === 'rerank') {
+        return config;
+      }
+    }
+  }
   
-  return modelInfo || null;
+  return null;
 }
 
 /**

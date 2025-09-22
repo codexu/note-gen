@@ -41,7 +41,18 @@ async function getAISettings(modelType?: string): Promise<AiConfig | undefined> 
   for (const config of aiConfigs) {
     // 检查新的 models 数组结构
     if (config.models && config.models.length > 0) {
-      const targetModel = config.models.find(model => model.id === modelId)
+      // 首先尝试直接匹配模型ID
+      let targetModel = config.models.find(model => model.id === modelId)
+      
+      // 如果没找到，尝试匹配组合键格式 ${config.key}-${model.id}
+      if (!targetModel && typeof modelId === 'string' && modelId.includes('-')) {
+        const expectedPrefix = `${config.key}-`
+        if (modelId.startsWith(expectedPrefix)) {
+          const originalModelId = modelId.substring(expectedPrefix.length)
+          targetModel = config.models.find(model => model.id === originalModelId)
+        }
+      }
+      
       if (targetModel) {
         // 返回合并了模型配置的 AiConfig
         return {
@@ -581,7 +592,7 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
 export async function fetchAiDesc(text: string) {
   try {
     // 获取AI设置
-    const aiConfig = await getAISettings('markDescPrimaryModel')
+    const aiConfig = await getAISettings('markDescModel')
     
     const descContent = `根据截图的内容：${text}，返回一条描述，不要超过50字，不要包含特殊字符。`
     
@@ -643,7 +654,13 @@ export async function fetchAiDescByImage(base64: string) {
 export async function fetchAiPlaceholder(text: string): Promise<string | false> {
   try {
     // 获取AI设置
-    const aiConfig = await getAISettings('placeholderPrimaryModel')
+    const aiConfig = await getAISettings('placeholderModel')
+    
+    // 检查配置是否存在
+    if (!aiConfig) {
+      console.error('Placeholder model not configured')
+      return false
+    }
 
     // 构建 placeholder 提示词
     const placeholderPrompt = `
@@ -656,22 +673,23 @@ export async function fetchAiPlaceholder(text: string): Promise<string | false> 
       ${text}`
 
     // 准备消息
-    const { messages } = await prepareMessages(`${placeholderPrompt}\n\n${text}`, false)
+    const { messages } = await prepareMessages(placeholderPrompt, false)
     
     const openai = await createOpenAIClient(aiConfig)
       
     const completion = await openai.chat.completions.create({
-      model: aiConfig?.model || '',
+      model: aiConfig.model || '',
       messages: messages,
-      temperature: aiConfig?.temperature || 1,
-      top_p: aiConfig?.topP || 1,
+      temperature: aiConfig.temperature || 1,
+      top_p: aiConfig.topP || 1,
     })
 
     const result = completion.choices[0]?.message?.content || ''
 
     // 去掉所有换行符和各种特殊符号，不包括空格
     return result.trim()
-  } catch {
+  } catch (error) {
+    console.error('Error in fetchAiPlaceholder:', error)
     return false
   }
 }
@@ -680,7 +698,7 @@ export async function fetchAiPlaceholder(text: string): Promise<string | false> 
 export async function fetchAiTranslate(text: string, targetLanguage: string): Promise<string> {
   try {
     // 获取AI设置
-    const aiConfig = await getAISettings('translatePrimaryModel')
+    const aiConfig = await getAISettings('translateModel')
     
     // 构建翻译提示词
     const translationPrompt = `Translate the following text to ${targetLanguage}. Maintain the original formatting, markdown syntax, and structure:`

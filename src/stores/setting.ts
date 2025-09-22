@@ -261,6 +261,41 @@ const useSettingStore = create<SettingState>((set, get) => ({
       }
     }
 
+    // 检查并初始化其他模型类型
+    const modelTypes = [
+      { storeKey: 'placeholderModel', modelType: 'chat' },
+      { storeKey: 'translateModel', modelType: 'chat' },
+      { storeKey: 'markDescModel', modelType: 'chat' }
+    ]
+
+    for (const { storeKey, modelType } of modelTypes) {
+      const currentModel = await store.get(storeKey) as string
+      if (!currentModel) {
+        // 查找第一个可用的聊天模型作为默认值
+        const noteGenFreeConfig = finalAiModelList.find(config => config.key === 'note-gen-free')
+        if (noteGenFreeConfig?.models?.some(model => model.id === 'note-gen-chat' && model.modelType === modelType)) {
+          await store.set(storeKey, 'note-gen-free-note-gen-chat')
+          set({ [storeKey.replace('Model', '')]: 'note-gen-free-note-gen-chat' })
+        } else {
+          // 查找其他可用的聊天模型
+          for (const config of finalAiModelList) {
+            if (config.models && config.models.length > 0) {
+              const chatModel = config.models.find(model => model.modelType === modelType)
+              if (chatModel) {
+                await store.set(storeKey, `${config.key}-${chatModel.id}`)
+                set({ [storeKey.replace('Model', '')]: `${config.key}-${chatModel.id}` })
+                break
+              }
+            } else if (config.modelType === modelType || !config.modelType) {
+              await store.set(storeKey, config.key)
+              set({ [storeKey.replace('Model', '')]: config.key })
+              break
+            }
+          }
+        }
+      }
+    }
+
     // 获取 NoteGen 限时免费模型
     const apiKey = noteGenDefaultModels[0].apiKey
     const headers = {

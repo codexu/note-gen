@@ -73,7 +73,37 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
   }
 
   // 查找音频模型配置
-  const audioConfig = aiModelList.find(config => config.key === audioModel)
+  let audioConfig = null
+  
+  // 在新的数据结构中，需要找到包含指定模型ID的配置
+  for (const config of aiModelList) {
+    // 检查新的 models 数组结构
+    if (config.models && config.models.length > 0) {
+      const targetModel = config.models.find(model => 
+        model.id === audioModel && model.modelType === 'audio'
+      )
+      if (targetModel) {
+        // 返回合并了模型配置的 AiConfig
+        audioConfig = {
+          ...config,
+          model: targetModel.model,
+          modelType: targetModel.modelType,
+          temperature: targetModel.temperature,
+          topP: targetModel.topP,
+          voice: targetModel.voice,
+          enableStream: targetModel.enableStream
+        }
+        break
+      }
+    } else {
+      // 向后兼容：处理旧的单模型结构
+      if (config.key === audioModel && config.modelType === 'audio') {
+        audioConfig = config
+        break
+      }
+    }
+  }
+  
   if (!audioConfig) {
     throw new Error('未找到音频模型配置')
   }

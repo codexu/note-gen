@@ -193,8 +193,14 @@ const useSettingStore = create<SettingState>((set, get) => ({
     )
     
     if (!currentPrimaryModel && hasNoteGenChat) {
-      await store.set('primaryModel', 'note-gen-chat')
-      set({ primaryModel: 'note-gen-chat' })
+      const noteGenFreeConfig = finalAiModelList.find(config => config.key === 'note-gen-free')
+      if (noteGenFreeConfig?.models?.some(model => model.id === 'note-gen-chat')) {
+        await store.set('primaryModel', 'note-gen-free-note-gen-chat')
+        set({ primaryModel: 'note-gen-free-note-gen-chat' })
+      } else {
+        await store.set('primaryModel', 'note-gen-chat')
+        set({ primaryModel: 'note-gen-chat' })
+      }
     }
 
     // 检查是否设置了嵌入模型，如果没有且存在note-gen-embedding，则设置为默认嵌入模型
@@ -204,8 +210,14 @@ const useSettingStore = create<SettingState>((set, get) => ({
     )
     
     if (!currentEmbeddingModel && hasNoteGenEmbedding) {
-      await store.set('embeddingModel', 'note-gen-embedding')
-      set({ embeddingModel: 'note-gen-embedding' })
+      const noteGenFreeConfig = finalAiModelList.find(config => config.key === 'note-gen-free')
+      if (noteGenFreeConfig?.models?.some(model => model.id === 'note-gen-embedding')) {
+        await store.set('embeddingModel', 'note-gen-free-note-gen-embedding')
+        set({ embeddingModel: 'note-gen-free-note-gen-embedding' })
+      } else {
+        await store.set('embeddingModel', 'note-gen-embedding')
+        set({ embeddingModel: 'note-gen-embedding' })
+      }
     }
 
     // 检查是否设置了视觉语言模型，如果没有且存在note-gen-vlm，则设置为默认视觉语言模型
@@ -215,8 +227,38 @@ const useSettingStore = create<SettingState>((set, get) => ({
     )
     
     if (!currentImageMethodModel && hasNoteGenVlm) {
-      await store.set('imageMethodModel', 'note-gen-vlm')
-      set({ imageMethodModel: 'note-gen-vlm' })
+      const noteGenFreeConfig = finalAiModelList.find(config => config.key === 'note-gen-free')
+      if (noteGenFreeConfig?.models?.some(model => model.id === 'note-gen-vlm')) {
+        await store.set('imageMethodModel', 'note-gen-free-note-gen-vlm')
+        set({ imageMethodModel: 'note-gen-free-note-gen-vlm' })
+      } else {
+        await store.set('imageMethodModel', 'note-gen-vlm')
+        set({ imageMethodModel: 'note-gen-vlm' })
+      }
+    }
+
+    // 检查是否设置了音频模型，如果没有且存在note-gen-audio，则设置为默认音频模型
+    const currentAudioModel = await store.get('audioModel') as string
+    const hasNoteGenAudio = finalAiModelList.some(config => 
+      config.models?.some(model => model.modelType === 'audio') || config.modelType === 'audio'
+    )
+    
+    if (!currentAudioModel && hasNoteGenAudio) {
+      // 查找第一个可用的音频模型
+      for (const config of finalAiModelList) {
+        if (config.models && config.models.length > 0) {
+          const audioModel = config.models.find(model => model.modelType === 'audio')
+          if (audioModel) {
+            await store.set('audioModel', `${config.key}-${audioModel.id}`)
+            set({ audioModel: `${config.key}-${audioModel.id}` })
+            break
+          }
+        } else if (config.modelType === 'audio') {
+          await store.set('audioModel', config.key)
+          set({ audioModel: config.key })
+          break
+        }
+      }
     }
 
     // 获取 NoteGen 限时免费模型
@@ -355,7 +397,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
   audioModel: '',
   setAudioModel: async (audioModel) => {
     const store = await Store.load('store.json');
-    await store.set('audioPrimaryModel', audioModel)
+    await store.set('audioModel', audioModel)
     set({ audioModel })
   },
 

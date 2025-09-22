@@ -1,7 +1,7 @@
 import { SettingPanel } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
-import { ModelSelect } from "./model-select";
-import { Gauge } from "lucide-react";
+import { ModelSelect } from "../components/model-select";
+import { Gauge, Volume2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -20,10 +20,28 @@ export function Setting() {
       const models = await store.get<any[]>('aiModelList');
       if (!models) return;
       
-      const currentModel = models.find(m => m.key === audioModel);
-      if (currentModel?.speed !== undefined) {
-        setSpeed(currentModel.speed);
+      // 查找音频模型配置，适配新的多模型数据结构
+      let currentSpeed = 1;
+      for (const config of models) {
+        // 检查新的 models 数组结构
+        if (config.models && config.models.length > 0) {
+          const targetModel = config.models.find((model: any) => 
+            model.id === audioModel && model.modelType === 'audio'
+          );
+          if (targetModel && targetModel.speed !== undefined) {
+            currentSpeed = targetModel.speed;
+            break;
+          }
+        } else {
+          // 向后兼容：处理旧的单模型结构
+          if (config.key === audioModel && config.modelType === 'audio' && config.speed !== undefined) {
+            currentSpeed = config.speed;
+            break;
+          }
+        }
       }
+      
+      setSpeed(currentSpeed);
       setAiModelList(models);
     }
     loadSpeed();
@@ -39,21 +57,41 @@ export function Setting() {
     const store = await Store.load('store.json');
     const models = await store.get<any[]>('aiModelList') || [];
     
-    const updatedModels = models.map(model => {
-      if (model.key === audioModel) {
-        return { ...model, speed: newSpeed };
+    // 更新音频模型的语速设置，适配新的多模型数据结构
+    const updatedModels = models.map(config => {
+      // 检查新的 models 数组结构
+      if (config.models && config.models.length > 0) {
+        const updatedConfig = { ...config };
+        updatedConfig.models = config.models.map((model: any) => {
+          if (model.id === audioModel && model.modelType === 'audio') {
+            return { ...model, speed: newSpeed };
+          }
+          return model;
+        });
+        return updatedConfig;
+      } else {
+        // 向后兼容：处理旧的单模型结构
+        if (config.key === audioModel && config.modelType === 'audio') {
+          return { ...config, speed: newSpeed };
+        }
+        return config;
       }
-      return model;
     });
-    setAiModelList(updatedModels);
     
+    setAiModelList(updatedModels);
     await store.set('aiModelList', updatedModels);
     await store.save();
   };
 
   return (
     <>
-      <ModelSelect />
+      <SettingPanel 
+        title={t('options.audioModel.title')} 
+        desc={t('options.audioModel.desc')} 
+        icon={<Volume2 className="size-4" />}
+      >
+        <ModelSelect modelKey="audio" />
+      </SettingPanel>
       {audioModel && (
         <SettingPanel 
           title={t('options.speed.title')} 

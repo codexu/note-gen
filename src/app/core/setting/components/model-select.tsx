@@ -101,6 +101,8 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
         return 'embedding'
       case 'reranking':
         return 'rerank'
+      case 'audio':
+        return 'audio'
       default:
         return 'chat'
     }

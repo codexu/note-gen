@@ -71,7 +71,7 @@ export async function uploadFile(
       _filename = `${id}.${ext}`
     }
     // 将空格转换成下划线
-    _filename = _filename.replace(/\s/g, '_')
+    _filename = encodeURIComponent(_filename.replace(/\s/g, '_'))
     const _path = path ? `/${path}`: ''
     
     // 设置请求头
@@ -124,7 +124,7 @@ export async function getFiles({ path, repo }: { path: string, repo: string }) {
   if (!accessToken) return;
   
   const githubUsername = await store.get('githubUsername')
-  path = path.replace(/\s/g, '_')
+  path = encodeURIComponent(path.replace(/\s/g, '_'))
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -203,7 +203,7 @@ export async function deleteFile(
       proxy
     };
     
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${path}`;
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodeURIComponent(path)}`;
     const response = await fetch(url, requestOptions);
     
     if (response.status >= 200 && response.status < 300) {
@@ -224,7 +224,7 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
   if (!accessToken) return;
   
   const githubUsername = await store.get('githubUsername')
-  path = path.replace(/\s/g, '_')
+  path = encodeURIComponent(path.replace(/\s/g, '_'))
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')

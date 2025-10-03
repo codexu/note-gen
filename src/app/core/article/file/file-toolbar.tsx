@@ -40,7 +40,12 @@ import { toast } from '@/hooks/use-toast'
 
 export function FileToolbar() {
   const { newFolder, loadFileTree, newFile, fileTreeLoading, sortType, setSortType, sortDirection, setSortDirection, toggleAllFolders, collapsibleList } = useArticleStore()
-  const { primaryBackupMethod } = useSettingStore()
+  const {
+    primaryBackupMethod,
+    githubCustomSyncRepo,
+    giteeCustomSyncRepo,
+    gitlabCustomSyncRepo
+  } = useSettingStore()
   const { processAllDocuments, isProcessing, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
   const t = useTranslations('article.file.toolbar')
 
@@ -50,18 +55,29 @@ export function FileToolbar() {
   const debounceNewFolder = debounce(newFolder, 200)
   const [isImporting, setIsImporting] = React.useState(false)
 
-  async function openFolder() {
+  const repoName = React.useMemo(() => {
     switch (primaryBackupMethod) {
       case 'github':
-        open(`https://github.com/${username}/${RepoNames.sync}`)
-        break;
+        return githubCustomSyncRepo.trim() || RepoNames.sync
       case 'gitee':
-        open(`https://gitee.com/${username}/${RepoNames.sync}`)
-        break;
+        return giteeCustomSyncRepo.trim() || RepoNames.sync
       case 'gitlab':
-        open(`https://gitlab.com/${username}/${RepoNames.sync}`)
-        break;
+        return gitlabCustomSyncRepo.trim() || RepoNames.sync
+      default:
+        return RepoNames.sync
     }
+  }, [primaryBackupMethod, githubCustomSyncRepo, giteeCustomSyncRepo, gitlabCustomSyncRepo])
+
+  async function openFolder() {
+    if (!username || !primaryBackupMethod) return
+
+    const baseUrl = primaryBackupMethod === 'github'
+      ? 'https://github.com'
+      : primaryBackupMethod === 'gitee'
+        ? 'https://gitee.com'
+        : 'https://gitlab.com'
+
+    open(`${baseUrl}/${username}/${repoName}`)
   }
 
   // 递归复制文件夹中的所有 markdown 文件和图片

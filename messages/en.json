@@ -719,6 +719,12 @@
           "messageControl": {
             "words": "words"
           },
+          "mcp": {
+            "callingTool": "Calling tool...",
+            "callingToolName": "Calling tool: {toolName}...",
+            "toolCompleted": "Tool call completed, processing...",
+            "maxIterationsReached": "Maximum tool call iterations reached"
+          },
           "empty": {
             "features": [
               {
@@ -1222,5 +1228,18 @@
         "synced": "Synced"
       }
     }
+  },
+  "mcp": {
+    "selectServers": "Select MCP Servers",
+    "searchServers": "Search servers...",
+    "noServers": "MCP service not enabled",
+    "noServersFound": "No matching servers found",
+    "addServer": "Add server...",
+    "goToSettings": "Go to Settings",
+    "close": "Close",
+    "navigate": "Select",
+    "confirm": "Confirm",
+    "tools": "tools",
+    "disconnected": "Disconnected"
   }
 }

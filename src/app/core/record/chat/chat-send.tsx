@@ -15,6 +15,7 @@ import { MarkdownFile } from "@/lib/files"
 import { readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { useMcpStore } from "@/stores/mcp"
+import { getOpenAIFunctions } from "@/lib/mcp/tools"
 
 interface ChatSendProps {
   inputValue: string;
@@ -42,7 +43,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     if (inputValue === '') return
     onSent?.()
     
-    // 检查并输出选中的 MCP 服务器信息
+    // 检查并输出选中的 MCP 服务器信息（调试用）
     if (selectedServerIds.length > 0) {
       console.log('=== MCP 服务器已选中 ===')
       console.log('选中的服务器 ID:', selectedServerIds)
@@ -58,8 +59,6 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         }
       }
       console.log('======================')
-    } else {
-      console.log('未选中任何 MCP 服务器')
     }
     
     setLoading(true)
@@ -177,6 +176,13 @@ ${ragContext}
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
     
+    // 准备 MCP 工具（如果有选中的服务器）
+    let mcpTools: any[] | undefined
+    if (selectedServerIds.length > 0) {
+      mcpTools = getOpenAIFunctions(selectedServerIds)
+      console.log('已添加 MCP 工具到请求:', mcpTools.length, '个工具')
+    }
+    
     // 使用流式方式获取AI结果
     let cache_content = '';
     try {
@@ -187,7 +193,7 @@ ${ragContext}
           ...message,
           content
         }, false)
-      }, signal)
+      }, signal, mcpTools, t)
     } catch (error: any) {
       // 如果不是中止错误，则记录错误信息
       if (error.name !== 'AbortError') {

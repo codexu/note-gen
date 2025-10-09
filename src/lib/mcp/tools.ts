@@ -11,27 +11,52 @@ export function getSelectedServerTools(): Array<{
   tool: MCPTool
 }> {
   const store = useMcpStore.getState()
-  const result: Array<{
-    serverId: string
-    serverName: string
-    tool: MCPTool
-  }> = []
+  const result: Array<{ serverId: string; serverName: string; tool: MCPTool }> = []
   
-  for (const serverId of store.selectedServerIds) {
-    const server = store.servers.find(s => s.id === serverId)
-    if (!server) continue
-    
-    const tools = mcpServerManager.getServerTools(serverId)
-    for (const tool of tools) {
-      result.push({
-        serverId,
-        serverName: server.name,
-        tool,
-      })
+  for (const server of store.servers) {
+    if (store.selectedServerIds.includes(server.id)) {
+      const tools = mcpServerManager.getServerTools(server.id)
+      for (const tool of tools) {
+        result.push({
+          serverId: server.id,
+          serverName: server.name,
+          tool,
+        })
+      }
     }
   }
   
   return result
+}
+
+/**
+ * 获取所有选中服务器的工具，转换为 OpenAI Function Calling 格式
+ */
+export function getOpenAIFunctions(selectedServerIds: string[]): any[] {
+  const functions: any[] = []
+  
+  for (const serverId of selectedServerIds) {
+    const tools = mcpServerManager.getServerTools(serverId)
+    
+    for (const tool of tools) {
+      // 转换为 OpenAI Function Calling 格式
+      functions.push({
+        type: 'function',
+        function: {
+          name: `${serverId}__${tool.name}`, // 使用服务器ID作为前缀避免冲突
+          description: tool.description || tool.name,
+          parameters: tool.inputSchema || {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+      })
+    }
+  }
+  
+  console.log('转换后的 OpenAI Functions:', functions)
+  return functions
 }
 
 /**
@@ -128,10 +153,3 @@ export function toolToOpenAIFunction(tool: MCPTool) {
   }
 }
 
-/**
- * 获取所有选中服务器的 OpenAI Functions
- */
-export function getOpenAIFunctions() {
-  const tools = getSelectedServerTools()
-  return tools.map(({ tool }) => toolToOpenAIFunction(tool))
-}

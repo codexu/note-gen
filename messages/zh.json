@@ -786,6 +786,12 @@
           "messageControl": {
             "words": "字"
           },
+          "mcp": {
+            "callingTool": "正在调用工具...",
+            "callingToolName": "正在调用工具: {toolName}...",
+            "toolCompleted": "工具调用完成，正在处理...",
+            "maxIterationsReached": "达到最大工具调用次数限制"
+          },
           "empty": {
             "features": [
               {

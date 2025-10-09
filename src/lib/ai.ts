@@ -490,9 +490,18 @@ export async function fetchAi(text: string): Promise<string> {
  * @param text 请求文本
  * @param onUpdate 每次收到流式内容时的回调函数
  * @param abortSignal 用于终止请求的信号
+ * @param mcpTools MCP 工具列表（可选）
+ * @param t 翻译函数（可选）
  */
-export async function fetchAiStream(text: string, onUpdate: (content: string) => void, abortSignal?: AbortSignal): Promise<string> {
+export async function fetchAiStream(
+  text: string, 
+  onUpdate: (content: string) => void, 
+  abortSignal?: AbortSignal,
+  mcpTools?: any[],
+  t?: (key: string, params?: Record<string, any>) => string
+): Promise<string> {
   try {
+
     
     // 获取AI设置
     const aiConfig = await getAISettings()
@@ -505,35 +514,254 @@ export async function fetchAiStream(text: string, onUpdate: (content: string) =>
 
     const openai = await createOpenAIClient(aiConfig)
     
-    const stream = await openai.chat.completions.create({
+    // 构建请求参数
+    const requestParams: any = {
       model: aiConfig?.model || '',
       messages: messages,
       temperature: aiConfig?.temperature,
       top_p: aiConfig?.topP,
       stream: true,
-    }, {
+    }
+    
+    // 如果有 MCP 工具，添加到请求中
+    if (mcpTools && mcpTools.length > 0) {
+      requestParams.tools = mcpTools
+      requestParams.tool_choice = 'auto'
+    }
+    
+    const stream = await openai.chat.completions.create(requestParams, {
       signal: abortSignal
-    })
+    }) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
     
     
     let thinking = ''
     let fullContent = ''
+    const toolCalls: any[] = []
+    let hasToolCalls = false
     
     for await (const chunk of stream) {
       if (abortSignal?.aborted) {
         break;
       }
       
-      const thinkingContent = (chunk.choices[0]?.delta as any)?.reasoning_content || ''
-      const content = chunk.choices[0]?.delta?.content || ''
+      const delta = chunk.choices[0]?.delta
+      const thinkingContent = (delta as any)?.reasoning_content || ''
+      const content = delta?.content || ''
+      
+      // 处理工具调用
+      if (delta?.tool_calls) {
+        hasToolCalls = true
+        for (const toolCall of delta.tool_calls) {
+          const index = toolCall.index || 0
+          
+          // 初始化工具调用对象
+          if (!toolCalls[index]) {
+            toolCalls[index] = {
+              id: toolCall.id || '',
+              type: 'function',
+              function: {
+                name: toolCall.function?.name || '',
+                arguments: ''
+              }
+            }
+          }
+          
+          // 累积工具调用参数
+          if (toolCall.function?.arguments) {
+            toolCalls[index].function.arguments += toolCall.function.arguments
+          }
+          
+          // 更新其他字段
+          if (toolCall.id) {
+            toolCalls[index].id = toolCall.id
+          }
+          if (toolCall.function?.name) {
+            toolCalls[index].function.name = toolCall.function.name
+          }
+        }
+      }
+      
+      // 如果有工具调用，不显示中间内容，直接跳过
+      if (hasToolCalls) {
+        continue
+      }
+      
+      // 处理思考内容
       if (thinkingContent) {
         thinking += thinkingContent
         fullContent = `<thinking>${thinking}<thinking>`
       }
+      
+      // 处理普通内容
       if (content) {
         fullContent += content
       }
+      
       onUpdate(fullContent)
+    }
+    
+    // 如果有工具调用，执行工具并继续对话（支持多轮工具调用）
+    if (toolCalls.length > 0) {
+      // 动态导入 callTool 函数（避免循环依赖）
+      const { callTool } = await import('./mcp/tools')
+      
+      // 初始化消息历史
+      let conversationMessages = [...messages]
+      let currentToolCalls = toolCalls
+      const maxIterations = 10 // 防止无限循环
+      let iteration = 0
+      
+      // 循环处理工具调用，直到 AI 不再调用工具
+      while (currentToolCalls.length > 0 && iteration < maxIterations) {
+        iteration++
+        console.log(`第 ${iteration} 轮工具调用:`, currentToolCalls)
+        
+        // 显示工具调用提示
+        const callingText = t ? t('record.mark.mark.chat.mcp.callingTool') : '🔧 正在调用工具...'
+        onUpdate(`${callingText}\n\n`)
+        
+        // 执行所有工具调用
+        const toolResults = []
+        for (const toolCall of currentToolCalls) {
+          try {
+            // 解析工具名称（格式：serverId__toolName）
+            const fullName = toolCall.function.name
+            const [serverId, ...toolNameParts] = fullName.split('__')
+            const toolName = toolNameParts.join('__')
+            
+            // 解析参数
+            const args = JSON.parse(toolCall.function.arguments)
+            
+            console.log(`调用工具: ${toolName}，参数:`, args)
+            const callingToolText = t 
+              ? t('record.mark.mark.chat.mcp.callingToolName', { toolName }) 
+              : `🔧 正在调用工具: ${toolName}...`
+            onUpdate(`${callingToolText}\n\n`)
+            
+            // 调用 MCP 工具
+            const result = await callTool(serverId, toolName, args)
+            
+            // 格式化结果
+            const resultText = result.content
+              .filter(c => c.type === 'text')
+              .map(c => c.text)
+              .join('\n')
+            
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool' as const,
+              content: resultText || 'Tool executed successfully'
+            })
+            
+            console.log(`工具 ${toolName} 执行结果:`, resultText.substring(0, 200) + '...')
+          } catch (error) {
+            console.error('工具调用失败:', error)
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool' as const,
+              content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            })
+          }
+        }
+        
+        // 将工具调用和结果添加到消息历史
+        conversationMessages = [
+          ...conversationMessages,
+          {
+            role: 'assistant' as const,
+            content: null,
+            tool_calls: currentToolCalls
+          },
+          ...toolResults
+        ]
+        
+        // 继续对话，让 AI 处理工具结果
+        const completedText = t ? t('record.mark.mark.chat.mcp.toolCompleted') : '✅ 工具调用完成，正在处理...'
+        onUpdate(`${completedText}\n\n`)
+        
+        const nextStream = await openai.chat.completions.create({
+          model: aiConfig?.model || '',
+          messages: conversationMessages,
+          temperature: aiConfig?.temperature,
+          top_p: aiConfig?.topP,
+          stream: true,
+          tools: mcpTools,
+          tool_choice: 'auto'
+        }, {
+          signal: abortSignal
+        }) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+        
+        // 重置工具调用数组
+        currentToolCalls = []
+        thinking = ''
+        fullContent = ''
+        
+        // 处理响应
+        for await (const chunk of nextStream) {
+          if (abortSignal?.aborted) {
+            break;
+          }
+          
+          const delta = chunk.choices[0]?.delta
+          const thinkingContent = (delta as any)?.reasoning_content || ''
+          const content = delta?.content || ''
+          
+          // 检查是否又有新的工具调用
+          if (delta?.tool_calls) {
+            for (const toolCall of delta.tool_calls) {
+              const index = toolCall.index || 0
+              
+              if (!currentToolCalls[index]) {
+                currentToolCalls[index] = {
+                  id: toolCall.id || '',
+                  type: 'function',
+                  function: {
+                    name: toolCall.function?.name || '',
+                    arguments: ''
+                  }
+                }
+              }
+              
+              if (toolCall.function?.arguments) {
+                currentToolCalls[index].function.arguments += toolCall.function.arguments
+              }
+              
+              if (toolCall.id) {
+                currentToolCalls[index].id = toolCall.id
+              }
+              if (toolCall.function?.name) {
+                currentToolCalls[index].function.name = toolCall.function.name
+              }
+            }
+          }
+          
+          // 如果有新的工具调用，不显示内容
+          if (currentToolCalls.length > 0) {
+            continue
+          }
+          
+          // 显示普通内容
+          if (thinkingContent) {
+            thinking += thinkingContent
+            fullContent = `<thinking>${thinking}<thinking>`
+          }
+          if (content) {
+            fullContent += content
+          }
+          onUpdate(fullContent)
+        }
+        
+        // 如果没有新的工具调用，退出循环
+        if (currentToolCalls.length === 0) {
+          break
+        }
+      }
+      
+      if (iteration >= maxIterations) {
+        console.warn('达到最大工具调用次数限制')
+        const maxIterationsText = t ? t('record.mark.mark.chat.mcp.maxIterationsReached') : '⚠️ 达到最大工具调用次数限制'
+        onUpdate(fullContent + '\n\n' + maxIterationsText)
+      }
     }
     
     return fullContent

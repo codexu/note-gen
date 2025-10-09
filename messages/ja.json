@@ -717,6 +717,12 @@
           "messageControl": {
             "words": "文字"
           },
+          "mcp": {
+            "callingTool": "ツールを呼び出しています...",
+            "callingToolName": "ツールを呼び出しています: {toolName}...",
+            "toolCompleted": "ツール呼び出しが完了しました、処理中...",
+            "maxIterationsReached": "最大ツール呼び出し回数に達しました"
+          },
           "empty": {
             "features": [
               {
@@ -1177,5 +1183,18 @@
         "synced": "同期済み"
       }
     }
+  },
+  "mcp": {
+    "selectServers": "MCPサーバーを選択",
+    "searchServers": "サーバーを検索...",
+    "noServers": "MCPサービスが有効になっていません",
+    "noServersFound": "一致するサーバーが見つかりません",
+    "addServer": "サーバーを追加...",
+    "goToSettings": "設定へ移動",
+    "close": "閉じる",
+    "navigate": "選択",
+    "confirm": "確認",
+    "tools": "個のツール",
+    "disconnected": "未接続"
   }
 }

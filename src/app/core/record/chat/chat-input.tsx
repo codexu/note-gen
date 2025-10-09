@@ -25,6 +25,7 @@ import { FileLink, LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
+import { McpButton } from "./mcp-button"
 
 
 export function ChatInput() {
@@ -253,6 +254,7 @@ export function ChatInput() {
           
           {/* 可滑动的按钮容器 */}
           <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
+            <McpButton />
             <ModelSelect />
             <PromptSelect />
             <ChatLanguage />

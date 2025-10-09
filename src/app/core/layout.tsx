@@ -16,6 +16,7 @@ import useShortcutStore from "@/stores/shortcut"
 import initQuickRecordText from "@/lib/shortcut/quick-record-text"
 import { useRouter } from "next/navigation"
 import initShowWindow from "@/lib/shortcut/show-window"
+import { initMcp } from "@/lib/mcp/init"
 
 export default function RootLayout({
   children,
@@ -37,6 +38,7 @@ export default function RootLayout({
     initVectorDb()
     initQuickRecordText(router)
     initShowWindow()
+    initMcp()
   }, [])
 
   // 应用界面缩放

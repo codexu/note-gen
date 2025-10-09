@@ -14,7 +14,8 @@ import {
   Book,
   KeyboardIcon,
   Volume2,
-  Settings
+  Settings,
+  Puzzle
 } from "lucide-react"
 
 const baseConfig = [
@@ -51,6 +52,10 @@ const baseConfig = [
   {
     icon: <Book className="size-4 md:size-6" />,
     anchor: 'rag',
+  },
+  {
+    icon: <Puzzle className="size-4 md:size-6" />,
+    anchor: 'mcp',
   },
   {
     icon: <Drama className="size-4 md:size-6" />,

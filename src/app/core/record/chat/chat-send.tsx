@@ -14,6 +14,7 @@ import { invoke } from "@tauri-apps/api/core"
 import { MarkdownFile } from "@/lib/files"
 import { readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
+import { useMcpStore } from "@/stores/mcp"
 
 interface ChatSendProps {
   inputValue: string;
@@ -28,6 +29,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
   const { fetchMarks, marks } = useMarkStore()
   const { isLinkMark } = useChatStore()
   const { isRagEnabled } = useVectorStore()
+  const { selectedServerIds, getServerState } = useMcpStore()
   const abortControllerRef = useRef<AbortController | null>(null)
   const t = useTranslations()
 
@@ -39,6 +41,26 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
   async function handleSubmit() {
     if (inputValue === '') return
     onSent?.()
+    
+    // 检查并输出选中的 MCP 服务器信息
+    if (selectedServerIds.length > 0) {
+      console.log('=== MCP 服务器已选中 ===')
+      console.log('选中的服务器 ID:', selectedServerIds)
+      
+      for (const serverId of selectedServerIds) {
+        const state = getServerState(serverId)
+        if (state) {
+          console.log(`服务器 ${serverId}:`, {
+            状态: state.status,
+            工具数量: state.tools.length,
+            工具列表: state.tools.map(t => t.name)
+          })
+        }
+      }
+      console.log('======================')
+    } else {
+      console.log('未选中任何 MCP 服务器')
+    }
     
     setLoading(true)
     await insert({

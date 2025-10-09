@@ -35,8 +35,8 @@ export class MCPIntegration {
     for (const server of enabledServers) {
       try {
         await mcpServerManager.connectServer(server)
-      } catch (error) {
-        console.error(`Failed to connect to ${server.name}:`, error)
+      } catch {
+        // 静默处理连接错误
       }
     }
   }

@@ -13,9 +13,9 @@ export async function initMcp() {
     // 初始化 MCP 集成（连接启用的服务器）
     await mcpIntegration.initialize()
     
-    console.log('MCP initialized successfully')
-  } catch (error) {
-    console.error('Failed to initialize MCP:', error)
+    // MCP 初始化成功
+  } catch {
+    // 静默处理初始化错误
   }
 }
 
@@ -26,8 +26,8 @@ export async function initMcp() {
 export async function cleanupMcp() {
   try {
     await mcpIntegration.cleanup()
-    console.log('MCP cleaned up successfully')
-  } catch (error) {
-    console.error('Failed to cleanup MCP:', error)
+    // MCP 清理成功
+  } catch {
+    // 静默处理清理错误
   }
 }

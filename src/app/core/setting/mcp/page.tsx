@@ -6,7 +6,6 @@ import { Puzzle } from 'lucide-react'
 import { SettingType } from '../components/setting-base'
 import { GlobalSettings } from './global-settings'
 import { ServerList } from './server-list'
-import { ToolBrowser } from './tool-browser'
 import { useMcpStore } from '@/stores/mcp'
 
 export default function McpSettingPage() {
@@ -21,7 +20,6 @@ export default function McpSettingPage() {
     <SettingType id="mcp" title={t('title')} desc={t('desc')} icon={<Puzzle />}>
       <GlobalSettings />
       <ServerList />
-      <ToolBrowser />
     </SettingType>
   )
 }

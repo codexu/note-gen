@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import {
   Plus,
   Pencil,
@@ -14,10 +13,11 @@ import {
   Globe,
   CircleDot,
   Wrench,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { ServerConfigDialog } from './server-config-dialog'
-import { ConnectionTest } from './connection-test'
 import type { MCPServerConfig } from '@/lib/mcp/types'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -34,12 +34,13 @@ import {
 export function ServerList() {
   const t = useTranslations('settings.mcp')
   const { toast } = useToast()
-  const { servers, deleteServer, toggleServerEnabled, getServerState } = useMcpStore()
+  const { servers, deleteServer, getServerState } = useMcpStore()
   
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<string | null>(null)
+  const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
   
   const handleAddServer = () => {
     setEditingServer(null)
@@ -97,6 +98,18 @@ export function ServerList() {
     }
   }
   
+  const toggleServerExpanded = (serverId: string) => {
+    setExpandedServers(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(serverId)) {
+        newSet.delete(serverId)
+      } else {
+        newSet.add(serverId)
+      }
+      return newSet
+    })
+  }
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -124,77 +137,110 @@ export function ServerList() {
             const state = getServerState(server.id)
             const toolCount = state?.tools.length || 0
             
+            const isExpanded = expandedServers.has(server.id)
+            const hasTools = toolCount > 0
+            
             return (
               <Card key={server.id} className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      {server.type === 'stdio' ? (
-                        <Terminal className="size-4 text-muted-foreground" />
-                      ) : (
-                        <Globe className="size-4 text-muted-foreground" />
-                      )}
-                      <h4 className="font-medium">{server.name}</h4>
-                      <Badge variant="outline" className="text-xs">
-                        {server.type === 'stdio' ? t('stdio') : t('http')}
-                      </Badge>
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-1">
-                        <CircleDot className={`size-3 ${getStatusColor(server.id)}`} />
-                        <span className="text-muted-foreground">
-                          {getStatusText(server.id)}
-                        </span>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        {server.type === 'stdio' ? (
+                          <Terminal className="size-4 text-muted-foreground" />
+                        ) : (
+                          <Globe className="size-4 text-muted-foreground" />
+                        )}
+                        <h4 className="font-medium">{server.name}</h4>
+                        <Badge variant="outline" className="text-xs">
+                          {server.type === 'stdio' ? t('stdio') : t('http')}
+                        </Badge>
                       </div>
                       
-                      {toolCount > 0 && (
+                      <div className="flex items-center gap-4 text-sm">
                         <div className="flex items-center gap-1">
-                          <Wrench className="size-3 text-muted-foreground" />
+                          <CircleDot className={`size-3 ${getStatusColor(server.id)}`} />
                           <span className="text-muted-foreground">
-                            {toolCount} {t('tools')}
+                            {getStatusText(server.id)}
                           </span>
                         </div>
+                        
+                        {hasTools && (
+                          <button
+                            onClick={() => toggleServerExpanded(server.id)}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          >
+                            <Wrench className="size-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">
+                              {toolCount} {t('tools')}
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="size-3 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="size-3 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      
+                      {server.type === 'stdio' && server.command && (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {server.command} {server.args?.join(' ')}
+                        </p>
+                      )}
+                      
+                      {server.type === 'http' && server.url && (
+                        <p className="text-xs text-muted-foreground">
+                          {server.url}
+                        </p>
                       )}
                     </div>
                     
-                    {server.type === 'stdio' && server.command && (
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {server.command} {server.args?.join(' ')}
-                      </p>
-                    )}
-                    
-                    {server.type === 'http' && server.url && (
-                      <p className="text-xs text-muted-foreground">
-                        {server.url}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditServer(server)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteClick(server.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={server.enabled}
-                      onCheckedChange={() => toggleServerEnabled(server.id)}
-                    />
-                    
-                    <ConnectionTest server={server} />
-                    
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEditServer(server)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteClick(server.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+                  {/* 工具列表 */}
+                  {hasTools && isExpanded && state && (
+                    <div className="pt-3 border-t space-y-2">
+                      {state.tools.map((tool, index) => (
+                        <div
+                          key={`${tool.name}-${index}`}
+                          className="p-3 rounded-lg bg-muted/50 space-y-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            <code className="text-sm font-mono">{tool.name}</code>
+                          </div>
+                          {tool.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {tool.description}
+                            </p>
+                          )}
+                          {tool.inputSchema.properties && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">{t('parameters')}: </span>
+                              {Object.keys(tool.inputSchema.properties).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Card>
             )

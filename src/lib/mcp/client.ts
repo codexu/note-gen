@@ -150,8 +150,8 @@ export class MCPClient {
     if (this.config.type === 'stdio') {
       try {
         await invoke('stop_mcp_server', { serverId: this.config.id })
-      } catch (error) {
-        console.error('Failed to stop stdio server:', error)
+      } catch {
+        // 静默处理错误
       }
     }
     this.isInitialized = false
@@ -275,8 +275,8 @@ export class MCPClient {
       
       return jsonResponse.result
     } catch (error) {
-      console.error('HTTP request error:', error)
-      throw new Error(`HTTP request failed: ${error}`)
+      // 静默处理错误，不在控制台输出
+      throw error
     }
   }
 }

@@ -43,15 +43,15 @@ export class MCPServerManager {
       await client.connect()
       
       // 初始化并获取工具列表
-      const initResult = await client.initialize()
+      await client.initialize()
       const tools = await client.listTools()
       
       // 尝试获取资源列表（某些服务器可能不支持）
       let resources: MCPResource[] = []
       try {
         resources = await client.listResources()
-      } catch (error) {
-        console.warn(`Server ${config.name} does not support resources:`, error)
+      } catch {
+        // 静默处理，某些服务器不支持 resources
       }
       
       this.clients.set(config.id, client)
@@ -68,11 +68,9 @@ export class MCPServerManager {
       // 更新最后连接时间
       store.updateServer(config.id, { lastConnected: Date.now() })
       
-      console.log(`MCP server ${config.name} connected:`, initResult)
+      // 连接成功
     } catch (error) {
-      console.error(`Failed to connect to MCP server ${config.name}:`, error)
-      
-      // 设置错误状态
+      // 静默处理错误，设置错误状态
       store.setServerState(config.id, {
         id: config.id,
         status: 'error',
@@ -211,13 +209,18 @@ export class MCPServerManager {
       } else {
         // 对于 stdio 服务器，需要实际启动和初始化
         const client = new MCPClient(config)
-        await client.connect()
-        await client.initialize()
-        await client.disconnect()
-        return true
+        try {
+          await client.connect()
+          await client.initialize()
+          await client.disconnect()
+          return true
+        } catch {
+          // 静默处理测试失败
+          return false
+        }
       }
-    } catch (error) {
-      console.error('Connection test failed:', error)
+    } catch {
+      // 静默处理测试失败
       return false
     }
   }

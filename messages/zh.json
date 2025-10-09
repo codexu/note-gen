@@ -82,6 +82,8 @@
       "editServer": "编辑服务器",
       "serverName": "服务器名称",
       "serverNamePlaceholder": "例如：文件系统服务器",
+      "serverEnabled": "启用服务器",
+      "serverEnabledDesc": "启用后，此服务器将自动连接并提供工具。",
       "serverType": "服务器类型",
       "stdio": "本地命令",
       "http": "HTTP 服务",

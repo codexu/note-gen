@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { useMcpStore } from '@/stores/mcp'
 import type { MCPServerConfig, MCPServerType } from '@/lib/mcp/types'
 import { Loader2 } from 'lucide-react'
@@ -48,6 +49,7 @@ export function ServerConfigDialog({
   const [env, setEnv] = useState('')
   const [url, setUrl] = useState('')
   const [headers, setHeaders] = useState('')
+  const [enabled, setEnabled] = useState(true)
   const [testing, setTesting] = useState(false)
   
   useEffect(() => {
@@ -59,6 +61,7 @@ export function ServerConfigDialog({
       setEnv(JSON.stringify(editingServer.env || {}, null, 2))
       setUrl(editingServer.url || '')
       setHeaders(JSON.stringify(editingServer.headers || {}, null, 2))
+      setEnabled(editingServer.enabled ?? true)
     } else {
       resetForm()
     }
@@ -72,6 +75,7 @@ export function ServerConfigDialog({
     setEnv('')
     setUrl('')
     setHeaders('')
+    setEnabled(true)
   }
   
   const handleTestConnection = async () => {
@@ -97,7 +101,7 @@ export function ServerConfigDialog({
       id: editingServer?.id || `mcp-${Date.now()}`,
       name,
       type,
-      enabled: editingServer?.enabled ?? true,
+      enabled,
       createdAt: editingServer?.createdAt || Date.now(),
     }
     
@@ -168,6 +172,18 @@ export function ServerConfigDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('serverNamePlaceholder')}
+            />
+          </div>
+          
+          {/* 启用状态 */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t('serverEnabled')}</Label>
+              <p className="text-xs text-muted-foreground">{t('serverEnabledDesc')}</p>
+            </div>
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
             />
           </div>
           

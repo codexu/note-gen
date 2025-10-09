@@ -102,19 +102,29 @@ export const useMcpStore = create<MCPState>((set, get) => ({
     return get().serverStates.get(id)
   },
   
-  setSelectedServers: (ids: string[]) => {
+  setSelectedServers: async (ids: string[]) => {
+    const store = await Store.load('store.json')
+    await store.set('mcp.selectedServerIds', ids)
+    await store.save()
     set({ selectedServerIds: ids })
   },
   
-  toggleServerSelection: (id: string) => {
+  toggleServerSelection: async (id: string) => {
     const selectedServerIds = get().selectedServerIds
     const newSelected = selectedServerIds.includes(id)
       ? selectedServerIds.filter(sid => sid !== id)
       : [...selectedServerIds, id]
+    
+    const store = await Store.load('store.json')
+    await store.set('mcp.selectedServerIds', newSelected)
+    await store.save()
     set({ selectedServerIds: newSelected })
   },
   
-  clearSelectedServers: () => {
+  clearSelectedServers: async () => {
+    const store = await Store.load('store.json')
+    await store.set('mcp.selectedServerIds', [])
+    await store.save()
     set({ selectedServerIds: [] })
   },
   
@@ -123,10 +133,12 @@ export const useMcpStore = create<MCPState>((set, get) => ({
       const store = await Store.load('store.json')
       const enabled = await store.get<boolean>('mcp.enabled')
       const servers = await store.get<MCPServerConfig[]>('mcp.servers')
+      const selectedServerIds = await store.get<string[]>('mcp.selectedServerIds')
       
       set({
         enabled: enabled ?? false,
         servers: servers ?? [],
+        selectedServerIds: selectedServerIds ?? [],
       })
     } catch (error) {
       console.error('Failed to initialize MCP data:', error)

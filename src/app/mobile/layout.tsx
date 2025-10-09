@@ -13,6 +13,7 @@ import { AppFootbar } from "@/components/app-footbar"
 import { TooltipProvider } from "@/components/ui/tooltip";
 import './mobile-styles.scss'
 import useImageStore from "@/stores/imageHosting";
+import { initMcp } from "@/lib/mcp/init"
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
     initSettingData()
     initMainHosting()
     initAllDatabases()
+    initMcp()
   }, [])
 
   const { initVectorDb } = useVectorStore()

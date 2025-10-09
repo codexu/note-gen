@@ -254,7 +254,6 @@ export function ChatInput() {
           
           {/* 可滑动的按钮容器 */}
           <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
-            <McpButton />
             <ModelSelect />
             <PromptSelect />
             <ChatLanguage />
@@ -263,6 +262,7 @@ export function ChatInput() {
               onFileLinkClick={openFileSelector}
               disabled={!primaryModel || loading}
             />
+            <McpButton />
             <RagSwitch />
             <ChatPlaceholder />
             <ClipboardMonitor />

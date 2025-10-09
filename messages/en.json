@@ -1282,7 +1282,7 @@
     }
   },
   "mcp": {
-    "selectServers": "Select MCP Servers",
+    "selectServers": "MCP Servers",
     "searchServers": "Search servers...",
     "noServers": "MCP service not enabled",
     "noServersFound": "No matching servers found",

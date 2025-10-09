@@ -1237,7 +1237,7 @@
     }
   },
   "mcp": {
-    "selectServers": "MCPサーバーを選択",
+    "selectServers": "MCP Servers",
     "searchServers": "サーバーを検索...",
     "noServers": "MCPサービスが有効になっていません",
     "noServersFound": "一致するサーバーが見つかりません",

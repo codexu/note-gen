@@ -1257,7 +1257,7 @@
     }
   },
   "mcp": {
-    "selectServers": "选择 MCP 服务器",
+    "selectServers": "MCP 服务器",
     "searchServers": "搜索服务器...",
     "noServers": "未启用 MCP 服务功能",
     "noServersFound": "未找到匹配的服务器",

@@ -119,6 +119,9 @@
       "searchTools": "Search tools...",
       "noToolsFound": "No tools found",
       "parameters": "Parameters",
+      "testAll": "Test All Connections",
+      "testAllCompleted": "All connection tests completed",
+      "testAllFailed": "Connection test failed",
       "save": "Save",
       "cancel": "Cancel",
       "delete": "Delete"
@@ -1292,6 +1295,7 @@
     "navigate": "Select",
     "confirm": "Confirm",
     "tools": "tools",
+    "connecting": "Connecting",
     "disconnected": "Disconnected"
   }
 }

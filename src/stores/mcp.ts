@@ -15,6 +15,9 @@ interface MCPState {
   // 当前选中的服务器（用于对话）
   selectedServerIds: string[]
   
+  // 是否已初始化
+  initialized: boolean
+  
   // 方法
   setEnabled: (enabled: boolean) => void
   
@@ -35,6 +38,7 @@ interface MCPState {
   
   // 初始化
   initMcpData: () => Promise<void>
+  loadMcpConfig: () => Promise<void>
 }
 
 export const useMcpStore = create<MCPState>((set, get) => ({
@@ -42,6 +46,7 @@ export const useMcpStore = create<MCPState>((set, get) => ({
   servers: [],
   serverStates: new Map(),
   selectedServerIds: [],
+  initialized: false,
   
   setEnabled: async (enabled: boolean) => {
     const store = await Store.load('store.json')
@@ -128,7 +133,7 @@ export const useMcpStore = create<MCPState>((set, get) => ({
     set({ selectedServerIds: [] })
   },
   
-  initMcpData: async () => {
+  loadMcpConfig: async () => {
     try {
       const store = await Store.load('store.json')
       const enabled = await store.get<boolean>('mcp.enabled')
@@ -139,8 +144,30 @@ export const useMcpStore = create<MCPState>((set, get) => ({
         enabled: enabled ?? false,
         servers: servers ?? [],
         selectedServerIds: selectedServerIds ?? [],
-        // 重置所有服务器状态为断开连接
-        serverStates: new Map(),
+      })
+    } catch (error) {
+      console.error('Failed to load MCP config:', error)
+    }
+  },
+  
+  initMcpData: async () => {
+    // 如果已经初始化过，只加载配置不重新连接
+    if (get().initialized) {
+      await get().loadMcpConfig()
+      return
+    }
+    
+    try {
+      const store = await Store.load('store.json')
+      const enabled = await store.get<boolean>('mcp.enabled')
+      const servers = await store.get<MCPServerConfig[]>('mcp.servers')
+      const selectedServerIds = await store.get<string[]>('mcp.selectedServerIds')
+      
+      set({
+        enabled: enabled ?? false,
+        servers: servers ?? [],
+        selectedServerIds: selectedServerIds ?? [],
+        initialized: true,
       })
       
       // 如果 MCP 功能已启用，自动连接已启用的服务器

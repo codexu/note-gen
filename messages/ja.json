@@ -117,6 +117,9 @@
       "searchTools": "ツールを検索...",
       "noToolsFound": "ツールが見つかりません",
       "parameters": "パラメータ",
+      "testAll": "すべての接続をテスト",
+      "testAllCompleted": "すべての接続テストが完了しました",
+      "testAllFailed": "接続テストに失敗しました",
       "save": "保存",
       "cancel": "キャンセル",
       "delete": "削除"
@@ -1247,6 +1250,7 @@
     "navigate": "選択",
     "confirm": "確認",
     "tools": "個のツール",
+    "connecting": "接続中",
     "disconnected": "未接続"
   }
 }

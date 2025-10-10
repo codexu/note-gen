@@ -118,6 +118,9 @@
       "searchTools": "搜索工具...",
       "noToolsFound": "未找到工具",
       "parameters": "参数",
+      "testAll": "测试所有连接",
+      "testAllCompleted": "所有连接测试完成",
+      "testAllFailed": "连接测试失败",
       "save": "保存",
       "cancel": "取消",
       "delete": "删除"
@@ -1267,6 +1270,7 @@
     "navigate": "选择",
     "confirm": "确认",
     "tools": "个工具",
+    "connecting": "连接中",
     "disconnected": "未连接"
   }
 }

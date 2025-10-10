@@ -15,11 +15,13 @@ import {
   Wrench,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { ServerConfigDialog } from './server-config-dialog'
 import type { MCPServerConfig } from '@/lib/mcp/types'
 import { useToast } from '@/hooks/use-toast'
+import { mcpServerManager } from '@/lib/mcp/server-manager'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +43,7 @@ export function ServerList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<string | null>(null)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
+  const [testingAll, setTestingAll] = useState(false)
   
   const handleAddServer = () => {
     setEditingServer(null)
@@ -110,6 +113,30 @@ export function ServerList() {
     })
   }
   
+  const handleTestAllConnections = async () => {
+    setTestingAll(true)
+    const enabledServers = servers.filter(s => s.enabled)
+    
+    try {
+      // 并发测试所有启用的服务器
+      await Promise.allSettled(
+        enabledServers.map(server => mcpServerManager.reconnectServer(server))
+      )
+      
+      toast({ 
+        description: t('testAllCompleted'),
+        variant: 'default'
+      })
+    } catch {
+      toast({ 
+        description: t('testAllFailed'),
+        variant: 'destructive'
+      })
+    } finally {
+      setTestingAll(false)
+    }
+  }
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -117,10 +144,22 @@ export function ServerList() {
           <h3 className="text-lg font-medium">{t('servers')}</h3>
           <p className="text-sm text-muted-foreground">{t('serversDesc')}</p>
         </div>
+      </div>
+      <div className="flex items-center gap-2">
         <Button onClick={handleAddServer}>
           <Plus className="mr-2 size-4" />
           {t('addServer')}
         </Button>
+        {servers.filter(s => s.enabled).length > 0 && (
+          <Button 
+            variant="outline" 
+            onClick={handleTestAllConnections}
+            disabled={testingAll}
+          >
+            {testingAll && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {t('testAll')}
+          </Button>
+        )}
       </div>
       
       {servers.length === 0 ? (

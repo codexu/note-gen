@@ -616,10 +616,8 @@ export async function fetchAiStream(
       // 循环处理工具调用，直到 AI 不再调用工具
       while (currentToolCalls.length > 0 && iteration < maxIterations) {
         iteration++
-        
-        // 显示工具调用提示
-        const callingText = t ? t('record.mark.mark.chat.mcp.callingTool') : '🔧 正在调用工具...'
-        onUpdate(`${callingText}\n\n`)
+
+        onUpdate('')
         
         // 执行所有工具调用
         const toolResults = []
@@ -655,11 +653,6 @@ export async function fetchAiStream(
                 timestamp: Date.now()
               })
             }
-            
-            const callingToolText = t 
-              ? t('record.mark.mark.chat.mcp.callingToolName', { toolName }) 
-              : `🔧 正在调用工具: ${toolName}...`
-            onUpdate(`${callingToolText}\n\n`)
             
             // 调用 MCP 工具
             const result = await callTool(serverId, toolName, args)
@@ -718,10 +711,6 @@ export async function fetchAiStream(
           },
           ...toolResults
         ]
-        
-        // 继续对话，让 AI 处理工具结果
-        const completedText = t ? t('record.mark.mark.chat.mcp.toolCompleted') : '✅ 工具调用完成，正在处理...'
-        onUpdate(`${completedText}\n\n`)
         
         const nextStream = await openai.chat.completions.create({
           model: aiConfig?.model || '',

@@ -773,9 +773,6 @@
             "words": "文字"
           },
           "mcp": {
-            "callingTool": "ツールを呼び出しています...",
-            "callingToolName": "ツールを呼び出しています: {toolName}...",
-            "toolCompleted": "ツール呼び出しが完了しました、処理中...",
             "maxIterationsReached": "最大ツール呼び出し回数に達しました",
             "toolCall": "MCP サーバー",
             "params": "パラメータ",

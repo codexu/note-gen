@@ -160,7 +160,7 @@ function Message({ chat }: { chat: Chat }) {
       return <MessageWrapper chat={chat}>
         {/* MCP 工具调用展示 */}
         {mcpToolCalls.length > 0 && (
-          <div className="space-y-1 mb-4">
+          <div className="space-y-4 mb-4">
             {mcpToolCalls.map(toolCall => (
               <McpToolCallCard key={toolCall.id} toolCall={toolCall} />
             ))}

@@ -775,9 +775,6 @@
             "words": "words"
           },
           "mcp": {
-            "callingTool": "Calling tool...",
-            "callingToolName": "Calling tool: {toolName}...",
-            "toolCompleted": "Tool call completed, processing...",
             "maxIterationsReached": "Maximum tool call iterations reached",
             "toolCall": "MCP Server",
             "params": "Parameters",

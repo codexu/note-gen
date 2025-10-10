@@ -28,7 +28,7 @@ export function McpToolCallCard({ toolCall }: McpToolCallCardProps) {
   }
 
   return (
-    <Card className="p-3 my-2 bg-muted/30">
+    <Card className="p-3 bg-muted/30">
       <div className="space-y-2">
         {/* 头部 */}
         <div className="flex items-center justify-between">

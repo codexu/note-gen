@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useState } from 'react'
-import { Puzzle, Check } from 'lucide-react'
+import { ServerCrash, Server, Check } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -39,7 +39,7 @@ export function McpButton() {
       <PopoverTrigger asChild>
         <div className="hidden md:block">
           <TooltipButton
-            icon={<Puzzle className="size-4" />}
+            icon={selectedServerIds.length ? <ServerCrash className="size-4" /> : <Server className="size-4" />}
             tooltipText={t('selectServers')}
             size="icon"
           />

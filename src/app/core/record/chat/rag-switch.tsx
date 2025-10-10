@@ -1,6 +1,6 @@
 'use client'
 
-import { Book, BookCheck, Loader2 } from "lucide-react"
+import { Book, BookOpen, Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { TooltipButton } from "@/components/tooltip-button"
 import useVectorStore from "@/stores/vector"
@@ -52,7 +52,7 @@ export function RagSwitch() {
             <Loader2 className="animate-spin" />
           ) : (
             isRagEnabled ? (
-              <BookCheck />
+              <BookOpen />
             ) : (
               <Book />
             )

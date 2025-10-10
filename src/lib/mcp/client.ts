@@ -235,13 +235,11 @@ export class MCPClient {
       
       // 检查响应的 Content-Type
       const contentType = response.headers.get('content-type')
-      console.log('Response Content-Type:', contentType)
       
       // 如果是 SSE 流式响应，需要特殊处理
       if (contentType?.includes('text/event-stream')) {
         // 对于流式响应，读取第一个事件
         const text = await response.text()
-        console.log('SSE Response:', text)
         
         // 解析 SSE 格式，支持多种格式：
         // 1. event: message\ndata: {...}\n\n

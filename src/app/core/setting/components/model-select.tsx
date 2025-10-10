@@ -152,8 +152,6 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
       }
     })
 
-    console.log(models);
-    
     setGroupedModels(models)
     
     const storeKey = getStoreKey(modelKey)

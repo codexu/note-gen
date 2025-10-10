@@ -47,12 +47,16 @@ fn find_npx_path() -> Option<String> {
         for path in path_var.split(separator) {
             let npx_path = PathBuf::from(path).join("npx");
             if npx_path.exists() {
-                return Some(npx_path.to_string_lossy().to_string());
+                let found = npx_path.to_string_lossy().to_string();
+                println!("Found npx in PATH: {}", found);
+                return Some(found);
             }
             // Windows 版本
             let npx_cmd = PathBuf::from(path).join("npx.cmd");
             if npx_cmd.exists() {
-                return Some(npx_cmd.to_string_lossy().to_string());
+                let found = npx_cmd.to_string_lossy().to_string();
+                println!("Found npx.cmd in PATH: {}", found);
+                return Some(found);
             }
         }
     }
@@ -66,7 +70,8 @@ fn find_npx_path() -> Option<String> {
                     for entry in entries.flatten() {
                         let npx_path = entry.path().join("bin/npx");
                         if npx_path.exists() {
-                            return Some(npx_path.to_string_lossy().to_string());
+                            let found = npx_path.to_string_lossy().to_string();
+                            return Some(found);
                         }
                     }
                 }
@@ -78,7 +83,6 @@ fn find_npx_path() -> Option<String> {
             }
         }
     }
-    
     None
 }
 
@@ -91,6 +95,8 @@ pub async fn start_mcp_stdio_server(
     env: HashMap<String, String>,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
+    println!("Starting MCP stdio server: {} with command: {}", server_id, command);
+    
     // 检查是否已经启动
     {
         let processes = manager.processes.lock().unwrap();
@@ -105,6 +111,8 @@ pub async fn start_mcp_stdio_server(
         let npx_path = find_npx_path();
         
         if let Some(npx) = npx_path {
+            println!("Using npx at: {}", npx);
+            println!("Executing: {} {:?}", npx, args);
             let mut cmd = Command::new(&npx);
             cmd.args(&args);
             cmd
@@ -165,11 +173,13 @@ pub async fn stop_mcp_server(
     server_id: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<(), String> {
+    
     let mut processes = manager.processes.lock().unwrap();
     
     if let Some(mut child) = processes.remove(&server_id) {
         child.kill()
             .map_err(|e| format!("Failed to kill process: {}", e))?;
+        
         Ok(())
     } else {
         Err(format!("Server {} not found", server_id))
@@ -183,6 +193,7 @@ pub async fn send_mcp_message(
     message: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
+    
     let mut processes = manager.processes.lock().unwrap();
     
     if let Some(child) = processes.get_mut(&server_id) {

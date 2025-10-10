@@ -55,7 +55,6 @@ export function getOpenAIFunctions(selectedServerIds: string[]): any[] {
     }
   }
   
-  console.log('转换后的 OpenAI Functions:', functions)
   return functions
 }
 

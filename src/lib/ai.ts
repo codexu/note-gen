@@ -614,7 +614,6 @@ export async function fetchAiStream(
       // 循环处理工具调用，直到 AI 不再调用工具
       while (currentToolCalls.length > 0 && iteration < maxIterations) {
         iteration++
-        console.log(`第 ${iteration} 轮工具调用:`, currentToolCalls)
         
         // 显示工具调用提示
         const callingText = t ? t('record.mark.mark.chat.mcp.callingTool') : '🔧 正在调用工具...'
@@ -632,7 +631,6 @@ export async function fetchAiStream(
             // 解析参数
             const args = JSON.parse(toolCall.function.arguments)
             
-            console.log(`调用工具: ${toolName}，参数:`, args)
             const callingToolText = t 
               ? t('record.mark.mark.chat.mcp.callingToolName', { toolName }) 
               : `🔧 正在调用工具: ${toolName}...`
@@ -653,7 +651,6 @@ export async function fetchAiStream(
               content: resultText || 'Tool executed successfully'
             })
             
-            console.log(`工具 ${toolName} 执行结果:`, resultText.substring(0, 200) + '...')
           } catch (error) {
             console.error('工具调用失败:', error)
             toolResults.push({

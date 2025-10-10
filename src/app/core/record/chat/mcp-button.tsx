@@ -59,9 +59,12 @@ export function McpButton() {
                 }}
               >
                 <div className="flex flex-col flex-1">
-                  <span className="font-medium">{server.name}</span>
+                  <div className="flex items-center">
+                    <span className="font-medium">{server.name}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{server.type}</span>
+                  </div>
                   <span className="text-xs text-muted-foreground">
-                    {server.type === 'stdio' ? `stdio: ${server.command}` : `http: ${server.url}`}
+                    {server.type === 'stdio' ? `${server.command} ${server.args}` : `${server.url}`}
                   </span>
                 </div>
                 <Check

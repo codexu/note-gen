@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 use tauri::State;
 
 /// MCP 服务器进程管理器
@@ -17,6 +18,70 @@ impl McpServerManager {
     }
 }
 
+/// 查找 npx 的完整路径
+fn find_npx_path() -> Option<String> {
+    // 常见的 npx 安装路径
+    let common_paths = vec![
+        // macOS/Linux - Volta
+        format!("{}/.volta/bin/npx", std::env::var("HOME").unwrap_or_default()),
+        // macOS/Linux - Homebrew
+        "/usr/local/bin/npx".to_string(),
+        "/opt/homebrew/bin/npx".to_string(),
+        // macOS/Linux - nvm
+        format!("{}/.nvm/versions/node/*/bin/npx", std::env::var("HOME").unwrap_or_default()),
+        // macOS/Linux - 用户本地
+        format!("{}/.local/bin/npx", std::env::var("HOME").unwrap_or_default()),
+        format!("{}/bin/npx", std::env::var("HOME").unwrap_or_default()),
+        // Windows - Volta
+        format!("{}\\AppData\\Local\\Volta\\bin\\npx.cmd", std::env::var("USERPROFILE").unwrap_or_default()),
+        // Windows - Node.js
+        "C:\\Program Files\\nodejs\\npx.cmd".to_string(),
+        format!("{}\\AppData\\Roaming\\npm\\npx.cmd", std::env::var("USERPROFILE").unwrap_or_default()),
+    ];
+    
+    // 首先尝试从 PATH 环境变量中查找
+    if let Ok(path_var) = std::env::var("PATH") {
+        // Windows 使用分号，Unix 使用冒号
+        let separator = if cfg!(target_os = "windows") { ';' } else { ':' };
+        
+        for path in path_var.split(separator) {
+            let npx_path = PathBuf::from(path).join("npx");
+            if npx_path.exists() {
+                return Some(npx_path.to_string_lossy().to_string());
+            }
+            // Windows 版本
+            let npx_cmd = PathBuf::from(path).join("npx.cmd");
+            if npx_cmd.exists() {
+                return Some(npx_cmd.to_string_lossy().to_string());
+            }
+        }
+    }
+    
+    // 检查常见路径
+    for path in &common_paths {
+        // 处理通配符路径（nvm）
+        if path.contains('*') {
+            if let Some(parent) = path.rsplit_once('/').map(|(p, _)| p) {
+                if let Ok(entries) = std::fs::read_dir(parent.replace("/*", "")) {
+                    for entry in entries.flatten() {
+                        let npx_path = entry.path().join("bin/npx");
+                        if npx_path.exists() {
+                            return Some(npx_path.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        } else {
+            let npx_path = PathBuf::from(&path);
+            if npx_path.exists() {
+                return Some(path.clone());
+            }
+        }
+    }
+    
+    None
+}
+
 /// 启动 stdio 类型的 MCP 服务器
 #[tauri::command]
 pub async fn start_mcp_stdio_server(
@@ -26,8 +91,6 @@ pub async fn start_mcp_stdio_server(
     env: HashMap<String, String>,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
-    println!("Starting MCP stdio server: {} with command: {}", server_id, command);
-    
     // 检查是否已经启动
     {
         let processes = manager.processes.lock().unwrap();
@@ -36,10 +99,46 @@ pub async fn start_mcp_stdio_server(
         }
     }
     
-    // 启动进程
-    let mut cmd = Command::new(&command);
-    cmd.args(&args)
-        .stdin(Stdio::piped())
+    // 处理 npx 命令 - 需要找到正确的 npx 路径
+    let mut cmd = if command == "npx" || command.ends_with("/npx") {
+        // 尝试找到 npx 的完整路径
+        let npx_path = find_npx_path();
+        
+        if let Some(npx) = npx_path {
+            let mut cmd = Command::new(&npx);
+            cmd.args(&args);
+            cmd
+        } else {
+            // 如果找不到 npx，尝试通过 shell 执行
+            let full_command = if args.is_empty() {
+                command.clone()
+            } else {
+                format!("{} {}", command, args.join(" "))
+            };
+            
+            #[cfg(target_os = "windows")]
+            {
+                let mut cmd = Command::new("cmd");
+                cmd.args(&["/C", &full_command]);
+                cmd
+            }
+            
+            #[cfg(not(target_os = "windows"))]
+            {
+                let mut cmd = Command::new("sh");
+                cmd.args(&["-c", &full_command]);
+                cmd
+            }
+        }
+    } else {
+        // 普通命令直接执行
+        let mut cmd = Command::new(&command);
+        cmd.args(&args);
+        cmd
+    };
+    
+    // 设置标准输入输出
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     
@@ -57,7 +156,6 @@ pub async fn start_mcp_stdio_server(
         processes.insert(server_id.clone(), child);
     }
     
-    println!("MCP server {} started successfully", server_id);
     Ok(format!("Server {} started", server_id))
 }
 
@@ -67,15 +165,11 @@ pub async fn stop_mcp_server(
     server_id: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<(), String> {
-    println!("Stopping MCP server: {}", server_id);
-    
     let mut processes = manager.processes.lock().unwrap();
     
     if let Some(mut child) = processes.remove(&server_id) {
         child.kill()
             .map_err(|e| format!("Failed to kill process: {}", e))?;
-        
-        println!("MCP server {} stopped", server_id);
         Ok(())
     } else {
         Err(format!("Server {} not found", server_id))
@@ -89,8 +183,6 @@ pub async fn send_mcp_message(
     message: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
-    println!("Sending message to MCP server {}: {}", server_id, message);
-    
     let mut processes = manager.processes.lock().unwrap();
     
     if let Some(child) = processes.get_mut(&server_id) {
@@ -113,7 +205,6 @@ pub async fn send_mcp_message(
         reader.read_line(&mut response)
             .map_err(|e| format!("Failed to read from stdout: {}", e))?;
         
-        println!("Received response from MCP server {}: {}", server_id, response);
         Ok(response.trim().to_string())
     } else {
         Err(format!("Server {} not found", server_id))

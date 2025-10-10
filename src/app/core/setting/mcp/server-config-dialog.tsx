@@ -106,8 +106,18 @@ export function ServerConfigDialog({
     }
     
     if (type === 'stdio') {
-      config.command = command
-      config.args = args.split(' ').filter(Boolean)
+      // 智能解析命令：如果 command 包含空格且 args 为空，自动分割
+      const commandParts = command.trim().split(/\s+/)
+      if (commandParts.length > 1 && !args.trim()) {
+        // 第一个词是命令，其余是参数
+        config.command = commandParts[0]
+        config.args = commandParts.slice(1)
+      } else {
+        // 使用原有逻辑
+        config.command = command.trim()
+        config.args = args.split(' ').filter(Boolean)
+      }
+      
       try {
         config.env = env ? JSON.parse(env) : {}
       } catch {

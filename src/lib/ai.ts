@@ -492,13 +492,15 @@ export async function fetchAi(text: string): Promise<string> {
  * @param abortSignal 用于终止请求的信号
  * @param mcpTools MCP 工具列表（可选）
  * @param t 翻译函数（可选）
+ * @param chatId 当前chat ID，用于关联MCP工具调用记录（可选）
  */
 export async function fetchAiStream(
   text: string, 
   onUpdate: (content: string) => void, 
   abortSignal?: AbortSignal,
   mcpTools?: any[],
-  t?: (key: string, params?: Record<string, any>) => string
+  t?: (key: string, params?: Record<string, any>) => string,
+  chatId?: number
 ): Promise<string> {
   try {
 
@@ -622,6 +624,7 @@ export async function fetchAiStream(
         // 执行所有工具调用
         const toolResults = []
         for (const toolCall of currentToolCalls) {
+          let mcpToolCallId: string | undefined
           try {
             // 解析工具名称（格式：serverId__toolName）
             const fullName = toolCall.function.name
@@ -630,6 +633,28 @@ export async function fetchAiStream(
             
             // 解析参数
             const args = JSON.parse(toolCall.function.arguments)
+            
+            // 记录 MCP 工具调用（如果提供了 chatId）
+            if (chatId) {
+              const { useMcpStore } = await import('@/stores/mcp')
+              const { default: useChatStore } = await import('@/stores/chat')
+              const mcpStore = useMcpStore.getState()
+              const chatStore = useChatStore.getState()
+              const server = mcpStore.servers.find(s => s.id === serverId)
+              
+              mcpToolCallId = `${toolCall.id}-${Date.now()}`
+              chatStore.addMcpToolCall({
+                id: mcpToolCallId,
+                chatId,
+                toolName,
+                serverId,
+                serverName: server?.name || serverId,
+                params: args,
+                result: '',
+                status: 'calling',
+                timestamp: Date.now()
+              })
+            }
             
             const callingToolText = t 
               ? t('record.mark.mark.chat.mcp.callingToolName', { toolName }) 
@@ -645,6 +670,16 @@ export async function fetchAiStream(
               .map(c => c.text)
               .join('\n')
             
+            // 更新 MCP 工具调用状态为成功
+            if (chatId && mcpToolCallId) {
+              const { default: useChatStore } = await import('@/stores/chat')
+              const chatStore = useChatStore.getState()
+              chatStore.updateMcpToolCall(mcpToolCallId, {
+                result: resultText || 'Tool executed successfully',
+                status: 'success'
+              })
+            }
+            
             toolResults.push({
               tool_call_id: toolCall.id,
               role: 'tool' as const,
@@ -653,6 +688,18 @@ export async function fetchAiStream(
             
           } catch (error) {
             console.error('工具调用失败:', error)
+            
+            // 更新 MCP 工具调用状态为错误
+            if (chatId && mcpToolCallId) {
+              const { default: useChatStore } = await import('@/stores/chat')
+              const chatStore = useChatStore.getState()
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+              chatStore.updateMcpToolCall(mcpToolCallId, {
+                result: `Error: ${errorMsg}`,
+                status: 'error'
+              })
+            }
+            
             toolResults.push({
               tool_call_id: toolCall.id,
               role: 'tool' as const,

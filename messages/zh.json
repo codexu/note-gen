@@ -795,7 +795,16 @@
             "callingTool": "正在调用工具...",
             "callingToolName": "正在调用工具: {toolName}...",
             "toolCompleted": "工具调用完成，正在处理...",
-            "maxIterationsReached": "达到最大工具调用次数限制"
+            "maxIterationsReached": "达到最大工具调用次数限制",
+            "toolCall": "MCP 服务器",
+            "params": "参数",
+            "result": "返回结果",
+            "copy": "复制",
+            "paramsCopied": "参数已复制",
+            "resultCopied": "结果已复制",
+            "calling": "调用中",
+            "success": "已完成",
+            "error": "失败"
           },
           "empty": {
             "features": [

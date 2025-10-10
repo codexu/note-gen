@@ -174,7 +174,7 @@ ${ragContext}
           ...message,
           content
         }, false)
-      }, signal, mcpTools, t)
+      }, signal, mcpTools, t, message.id)
     } catch (error: any) {
       // 如果不是中止错误，则记录错误信息
       if (error.name !== 'AbortError') {

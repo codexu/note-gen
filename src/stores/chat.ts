@@ -7,6 +7,19 @@ import { getSyncRepoName } from '@/lib/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
 
+// MCP 工具调用记录（临时，不保存到数据库）
+export interface McpToolCall {
+  id: string
+  chatId: number // 关联的 chat ID
+  toolName: string
+  serverId: string
+  serverName: string
+  params: Record<string, any>
+  result: string
+  status: 'calling' | 'success' | 'error'
+  timestamp: number
+}
+
 interface ChatState {
   loading: boolean
   setLoading: (loading: boolean) => void
@@ -38,6 +51,13 @@ interface ChatState {
   setLastSyncTime: (lastSyncTime: string) => void
   uploadChats: () => Promise<boolean>
   downloadChats: () => Promise<Chat[]>
+  
+  // MCP 工具调用记录（临时缓存）
+  mcpToolCalls: McpToolCall[]
+  addMcpToolCall: (toolCall: McpToolCall) => void
+  updateMcpToolCall: (id: string, updates: Partial<McpToolCall>) => void
+  getMcpToolCallsByChatId: (chatId: number) => McpToolCall[]
+  clearMcpToolCalls: () => void
 }
 
 const useChatStore = create<ChatState>((set, get) => ({
@@ -198,6 +218,29 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ syncState: false })
     return result
   },
+  // MCP 工具调用记录
+  mcpToolCalls: [],
+  
+  addMcpToolCall: (toolCall: McpToolCall) => {
+    const mcpToolCalls = get().mcpToolCalls
+    set({ mcpToolCalls: [...mcpToolCalls, toolCall] })
+  },
+  
+  updateMcpToolCall: (id: string, updates: Partial<McpToolCall>) => {
+    const mcpToolCalls = get().mcpToolCalls.map(call =>
+      call.id === id ? { ...call, ...updates } : call
+    )
+    set({ mcpToolCalls })
+  },
+  
+  getMcpToolCallsByChatId: (chatId: number) => {
+    return get().mcpToolCalls.filter(call => call.chatId === chatId)
+  },
+  
+  clearMcpToolCalls: () => {
+    set({ mcpToolCalls: [] })
+  },
+  
   downloadChats: async () => {
     const path = '.data'
     const filename = 'chats.json'

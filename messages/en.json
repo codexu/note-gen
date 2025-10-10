@@ -778,7 +778,16 @@
             "callingTool": "Calling tool...",
             "callingToolName": "Calling tool: {toolName}...",
             "toolCompleted": "Tool call completed, processing...",
-            "maxIterationsReached": "Maximum tool call iterations reached"
+            "maxIterationsReached": "Maximum tool call iterations reached",
+            "toolCall": "MCP Server",
+            "params": "Parameters",
+            "result": "Result",
+            "copy": "Copy",
+            "paramsCopied": "Parameters copied",
+            "resultCopied": "Result copied",
+            "calling": "Calling",
+            "success": "Completed",
+            "error": "Failed"
           },
           "empty": {
             "features": [

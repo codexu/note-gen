@@ -53,17 +53,28 @@ export function ServerConfigDialog({
   const [testing, setTesting] = useState(false)
   
   useEffect(() => {
-    if (editingServer) {
-      setName(editingServer.name)
-      setType(editingServer.type)
-      setCommand(editingServer.command || '')
-      setArgs((editingServer.args || []).join(' '))
-      setEnv(JSON.stringify(editingServer.env || {}, null, 2))
-      setUrl(editingServer.url || '')
-      setHeaders(JSON.stringify(editingServer.headers || {}, null, 2))
-      setEnabled(editingServer.enabled ?? true)
-    } else {
-      resetForm()
+    if (open) {
+      if (editingServer) {
+        setName(editingServer.name)
+        setType(editingServer.type)
+        
+        // 对于 stdio 类型，如果 command 和 args 都存在，合并显示在 command 字段
+        if (editingServer.type === 'stdio' && editingServer.command && editingServer.args && editingServer.args.length > 0) {
+          const fullCommand = `${editingServer.command} ${editingServer.args.join(' ')}`
+          setCommand(fullCommand)
+          setArgs('')
+        } else {
+          setCommand(editingServer.command || '')
+          setArgs((editingServer.args || []).join(' '))
+        }
+        
+        setEnv(JSON.stringify(editingServer.env || {}, null, 2))
+        setUrl(editingServer.url || '')
+        setHeaders(JSON.stringify(editingServer.headers || {}, null, 2))
+        setEnabled(editingServer.enabled ?? true)
+      } else {
+        resetForm()
+      }
     }
   }, [editingServer, open])
   
@@ -81,7 +92,14 @@ export function ServerConfigDialog({
   const handleTestConnection = async () => {
     setTesting(true)
     try {
-      const config = buildConfig()
+      // 使用临时 ID 进行测试
+      const config = buildConfig(true)
+      console.log('测试连接配置:', {
+        id: config.id,
+        command: config.command,
+        args: config.args,
+        type: config.type
+      })
       const success = await mcpServerManager.testConnection(config)
       
       if (success) {
@@ -96,9 +114,10 @@ export function ServerConfigDialog({
     }
   }
   
-  const buildConfig = (): MCPServerConfig => {
+  const buildConfig = (isTest: boolean = false): MCPServerConfig => {
     const config: MCPServerConfig = {
-      id: editingServer?.id || `mcp-${Date.now()}`,
+      // 测试时使用临时 ID，避免与已存在的服务器冲突
+      id: isTest ? `mcp-test-${Date.now()}` : (editingServer?.id || `mcp-${Date.now()}`),
       name,
       type,
       enabled,

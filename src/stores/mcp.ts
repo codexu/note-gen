@@ -139,7 +139,27 @@ export const useMcpStore = create<MCPState>((set, get) => ({
         enabled: enabled ?? false,
         servers: servers ?? [],
         selectedServerIds: selectedServerIds ?? [],
+        // 重置所有服务器状态为断开连接
+        serverStates: new Map(),
       })
+      
+      // 如果 MCP 功能已启用，自动连接已启用的服务器
+      if (enabled && servers && servers.length > 0) {
+        const { mcpServerManager } = await import('@/lib/mcp/server-manager')
+        
+        // 延迟一点时间，确保页面完全加载
+        setTimeout(async () => {
+          for (const server of servers) {
+            if (server.enabled) {
+              try {
+                await mcpServerManager.connectServer(server)
+              } catch (error) {
+                console.error(`Failed to auto-connect server ${server.name}:`, error)
+              }
+            }
+          }
+        }, 500)
+      }
     } catch (error) {
       console.error('Failed to initialize MCP data:', error)
     }

@@ -187,6 +187,7 @@ export class MCPServerManager {
   
   /**
    * 测试服务器连接
+   * 注意：测试时不会更新 store 中的服务器状态
    */
   async testConnection(config: MCPServerConfig): Promise<boolean> {
     try {
@@ -212,11 +213,18 @@ export class MCPServerManager {
         try {
           await client.connect()
           await client.initialize()
+          // 测试完成后立即断开连接并清理
           await client.disconnect()
           return true
-        } catch {
-          // 静默处理测试失败
-          return false
+        } catch (error) {
+          console.error('测试连接失败:', error)
+          // 确保清理临时客户端
+          try {
+            await client.disconnect()
+          } catch {
+            // 静默处理清理错误
+          }
+          throw error
         }
       }
     } catch {

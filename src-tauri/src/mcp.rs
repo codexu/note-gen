@@ -97,11 +97,13 @@ pub async fn start_mcp_stdio_server(
 ) -> Result<String, String> {
     println!("Starting MCP stdio server: {} with command: {}", server_id, command);
     
-    // 检查是否已经启动
+    // 检查是否已经启动，如果已启动则先停止
     {
-        let processes = manager.processes.lock().unwrap();
-        if processes.contains_key(&server_id) {
-            return Err(format!("Server {} is already running", server_id));
+        let mut processes = manager.processes.lock().unwrap();
+        if let Some(mut old_child) = processes.remove(&server_id) {
+            // 尝试停止旧进程
+            let _ = old_child.kill();
+            println!("Stopped existing MCP server: {}", server_id);
         }
     }
     
@@ -210,13 +212,42 @@ pub async fn send_mcp_message(
         stdin.flush()
             .map_err(|e| format!("Failed to flush stdin: {}", e))?;
         
-        // 读取响应
+        // 读取响应 - 支持 SSE 格式和标准 JSON-RPC 格式
         let mut reader = BufReader::new(stdout);
-        let mut response = String::new();
-        reader.read_line(&mut response)
-            .map_err(|e| format!("Failed to read from stdout: {}", e))?;
+        let mut lines = Vec::new();
         
-        Ok(response.trim().to_string())
+        // 读取直到遇到空行（SSE 消息结束标志）或有效的 JSON
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line)
+                .map_err(|e| format!("Failed to read from stdout: {}", e))?;
+            
+            let trimmed = line.trim();
+            
+            // 如果是空行，表示 SSE 消息结束
+            if trimmed.is_empty() {
+                break;
+            }
+            
+            // 如果第一行就是有效的 JSON，直接返回（标准 JSON-RPC）
+            if lines.is_empty() && trimmed.starts_with('{') {
+                return Ok(trimmed.to_string());
+            }
+            
+            lines.push(line);
+        }
+        
+        // 解析 SSE 格式：查找 data: 开头的行
+        for line in &lines {
+            let trimmed = line.trim();
+            if trimmed.starts_with("data: ") {
+                let json_data = trimmed.strip_prefix("data: ").unwrap_or("");
+                return Ok(json_data.to_string());
+            }
+        }
+        
+        // 如果没有找到 data: 行，返回所有行的组合
+        Ok(lines.join("\n").trim().to_string())
     } else {
         Err(format!("Server {} not found", server_id))
     }

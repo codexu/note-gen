@@ -154,7 +154,7 @@ export function ServerConfigDialog({
     return config
   }
   
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast({ description: t('nameRequired'), variant: 'destructive' })
       return
@@ -173,14 +173,23 @@ export function ServerConfigDialog({
     const config = buildConfig()
     
     if (editingServer) {
-      updateServer(editingServer.id, config)
+      await updateServer(editingServer.id, config)
       toast({ description: t('serverUpdated') })
     } else {
-      addServer(config)
+      await addServer(config)
       toast({ description: t('serverAdded') })
     }
     
     onOpenChange(false)
+    
+    // 保存后自动测试连接（如果服务器已启用）
+    if (config.enabled) {
+      try {
+        await mcpServerManager.connectServer(config)
+      } catch (error) {
+        console.error('Failed to auto-connect after save:', error)
+      }
+    }
   }
   
   return (

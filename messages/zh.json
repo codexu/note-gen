@@ -536,7 +536,21 @@
       "clearData": "清理数据",
       "clearDataConfirm": "确定清理数据吗？",
       "proxy": "代理，用于解决网络问题，配置后建议重启应用。",
-      "proxyPlaceholder": "请输入代理地址"
+      "proxyPlaceholder": "请输入代理地址",
+      "proxyTitle": "网络代理",
+      "clearDataTitle": "清理数据",
+      "clearDataDesc": "清理数据信息，包括系统配置信息、数据库（包含记录）。",
+      "clearFileTitle": "清理文件",
+      "clearFileDesc": "清理文件，包括图片、文章。",
+      "clearButton": "清理",
+      "configFileTitle": "配置文件管理",
+      "configFileDesc": "配置文件导入与导出，导入配置文件将覆盖当前配置，并且重启后生效。",
+      "importConfigTitle": "导入配置文件",
+      "exportConfigTitle": "导出配置文件",
+      "importConfigSuccessMobile": "配置下载成功，请手动重启应用",
+      "exportConfigSuccess": "导出成功",
+      "importButton": "导入",
+      "exportButton": "导出"
     },
     "ai": {
       "title": "模型配置",

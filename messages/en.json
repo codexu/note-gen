@@ -549,7 +549,21 @@
       "clearData": "Clear Data",
       "clearDataConfirm": "Are you sure to clear data?",
       "proxy": "Proxy, used to solve network problems, after configuration, it is recommended to restart the application.",
-      "proxyPlaceholder": "Enter proxy address"
+      "proxyPlaceholder": "Enter proxy address",
+      "proxyTitle": "Network Proxy",
+      "clearDataTitle": "Clear Data",
+      "clearDataDesc": "Clear data information, including system configuration and database (including records).",
+      "clearFileTitle": "Clear Files",
+      "clearFileDesc": "Clear files, including images and articles.",
+      "clearButton": "Clear",
+      "configFileTitle": "Config File Management",
+      "configFileDesc": "Import and export configuration files. Importing will overwrite current configuration and take effect after restart.",
+      "importConfigTitle": "Import Config File",
+      "exportConfigTitle": "Export Config File",
+      "importConfigSuccessMobile": "Config downloaded successfully, please restart the app manually",
+      "exportConfigSuccess": "Export successful",
+      "importButton": "Import",
+      "exportButton": "Export"
     },
     "ai": {
       "title": "Model Management",

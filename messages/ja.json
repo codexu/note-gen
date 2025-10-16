@@ -531,7 +531,21 @@
       "clearData": "データをクリア",
       "clearDataConfirm": "本当にデータをクリアしますか？",
       "proxy": "ネットワーク問題解決用のプロキシ。設定後はアプリの再起動を推奨します。",
-      "proxyPlaceholder": "プロキシアドレスを入力してください"
+      "proxyPlaceholder": "プロキシアドレスを入力してください",
+      "proxyTitle": "ネットワークプロキシ",
+      "clearDataTitle": "データをクリア",
+      "clearDataDesc": "システム設定情報とデータベース（記録を含む）をクリアします。",
+      "clearFileTitle": "ファイルをクリア",
+      "clearFileDesc": "画像や記事などのファイルをクリアします。",
+      "clearButton": "クリア",
+      "configFileTitle": "設定ファイル管理",
+      "configFileDesc": "設定ファイルのインポートとエクスポート。インポートすると現在の設定が上書きされ、再起動後に有効になります。",
+      "importConfigTitle": "設定ファイルをインポート",
+      "exportConfigTitle": "設定ファイルをエクスポート",
+      "importConfigSuccessMobile": "設定のダウンロードに成功しました。手動でアプリを再起動してください",
+      "exportConfigSuccess": "エクスポート成功",
+      "importButton": "インポート",
+      "exportButton": "エクスポート"
     },
     "ai": {
       "title": "モデル管理",

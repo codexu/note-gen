@@ -1,4 +1,5 @@
-import { SettingRow, SettingType } from "../components/setting-base";
+import { SettingType } from "../components/setting-base";
+import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { Button } from "@/components/ui/button";
 import { useTranslations } from 'next-intl';
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +10,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import SetConfig from "./set-config";
+import { Network, Database, FolderX } from "lucide-react";
 
 export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations();
@@ -70,19 +72,41 @@ export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
     <SettingType id={id} icon={icon} title={t('settings.dev.title')}>
-      <SettingRow border className="gap-4 flex-col md:flex-row items-start md:items-center">
-        <span>{t('settings.dev.proxy')}</span>
-        <Input className="max-w-[400px]" placeholder={t('settings.dev.proxyPlaceholder')} value={proxy} onChange={proxyChangeHandler} />
-      </SettingRow>
-      <SettingRow border className="gap-4 flex-col md:flex-row items-start md:items-center">
-        <span>清理数据信息，包括系统配置信息、数据库（包含记录）。</span>
-        <Button variant={"destructive"} onClick={handleClearData}>清理</Button>
-      </SettingRow>
-      <SettingRow border className="gap-4 flex-col md:flex-row items-start md:items-center">
-        <span>清理文件，包括图片、文章。</span>
-        <Button variant={"destructive"} onClick={handleClearFile}>清理</Button>
-      </SettingRow>
-      <SetConfig />
+      <ItemGroup className="gap-4">
+        <Item variant="outline">
+          <ItemMedia variant="icon"><Network className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.dev.proxyTitle')}</ItemTitle>
+            <ItemDescription>{t('settings.dev.proxy')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Input className="w-[300px]" placeholder={t('settings.dev.proxyPlaceholder')} value={proxy} onChange={proxyChangeHandler} />
+          </ItemActions>
+        </Item>
+        
+        <Item variant="outline">
+          <ItemMedia variant="icon"><Database className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.dev.clearDataTitle')}</ItemTitle>
+            <ItemDescription>{t('settings.dev.clearDataDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button variant={"destructive"} onClick={handleClearData}>{t('settings.dev.clearButton')}</Button>
+          </ItemActions>
+        </Item>
+        
+        <Item variant="outline">
+          <ItemMedia variant="icon"><FolderX className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.dev.clearFileTitle')}</ItemTitle>
+            <ItemDescription>{t('settings.dev.clearFileDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button variant={"destructive"} onClick={handleClearFile}>{t('settings.dev.clearButton')}</Button>
+          </ItemActions>
+        </Item>
+        <SetConfig />
+      </ItemGroup>
     </SettingType>
   )
 }

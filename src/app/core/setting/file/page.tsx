@@ -12,6 +12,7 @@ export default function SettingFilePage() {
     <SettingType
       id="file"
       title={t('title')}
+      desc={t('desc')}
       icon={<FolderOpen className="w-5 h-5" />}
     >
       <div className="space-y-8">

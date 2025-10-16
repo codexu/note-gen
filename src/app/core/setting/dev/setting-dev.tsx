@@ -71,7 +71,7 @@ export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
   }, [])
 
   return (
-    <SettingType id={id} icon={icon} title={t('settings.dev.title')}>
+    <SettingType id={id} icon={icon} title={t('settings.dev.title')} desc={t('settings.dev.desc')}>
       <ItemGroup className="gap-4">
         <Item variant="outline">
           <ItemMedia variant="icon"><Network className="size-4" /></ItemMedia>

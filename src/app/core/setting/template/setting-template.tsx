@@ -94,7 +94,7 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
   useEffect(() => {}, [templateList]);
 
   return (
-    <SettingType id={id} icon={icon} title={t('settings.template.title')}>
+    <SettingType id={id} icon={icon} title={t('settings.template.title')} desc={t('settings.template.desc')}>
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-center">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

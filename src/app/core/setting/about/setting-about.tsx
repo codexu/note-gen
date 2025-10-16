@@ -56,7 +56,7 @@ export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
   ]
 
   return (
-    <SettingType id={id} icon={icon} title={t('title')}>
+    <SettingType id={id} icon={icon} title={t('title')} desc={t('desc')}>
       <Updater />
       <ItemGroup className="gap-4">
         {

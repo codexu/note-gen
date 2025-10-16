@@ -9,7 +9,7 @@ import LineNumber from './lineNumber';
 
 export default function EditorSettingPage() {
   const t = useTranslations('settings.editor');
-  return <SettingType id="editorSetting" icon={<UserRoundCog />} title={t('title')}>
+  return <SettingType id="editorSetting" icon={<UserRoundCog />} title={t('title')} desc={t('desc')}>
     <PageView />
     <TypewriterMode />
     <Outline />

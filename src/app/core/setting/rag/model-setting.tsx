@@ -23,18 +23,20 @@ export function ModelSetting() {
 
   return (
     <ItemGroup className="gap-4">
-      {modelOptions.map((option) => (
-    <Item key={option.modelKey} variant="outline">
-      <ItemMedia variant="icon">{option.icon}</ItemMedia>
-      <ItemContent>
-        <ItemTitle>{option.title}</ItemTitle>
-        <ItemDescription>{option.desc}</ItemDescription>
-      </ItemContent>
-      <ItemActions>
-        <ModelSelect modelKey={option.modelKey} />
-      </ItemActions>
-    </Item>
-      ))}
+      {
+        modelOptions.map((option) => (
+          <Item key={option.modelKey} variant="outline">
+            <ItemMedia variant="icon">{option.icon}</ItemMedia>
+            <ItemContent>
+              <ItemTitle>{option.title}</ItemTitle>
+              <ItemDescription>{option.desc}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ModelSelect modelKey={option.modelKey} />
+            </ItemActions>
+          </Item>
+        ))
+      }
     </ItemGroup>
   )
 }

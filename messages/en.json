@@ -510,6 +510,7 @@
     },
     "template": {
       "title": "Template",
+      "desc": "Here you can create and manage custom organization templates to help AI organize record content according to your needs.",
       "customTemplate": "Custom Template",
       "addTemplate": "Add Custom Template",
       "deleteConfirm": "Are you sure to delete this template?",
@@ -546,6 +547,7 @@
     },
     "dev": {
       "title": "Developer",
+      "desc": "Here you can configure developer options, including network proxy, data cleanup, and configuration file management.",
       "clearData": "Clear Data",
       "clearDataConfirm": "Are you sure to clear data?",
       "proxy": "Proxy, used to solve network problems, after configuration, it is recommended to restart the application.",

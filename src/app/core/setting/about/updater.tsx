@@ -82,7 +82,7 @@ export default function Updater() {
     }, []);
 
     return (
-      <div className="flex flex-col gap-4 w-full mb-8">
+      <div className="flex flex-col gap-4 w-full">
         <div className="flex flex-col md:flex-row md:justify-between w-full md:items-center gap-4 md:gap-0">
           <div className="flex items-center gap-4">
             <div className="size-24">

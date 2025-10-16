@@ -2,8 +2,8 @@ export function SettingType(
   {id, title, icon, desc, children}:
   { id: string, title: string, icon?: React.ReactNode, desc?: string, children?: React.ReactNode}
 ) {
-  return <div id={id} className="flex flex-col">
-    <div className="mb-10">
+  return <div id={id} className="flex flex-col space-y-4">
+    <div className="mb-4">
       <h2 className="text-xl w-full font-bold flex items-center gap-2 mb-2">
         {icon}
         {title}

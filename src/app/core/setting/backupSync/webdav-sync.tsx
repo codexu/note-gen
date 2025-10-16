@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FormItem, SettingRow } from "../components/setting-base";
+import { FormItem } from "../components/setting-base";
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,9 +139,8 @@ export default function WebdavSync() {
   };
 
   return (
-    <>
-      <SettingRow>
-        <FormItem title="">
+    <div className="space-y-8">
+      <FormItem title="">
           <div className="flex items-center space-x-4">
             <Card className="flex-1">
               <CardHeader>
@@ -181,34 +180,22 @@ export default function WebdavSync() {
               </CardContent>
             </Card>
           </div>
-        </FormItem>
-      </SettingRow>
-      <SettingRow>
-        <FormItem title={t("serverUrl")} desc={t("serverUrlDesc")}>
+      </FormItem>
+      <FormItem title={t("serverUrl")} desc={t("serverUrlDesc")}>
           <Input value={url} onChange={handleUrlChange} placeholder={t("serverUrlPlaceholder")} />
-        </FormItem>
-      </SettingRow>
-
-      <SettingRow>
-        <FormItem title={t("username")} desc={t("usernameDesc")}>
+      </FormItem>
+      <FormItem title={t("username")} desc={t("usernameDesc")}>
           <Input value={username} onChange={handleUsernameChange} placeholder={t("usernamePlaceholder")} />
-        </FormItem>
-      </SettingRow>
-
-      <SettingRow>
-        <FormItem title={t("password")} desc={t("passwordDesc")}>
+      </FormItem>
+      <FormItem title={t("password")} desc={t("passwordDesc")}>
           <Input 
             value={password} 
             onChange={handlePasswordChange} 
             type="password" 
             placeholder={t("passwordPlaceholder")}
           />
-        </FormItem>
-      </SettingRow>
-
-
-      <SettingRow>
-        <FormItem title={t("backupPath")} desc={t("backupPathDesc")}>
+      </FormItem>
+      <FormItem title={t("backupPath")} desc={t("backupPathDesc")}>
           <div className="flex items-center gap-2">
           <Input 
               className="flex-grow"
@@ -225,8 +212,7 @@ export default function WebdavSync() {
               {t("createDir")}
             </Button>
           </div>
-        </FormItem>
-      </SettingRow>
-    </>
+      </FormItem>
+    </div>
   );
 }

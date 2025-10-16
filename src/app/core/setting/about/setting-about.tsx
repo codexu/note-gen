@@ -1,5 +1,5 @@
 'use client';
-import { SettingRow, SettingType } from "../components/setting-base";
+import { SettingType } from "../components/setting-base";
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from "@/components/ui/item";
 import { useTranslations } from 'next-intl';
 import Updater from "./updater";
@@ -57,9 +57,7 @@ export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
 
   return (
     <SettingType id={id} icon={icon} title={t('title')}>
-      <SettingRow className="mb-12">
-        <Updater />
-      </SettingRow>
+      <Updater />
       <ItemGroup className="gap-4">
         {
           items.map(item => <AboutItem key={item.url} {...item} />)

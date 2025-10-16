@@ -1,4 +1,4 @@
-import { FormItem, SettingRow } from "../components/setting-base";
+import { FormItem } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { RefreshCw, Trash } from "lucide-react";
 import useRagSettingsStore from "@/stores/ragSettings";
@@ -86,9 +86,9 @@ export function Settings() {
         <CardDescription>{t('settingsDesc')}</CardDescription>
       </CardHeader>
       <CardContent>
-        {settings.map((setting) => (
-          <SettingRow key={setting.title}>
-            <FormItem title={setting.title} desc={setting.desc}>
+        <div className="space-y-8">
+          {settings.map((setting) => (
+            <FormItem key={setting.title} title={setting.title} desc={setting.desc}>
               <div className="flex items-center gap-2">
               <Slider
                 className="w-full md:w-96 my-2"
@@ -100,9 +100,9 @@ export function Settings() {
               />
               <span className="text-secondary-foreground text-sm">{setting.value}</span>
             </div>
-          </FormItem>
-        </SettingRow>
-        ))}
+            </FormItem>
+          ))}
+        </div>
         <div className="flex flex-col md:flex-row gap-2">
           <Button variant="outline" onClick={resetToDefaults}>
             <RefreshCw className="size-4" /> {t('resetToDefaults')}

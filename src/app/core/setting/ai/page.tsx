@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/accordion"
 import Image from "next/image";
 
-import { SettingType, SettingRow, FormItem } from "../components/setting-base";
+import { SettingType, FormItem } from "../components/setting-base";
 import { AiConfig, ModelConfig, baseAiConfig } from "../config";
 import useSettingStore from "@/stores/setting";
 import { noteGenModelKeys } from "@/app/model-config";
@@ -275,10 +275,9 @@ export default function AiPage() {
       />
       
       {userCustomModels.length > 0 && (
-        <>
+        <div className="space-y-8">
           {/* AI配置选择 */}
-          <SettingRow>
-            <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
+          <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
               <div className="flex items-center gap-2 md:flex-row flex-col">
                 <Select value={selectedAiConfig} onValueChange={setSelectedAiConfig}>
                   <SelectTrigger className="w-full">
@@ -313,16 +312,14 @@ export default function AiPage() {
                   </Button>
                 </div>
               </div>
-            </FormItem>
-          </SettingRow>
+          </FormItem>
 
           {/* 当前配置的基础设置 */}
           {currentConfig && (
             <>
               {/* 供应商模板配置信息显示 */}
               {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <SettingRow>
-                  <FormItem title={t('providerInfo')}>
+                <FormItem title={t('providerInfo')}>
                     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon && (
                         <Image 
@@ -338,37 +335,31 @@ export default function AiPage() {
                         <div className="text-sm text-muted-foreground">{currentConfig.baseURL}</div>
                       </div>
                     </div>
-                  </FormItem>
-                </SettingRow>
+                </FormItem>
               )}
 
               {/* 配置名称 - 只有非供应商模板配置才显示 */}
               {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <SettingRow>
-                  <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
+                <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
                     <Input 
                       value={currentConfig.title} 
                       onChange={(e) => updateAiConfig({...currentConfig, title: e.target.value})} 
                     />
-                  </FormItem>
-                </SettingRow>
+                </FormItem>
               )}
 
               {/* BaseURL - 只有非供应商模板配置才显示 */}
               {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <SettingRow>
-                  <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
+                <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
                     <Input 
                       value={currentConfig.baseURL || ''} 
                       onChange={(e) => updateAiConfig({...currentConfig, baseURL: e.target.value})} 
                     />
-                  </FormItem>
-                </SettingRow>
+                </FormItem>
               )}
 
               {/* API Key */}
-              <SettingRow>
-                <FormItem title="API Key">
+              <FormItem title="API Key">
                   <div className="flex gap-2">
                     <Input 
                       className="flex-1" 
@@ -387,13 +378,11 @@ export default function AiPage() {
                       />
                     )}
                   </div>
-                </FormItem>
-              </SettingRow>
+              </FormItem>
 
               {/* 自定义Headers */}
               {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <SettingRow>
-                  <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
+                <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
                     <div className="space-y-2">
                       {headerPairs.map((pair, index) => (
                         <div key={pair.id} className="flex gap-2 items-center">
@@ -449,13 +438,11 @@ export default function AiPage() {
                         {t('addHeader')}
                       </Button>
                     </div>
-                  </FormItem>
-                </SettingRow>
+                </FormItem>
               )}
 
               {/* 模型配置区域 */}
-              <SettingRow>
-                <FormItem title={t('models')}>
+              <FormItem title={t('models')}>
                   <div className="space-y-4">
                     {/* 模型卡片列表 */}
                     <Accordion 
@@ -480,11 +467,10 @@ export default function AiPage() {
                       {t('addModel')}
                     </Button>
                   </div>
-                </FormItem>
-              </SettingRow>
+              </FormItem>
             </>
           )}
-        </>
+        </div>
       )}
     </SettingType>
   )

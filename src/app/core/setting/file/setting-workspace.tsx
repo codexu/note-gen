@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from "@/components/ui/button"
-import { FormItem, SettingRow } from "../components/setting-base"
+import { FormItem } from "../components/setting-base"
 import useSettingStore from "@/stores/setting"
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, exists, mkdir } from "@tauri-apps/plugin-fs"
@@ -80,8 +80,7 @@ export function SettingWorkspace() {
   }
 
   return (
-    <SettingRow>
-      <FormItem 
+    <FormItem 
         title={t('workspace.current')} 
         desc={t('workspace.desc')}
       >
@@ -189,7 +188,6 @@ export function SettingWorkspace() {
           </Popover>
           
         </div>
-      </FormItem>
-    </SettingRow>
+    </FormItem>
   )
 }

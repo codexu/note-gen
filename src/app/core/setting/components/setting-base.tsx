@@ -13,14 +13,9 @@ export function SettingType(
     {children}
   </div>
 }
-export function SettingRow({border = false, children, className}: { border?: boolean, children: React.ReactNode, className?: string}) {
-  return <div className={`${border ? "border-b py-4" : ""} flex justify-between text-sm items-start md:items-center ${className}`}>
-    {children}
-  </div>
-}
 
 export function FormItem({title, desc, children}: { title: string, desc?: string, children: React.ReactNode}) {
-  return <div className="flex flex-col mb-8 w-full">
+  return <div className="flex flex-col w-full">
     <div className="text-sm mb-2 font-bold">{title}</div>
     {children}
     {desc && <p className="text-sm text-muted-foreground mt-2">{desc}</p>}

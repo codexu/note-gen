@@ -14,8 +14,10 @@ export default function SettingFilePage() {
       title={t('title')}
       icon={<FolderOpen className="w-5 h-5" />}
     >
-      <SettingWorkspace />
-      <SettingAssets />
+      <div className="space-y-8">
+        <SettingWorkspace />
+        <SettingAssets />
+      </div>
     </SettingType>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 import { Input } from "@/components/ui/input";
-import { FormItem, SettingRow } from "../components/setting-base";
+import { FormItem } from "../components/setting-base";
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from '@/components/ui/item';
 import { useEffect, useState } from "react";
 import { useTranslations } from 'next-intl';
@@ -170,156 +170,136 @@ export function GitlabSync() {
 
 
   return (
-    <div className="mt-4">
-      {/* Gitlab 实例选择 */}
-      <SettingRow>
-        <FormItem title={t('settings.sync.gitlabInstanceType')} desc={t('settings.sync.gitlabInstanceTypeDesc')}>
-          <Select value={gitlabInstanceType} onValueChange={instanceTypeChangeHandler}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t('settings.sync.gitlabInstanceTypePlaceholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={GitlabInstanceType.OFFICIAL}>
-                <div className="flex items-center gap-2">
-                  <Globe className="size-4" />
-                  <div>
-                    <div className="font-medium">GitLab.com</div>
-                  </div>
+    <div className="space-y-8">
+      <FormItem title={t('settings.sync.gitlabInstanceType')} desc={t('settings.sync.gitlabInstanceTypeDesc')}>
+        <Select value={gitlabInstanceType} onValueChange={instanceTypeChangeHandler}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={t('settings.sync.gitlabInstanceTypePlaceholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={GitlabInstanceType.OFFICIAL}>
+              <div className="flex items-center gap-2">
+                <Globe className="size-4" />
+                <div>
+                  <div className="font-medium">GitLab.com</div>
                 </div>
-              </SelectItem>
-              <SelectItem value={GitlabInstanceType.JIHULAB}>
-                <div className="flex items-center gap-2">
-                  <Globe className="size-4" />
-                  <div>
-                    <div className="font-medium">极狐</div>
-                  </div>
+              </div>
+            </SelectItem>
+            <SelectItem value={GitlabInstanceType.JIHULAB}>
+              <div className="flex items-center gap-2">
+                <Globe className="size-4" />
+                <div>
+                  <div className="font-medium">极狐</div>
                 </div>
-              </SelectItem>
-              <SelectItem value={GitlabInstanceType.SELF_HOSTED}>
-                <div className="flex items-center gap-2">
-                  <Server className="size-4" />
-                  <div>
-                    <div className="font-medium">{t('settings.sync.gitlabInstanceTypeOptions.selfHosted')}</div>
-                  </div>
+              </div>
+            </SelectItem>
+            <SelectItem value={GitlabInstanceType.SELF_HOSTED}>
+              <div className="flex items-center gap-2">
+                <Server className="size-4" />
+                <div>
+                  <div className="font-medium">{t('settings.sync.gitlabInstanceTypeOptions.selfHosted')}</div>
                 </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </FormItem>
-      </SettingRow>
-
-      {/* 自建实例 URL 输入 */}
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </FormItem>
       {gitlabInstanceType === GitlabInstanceType.SELF_HOSTED && (
-        <SettingRow>
-          <FormItem title="GitLab URL" desc={t('settings.sync.gitlabInstanceTypeOptions.selfHostedDesc')}>
-            <Input 
-              value={gitlabCustomUrl} 
-              onChange={customUrlChangeHandler} 
-              placeholder="https://gitlab.example.com"
-              type="url"
-            />
-          </FormItem>
-        </SettingRow>
+        <FormItem title="GitLab URL" desc={t('settings.sync.gitlabInstanceTypeOptions.selfHostedDesc')}>
+          <Input 
+            value={gitlabCustomUrl} 
+            onChange={customUrlChangeHandler} 
+            placeholder="https://gitlab.example.com"
+            type="url"
+          />
+        </FormItem>
       )}
 
-      {/* Access Token 输入 */}
-      <SettingRow>
-        <FormItem title="GitLab Access Token" desc={t('settings.sync.gitlabAccessTokenDesc', { instanceDisplayName: getInstanceDisplayName() })}>
-          <OpenBroswer 
-            url={getTokenCreateUrl()} 
-            title={t('settings.sync.newToken')} 
-            className="mb-2" 
-          />
-          <div className="flex gap-2">
-            <Input 
-              value={gitlabAccessToken} 
-              onChange={tokenChangeHandler} 
-              type={gitlabAccessTokenVisible ? 'text' : 'password'} 
-            />
-            <Button variant="outline" size="icon" onClick={() => setGitlabAccessTokenVisible(!gitlabAccessTokenVisible)}>
-              {gitlabAccessTokenVisible ? <Eye /> : <EyeOff />}
-            </Button>
-          </div>
-        </FormItem>
-      </SettingRow>
-
-      {/* 自定义仓库名输入 */}
-      <SettingRow>
-        <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+      <FormItem title="GitLab Access Token" desc={t('settings.sync.gitlabAccessTokenDesc', { instanceDisplayName: getInstanceDisplayName() })}>
+        <OpenBroswer 
+          url={getTokenCreateUrl()} 
+          title={t('settings.sync.newToken')} 
+          className="mb-2" 
+        />
+        <div className="flex gap-2">
           <Input 
-            value={gitlabCustomSyncRepo} 
-            onChange={(e) => {
-              setGitlabCustomSyncRepo(e.target.value)
-            }}
-            placeholder={RepoNames.sync}
+            value={gitlabAccessToken} 
+            onChange={tokenChangeHandler} 
+            type={gitlabAccessTokenVisible ? 'text' : 'password'} 
           />
-        </FormItem>
-      </SettingRow>
-
-      {/* 项目状态显示 */}
-      <SettingRow>
-        <FormItem title={t('settings.sync.repoStatus')}>
-          <Card>
-            <CardHeader className={`${gitlabSyncProjectInfo ? 'border-b' : ''}`}>
-              <CardTitle className="flex justify-between items-center">
-                <div className="flex gap-2 items-center">
-                  <DatabaseBackup className="size-4" />
-                  {getRepoName()}（{gitlabSyncProjectInfo?.visibility === 'public' ? t('settings.sync.public') : t('settings.sync.private')}）
-                </div>
-                <Badge className={`${gitlabSyncProjectState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>
-                  {gitlabSyncProjectState}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                <span>{t('settings.sync.syncRepoDesc')}</span>
-              </CardDescription>
-              {/* 手动检测和创建按钮 */}
-              {gitlabAccessToken && (
-                <div className="mt-3 flex gap-2">
+          <Button variant="outline" size="icon" onClick={() => setGitlabAccessTokenVisible(!gitlabAccessTokenVisible)}>
+            {gitlabAccessTokenVisible ? <Eye /> : <EyeOff />}
+          </Button>
+        </div>
+      </FormItem>
+      <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+        <Input 
+          value={gitlabCustomSyncRepo} 
+          onChange={(e) => {
+            setGitlabCustomSyncRepo(e.target.value)
+          }}
+          placeholder={RepoNames.sync}
+        />
+      </FormItem>
+      <FormItem title={t('settings.sync.repoStatus')}>
+        <Card>
+          <CardHeader className={`${gitlabSyncProjectInfo ? 'border-b' : ''}`}>
+            <CardTitle className="flex justify-between items-center">
+              <div className="flex gap-2 items-center">
+                <DatabaseBackup className="size-4" />
+                {getRepoName()}（{gitlabSyncProjectInfo?.visibility === 'public' ? t('settings.sync.public') : t('settings.sync.private')}）
+              </div>
+              <Badge className={`${gitlabSyncProjectState === SyncStateEnum.success ? 'bg-green-800' : 'bg-red-800'}`}>
+                {gitlabSyncProjectState}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              <span>{t('settings.sync.syncRepoDesc')}</span>
+            </CardDescription>
+            {/* 手动检测和创建按钮 */}
+            {gitlabAccessToken && (
+              <div className="mt-3 flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={checkProjectState}
+                  disabled={gitlabSyncProjectState === SyncStateEnum.checking}
+                >
+                  <RefreshCcw className="size-4 mr-1" />
+                  {gitlabSyncProjectState === SyncStateEnum.checking ? t('settings.sync.checking') : t('settings.sync.checkRepo')}
+                </Button>
+                {gitlabSyncProjectState === SyncStateEnum.fail && (
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={checkProjectState}
-                    disabled={gitlabSyncProjectState === SyncStateEnum.checking}
+                    onClick={createGitlabProject}
                   >
-                    <RefreshCcw className="size-4 mr-1" />
-                    {gitlabSyncProjectState === SyncStateEnum.checking ? t('settings.sync.checking') : t('settings.sync.checkRepo')}
+                    <Plus className="size-4 mr-1" />
+                    {t('settings.sync.createRepo')}
                   </Button>
-                  {gitlabSyncProjectState === SyncStateEnum.fail && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={createGitlabProject}
-                    >
-                      <Plus className="size-4 mr-1" />
-                      {t('settings.sync.createRepo')}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardHeader>
-            {
-              gitlabSyncProjectInfo &&
-              <CardContent className="flex items-center gap-4 mt-4">
-                <Avatar className="size-12">
-                  <AvatarImage src={gitlabUserInfo?.avatar_url || ''} />
-                </Avatar>
-                <div>
-                  <h3 className="text-xl font-bold mb-1">
-                    <OpenBroswer title={gitlabSyncProjectInfo?.name_with_namespace || ''} url={gitlabSyncProjectInfo?.web_url || ''} />
-                  </h3>
-                  <CardDescription className="flex">
-                    <p className="text-zinc-500 leading-6">{t('settings.sync.createdAt', { time: dayjs(gitlabSyncProjectInfo?.created_at).fromNow() })}，</p>
-                    <p className="text-zinc-500 leading-6">{t('settings.sync.updatedAt', { time: dayjs(gitlabSyncProjectInfo?.updated_at).fromNow() })}。</p>
-                  </CardDescription>
-                </div>
-              </CardContent>
-            }
-          </Card>
-        </FormItem>
-      </SettingRow>
-
-      {/* 自动同步设置 */}
+                )}
+              </div>
+            )}
+          </CardHeader>
+          {
+            gitlabSyncProjectInfo &&
+            <CardContent className="flex items-center gap-4 mt-4">
+              <Avatar className="size-12">
+                <AvatarImage src={gitlabUserInfo?.avatar_url || ''} />
+              </Avatar>
+              <div>
+                <h3 className="text-xl font-bold mb-1">
+                  <OpenBroswer title={gitlabSyncProjectInfo?.name_with_namespace || ''} url={gitlabSyncProjectInfo?.web_url || ''} />
+                </h3>
+                <CardDescription className="flex">
+                  <p className="text-zinc-500 leading-6">{t('settings.sync.createdAt', { time: dayjs(gitlabSyncProjectInfo?.created_at).fromNow() })}，</p>
+                  <p className="text-zinc-500 leading-6">{t('settings.sync.updatedAt', { time: dayjs(gitlabSyncProjectInfo?.updated_at).fromNow() })}。</p>
+                </CardDescription>
+              </div>
+            </CardContent>
+          }
+        </Card>
+      </FormItem>
       {
         gitlabSyncProjectInfo &&
         <FormItem title={t('settings.others')}>
@@ -353,7 +333,6 @@ export function GitlabSync() {
       }
 
       {/* 主要备份方式设置 */}
-      <SettingRow className="my-4">
         {primaryBackupMethod === 'gitlab' ? (
           <Button disabled variant="outline">
             {t('settings.sync.isPrimaryBackup', { type: 'GitLab' })}
@@ -367,7 +346,6 @@ export function GitlabSync() {
             {t('settings.sync.setPrimaryBackup')}
           </Button>
         )}
-      </SettingRow>
     </div>
   )
 }

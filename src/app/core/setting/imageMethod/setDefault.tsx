@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { SettingRow } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
@@ -24,7 +23,7 @@ export function SetDefault({type}: {type: 'ocr' | 'vlm'}) {
   }, [])
 
   return (
-    <SettingRow className="mt-4">
+    <div>
       {primaryImageMethod === type ? (
         <Button disabled variant="outline">
           {t('isPrimary', { type: type.toUpperCase() })}
@@ -37,6 +36,6 @@ export function SetDefault({type}: {type: 'ocr' | 'vlm'}) {
           {t('setPrimary')}
         </Button>
       )}
-    </SettingRow>
+    </div>
   )
 }

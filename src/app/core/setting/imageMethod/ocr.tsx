@@ -1,5 +1,5 @@
 import { Input } from "@/components/ui/input";
-import { FormItem, SettingRow } from "../components/setting-base";
+import { FormItem } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
 import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
@@ -31,18 +31,16 @@ export function OcrSetting() {
   }, [])
 
   return (
-    <div>
-      <SettingRow>
-        <FormItem title={t('languagePacks')}>
-          <Input value={tesseractList} onChange={changeHandler} />
-        </FormItem>
-      </SettingRow>
-      <SettingRow>
+    <div className="space-y-8">
+      <FormItem title={t('languagePacks')}>
+        <Input value={tesseractList} onChange={changeHandler} />
+      </FormItem>
+      <div>
         <span>
           <OpenBroswer title={t('checkModels')} url="https://tesseract-ocr.github.io/tessdoc/Data-Files#data-files-for-version-400-november-29-2016" />
           {t('modelInstruction')}
         </span>
-      </SettingRow>
+      </div>
       <SetDefault type="ocr" />
     </div>
   )

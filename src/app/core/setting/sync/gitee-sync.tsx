@@ -1,6 +1,6 @@
 'use client'
 import { Input } from "@/components/ui/input";
-import { FormItem, SettingRow } from "../components/setting-base";
+import { FormItem } from "../components/setting-base";
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from '@/components/ui/item';
 import { useEffect, useState } from "react";
 import { useTranslations } from 'next-intl';
@@ -117,9 +117,8 @@ export function GiteeSync() {
 
 
   return (
-    <div className="mt-4">
-      <SettingRow>
-        <FormItem title="Gitee 私人令牌" desc={t('settings.sync.giteeTokenDesc')}>
+    <div className="space-y-8">
+      <FormItem title="Gitee 私人令牌" desc={t('settings.sync.giteeTokenDesc')}>
           <OpenBroswer url="https://gitee.com/profile/personal_access_tokens/new" title={t('settings.sync.newToken')} className="mb-2" />
           <div className="flex gap-2">
             <Input value={giteeAccessToken} onChange={tokenChangeHandler} type={giteeAccessTokenVisible ? 'text' : 'password'} />
@@ -127,10 +126,8 @@ export function GiteeSync() {
               {giteeAccessTokenVisible ? <Eye /> : <EyeOff />}
             </Button>
           </div>
-        </FormItem>
-      </SettingRow>
-      <SettingRow>
-        <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+      </FormItem>
+      <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
           <Input 
             value={giteeCustomSyncRepo} 
             onChange={(e) => {
@@ -138,10 +135,8 @@ export function GiteeSync() {
             }}
             placeholder={RepoNames.sync}
           />
-        </FormItem>
-      </SettingRow>
-      <SettingRow>
-        <FormItem title={t('settings.sync.repoStatus')}>
+      </FormItem>
+      <FormItem title={t('settings.sync.repoStatus')}>
           <Card>
             <CardHeader className={`${giteeSyncRepoInfo ? 'border-b' : ''}`}>
               <CardTitle className="flex justify-between items-center">
@@ -192,8 +187,7 @@ export function GiteeSync() {
               </CardContent>
             }
           </Card>
-        </FormItem>
-      </SettingRow>
+      </FormItem>
       {
         giteeSyncRepoInfo &&
         <FormItem title={t('settings.others')}>
@@ -225,7 +219,7 @@ export function GiteeSync() {
           </Item>
         </FormItem>
       }
-      <SettingRow className="my-4">
+      <div>
         {primaryBackupMethod === 'gitee' ? (
           <Button disabled variant="outline">
             {t('settings.sync.isPrimaryBackup', { type: 'Gitee' })}
@@ -239,7 +233,7 @@ export function GiteeSync() {
             {t('settings.sync.setPrimaryBackup')}
           </Button>
         )}
-      </SettingRow>
+      </div>
     </div>
   )
 }

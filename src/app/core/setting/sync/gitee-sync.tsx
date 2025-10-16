@@ -1,6 +1,7 @@
 'use client'
 import { Input } from "@/components/ui/input";
-import { FormItem, SettingPanel, SettingRow } from "../components/setting-base";
+import { FormItem, SettingRow } from "../components/setting-base";
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from '@/components/ui/item';
 import { useEffect, useState } from "react";
 import { useTranslations } from 'next-intl';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -195,29 +196,36 @@ export function GiteeSync() {
       </SettingRow>
       {
         giteeSyncRepoInfo &&
-        <>
-          <SettingPanel title={t('settings.sync.autoSync')} desc={t('settings.sync.giteeAutoSyncDesc')}>
-            <Select
-              value={giteeAutoSync}
-              onValueChange={(value) => setGiteeAutoSync(value)}
-              disabled={!giteeAccessToken || giteeSyncRepoState !== SyncStateEnum.success}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
-                <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
-                <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
-                <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
-                <SelectItem value="300">{t('settings.sync.autoSyncOptions.5m')}</SelectItem>
-                <SelectItem value="1800">{t('settings.sync.autoSyncOptions.30m')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </SettingPanel>
-        </>
+        <FormItem title={t('settings.others')}>
+          <Item variant="outline">
+            <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t('settings.sync.autoSync')}</ItemTitle>
+              <ItemDescription>{t('settings.sync.giteeAutoSyncDesc')}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Select
+                value={giteeAutoSync}
+                onValueChange={(value) => setGiteeAutoSync(value)}
+                disabled={!giteeAccessToken || giteeSyncRepoState !== SyncStateEnum.success}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
+                  <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
+                  <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
+                  <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
+                  <SelectItem value="300">{t('settings.sync.autoSyncOptions.5m')}</SelectItem>
+                  <SelectItem value="1800">{t('settings.sync.autoSyncOptions.30m')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </ItemActions>
+          </Item>
+        </FormItem>
       }
-      <SettingRow>
+      <SettingRow className="my-4">
         {primaryBackupMethod === 'gitee' ? (
           <Button disabled variant="outline">
             {t('settings.sync.isPrimaryBackup', { type: 'Gitee' })}

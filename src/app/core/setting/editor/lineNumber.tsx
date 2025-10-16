@@ -1,5 +1,5 @@
 import { Switch } from "@/components/ui/switch";
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -23,7 +23,13 @@ export default function LineNumber() {
     setState(state)
   }
 
-  return <SettingPanel title={t('enableLineNumber')} desc={t('enableLineNumberDesc')}>
-    <Switch checked={state} onCheckedChange={setStateHandler}/>
-  </SettingPanel>
+  return <Item variant="outline">
+    <ItemContent>
+      <ItemTitle>{t('enableLineNumber')}</ItemTitle>
+      <ItemDescription>{t('enableLineNumberDesc')}</ItemDescription>
+    </ItemContent>
+    <ItemActions>
+      <Switch checked={state} onCheckedChange={setStateHandler}/>
+    </ItemActions>
+  </Item>
 }

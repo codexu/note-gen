@@ -1,7 +1,7 @@
 'use client'
 
 import { Switch } from '@/components/ui/switch'
-import { SettingPanel } from '../components/setting-base'
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { useMcpStore } from '@/stores/mcp'
 import { useTranslations } from 'next-intl'
 
@@ -10,14 +10,17 @@ export function GlobalSettings() {
   const { enabled, setEnabled } = useMcpStore()
   
   return (
-    <SettingPanel
-      title={t('enableTitle')}
-      desc={t('enableDesc')}
-    >
-      <Switch
-        checked={enabled}
-        onCheckedChange={setEnabled}
-      />
-    </SettingPanel>
+    <Item variant="outline">
+      <ItemContent>
+        <ItemTitle>{t('enableTitle')}</ItemTitle>
+        <ItemDescription>{t('enableDesc')}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+        />
+      </ItemActions>
+    </Item>
   )
 }

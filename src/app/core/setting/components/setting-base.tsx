@@ -26,17 +26,3 @@ export function FormItem({title, desc, children}: { title: string, desc?: string
     {desc && <p className="text-sm text-muted-foreground mt-2">{desc}</p>}
   </div>
 }
-
-export function SettingPanel({children, title, desc, icon}: {children: React.ReactNode, title?: string, desc?: string, icon?: React.ReactNode}) {
-  return <div className="flex flex-col md:flex-row md:items-center justify-between rounded-lg border p-3 shadow-sm mb-4 md:gap-6">
-    <div className="mb-2 md:mb-0">
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        {title && <div className="text-sm font-bold">{title}</div>}
-      </div>
-      {desc && <p className="text-sm text-muted-foreground">{desc}</p>}
-    </div>
-    {children}
-  </div>
-}
-  

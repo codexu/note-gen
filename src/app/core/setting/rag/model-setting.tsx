@@ -1,4 +1,4 @@
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "../components/model-select";
 import { ChartScatter, ListOrdered } from "lucide-react";
@@ -21,14 +21,20 @@ export function ModelSetting() {
     },
   ];
 
-  return modelOptions.map((option) => (
-    <SettingPanel 
-      key={option.modelKey} 
-      title={option.title} 
-      desc={option.desc} 
-      icon={option.icon}
-    >
-      <ModelSelect modelKey={option.modelKey} />
-    </SettingPanel>
-  ))
+  return (
+    <ItemGroup className="gap-4">
+      {modelOptions.map((option) => (
+    <Item key={option.modelKey} variant="outline">
+      <ItemMedia variant="icon">{option.icon}</ItemMedia>
+      <ItemContent>
+        <ItemTitle>{option.title}</ItemTitle>
+        <ItemDescription>{option.desc}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <ModelSelect modelKey={option.modelKey} />
+      </ItemActions>
+    </Item>
+      ))}
+    </ItemGroup>
+  )
 }

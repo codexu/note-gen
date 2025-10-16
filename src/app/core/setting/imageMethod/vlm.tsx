@@ -1,4 +1,4 @@
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { ModelSelect } from "../components/model-select";
 import { Bot } from "lucide-react";
 import { useTranslations } from 'next-intl';
@@ -8,9 +8,16 @@ export function VlmSetting() {
   const t = useTranslations('settings.imageMethod.vlm')
   return (
     <>
-      <SettingPanel title={t('title')} desc={t('desc')} icon={<Bot className="size-4" />}>
-        <ModelSelect modelKey={'imageMethod'} />
-      </SettingPanel>
+      <Item variant="outline">
+        <ItemMedia variant="icon"><Bot className="size-4" /></ItemMedia>
+        <ItemContent>
+          <ItemTitle>{t('title')}</ItemTitle>
+          <ItemDescription>{t('desc')}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <ModelSelect modelKey={'imageMethod'} />
+        </ItemActions>
+      </Item>
       <SetDefault type="vlm" />
     </> 
   )

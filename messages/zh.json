@@ -24,6 +24,7 @@
     "defaultFileName": "未命名文档"
   },
   "settings": {
+    "others": "高级",
     "general": {
       "title": "常规设置",
       "desc": "在这里，你可以配置应用的基本设置，包括界面主题、语言等选项。",

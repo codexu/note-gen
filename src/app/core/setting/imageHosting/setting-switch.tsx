@@ -1,5 +1,5 @@
 import useSettingStore from "@/stores/setting"
-import { SettingPanel } from "../components/setting-base"
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Switch } from "@/components/ui/switch"
 import { useTranslations } from 'next-intl';
 
@@ -10,11 +10,17 @@ export function SettingSwitch() {
     setUseImageRepo,
   } = useSettingStore()
   return (
-    <SettingPanel title={t('imageRepoSetting')} desc={t('imageRepoSettingDesc')}>
-      <Switch 
-        checked={useImageRepo} 
-        onCheckedChange={(checked) => setUseImageRepo(checked)} 
-      />
-    </SettingPanel>
+    <Item variant="outline">
+      <ItemContent>
+        <ItemTitle>{t('imageRepoSetting')}</ItemTitle>
+        <ItemDescription>{t('imageRepoSettingDesc')}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Switch 
+          checked={useImageRepo} 
+          onCheckedChange={(checked) => setUseImageRepo(checked)} 
+        />
+      </ItemActions>
+    </Item>
   )
 }

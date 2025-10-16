@@ -1,5 +1,5 @@
 'use client'
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemGroup, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -39,20 +39,32 @@ export default function Outline() {
     setEnableOutline(state)
   }
 
-  return <>
-    <SettingPanel title={t('outlineEnable')} desc={t('outlineEnableDesc')}>
-      <Switch
-        checked={enableOutline}
-        onCheckedChange={setEnableOutlineHandler}
-      />
-    </SettingPanel>
-    <SettingPanel title={t('outlinePosition')} desc={t('outlinePositionDesc')}>
-      <Tabs defaultValue="left" value={outlinePosition} onValueChange={(value) => setPositionHandler(value as 'left' | 'right')}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="left">{t('outlinePositionOptions.left')}</TabsTrigger>
-          <TabsTrigger value="right">{t('outlinePositionOptions.right')}</TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </SettingPanel>
-  </>
+  return <ItemGroup className="gap-4">
+    <Item variant="outline">
+      <ItemContent>
+        <ItemTitle>{t('outlineEnable')}</ItemTitle>
+        <ItemDescription>{t('outlineEnableDesc')}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Switch
+          checked={enableOutline}
+          onCheckedChange={setEnableOutlineHandler}
+        />
+      </ItemActions>
+    </Item>
+    <Item variant="outline">
+      <ItemContent>
+        <ItemTitle>{t('outlinePosition')}</ItemTitle>
+        <ItemDescription>{t('outlinePositionDesc')}</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Tabs defaultValue="left" value={outlinePosition} onValueChange={(value) => setPositionHandler(value as 'left' | 'right')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="left">{t('outlinePositionOptions.left')}</TabsTrigger>
+            <TabsTrigger value="right">{t('outlinePositionOptions.right')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </ItemActions>
+    </Item>
+  </ItemGroup>
 }

@@ -1,5 +1,5 @@
 import { Switch } from "@/components/ui/switch";
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -23,7 +23,13 @@ export default function TypewriterMode() {
     setState(state)
   }
 
-  return <SettingPanel title={t('typewriterMode')} desc={t('typewriterModeDesc')}>
-    <Switch checked={state} onCheckedChange={setStateHandler}/>
-  </SettingPanel>
+  return <Item variant="outline">
+    <ItemContent>
+      <ItemTitle>{t('typewriterMode')}</ItemTitle>
+      <ItemDescription>{t('typewriterModeDesc')}</ItemDescription>
+    </ItemContent>
+    <ItemActions>
+      <Switch checked={state} onCheckedChange={setStateHandler}/>
+    </ItemActions>
+  </Item>
 }

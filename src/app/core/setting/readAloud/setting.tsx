@@ -1,4 +1,4 @@
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "../components/model-select";
 import { Gauge, Volume2 } from "lucide-react";
@@ -84,33 +84,39 @@ export function Setting() {
   };
 
   return (
-    <>
-      <SettingPanel 
-        title={t('options.audioModel.title')} 
-        desc={t('options.audioModel.desc')} 
-        icon={<Volume2 className="size-4" />}
-      >
-        <ModelSelect modelKey="audio" />
-      </SettingPanel>
+    <ItemGroup className="gap-4">
+      <Item variant="outline">
+        <ItemMedia variant="icon"><Volume2 className="size-4" /></ItemMedia>
+        <ItemContent>
+          <ItemTitle>{t('options.audioModel.title')}</ItemTitle>
+          <ItemDescription>{t('options.audioModel.desc')}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <ModelSelect modelKey="audio" />
+        </ItemActions>
+      </Item>
       {audioModel && (
-        <SettingPanel 
-          title={t('options.speed.title')} 
-          desc={t('options.speed.desc')} 
-          icon={<Gauge className="size-4" />}
-        >
-          <div className="flex gap-2 py-2">
-            <Slider
-              className="w-64"
-              value={[speed]}
-              min={0.25}
-              max={4}
-              step={0.25}
-              onValueChange={handleSpeedChange}
-            />
-            <span className="text-zinc-500 w-10">{speed}x</span>
-          </div>
-        </SettingPanel>
+        <Item variant="outline">
+          <ItemMedia variant="icon"><Gauge className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('options.speed.title')}</ItemTitle>
+            <ItemDescription>{t('options.speed.desc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <div className="flex items-center gap-4">
+              <Slider
+                value={[speed]}
+                onValueChange={handleSpeedChange}
+                min={0.5}
+                max={2}
+                step={0.1}
+                className="w-[180px]"
+              />
+              <span className="text-zinc-500 w-10">{speed}x</span>
+            </div>
+          </ItemActions>
+        </Item>
       )}
-    </>
+    </ItemGroup>
   )
 }

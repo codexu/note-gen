@@ -26,6 +26,7 @@
     "defaultFileName": "Untitled"
   },
   "settings": {
+    "others": "Advanced",
     "general": {
       "title": "General Settings",
       "desc": "Here, you can configure basic application settings, including interface theme, language and other options.",

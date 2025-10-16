@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Download, Upload, FolderOpen } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { useToast } from "@/hooks/use-toast";
@@ -93,50 +93,44 @@ export default function LocalBackup() {
   };
 
   return (
-    <div className="space-y-6">
+    <ItemGroup className="gap-4">
       {/* 导出备份 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            {t('export.title')}
-          </CardTitle>
-          <CardDescription>
-            {t('export.desc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Item variant="outline">
+        <ItemMedia variant="icon">
+          <Download className="size-4" />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{t('export.title')}</ItemTitle>
+          <ItemDescription>{t('export.desc')}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
           <Button 
             onClick={handleExport} 
             disabled={isExporting}
           >
-            <FolderOpen className="h-4 w-4 mr-2" />
             {isExporting ? t('export.exporting') : t('export.button')}
           </Button>
-        </CardContent>
-      </Card>
+        </ItemActions>
+      </Item>
 
       {/* 导入备份 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            {t('import.title')}
-          </CardTitle>
-          <CardDescription>
-            {t('import.desc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Item variant="outline">
+        <ItemMedia variant="icon">
+          <Upload className="size-4" />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{t('import.title')}</ItemTitle>
+          <ItemDescription>{t('import.desc')}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
           <Button 
             onClick={handleImport} 
             disabled={isImporting}
           >
-            <Upload className="h-4 w-4 mr-2" />
             {isImporting ? t('import.importing') : t('import.button')}
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </ItemActions>
+      </Item>
+    </ItemGroup>
   );
 }

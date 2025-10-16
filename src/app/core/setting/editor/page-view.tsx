@@ -1,5 +1,5 @@
 'use client'
-import { SettingPanel } from "../components/setting-base";
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from "react";
 import { Store } from "@tauri-apps/plugin-store";
@@ -29,12 +29,18 @@ export default function PageView() {
     setPageView(state)
   }
 
-  return  <SettingPanel title={t('pageView')} desc={t('pageViewDesc')}>
-    <Tabs defaultValue="immersiveView" value={pageView} onValueChange={(value) => setPositionHandler(value as 'immersiveView' | 'panoramaView')}>
-      <TabsList className="grid md:w-[360px] grid-cols-2">
-        <TabsTrigger value="immersiveView">{t('pageViewOptions.immersiveView')}</TabsTrigger>
-        <TabsTrigger value="panoramaView">{t('pageViewOptions.panoramaView')}</TabsTrigger>
-      </TabsList>
-    </Tabs>
-  </SettingPanel>
+  return <Item variant="outline">
+    <ItemContent>
+      <ItemTitle>{t('pageView')}</ItemTitle>
+      <ItemDescription>{t('pageViewDesc')}</ItemDescription>
+    </ItemContent>
+    <ItemActions>
+      <Tabs defaultValue="immersiveView" value={pageView} onValueChange={(value) => setPositionHandler(value as 'immersiveView' | 'panoramaView')}>
+        <TabsList className="grid md:w-[360px] grid-cols-2">
+          <TabsTrigger value="immersiveView">{t('pageViewOptions.immersiveView')}</TabsTrigger>
+          <TabsTrigger value="panoramaView">{t('pageViewOptions.panoramaView')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </ItemActions>
+  </Item>
 }

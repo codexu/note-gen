@@ -218,7 +218,7 @@ export function TagManage() {
                   <ContextMenu>
                     <ContextMenuTrigger>
                       <AccordionTrigger 
-                        className={`${currentTagId === tag.id && 'bg-accent'} px-3 py-2 hover:no-underline`}
+                        className={`px-3 py-2 hover:no-underline opacity-50 ${currentTagId === tag.id && 'bg-accent opacity-100'}`}
                         onClick={() => {
                           if (tag.id !== currentTagId) {
                             handleSelectTag(tag)

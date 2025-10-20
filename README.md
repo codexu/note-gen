@@ -107,7 +107,3 @@ We also thank other partners for their service support
     <img src="https://s2.loli.net/2025/09/16/mTzMCQ8tZLfJNk5.png" />
   </a>
 </div>
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=codexu/note-gen&type=Date)](https://www.star-history.com/#codexu/note-gen&Date)

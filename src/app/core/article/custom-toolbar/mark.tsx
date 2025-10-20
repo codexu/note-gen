@@ -122,50 +122,52 @@ export default function MarkInsert({editor}: {editor?: Vditor}) {
           }
           {
             allMarks.length ? (
-              Object.entries(marksByTag).map(([tagId, marks]) => {
-                const tag = tags.find(t => t.id === Number(tagId))
-                if (!tag) return null
-                
-                return (
-                  <Collapsible
-                    key={tagId}
-                    open={openTags[Number(tagId)]}
-                    onOpenChange={() => toggleTag(Number(tagId))}
-                    className="border-b"
-                  >
-                    <CollapsibleTrigger className="w-full">
-                      <div className="flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors">
-                        <div className="flex items-center gap-2">
-                          <Tag className="size-4 text-muted-foreground" />
-                          <span className="font-medium text-sm">{tag.name}</span>
-                          <span className="text-xs text-muted-foreground">({marks.length})</span>
-                        </div>
-                        <ChevronDown 
-                          className={`size-4 transition-transform ${
-                            openTags[Number(tagId)] ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      {
-                        marks.map((mark) => (
-                          <div key={mark.id} className="flex items-center border-t first:border-t-0">
-                            <Button 
-                              className="size-12 ml-2 flex-shrink-0" 
-                              onClick={() => handleBlock(mark)}
-                              variant="ghost"
-                            >
-                              <Plus />
-                            </Button>
-                            <MarkWrapper mark={mark} />
+              // Sort tags by sortOrder before rendering
+              tags
+                .filter(tag => marksByTag[tag.id] && marksByTag[tag.id].length > 0)
+                .map(tag => {
+                  const marks = marksByTag[tag.id]
+                  
+                  return (
+                    <Collapsible
+                      key={tag.id}
+                      open={openTags[tag.id]}
+                      onOpenChange={() => toggleTag(tag.id)}
+                      className="border-b"
+                    >
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <Tag className="size-4 text-muted-foreground" />
+                            <span className="font-medium text-sm">{tag.name}</span>
+                            <span className="text-xs text-muted-foreground">({marks.length})</span>
                           </div>
-                        ))
-                      }
-                    </CollapsibleContent>
-                  </Collapsible>
-                )
-              })
+                          <ChevronDown 
+                            className={`size-4 transition-transform ${
+                              openTags[tag.id] ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        {
+                          marks.map((mark) => (
+                            <div key={mark.id} className="flex items-center border-t first:border-t-0">
+                              <Button 
+                                className="size-12 ml-2 flex-shrink-0" 
+                                onClick={() => handleBlock(mark)}
+                                variant="ghost"
+                              >
+                                <Plus />
+                              </Button>
+                              <MarkWrapper mark={mark} />
+                            </div>
+                          ))
+                        }
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )
+                })
             ) : (
               <div className="flex items-center justify-center text-zinc-500 text-xs text-center h-48">
                 {t('noRecords')}

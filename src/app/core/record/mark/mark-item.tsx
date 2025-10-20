@@ -321,7 +321,7 @@ export function MarkItem({mark}: {mark: Mark}) {
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <div className="border-b">
+        <div className="border-t">
           <MarkWrapper mark={mark} />
         </div>
       </ContextMenuTrigger>

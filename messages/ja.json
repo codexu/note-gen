@@ -770,9 +770,13 @@
         "rename": "リネーム",
         "delete": "削除",
         "pin": "ピン留め",
-        "unpin": "キャンセルピン留め"
+        "unpin": "キャンセルピン留め",
+        "newTag": "新しいタグ",
+        "newTagPlaceholder": "タグ名を入力...",
+        "add": "追加"
       },
       "mark": {
+        "empty": "記録がありません",
         "type": {
           "text": "テキスト"
         },

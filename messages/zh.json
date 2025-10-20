@@ -805,9 +805,13 @@
         "rename": "重命名",
         "delete": "删除",
         "pin": "置顶",
-        "unpin": "取消置顶"
+        "unpin": "取消置顶",
+        "newTag": "新建标签",
+        "newTagPlaceholder": "输入标签名称...",
+        "add": "添加"
       },
       "mark": {
+        "empty": "暂无记录",
         "type": {
           "text": "文本"
         },

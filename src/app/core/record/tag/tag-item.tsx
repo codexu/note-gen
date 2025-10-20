@@ -6,7 +6,6 @@ import {
 } from "@/components/ui/context-menu"
 import { Lock, Pin, TagIcon } from "lucide-react"
 import { delTag, Tag, updateTag } from "@/db/tags"
-import { CommandItem, CommandShortcut } from "@/components/ui/command"
 import React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -84,13 +83,20 @@ export function TagItem(
   return (
     <ContextMenu>
       <ContextMenuTrigger onClick={handleSelect}>
-        <CommandItem className={`${tag.id === currentTagId && '!bg-primary'} data-[selected=true]:bg-transparent flex justify-between items-center w-full cursor-pointer`}>
-          <div className={`${tag.id === currentTagId && 'text-primary-foreground'} flex gap-2 items-center`}>
+        <div className={`
+          ${tag.id === currentTagId ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}
+          flex justify-between items-center w-full cursor-pointer rounded px-2 py-1.5 text-sm transition-colors
+        `}>
+          <div className="flex gap-2 items-center min-w-0 flex-1">
             <ItemIcon isLocked={tag.isLocked} isPin={tag.isPin} />
             <ItemContent value={tag.name} isEditing={isEditing} onChange={updateName} />
           </div>
-          <CommandShortcut>{ tag.total || 0 }</CommandShortcut>
-        </CommandItem>
+          <span className={`text-xs ml-2 flex-shrink-0 ${
+            tag.id === currentTagId ? 'text-primary-foreground/70' : 'text-muted-foreground'
+          }`}>
+            {tag.total || 0}
+          </span>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem inset disabled={tag.isLocked} onClick={togglePin}>

@@ -792,9 +792,13 @@
         "rename": "Rename",
         "delete": "Delete",
         "pin": "Pin",
-        "unpin": "Unpin"
+        "unpin": "Unpin",
+        "newTag": "New Tag",
+        "newTagPlaceholder": "Enter tag name...",
+        "add": "Add"
       },
       "mark": {
+        "empty": "No records",
         "type": {
           "text": "Text"
         },

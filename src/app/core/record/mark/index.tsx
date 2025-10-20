@@ -3,6 +3,7 @@
 import {
   Sidebar,
   SidebarHeader,
+  SidebarContent,
 } from "@/components/ui/sidebar"
 import { useTranslations } from 'next-intl'
 import React from "react"
@@ -34,19 +35,26 @@ export function NoteSidebar() {
     <Sidebar id="record-sidebar" collapsible="none" className="w-full h-screen hidden md:flex flex-col">
       <SidebarHeader className="p-0">
         <MarkHeader />
-        {
-          trashState ? 
-          <div className="flex pl-2 relative border-b pb-2 h-6 items-center justify-between overflow-hidden">
-            <p className="text-xs text-zinc-500">{t('record.trash.records', { count: marks.length })}</p>
-            {
-              marks.length > 0 ?
-              <Button className="text-xs text-red-900" variant="link" onClick={handleClearTrash}>{t('record.trash.empty')}</Button> : null
-            }
-          </div>:
-          <TagManage />
-        }
       </SidebarHeader>
-      <MarkList />
+      
+      {trashState ? (
+        <>
+          <div className="flex px-2 py-2 border-b items-center justify-between">
+            <p className="text-xs text-zinc-500">{t('record.trash.records', { count: marks.length })}</p>
+            {marks.length > 0 && (
+              <Button className="text-xs text-red-900" variant="link" onClick={handleClearTrash}>
+                {t('record.trash.empty')}
+              </Button>
+            )}
+          </div>
+          <MarkList />
+        </>
+      ) : (
+        <SidebarContent className="flex-1 overflow-y-auto">
+          <TagManage />
+        </SidebarContent>
+      )}
+      
       <MarkToolbar />
     </Sidebar>
   )

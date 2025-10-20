@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useTranslations } from 'next-intl'
-import { Plus, TagIcon, Lightbulb, Lock } from "lucide-react"
+import { Plus, TagIcon, Lightbulb, Lock, Inbox } from "lucide-react"
 import {
   Accordion,
   AccordionContent,
@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty"
 import { initTagsDb, insertTag, Tag, delTag, updateTag } from "@/db/tags"
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
@@ -175,13 +182,22 @@ export function TagManage() {
               </ContextMenuContent>
             </ContextMenu>
             <AccordionContent className="px-0 pb-0">
-              {getTagMarks(tag.id).map((mark) => (
-                <MarkItem key={mark.id} mark={mark} />
-              ))}
-              {getTagMarks(tag.id).length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  {t('record.mark.empty')}
-                </div>
+              {getTagMarks(tag.id).length === 0 ? (
+                <Empty className="border-0 py-8">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Inbox />
+                    </EmptyMedia>
+                    <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
+                    <EmptyDescription className="text-xs">
+                      {t('record.mark.mark.emptyHint')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                getTagMarks(tag.id).map((mark) => (
+                  <MarkItem key={mark.id} mark={mark} />
+                ))
               )}
             </AccordionContent>
           </AccordionItem>

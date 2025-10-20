@@ -799,6 +799,7 @@
       },
       "mark": {
         "empty": "No records",
+        "emptyHint": "Use the toolbar at the top to create your first record!",
         "type": {
           "text": "Text"
         },

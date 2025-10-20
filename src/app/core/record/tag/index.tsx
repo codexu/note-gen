@@ -17,7 +17,7 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@/components/ui/empty"
-import { initTagsDb, insertTag, Tag, delTag, updateTag } from "@/db/tags"
+import { initTagsDb, insertTag, Tag, delTag, updateTag, updateTagsOrder } from "@/db/tags"
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
@@ -28,6 +28,47 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+// Sortable Tag Item Component
+function SortableTagItem({ tag, children }: { tag: Tag; children: React.ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tag.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  )
+}
 
 export function TagManage() {
   const t = useTranslations();
@@ -38,6 +79,18 @@ export function TagManage() {
   const [expandedTagId, setExpandedTagId] = React.useState<string | undefined>(undefined)
   const [hasInitialized, setHasInitialized] = React.useState(false)
   const { init } = useChatStore()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const {
     currentTag,
@@ -98,6 +151,28 @@ export function TagManage() {
     return marks.filter(mark => mark.tagId === tagId)
   }
 
+  // 处理拖拽结束
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = tags.findIndex((tag) => tag.id === active.id)
+      const newIndex = tags.findIndex((tag) => tag.id === over.id)
+
+      const newTags = arrayMove(tags, oldIndex, newIndex)
+      
+      // 更新本地状态
+      const updatedTags = newTags.map((tag, index) => ({
+        ...tag,
+        sortOrder: index
+      }))
+      
+      // 批量更新数据库
+      await updateTagsOrder(updatedTags.map(tag => ({ id: tag.id, sortOrder: tag.sortOrder || 0 })))
+      await fetchTags()
+    }
+  }
+
   React.useEffect(() => {
     const fetchData = async() => {
       await initTagsDb()
@@ -117,89 +192,101 @@ export function TagManage() {
 
   return (
     <div className="w-full">
-
-      {/* 标签列表 */}
-      <Accordion 
-        type="single" 
-        collapsible 
-        value={expandedTagId} 
-        onValueChange={(value) => {
-          // 直接设置展开状态，允许折叠（value 为 undefined）
-          setExpandedTagId(value)
-        }}
-        className="w-full"
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
       >
-        {tags?.map((tag) => (
-          <AccordionItem key={tag.id} value={tag.id.toString()}>
-            <ContextMenu>
-              <ContextMenuTrigger>
-                <AccordionTrigger 
-                  className={`${currentTagId === tag.id && 'bg-accent'} px-3 py-2 hover:no-underline`}
-                  onClick={() => {
-                    if (tag.id !== currentTagId) {
-                      handleSelectTag(tag)
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2 flex-1">
-                    {
-                      currentTagId === tag.id ? 
-                      <SquareCheck className="size-3" />:
-                      <TagIcon className="size-3" />
-                    }
-                    {editingTagId === tag.id ? (
-                      <Input
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRename(tag)
-                          if (e.key === 'Escape') setEditingTagId(null)
-                          e.stopPropagation()
+        <SortableContext
+          items={tags.map(tag => tag.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {/* 标签列表 */}
+          <Accordion 
+            type="single" 
+            collapsible 
+            value={expandedTagId} 
+            onValueChange={(value) => {
+              // 直接设置展开状态，允许折叠（value 为 undefined）
+              setExpandedTagId(value)
+            }}
+            className="w-full"
+          >
+            {tags?.map((tag) => (
+              <SortableTagItem key={tag.id} tag={tag}>
+                <AccordionItem value={tag.id.toString()}>
+                  <ContextMenu>
+                    <ContextMenuTrigger>
+                      <AccordionTrigger 
+                        className={`${currentTagId === tag.id && 'bg-accent'} px-3 py-2 hover:no-underline`}
+                        onClick={() => {
+                          if (tag.id !== currentTagId) {
+                            handleSelectTag(tag)
+                          }
                         }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-6 text-sm"
-                        autoFocus
-                      />
+                      >
+                        <div className="flex items-center gap-2 flex-1">
+                          {
+                            currentTagId === tag.id ? 
+                            <SquareCheck className="size-3" />:
+                            <TagIcon className="size-3" />
+                          }
+                          {editingTagId === tag.id ? (
+                            <Input
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRename(tag)
+                                if (e.key === 'Escape') setEditingTagId(null)
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-6 text-sm"
+                              autoFocus
+                            />
+                          ) : (
+                            <div className="text-xs w-full flex items-center justify-between pr-4">
+                              <span className={`${currentTagId === tag.id && 'font-bold'}`}>{tag.name}</span>
+                              <span className="ml-2 text-muted-foreground">{tag.total && tag.total > 0 ? tag.total : ''}</span>
+                            </div>
+                          )}
+                        </div>
+                      </AccordionTrigger>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem disabled={editingTagId === tag.id} onClick={() => startEditing(tag)}>
+                        {t('record.mark.tag.rename')}
+                      </ContextMenuItem>
+                      <ContextMenuItem disabled={tag.isLocked} onClick={() => handleDeleteTag(tag.id)}>
+                        <span className="text-red-600">{t('record.mark.tag.delete')}</span>
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                  <AccordionContent className="px-0 pb-0">
+                    {getTagMarks(tag.id).length === 0 ? (
+                      <Empty className="border-0 py-8">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <Inbox />
+                          </EmptyMedia>
+                          <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
+                          <EmptyDescription className="text-xs">
+                            {t('record.mark.mark.emptyHint')}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     ) : (
-                      <div className="text-xs w-full flex items-center justify-between pr-4">
-                        <span className={`${currentTagId === tag.id && 'font-bold'}`}>{tag.name}</span>
-                        <span className="ml-2 text-muted-foreground">{tag.total && tag.total > 0 ? tag.total : ''}</span>
-                      </div>
+                      getTagMarks(tag.id).map((mark) => (
+                        <MarkItem key={mark.id} mark={mark} />
+                      ))
                     )}
-                  </div>
-                </AccordionTrigger>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem disabled={editingTagId === tag.id} onClick={() => startEditing(tag)}>
-                  {t('record.mark.tag.rename')}
-                </ContextMenuItem>
-                <ContextMenuItem disabled={tag.isLocked} onClick={() => handleDeleteTag(tag.id)}>
-                  <span className="text-red-600">{t('record.mark.tag.delete')}</span>
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-            <AccordionContent className="px-0 pb-0">
-              {getTagMarks(tag.id).length === 0 ? (
-                <Empty className="border-0 py-8">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <Inbox />
-                    </EmptyMedia>
-                    <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
-                    <EmptyDescription className="text-xs">
-                      {t('record.mark.mark.emptyHint')}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                getTagMarks(tag.id).map((mark) => (
-                  <MarkItem key={mark.id} mark={mark} />
-                ))
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+                  </AccordionContent>
+                </AccordionItem>
+              </SortableTagItem>
+            ))}
+          </Accordion>
+        </SortableContext>
+      </DndContext>
 
       {/* 添加标签 */}
       <div className="p-2">

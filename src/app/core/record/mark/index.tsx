@@ -39,10 +39,10 @@ export function NoteSidebar() {
       
       {trashState ? (
         <>
-          <div className="flex px-2 py-2 border-b items-center justify-between">
+          <div className="flex p-2 border-b items-center justify-between">
             <p className="text-xs text-zinc-500">{t('record.trash.records', { count: marks.length })}</p>
             {marks.length > 0 && (
-              <Button className="text-xs text-red-900" variant="link" onClick={handleClearTrash}>
+              <Button variant="ghost" size="sm" onClick={handleClearTrash}>
                 {t('record.trash.empty')}
               </Button>
             )}

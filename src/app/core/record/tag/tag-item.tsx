@@ -94,7 +94,7 @@ export function TagItem(
           <span className={`text-xs ml-2 flex-shrink-0 ${
             tag.id === currentTagId ? 'text-primary-foreground/70' : 'text-muted-foreground'
           }`}>
-            {tag.total || 0}
+            {tag.total && tag.total > 0 ? tag.total : ''}
           </span>
         </div>
       </ContextMenuTrigger>

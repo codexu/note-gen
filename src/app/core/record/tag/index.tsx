@@ -1,8 +1,7 @@
 "use client"
-
 import * as React from "react"
 import { useTranslations } from 'next-intl'
-import { Plus, TagIcon, Lightbulb, Lock, Inbox } from "lucide-react"
+import { Plus, TagIcon, Inbox, SquareCheck } from "lucide-react"
 import {
   Accordion,
   AccordionContent,
@@ -135,7 +134,7 @@ export function TagManage() {
             <ContextMenu>
               <ContextMenuTrigger>
                 <AccordionTrigger 
-                  className="px-3 py-2 hover:no-underline hover:bg-accent"
+                  className={`${currentTagId === tag.id && 'bg-accent'} px-3 py-2 hover:no-underline`}
                   onClick={() => {
                     if (tag.id !== currentTagId) {
                       handleSelectTag(tag)
@@ -143,13 +142,11 @@ export function TagManage() {
                   }}
                 >
                   <div className="flex items-center gap-2 flex-1">
-                    {tag.isLocked ? (
-                      <Lock className="size-4 text-muted-foreground" />
-                    ) : tag.name === 'Idea' ? (
-                      <Lightbulb className="size-4" />
-                    ) : (
-                      <TagIcon className="size-4" />
-                    )}
+                    {
+                      currentTagId === tag.id ? 
+                      <SquareCheck className="size-3" />:
+                      <TagIcon className="size-3" />
+                    }
                     {editingTagId === tag.id ? (
                       <Input
                         value={editingName}
@@ -164,11 +161,11 @@ export function TagManage() {
                         autoFocus
                       />
                     ) : (
-                      <span className="text-sm font-medium">{tag.name}</span>
+                      <div className="text-xs w-full flex items-center justify-between pr-4">
+                        <span className={`${currentTagId === tag.id && 'font-bold'}`}>{tag.name}</span>
+                        <span className="ml-2 text-muted-foreground">{tag.total && tag.total > 0 ? tag.total : ''}</span>
+                      </div>
                     )}
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {tag.total || 0}
-                    </span>
                   </div>
                 </AccordionTrigger>
               </ContextMenuTrigger>

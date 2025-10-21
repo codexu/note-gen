@@ -190,6 +190,17 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         onValueChange={setSearchValue}
       />
       <CommandList className="h-[400px] max-h-[400px]">
+        {!searchValue && (
+          <Empty className="border-0">
+            <EmptyHeader>
+              <SearchX className="size-10 text-muted-foreground" />
+              <EmptyTitle>{t('search.placeholder')}</EmptyTitle>
+              <EmptyDescription>
+                {t('search.tryDifferentKeywords')}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
         {searchResult.length === 0 && searchValue && (
           <Empty className="border-0">
             <EmptyHeader>

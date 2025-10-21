@@ -23,6 +23,8 @@ import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
 import { MarkItem } from './mark-item'
 import { MarkLoading } from './mark-loading'
+import emitter from '@/lib/emitter'
+import { EmitterRecordEvents } from '@/config/emitters'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -190,6 +192,22 @@ export function TagManage() {
       setHasInitialized(true)
     }
   }, [currentTag, hasInitialized])
+
+  // 监听刷新事件，展开当前标签
+  React.useEffect(() => {
+    const handleRefresh = () => {
+      if (currentTagId) {
+        setExpandedTagId(currentTagId.toString())
+        fetchMarks()
+      }
+    }
+    
+    emitter.on(EmitterRecordEvents.refreshMarks, handleRefresh)
+    
+    return () => {
+      emitter.off(EmitterRecordEvents.refreshMarks, handleRefresh)
+    }
+  }, [currentTagId, fetchMarks])
 
   return (
     <div className="w-full">

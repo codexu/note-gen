@@ -11,6 +11,8 @@ export interface SearchItem {
   searchType?: string;
   type?: string;
   tagId?: number;
+  tagName?: string;
+  content?: string;
   createdAt?: number;
   score?: number;
   matches?: MatchInfo;

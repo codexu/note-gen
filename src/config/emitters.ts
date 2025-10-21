@@ -4,3 +4,7 @@ export enum EmitterShortcutEvents {
   pin = "window-pin-register",
   link = "link-shortcut-register"
 }
+
+export enum EmitterRecordEvents {
+  refreshMarks = "refresh-marks"
+}

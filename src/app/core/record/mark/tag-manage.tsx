@@ -21,7 +21,7 @@ import { initTagsDb, insertTag, Tag, delTag, updateTag, updateTagsOrder } from "
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
-import { MarkItem } from '../mark/mark-item'
+import { MarkItem } from './mark-item'
 import {
   ContextMenu,
   ContextMenuContent,

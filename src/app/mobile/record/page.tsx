@@ -2,7 +2,7 @@
 import { MarkHeader } from '@/app/core/record/mark/mark-header'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { TagManage } from '@/app/core/record/tag'
+import { TagManage } from '@/app/core/record/mark/tag-manage'
 import { useLocalStorage } from 'react-use'
 import useMarkStore from '@/stores/mark'
 import { MarkList } from '@/app/core/record/mark/mark-list'

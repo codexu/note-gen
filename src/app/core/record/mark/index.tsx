@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useTranslations } from 'next-intl'
 import React from "react"
-import { TagManage } from '../tag'
+import { TagManage } from './tag-manage'
 import { MarkHeader } from './mark-header'
 import { MarkList } from './mark-list'
 import { MarkToolbar } from './mark-toolbar'

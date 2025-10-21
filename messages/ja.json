@@ -1084,6 +1084,7 @@
     "placeholder": "ノートと記事を検索...",
     "results": "{count} 件の検索結果",
     "noResults": "検索結果がありません",
+    "tryDifferentKeywords": "別のキーワードで検索してみてください",
     "item": {
       "record": "記録",
       "article": "記事",

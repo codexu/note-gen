@@ -23,7 +23,11 @@ import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState } from "react"
 import useImageStore from "@/stores/imageHosting"
  
-export function AppSidebar() {
+interface AppSidebarProps {
+  onSearchClick?: () => void
+}
+
+export function AppSidebar({ onSearchClick }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { toggleFileSidebar, toggleNoteSidebar, showFileSidebar, showNoteSidebar } = useSidebarStore()
@@ -62,6 +66,12 @@ export function AppSidebar() {
   }
 
   async function menuHandler(item: typeof items[0]) {
+    // 如果是搜索按钮，打开搜索对话框
+    if (item.url === '/core/search') {
+      onSearchClick?.()
+      return
+    }
+
     // 如果是当前页面，执行 toggle 切换显示/隐藏
     if (pathname === '/core/article' && item.url === '/core/article') {
       toggleFileSidebar()

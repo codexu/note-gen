@@ -1122,6 +1122,7 @@
     "placeholder": "搜索笔记和文章...",
     "results": "{count} 个搜索结果",
     "noResults": "暂无搜索结果",
+    "tryDifferentKeywords": "尝试使用不同的关键词搜索",
     "item": {
       "record": "记录",
       "article": "文章",

@@ -1112,6 +1112,7 @@
     "placeholder": "Search notes and articles...",
     "results": "{count} search results",
     "noResults": "No search results",
+    "tryDifferentKeywords": "Try using different keywords",
     "item": {
       "record": "Record",
       "article": "Article",

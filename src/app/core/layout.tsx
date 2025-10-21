@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import useSettingStore from "@/stores/setting"
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { initAllDatabases } from "@/db"
 import dayjs from "dayjs"
 import zh from "dayjs/locale/zh-cn";
@@ -17,6 +17,7 @@ import initQuickRecordText from "@/lib/shortcut/quick-record-text"
 import { useRouter } from "next/navigation"
 import initShowWindow from "@/lib/shortcut/show-window"
 import { initMcp } from "@/lib/mcp/init"
+import { SearchDialog } from "@/components/search-dialog"
 
 export default function RootLayout({
   children,
@@ -29,6 +30,7 @@ export default function RootLayout({
   const { initShortcut } = useShortcutStore()
   const { initVectorDb } = useVectorStore()
   const router = useRouter()
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     initSettingData()
@@ -74,9 +76,16 @@ export default function RootLayout({
     }
   }, [currentLocale])
 
-  // 禁用浏览器后退快捷键（Backspace）
+  // 禁用浏览器后退快捷键（Backspace）和添加搜索快捷键（Cmd/Ctrl+F）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 搜索快捷键：Cmd+F (macOS) 或 Ctrl+F (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+
       // 如果按下 Backspace 键，且不在可编辑元素中
       if (e.key === 'Backspace') {
         const target = e.target as HTMLElement
@@ -110,13 +119,14 @@ export default function RootLayout({
       disableTransitionOnChange
     >
       <SidebarProvider>
-        <AppSidebar />
+        <AppSidebar onSearchClick={() => setSearchOpen(true)} />
         <SidebarInset>
           <main className="flex flex-1 flex-col overflow-hidden w-[calc(100vw-48px)]">
             {children}
           </main>
         </SidebarInset>
       </SidebarProvider>
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </ThemeProvider>
   );
 }

@@ -31,6 +31,7 @@ const languageOptions = [
   "Français",
   "Deutsch",
   "Español",
+  "Português",
   "Русский",
 ]
 

@@ -1,39 +1,25 @@
+/* ==== 你的原始樣式 ==== */
 .vditor {
   @apply border-none;
-
-  pre {
-    @apply dark:bg-zinc-950 !important;
-  }
+  pre { @apply dark:bg-zinc-950 !important; }
 }
 
 .vditor-toolbar{
   @apply border-b bg-transparent !px-4 h-12 flex items-center justify-center;
   .vditor-toolbar__item{
     @apply h-9 w-9 flex items-center justify-center;
-    svg {
-      @apply size-4;
-    }
-    .vditor-tooltipped {
-      @apply p-0;
-    }
+    svg { @apply size-4; }
+    .vditor-tooltipped { @apply p-0; }
   }
-  .bottom {
-    .vditor-hint{
-      top: 40px;
-    }
-  }
+  .bottom { .vditor-hint{ top: 40px; } }
 }
 
 .vditor-tooltipped {
-  &[data-type="upload"] svg {
-    @apply translate-x-1.5 translate-y-2.5;
-  }
+  &[data-type="upload"] svg { @apply translate-x-1.5 translate-y-2.5; }
 }
 
 .vditor--dark .vditor-reset{
-  h1, h2, h3, h4, h5, h6, p, span, li {
-    @apply text-zinc-100 !important;
-  }
+  h1, h2, h3, h4, h5, h6, p, span, li { @apply text-zinc-100 !important; }
 }
 
 .vditor-reset {
@@ -41,35 +27,27 @@
   padding-bottom: 24px !important;
 }
 
-.vditor-counter{
-  display: none;
-}
+.vditor-counter{ display: none; }
 
 .vditor {
   --border-color: rgb(228, 228, 231);
   --second-color: rgba(88, 96, 105, 0.36);
-
   --panel-background-color: #fff;
   --panel-shadow: #000;
-
   --toolbar-background-color: #f6f8fa;
   --toolbar-icon-color: #586069;
   --toolbar-icon-hover-color: @blurColor;
   --toolbar-height: 35px;
   --toolbar-divider-margin-top: 8px;
-
   --textarea-background-color: #fff;
   --textarea-text-color: #24292e;
-
   --resize-icon-color: var(--toolbar-icon-color);
   --resize-background-color: var(--toolbar-background-color);
   --resize-hover-icon-color: var(--panel-background-color);
   --resize-hover-background-color: var(--toolbar-icon-hover-color);
-
   --count-background-color: rgba(27, 31, 35, 0.05);
   --heading-border-color: #eaecef;
   --blockquote-color: #6a737d;
-
   --ir-heading-color: #660e7a;
   --ir-title-color: #808080;
   --ir-bi-color: #0033b3;
@@ -80,26 +58,20 @@
   &--dark {
     --border-color: rgb(39, 39, 42);
     --second-color: rgba(185, 185, 185, 0.36);
-
     --panel-background-color: #000;
     --panel-shadow: #000;
-
     --toolbar-background-color: #000;
     --toolbar-icon-color: #b9b9b9;
     --toolbar-icon-hover-color: #fff;
-
     --textarea-background-color: #000;
     --textarea-text-color: #d1d5da;
-
     --resize-icon-color: var(--border-color);
     --resize-background-color: var(--second-color);
     --resize-hover-icon-color: var(--toolbar-icon-hover-color);
     --resize-hover-background-color: rgba(185, 185, 185, 0.86);
-
     --count-background-color: rgba(@blurColor, 0.36);
     --heading-border-color: var(--textarea-text-color);
     --blockquote-color: var(--toolbar-icon-color);
-
     --ir-heading-color: #9876aa;
     --ir-title-color: #808080;
     --ir-bi-color: #cc7832;
@@ -109,17 +81,55 @@
   }
 }
 
-.vditor-outline{
-  font-size: 14px;
-}
+.vditor-outline{ font-size: 14px; }
 
 .vditor-hint{
   @apply min-w-[8rem] overflow-hidden rounded-md border bg-popover;
-  button {
-    @apply text-xs text-primary cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 outline-none;
-  }
+  button { @apply text-xs text-primary cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 outline-none; }
 }
 
-.vditor-panel{
-  @apply shadow h-8 p-1 -translate-y-4;
+.vditor-panel{ @apply shadow h-8 p-1 -translate-y-4; }
+
+/* ==== 代碼塊：無水平/垂直捲軸＋自動換行＋取消限高（預覽 + WYSIWYG/IR） ==== */
+/* 代碼塊：無水平/垂直捲軸 + 自動換行 + 無限高（編輯區 + 預覽） */
+.vditor .vditor-reset pre,
+.vditor .vditor-wysiwyg pre,
+.vditor .vditor-ir pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  max-height: none !important;
+}
+.vditor .vditor-reset pre code,
+.vditor .vditor-wysiwyg pre code,
+.vditor .vditor-ir pre code {
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+  max-height: none !important;
+}
+.vditor .vditor-reset .hljs-ln td.hljs-ln-code { white-space: pre-wrap; }
+
+/* ==== 讓 WYSIWYG/IR 看起來「不渲染代碼塊」：移除語法色彩效果 ==== */
+.vditor .vditor-wysiwyg pre code,
+.vditor .vditor-ir pre code,
+.vditor .vditor-wysiwyg pre code *,
+.vditor .vditor-ir pre code * {
+  color: inherit !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  border: 0 !important;
+}
+
+/* 開啟行號（hljs-line-numbers）時仍可換行 */
+.vditor .vditor-reset .hljs-ln td.hljs-ln-code { @apply whitespace-pre-wrap; }
+
+/* （可選）放寬預覽容器，避免外層限高/橫向裁切 */
+.vditor .vditor-preview {
+  overflow-x: visible !important;
+  max-height: none !important;
 }

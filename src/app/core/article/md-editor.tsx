@@ -86,11 +86,13 @@ export function MdEditor() {
           open(href)
         }
       },
+      mode: localMode,
       preview: {
         hljs: {
+          enable: true,
           lineNumber: enableLineNumber,
         },
-      },
+     },
       hint: {
         extend: [
           {
@@ -130,7 +132,6 @@ export function MdEditor() {
         emitter.emit('editor-input')
         handleLocalImage(vditor)
       },
-      mode: localMode,
       upload: {
         async handler(files: File[]) {
           const store = await Store.load('store.json');

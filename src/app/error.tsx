@@ -10,7 +10,7 @@ export default function Error({
 }) {
   useEffect(() => {
     // 记录错误到控制台
-    console.error('应用错误:', error);
+    console.error('應用錯誤:', error);
   }, [error]);
 
   function reloadPage() {

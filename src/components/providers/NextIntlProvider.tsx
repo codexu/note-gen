@@ -7,7 +7,7 @@ async function loadMessages(locale: string) {
     return (await import(`../../../messages/${locale}.json`)).default;
   } catch (error) {
     console.error(`Failed to load messages for locale: ${locale}`, error);
-    // 如果加载失败，返回英文作为后备
+    // 如果加载失败，返回中文作为后备
     return (await import(`../../../messages/zh.json`)).default;
   }
 }

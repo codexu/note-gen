@@ -2,7 +2,7 @@ import {getRequestConfig} from 'next-intl/server';
 import {notFound} from 'next/navigation';
  
 // 支持的语言列表
-export const locales = ['en', 'zh'];
+export const locales = ['en', 'zh', 'zh-TW'];
 export const defaultLocale = 'zh';
  
 export default getRequestConfig(async ({locale}) => {

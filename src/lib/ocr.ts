@@ -9,7 +9,7 @@ export default async function ocr(path: string): Promise<string> {
     const langArr = (lang as string)?.split(',') || ['eng']
     
     const timeoutPromise = new Promise<string>((_, reject) => {
-      setTimeout(() => reject('OCR 识别失败'), 30000)
+      setTimeout(() => reject('OCR 識別失敗'), 30000)
     })
 
     const workerPromise = (async () => {

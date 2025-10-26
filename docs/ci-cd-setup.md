@@ -63,20 +63,36 @@ UPGRADE_LINK_TAURI_KEY
 
 #### 倉庫信息
 ```yaml
-# 修改發佈標籤格式
-tagName: your-app-v__VERSION__  # 替換 your-app
+# 修改應用名稱 (替換所有 YOUR_APP_NAME)
+tagName: YOUR_APP_NAME-v__VERSION__
+releaseName: 'YOUR_APP_NAME v__VERSION__'
 
-# 修改發佈名稱
-releaseName: 'Your App v__VERSION__'  # 替換應用名稱
-
-# 修改發佈描述
-releaseBody: 'See the assets to download this version and install.'
+# 修改倉庫 URL (替換 YOUR_USERNAME 和 YOUR_REPO)
+source-url: 'https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/YOUR_APP_NAME-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
 ```
 
-#### UpgradeLink 配置 (如果使用)
+### 具體替換步驟
+
+1. **替換應用名稱**: 將 `YOUR_APP_NAME` 替換為您的應用名稱 (例如: `my-awesome-app`)
+
+2. **替換倉庫信息**: 
+   - `YOUR_USERNAME`: 您的 GitHub 用戶名
+   - `YOUR_REPO`: 您的倉庫名稱
+
+#### 示例替換
+
+如果您的倉庫是 `https://github.com/johndoe/my-note-app`，則：
+
 ```yaml
-# 修改下載 URL
-source-url: 'https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/your-app-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
+# 修改前
+tagName: YOUR_APP_NAME-v__VERSION__
+releaseName: 'YOUR_APP_NAME v__VERSION__'
+source-url: 'https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/YOUR_APP_NAME-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
+
+# 修改後
+tagName: my-note-app-v__VERSION__
+releaseName: 'My Note App v__VERSION__'
+source-url: 'https://github.com/johndoe/my-note-app/releases/download/my-note-app-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
 ```
 
 ## 工作流程觸發方式
@@ -312,3 +328,4 @@ jobs:
   - 包含多平台編譯設置
   - 提供故障排除指南
   - 添加最佳實踐建議
+  - 模板化倉庫和應用名稱替換

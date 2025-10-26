@@ -1,4 +1,4 @@
-name: 'publish'
+name: "publish"
 
 on:
   push:
@@ -15,14 +15,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-24.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-24.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -37,7 +37,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -61,8 +61,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: note-gen-v__VERSION__
-          releaseName: 'NoteGen v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseName: "note-gen v__VERSION__"
+          releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
@@ -71,28 +71,28 @@ jobs:
         id: save_tag
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          # 调试输出
+          # 调�?输出
           echo ${{ steps.tauri-action.outputs.appVersion }}
-          # 输出到步骤级
+          # 输出?�步骤级
           echo "appVersion=${{ steps.tauri-action.outputs.appVersion }}" >> $GITHUB_OUTPUT
 
       - name: Set job output
         id: set_output
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          # 注意：这里引用的是 save_tag 步骤的 tag_name 输出
+          # 注�?：�??��??��???save_tag 步骤??tag_name 输出
           echo "appVersion=${{ steps.save_tag.outputs.appVersion }}" >> $GITHUB_OUTPUT
 
   upgradeLink-upload:
-      needs:  publish-tauri
-      permissions:
-        contents: write
-      runs-on: ubuntu-latest
-      steps:
-        - name: Send a request to UpgradeLink
-          uses: toolsetlink/upgradelink-action@v5
-          with:
-            source-url: 'https://github.com/codexu/note-gen/releases/download/note-gen-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
-            access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
-            tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
-            github-token: ${{ secrets.GITHUB_TOKEN }}
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send a request to UpgradeLink
+        uses: toolsetlink/upgradelink-action@v5
+        with:
+          source-url: 'https://github.com/TW199501/note-gen/releases/download/note-gen-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json'
+          access-key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
+          tauri-key: ${{ secrets.UPGRADE_LINK_TAURI_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

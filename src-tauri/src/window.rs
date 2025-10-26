@@ -11,7 +11,7 @@ pub fn setup_window_events(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, app_handle: &AppHandle) {
+fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
     match event {
         WindowEvent::CloseRequested { api, .. } => {
             // 阻止默认关闭行为
@@ -32,7 +32,7 @@ fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, app_h
             // 隐藏窗口到托盘
             let _ = window.hide();
             #[cfg(target_os = "macos")]
-            let _ = app_handle.hide();
+            let _ = _app_handle.hide();
         }
         _ => {}
     }

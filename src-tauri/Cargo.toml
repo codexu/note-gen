@@ -20,6 +20,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [ "macos-private-api", "tray-icon", "protocol-asset", "image-png", "devtools"] }
+
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "=1"
@@ -41,6 +42,12 @@ tauri-plugin-opener = "2.4.0"
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
 version = "2"
+
+
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

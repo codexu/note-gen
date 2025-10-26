@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "clean:all": "rimraf .next node_modules pnpm-lock.yaml src-tauri/target",
+    "clean:next": "rimraf .next",
+    "clean:deps": "rimraf node_modules pnpm-lock.yaml",
+    "clean:tauri": "rimraf src-tauri/target",
     "dev": "next dev --turbopack -p 3456",
     "build": "next build --turbopack",
     "start": "next start --turbopack -p 3456",
@@ -106,6 +110,7 @@
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
     "postcss": "^8",
+    "rimraf": "^5.0.5",
     "sass": "^1.81.1",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

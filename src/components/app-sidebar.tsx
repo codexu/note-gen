@@ -1,5 +1,5 @@
 'use client'
-import { ImageUp, Search, Settings, Highlighter, SquarePen } from "lucide-react"
+import { ImageUp, Search, Settings, Highlighter, SquarePen, Globe } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -57,11 +57,22 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
     const githubImageUsername = await store.get<string>('githubImageUsername')
     const githubImageAccessToken = await store.get<string>('githubImageAccessToken')
     if (githubImageUsername && githubImageAccessToken && !items.find(item => item.url === '/core/image')) {
-      setItems([...items, {
-        title: t('navigation.githubImageHosting'),
-        url: "/core/image",
-        icon: ImageUp,
-      }])
+      const newItems = [...items]
+      // 找到 search 項目，在它之後插入 Github Image Hosting 和 Web Browser
+      const searchIndex = newItems.findIndex(item => item.url === '/core/search')
+      if (searchIndex !== -1) {
+        newItems.splice(searchIndex + 1, 0, {
+          title: t('navigation.githubImageHosting'),
+          url: "/core/image",
+          icon: ImageUp,
+        })
+        newItems.splice(searchIndex + 2, 0, {
+          title: 'Web Browser',
+          url: "/core/webview",
+          icon: Globe,
+        })
+      }
+      setItems(newItems)
     }
   }
 

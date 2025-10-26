@@ -42,6 +42,8 @@ export function MdEditor() {
         return 'en_US'
       case 'zh':
         return 'zh_CN'
+      case 'zh-TW':
+        return 'zh_TW'
       default:
         return 'zh_CN'
     }

@@ -89,11 +89,23 @@ interface NoteState {
 
   allArticle: Article[]
   loadAllArticle: () => Promise<void>
+
+  // WebView 相關
+  showWebView: boolean
+  setShowWebView: (show: boolean) => void
+  webViewUrl: string
+  setWebViewUrl: (url: string) => void
 }
 
 const useArticleStore = create<NoteState>((set, get) => ({
   loading: false,
   setLoading: (loading: boolean) => { set({ loading }) },
+
+  // WebView 相關狀態
+  showWebView: false,
+  setShowWebView: (show: boolean) => { set({ showWebView: show }) },
+  webViewUrl: '',
+  setWebViewUrl: (url: string) => { set({ webViewUrl: url }) },
 
   sortType: 'none',
   sortDirection: 'asc',

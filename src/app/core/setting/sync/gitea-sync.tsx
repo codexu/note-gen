@@ -41,6 +41,7 @@ export function GiteaSync() {
   
   const {
     giteaUserInfo,
+    setGiteaUserInfo,
     giteaSyncRepoState,
     setGiteaSyncRepoState,
     giteaSyncRepoInfo,
@@ -62,7 +63,10 @@ export function GiteaSync() {
       // 先清空之前的仓库信息
       setGiteaSyncRepoInfo(undefined)
       
-      await getUserInfo();
+      // 获取并保存用户信息
+      const userInfo = await getUserInfo();
+      setGiteaUserInfo(userInfo);
+      
       // 检查同步仓库状态
       const repoName = getRepoName()
       const syncRepo = await checkSyncRepoState(repoName)
@@ -105,22 +109,43 @@ export function GiteaSync() {
     if (value === '') {
       setGiteaSyncRepoState(SyncStateEnum.fail)
       setGiteaSyncRepoInfo(undefined)
+      setGiteaUserInfo(undefined)
     }
     setGiteaAccessToken(value)
     const store = await Store.load('store.json');
     await store.set('giteaAccessToken', value)
     await store.save()
+    
+    // 如果 token 有效，自动检查仓库状态
+    if (value.trim()) {
+      // 等待一下再检查，避免频繁请求
+      setTimeout(() => {
+        checkRepoState()
+      }, 500)
+    }
   }
 
   // 实例类型变化处理
   async function instanceTypeChangeHandler(value: GiteaInstanceType) {
     await setGiteaInstanceType(value)
+    // 如果有 token，重新检查仓库状态
+    if (giteaAccessToken.trim()) {
+      setTimeout(() => {
+        checkRepoState()
+      }, 500)
+    }
   }
 
   // 自定义 URL 变化处理
   async function customUrlChangeHandler(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value
     await setGiteaCustomUrl(value)
+    // 如果是自建实例且有 token，重新检查仓库状态
+    if (giteaInstanceType === GiteaInstanceType.SELF_HOSTED && giteaAccessToken.trim() && value.trim()) {
+      setTimeout(() => {
+        checkRepoState()
+      }, 500)
+    }
   }
 
   // 获取当前实例的 Token 创建 URL
@@ -160,6 +185,8 @@ export function GiteaSync() {
       const token = await store.get<string>('giteaAccessToken')
       if (token) {
         setGiteaAccessToken(token)
+        // 如果有 token，自动检查仓库状态
+        checkRepoState()
       } else {
         setGiteaAccessToken('')
       }

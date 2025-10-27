@@ -41,6 +41,7 @@ export interface GiteaUserInfo {
   full_name: string;
   email: string;
   avatar_url: string;
+  html_url?: string; // 用户主页 URL
   language: string;
   is_admin: boolean;
   last_login: string;

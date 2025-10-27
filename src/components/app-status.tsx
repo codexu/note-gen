@@ -10,14 +10,16 @@ import { open } from '@tauri-apps/plugin-shell'
 import Image from "next/image";
 
 export default function AppStatus() {
-  const { accessToken, giteeAccessToken, gitlabAccessToken, primaryBackupMethod, setGithubUsername, setGitlabUsername } = useSettingStore()
+  const { accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod, setGithubUsername, setGitlabUsername, setGiteaUsername } = useSettingStore()
   const { 
     userInfo, 
     giteeUserInfo, 
     gitlabUserInfo,
+    giteaUserInfo,
     setUserInfo, 
     setGiteeUserInfo,
     setGitlabUserInfo,
+    setGiteaUserInfo,
     syncRepoState,
     setSyncRepoState,
     setSyncRepoInfo,
@@ -26,7 +28,10 @@ export default function AppStatus() {
     setGiteeSyncRepoInfo,
     gitlabSyncProjectState,
     setGitlabSyncProjectState,
-    setGitlabSyncProjectInfo
+    setGitlabSyncProjectInfo,
+    giteaSyncRepoState,
+    setGiteaSyncRepoState,
+    setGiteaSyncRepoInfo
   } = useSyncStore()
 
   // 获取当前主要备份方式的用户信息
@@ -67,10 +72,24 @@ export default function AppStatus() {
           }
           await checkGitlabProjects()
         }
+      } else if (primaryBackupMethod === 'gitea') {
+        if (giteaAccessToken) {
+          // 获取 Gitea 用户信息
+          setGiteaSyncRepoInfo(undefined)
+          setGiteaSyncRepoState(SyncStateEnum.checking)
+          const { getUserInfo } = await import('@/lib/gitea')
+          const res = await getUserInfo()
+          if (res) {
+            setGiteaUserInfo(res)
+            setGiteaUsername(res.username)
+          }
+          await checkGiteaRepos()
+        }
       } else {
         setUserInfo(undefined)
         setGiteeUserInfo(undefined)
         setGitlabUserInfo(undefined)
+        setGiteaUserInfo(undefined)
       }
     } catch (err) {
       console.error('Failed to get user info:', err)
@@ -117,6 +136,27 @@ export default function AppStatus() {
     }
   }
   
+  // 检查 Gitea 仓库状态（仅检查，不创建）
+  async function checkGiteaRepos() {
+    try {
+      const { checkSyncRepoState } = await import('@/lib/gitea')
+      
+      // 检查同步仓库状态
+      const giteaRepo = await getSyncRepoName('gitea')
+      const syncRepo = await checkSyncRepoState(giteaRepo)
+      if (syncRepo) {
+        setGiteaSyncRepoInfo(syncRepo)
+        setGiteaSyncRepoState(SyncStateEnum.success)
+      } else {
+        setGiteaSyncRepoInfo(undefined)
+        setGiteaSyncRepoState(SyncStateEnum.fail)
+      }
+    } catch (err) {
+      console.error('Failed to check Gitea repos:', err)
+      setGiteaSyncRepoState(SyncStateEnum.fail)
+    }
+  }
+  
   // 检查 Gitee 仓库状态（仅检查，不创建）
   async function checkGiteeRepos() {
     try {
@@ -148,15 +188,19 @@ export default function AppStatus() {
     } else if (primaryBackupMethod === 'gitlab') {
       if (!gitlabUserInfo) return
       open(gitlabUserInfo.web_url)
+    } else if (primaryBackupMethod === 'gitea') {
+      if (!giteaUserInfo) return
+      // Gitea 用户主页链接需要根据实例类型动态构建
+      open(giteaUserInfo.html_url || '#')
     }
   }
 
   // 监听 token 变化，获取用户信息
   useEffect(() => {
-    if (accessToken || giteeAccessToken || gitlabAccessToken) {
+    if (accessToken || giteeAccessToken || gitlabAccessToken || giteaAccessToken) {
       handleGetUserInfo()
     }
-  }, [accessToken, giteeAccessToken, gitlabAccessToken, primaryBackupMethod])
+  }, [accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod])
 
   return (
     <SidebarMenuButton size="lg" asChild className="md:size-8 p-0">
@@ -183,6 +227,13 @@ export default function AppStatus() {
                 <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
               </AvatarFallback>
             </>
+          ) : primaryBackupMethod === 'gitea' ? (
+            <>
+              <AvatarImage src={giteaUserInfo?.avatar_url} />
+              <AvatarFallback>
+                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
+              </AvatarFallback>
+            </>
           ) : null
         }
         </Avatar>
@@ -202,6 +253,11 @@ export default function AppStatus() {
             <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
               ${gitlabSyncProjectState === SyncStateEnum.fail ? 'bg-red-700' : 
               gitlabSyncProjectState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
+            </div>
+          ) : primaryBackupMethod === 'gitea' && giteaAccessToken ? (
+            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
+              ${giteaSyncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
+              giteaSyncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
             </div>
           ) : null
         }

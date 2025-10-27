@@ -290,7 +290,7 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
     
     if (!projectId) {
-      throw new Error('项目 ID 未配置');
+      return false;
     }
 
     const baseUrl = await getGitlabApiBaseUrl();
@@ -310,20 +310,13 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
       return { data } as GitlabResponse<GitlabCommit[]>;
     }
 
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '获取提交历史失败'
-    } as GitlabError;
+    // 404 或其他错误，静默返回 false（文件没有提交历史）
+    return false;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
-    console.error('Gitlab 获取提交历史失败:', error);
-    toast({
-      title: '获取提交历史失败',
-      description: (error as GitlabError).message || '获取提交历史时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    // 静默处理错误，不显示 toast
+    return false;
   }
 }
 

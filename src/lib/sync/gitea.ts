@@ -293,7 +293,7 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const giteaUsername = await store.get<string>('giteaUsername');
     
     if (!giteaUsername) {
-      throw new Error('用户名未配置');
+      return false;
     }
 
     const baseUrl = await getGiteaApiBaseUrl();
@@ -313,21 +313,14 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
       const data = await response.json() as GiteaCommit[];
       return { data } as GiteaResponse<GiteaCommit[]>;
     }
+    
+    // 404 或其他错误，静默返回 false（文件没有提交历史）
+    return false;
 
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '获取提交历史失败'
-    } as GiteaError;
-
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
-    console.error('Gitea 获取提交历史失败:', error);
-    toast({
-      title: '获取提交历史失败',
-      description: (error as GiteaError).message || '获取提交历史时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    // 静默处理错误，不显示 toast
+    return false;
   }
 }
 

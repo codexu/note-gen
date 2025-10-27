@@ -333,7 +333,16 @@
         "selfHosted": "Self-hosted Instance",
         "selfHostedDesc": "Enter your self-hosted GitLab server address (e.g., https://gitlab.example.com)"
       },
-      "gitlabAccessTokenDesc": "Create a personal access token in {instanceDisplayName}, requires api permission",
+      "gitlabAccessTokenDesc": "Create a personal access token at {instanceDisplayName}, requires api permission",
+      "giteaInstanceType": "Gitea Instance Type",
+      "giteaInstanceTypeDesc": "Select the type of Gitea instance to connect to",
+      "giteaInstanceTypePlaceholder": "Select Gitea Instance Type",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "Self-hosted Instance",
+        "selfHostedDesc": "Enter your self-hosted Gitea server address (e.g., https://gitea.example.com)"
+      },
+      "giteaAccessTokenDesc": "Create a personal access token at {instanceDisplayName}, requires full repository permission",
+      "autoSync": "Auto Sync",
       "autoSyncOptions": {
         "placeholder": "Select auto sync time",
         "disabled": "Disabled",

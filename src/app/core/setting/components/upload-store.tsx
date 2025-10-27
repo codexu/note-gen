@@ -4,6 +4,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import { uint8ArrayToBase64, uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from "@/lib/github";
 import { getFiles as giteeGetFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from "@/lib/gitlab";
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from "@/lib/gitea";
 import { getSyncRepoName } from "@/lib/repo-utils";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -81,6 +82,19 @@ export default function UploadStore() {
           sha: storeFile?.sha || '',
         })
         break;
+      case 'gitea':
+        const giteaRepo = await getSyncRepoName('gitea')
+        files = await giteaGetFiles({ path, repo: giteaRepo })
+        const giteaStoreFile = files?.find(file => file.name === filename)
+        res = await uploadGiteaFile({
+          ext: 'json',
+          file: uint8ArrayToBase64(file),
+          repo: giteaRepo,
+          path,
+          filename,
+          sha: giteaStoreFile?.sha || '',
+        })
+        break;
     }
     if (res) {
       toast({
@@ -119,6 +133,10 @@ export default function UploadStore() {
       case 'gitlab':
         const gitlabRepo2 = await getSyncRepoName('gitlab')
         file = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo2 })
+        break;
+      case 'gitea':
+        const giteaRepo2 = await getSyncRepoName('gitea')
+        file = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
         break;
     }
     if (file) {

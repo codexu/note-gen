@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
 import { AiConfig } from '@/app/core/setting/config'
 import { GitlabInstanceType } from '@/lib/gitlab.types'
+import { GiteaInstanceType } from '@/lib/gitea.types'
 import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { fetch } from '@tauri-apps/plugin-http'
 
@@ -120,9 +121,25 @@ interface SettingState {
   gitlabUsername: string
   setGitlabUsername: (gitlabUsername: string) => Promise<void>
 
+  // Gitea 相关设置
+  giteaInstanceType: GiteaInstanceType
+  setGiteaInstanceType: (instanceType: GiteaInstanceType) => Promise<void>
+
+  giteaCustomUrl: string
+  setGiteaCustomUrl: (customUrl: string) => Promise<void>
+
+  giteaAccessToken: string
+  setGiteaAccessToken: (giteaAccessToken: string) => void
+
+  giteaAutoSync: string
+  setGiteaAutoSync: (giteaAutoSync: string) => Promise<void>
+
+  giteaUsername: string
+  setGiteaUsername: (giteaUsername: string) => Promise<void>
+
   // 主要备份方式设置
-  primaryBackupMethod: 'github' | 'gitee' | 'gitlab'
-  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab') => Promise<void>
+  primaryBackupMethod: 'github' | 'gitee' | 'gitlab' | 'gitea'
+  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab' | 'gitea') => Promise<void>
 
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -152,6 +169,9 @@ interface SettingState {
 
   gitlabCustomSyncRepo: string
   setGitlabCustomSyncRepo: (repo: string) => Promise<void>
+
+  giteaCustomSyncRepo: string
+  setGiteaCustomSyncRepo: (repo: string) => Promise<void>
 
   githubCustomImageRepo: string
   setGithubCustomImageRepo: (repo: string) => Promise<void>
@@ -625,9 +645,55 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ gitlabUsername })
   },
 
+  // Gitea 相关实现
+  giteaInstanceType: GiteaInstanceType.OFFICIAL,
+  setGiteaInstanceType: async (instanceType: GiteaInstanceType) => {
+    const store = await Store.load('store.json')
+    await store.set('giteaInstanceType', instanceType)
+    await store.save()
+    set({ giteaInstanceType: instanceType })
+  },
+
+  giteaCustomUrl: '',
+  setGiteaCustomUrl: async (customUrl: string) => {
+    const store = await Store.load('store.json')
+    await store.set('giteaCustomUrl', customUrl)
+    await store.save()
+    set({ giteaCustomUrl: customUrl })
+  },
+
+  giteaAccessToken: '',
+  setGiteaAccessToken: (giteaAccessToken: string) => {
+    set({ giteaAccessToken })
+  },
+
+  giteaAutoSync: 'disabled',
+  setGiteaAutoSync: async (giteaAutoSync: string) => {
+    set({ giteaAutoSync })
+    const store = await Store.load('store.json');
+    await store.set('giteaAutoSync', giteaAutoSync)
+    await store.save()
+  },
+
+  giteaUsername: '',
+  setGiteaUsername: async (giteaUsername: string) => {
+    const store = await Store.load('store.json')
+    await store.set('giteaUsername', giteaUsername)
+    await store.save()
+    set({ giteaUsername })
+  },
+
+  giteaCustomSyncRepo: '',
+  setGiteaCustomSyncRepo: async (repo: string) => {
+    set({ giteaCustomSyncRepo: repo })
+    const store = await Store.load('store.json');
+    await store.set('giteaCustomSyncRepo', repo)
+    await store.save()
+  },
+
   // 默认使用 GitHub 作为主要备份方式
   primaryBackupMethod: 'github',
-  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab') => {
+  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab' | 'gitea') => {
     const store = await Store.load('store.json')
     await store.set('primaryBackupMethod', method)
     await store.save()

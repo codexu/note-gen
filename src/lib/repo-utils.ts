@@ -4,12 +4,12 @@ import { Store } from '@tauri-apps/plugin-store'
 /**
  * 获取实际使用的仓库名称
  * @param type 仓库类型：'sync' | 'image'
- * @param platform 平台：'github' | 'gitee' | 'gitlab'
+ * @param platform 平台：'github' | 'gitee' | 'gitlab' | 'gitea'
  * @returns 实际使用的仓库名称
  */
 export async function getActualRepoName(
   type: 'sync' | 'image',
-  platform: 'github' | 'gitee' | 'gitlab'
+  platform: 'github' | 'gitee' | 'gitlab' | 'gitea'
 ): Promise<string> {
   const store = await Store.load('store.json')
   
@@ -27,6 +27,9 @@ export async function getActualRepoName(
       case 'gitlab':
         customRepoName = await store.get<string>('gitlabCustomSyncRepo') || ''
         break
+      case 'gitea':
+        customRepoName = await store.get<string>('giteaCustomSyncRepo') || ''
+        break
     }
   } else if (type === 'image' && platform === 'github') {
     customRepoName = await store.get<string>('githubCustomImageRepo') || ''
@@ -43,10 +46,10 @@ export async function getActualRepoName(
 
 /**
  * 获取同步仓库名称
- * @param platform 平台：'github' | 'gitee' | 'gitlab'
+ * @param platform 平台：'github' | 'gitee' | 'gitlab' | 'gitea'
  * @returns 同步仓库名称
  */
-export async function getSyncRepoName(platform: 'github' | 'gitee' | 'gitlab'): Promise<string> {
+export async function getSyncRepoName(platform: 'github' | 'gitee' | 'gitlab' | 'gitea'): Promise<string> {
   return getActualRepoName('sync', platform)
 }
 

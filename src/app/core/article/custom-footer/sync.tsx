@@ -3,6 +3,7 @@ import { fetchAi } from "@/lib/ai";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, uint8ArrayToBase64, uploadFile as uploadGithubFile } from "@/lib/github";
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
 import { getFileContent as getGitlabFileContent, uploadFile as uploadGitlabFile, getFileCommits as getGitlabFileCommits } from "@/lib/gitlab";
+import { getFileContent as getGiteaFileContent, uploadFile as uploadGiteaFile, getFileCommits as getGiteaFileCommits } from "@/lib/gitea";
 import { getSyncRepoName } from "@/lib/repo-utils";
 import useArticleStore from "@/stores/article";
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -20,7 +21,7 @@ import useUsername from "@/hooks/use-username";
 
 export default function Sync({editor}: {editor?: Vditor}) {
   const { currentArticle } = useArticleStore()
-  const { accessToken, giteeAccessToken, gitlabAccessToken, autoSync, giteeAutoSync, gitlabAutoSync, primaryBackupMethod} = useSettingStore()
+  const { accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, autoSync, giteeAutoSync, gitlabAutoSync, giteaAutoSync, primaryBackupMethod} = useSettingStore()
   const [isLoading, setIsLoading] = useState(false)
   const syncTimeoutRef = useRef<number | null>(null)
   const t = useTranslations('article.footer.sync')
@@ -84,6 +85,11 @@ export default function Sync({editor}: {editor?: Vditor}) {
             const { content } = await getGitlabFileContent({path: activeFilePath, ref: 'main', repo: gitlabRepo});
             contentText = decodeBase64ToString(content);
             break;
+          case 'gitea':
+            const giteaRepo = await getSyncRepoName('gitea');
+            const giteaContent = await getGiteaFileContent({path: activeFilePath, ref: 'main', repo: giteaRepo});
+            contentText = decodeBase64ToString(giteaContent.content);
+            break;
         } 
         // 如果有历史内容，使用AI分析差异并生成提交信息
         if (contentText) {
@@ -117,6 +123,10 @@ export default function Sync({editor}: {editor?: Vditor}) {
         const gitlabRepo2 = await getSyncRepoName('gitlab');
         const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
         res = { sha: data?.[0]?.id };
+      } else if (backupMethod === 'gitea') {
+        const giteaRepo2 = await getSyncRepoName('gitea');
+        const { data } = await getGiteaFileCommits({path: activeFilePath, repo: giteaRepo2});
+        res = { sha: data?.[0]?.sha };
       }
       
       if (res) {
@@ -163,6 +173,17 @@ export default function Sync({editor}: {editor?: Vditor}) {
             sha,
             message,
             repo: gitlabRepo3
+          });
+          break;
+        case 'gitea':
+          const giteaRepo3 = await getSyncRepoName('gitea');
+          uploadRes = await uploadGiteaFile({
+            ext: 'md',
+            file: uint8ArrayToBase64(file),
+            filename: `${_path && _path + '/'}${filename}`,
+            sha,
+            message,
+            repo: giteaRepo3
           });
           break;
         default:
@@ -226,6 +247,11 @@ export default function Sync({editor}: {editor?: Vditor}) {
           const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
           res = { sha: data[0].id };
           break;
+        case 'gitea':
+          const giteaRepo2 = await getSyncRepoName('gitea');
+          const { data: giteaData } = await getGiteaFileCommits({path: activeFilePath, repo: giteaRepo2});
+          res = { sha: giteaData[0].sha };
+          break;
       }
       
       if (res) {
@@ -274,6 +300,17 @@ export default function Sync({editor}: {editor?: Vditor}) {
             repo: gitlabRepo4
           }); 
           break;
+        case 'gitea':
+          const giteaRepo4 = await getSyncRepoName('gitea');
+          uploadRes = await uploadGiteaFile({
+            ext: 'md',
+            file: uint8ArrayToBase64(file),
+            filename: `${_path && _path + '/'}${filename}`,
+            sha,
+            message,
+            repo: giteaRepo4
+          });
+          break;
         default:
           break;
       }
@@ -307,6 +344,7 @@ export default function Sync({editor}: {editor?: Vditor}) {
       if (backupMethod === 'github' && (autoSync === 'disabled' || !accessToken)) return false;
       if (backupMethod === 'gitee' && (giteeAutoSync === 'disabled' || !giteeAccessToken)) return false;
       if (backupMethod === 'gitlab' && (gitlabAutoSync === 'disabled' || !gitlabAccessToken)) return false;
+      if (backupMethod === 'gitea' && (giteaAutoSync === 'disabled' || !giteaAccessToken)) return false;
       return true;
     };
     
@@ -325,9 +363,13 @@ export default function Sync({editor}: {editor?: Vditor}) {
         return parseInt(giteeAutoSync) * 1000;
       }
       // 如果是Gitlab备份方式，使用gitlabAutoSync设置的时间
-      if (gitlabAutoSync === 'disabled') return 0;
-      // gitlabAutoSync存储的是秒数，转换为毫秒
-      return parseInt(gitlabAutoSync) * 1000;
+      if (primaryBackupMethod === 'gitlab') {
+        if (gitlabAutoSync === 'disabled') return 0;
+        return parseInt(gitlabAutoSync) * 1000;
+      }
+      // 如果是Gitea备份方式，使用giteaAutoSync设置的时间
+      if (giteaAutoSync === 'disabled') return 0;
+      return parseInt(giteaAutoSync) * 1000;
     };
     
     // 处理编辑器输入事件
@@ -398,7 +440,7 @@ export default function Sync({editor}: {editor?: Vditor}) {
       }
       emitter.off('editor-input', handleInput);
     };
-  }, [autoSync, giteeAutoSync, gitlabAutoSync, accessToken, giteeAccessToken, gitlabAccessToken, syncText, editor, t, primaryBackupMethod]);
+  }, [autoSync, giteeAutoSync, gitlabAutoSync, giteaAutoSync, accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, syncText, editor, t, primaryBackupMethod]);
 
   return (
     username ?
@@ -406,7 +448,7 @@ export default function Sync({editor}: {editor?: Vditor}) {
         onClick={handleSync}
         variant="ghost"
         size="sm"
-        disabled={(primaryBackupMethod === 'github' && !accessToken) || (primaryBackupMethod === 'gitee' && !giteeAccessToken) || (primaryBackupMethod === 'gitlab' && !gitlabAccessToken) || isLoading}
+        disabled={(primaryBackupMethod === 'github' && !accessToken) || (primaryBackupMethod === 'gitee' && !giteeAccessToken) || (primaryBackupMethod === 'gitlab' && !gitlabAccessToken) || (primaryBackupMethod === 'gitea' && !giteaAccessToken) || isLoading}
         className="relative outline-none overflow-hidden"
       >
         {/* 进度条背景 */}

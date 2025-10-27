@@ -2,6 +2,7 @@ import { Tag, delTag, getTags, insertTags, deleteAllTags } from '@/db/tags'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github'
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee'
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab'
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/gitea'
 import { getSyncRepoName } from '@/lib/repo-utils'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
@@ -126,6 +127,19 @@ const useTagStore = create<TagState>((set, get) => ({
           sha: tagFile?.sha || '',
         })
         break;
+      case 'gitea':
+        const giteaRepo = await getSyncRepoName('gitea')
+        files = await giteaGetFiles({ path, repo: giteaRepo })
+        const giteaTagFile = files?.find(file => file.name === filename)
+        res = await uploadGiteaFile({
+          ext: 'json',
+          file: jsonToBase64(tags),
+          repo: giteaRepo,
+          path,
+          filename,
+          sha: giteaTagFile?.sha || '',
+        })
+        break;
     }
     if (res) {
       result = true
@@ -152,6 +166,10 @@ const useTagStore = create<TagState>((set, get) => ({
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo })
+        break;
+      case 'gitea':
+        const giteaRepo2 = await getSyncRepoName('gitea')
+        files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
         break;
     }
     if (files) {

@@ -338,6 +338,14 @@
         "selfHostedDesc": "输入您的自建 GitLab 服务器地址（如：https://gitlab.example.com）"
       },
       "gitlabAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要 api 权限",
+      "giteaInstanceType": "Gitea 实例类型",
+      "giteaInstanceTypeDesc": "选择要连接的 Gitea 实例类型",
+      "giteaInstanceTypePlaceholder": "选择 Gitea 实例类型",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "自建实例",
+        "selfHostedDesc": "输入您的自建 Gitea 服务器地址（如：https://gitea.example.com）"
+      },
+      "giteaAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要完整的 repository 权限",
       "autoSync": "自动同步",
       "autoSyncOptions": {
         "placeholder": "选择自动同步时间",

@@ -2,6 +2,7 @@ import { deleteAllMarks, getAllMarks, getMarks, insertMarks, Mark, updateMark } 
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/github';
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee';
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/gitlab';
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/gitea';
 import { getSyncRepoName } from '@/lib/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
@@ -240,6 +241,19 @@ const useMarkStore = create<MarkState>((set, get) => ({
         sha: markFile?.sha || '',
       })
       break;
+    case 'gitea':
+      const giteaRepoName = await getSyncRepoName('gitea')
+      files = await giteaGetFiles({ path, repo: giteaRepoName })
+      const giteaMarkFile = files?.find(file => file.name === filename)
+      res = await uploadGiteaFile({
+        ext: 'json',
+        file: jsonToBase64(marks),
+        repo: giteaRepoName,
+        path,
+        filename,
+        sha: giteaMarkFile?.sha || '',
+      })
+      break;
     }
     if (res) {
       result = true
@@ -266,6 +280,10 @@ const useMarkStore = create<MarkState>((set, get) => ({
       case 'gitlab':
         const gitlabRepoName = await getSyncRepoName('gitlab')
         files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepoName })
+        break;
+      case 'gitea':
+        const giteaRepoName = await getSyncRepoName('gitea')
+        files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepoName })
         break;
     }
     if (files) {

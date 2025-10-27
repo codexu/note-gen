@@ -96,7 +96,12 @@ export async function uploadFile({
     const requestBody: any = {
       branch: 'main',
       content: file,
-      message: message || `Upload ${filename || id}`
+      message: message || `Upload ${filename || id}`,
+      // 设置提交时间为当前时间
+      dates: {
+        author: new Date().toISOString(),
+        committer: new Date().toISOString()
+      }
     };
 
     // 如果是更新文件，需要添加 sha
@@ -166,8 +171,21 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
     });
 
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json() as GiteaDirectoryItem[];
-      return data.map(item => {
+      const data = await response.json();
+      
+      // 如果是单个文件，返回文件信息（包含 content）
+      if (!Array.isArray(data)) {
+        return {
+          name: data.name,
+          path: data.path,
+          type: data.type === 'dir' ? 'dir' : 'file',
+          sha: data.sha,
+          content: data.content || '', // 文件内容（base64）
+        };
+      }
+      
+      // 如果是目录，返回文件列表
+      return data.map((item: GiteaDirectoryItem) => {
         return {
           name: item.name,
           path: item.path,
@@ -282,7 +300,8 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?path=${path}`;
+    // Gitea API 需要指定分支（sha 参数），默认使用 main 分支
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?sha=main&path=${path}`;
 
     const response = await fetch(url, {
       method: 'GET',

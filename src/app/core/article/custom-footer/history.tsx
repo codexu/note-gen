@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles } from "@/lib/github";
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles } from "@/lib/gitee";
 import { getFileCommits as getGitlabFileCommits, getFileContent } from "@/lib/gitlab";
+import { getFileCommits as getGiteaFileCommits, getFileContent as getGiteaFileContent } from "@/lib/gitea";
 import { useTranslations } from "next-intl";
 import useArticleStore from "@/stores/article";
 import { ResCommit } from "@/lib/github.types";
@@ -81,6 +82,34 @@ export default function History({editor}: {editor?: Vditor}) {
           }
         }));
       }
+    } else if (backupMethod === 'gitea') {
+      const giteaRepo = await getSyncRepoName('gitea');
+      const giteaRes = await getGiteaFileCommits({ path: activeFilePath, repo: giteaRepo });
+      if (giteaRes?.data) {
+        // 转换 Gitea 提交格式为通用格式
+        res = giteaRes.data.map(commit => ({
+          sha: commit.sha,
+          commit: {
+            message: commit.commit.message,
+            author: {
+              name: commit.commit.author.name,
+              email: commit.commit.author.email,
+              date: commit.commit.author.date
+            },
+            committer: {
+              name: commit.commit.committer.name,
+              email: commit.commit.committer.email,
+              date: commit.commit.committer.date
+            }
+          },
+          html_url: commit.html_url,
+          author: {
+            login: commit.author?.login || commit.commit.author.name,
+            avatar_url: commit.author?.avatar_url || '',
+            html_url: commit.html_url
+          }
+        }));
+      }
     }
 
     setCommits(res || [])
@@ -145,6 +174,23 @@ export default function History({editor}: {editor?: Vditor}) {
           }
         } catch (error) {
           console.error('Gitlab 获取文件历史内容失败:', error);
+          setCurrentArticle(cacheArticle);
+        }
+        break;
+      case 'gitea':
+        try {
+          // 使用 getFileContent 方法获取特定 commit 的文件内容
+          const giteaRepo2 = await getSyncRepoName('gitea');
+          const giteaFileContent = await getGiteaFileContent({path: activeFilePath, ref: sha, repo: giteaRepo2});
+          if (giteaFileContent && giteaFileContent.content) {
+            const content = decodeBase64ToString(giteaFileContent.content)
+            setCurrentArticle(content);
+            await saveCurrentArticle(content)
+          } else {
+            setCurrentArticle(cacheArticle);
+          }
+        } catch (error) {
+          console.error('Gitea 获取文件历史内容失败:', error);
           setCurrentArticle(cacheArticle);
         }
         break;

@@ -3,7 +3,7 @@ import { fetchAi } from "@/lib/ai";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, uint8ArrayToBase64, uploadFile as uploadGithubFile } from "@/lib/github";
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
 import { getFileContent as getGitlabFileContent, uploadFile as uploadGitlabFile, getFileCommits as getGitlabFileCommits } from "@/lib/gitlab";
-import { getFileContent as getGiteaFileContent, uploadFile as uploadGiteaFile, getFileCommits as getGiteaFileCommits } from "@/lib/gitea";
+import { uploadFile as uploadGiteaFile, getFiles as getGiteaFiles } from "@/lib/gitea";
 import { getSyncRepoName } from "@/lib/repo-utils";
 import useArticleStore from "@/stores/article";
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -87,8 +87,17 @@ export default function Sync({editor}: {editor?: Vditor}) {
             break;
           case 'gitea':
             const giteaRepo = await getSyncRepoName('gitea');
-            const giteaContent = await getGiteaFileContent({path: activeFilePath, ref: 'main', repo: giteaRepo});
-            contentText = decodeBase64ToString(giteaContent.content);
+            try {
+              // 尝试获取当前分支的文件内容
+              const giteaFileInfo = await getGiteaFiles({path: activeFilePath, repo: giteaRepo});
+              // getFiles 对单个文件返回对象，对目录返回数组
+              if (giteaFileInfo && !Array.isArray(giteaFileInfo) && giteaFileInfo.content) {
+                contentText = decodeBase64ToString(giteaFileInfo.content);
+              }
+            } catch {
+              // 如果文件不存在（首次上传），跳过
+              console.log('Gitea file not found, this might be first upload');
+            }
             break;
         } 
         // 如果有历史内容，使用AI分析差异并生成提交信息
@@ -125,8 +134,12 @@ export default function Sync({editor}: {editor?: Vditor}) {
         res = { sha: data?.[0]?.id };
       } else if (backupMethod === 'gitea') {
         const giteaRepo2 = await getSyncRepoName('gitea');
-        const { data } = await getGiteaFileCommits({path: activeFilePath, repo: giteaRepo2});
-        res = { sha: data?.[0]?.sha };
+        // Gitea 使用 getFiles API 获取文件 SHA，类似 GitHub/Gitee
+        const giteaRes = await getGiteaFiles({path: activeFilePath, repo: giteaRepo2});
+        // getFiles 对单个文件返回对象
+        if (giteaRes && !Array.isArray(giteaRes)) {
+          res = giteaRes;
+        }
       }
       
       if (res) {
@@ -249,8 +262,12 @@ export default function Sync({editor}: {editor?: Vditor}) {
           break;
         case 'gitea':
           const giteaRepo2 = await getSyncRepoName('gitea');
-          const { data: giteaData } = await getGiteaFileCommits({path: activeFilePath, repo: giteaRepo2});
-          res = { sha: giteaData[0].sha };
+          // Gitea 使用 getFiles API 获取文件 SHA
+          const giteaRes2 = await getGiteaFiles({path: activeFilePath, repo: giteaRepo2});
+          // getFiles 对单个文件返回对象
+          if (giteaRes2 && !Array.isArray(giteaRes2)) {
+            res = giteaRes2;
+          }
           break;
       }
       

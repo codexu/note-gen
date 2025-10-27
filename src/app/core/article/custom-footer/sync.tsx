@@ -1,10 +1,10 @@
 import { toast } from "@/hooks/use-toast";
 import { fetchAi } from "@/lib/ai";
-import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, uint8ArrayToBase64, uploadFile as uploadGithubFile } from "@/lib/github";
-import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
-import { getFileContent as getGitlabFileContent, uploadFile as uploadGitlabFile, getFileCommits as getGitlabFileCommits } from "@/lib/gitlab";
-import { uploadFile as uploadGiteaFile, getFiles as getGiteaFiles } from "@/lib/gitea";
-import { getSyncRepoName } from "@/lib/repo-utils";
+import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, uint8ArrayToBase64, uploadFile as uploadGithubFile } from "@/lib/sync/github";
+import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from "@/lib/sync/gitee";
+import { getFileContent as getGitlabFileContent, uploadFile as uploadGitlabFile, getFileCommits as getGitlabFileCommits } from "@/lib/sync/gitlab";
+import { uploadFile as uploadGiteaFile, getFiles as getGiteaFiles } from "@/lib/sync/gitea";
+import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import useArticleStore from "@/stores/article";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { diffWordsWithSpace } from 'diff';

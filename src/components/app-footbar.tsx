@@ -9,8 +9,8 @@ import { useSidebarStore } from "@/stores/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import useSettingStore from "@/stores/setting"
 import useSyncStore from "@/stores/sync"
-import { SyncStateEnum, UserInfo } from "@/lib/github.types"
-import { getUserInfo } from "@/lib/github"
+import { SyncStateEnum, UserInfo } from "@/lib/sync/github.types"
+import { getUserInfo } from "@/lib/sync/github"
 import { useEffect } from "react"
 
 
@@ -66,7 +66,7 @@ export function AppFootbar() {
           // 获取 Gitee 用户信息
           setGiteeSyncRepoInfo(undefined)
           setGiteeSyncRepoState(SyncStateEnum.checking)
-          const res = await import('@/lib/gitee').then(module => module.getUserInfo())
+          const res = await import('@/lib/sync/gitee').then(module => module.getUserInfo())
           if (res) {
             setGiteeUserInfo(res)
           }
@@ -76,7 +76,7 @@ export function AppFootbar() {
           // 获取 Gitlab 用户信息
           setGitlabSyncProjectInfo(undefined)
           setGitlabSyncProjectState(SyncStateEnum.checking)
-          const { getUserInfo } = await import('@/lib/gitlab')
+          const { getUserInfo } = await import('@/lib/sync/gitlab')
           const res = await getUserInfo()
           if (res) {
             setGitlabUserInfo(res)

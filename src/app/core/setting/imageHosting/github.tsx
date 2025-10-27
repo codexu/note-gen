@@ -10,11 +10,11 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Switch } from "@/components/ui/switch";
-import { getUserInfo } from "@/lib/github";
-import { RepoNames, SyncStateEnum } from "@/lib/github.types";
+import { getUserInfo } from "@/lib/sync/github";
+import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
 import useImageStore from "@/stores/imageHosting";
 import { createImageRepo, checkImageRepoState } from "@/lib/imageHosting/github";
-import { getImageRepoName } from "@/lib/repo-utils";
+import { getImageRepoName } from "@/lib/sync/repo-utils";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 

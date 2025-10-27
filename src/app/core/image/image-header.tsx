@@ -7,7 +7,7 @@ import useImageStore from "@/stores/imageHosting"
 import {Separator} from "@/components/ui/separator"
 import {convertBytesToSize} from "@/lib/utils"
 import {open} from '@tauri-apps/plugin-shell';
-import { RepoNames } from '@/lib/github.types'
+import { RepoNames } from '@/lib/sync/github.types'
 import {
   Breadcrumb,
   BreadcrumbItem,

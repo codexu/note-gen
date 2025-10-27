@@ -13,9 +13,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/gitee";
+import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/gitee";
 import { Button } from "@/components/ui/button";
-import { RepoNames, SyncStateEnum } from "@/lib/github.types";
+import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
 import { DatabaseBackup, Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
 
 dayjs.extend(relativeTime)

@@ -1,11 +1,11 @@
 import { SidebarMenuButton } from "./ui/sidebar";
-import { checkSyncRepoState, getUserInfo } from "@/lib/github";
+import { checkSyncRepoState, getUserInfo } from "@/lib/sync/github";
 import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { SyncStateEnum, UserInfo } from "@/lib/github.types";
+import { SyncStateEnum, UserInfo } from "@/lib/sync/github.types";
 import useSyncStore from "@/stores/sync";
-import { getSyncRepoName } from "@/lib/repo-utils";
+import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import { open } from '@tauri-apps/plugin-shell'
 import Image from "next/image";
 
@@ -53,7 +53,7 @@ export default function AppStatus() {
           // 获取 Gitee 用户信息
           setGiteeSyncRepoInfo(undefined)
           setGiteeSyncRepoState(SyncStateEnum.checking)
-          const res = await import('@/lib/gitee').then(module => module.getUserInfo())
+          const res = await import('@/lib/sync/gitee').then(module => module.getUserInfo())
           if (res) {
             setGiteeUserInfo(res)
           }
@@ -64,7 +64,7 @@ export default function AppStatus() {
           // 获取 Gitlab 用户信息
           setGitlabSyncProjectInfo(undefined)
           setGitlabSyncProjectState(SyncStateEnum.checking)
-          const { getUserInfo } = await import('@/lib/gitlab')
+          const { getUserInfo } = await import('@/lib/sync/gitlab')
           const res = await getUserInfo()
           if (res) {
             setGitlabUserInfo(res)
@@ -77,7 +77,7 @@ export default function AppStatus() {
           // 获取 Gitea 用户信息
           setGiteaSyncRepoInfo(undefined)
           setGiteaSyncRepoState(SyncStateEnum.checking)
-          const { getUserInfo } = await import('@/lib/gitea')
+          const { getUserInfo } = await import('@/lib/sync/gitea')
           const res = await getUserInfo()
           if (res) {
             setGiteaUserInfo(res)
@@ -118,7 +118,7 @@ export default function AppStatus() {
   // 检查 Gitlab 项目状态（仅检查，不创建）
   async function checkGitlabProjects() {
     try {
-      const { checkSyncProjectState } = await import('@/lib/gitlab')
+      const { checkSyncProjectState } = await import('@/lib/sync/gitlab')
       
       // 检查同步项目状态
       const gitlabRepo = await getSyncRepoName('gitlab')
@@ -139,7 +139,7 @@ export default function AppStatus() {
   // 检查 Gitea 仓库状态（仅检查，不创建）
   async function checkGiteaRepos() {
     try {
-      const { checkSyncRepoState } = await import('@/lib/gitea')
+      const { checkSyncRepoState } = await import('@/lib/sync/gitea')
       
       // 检查同步仓库状态
       const giteaRepo = await getSyncRepoName('gitea')
@@ -160,7 +160,7 @@ export default function AppStatus() {
   // 检查 Gitee 仓库状态（仅检查，不创建）
   async function checkGiteeRepos() {
     try {
-      const { checkSyncRepoState } = await import('@/lib/gitee')
+      const { checkSyncRepoState } = await import('@/lib/sync/gitee')
       
       // 检查同步仓库状态
       const giteeRepo = await getSyncRepoName('gitee')

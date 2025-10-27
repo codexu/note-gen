@@ -14,8 +14,8 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Button } from "@/components/ui/button";
-import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/github";
-import { RepoNames, SyncStateEnum } from "@/lib/github.types";
+import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/github";
+import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
 import { DatabaseBackup, Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 

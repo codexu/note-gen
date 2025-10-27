@@ -1,7 +1,7 @@
-import { GithubRepoInfo, UserInfo, SyncStateEnum } from '@/lib/github.types'
-import { GiteeRepoInfo } from '@/lib/gitee'
-import { GitlabUserInfo, GitlabProjectInfo } from '@/lib/gitlab.types'
-import { GiteaUserInfo, GiteaRepositoryInfo } from '@/lib/gitea.types'
+import { GithubRepoInfo, UserInfo, SyncStateEnum } from '@/lib/sync/github.types'
+import { GiteeRepoInfo } from '@/lib/sync/gitee'
+import { GitlabUserInfo, GitlabProjectInfo } from '@/lib/sync/gitlab.types'
+import { GiteaUserInfo, GiteaRepositoryInfo } from '@/lib/sync/gitea.types'
 import { create } from 'zustand'
 
 interface SyncState {

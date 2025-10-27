@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { DownloadCloud, Loader2, UploadCloud } from "lucide-react";
 import { Store } from "@tauri-apps/plugin-store";
-import { uint8ArrayToBase64, uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from "@/lib/github";
-import { getFiles as giteeGetFiles, uploadFile as uploadGiteeFile } from "@/lib/gitee";
-import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from "@/lib/gitlab";
-import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from "@/lib/gitea";
-import { getSyncRepoName } from "@/lib/repo-utils";
+import { uint8ArrayToBase64, uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from "@/lib/sync/github";
+import { getFiles as giteeGetFiles, uploadFile as uploadGiteeFile } from "@/lib/sync/gitee";
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from "@/lib/sync/gitlab";
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from "@/lib/sync/gitea";
+import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { isMobileDevice } from "@/lib/check";

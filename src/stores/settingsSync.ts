@@ -1,11 +1,11 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { filterSyncData, mergeSyncData } from '@/config/sync-exclusions'
-import { uploadFile as uploadGithubFile, getFiles as githubGetFiles } from '@/lib/github'
-import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/gitee'
-import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles } from '@/lib/gitlab'
-import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles } from '@/lib/gitea'
-import { getSyncRepoName } from '@/lib/repo-utils'
+import { uploadFile as uploadGithubFile, getFiles as githubGetFiles } from '@/lib/sync/github'
+import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles } from '@/lib/sync/gitlab'
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles } from '@/lib/sync/gitea'
+import { getSyncRepoName } from '@/lib/sync/repo-utils'
 
 interface SettingsSyncState {
   syncState: boolean

@@ -3,12 +3,12 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card"
-import { GithubFile } from "@/lib/github"
+import { GithubFile } from "@/lib/sync/github"
 import { convertBytesToSize } from '@/lib/utils'
-import { deleteFile } from "@/lib/github"
+import { deleteFile } from "@/lib/sync/github"
 import { toast } from "@/hooks/use-toast"
 import useImageStore from "@/stores/imageHosting"
-import { RepoNames } from "@/lib/github.types"
+import { RepoNames } from "@/lib/sync/github.types"
 import { PhotoProvider, PhotoView } from 'react-photo-view';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { useState } from 'react'

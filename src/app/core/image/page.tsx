@@ -1,5 +1,5 @@
 'use client'
-import { GithubFile } from '@/lib/github'
+import { GithubFile } from '@/lib/sync/github'
 import { uploadImageByGithub } from '@/lib/imageHosting/github'
 import { useEffect, useState } from 'react'
 import { ImageCard } from './image-card'

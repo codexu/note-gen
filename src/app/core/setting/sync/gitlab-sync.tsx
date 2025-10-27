@@ -14,9 +14,9 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Button } from "@/components/ui/button";
-import { checkSyncProjectState, createSyncProject, getUserInfo } from "@/lib/gitlab";
-import { RepoNames, SyncStateEnum } from "@/lib/github.types";
-import { GitlabInstanceType, GITLAB_INSTANCES } from "@/lib/gitlab.types";
+import { checkSyncProjectState, createSyncProject, getUserInfo } from "@/lib/sync/gitlab";
+import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
+import { GitlabInstanceType, GITLAB_INSTANCES } from "@/lib/sync/gitlab.types";
 import { DatabaseBackup, Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 

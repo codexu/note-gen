@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import useImageStore from '@/stores/imageHosting';
-import { SyncStateEnum } from '@/lib/github.types';
+import { SyncStateEnum } from '@/lib/sync/github.types';
 import { testS3Connection } from '@/lib/imageHosting/s3';
 import { Store } from '@tauri-apps/plugin-store';
 

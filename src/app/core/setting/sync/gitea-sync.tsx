@@ -14,9 +14,9 @@ import { OpenBroswer } from "@/components/open-broswer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { Button } from "@/components/ui/button";
-import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/gitea";
-import { RepoNames, SyncStateEnum } from "@/lib/github.types";
-import { GiteaInstanceType, GITEA_INSTANCES } from "@/lib/gitea.types";
+import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/gitea";
+import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
+import { GiteaInstanceType, GITEA_INSTANCES } from "@/lib/sync/gitea.types";
 import { DatabaseBackup, Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 

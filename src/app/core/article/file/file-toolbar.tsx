@@ -21,7 +21,7 @@ import { TooltipButton } from "@/components/tooltip-button"
 import useArticleStore from "@/stores/article"
 import { open } from '@tauri-apps/plugin-shell';
 import useSettingStore from "@/stores/setting"
-import { RepoNames } from "@/lib/github.types"
+import { RepoNames } from "@/lib/sync/github.types"
 import { useTranslations } from "next-intl"
 import { debounce } from "lodash-es"
 import useVectorStore from "@/stores/vector"

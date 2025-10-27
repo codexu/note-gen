@@ -1,10 +1,10 @@
 import { Store } from "@tauri-apps/plugin-store";
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { GithubError, GithubRepoInfo } from "../github.types";
+import { GithubError, GithubRepoInfo } from "../sync/github.types";
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuid } from 'uuid';
-import { fileToBase64 } from "../github";
-import { getImageRepoName } from "../repo-utils";
+import { fileToBase64 } from "../sync/github";
+import { getImageRepoName } from "../sync/repo-utils";
 
 // 创建 Github 图床仓库
 export async function createImageRepo(name: string, isPrivate?: boolean) {

@@ -75,13 +75,13 @@ export function DeleteFolder({ item }: DeleteFolderProps) {
 
       // 如果启用了同步，同步删除操作
       if (primaryBackupMethod === 'github') {
-        const { deleteFile: deleteGithubFile } = await import('@/lib/github');
+        const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github');
         await deleteGithubFile({ path, sha: item.sha || '', repo: 'sync' as any });
       } else if (primaryBackupMethod === 'gitee') {
-        const { deleteFile: deleteGiteeFile } = await import('@/lib/gitee');
+        const { deleteFile: deleteGiteeFile } = await import('@/lib/sync/gitee');
         await deleteGiteeFile({ path, sha: item.sha || '', repo: 'sync' as any });
       } else if (primaryBackupMethod === 'gitlab') {
-        const { deleteFile: deleteGitlabFile } = await import('@/lib/gitlab');
+        const { deleteFile: deleteGitlabFile } = await import('@/lib/sync/gitlab');
         await deleteGitlabFile({ path, sha: item.sha, repo: 'sync' as any });
       }
 

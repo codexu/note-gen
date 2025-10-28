@@ -36,10 +36,27 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
       // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       
+      // 优先尝试更兼容的格式
+      let mimeType = 'audio/webm'
+      const supportedTypes = [
+        'audio/wav',
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+        'audio/webm'
+      ]
+      
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type
+          break
+        }
+      }
+      
+      console.log('使用音频格式:', mimeType)
+      
       // 创建MediaRecorder实例
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm'
-      })
+      const mediaRecorder = new MediaRecorder(stream, { mimeType })
       
       const chunks: Blob[] = []
       

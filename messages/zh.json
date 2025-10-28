@@ -1384,6 +1384,7 @@
     "transcriptionSuccess": "语音识别完成",
     "transcriptionEmpty": "识别结果为空",
     "transcriptionError": "语音识别失败",
+    "noContentDetected": "未识别到内容",
     "mode": {
       "builtin": "浏览器识别",
       "builtinDesc": "免费，实时识别",

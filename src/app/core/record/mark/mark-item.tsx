@@ -24,6 +24,7 @@ import { ImageUp } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
+import { AudioPlayer } from "@/components/audio-player";
 import { ImageViewer } from "@/components/image-viewer";
 import ChatPreview from "../chat/chat-preview";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -181,6 +182,11 @@ export function MarkWrapper({mark}: {mark: Mark}) {
               <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
             </div>
             <DetailViewer mark={mark} content={mark.content || ''} />
+            {mark.url && (
+              <div className="mt-2">
+                <AudioPlayer audioPath={mark.url} />
+              </div>
+            )}
           </div>
       )
     case 'file':

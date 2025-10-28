@@ -7,6 +7,7 @@ import { ControlText } from "./control-text"
 import { ControlImage } from "./control-image"
 import { ControlFile } from "./control-file"
 import { ControlLink } from "./control-link"
+import { ControlRecording } from "./control-recording"
 import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
 import {
@@ -77,6 +78,7 @@ export function MarkHeader() {
       <div className="flex">
         <TooltipProvider>
           <ControlText />
+          <ControlRecording />
           <ControlScan />
           <ControlImage />
           <ControlLink />

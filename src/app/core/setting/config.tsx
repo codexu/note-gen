@@ -84,7 +84,7 @@ const baseConfig = [
   },
   {
     icon: <Volume2 className="size-4 md:size-6" />,
-    anchor: 'readAloud',
+    anchor: 'audio',
   },
   '-',
   {
@@ -95,7 +95,7 @@ const baseConfig = [
 
 export default baseConfig
 
-export type ModelType = 'chat' | 'image' | 'video' | 'audio' | 'embedding' | 'rerank';
+export type ModelType = 'chat' | 'image' | 'video' | 'tts' | 'stt' | 'embedding' | 'rerank';
 
 export interface ModelConfig {
   id: string

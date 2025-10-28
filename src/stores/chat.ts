@@ -172,7 +172,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
-    let files;
+    let files: any;
     let res;
     switch (primaryBackupMethod) {
       case 'github':
@@ -202,7 +202,9 @@ const useChatStore = create<ChatState>((set, get) => ({
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         files = await gitlabGetFiles({ path, repo: gitlabRepo })
-        const chatFile = files?.find(file => file.name === filename)
+        const chatFile = Array.isArray(files)
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
           ext: 'json',
           file: jsonToBase64(chats),
@@ -215,7 +217,9 @@ const useChatStore = create<ChatState>((set, get) => ({
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })
-        const giteaChatFile = files?.find(file => file.name === filename)
+        const giteaChatFile = Array.isArray(files)
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
           ext: 'json',
           file: jsonToBase64(chats),

@@ -198,7 +198,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
     }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
-    let files;
+    let files: any;
     let res;
     switch (primaryBackupMethod) {
       case 'github':
@@ -231,7 +231,9 @@ const useMarkStore = create<MarkState>((set, get) => ({
     case 'gitlab':
       const gitlabRepoName = await getSyncRepoName('gitlab')
       files = await gitlabGetFiles({ path, repo: gitlabRepoName })
-      const markFile = files?.find(file => file.name === filename)
+      const markFile = Array.isArray(files)
+        ? files.find(file => file.name === filename)
+        : (files?.name === filename ? files : undefined)
       res = await uploadGitlabFile({
         ext: 'json',
         file: jsonToBase64(marks),
@@ -244,7 +246,9 @@ const useMarkStore = create<MarkState>((set, get) => ({
     case 'gitea':
       const giteaRepoName = await getSyncRepoName('gitea')
       files = await giteaGetFiles({ path, repo: giteaRepoName })
-      const giteaMarkFile = files?.find(file => file.name === filename)
+      const giteaMarkFile = Array.isArray(files)
+        ? files.find(file => file.name === filename)
+        : (files?.name === filename ? files : undefined)
       res = await uploadGiteaFile({
         ext: 'json',
         file: jsonToBase64(marks),

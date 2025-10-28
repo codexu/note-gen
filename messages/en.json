@@ -260,18 +260,33 @@
         }
       }
     },
-    "readAloud": {
-      "title": "Read Aloud",
-      "desc": "Here, you can configure read aloud related settings to provide voice playback functionality for chat content.",
-      "noModel": "Do not use",
-      "options": {
-        "audioModel": {
-          "title": "Audio Model",
+    "audio": {
+      "title": "Audio Settings",
+      "desc": "Here, you can configure audio settings, including text-to-speech (TTS) and speech-to-text (STT) functions.",
+      "tts": {
+        "title": "Text-to-Speech (TTS)",
+        "desc": "Configure read aloud functionality to provide voice playback for chat content.",
+        "model": {
+          "title": "TTS Model",
           "desc": "Select the AI model for text-to-speech conversion, supporting various voice types and parameter configurations."
         },
         "speed": {
           "title": "Speech Rate",
-          "desc": "Adjust the playback speed of the voice, ranging from 0.25x to 4x speed, with 1x being the normal speed."
+          "desc": "Adjust the playback speed of the voice, ranging from 0.5x to 2x speed, with 1x being the normal speed."
+        }
+      },
+      "stt": {
+        "title": "Speech-to-Text (STT)",
+        "desc": "Configure voice recognition to convert speech to text records.",
+        "mode": {
+          "title": "Recognition Mode",
+          "desc": "Choose between browser built-in recognition or AI model recognition",
+          "builtin": "Built-in",
+          "model": "AI Model"
+        },
+        "model": {
+          "title": "STT Model",
+          "desc": "Select the AI model for speech recognition, supporting real-time voice-to-text conversion."
         }
       }
     },
@@ -626,7 +641,8 @@
         "chat": "Chat",
         "image": "Image",
         "video": "Video",
-        "audio": "Audio",
+        "tts": "Text-to-Speech",
+        "stt": "Speech-to-Text",
         "embedding": "Embedding",
         "rerank": "Reranking"
       },
@@ -763,6 +779,7 @@
         "image": "Image",
         "screenshot": "Screenshot",
         "text": "Text",
+        "recording": "Recording",
         "file": "File",
         "link": "Link",
         "upload": "Upload Record",
@@ -1380,5 +1397,28 @@
     "tools": "tools",
     "connecting": "Connecting",
     "disconnected": "Disconnected"
+  },
+  "recording": {
+    "title": "Voice Recording",
+    "description": "Click the microphone button to start recording, the system will automatically recognize and convert to text",
+    "recording": "Recording",
+    "paused": "Paused",
+    "ready": "Ready",
+    "processing": "Processing...",
+    "cancel": "Cancel",
+    "error": "Error",
+    "success": "Success",
+    "noModelConfigured": "Speech recognition model not configured, please configure in settings first",
+    "startError": "Unable to start recording",
+    "noAudioData": "No audio data recorded",
+    "transcriptionSuccess": "Speech recognition completed",
+    "transcriptionEmpty": "Recognition result is empty",
+    "transcriptionError": "Speech recognition failed",
+    "mode": {
+      "builtin": "Browser Recognition",
+      "builtinDesc": "Free, real-time recognition",
+      "model": "AI Model Recognition",
+      "modelDesc": "Requires STT model, more accurate"
+    }
   }
 }

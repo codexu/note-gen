@@ -7,5 +7,7 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>NoteGen 需要访问麦克风以支持语音录音和语音转文字功能。</string>
 </dict>
 </plist>

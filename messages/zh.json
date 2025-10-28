@@ -232,22 +232,33 @@
         }
       }
     },
-    "readAloud": {
-      "title": "朗读",
-      "desc": "在这里，你可以配置朗读相关设置，为聊天内容提供语音播放功能。",
-      "noModel": "不使用模型",
-      "alert": {
-        "title": "你正在使用系统朗读",
-        "description": "当前未配置音频模型，正在使用系统朗读。"
-      },
-      "options": {
-        "audioModel": {
-          "title": "音频模型",
+    "audio": {
+      "title": "语音设置",
+      "desc": "在这里，你可以配置语音相关设置，包括文本转语音（朗读）和语音转文本（录音识别）功能。",
+      "tts": {
+        "title": "文本转语音（TTS）",
+        "desc": "配置朗读功能，为聊天内容提供语音播放。",
+        "model": {
+          "title": "朗读模型",
           "desc": "选择用于文本转语音的AI模型，支持多种语音类型和参数配置。"
         },
         "speed": {
           "title": "语速",
-          "desc": "调整语音播放的速度，范围从0.25倍到4倍速度，默认为1倍正常速度。"
+          "desc": "调整语音播放的速度，范围从0.5倍到2倍速度，默认为1倍正常速度。"
+        }
+      },
+      "stt": {
+        "title": "语音转文本（STT）",
+        "desc": "配置录音识别功能，将语音转换为文字记录。",
+        "mode": {
+          "title": "识别方式",
+          "desc": "选择使用浏览器内置识别或大模型识别",
+          "builtin": "内置",
+          "model": "大模型"
+        },
+        "model": {
+          "title": "识别模型",
+          "desc": "选择用于语音识别的AI模型，支持实时语音转文字。"
         }
       }
     },
@@ -612,7 +623,8 @@
         "chat": "对话",
         "image": "生图",
         "video": "视频",
-        "audio": "语音",
+        "tts": "文本转语音",
+        "stt": "语音转文本",
         "embedding": "嵌入",
         "rerank": "重排序"
       },
@@ -768,6 +780,7 @@
         "image": "插图",
         "screenshot": "截图",
         "text": "文本",
+        "recording": "录音",
         "file": "文件",
         "link": "链接",
         "upload": "上传记录",
@@ -1354,5 +1367,28 @@
     "tools": "个工具",
     "connecting": "连接中",
     "disconnected": "未连接"
+  },
+  "recording": {
+    "title": "录音识别",
+    "description": "点击麦克风按钮开始录音，系统将自动识别并转换为文字记录",
+    "recording": "录音中",
+    "paused": "已暂停",
+    "ready": "准备就绪",
+    "processing": "识别中...",
+    "cancel": "取消",
+    "error": "错误",
+    "success": "成功",
+    "noModelConfigured": "未配置语音识别模型，请先在设置中配置",
+    "startError": "无法启动录音",
+    "noAudioData": "未录制到音频数据",
+    "transcriptionSuccess": "语音识别完成",
+    "transcriptionEmpty": "识别结果为空",
+    "transcriptionError": "语音识别失败",
+    "mode": {
+      "builtin": "浏览器识别",
+      "builtinDesc": "免费，实时识别",
+      "model": "大模型识别",
+      "modelDesc": "需配置STT模型，更准确"
+    }
   }
 }

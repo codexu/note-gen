@@ -171,6 +171,18 @@ export function MarkWrapper({mark}: {mark: Mark}) {
             <DetailViewer mark={mark} content={mark.content || ''} />
           </div>
       )
+    case 'recording':
+      return (
+          <div className="flex-1 pr-10 md:pr-0">
+            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+              <span className="flex items-center gap-1 bg-red-900 text-white px-1 rounded">
+                {t(mark.type)}
+              </span>
+              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            </div>
+            <DetailViewer mark={mark} content={mark.content || ''} />
+          </div>
+      )
     case 'file':
       return (
           <div className="flex-1 pr-10 md:pr-0">

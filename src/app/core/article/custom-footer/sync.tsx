@@ -130,8 +130,10 @@ export default function Sync({editor}: {editor?: Vditor}) {
         res = await getGiteeFiles({path: activeFilePath, repo: giteeRepo2});
       } else if (backupMethod === 'gitlab') {
         const gitlabRepo2 = await getSyncRepoName('gitlab');
-        const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
-        res = { sha: data?.[0]?.id };
+        const gitlabRes = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
+        if (gitlabRes && gitlabRes.data) {
+          res = { sha: gitlabRes.data[0]?.id };
+        }
       } else if (backupMethod === 'gitea') {
         const giteaRepo2 = await getSyncRepoName('gitea');
         // Gitea 使用 getFiles API 获取文件 SHA，类似 GitHub/Gitee
@@ -257,8 +259,10 @@ export default function Sync({editor}: {editor?: Vditor}) {
           break;
         case 'gitlab':
           const gitlabRepo2 = await getSyncRepoName('gitlab');
-          const { data } = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
-          res = { sha: data[0].id };
+          const gitlabRes2 = await getGitlabFileCommits({path: activeFilePath, repo: gitlabRepo2});
+          if (gitlabRes2 && gitlabRes2.data && gitlabRes2.data[0]) {
+            res = { sha: gitlabRes2.data[0].id };
+          }
           break;
         case 'gitea':
           const giteaRepo2 = await getSyncRepoName('gitea');

@@ -57,7 +57,7 @@ export default function History({editor}: {editor?: Vditor}) {
     } else if (backupMethod === 'gitlab') {
       const gitlabRepo = await getSyncRepoName('gitlab');
       const gitlabRes = await getGitlabFileCommits({ path: activeFilePath, repo: gitlabRepo });
-      if (gitlabRes?.data) {
+      if (gitlabRes && gitlabRes.data) {
         // 转换 Gitlab 提交格式为通用格式
         res = gitlabRes.data.map(commit => ({
           sha: commit.id,
@@ -85,7 +85,7 @@ export default function History({editor}: {editor?: Vditor}) {
     } else if (backupMethod === 'gitea') {
       const giteaRepo = await getSyncRepoName('gitea');
       const giteaRes = await getGiteaFileCommits({ path: activeFilePath, repo: giteaRepo });
-      if (giteaRes?.data) {
+      if (giteaRes && giteaRes.data) {
         // 转换 Gitea 提交格式为通用格式
         res = giteaRes.data.map(commit => ({
           sha: commit.sha,

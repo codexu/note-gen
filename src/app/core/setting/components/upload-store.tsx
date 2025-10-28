@@ -42,7 +42,7 @@ export default function UploadStore() {
     const file = new TextEncoder().encode(filteredContent)
     
     const primaryBackupMethod = await store.get('primaryBackupMethod')
-    let files;
+    let files: any;
     let res;
     switch (primaryBackupMethod) {
       case 'github':
@@ -72,7 +72,9 @@ export default function UploadStore() {
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         files = await gitlabGetFiles({ path, repo: gitlabRepo })
-        const storeFile = files?.find(file => file.name === filename)
+        const storeFile = Array.isArray(files)
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
           ext: 'json',
           file: uint8ArrayToBase64(file),
@@ -85,7 +87,9 @@ export default function UploadStore() {
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })
-        const giteaStoreFile = files?.find(file => file.name === filename)
+        const giteaStoreFile = Array.isArray(files) 
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
           ext: 'json',
           file: uint8ArrayToBase64(file),

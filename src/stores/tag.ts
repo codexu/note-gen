@@ -88,7 +88,7 @@ const useTagStore = create<TagState>((set, get) => ({
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
     let res;
-    let files;
+    let files: any;
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepo = await getSyncRepoName('github')
@@ -117,7 +117,9 @@ const useTagStore = create<TagState>((set, get) => ({
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         files = await gitlabGetFiles({ path, repo: gitlabRepo })
-        const tagFile = files?.find(file => file.name === filename)
+        const tagFile = Array.isArray(files)
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
           ext: 'json',
           file: jsonToBase64(tags),
@@ -130,7 +132,9 @@ const useTagStore = create<TagState>((set, get) => ({
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })
-        const giteaTagFile = files?.find(file => file.name === filename)
+        const giteaTagFile = Array.isArray(files)
+          ? files.find(file => file.name === filename)
+          : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
           ext: 'json',
           file: jsonToBase64(tags),

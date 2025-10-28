@@ -67,6 +67,9 @@ interface SettingState {
   audioModel: string
   setAudioModel: (audioModel: string) => Promise<void>
 
+  sttModel: string
+  setSttModel: (sttModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -275,25 +278,49 @@ const useSettingStore = create<SettingState>((set, get) => ({
       }
     }
 
-    // 检查是否设置了音频模型，如果没有且存在note-gen-audio，则设置为默认音频模型
+    // 检查是否设置了TTS模型，如果没有且存在note-gen-tts，则设置为默认TTS模型
     const currentAudioModel = await store.get('audioModel') as string
-    const hasNoteGenAudio = finalAiModelList.some(config => 
-      config.models?.some(model => model.modelType === 'audio') || config.modelType === 'audio'
+    const hasNoteGenTTS = finalAiModelList.some(config => 
+      config.models?.some(model => model.modelType === 'tts') || config.modelType === 'tts'
     )
     
-    if (!currentAudioModel && hasNoteGenAudio) {
-      // 查找第一个可用的音频模型
+    if (!currentAudioModel && hasNoteGenTTS) {
+      // 查找第一个可用的TTS模型
       for (const config of finalAiModelList) {
         if (config.models && config.models.length > 0) {
-          const audioModel = config.models.find(model => model.modelType === 'audio')
-          if (audioModel) {
-            await store.set('audioModel', `${config.key}-${audioModel.id}`)
-            set({ audioModel: `${config.key}-${audioModel.id}` })
+          const ttsModel = config.models.find(model => model.modelType === 'tts')
+          if (ttsModel) {
+            await store.set('audioModel', `${config.key}-${ttsModel.id}`)
+            set({ audioModel: `${config.key}-${ttsModel.id}` })
             break
           }
-        } else if (config.modelType === 'audio') {
+        } else if (config.modelType === 'tts') {
           await store.set('audioModel', config.key)
           set({ audioModel: config.key })
+          break
+        }
+      }
+    }
+
+    // 检查是否设置了STT模型，如果没有且存在note-gen-stt，则设置为默认STT模型
+    const currentSttModel = await store.get('sttModel') as string
+    const hasNoteGenSTT = finalAiModelList.some(config => 
+      config.models?.some(model => model.modelType === 'stt') || config.modelType === 'stt'
+    )
+    
+    if (!currentSttModel && hasNoteGenSTT) {
+      // 查找第一个可用的STT模型
+      for (const config of finalAiModelList) {
+        if (config.models && config.models.length > 0) {
+          const sttModel = config.models.find(model => model.modelType === 'stt')
+          if (sttModel) {
+            await store.set('sttModel', `${config.key}-${sttModel.id}`)
+            set({ sttModel: `${config.key}-${sttModel.id}` })
+            break
+          }
+        } else if (config.modelType === 'stt') {
+          await store.set('sttModel', config.key)
+          set({ sttModel: config.key })
           break
         }
       }
@@ -472,6 +499,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('audioModel', audioModel)
     set({ audioModel })
+  },
+
+  sttModel: '',
+  setSttModel: async (sttModel) => {
+    const store = await Store.load('store.json');
+    await store.set('sttModel', sttModel)
+    set({ sttModel })
   },
 
   templateList: [

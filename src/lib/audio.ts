@@ -80,7 +80,7 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
     // 检查新的 models 数组结构
     if (config.models && config.models.length > 0) {
       const targetModel = config.models.find(model => 
-        model.id === audioModel && model.modelType === 'audio'
+        model.id === audioModel && model.modelType === 'tts'
       )
       if (targetModel) {
         // 返回合并了模型配置的 AiConfig
@@ -97,7 +97,7 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
       }
     } else {
       // 向后兼容：处理旧的单模型结构
-      if (config.key === audioModel && config.modelType === 'audio') {
+      if (config.key === audioModel && config.modelType === 'tts') {
         audioConfig = config
         break
       }
@@ -347,4 +347,99 @@ export function stopCurrentAudio(): void {
  */
 export function getCurrentAudioPlayingState(): boolean {
   return currentAudioController?.getIsPlaying() ?? false
+}
+
+/**
+ * 语音转文本请求接口
+ */
+export interface AudioTranscriptionRequest {
+  file: Blob
+  model: string
+}
+
+/**
+ * 语音转文本响应接口
+ */
+export interface AudioTranscriptionResponse {
+  text: string
+}
+
+/**
+ * 调用STT模型将音频转换为文本
+ */
+export async function fetchAudioTranscription(audioBlob: Blob): Promise<string> {
+  const { aiModelList, sttModel } = useSettingStore.getState()
+  
+  if (!sttModel) {
+    throw new Error('未配置语音识别模型')
+  }
+
+  // 查找STT模型配置
+  let sttConfig = null
+  
+  // 在新的数据结构中，需要找到包含指定模型ID的配置
+  for (const config of aiModelList) {
+    // 检查新的 models 数组结构
+    if (config.models && config.models.length > 0) {
+      const targetModel = config.models.find(model => 
+        model.id === sttModel && model.modelType === 'stt'
+      )
+      if (targetModel) {
+        // 返回合并了模型配置的 AiConfig
+        sttConfig = {
+          ...config,
+          model: targetModel.model,
+          modelType: targetModel.modelType
+        }
+        break
+      }
+    } else {
+      // 向后兼容：处理旧的单模型结构
+      if (config.key === sttModel && config.modelType === 'stt') {
+        sttConfig = config
+        break
+      }
+    }
+  }
+  
+  if (!sttConfig) {
+    throw new Error('未找到语音识别模型配置')
+  }
+
+  if (!sttConfig.baseURL || !sttConfig.apiKey) {
+    throw new Error('语音识别模型配置不完整')
+  }
+
+  // 创建 FormData
+  const formData = new FormData()
+  formData.append('file', audioBlob, 'audio.webm')
+  formData.append('model', sttConfig.model || 'FunAudioLLM/SenseVoiceSmall')
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${sttConfig.apiKey}`
+  }
+
+  // 添加自定义头部
+  if (sttConfig.customHeaders) {
+    Object.assign(headers, sttConfig.customHeaders)
+  }
+
+  try {
+    const response = await fetch(`${sttConfig.baseURL}/audio/transcriptions`, {
+      method: 'POST',
+      headers,
+      body: formData
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`语音识别失败: ${response.status} ${errorText}`)
+    }
+
+    const result: AudioTranscriptionResponse = await response.json()
+    return result.text
+  } catch (error) {
+    console.error('语音识别错误:', error)
+    throw error
+  }
 }

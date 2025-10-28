@@ -128,9 +128,9 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
           }
           return true
 
-        case 'audio':
+        case 'tts':
           const testAudioText = '测试音频生成'
-          const audioResponse = await fetch(aiConfig.baseURL + '/audio/speech', {
+          const ttsResponse = await fetch(aiConfig.baseURL + '/audio/speech', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -145,13 +145,44 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
             }),
             signal
           })
-          if (!audioResponse.ok) {
-            throw new Error(`音频生成请求失败: ${audioResponse.status} ${audioResponse.statusText}`)
+          if (!ttsResponse.ok) {
+            throw new Error(`TTS请求失败: ${ttsResponse.status} ${ttsResponse.statusText}`)
           }
-          const contentType = audioResponse.headers.get('content-type')
-          if (!contentType || !contentType.includes('audio')) {
-            throw new Error('音频模型返回格式不正确')
+          const ttsContentType = ttsResponse.headers.get('content-type')
+          if (!ttsContentType || !ttsContentType.includes('audio')) {
+            throw new Error('TTS模型返回格式不正确')
           }
+          return true
+
+        case 'stt':
+          // STT 测试：检查 API 端点是否可用
+          // 注意：使用空音频测试可能返回空结果，我们主要检查 API 是否响应正确格式
+          const testAudioBlob = new Blob([new Uint8Array(100)], { type: 'audio/webm' })
+          const sttFormData = new FormData()
+          sttFormData.append('file', testAudioBlob, 'test.webm')
+          sttFormData.append('model', model.model)
+          
+          const sttResponse = await fetch(aiConfig.baseURL + '/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${aiConfig.apiKey}`,
+              ...(aiConfig.customHeaders || {})
+            },
+            body: sttFormData,
+            signal
+          })
+          
+          if (!sttResponse.ok) {
+            const errorText = await sttResponse.text()
+            throw new Error(`STT请求失败 (${sttResponse.status}): ${errorText || sttResponse.statusText}`)
+          }
+          
+          const sttData = await sttResponse.json()
+          // STT 返回格式应该包含 text 字段（即使为空字符串也是有效的）
+          if (!sttData || !('text' in sttData)) {
+            throw new Error('STT模型返回格式不正确，缺少 text 字段')
+          }
+          
           return true
 
         default:
@@ -246,8 +277,12 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
               <Label htmlFor={`chat-${modelConfig.id}`}>{t('modelType.chat')}</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="audio" id={`audio-${modelConfig.id}`} />
-              <Label htmlFor={`audio-${modelConfig.id}`}>{t('modelType.audio')}</Label>
+              <RadioGroupItem value="tts" id={`tts-${modelConfig.id}`} />
+              <Label htmlFor={`tts-${modelConfig.id}`}>{t('modelType.tts')}</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="stt" id={`stt-${modelConfig.id}`} />
+              <Label htmlFor={`stt-${modelConfig.id}`}>{t('modelType.stt')}</Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="embedding" id={`embedding-${modelConfig.id}`} />
@@ -311,8 +346,8 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
           </>
         )}
 
-        {/* 音频模型的特殊配置 */}
-        {modelConfig.modelType === 'audio' && (
+        {/* TTS模型的特殊配置 */}
+        {modelConfig.modelType === 'tts' && (
           <div className="space-y-2">
             <Label>{t('voice')}</Label>
             <Input

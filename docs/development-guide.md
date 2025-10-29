@@ -38,8 +38,6 @@
 # 安裝 Node.js 依賴
 pnpm install
 
-# 安裝 Rust 依賴 (如果需要 Tauri)
-cargo install tauri-cli
 ```
 
 ## 開發命令
@@ -79,9 +77,6 @@ pnpm run clean:next
 # 清除依賴緩存
 pnpm run clean:deps
 
-# 清除 Tauri 緩存
-pnpm run clean:tauri
-```
 
 #### 手動清理 (如果需要自定義)
 

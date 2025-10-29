@@ -71,16 +71,16 @@ jobs:
         id: save_tag
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          # 调试输出
+          # 除錯輸出
           echo ${{ steps.tauri-action.outputs.appVersion }}
-          # 输出到步骤级
+          # 輸出到步驟級
           echo "appVersion=${{ steps.tauri-action.outputs.appVersion }}" >> $GITHUB_OUTPUT
 
       - name: Set job output
         id: set_output
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          # 注意：这里引用的是 save_tag 步骤的 tag_name 输出
+          # 注意：這裡引用的是 save_tag 步驟的 tag_name 輸出
           echo "appVersion=${{ steps.save_tag.outputs.appVersion }}" >> $GITHUB_OUTPUT
 
   upgradeLink-upload:

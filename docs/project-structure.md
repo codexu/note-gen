@@ -150,7 +150,7 @@ pnpm install
 pnpm dev
 
 # 構建生產版本
-pnpm build
+pnpm tauri build
 
 # Tauri 桌面應用開發
 pnpm tauri dev

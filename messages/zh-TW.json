@@ -67,9 +67,16 @@
         "title": "工具設置",
         "chatToolbar": {
           "title": "對話工具欄",
-          "desc": "自訂對話工具欄按鈕的顯示順序和可見性，打造個性化的對話體驗",
+          "desc": "自訂對話工具欄按鈕的顯示順序和可見性",
           "button": "設置",
           "dialogTitle": "配置對話工具欄",
+          "dialogDesc": "拖動工具調整排序，使用開關控制顯示或隱藏"
+        },
+        "recordToolbar": {
+          "title": "記錄工具欄",
+          "desc": "自訂記錄工具欄按鈕的顯示順序和可見性",
+          "button": "設置",
+          "dialogTitle": "配置記錄工具欄",
           "dialogDesc": "拖動工具調整排序，使用開關控制顯示或隱藏"
         }
       }
@@ -232,22 +239,33 @@
         }
       }
     },
-    "readAloud": {
-      "title": "朗讀",
-      "desc": "在這裡，你可以配置朗讀相關設置，為聊天內容提供語音播放功能。",
-      "noModel": "不使用模型",
-      "alert": {
-        "title": "你正在使用系統朗讀",
-        "description": "當前未配置音訊模型，正在使用系統朗讀。"
-      },
-      "options": {
-        "audioModel": {
-          "title": "音訊模型",
+    "audio": {
+      "title": "語音設置",
+      "desc": "在這裡，你可以配置語音相關設置，包括文本轉語音（朗讀）和語音轉文本（錄音識別）功能。",
+      "tts": {
+        "title": "文本轉語音（TTS）",
+        "desc": "配置朗讀功能，為聊天內容提供語音播放。",
+        "model": {
+          "title": "朗讀模型",
           "desc": "選擇用於文本轉語音的AI模型，支持多種語音類型和參數配置。"
         },
         "speed": {
           "title": "語速",
-          "desc": "調整語音播放的速度，範圍從0.25倍到4倍速度，預設為1倍正常速度。"
+          "desc": "調整語音播放的速度，範圍從0.5倍到2倍速度，預設為1倍正常速度。"
+        }
+      },
+      "stt": {
+        "title": "語音轉文本（STT）",
+        "desc": "配置錄音識別功能，將語音轉換為文字記錄。",
+        "mode": {
+          "title": "識別方式",
+          "desc": "選擇使用瀏覽器內建識別或大模型識別",
+          "builtin": "內建",
+          "model": "大模型"
+        },
+        "model": {
+          "title": "識別模型",
+          "desc": "選擇用於語音識別的AI模型，支持即時語音轉文字。"
         }
       }
     },
@@ -338,6 +356,14 @@
         "selfHostedDesc": "輸入您的自建 GitLab 伺服器地址（如：https://gitlab.example.com）"
       },
       "gitlabAccessTokenDesc": "在 {instanceDisplayName} 創建個人訪問令牌，需要 api 權限",
+      "giteaInstanceType": "Gitea 實例類型",
+      "giteaInstanceTypeDesc": "選擇要連接的 Gitea 實例類型",
+      "giteaInstanceTypePlaceholder": "選擇 Gitea 實例類型",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "自建實例",
+        "selfHostedDesc": "輸入您的自建 Gitea 伺服器地址（如：https://gitea.example.com）"
+      },
+      "giteaAccessTokenDesc": "在 {instanceDisplayName} 創建個人訪問令牌，需要完整的 repository 權限",
       "autoSync": "自動同步",
       "autoSyncOptions": {
         "placeholder": "選擇自動同步時間",
@@ -604,7 +630,8 @@
         "chat": "對話",
         "image": "生圖",
         "video": "影片",
-        "audio": "語音",
+        "tts": "文本轉語音",
+        "stt": "語音轉文本",
         "embedding": "嵌入",
         "rerank": "重排序"
       },
@@ -760,6 +787,7 @@
         "image": "插圖",
         "screenshot": "截圖",
         "text": "文本",
+        "recording": "錄音",
         "file": "文件",
         "link": "連結",
         "upload": "上傳記錄",
@@ -958,7 +986,13 @@
         "selectedCount": "已選擇 {count} 項",
         "moveSelectedTags": "轉移選中的 {count} 項",
         "deleteSelected": "刪除選中的 {count} 項",
-        "deleteSelectedForever": "徹底刪除選中的 {count} 項"
+        "deleteSelectedForever": "徹底刪除選中的 {count} 項",
+        "text": "記錄文本",
+        "recording": "錄音記錄",
+        "scan": "掃描圖片",
+        "image": "上傳圖片",
+        "link": "記錄連結",
+        "file": "上傳文件"
       }
     },
     "chat": {
@@ -1010,6 +1044,9 @@
         "tagLink": {
           "on": "已關聯標籤",
           "off": "未關聯標籤"
+        },
+        "mcp": {
+          "tooltip": "MCP 伺服器"
         },
         "modelSelect": {
           "tooltip": "選擇 AI 模型",
@@ -1343,5 +1380,30 @@
     "tools": "個工具",
     "connecting": "連線中",
     "disconnected": "未連接"
+  },
+  "recording": {
+    "title": "錄音識別",
+    "description": "點擊麥克風按鈕開始錄音，系統將自動識別並轉換為文字記錄",
+    "recording": "錄音中",
+    "paused": "已暫停",
+    "ready": "準備就緒",
+    "processing": "識別中...",
+    "cancel": "取消",
+    "error": "錯誤",
+    "success": "成功",
+    "noModelConfigured": "未配置語音識別模型，請先在設置中配置",
+    "startError": "無法啟動錄音",
+    "noAudioData": "未錄製到音訊數據",
+    "transcriptionSuccess": "語音識別完成",
+    "transcriptionEmpty": "識別結果為空",
+    "transcriptionError": "語音識別失敗",
+    "noContentDetected": "未識別到內容",
+    "doubleClickToSelectFile": "雙擊選擇音訊檔案",
+    "mode": {
+      "builtin": "瀏覽器識別",
+      "builtinDesc": "免費，即時識別",
+      "model": "大模型識別",
+      "modelDesc": "需配置STT模型，更準確"
+    }
   }
 }

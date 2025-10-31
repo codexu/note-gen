@@ -20,7 +20,7 @@
     "language": "Idioma",
     "confirm": "Confirmar",
     "selectPrompt": "Selecionar Prompt",
-    "prompt": "Prompt",
+    "prompt": "Instrução",
     "success": "Sucesso",
     "error": "Falha",
     "defaultFileName": "Sem Título"
@@ -72,6 +72,13 @@
           "desc": "Personalize a ordem de exibição e a visibilidade dos botões da barra de ferramentas do chat para uma experiência de chat personalizada",
           "button": "Configurar",
           "dialogTitle": "Configurar Barra de Ferramentas do Chat",
+          "dialogDesc": "Arraste as ferramentas para ajustar a ordem, use as chaves para mostrar ou ocultar"
+        },
+        "recordToolbar": {
+          "title": "Barra de Ferramentas de Registro",
+          "desc": "Personalize a ordem de exibição e a visibilidade dos botões da barra de ferramentas de registro",
+          "button": "Configurar",
+          "dialogTitle": "Configurar Barra de Ferramentas de Registro",
           "dialogDesc": "Arraste as ferramentas para ajustar a ordem, use as chaves para mostrar ou ocultar"
         }
       }
@@ -155,7 +162,7 @@
       "title": "Editor Markdown",
       "desc": "Aqui, você pode personalizar o editor Markdown, criando uma experiência de escrita adaptada às suas necessidades.",
       "typewriterMode": "Modo Máquina de Escrever",
-      "typewriterModeDesc": "No modo máquina de escrever, o editor simulará um efeito de máquina de escrever, ajudando você a mergulhar melhor na escrita.",
+      "typewriterModeDesc": "No modo máquina de escrever, o editor simula o efeito de uma máquina de escrever, permitindo que você se concentre melhor na escrita.",
       "outlineEnable": "Sumário habilitado por padrão",
       "outlineEnableDesc": "Habilitar esta opção tornará o sumário visível por padrão.",
       "outlinePosition": "Posição do Sumário",
@@ -174,12 +181,12 @@
       "enableLineNumberDesc": "Habilitar esta opção tornará o número da linha visível nos blocos de código."
     },
     "uploadStore": {
-      "uploadConfirm": "Configuração de upload: por favor, garanta que o repositório de sincronização é privado, caso contrário os dados vazarão!",
-      "downloadConfirm": "Baixar configuração irá sobrescrever a configuração local e reiniciar para ter efeito!",
+      "uploadConfirm": "Configuração de Carregamento: Por favor, certifique-se de que o repositório de sincronização é privado, caso contrário, seus dados serão expostos!",
+      "downloadConfirm": "Baixar a configuração irá sobrescrever a configuração local e exigirá um reinício para ter efeito!",
       "uploadSuccess": "Upload bem-sucedido",
       "downloadSuccess": "Download bem-sucedido",
-      "upload": "Upload",
-      "download": "Download"
+      "upload": "Carregar",
+      "download": "Baixar"
     },
     "about": {
       "title": "Sobre",
@@ -216,7 +223,7 @@
         },
         "issues": {
           "title": "Feedback de Problemas",
-          "buttonName": "Feedback",
+          "buttonName": "Comentários",
           "desc": "Se você encontrar um bug no NoteGen, por favor, reporte aqui."
         },
         "discussions": {
@@ -260,18 +267,33 @@
         }
       }
     },
-    "readAloud": {
-      "title": "Ler em Voz Alta",
-      "desc": "Aqui, você pode configurar definições relacionadas à leitura em voz alta para fornecer funcionalidade de reprodução de voz para o conteúdo do chat.",
-      "noModel": "Não usar",
-      "options": {
-        "audioModel": {
-          "title": "Modelo de Áudio",
+    "audio": {
+      "title": "Configurações de Áudio",
+      "desc": "Aqui, você pode configurar as definições de áudio, incluindo as funções de conversão de texto em fala (TTS) e fala em texto (STT).",
+      "tts": {
+        "title": "Texto para Fala (TTS)",
+        "desc": "Configure a funcionalidade de leitura em voz alta para fornecer reprodução de voz para o conteúdo do chat.",
+        "model": {
+          "title": "Modelo TTS",
           "desc": "Selecione o modelo de IA para conversão de texto em fala, suportando vários tipos de voz e configurações de parâmetros."
         },
         "speed": {
           "title": "Velocidade da Fala",
-          "desc": "Ajuste a velocidade de reprodução da voz, variando de 0.25x a 4x, sendo 1x a velocidade normal."
+          "desc": "Ajuste a velocidade de reprodução da voz, variando de 0.5x a 2x, sendo 1x a velocidade normal."
+        }
+      },
+      "stt": {
+        "title": "Fala para Texto (STT)",
+        "desc": "Configure o reconhecimento de voz para converter fala em registros de texto.",
+        "mode": {
+          "title": "Modo de Reconhecimento",
+          "desc": "Escolha entre o reconhecimento embutido do navegador ou o reconhecimento por modelo de IA",
+          "builtin": "Embutido",
+          "model": "Modelo de IA"
+        },
+        "model": {
+          "title": "Modelo STT",
+          "desc": "Selecione o modelo de IA para reconhecimento de fala, suportando conversão de voz em texto em tempo real."
         }
       }
     },
@@ -334,6 +356,15 @@
         "selfHostedDesc": "Insira o endereço do seu servidor GitLab auto-hospedado (ex: https://gitlab.example.com)"
       },
       "gitlabAccessTokenDesc": "Crie um token de acesso pessoal em {instanceDisplayName}, requer permissão 'api'",
+      "giteaInstanceType": "Tipo de Instância Gitea",
+      "giteaInstanceTypeDesc": "Selecione o tipo de instância Gitea para conectar",
+      "giteaInstanceTypePlaceholder": "Selecione o Tipo de Instância Gitea",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "Instância Auto-hospedada",
+        "selfHostedDesc": "Insira o endereço do seu servidor Gitea auto-hospedado (ex: https://gitea.example.com)"
+      },
+      "giteaAccessTokenDesc": "Crie um token de acesso pessoal em {instanceDisplayName}, requer permissão total de repositório",
+      "autoSync": "Sincronização Automática",
       "autoSyncOptions": {
         "placeholder": "Selecione o tempo de sincronização automática",
         "disabled": "Desabilitado",
@@ -530,12 +561,12 @@
       }
     },
     "template": {
-      "title": "Template",
+      "title": "Modelo",
       "desc": "Aqui você pode criar e gerenciar templates de organização personalizados para ajudar a IA a organizar o conteúdo dos registros de acordo com suas necessidades.",
       "customTemplate": "Template Personalizado",
       "addTemplate": "Adicionar Template Personalizado",
       "deleteConfirm": "Tem certeza de que deseja excluir este template?",
-      "status": "Status",
+      "status": "Estado",
       "name": "Nome",
       "content": "Conteúdo",
       "scope": "Escopo",
@@ -614,10 +645,11 @@
       "modelType": {
         "title": "Tipo de Modelo",
         "desc": "Selecione o tipo de modelo de IA com base em sua capacidade",
-        "chat": "Chat",
+        "chat": "Bate-papo",
         "image": "Imagem",
         "video": "Vídeo",
-        "audio": "Áudio",
+        "tts": "Texto para Fala (TTS)",
+        "stt": "Fala para Texto (STT)",
         "embedding": "Embedding",
         "rerank": "Reordenação"
       },
@@ -631,7 +663,7 @@
       "modelProviderDesc": "Modelos personalizados suportam apenas modelos de IA com protocolo OpenAI.",
       "modelTitleDesc": "Nome personalizado, usado para identificar modelos de IA, por favor, não repita.",
       "modelBaseUrlDesc": "Você só precisa configurar o número da versão, por exemplo: https://api.openai.com/v1, o sufixo será adicionado automaticamente.",
-      "modelDesc": "Alguns modelos suportam a obtenção da lista de modelos, se não for suportado, por favor, configure manually.",
+      "modelDesc": "Alguns modelos suportam a obtenção da lista de modelos, se não for suportado, por favor, configure manualmente.",
       "temperatureDesc": "Controla a aleatoriedade da saída. Valores mais baixos tornam o conteúdo gerado mais determinístico.",
       "topPDesc": "Um método de amostragem nucleus, onde o modelo considera os resultados dos tokens com massa de probabilidade top_p. Então, 0.1 significa considerar apenas os 10% superiores da massa de probabilidade. Geralmente, sugerimos alterar este ou a temperatura, mas não ambos.",
       "customHeaders": "Cabeçalhos Personalizados",
@@ -754,8 +786,9 @@
         "image": "Imagem",
         "screenshot": "Captura de Tela",
         "text": "Texto",
+        "recording": "Gravação",
         "file": "Arquivo",
-        "link": "Link",
+        "link": "Vínculo",
         "upload": "Upload de Registro",
         "download": "Download de Registro"
       },
@@ -850,20 +883,12 @@
             "error": "Falha"
           },
           "empty": {
-            "features": [
-              {
-                "chat": "Converse com o bot de IA"
-              },
-              {
-                "linked": "Vinculado aos seus registros ou notas"
-              },
-              {
-                "clipboard": "Reconhecer registros ou imagens da área de transferência"
-              },
-              {
-                "organize": "Organize seus registros em notas"
-              }
-            ]
+            "features": {
+              "linked": "Vinculado aos seus registros ou notas",
+              "chat": "Converse com o bot de IA",
+              "organize": "Organize seus registros em notas",
+              "clipboard": "Reconhecer registros ou imagens da área de transferência"
+            }
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"
@@ -877,7 +902,14 @@
             "rootDirectory": "Diretório raiz",
             "deleteTag": "Excluir tag atual, registros e notas (pode ser restaurado da lixeira)",
             "warning": "Após a conversão, você será redirecionado para a página de escrita.",
-            "convert_button": "Converter"
+            "convert_button": "Converter",
+            "organizeAs": "Organize seus registros em um artigo:",
+            "templateContent": "Conteúdo do template",
+            "recordRange": "Intervalo de registros",
+            "filterThinkingContent": "Remover conteúdo de 'pensamento' dos registros",
+            "startOrganize": "Começar a organizar",
+            "manageTemplate": "Gerenciar template",
+            "cancel": "Cancelar"
           },
           "mark": {
             "recorded": "Gravado",
@@ -949,25 +981,23 @@
         "selectedCount": "{count} itens selecionados",
         "moveSelectedTags": "Mover {count} itens selecionados",
         "deleteSelected": "Excluir {count} itens selecionados",
-        "deleteSelectedForever": "Excluir {count} itens selecionados permanentemente"
+        "deleteSelectedForever": "Excluir {count} itens selecionados permanentemente",
+        "text": "Gravar Texto",
+        "recording": "Gravação de Áudio",
+        "scan": "Digitalizar Imagem",
+        "image": "Carregar Imagem",
+        "link": "Gravar Link",
+        "file": "Carregar Arquivo"
       }
     },
     "chat": {
       "empty": {
-        "features": [
-          {
-            "chat": "Converse com o bot de IA"
-          },
-          {
-            "linked": "Vinculado aos seus registros ou notas"
-          },
-          {
-            "clipboard": "Reconhecer registros ou imagens da área de transferência"
-          },
-          {
-            "organize": "Organize seus registros em notas"
-          }
-        ]
+        "features": {
+          "linked": "Vinculado aos seus registros ou notas",
+          "chat": "Converse com o bot de IA",
+          "organize": "Organize seus registros em notas",
+          "clipboard": "Reconhecer registros ou imagens da área de transferência"
+        }
       },
       "newChat": "Novo Chat com Nova Tag",
       "removeChat": "Remover Chat com Tag Atual",
@@ -1003,7 +1033,7 @@
       },
       "input": {
         "organize": "Organizar",
-        "chat": "Chat",
+        "chat": "Bate-papo",
         "placeholder": {
           "default": "Digite uma mensagem...",
           "noApiKey": "Nenhuma Chave de API configurada, não é possível usar o chat de IA...",
@@ -1040,6 +1070,9 @@
         "clearChat": "Limpar Chat",
         "clearContext": {
           "tooltip": "Limpar contexto"
+        },
+        "mcp": {
+          "tooltip": "Servidor MCP"
         },
         "chatLanguage": {
           "tooltip": "Selecionar idioma do chat",
@@ -1139,12 +1172,12 @@
     }
   },
   "navigation": {
-    "chat": "Chat",
+    "chat": "Bate-papo",
     "record": "Registrar",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
-    "login": "Login",
+    "login": "Entrar",
     "loading": "Carregando",
     "view": "Ver",
     "logout": "Sair",
@@ -1367,6 +1400,113 @@
     "tools": "ferramentas",
     "connecting": "Conectando",
     "disconnected": "Desconectado"
+  },
+  "recording": {
+    "title": "Gravação de Voz",
+    "description": "Clique no botão do microfone para iniciar a gravação, o sistema reconhecerá automaticamente e converterá para texto",
+    "recording": "Gravando",
+    "paused": "Pausado",
+    "ready": "Pronto",
+    "processing": "Processando...",
+    "cancel": "Cancelar",
+    "error": "Erro",
+    "success": "Sucesso",
+    "noModelConfigured": "Modelo de reconhecimento de fala não configurado, configure nas configurações primeiro",
+    "startError": "Não é possível iniciar a gravação",
+    "noAudioData": "Nenhum dado de áudio gravado",
+    "transcriptionSuccess": "Reconhecimento de fala concluído",
+    "transcriptionEmpty": "Resultado do reconhecimento está vazio",
+    "transcriptionError": "Falha no reconhecimento de fala",
+    "noContentDetected": "Nenhum conteúdo detectado",
+    "doubleClickToSelectFile": "Clique duas vezes para selecionar o arquivo de áudio",
+    "mode": {
+      "builtin": "Reconhecimento do Navegador",
+      "builtinDesc": "Gratuito, reconhecimento em tempo real",
+      "model": "Reconhecimento por Modelo de IA",
+      "modelDesc": "Requer modelo STT, mais preciso"
+    }
+  },
+  "editor": {
+    "copySuccess": "Cópia Bem-sucedida",
+    "copySuccessDescription": "Copiado para a área de transferência",
+    "floatbar": {
+      "readAloud": {
+        "start": "Ler em Voz Alta",
+        "stop": "Parar Leitura",
+        "loading": "Carregando..."
+      }
+    },
+    "toolbar": {
+      "mark": {
+        "title": "Registros",
+        "tooltip": "Registros",
+        "description": "Converta registros em conteúdo para inserir no artigo.",
+        "noRecords": "Nenhum registro",
+        "ocrNoContent": "OCR não reconheceu nenhum conteúdo"
+      },
+      "question": {
+        "tooltip": "Perguntas e Respostas",
+        "selectContent": "Por favor, selecione o conteúdo primeiro",
+        "promptTemplate": "Texto de referência: \n{content}\nCom base na pergunta: \n{question}\n, forneça diretamente o conteúdo da resposta."
+      },
+      "continue": {
+        "tooltip": "Continuar",
+        "promptTemplate": "Com base no texto anterior: \n{content}\n continue escrevendo e retorne um conteúdo que não exceda 100 palavras.\nVocê pode referenciar o seguinte texto: \n{endContent}\n, mas evite duplicar seu conteúdo."
+      },
+      "polish": {
+        "tooltip": "Polir",
+        "selectContent": "Por favor, selecione o conteúdo primeiro",
+        "promptTemplate": "Polir este texto: \n{content}\n, mantenha o idioma inalterado, corrija erros de digitação e gramaticais, retorne diretamente o resultado polido."
+      },
+      "eraser": {
+        "tooltip": "Simplificar",
+        "selectContent": "Por favor, selecione o conteúdo primeiro",
+        "promptTemplate": "Simplificar este texto: \n{content}\n, este texto está muito verboso, reduza a contagem de palavras pela metade, mantenha o idioma inalterado, retorne diretamente o resultado otimizado."
+      },
+      "expansion": {
+        "tooltip": "Expandir",
+        "selectContent": "Por favor, selecione o conteúdo primeiro",
+        "promptTemplate": "Expandir este texto: \n{content}\n, este texto está muito curto, aumente a contagem de palavras pela metade, mantenha o idioma inalterado, retorne diretamente o resultado expandido."
+      },
+      "translation": {
+        "tooltip": "Traduzir",
+        "description": "Traduzir o texto selecionado",
+        "selectContent": "Por favor, selecione o conteúdo primeiro",
+        "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido."
+      }
+    },
+    "upload": {
+      "error": "Falha no upload",
+      "needToken": "O upload de imagens precisa configurar o accessToken",
+      "uploading": "Enviando imagem"
+    }
+  },
+  "footer": {
+    "wordCount": "Palavras",
+    "sync": {
+      "sync": "Sincronizar",
+      "synced": "Sincronizado",
+      "syncing": "Sincronizando",
+      "syncFailed": "Falha na Sincronização",
+      "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
+      "quickSync": "Sincronização Rápida"
+    },
+    "history": {
+      "loadingHistory": "Carregando histórico",
+      "historyRecords": "Registros do Histórico",
+      "noHistory": "Nenhum Histórico",
+      "loading": "Carregando",
+      "recordsCount": "registros",
+      "filterQuickSync": "Filtrar Sincronizações Rápidas",
+      "committedAt": "enviado em",
+      "pull": "Pull",
+      "quickSync": "Sincronização Rápida"
+    },
+    "vectorCalc": {
+      "tooltip": "Cálculo Vetorial: Cálculo automático 30s após a edição, ou clique para calcular agora",
+      "calculating": "Calculando",
+      "pending": "Pendente {progress}%",
+      "synced": "Sincronizado"
+    }
   }
 }
-

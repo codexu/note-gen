@@ -23,7 +23,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
   const [countdown, setCountdown] = useState(5) // 5 seconds countdown
   const [isCountingDown, setIsCountingDown] = useState(!chat.inserted) // Start countdown if not recorded
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { primaryModel, primaryImageMethod } = useSettingStore()
+  const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
   const { updateInsert, deleteChat } = useChatStore()
   const t = useTranslations('record.queue')
@@ -72,11 +72,17 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     }
     if (!chat.image) return
     const fromPath = chat.image.slice(1)
-    const toPath = fromPath.replace('clipboard', 'image')
+    const toPath = `image/${queueId}.png`
     await copyFile(fromPath, toPath, { fromPathBaseDir: BaseDirectory.AppData, toPathBaseDir: BaseDirectory.AppData})
     let content = ''
     let desc = ''
-    if (primaryImageMethod === 'vlm') {
+    
+    // Skip image recognition if disabled
+    if (!enableImageRecognition) {
+      setQueue(queueId, { progress: t('save') });
+      content = ''
+      desc = ''
+    } else if (primaryImageMethod === 'vlm') {
       // 使用 VLM 识别图片
       setQueue(queueId, { progress: t('ai') });
       const file = await readFile(toPath, { baseDir: BaseDirectory.AppData })
@@ -103,7 +109,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     }
     setQueue(queueId, { progress: t('upload') });
     const fileData = await readFile(toPath, { baseDir: BaseDirectory.AppData  })
-    const blob = new Blob([fileData], { type: 'image/png' })
+    const blob = new Blob([new Uint8Array(fileData)], { type: 'image/png' })
     const file = new File([blob], `${queueId}.png`, { type: 'image/png' })
     // 上传图片
     const url = await uploadImage(file)

@@ -23,6 +23,7 @@ import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
 import { MarkItem } from './mark-item'
 import { MarkLoading } from './mark-loading'
+import { ImageGallery } from './image-gallery'
 import emitter from '@/lib/emitter'
 import { EmitterRecordEvents } from '@/config/emitters'
 import {
@@ -289,29 +290,44 @@ export function TagManage() {
                     </ContextMenuContent>
                   </ContextMenu>
                   <AccordionContent className="px-0 pb-0">
+
                     {/* 显示当前标签的队列（正在处理中的记录） */}
                     {queues.filter(queue => queue.tagId === tag.id).map((queue) => (
                       <MarkLoading key={queue.queueId} mark={queue} />
                     ))}
+
+                    {/* 图片画廊 - 显示当前标签下所有无内容的图片 */}
+                    <ImageGallery marks={getTagMarks(tag.id)} />
                     
-                    {/* 显示已完成的记录 */}
-                    {getTagMarks(tag.id).length === 0 && queues.filter(queue => queue.tagId === tag.id).length === 0 ? (
-                      <Empty className="border-0 py-8">
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <Inbox />
-                          </EmptyMedia>
-                          <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
-                          <EmptyDescription className="text-xs">
-                            {t('record.mark.mark.emptyHint')}
-                          </EmptyDescription>
-                        </EmptyHeader>
-                      </Empty>
-                    ) : (
-                      getTagMarks(tag.id).map((mark) => (
-                        <MarkItem key={mark.id} mark={mark} />
-                      ))
-                    )}
+                    {/* 显示已完成的记录 - 过滤掉没有内容的图片记录 */}
+                    {(() => {
+                      const filteredMarks = getTagMarks(tag.id).filter(mark => {
+                        // 如果是图片类型（scan 或 image），只显示有内容或描述的
+                        if (mark.type === 'image' || mark.type === 'scan') {
+                          return mark.content && mark.content.trim() !== ''
+                        }
+                        // 其他类型的记录正常显示
+                        return true
+                      })
+                      
+                      return filteredMarks.length === 0 && queues.filter(queue => queue.tagId === tag.id).length === 0 ? (
+                        <Empty className="border-0 py-8">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <Inbox />
+                            </EmptyMedia>
+                            <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
+                            <EmptyDescription className="text-xs">
+                              {t('record.mark.mark.emptyHint')}
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
+                      ) : (
+                        filteredMarks.map((mark) => (
+                          <MarkItem key={mark.id} mark={mark} />
+                        ))
+                      )
+                    })()}
                   </AccordionContent>
                 </AccordionItem>
               </SortableTagItem>

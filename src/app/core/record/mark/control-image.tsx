@@ -15,7 +15,7 @@ import { uploadImage } from "@/lib/imageHosting"
 export function ControlImage() {
   const t = useTranslations();
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { primaryModel, primaryImageMethod } = useSettingStore()
+  const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
 
   async function selectImages() {
@@ -46,7 +46,13 @@ export function ControlImage() {
     const filename = `${queueId}.${ext}`
     let content = ''
     let desc = ''
-    if (primaryImageMethod === 'vlm') {
+    
+    // Skip image recognition if disabled
+    if (!enableImageRecognition) {
+      setQueue(queueId, { progress: t('record.mark.progress.save') });
+      content = ''
+      desc = ''
+    } else if (primaryImageMethod === 'vlm') {
       // 使用 VLM 识别图片
       setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
       const base64 = `data:image/${ext};base64,${Buffer.from(fileData).toString('base64')}`
@@ -73,7 +79,7 @@ export function ControlImage() {
     }
     
     // 尝试上传图片到图床（如果配置了图床）
-    const file = new File([new Blob([fileData])], filename, { type: `image/${ext}` })
+    const file = new File([new Uint8Array(fileData)], filename, { type: `image/${ext}` })
     const url = await uploadImage(file)
     if (url) {
       setQueue(queueId, { progress: t('record.mark.progress.uploadImage') });

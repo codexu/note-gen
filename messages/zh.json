@@ -691,6 +691,10 @@
     "imageMethod": {
       "title": "图像识别",
       "desc": "在这里，你可以配置图像识别相关设置，支持 OCR 和 VLM 两种方式。",
+      "enable": {
+        "title": "启用图像识别",
+        "desc": "开启后，在截图记录和插图记录时会自动进行图片识别。关闭后将跳过图片识别步骤。"
+      },
       "setPrimary": "设置为默认",
       "isPrimary": "{type} 已设置为默认",
       "ocr": {
@@ -774,6 +778,7 @@
       "ai": "AI 内容识别",
       "upload": "上传至图床",
       "jsdelivr": "通知 jsdelivr 缓存",
+      "save": "保存",
       "recording": "记录中...",
       "recorded": "已记录",
       "record": "记录",
@@ -818,6 +823,10 @@
         "textAnalysis": "文本分析",
         "save": "保存",
         "saveImage": "保存图片"
+      },
+      "imageGallery": {
+        "expand": "展开",
+        "collapse": "收起"
       },
       "text": {
         "title": "记录文本",

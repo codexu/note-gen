@@ -478,6 +478,10 @@
     "imageMethod": {
       "title": "Image Recognition",
       "desc": "Here, you can configure image recognition related settings, supporting OCR and VLM two ways.",
+      "enable": {
+        "title": "Enable Image Recognition",
+        "desc": "When enabled, images will be automatically recognized during screenshot and image recording. When disabled, image recognition will be skipped."
+      },
       "setPrimary": "Set as default",
       "isPrimary": "{type} has been set as default",
       "ocr": {
@@ -772,6 +776,7 @@
       "ai": "AI content recognition",
       "upload": "Upload to image host",
       "jsdelivr": "Notify jsdelivr cache",
+      "save": "Save",
       "recording": "Recording...",
       "recorded": "Recorded",
       "record": "Record",
@@ -809,6 +814,10 @@
         "saveImage": "Saving image",
         "newToken": "Create access token",
         "newTokenDesc": "New token must be configured with repo permission, configuration will automatically create file repository (private) and image repository."
+      },
+      "imageGallery": {
+        "expand": "Expand",
+        "collapse": "Collapse"
       },
       "text": {
         "title": "Record Text",
@@ -1518,9 +1527,8 @@
       "pending": "Pending {progress}%",
       "synced": "Synced"
     }
-  }
-},
-"mcp": {
+  },
+  "mcp": {
   "selectServers": "MCP Servers",
   "searchServers": "Search servers...",
   "noServers": "MCP service not enabled",

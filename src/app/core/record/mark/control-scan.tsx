@@ -40,7 +40,7 @@ export function ControlScan() {
   const cropperRef = useRef<Cropper | null>(null);
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
-  const { primaryModel, primaryImageMethod } = useSettingStore()
+  const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
 
   function initCropper() {
     if (cropperRef.current) {
@@ -97,7 +97,13 @@ export function ControlScan() {
       })
       let content = ''
       let desc = ''
-      if (primaryImageMethod === 'vlm') {
+      
+      // Skip image recognition if disabled
+      if (!enableImageRecognition) {
+        addQueue({ queueId, tagId: currentTagId!, progress: t('record.mark.progress.save'), type: 'scan', startTime: Date.now() })
+        content = ''
+        desc = ''
+      } else if (primaryImageMethod === 'vlm') {
         addQueue({ queueId, tagId: currentTagId!, progress: t('record.mark.progress.aiAnalysis'), type: 'scan', startTime: Date.now() })
         const base64 = `data:image/png;base64,${Buffer.from(uint8Array).toString('base64')}`
         content = await fetchAiDescByImage(base64) || 'VLM Error'

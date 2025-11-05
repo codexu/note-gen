@@ -435,6 +435,10 @@
     "imageMethod": {
       "title": "画像認識",
       "desc": "ここでは、画像認識に関する設定を配置できます。OCR と VLM の二つの方法をサポートします。",
+      "enable": {
+        "title": "画像認識を有効にする",
+        "desc": "有効にすると、スクリーンショット記録と画像記録時に自動的に画像認識が行われます。無効にすると、画像認識がスキップされます。"
+      },
       "setPrimary": "設定をデフォルト",
       "isPrimary": "{type} がデフォルト設定",
       "ocr": {
@@ -728,6 +732,7 @@
       "ai": "AI 認識",
       "upload": "画像ホストへアップロード",
       "jsdelivr": "jsdelivrキャッシュ通知",
+      "save": "保存",
       "recording": "記録中...",
       "recorded": "記録済み",
       "record": "記録",
@@ -762,6 +767,10 @@
         "textAnalysis": "テキスト分析",
         "save": "保存",
         "saveImage": "画像を保存"
+      },
+      "imageGallery": {
+        "expand": "展開",
+        "collapse": "折りたたむ"
       },
       "text": {
         "title": "記録テキスト",

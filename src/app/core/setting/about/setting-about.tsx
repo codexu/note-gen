@@ -19,7 +19,7 @@ export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
       buttonName: t('items.home.buttonName')
     },
     {
-      url: "https://notegen.top/en/settings/sync.html",
+      url: "https://notegen.top/en/docs/settings/sync",
       title: t('items.guide.title'),
       desc: t('items.guide.desc'),
       icon: <SettingsIcon className="size-4" />,
@@ -58,7 +58,7 @@ export function SettingAbout({id, icon}: {id: string, icon?: React.ReactNode}) {
   return (
     <SettingType id={id} icon={icon} title={t('title')} desc={t('desc')}>
       <Updater />
-      <ItemGroup className="gap-4">
+      <ItemGroup className="gap-4 pt-8">
         {
           items.map(item => <AboutItem key={item.url} {...item} />)
         }

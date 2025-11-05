@@ -180,6 +180,8 @@ interface SettingState {
   setGithubCustomImageRepo: (repo: string) => Promise<void>
 
   // 图片识别设置
+  enableImageRecognition: boolean
+  setEnableImageRecognition: (enable: boolean) => Promise<void>
   primaryImageMethod: 'ocr' | 'vlm'
   setPrimaryImageMethod: (method: 'ocr' | 'vlm') => Promise<void>
 
@@ -762,6 +764,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
   },
 
   // 图片识别设置
+  enableImageRecognition: true,
+  setEnableImageRecognition: async (enable: boolean) => {
+    set({ enableImageRecognition: enable })
+    const store = await Store.load('store.json');
+    await store.set('enableImageRecognition', enable)
+    await store.save()
+  },
   primaryImageMethod: 'ocr',
   setPrimaryImageMethod: async (method: 'ocr' | 'vlm') => {
     set({ primaryImageMethod: method })

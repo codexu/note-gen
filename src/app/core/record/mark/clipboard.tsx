@@ -24,7 +24,7 @@ export function Clipboard() {
   const [image, setImage] = useState('')
   const [fileSize, setFileSize] = useState('')
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { primaryModel, githubUsername, primaryImageMethod } = useSettingStore()
+  const { primaryModel, githubUsername, primaryImageMethod, enableImageRecognition } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
 
   async function readHandler() {
@@ -66,7 +66,13 @@ export function Clipboard() {
     await copyFile('clipboard.png', `image/${queueId}.png`, { fromPathBaseDir: BaseDirectory.AppData, toPathBaseDir: BaseDirectory.AppData})
     let content = ''
     let desc = ''
-    if (primaryImageMethod === 'vlm') {
+    
+    // Skip image recognition if disabled
+    if (!enableImageRecognition) {
+      setQueue(queueId, { progress: t('record.mark.progress.save') });
+      content = ''
+      desc = ''
+    } else if (primaryImageMethod === 'vlm') {
       // 使用 VLM 识别图片
       setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
       const file = await readFile(`image/${queueId}.png`, { baseDir: BaseDirectory.AppData })

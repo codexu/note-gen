@@ -25,13 +25,13 @@ fn should_skip_file(path: &Path) -> bool {
             }
         }
     }
-    
+
     // Skip SQLite temporary files
     let path_str = path.to_string_lossy();
     if path_str.ends_with(SQLITE_SHM_SUFFIX) || path_str.ends_with(SQLITE_WAL_SUFFIX) {
         return true;
     }
-    
+
     false
 }
 
@@ -43,7 +43,7 @@ fn is_store_json(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Compress a directory to a zip file
+/// Add directory contents to an existing zip archive
 fn add_directory_to_zip<W: Write + std::io::Seek>(
     zip: &mut ZipWriter<W>,
     source_dir: &std::path::Path,
@@ -112,6 +112,19 @@ fn extract_zip_to_dir(
                 File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
             std::io::copy(&mut file, &mut outfile)
                 .map_err(|e| format!("Failed to extract file: {}", e))?;
+
+            // Preserve file permissions if available (Unix-like systems)
+            #[cfg(unix)]
+            {
+                use std::fs::Permissions;
+                use std::os::unix::fs::PermissionsExt;
+
+                if let Some(mode) = file.unix_perms() {
+                    let perms = Permissions::from_mode(mode);
+                    fs::set_permissions(&outpath, perms)
+                        .map_err(|e| format!("Failed to set file permissions: {}", e))?;
+                }
+            }
         }
     }
 
@@ -237,13 +250,17 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
                         .map_err(|e| format!("Failed to create parent directory: {}", e))?;
                 }
             }
-            let rel_path_display = rel_path.to_string_lossy();
-            fs::copy(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy file {}: {}", rel_path_display, e))?;
+            fs::copy(&src_path, &dest_path).map_err(|e| {
+                format!("Failed to copy file {}: {}", rel_path.to_string_lossy(), e)
+            })?;
         } else if src_path.is_dir() {
-            let rel_path_display = rel_path.to_string_lossy();
-            fs::create_dir_all(&dest_path)
-                .map_err(|e| format!("Failed to create directory {}: {}", rel_path_display, e))?;
+            fs::create_dir_all(&dest_path).map_err(|e| {
+                format!(
+                    "Failed to create directory {}: {}",
+                    rel_path.to_string_lossy(),
+                    e
+                )
+            })?;
         }
     }
 

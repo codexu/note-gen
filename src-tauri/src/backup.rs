@@ -17,14 +17,21 @@ const SQLITE_WAL_SUFFIX: &str = "-wal";
 
 /// Check if a file should be skipped during backup/restore
 fn should_skip_file(path: &Path) -> bool {
-    if let Some(file_name) = path.file_name() {
-        if let Some(file_str) = file_name.to_str() {
-            // Skip temp_import directory and SQLite temporary files
-            return file_str == TEMP_IMPORT_DIR
-                || path.to_string_lossy().ends_with(SQLITE_SHM_SUFFIX)
-                || path.to_string_lossy().ends_with(SQLITE_WAL_SUFFIX);
+    // Check if any component of the path is TEMP_IMPORT_DIR
+    for component in path.iter() {
+        if let Some(s) = component.to_str() {
+            if s == TEMP_IMPORT_DIR {
+                return true;
+            }
         }
     }
+    
+    // Skip SQLite temporary files
+    let path_str = path.to_string_lossy();
+    if path_str.ends_with(SQLITE_SHM_SUFFIX) || path_str.ends_with(SQLITE_WAL_SUFFIX) {
+        return true;
+    }
+    
     false
 }
 
@@ -274,27 +281,7 @@ mod tests {
         // Test compression
         let file = File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-
-        for entry in WalkDir::new(&source_dir).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            let name = path.strip_prefix(&source_dir).unwrap();
-
-            if name.as_os_str().is_empty() {
-                continue;
-            }
-
-            let name_str = name.to_string_lossy().replace("\\", "/");
-
-            if path.is_file() {
-                zip.start_file(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-                let mut f = File::open(path).unwrap();
-                std::io::copy(&mut f, &mut zip).unwrap();
-            } else if path.is_dir() {
-                zip.add_directory(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-            }
-        }
+        add_directory_to_zip(&mut zip, &source_dir).unwrap();
         zip.finish().unwrap();
 
         // Verify zip file was created
@@ -304,26 +291,7 @@ mod tests {
         fs::create_dir_all(&extract_dir).unwrap();
         let file = File::open(&zip_path).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
-            let outpath = match file.enclosed_name() {
-                Some(path) => extract_dir.join(path),
-                None => continue,
-            };
-
-            if file.name().ends_with('/') {
-                fs::create_dir_all(&outpath).unwrap();
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p).unwrap();
-                    }
-                }
-                let mut outfile = File::create(&outpath).unwrap();
-                std::io::copy(&mut file, &mut outfile).unwrap();
-            }
-        }
+        extract_zip_to_dir(&mut archive, &extract_dir).unwrap();
 
         // Verify decompressed files
         assert!(extract_dir.join("test.txt").exists());
@@ -373,26 +341,7 @@ mod tests {
         fs::create_dir_all(&extract_crate).unwrap();
         let file = File::open(&zip_by_command).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
-            let outpath = match file.enclosed_name() {
-                Some(path) => extract_crate.join(path),
-                None => continue,
-            };
-
-            if file.name().ends_with('/') {
-                fs::create_dir_all(&outpath).unwrap();
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p).unwrap();
-                    }
-                }
-                let mut outfile = File::create(&outpath).unwrap();
-                std::io::copy(&mut file, &mut outfile).unwrap();
-            }
-        }
+        extract_zip_to_dir(&mut archive, &extract_crate).unwrap();
 
         // Verify decompression result
         assert!(
@@ -411,27 +360,7 @@ mod tests {
         // Use crate to compress
         let file = File::create(&zip_by_crate).unwrap();
         let mut zip = ZipWriter::new(file);
-
-        for entry in WalkDir::new(&source_dir).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            let name = path.strip_prefix(&source_dir).unwrap();
-
-            if name.as_os_str().is_empty() {
-                continue;
-            }
-
-            let name_str = name.to_string_lossy().replace("\\", "/");
-
-            if path.is_file() {
-                zip.start_file(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-                let mut f = File::open(path).unwrap();
-                std::io::copy(&mut f, &mut zip).unwrap();
-            } else if path.is_dir() {
-                zip.add_directory(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-            }
-        }
+        add_directory_to_zip(&mut zip, &source_dir).unwrap();
         zip.finish().unwrap();
 
         assert!(zip_by_crate.exists(), "Zip file was not created by crate");
@@ -507,37 +436,7 @@ mod tests {
         // Compress
         let file = File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-
-        for entry in WalkDir::new(&app_data_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            let path = entry.path();
-            let name = path.strip_prefix(&app_data_dir).unwrap();
-
-            if name.as_os_str().is_empty() {
-                continue;
-            }
-
-            let name_str = name.to_string_lossy();
-
-            // Skip temp_import directory
-            if name_str.starts_with(TEMP_IMPORT_DIR) {
-                continue;
-            }
-
-            let name_str = name_str.replace("\\", "/");
-
-            if path.is_file() {
-                zip.start_file(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-                let mut f = File::open(path).unwrap();
-                std::io::copy(&mut f, &mut zip).unwrap();
-            } else if path.is_dir() {
-                zip.add_directory(&name_str, SimpleFileOptions::default())
-                    .unwrap();
-            }
-        }
+        add_directory_to_zip(&mut zip, &app_data_dir).unwrap();
         zip.finish().unwrap();
 
         // Decompress and verify
@@ -545,26 +444,7 @@ mod tests {
         fs::create_dir_all(&extract_dir).unwrap();
         let file = File::open(&zip_path).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
-            let outpath = match file.enclosed_name() {
-                Some(path) => extract_dir.join(path),
-                None => continue,
-            };
-
-            if file.name().ends_with('/') {
-                fs::create_dir_all(&outpath).unwrap();
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p).unwrap();
-                    }
-                }
-                let mut outfile = File::create(&outpath).unwrap();
-                std::io::copy(&mut file, &mut outfile).unwrap();
-            }
-        }
+        extract_zip_to_dir(&mut archive, &extract_dir).unwrap();
 
         // Verify data.txt was exported
         assert!(

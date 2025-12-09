@@ -1,4 +1,6 @@
-use tauri::{App, Manager};
+use tauri::App;
+#[cfg(target_os = "windows")]
+use tauri::Manager;
 use crate::tray;
 use crate::window;
 

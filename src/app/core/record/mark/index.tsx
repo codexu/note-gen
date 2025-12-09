@@ -32,7 +32,7 @@ export function NoteSidebar() {
   }
 
   return (
-    <Sidebar id="record-sidebar" collapsible="none" className="w-full h-screen hidden md:flex flex-col">
+    <Sidebar id="record-sidebar" collapsible="none" className="w-full h-full hidden md:flex flex-col">
       <SidebarHeader className="p-0">
         <MarkHeader />
       </SidebarHeader>

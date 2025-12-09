@@ -24,7 +24,7 @@ function ResizebleWrapper({
   };
 
   return (
-    <ResizablePanelGroup direction="horizontal" onLayout={onLayout}>
+    <ResizablePanelGroup direction="horizontal" onLayout={onLayout} className="h-full">
       <ResizablePanel defaultSize={defaultLayout[0]} className={`${fileSidebarVisible ? 'max-w-[480px] min-w-[320px]' : '!flex-[0]'}`}>
         <FileSidebar />
       </ResizablePanel>

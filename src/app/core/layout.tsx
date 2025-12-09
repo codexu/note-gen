@@ -19,6 +19,7 @@ import initShowWindow from "@/lib/shortcut/show-window"
 import { initMcp } from "@/lib/mcp/init"
 import { SearchDialog } from "@/components/search-dialog"
 import { reportAppStart } from "@/lib/event-report"
+import { TitleBar } from "@/components/title-bar"
 
 export default function RootLayout({
   children,
@@ -121,10 +122,11 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
+      <TitleBar />
       <SidebarProvider>
         <AppSidebar onSearchClick={() => setSearchOpen(true)} />
-        <SidebarInset>
-          <main className="flex flex-1 flex-col overflow-hidden w-[calc(100vw-48px)]">
+        <SidebarInset className="h-[calc(100vh-36px)] mt-9 min-h-0">
+          <main className="flex flex-1 flex-col overflow-hidden w-[calc(100vw-48px)] h-full">
             {children}
           </main>
         </SidebarInset>

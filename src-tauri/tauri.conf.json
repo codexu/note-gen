@@ -18,7 +18,8 @@
         "label": "main",
         "width": 1360,
         "height": 720,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {

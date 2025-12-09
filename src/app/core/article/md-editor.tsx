@@ -452,7 +452,7 @@ export function MdEditor() {
     }
   }, [contentTextScale, editor])
 
-  return <div id="article-editor" className='flex-1 relative w-full h-full md:h-screen flex flex-col overflow-hidden dark:bg-zinc-950'>
+  return <div id="article-editor" className='flex-1 relative w-full h-full flex flex-col overflow-hidden dark:bg-zinc-950'>
     <CustomToolbar editor={editor} />
     <div id="aritcle-md-editor" className='flex-1'></div>
     <CustomFooter editor={editor} />

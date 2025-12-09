@@ -117,7 +117,7 @@ export default function Page() {
   return (
     <div
       id="image-page"
-      className="h-screen overflow-hidden flex flex-col" 
+      className="h-full overflow-hidden flex flex-col" 
       onDrop={(e) => handleDrop(e)}
       onDragOver={e => handleDragOver(e)}
       onDragLeave={(e) => handleDragleave(e)}

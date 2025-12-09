@@ -14,7 +14,7 @@ export function FileSidebar() {
   }, [])
 
   return (
-    <div id="article-sidebar" className="w-full h-screen flex flex-col">
+    <div id="article-sidebar" className="w-full h-full flex flex-col">
       <FileToolbar />
       <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <FileManager />

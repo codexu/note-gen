@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isMobileDevice } from '@/lib/check'
-import { ImageUp, Search, Settings, Highlighter, SquarePen } from 'lucide-react'
+import { ImageUp, Search, Settings, Highlighter, SquarePen, Minus, Square, X } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
@@ -116,6 +116,33 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
     }
   }
 
+  const handleMinimize = async () => {
+    try {
+      const window = getCurrentWindow()
+      await window.minimize()
+    } catch (error) {
+      console.error('Error minimizing window:', error)
+    }
+  }
+
+  const handleMaximize = async () => {
+    try {
+      const window = getCurrentWindow()
+      await window.toggleMaximize()
+    } catch (error) {
+      console.error('Error maximizing window:', error)
+    }
+  }
+
+  const handleClose = async () => {
+    try {
+      const window = getCurrentWindow()
+      await window.close()
+    } catch (error) {
+      console.error('Error closing window:', error)
+    }
+  }
+
   // 移动端不显示标题栏
   if (isMobile) {
     return null
@@ -133,16 +160,14 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   return (
     <TooltipProvider>
       <div
-        className="h-[36px] w-full flex items-center select-none shrink-0 fixed top-0 left-0 right-0 z-[9999] border-b bg-background"
+        className="h-[36px] w-full flex flex-nowrap items-center select-none shrink-0 fixed top-0 left-0 right-0 z-[9999] border-b bg-background"
         style={{
           // macOS 红绿灯按钮在左侧，需要留出空间（约 70px）
           paddingLeft: isMacOS ? '70px' : '0',
-          // Windows/Linux 控制按钮在右侧，需要留出空间（约 138px）
-          paddingRight: !isMacOS ? '138px' : '0',
         }}
       >
         {/* 左侧导航按钮 */}
-        <div className="flex items-center gap-1 px-2">
+        <div className="flex items-center gap-1 px-2 shrink-0">
           {items.map((item) => {
             const Icon = item.icon
             return (
@@ -173,7 +198,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
         />
 
         {/* 右侧按钮 */}
-        <div className="flex items-center gap-1 px-2">
+        <div className="flex items-center gap-1 px-2 shrink-0">
           <PinToggle />
           <Tooltip>
             <TooltipTrigger asChild>
@@ -191,6 +216,36 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
             </TooltipContent>
           </Tooltip>
         </div>
+
+        {/* Windows 控制按钮 */}
+        {!isMacOS && (
+          <div className="flex items-center shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-12 rounded-none hover:bg-accent"
+              onClick={handleMinimize}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-12 rounded-none hover:bg-accent"
+              onClick={handleMaximize}
+            >
+              <Square className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-12 rounded-none hover:bg-destructive hover:text-destructive-foreground"
+              onClick={handleClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   )

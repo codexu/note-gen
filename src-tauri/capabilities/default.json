@@ -95,6 +95,8 @@
     "shell:default",
     "core:app:allow-default-window-icon",
     "core:window:allow-unminimize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
     {
       "identifier": "http:allow-fetch",
       "allow": [

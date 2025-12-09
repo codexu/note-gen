@@ -12,6 +12,13 @@
   "app": {
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    },
     "windows": [
       {
         "title": "",
@@ -19,16 +26,9 @@
         "width": 1360,
         "height": 720,
         "dragDropEnabled": false,
-        "titleBarStyle": "Overlay"
+        "decorations": false
       }
-    ],
-    "security": {
-      "csp": null,
-      "assetProtocol": {
-        "enable": true,
-        "scope": ["**"]
-      }
-    }
+    ]
   },
   "bundle": {
     "active": true,

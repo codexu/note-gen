@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function TooltipButton(
   {
@@ -21,15 +21,17 @@ export function TooltipButton(
   })
 {
   return (
-    <Tooltip {...props}>
-      <TooltipTrigger asChild>
-        <Button className="relative" disabled={disabled} size={size} variant={variant} onClick={onClick}>
-          {icon}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{tooltipText}</p>
-      </TooltipContent>
-    </Tooltip>
+    <TooltipProvider>
+      <Tooltip {...props}>
+        <TooltipTrigger asChild>
+          <Button className="relative" disabled={disabled} size={size} variant={variant} onClick={onClick}>
+            {icon}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltipText}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }

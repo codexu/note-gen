@@ -1,15 +1,11 @@
 'use client'
 
-import {
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-} from "@/components/ui/sidebar"
 import React from "react"
 import { MarkItem } from "./mark-item";
 import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
+
 export function MarkList() {
   const { 
     marks, 
@@ -17,9 +13,9 @@ export function MarkList() {
   } = useMarkStore()
 
   return (
-    <SidebarContent className="flex-1">
-      <SidebarGroup className="px-0">
-        <SidebarGroupContent>
+    <div className="flex-1 overflow-y-auto">
+      <div className="px-0">
+        <div>
           {
             queues.map(mark => {
               return (
@@ -34,8 +30,8 @@ export function MarkList() {
               ))
             ) : <MarkEmpty />
           }
-        </SidebarGroupContent>
-      </SidebarGroup>
-    </SidebarContent>
+        </div>
+      </div>
+    </div>
   )
 }

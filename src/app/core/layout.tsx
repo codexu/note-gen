@@ -1,8 +1,6 @@
 'use client'
 
 import { ThemeProvider } from "@/components/theme-provider"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
 import useSettingStore from "@/stores/setting"
 import { useEffect, useState } from "react";
 import { initAllDatabases } from "@/db"
@@ -122,15 +120,10 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
-      <TitleBar />
-      <SidebarProvider>
-        <AppSidebar onSearchClick={() => setSearchOpen(true)} />
-        <SidebarInset className="h-[calc(100vh-36px)] mt-9 min-h-0">
-          <main className="flex flex-1 flex-col overflow-hidden w-[calc(100vw-48px)] h-full">
-            {children}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
+      <TitleBar onSearchClick={() => setSearchOpen(true)} />
+      <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
+        {children}
+      </main>
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </ThemeProvider>
   );

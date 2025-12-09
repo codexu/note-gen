@@ -6,45 +6,40 @@ import { useTranslations } from 'next-intl'
 
 import { Button } from "@/components/ui/button"
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useState } from "react";
-import { SidebarMenuButton } from "./ui/sidebar";
+import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 
 export function PinToggle() {
   const t = useTranslations();
   const [isPin, setIsPin] = useState(false)
 
-  async function setPin() {
+  useEffect(() => {
+    async function loadPinState() {
+      const store = await Store.load('store.json')
+      const pin = await store.get<boolean>('pin')
+      setIsPin(!!pin)
+    }
+    loadPinState()
+  }, [])
+
+  async function togglePin() {
     const store = await Store.load('store.json')
-    const pin = await store.get<string>('pin')
-    setIsPin(!pin)
+    const newPinState = !isPin
+    setIsPin(newPinState)
     const window = getCurrentWindow()
-    await window.setAlwaysOnTop(!pin)
-    await store.set('pin', !pin)
+    await window.setAlwaysOnTop(newPinState)
+    await store.set('pin', newPinState)
   }
 
   return (
-    <SidebarMenuButton asChild className="md:h-8 p-0"
-      tooltip={{
-        children: isPin ? t('common.unpin') : t('common.pin'),
-        hidden: false,
-      }}
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      onClick={togglePin}
+      title={isPin ? t('common.unpin') : t('common.pin')}
     >
-      <a href="#">
-        <div className="flex size-8 items-center justify-center rounded-lg">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={setPin}
-          >
-            {
-              isPin ?
-                <Pin className="h-[1.2rem] w-[1.2rem]" /> :
-                <PinOff className="h-[1.2rem] w-[1.2rem]" />
-            }
-          </Button>
-        </div>
-      </a>
-    </SidebarMenuButton>
+      {isPin ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+    </Button>
   )
 }

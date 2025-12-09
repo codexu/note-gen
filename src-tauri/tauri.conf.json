@@ -14,7 +14,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "NoteGen",
+        "title": "",
         "label": "main",
         "width": 1360,
         "height": 720,

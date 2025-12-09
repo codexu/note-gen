@@ -1,12 +1,4 @@
 'use client'
-import {
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuSub,
-} from "@/components/ui/sidebar"
 import React, { useEffect, useState } from "react"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import useArticleStore, { DirTree } from "@/stores/article"
@@ -29,7 +21,7 @@ function Tree({ item }: { item: DirTree }) {
   return (
     item.isFile ? 
     <FileItem item={item} /> :
-    <SidebarMenuItem>
+    <li>
       <Collapsible
         onOpenChange={handleCollapse}
         className="group/collapsible [&[data-state=open]>button>.file-manange-item>svg:first-child]:rotate-90"
@@ -37,14 +29,14 @@ function Tree({ item }: { item: DirTree }) {
       >
         <FolderItem item={item} />
         <CollapsibleContent className="pl-1">
-          <SidebarMenuSub>
+          <ul className="pl-2">
             {item.children?.map((subItem) => (
               <Tree key={subItem.name} item={subItem} />
             ))}
-          </SidebarMenuSub>
+          </ul>
         </CollapsibleContent>
       </Collapsible>
-    </SidebarMenuItem>
+    </li>
   )
 }
 
@@ -138,10 +130,10 @@ export function FileManager() {
   }, [loadFileTree])
 
   return (
-    <SidebarContent className={`${isDragging && 'outline-2 outline-black outline-dotted -outline-offset-4'}`}>
-      <SidebarGroup className="flex-1 p-0">
-        <SidebarGroupContent className="flex-1">
-          <SidebarMenu className="h-full">
+    <div className={`flex-1 overflow-y-auto ${isDragging && 'outline-2 outline-black outline-dotted -outline-offset-4'}`}>
+      <div className="flex-1 p-0">
+        <div className="flex-1">
+          <ul className="h-full">
             <div
               className="min-h-0.5"
               onDrop={(e) => handleDrop(e)}
@@ -159,9 +151,9 @@ export function FileManager() {
               onDragLeave={(e) => handleDragleave(e)}
             >
             </div>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    </SidebarContent>
+          </ul>
+        </div>
+      </div>
+    </div>
   )
 }

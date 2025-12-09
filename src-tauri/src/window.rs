@@ -11,7 +11,7 @@ pub fn setup_window_events(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
+fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, app_handle: &AppHandle) {
     match event {
         WindowEvent::CloseRequested { api, .. } => {
             // 阻止默认关闭行为

@@ -26,7 +26,7 @@
         "width": 1360,
         "height": 720,
         "dragDropEnabled": false,
-        "decorations": false
+        "titleBarStyle": "Overlay"
       }
     ]
   },

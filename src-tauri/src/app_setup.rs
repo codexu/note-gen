@@ -1,4 +1,4 @@
-use tauri::{App, Manager};
+use tauri::App;
 use crate::tray;
 use crate::window;
 

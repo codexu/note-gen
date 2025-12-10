@@ -8,24 +8,16 @@ import useMarkStore from "@/stores/mark"
 import { fetchAiPlaceholder } from "@/lib/ai"
 import { MarkGen } from "./mark-gen"
 import { useTranslations } from 'next-intl'
-import { ChatLink } from "./chat-link"
 import { useLocalStorage } from 'react-use';
 import { ModelSelect } from "./model-select"
 import { PromptSelect } from "./prompt-select"
-import { ClearChat } from "./clear-chat"
-import { ClearContext } from "./clear-context"
 import { ChatLanguage } from "./chat-language"
 import { InputModeSelect } from "./input-mode-select"
 import { ChatSend } from "./chat-send"
 import { TranslateSend } from "./translate-send"
-import ChatPlaceholder from "./chat-placeholder"
-import { ClipboardMonitor } from "./clipboard-monitor"
-import { RagSwitch } from "./rag-switch"
-import { FileLink, LinkedFileDisplay } from "./file-link"
-import { FileSelector } from "./file-selector"
+import { LinkedFileDisplay } from "./file-link"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
-import { McpButton } from "./mcp-button"
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DndContext,
@@ -56,7 +48,6 @@ export function ChatInput() {
   const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [linkedFile, setLinkedFile] = useState<MarkdownFile | null>(null)
-  const [showFileSelector, setShowFileSelector] = useState(false)
   const markGenRef = useRef<any>(null)
   const chatSendRef = useRef<any>(null)
   const translateSendRef = useRef<any>(null)
@@ -108,20 +99,9 @@ export function ChatInput() {
     }
   }
 
-  // 处理文件选择
-  function handleFileSelect(file: MarkdownFile) {
-    setLinkedFile(file)
-    setShowFileSelector(false)
-  }
-
   // 移除关联文件
   function removeLinkedFile() {
     setLinkedFile(null)
-  }
-
-  // 打开文件选择器
-  function openFileSelector() {
-    setShowFileSelector(true)
   }
 
   // 处理发送后的清理工作
@@ -227,8 +207,12 @@ export function ChatInput() {
     emitter.on('revertChat', (event: unknown) => {
       setText(event as string)
     })
+    emitter.on('fileSelected', (event: unknown) => {
+      setLinkedFile(event as MarkdownFile)
+    })
     return () => {
       emitter.off('revertChat')
+      emitter.off('fileSelected')
     }
   }, [])
 
@@ -316,10 +300,6 @@ export function ChatInput() {
                       <SortableToolbarItem
                         key={item.id}
                         id={item.id}
-                        inputType={inputType}
-                        openFileSelector={openFileSelector}
-                        primaryModel={primaryModel}
-                        loading={loading}
                       />
                     ))}
                 </div>
@@ -338,22 +318,6 @@ export function ChatInput() {
                       return <PromptSelect key={item.id} />
                     case 'chatLanguage':
                       return <ChatLanguage key={item.id} />
-                    case 'chatLink':
-                      return <ChatLink key={item.id} inputType={inputType} />
-                    case 'fileLink':
-                      return <FileLink key={item.id} onFileLinkClick={openFileSelector} disabled={!primaryModel || loading} />
-                    case 'mcpButton':
-                      return <McpButton key={item.id} />
-                    case 'ragSwitch':
-                      return <RagSwitch key={item.id} />
-                    case 'chatPlaceholder':
-                      return <ChatPlaceholder key={item.id} />
-                    case 'clipboardMonitor':
-                      return <ClipboardMonitor key={item.id} />
-                    case 'clearContext':
-                      return <ClearContext key={item.id} />
-                    case 'clearChat':
-                      return <ClearChat key={item.id} />
                     default:
                       return null
                   }
@@ -375,12 +339,6 @@ export function ChatInput() {
         </div>
       </div>
 
-      {/* 文件选择器 - 独立于容器，避免 overflow 问题 */}
-      <FileSelector
-        isOpen={showFileSelector}
-        onFileSelect={handleFileSelect}
-        onClose={() => setShowFileSelector(false)}
-      />
     </footer>
   )
 }
@@ -388,19 +346,9 @@ export function ChatInput() {
 // 可排序的工具栏项组件
 interface SortableToolbarItemProps {
   id: string
-  inputType: string | undefined
-  openFileSelector: () => void
-  primaryModel: string | undefined
-  loading: boolean
 }
 
-function SortableToolbarItem({ 
-  id, 
-  inputType, 
-  openFileSelector, 
-  primaryModel, 
-  loading 
-}: SortableToolbarItemProps) {
+function SortableToolbarItem({ id }: SortableToolbarItemProps) {
   const {
     attributes,
     listeners,
@@ -425,22 +373,6 @@ function SortableToolbarItem({
         return <PromptSelect />
       case 'chatLanguage':
         return <ChatLanguage />
-      case 'chatLink':
-        return <ChatLink inputType={inputType} />
-      case 'fileLink':
-        return <FileLink onFileLinkClick={openFileSelector} disabled={!primaryModel || loading} />
-      case 'mcpButton':
-        return <McpButton />
-      case 'ragSwitch':
-        return <RagSwitch />
-      case 'chatPlaceholder':
-        return <ChatPlaceholder />
-      case 'clipboardMonitor':
-        return <ClipboardMonitor />
-      case 'clearContext':
-        return <ClearContext />
-      case 'clearChat':
-        return <ClearChat />
       default:
         return null
     }

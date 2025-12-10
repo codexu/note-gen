@@ -1,72 +1,63 @@
 "use client"
 
-import { BotMessageSquare, BotOff, Drama } from "lucide-react"
-import usePromptStore from "@/stores/prompt"
+import { ChatLink } from "./chat-link"
+import { FileLink } from "./file-link"
+import { McpButton } from "./mcp-button"
+import { RagSwitch } from "./rag-switch"
+import { ClipboardMonitor } from "./clipboard-monitor"
+import ChatPlaceholder from "./chat-placeholder"
+import { ClearContext } from "./clear-context"
+import { ClearChat } from "./clear-chat"
 import useSettingStore from "@/stores/setting"
-import { NewChat } from "./new-chat"
-import { RemoveChat } from "./remove-chat"
-import { useTranslations } from "next-intl"
+import useChatStore from "@/stores/chat"
+import { useState } from "react"
+import { MarkdownFile } from "@/lib/files"
+import { FileSelector } from "./file-selector"
+import emitter from "@/lib/emitter"
 
 export function ChatHeader() {
-  const t = useTranslations('record.chat.header')
-  const { currentPrompt } = usePromptStore()
-  const { primaryModel, aiModelList } = useSettingStore()
+  const { primaryModel } = useSettingStore()
+  const { loading } = useChatStore()
+  const [showFileSelector, setShowFileSelector] = useState(false)
 
-  // 查找当前选中的模型
-  const findSelectedModel = () => {
-    if (!primaryModel || !aiModelList) return null
-    
-    for (const config of aiModelList) {
-      // 检查新的 models 数组结构
-      if (config.models && config.models.length > 0) {
-        const targetModel = config.models.find(model => model.id === primaryModel)
-        if (targetModel) {
-          return {
-            model: targetModel.model,
-            configTitle: config.title
-          }
-        }
-      } else {
-        // 向后兼容：处理旧的单模型结构
-        if (config.key === primaryModel) {
-          return {
-            model: config.model,
-            configTitle: config.title
-          }
-        }
-      }
-    }
-    return null
+  // 打开文件选择器
+  function openFileSelector() {
+    setShowFileSelector(true)
   }
 
-  const selectedModel = findSelectedModel()
+  // 处理文件选择
+  function handleFileSelect(file: MarkdownFile) {
+    // 通过 emitter 将文件选择事件传递给 ChatInput
+    emitter.emit('fileSelected', file)
+    setShowFileSelector(false)
+  }
 
   return (
-    <header className="h-12 w-full grid grid-cols-[auto_1fr_auto] items-center border-b px-4 text-sm gap-4">
-      <div className="flex items-center gap-1">
-        <Drama className="size-4" />
-        {currentPrompt?.title}
-      </div>
-      <div className="flex items-center justify-center gap-1">
-        {
-          selectedModel ?
-          <>
-            <BotMessageSquare className="!size-4" />
-            <span className="line-clamp-1 flex-1 md:flex-none">
-              {selectedModel.model}
-              ({selectedModel.configTitle})
-            </span>
-          </> :
-          <>
-            <BotOff className="!size-4" />
-            <span>{t('noModel')}</span>
-          </>
-        }
-      </div>
-      <div className="flex items-center gap-1">
-        <NewChat />
-        <RemoveChat />
-      </div>
-    </header>
+    <>
+      <header className="h-12 w-full flex items-center justify-between border-b px-2 gap-2">
+        {/* 左侧：关联记录、关联文件、MCP、知识库检索 */}
+        <div className="flex items-center gap-1">
+          <ChatLink inputType="chat" />
+          <FileLink onFileLinkClick={openFileSelector} disabled={!primaryModel || loading} />
+          <McpButton />
+          <RagSwitch />
+          <ChatPlaceholder />
+          <ClipboardMonitor />
+        </div>
+
+        {/* 右侧：剪贴板监听、AI建议、清除上下文、清空对话 */}
+        <div className="flex items-center gap-1">
+          <ClearContext />
+          <ClearChat />
+        </div>
+      </header>
+
+      {/* 文件选择器 */}
+      <FileSelector
+        isOpen={showFileSelector}
+        onFileSelect={handleFileSelect}
+        onClose={() => setShowFileSelector(false)}
+      />
+    </>
   )
 }

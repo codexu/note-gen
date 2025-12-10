@@ -977,6 +977,7 @@
       "toolbar": {
         "search": "搜索",
         "trash": "回收站",
+        "closeTrash": "关闭回收站",
         "restore": "还原",
         "delete": "删除",
         "deleteConfirm": "确定要删除吗？",

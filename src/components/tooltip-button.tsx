@@ -9,6 +9,7 @@ export function TooltipButton(
     disabled = false,
     variant = "ghost",
     size = "icon",
+    side = "top",
     ...props 
   }:
   {
@@ -18,6 +19,7 @@ export function TooltipButton(
     disabled?: boolean;
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null | undefined;
     size?: "icon" | "sm" | "default" | "lg";
+    side?: "top" | "right" | "bottom" | "left";
   })
 {
   return (
@@ -28,7 +30,7 @@ export function TooltipButton(
             {icon}
           </Button>
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent side={side}>
           <p>{tooltipText}</p>
         </TooltipContent>
       </Tooltip>

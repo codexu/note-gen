@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl'
 import React from "react"
 import { TagManage } from './tag-manage'
-import { MarkHeader } from './mark-header'
 import { MarkList } from './mark-list'
 import { MarkToolbar } from './mark-toolbar'
 import useMarkStore from "@/stores/mark"
@@ -28,10 +27,6 @@ export function NoteSidebar() {
 
   return (
     <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
-      <div className="p-0">
-        <MarkHeader />
-      </div>
-      
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">

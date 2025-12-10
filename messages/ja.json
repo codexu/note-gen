@@ -1141,13 +1141,179 @@
     "record": "記録",
     "write": "執筆",
     "search": "検索",
-    "githubImageHosting": "Github イラストホスティング倉庫",
+    "githubImageHosting": "Github 画像ホスティング",
     "login": "ログイン",
     "loading": "読み込み中",
     "view": "表示",
     "logout": "ログアウト",
-    "setting": "設定"
+    "setting": "設定",
+    "files": "ノート",
+    "hideLeftSidebar": "左サイドバーを非表示",
+    "showLeftSidebar": "左サイドバーを表示",
+    "hideRightSidebar": "右サイドバーを非表示",
+    "showRightSidebar": "右サイドバーを表示"
   },
+  "chat": {
+    "placeholder": {
+      "default": "メッセージを入力...",
+      "noApiKey": "無 API KEY 設定、AI 話題できません...",
+      "on": "AIサジェスト有効",
+      "off": "AIサジェスト無効",
+      "noPrimaryModel": "無主模型設定、AI 話題できません..."
+    },
+    "translate": {
+      "tooltip": "翻訳",
+      "translating": "翻訳中...",
+      "showOriginal": "原文表示",
+      "alreadyTranslated": "翻訳済み"
+    },
+    "clipboardMonitor": {
+      "enable": "クリップボード監視(有効)",
+      "disable": "クリップボード監視(無効)"
+    },
+    "mcp": {
+      "tooltip": "MCP サーバー"
+    },
+    "send": "送信",
+    "stop": "停止",
+    "terminate": "終了",
+    "tagLink": {
+      "on": "タグとリンク済み",
+      "off": "タグとリンクなし"
+    },
+    "modelSelect": {
+      "tooltip": "AIモデルを選択",
+      "placeholder": "AIモデルを検索",
+      "noModel": "モデルが見つかりません"
+    },
+    "promptSelect": {
+      "tooltip": "プロンプトを選択",
+      "placeholder": "プロンプトを検索"
+    },
+    "clearChat": "会話をクリア",
+    "clearContext": {
+      "tooltip": "コンテキストをクリア"
+    },
+    "chatLanguage": {
+      "tooltip": "会話言語を選択",
+      "placeholder": "言語を検索"
+    },
+    "rag": {
+      "notSupported": "ベクトルモデルが利用できません",
+      "enabled": "知識ベース検索有効",
+      "disabled": "知識ベース検索無効"
+    },
+    "modeSelect": {
+      "tooltip": "入力モードを選択",
+      "chat": "チャットモード",
+      "gen": "整理モード",
+      "translate": "翻訳モード"
+    },
+    "fileLink": {
+      "tooltip": "ファイルをリンク",
+      "selectFile": "ファイルを選択",
+      "linkedFile": "リンクされたファイル",
+      "searchPlaceholder": "ファイルを検索...",
+      "noFiles": "ファイルが見つかりません",
+      "loading": "読み込み中..."
+    }
+  },
+  "header": {
+    "configApiKey": "API KEY の設定",
+    "clearChat": "チャットをクリア",
+    "configPrompt": "マスクの設定",
+    "selectPrompt": "マスクを選択",
+    "noModel": "AI モデルが選択されていません"
+  },
+  "clipboard": {
+    "image": {
+      "detected": "クリップボードに画像が存在します：",
+      "recording": "記録中",
+      "recorded": "記録済み",
+      "record": "記録"
+    },
+    "text": {
+      "detected": "クリップボードにテキストが存在します：",
+      "recorded": "記録済み",
+      "record": "記録"
+    }
+  },
+  "messageControl": {
+    "words": "字",
+    "readAloud": "音声読み上げ",
+    "playing": "再生中",
+    "loading": "準備中",
+    "stop": "停止",
+    "copy": "コピー",
+    "copied": "コピーしました"
+  },
+  "ragSources": {
+    "label": "参照ファイル"
+  },
+  "preview": {
+    "close": "关闭",
+    "copy": "复制",
+    "copied": "已复制！"
+  },
+  "control": {
+    "edit": "編集",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "deleteConfirm": "本当に削除しますか？"
+  },
+  "content": {
+    "organize": "将你的記録整理为文章："
+  },
+  "note": {
+    "organize": "整理",
+    "writing": "執筆",
+    "convert": "文章に変換",
+    "description": "現在のノートはAIによって生成され、編集できません。ノートを文章（ローカルファイル）に変換して、執筆ページで二次創作できます。",
+    "filename": "ファイル名",
+    "selectFolder": "ファイル夹を選択",
+    "rootDirectory": "ルートディレクトリ",
+    "deleteTag": "削除タグ、記録とノート（ゴミ箱で復元可能）",
+    "warning": "変換後、執筆ページに移動します。",
+    "convert_button": "変換",
+    "organizeAs": "記録を整理します...",
+    "templateContent": "テンプレート内容",
+    "recordRange": "記録範囲を選択",
+    "filterThinkingContent": "思考の記録を削除します",
+    "startOrganize": "開始整理",
+    "manageTemplate": "管理テンプレート",
+    "cancel": "キャンセル"
+  },
+  "mark": {
+    "recorded": "記録済み",
+    "record": "記録"
+  }
+},
+"tag": {
+  "add": "添加标签",
+  "edit": "編集タグ",
+  "delete": "削除タグ",
+  "deleteConfirm": "本当に削除しますか？",
+  "placeholder": "入力するタグ名"
+}
+},
+"search": {
+  "placeholder": "ノートと記事を検索...",
+  "results": "{count} 件の検索結果",
+  "noResults": "検索結果がありません",
+  "tryDifferentKeywords": "別のキーワードで検索してみてください",
+  "item": {
+    "record": "記録",
+    "article": "記事",
+    "matches": "{count}件の一致",
+    "scanType": "スキャン"
+  }
+},
+"image": {
+  "root": "画像ホスティング倉庫",
+  "noData": {
+    "title": "同期機能が有効になっていません",
+    "desc": "システム設定ページに移動して、Github同期を設定してください。",
   "marks": {
     "types": {
       "screenshot": "スクリーンショット",

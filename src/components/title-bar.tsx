@@ -4,15 +4,21 @@ import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isMobileDevice } from '@/lib/check'
-import { Search, Settings, Highlighter, SquarePen, Minus, Square, X } from 'lucide-react'
+import { Search, Settings, Minus, Square, X, PanelLeft, PanelRight } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
 import { PinToggle } from './pin-toggle'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import useSettingStore from '@/stores/setting'
+import React from 'react'
+import { ControlText } from '@/app/core/record/mark/control-text'
+import { ControlRecording } from '@/app/core/record/mark/control-recording'
+import { ControlScan } from '@/app/core/record/mark/control-scan'
+import { ControlImage } from '@/app/core/record/mark/control-image'
+import { ControlLink } from '@/app/core/record/mark/control-link'
+import { ControlFile } from '@/app/core/record/mark/control-file'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -25,25 +31,10 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   const [isMobile, setIsMobile] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
-  const { toggleFileSidebar, toggleNoteSidebar, showFileSidebar, showNoteSidebar } = useSidebarStore()
+  const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar } = useSidebarStore()
+  const { recordToolbarConfig } = useSettingStore()
   const t = useTranslations()
-  
-  // 主导航页面
-  const mainPages = [
-    {
-      title: t('navigation.record'),
-      url: '/core/record',
-      icon: Highlighter,
-    },
-    {
-      title: t('navigation.write'),
-      url: '/core/article',
-      icon: SquarePen,
-    },
-  ]
-  
-  // 当前激活的页面
-  const currentPage = mainPages.find(page => pathname.startsWith(page.url))?.url || '/core/record'
+
 
   useEffect(() => {
     // 检查是否为移动设备
@@ -63,40 +54,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
     }
   }, [])
 
-  async function handleTabChange(value: string) {
-    // 如果点击的是当前页面，执行 toggle 切换显示/隐藏
-    if (pathname.startsWith(value)) {
-      if (value === '/core/article') {
-        toggleFileSidebar()
-      } else if (value === '/core/record') {
-        toggleNoteSidebar()
-      }
-      return
-    }
-    
-    // 路由切换，确保对应的侧边栏显示
-    if (value === '/core/article') {
-      await showFileSidebar()
-    } else if (value === '/core/record') {
-      await showNoteSidebar()
-    }
-    
-    router.push(value)
-    
-    const store = await Store.load('store.json')
-    store.set('currentPage', value)
-  }
 
-  const handleStartDrag = async (e: React.MouseEvent) => {
-    // 防止拖拽时选中文本
-    e.preventDefault()
-    try {
-      const window = getCurrentWindow()
-      await window.startDragging()
-    } catch (error) {
-      console.error('Error starting drag:', error)
-    }
-  }
 
   const handleMinimize = async () => {
     try {
@@ -147,48 +105,74 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
           // macOS 红绿灯按钮在左侧，需要留出空间（约 70px）
           paddingLeft: isMacOS ? '70px' : '0',
         }}
+        data-tauri-drag-region
       >
-        {/* 左侧预留区域 - 可拖拽 */}
-        <div 
-          className="flex items-center gap-1 px-2 shrink-0 w-32"
-          onMouseDown={handleStartDrag}
-          data-tauri-drag-region
-        >
-          {/* 预留空白 */}
+        {/* 左侧记录工具栏按钮 */}
+        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+          <TooltipProvider>
+            {recordToolbarConfig
+              .filter(item => item.enabled)
+              .sort((a, b) => a.order - b.order)
+              .map(item => {
+                switch (item.id) {
+                  case 'text':
+                    return <ControlText key={item.id} />
+                  case 'recording':
+                    return <ControlRecording key={item.id} />
+                  case 'scan':
+                    return <ControlScan key={item.id} />
+                  case 'image':
+                    return <ControlImage key={item.id} />
+                  case 'link':
+                    return <ControlLink key={item.id} />
+                  case 'file':
+                    return <ControlFile key={item.id} />
+                  default:
+                    return null
+                }
+              })}
+          </TooltipProvider>
         </div>
 
-        {/* 中间区域 - 包含拖拽区域和 Tabs */}
-        <div className="flex-1 flex justify-center items-center relative">
-          {/* 拖拽区域填充整个中间区域 */}
-          <div
-            className="absolute inset-0"
-            onMouseDown={handleStartDrag}
-            data-tauri-drag-region
-          />
-          {/* Tabs 在上层 */}
-          <div className="relative z-10">
-            <Tabs value={currentPage} onValueChange={handleTabChange}>
-              <TabsList className="h-7">
-                {mainPages.map((page) => {
-                  const Icon = page.icon
-                  return (
-                    <TabsTrigger
-                      key={page.url}
-                      value={page.url}
-                      className="px-3 py-0.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow gap-1"
-                    >
-                      <Icon className="size-3.5" />
-                      <span className="text-xs">{page.title}</span>
-                    </TabsTrigger>
-                  )
-                })}
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
+        {/* 中间拖拽区域 */}
+        <div className="flex-1 min-w-[100px]" />
 
         {/* 右侧按钮 */}
-        <div className="flex items-center gap-1 px-2 shrink-0 relative z-10">
+        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+          {/* 左侧边栏切换按钮 */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 ${leftSidebarVisible ? 'bg-accent' : ''}`}
+                onClick={toggleLeftSidebar}
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{leftSidebarVisible ? t('navigation.hideLeftSidebar') : t('navigation.showLeftSidebar')}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 右侧边栏切换按钮 */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 ${rightSidebarVisible ? 'bg-accent' : ''}`}
+                onClick={toggleRightSidebar}
+              >
+                <PanelRight className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{rightSidebarVisible ? t('navigation.hideRightSidebar') : t('navigation.showRightSidebar')}</p>
+            </TooltipContent>
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

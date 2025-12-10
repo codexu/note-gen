@@ -1172,16 +1172,21 @@
     }
   },
   "navigation": {
-    "chat": "Bate-papo",
-    "record": "Registrar",
+    "chat": "Conversa",
+    "record": "Registro",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
     "login": "Entrar",
     "loading": "Carregando",
-    "view": "Ver",
+    "view": "Visualizar",
     "logout": "Sair",
-    "setting": "Configuração"
+    "setting": "Configurações",
+    "files": "Notas",
+    "hideLeftSidebar": "Ocultar Barra Lateral Esquerda",
+    "showLeftSidebar": "Mostrar Barra Lateral Esquerda",
+    "hideRightSidebar": "Ocultar Barra Lateral Direita",
+    "showRightSidebar": "Mostrar Barra Lateral Direita"
   },
   "marks": {
     "types": {

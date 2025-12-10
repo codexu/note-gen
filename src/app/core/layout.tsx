@@ -12,12 +12,13 @@ import useVectorStore from "@/stores/vector"
 import useImageStore from "@/stores/imageHosting"
 import useShortcutStore from "@/stores/shortcut"
 import initQuickRecordText from "@/lib/shortcut/quick-record-text"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import initShowWindow from "@/lib/shortcut/show-window"
 import { initMcp } from "@/lib/mcp/init"
 import { SearchDialog } from "@/components/search-dialog"
 import { reportAppStart } from "@/lib/event-report"
 import { TitleBar } from "@/components/title-bar"
+import { Store } from '@tauri-apps/plugin-store'
 
 export default function RootLayout({
   children,
@@ -30,7 +31,21 @@ export default function RootLayout({
   const { initShortcut } = useShortcutStore()
   const { initVectorDb } = useVectorStore()
   const router = useRouter()
+  const pathname = usePathname()
   const [searchOpen, setSearchOpen] = useState(false)
+
+  // 重定向旧路径到新的 /core/main
+  useEffect(() => {
+    async function redirectOldPaths() {
+      if (pathname === '/core/article' || pathname === '/core/record') {
+        const store = await Store.load('store.json')
+        await store.set('currentPage', '/core/main')
+        await store.save()
+        router.replace('/core/main')
+      }
+    }
+    redirectOldPaths()
+  }, [pathname, router])
 
   useEffect(() => {
     initSettingData()

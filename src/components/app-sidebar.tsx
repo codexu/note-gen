@@ -1,5 +1,5 @@
 'use client'
-import { ImageUp, Search, Settings, Highlighter, SquarePen } from "lucide-react"
+import { ImageUp, Search, Settings, SquarePen } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,6 @@ import AppStatus from "./app-status"
 import { Store } from "@tauri-apps/plugin-store"
 import { PinToggle } from "./pin-toggle"
 import { useTranslations } from 'next-intl'
-import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState } from "react"
 import useImageStore from "@/stores/imageHosting"
  
@@ -28,20 +27,14 @@ interface AppSidebarProps {
 export function AppSidebar({ onSearchClick }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { toggleFileSidebar, toggleNoteSidebar, showFileSidebar, showNoteSidebar } = useSidebarStore()
   const t = useTranslations()
   const { imageRepoUserInfo } = useImageStore()
   const [items, setItems] = useState([
     {
-      title: t('navigation.record'),
-      url: "/core/record",
-      icon: Highlighter,
-      isActive: true,
-    },
-    {
       title: t('navigation.write'),
-      url: "/core/article",
+      url: "/core/main",
       icon: SquarePen,
+      isActive: true,
     },
     {
       title: t('navigation.search'),
@@ -70,20 +63,8 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
       return
     }
 
-    // 如果是当前页面，执行 toggle 切换显示/隐藏
-    if (pathname === '/core/article' && item.url === '/core/article') {
-      toggleFileSidebar()
-    } else if (pathname === '/core/record' && item.url === '/core/record') {
-      toggleNoteSidebar()
-    } else {
-      // 如果是路由切换，确保对应的侧边栏显示
-      if (item.url === '/core/article') {
-        await showFileSidebar()
-      } else if (item.url === '/core/record') {
-        await showNoteSidebar()
-      }
-      router.push(item.url)
-    }
+    // 直接跳转到对应页面
+    router.push(item.url)
     const store = await Store.load('store.json')
     store.set('currentPage', item.url)
   }

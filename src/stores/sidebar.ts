@@ -8,6 +8,10 @@ export interface SidebarState {
   noteSidebarVisible: boolean
   toggleNoteSidebar: () => Promise<void>
   showNoteSidebar: () => Promise<void>
+  leftSidebarVisible: boolean
+  toggleLeftSidebar: () => Promise<void>
+  rightSidebarVisible: boolean
+  toggleRightSidebar: () => Promise<void>
 }
 
 export const useSidebarStore = create<SidebarState>((set) => ({
@@ -36,5 +40,21 @@ export const useSidebarStore = create<SidebarState>((set) => ({
     set({ noteSidebarVisible: true })
     const store = await Store.load('store.json')
     store.set('noteSidebarVisible', true)
+  },
+  leftSidebarVisible: true,
+  toggleLeftSidebar: async () => {
+    set((state) => ({
+      leftSidebarVisible: !state.leftSidebarVisible
+    }))
+    const store = await Store.load('store.json')
+    store.set('leftSidebarVisible', !store.get('leftSidebarVisible'))
+  },
+  rightSidebarVisible: true,
+  toggleRightSidebar: async () => {
+    set((state) => ({
+      rightSidebarVisible: !state.rightSidebarVisible
+    }))
+    const store = await Store.load('store.json')
+    store.set('rightSidebarVisible', !store.get('rightSidebarVisible'))
   },
 }))

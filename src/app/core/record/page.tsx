@@ -25,7 +25,7 @@ function ResizableWrapper({
 
   return (
     <ResizablePanelGroup direction="horizontal" onLayout={onLayout} className="h-full">
-      <ResizablePanel defaultSize={defaultLayout[0]} className={`${noteSidebarVisible ? 'max-w-[480px] min-w-[280px]' : '!flex-[0]'}`}>
+      <ResizablePanel defaultSize={defaultLayout[0]} className={`${noteSidebarVisible ? 'max-w-[560px] min-w-[340px]' : '!flex-[0]'}`}>
         <NoteSidebar />
       </ResizablePanel>
       <ResizableHandle className={noteSidebarVisible ? 'w-[1px]' : 'w-[0]'} />

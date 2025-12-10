@@ -27,7 +27,7 @@ export function NoteSidebar() {
   }
 
   return (
-    <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col border-r">
+    <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
       <div className="p-0">
         <MarkHeader />
       </div>

@@ -17,6 +17,7 @@ export function ChatLink({ inputType }: { inputType?: string }) {
         icon={isLinkMark ? <Link /> : <Unlink />}
         tooltipText={isLinkMark ? `${t('on')} ${currentTag?.name}(${marks.length})` : t('off')}
         size="icon"
+        side="bottom"
         disabled={marks.length === 0 || inputType === 'gen'}
         onClick={() => setIsLinkMark(!isLinkMark)}
       />

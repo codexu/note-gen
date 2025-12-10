@@ -43,6 +43,7 @@ export function McpButton() {
             icon={selectedServerIds.length ? <ServerCrash className="size-4" /> : <Server className="size-4" />}
             tooltipText={t('selectServers')}
             size="icon"
+            side="bottom"
           />
         </div>
       </PopoverTrigger>

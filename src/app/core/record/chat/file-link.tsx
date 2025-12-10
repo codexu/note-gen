@@ -20,6 +20,7 @@ export function FileLink({ onFileLinkClick, disabled = false }: FileLinkProps) {
         icon={<AtSign className="size-4" />}
         tooltipText={t('tooltip')}
         size="icon"
+        side="bottom"
         onClick={onFileLinkClick}
         disabled={disabled}
       />

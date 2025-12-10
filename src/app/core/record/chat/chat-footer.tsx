@@ -40,7 +40,7 @@ export function ChatFooter() {
   const selectedModel = findSelectedModel()
 
   return (
-    <footer className="h-6 w-full flex items-center justify-between border-t px-2 text-xs bg-muted/30">
+    <footer className="h-6 w-full flex items-center justify-between border-t px-2 text-xs bg-muted/30 text-muted-foreground">
       <div className="flex items-center gap-1.5">
         <Drama className="size-3.5" />
         <span className="line-clamp-1">{currentPrompt?.title}</span>
@@ -52,7 +52,7 @@ export function ChatFooter() {
             <BotMessageSquare className="size-3.5" />
             <span className="line-clamp-1">
               {selectedModel.model}
-              <span className="text-muted-foreground ml-1">({selectedModel.configTitle})</span>
+              <span className="ml-1">({selectedModel.configTitle})</span>
             </span>
           </> :
           <>

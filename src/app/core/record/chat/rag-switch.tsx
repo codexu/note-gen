@@ -59,6 +59,7 @@ export function RagSwitch() {
           )
         }
         tooltipText={isRagEnabled ? t('rag.enabled') : t('rag.disabled')}
+        side="bottom"
         onClick={handleClick}
       />
     </div>

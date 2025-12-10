@@ -12,9 +12,25 @@ export interface SidebarState {
   toggleLeftSidebar: () => Promise<void>
   rightSidebarVisible: boolean
   toggleRightSidebar: () => Promise<void>
+  initSidebarState: () => Promise<void>
 }
 
-export const useSidebarStore = create<SidebarState>((set) => ({
+// 从 localStorage 获取初始状态
+const getInitialState = () => {
+  if (typeof window === 'undefined') return { left: true, right: true }
+  
+  const leftState = localStorage.getItem('leftSidebarVisible')
+  const rightState = localStorage.getItem('rightSidebarVisible')
+  
+  return {
+    left: leftState !== null ? leftState === 'true' : true,
+    right: rightState !== null ? rightState === 'true' : true
+  }
+}
+
+const initialState = getInitialState()
+
+export const useSidebarStore = create<SidebarState>((set, get) => ({
   fileSidebarVisible: true,
   toggleFileSidebar: async () => {
     set((state) => ({
@@ -41,20 +57,36 @@ export const useSidebarStore = create<SidebarState>((set) => ({
     const store = await Store.load('store.json')
     store.set('noteSidebarVisible', true)
   },
-  leftSidebarVisible: true,
+  leftSidebarVisible: initialState.left,
   toggleLeftSidebar: async () => {
-    set((state) => ({
-      leftSidebarVisible: !state.leftSidebarVisible
-    }))
+    const newState = !get().leftSidebarVisible
+    set({ leftSidebarVisible: newState })
+    localStorage.setItem('leftSidebarVisible', String(newState))
     const store = await Store.load('store.json')
-    store.set('leftSidebarVisible', !store.get('leftSidebarVisible'))
+    await store.set('leftSidebarVisible', newState)
+    await store.save()
   },
-  rightSidebarVisible: true,
+  rightSidebarVisible: initialState.right,
   toggleRightSidebar: async () => {
-    set((state) => ({
-      rightSidebarVisible: !state.rightSidebarVisible
-    }))
+    const newState = !get().rightSidebarVisible
+    set({ rightSidebarVisible: newState })
+    localStorage.setItem('rightSidebarVisible', String(newState))
     const store = await Store.load('store.json')
-    store.set('rightSidebarVisible', !store.get('rightSidebarVisible'))
+    await store.set('rightSidebarVisible', newState)
+    await store.save()
+  },
+  initSidebarState: async () => {
+    const store = await Store.load('store.json')
+    const leftState = await store.get<boolean>('leftSidebarVisible')
+    const rightState = await store.get<boolean>('rightSidebarVisible')
+    
+    if (leftState !== null && leftState !== undefined) {
+      set({ leftSidebarVisible: leftState })
+      localStorage.setItem('leftSidebarVisible', String(leftState))
+    }
+    if (rightState !== null && rightState !== undefined) {
+      set({ rightSidebarVisible: rightState })
+      localStorage.setItem('rightSidebarVisible', String(rightState))
+    }
   },
 }))

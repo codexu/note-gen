@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isMobileDevice } from '@/lib/check'
-import { Search, Settings, Minus, Square, X, PanelLeft, PanelRight } from 'lucide-react'
+import { Search, Settings, Minus, Square, X, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -145,10 +145,10 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 ${leftSidebarVisible ? 'bg-accent' : ''}`}
+                className="h-8 w-8"
                 onClick={toggleLeftSidebar}
               >
-                <PanelLeft className="h-4 w-4" />
+                {leftSidebarVisible ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -162,10 +162,10 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 ${rightSidebarVisible ? 'bg-accent' : ''}`}
+                className="h-8 w-8"
                 onClick={toggleRightSidebar}
               >
-                <PanelRight className="h-4 w-4" />
+                {rightSidebarVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">

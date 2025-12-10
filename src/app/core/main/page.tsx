@@ -23,13 +23,18 @@ function ResizableWrapper({
 }: {
   defaultLayout: number[];
 }) {
-  const { leftSidebarVisible, rightSidebarVisible } = useSidebarStore()
+  const { leftSidebarVisible, rightSidebarVisible, initSidebarState } = useSidebarStore()
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const rightPanelRef = useRef<ImperativePanelHandle>(null)
   
   const onLayout = (sizes: number[]) => {
     localStorage.setItem("react-resizable-panels:main-layout", JSON.stringify(sizes));
   };
+
+  // 初始化侧边栏状态
+  useEffect(() => {
+    initSidebarState()
+  }, [])
 
   useEffect(() => {
     if (leftPanelRef.current) {

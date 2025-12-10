@@ -183,9 +183,10 @@ export function TagManage() {
       await initTagsDb()
       await fetchTags()
       await initTags()
+      await fetchMarks()
     }
     fetchData()
-  }, [initTags, fetchTags])
+  }, [initTags, fetchTags, fetchMarks])
 
   // 初始化时展开当前标签（只执行一次）
   React.useEffect(() => {

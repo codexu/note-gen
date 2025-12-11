@@ -53,7 +53,7 @@ export default function RootLayout({
     initAllDatabases()
     initShortcut()
     initVectorDb()
-    initQuickRecordText(router)
+    initQuickRecordText()
     initShowWindow()
     initMcp()
     // 上报应用启动事件

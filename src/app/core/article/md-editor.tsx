@@ -31,6 +31,7 @@ export function MdEditor() {
   const { assetsPath, contentTextScale } = useSettingStore()
   const [floatBarPosition, setFloatBarPosition] = useState<{left: number, top: number} | null>(null)
   const [selectedText, setSelectedText] = useState<string>('')
+  const [editorWidth, setEditorWidth] = useState<number>(0)
   const { theme } = useTheme()
   const t = useTranslations('article.editor')
   const { currentLocale } = useI18n()
@@ -53,11 +54,13 @@ export function MdEditor() {
     const outlinePosition = await store.get<'left' | 'right'>('outlinePosition') || 'left'
     const enableOutline = await store.get<boolean>('enableOutline') || false
     const enableLineNumber = await store.get<boolean>('enableLineNumber') || false
-    const toolbarConfig = createToolbarConfig(t)
+    const editorElement = document.getElementById('aritcle-md-editor')
+    const currentWidth = editorElement?.clientWidth || 0
+    const toolbarConfig = createToolbarConfig(t, currentWidth)
 
     const vditor = new Vditor('aritcle-md-editor', {
       lang: getLang(),
-      height: document.documentElement.clientHeight - 100,
+      height: '100%',
       icon: 'material',
       cdn: '',
       tab: '\t',
@@ -434,6 +437,109 @@ export function MdEditor() {
     }
   }, [editor])
 
+  // 监听编辑器宽度变化，动态更新工具栏
+  useEffect(() => {
+    if (!editor) return
+
+    const editorElement = document.getElementById('aritcle-md-editor')
+    if (!editorElement) return
+
+    let resizeTimer: NodeJS.Timeout | null = null
+    let lastToolbarLevel = -1
+
+    // 根据宽度计算当前应该显示的工具栏级别
+    const getToolbarLevel = (width: number) => {
+      if (width >= 868) return 4 // 显示所有组
+      if (width >= 489) return 3 // 显示到 group3
+      if (width >= 326) return 2 // 显示到 groupLast
+      return 1 // 只显示基础组
+    }
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width
+        
+        // 清除之前的定时器
+        if (resizeTimer) {
+          clearTimeout(resizeTimer)
+        }
+
+        // 防抖：等待拖拽结束后再更新
+        resizeTimer = setTimeout(() => {
+          const currentLevel = getToolbarLevel(width)
+          
+          // 只在跨越阈值时才更新工具栏
+          if (currentLevel !== lastToolbarLevel && lastToolbarLevel !== -1) {
+            setEditorWidth(width)
+            
+            const newToolbarConfig = createToolbarConfig(t, width)
+            const toolbarElement = editor.vditor.toolbar?.element
+            if (toolbarElement) {
+              const store = Store.load('store.json')
+              store.then(async (s) => {
+                const typewriterMode = await s.get<boolean>('typewriterMode') || false
+                const outlinePosition = await s.get<'left' | 'right'>('outlinePosition') || 'left'
+                const enableOutline = await s.get<boolean>('enableOutline') || false
+                const enableLineNumber = await s.get<boolean>('enableLineNumber') || false
+                
+                const currentContent = editor.getValue()
+                const currentMode = editor.vditor.currentMode
+                
+                editor.destroy()
+                
+                const vditor = new Vditor('aritcle-md-editor', {
+                  lang: getLang(),
+                  height: '100%',
+                  icon: 'material',
+                  cdn: '',
+                  tab: '\t',
+                  theme: theme === 'dark' ? 'dark' : 'classic',
+                  toolbar: newToolbarConfig,
+                  typewriterMode,
+                  outline: {
+                    enable: enableOutline,
+                    position: outlinePosition,
+                  },
+                  preview: {
+                    hljs: {
+                      lineNumber: enableLineNumber,
+                    },
+                  },
+                  mode: currentMode,
+                  after: () => {
+                    vditor.setValue(currentContent, false)
+                    setEditor(vditor)
+                    setEditorPadding(vditor)
+                  },
+                  input: (value) => {
+                    saveCurrentArticle(value)
+                    emitter.emit('editor-input')
+                    handleLocalImage(vditor)
+                  },
+                })
+              })
+            }
+          }
+          
+          lastToolbarLevel = currentLevel
+        }, 300) // 300ms 防抖延迟
+      }
+    })
+
+    resizeObserver.observe(editorElement)
+    
+    // 初始化时记录当前级别
+    const initialWidth = editorElement.clientWidth
+    lastToolbarLevel = getToolbarLevel(initialWidth)
+
+    return () => {
+      if (resizeTimer) {
+        clearTimeout(resizeTimer)
+      }
+      resizeObserver.disconnect()
+    }
+  }, [editor, editorWidth, t, theme, currentLocale])
+
   // 应用正文文字大小缩放
   useEffect(() => {
     if (editor) {
@@ -454,7 +560,7 @@ export function MdEditor() {
 
   return <div id="article-editor" className='flex-1 relative w-full h-full flex flex-col overflow-hidden dark:bg-zinc-950'>
     <CustomToolbar editor={editor} />
-    <div id="aritcle-md-editor" className='flex-1'></div>
+    <div id="aritcle-md-editor" className='flex-1' style={{minWidth: 0}}></div>
     <CustomFooter editor={editor} />
     <FloatBar left={floatBarPosition?.left} top={floatBarPosition?.top} value={selectedText} editor={editor} />
   </div>

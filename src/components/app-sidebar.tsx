@@ -1,5 +1,5 @@
 'use client'
-import { ImageUp, Search, Settings, SquarePen } from "lucide-react"
+import { ImageUp, Search, Settings, SquarePen, X } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +12,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { usePathname, useRouter } from 'next/navigation'
-import Link from "next/link"
 import AppStatus from "./app-status"
 import { Store } from "@tauri-apps/plugin-store"
 import { PinToggle } from "./pin-toggle"
@@ -112,17 +111,28 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <PinToggle />
-        <SidebarMenuButton isActive={pathname.includes('/core/setting')} asChild className="md:h-8 md:p-0"
+        <SidebarMenuButton 
+          isActive={pathname.includes('/core/setting')} 
+          className="md:h-8 md:p-0"
           tooltip={{
-            children: t('common.settings'),
+            children: pathname.includes('/core/setting') ? t('common.back') : t('common.settings'),
             hidden: false,
           }}
+          onClick={() => {
+            if (pathname.includes('/core/setting')) {
+              router.push('/core/main')
+            } else {
+              router.push('/core/setting')
+            }
+          }}
         >
-          <Link href="/core/setting">
-            <div className="flex size-8 items-center justify-center rounded-lg">
+          <div className="flex size-8 items-center justify-center rounded-lg">
+            {pathname.includes('/core/setting') ? (
+              <X className="size-4" />
+            ) : (
               <Settings className="size-4" />
-            </div>
-          </Link>
+            )}
+          </div>
         </SidebarMenuButton>
       </SidebarFooter>
     </Sidebar>

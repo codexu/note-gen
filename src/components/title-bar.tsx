@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isMobileDevice } from '@/lib/check'
-import { Search, Settings, Minus, Square, X, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from 'lucide-react'
+import { Search, Settings, Minus, Square, X, PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Cog } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -197,13 +197,23 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
                 variant="ghost"
                 size="icon"
                 className={`h-8 w-8 ${pathname.includes('/core/setting') ? 'bg-accent' : ''}`}
-                onClick={() => router.push('/core/setting')}
+                onClick={() => {
+                  if (pathname.includes('/core/setting')) {
+                    router.push('/core/main')
+                  } else {
+                    router.push('/core/setting')
+                  }
+                }}
               >
-                <Settings className="h-4 w-4" />
+                {pathname.includes('/core/setting') ? (
+                  <Cog className="h-4 w-4" />
+                ) : (
+                  <Settings className="h-4 w-4" />
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>{t('common.settings')}</p>
+              <p>{pathname.includes('/core/setting') ? t('common.back') : t('common.settings')}</p>
             </TooltipContent>
           </Tooltip>
         </div>

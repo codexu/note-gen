@@ -6,7 +6,7 @@ import { MdEditor } from '../article/md-editor'
 import Chat from '../record/chat'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -27,6 +27,19 @@ function ResizableWrapper({
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const rightPanelRef = useRef<ImperativePanelHandle>(null)
   
+  const MIN_SIDEBAR_WIDTH_PX = 360
+  const MIN_EDITOR_WIDTH_PX = 400
+  const [minSidebarSize, setMinSidebarSize] = useState(20)
+  const [minEditorSize, setMinEditorSize] = useState(30)
+  
+  const calculateMinSizes = () => {
+    const windowWidth = window.innerWidth
+    const minSidebarPercent = Math.max(15, (MIN_SIDEBAR_WIDTH_PX / windowWidth) * 100)
+    const minEditorPercent = Math.max(25, (MIN_EDITOR_WIDTH_PX / windowWidth) * 100)
+    setMinSidebarSize(Math.min(minSidebarPercent, 40))
+    setMinEditorSize(Math.min(minEditorPercent, 50))
+  }
+  
   const onLayout = (sizes: number[]) => {
     localStorage.setItem("react-resizable-panels:main-layout", JSON.stringify(sizes));
   };
@@ -34,6 +47,10 @@ function ResizableWrapper({
   // 初始化侧边栏状态
   useEffect(() => {
     initSidebarState()
+    calculateMinSizes()
+    
+    window.addEventListener('resize', calculateMinSizes)
+    return () => window.removeEventListener('resize', calculateMinSizes)
   }, [])
 
   useEffect(() => {
@@ -62,7 +79,7 @@ function ResizableWrapper({
       <ResizablePanel 
         ref={leftPanelRef}
         defaultSize={defaultLayout[0]}
-        minSize={20}
+        minSize={minSidebarSize}
         maxSize={40}
         collapsible={true}
         collapsedSize={0}
@@ -72,7 +89,7 @@ function ResizableWrapper({
       <ResizableHandle className={leftSidebarVisible ? 'w-[1px]' : 'w-[0]'} />
       
       {/* 中间 - Markdown 编辑器 */}
-      <ResizablePanel defaultSize={defaultLayout[1]} minSize={30}>
+      <ResizablePanel defaultSize={defaultLayout[1]} minSize={minEditorSize}>
         <MdEditor />
       </ResizablePanel>
       <ResizableHandle className={rightSidebarVisible ? 'w-[1px]' : 'w-[0]'} />
@@ -81,7 +98,7 @@ function ResizableWrapper({
       <ResizablePanel 
         ref={rightPanelRef}
         defaultSize={defaultLayout[2]}
-        minSize={20}
+        minSize={minSidebarSize}
         maxSize={40}
         collapsible={true}
         collapsedSize={0}

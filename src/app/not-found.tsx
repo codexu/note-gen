@@ -22,7 +22,7 @@ export default function NotFound() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push(isMobileDevice() ? '/mobile/chat' : '/core/record');
+      router.push(isMobileDevice() ? '/mobile/chat' : '/core/main');
     }, 5000);
 
     // Update countdown timer every second
@@ -48,7 +48,7 @@ export default function NotFound() {
       <h1 className="text-3xl font-bold mb-4">404 - Page Not Found</h1>
       <div className="text-center">
         <p className="mb-6">Redirecting to the {isMobileDevice() ? 'Chat' : 'Record'} page in {countdown} seconds...</p>
-        <Button onClick={() => router.push(isMobileDevice() ? '/mobile/chat' : '/core/record')}>Go to {isMobileDevice() ? 'Chat' : 'Record'} Page Now</Button>
+        <Button onClick={() => router.push(isMobileDevice() ? '/mobile/chat' : '/core/main')}>Go to {isMobileDevice() ? 'Chat' : 'Record'} Page Now</Button>
       </div>
     </div>
   );

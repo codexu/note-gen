@@ -1205,7 +1205,8 @@
     "hideLeftSidebar": "Hide Left Sidebar",
     "showLeftSidebar": "Show Left Sidebar",
     "hideRightSidebar": "Hide Right Sidebar",
-    "showRightSidebar": "Show Right Sidebar"
+    "showRightSidebar": "Show Right Sidebar",
+    "searchPlaceholder": "Search notes or records..."
   },
   "marks": {
     "types": {

@@ -1211,7 +1211,8 @@
     "hideLeftSidebar": "隐藏左侧边栏",
     "showLeftSidebar": "显示左侧边栏",
     "hideRightSidebar": "隐藏右侧边栏",
-    "showRightSidebar": "显示右侧边栏"
+    "showRightSidebar": "显示右侧边栏",
+    "searchPlaceholder": "搜索笔记或记录..."
   },
   "marks": {
     "types": {

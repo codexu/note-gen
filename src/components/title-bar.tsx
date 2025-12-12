@@ -12,6 +12,7 @@ import { PinToggle } from './pin-toggle'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import useSettingStore from '@/stores/setting'
+import useArticleStore from '@/stores/article'
 import React from 'react'
 import { ControlText } from '@/app/core/record/mark/control-text'
 import { ControlRecording } from '@/app/core/record/mark/control-recording'
@@ -33,7 +34,16 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   const router = useRouter()
   const { leftSidebarVisible, rightSidebarVisible, toggleLeftSidebar, toggleRightSidebar } = useSidebarStore()
   const { recordToolbarConfig } = useSettingStore()
+  const { activeFilePath } = useArticleStore()
   const t = useTranslations()
+
+  const getFileName = () => {
+    if (!activeFilePath) return ''
+    const parts = activeFilePath.split('/')
+    return parts[parts.length - 1]
+  }
+
+  const searchPlaceholder = getFileName() || t('navigation.searchPlaceholder')
 
 
   useEffect(() => {
@@ -134,8 +144,19 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
           </TooltipProvider>
         </div>
 
-        {/* 中间拖拽区域 */}
-        <div className="flex-1 min-w-[100px]" />
+        {/* 中间搜索输入框 */}
+        <div className="flex-1 flex items-center justify-center px-4 min-w-[200px] max-w-[600px] mx-auto">
+          <div 
+            className="relative w-full h-6 max-w-md group cursor-pointer flex justify-center items-center border rounded-sm"
+            onClick={() => onSearchClick?.()}
+            data-tauri-drag-region="false"
+          >
+            <Search className="size-3.5 text-muted-foreground" />
+            <div className="pl-2 text-xs text-muted-foreground transition-colors">
+              <span className="truncate">{searchPlaceholder}</span>
+            </div>
+          </div>
+        </div>
 
         {/* 右侧按钮 */}
         <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
@@ -170,22 +191,6 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p>{rightSidebarVisible ? t('navigation.hideRightSidebar') : t('navigation.showRightSidebar')}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onSearchClick?.()}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>{t('navigation.search')}</p>
             </TooltipContent>
           </Tooltip>
           

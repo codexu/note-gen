@@ -1164,7 +1164,8 @@
     "hideLeftSidebar": "隱藏左側邊欄",
     "showLeftSidebar": "顯示左側邊欄",
     "hideRightSidebar": "隱藏右側邊欄",
-    "showRightSidebar": "顯示右側邊欄"
+    "showRightSidebar": "顯示右側邊欄",
+    "searchPlaceholder": "搜索筆記或記錄..."
   },
   "marks": {
     "types": {

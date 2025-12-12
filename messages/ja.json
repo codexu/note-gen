@@ -1151,7 +1151,8 @@
     "hideLeftSidebar": "左サイドバーを非表示",
     "showLeftSidebar": "左サイドバーを表示",
     "hideRightSidebar": "右サイドバーを非表示",
-    "showRightSidebar": "右サイドバーを表示"
+    "showRightSidebar": "右サイドバーを表示",
+    "searchPlaceholder": "ノートまたは記録を検索..."
   },
   "chat": {
     "placeholder": {

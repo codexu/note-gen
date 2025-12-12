@@ -1186,7 +1186,8 @@
     "hideLeftSidebar": "Ocultar Barra Lateral Esquerda",
     "showLeftSidebar": "Mostrar Barra Lateral Esquerda",
     "hideRightSidebar": "Ocultar Barra Lateral Direita",
-    "showRightSidebar": "Mostrar Barra Lateral Direita"
+    "showRightSidebar": "Mostrar Barra Lateral Direita",
+    "searchPlaceholder": "Pesquisar notas ou registros..."
   },
   "marks": {
     "types": {

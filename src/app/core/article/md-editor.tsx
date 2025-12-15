@@ -135,7 +135,10 @@ export function MdEditor() {
       input: (value) => {
         saveCurrentArticle(value)
         emitter.emit('editor-input')
-        handleLocalImage(vditor)
+        setTimeout(() => {
+          handleLocalImage(vditor)
+        }, 1100)
+
       },
       mode: localMode,
       upload: {
@@ -206,7 +209,7 @@ export function MdEditor() {
   // 处理本地相对路径图片
   async function handleLocalImage(vditor: Vditor) {
     const workspace = await getWorkspacePath()
-    const previews = [vditor.vditor.ir?.element, vditor.vditor.sv?.element, vditor.vditor.wysiwyg?.element]
+    const previews = [vditor.vditor.ir?.element, vditor.vditor.sv?.element, vditor.vditor.wysiwyg?.element,vditor.vditor.preview?.element]
     previews.forEach(element => {
       element?.querySelectorAll('img').forEach(async (img) => {
         let src = img.getAttribute('src')

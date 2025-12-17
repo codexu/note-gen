@@ -1277,32 +1277,6 @@
     "cancel": "キャンセル",
     "delete": "削除",
     "deleteConfirm": "本当に削除しますか？"
-  },
-  "content": {
-    "organize": "将你的記録整理为文章："
-  },
-  "note": {
-    "organize": "整理",
-    "writing": "執筆",
-    "convert": "文章に変換",
-    "description": "現在のノートはAIによって生成され、編集できません。ノートを文章（ローカルファイル）に変換して、執筆ページで二次創作できます。",
-    "filename": "ファイル名",
-    "selectFolder": "ファイル夹を選択",
-    "rootDirectory": "ルートディレクトリ",
-    "deleteTag": "削除タグ、記録とノート（ゴミ箱で復元可能）",
-    "warning": "変換後、執筆ページに移動します。",
-    "convert_button": "変換",
-    "organizeAs": "記録を整理します...",
-    "templateContent": "テンプレート内容",
-    "recordRange": "記録範囲を選択",
-    "filterThinkingContent": "思考の記録を削除します",
-    "startOrganize": "開始整理",
-    "manageTemplate": "管理テンプレート",
-    "cancel": "キャンセル"
-  },
-  "mark": {
-    "recorded": "記録済み",
-    "record": "記録"
   }
 },
 "tag": {
@@ -1311,7 +1285,6 @@
   "delete": "削除タグ",
   "deleteConfirm": "本当に削除しますか？",
   "placeholder": "入力するタグ名"
-}
 },
 "search": {
   "placeholder": "ノートと記事を検索...",
@@ -1329,8 +1302,10 @@
   "root": "画像ホスティング倉庫",
   "noData": {
     "title": "同期機能が有効になっていません",
-    "desc": "システム設定ページに移動して、Github同期を設定してください。",
-  "marks": {
+    "desc": "システム設定ページに移動して、Github同期を設定してください。"
+  }
+},
+"marks": {
     "types": {
       "screenshot": "スクリーンショット",
       "text": "テキスト",

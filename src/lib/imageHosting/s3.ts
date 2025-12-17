@@ -18,7 +18,7 @@ async function generateSignature(
   method: string,
   url: string,
   headers: Record<string, string>,
-  payload: ArrayBuffer,
+  payload: BufferSource,
   config: S3Config
 ) {
   const algorithm = 'AWS4-HMAC-SHA256';

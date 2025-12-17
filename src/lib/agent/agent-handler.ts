@@ -69,6 +69,13 @@ export class AgentHandler {
     try {
       const result = await this.agent.run(userInput, context)
       store.setAgentState({ isRunning: false })
+      
+      // 如果结果为空字符串，说明被用户终止
+      if (result === '') {
+        // 不调用 onComplete，让 handleStop 处理终止消息
+        return ''
+      }
+      
       this.config.onComplete?.(result)
       return result
     } catch (error) {
@@ -80,8 +87,11 @@ export class AgentHandler {
   }
 
   stop() {
-    this.agent = null
+    if (this.agent) {
+      this.agent.stop()
+      this.agent = null
+    }
     const store = useChatStore.getState()
-    store.setAgentState({ isRunning: false })
+    store.resetAgentState()
   }
 }

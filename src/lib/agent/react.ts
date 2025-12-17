@@ -16,6 +16,7 @@ export class ReActAgent {
   private steps: ReActStep[] = []
   private currentIteration = 0
   private toolCallCounter = 0
+  private stopped = false
 
   constructor(config: ReActConfig) {
     this.config = config
@@ -24,15 +25,25 @@ export class ReActAgent {
     }
   }
 
+  stop() {
+    this.stopped = true
+  }
+
   async run(userInput: string, context?: string): Promise<string> {
     this.steps = []
     this.currentIteration = 0
     this.toolCallCounter = 0
+    this.stopped = false
 
     const systemPrompt = this.buildSystemPrompt()
     let finalAnswer = ''
 
     while (this.currentIteration < this.config.maxIterations) {
+      // 检查是否已停止
+      if (this.stopped) {
+        return '' // 返回空字符串表示被用户终止
+      }
+
       this.currentIteration++
 
       // 在新迭代开始时，通知保存上一次的思考到历史
@@ -41,6 +52,11 @@ export class ReActAgent {
       }
 
       const thought = await this.think(userInput, context, systemPrompt)
+      
+      // 再次检查是否已停止
+      if (this.stopped) {
+        return '' // 返回空字符串表示被用户终止
+      }
 
       if (thought.includes('Final Answer:')) {
         finalAnswer = thought.split('Final Answer:')[1].trim()
@@ -56,6 +72,12 @@ export class ReActAgent {
       this.config.onAction?.(action.tool, action.params)
 
       const observation = await this.act(action.tool, action.params)
+      
+      // 检查是否已停止
+      if (this.stopped) {
+        return '' // 返回空字符串表示被用户终止
+      }
+      
       this.config.onObservation?.(observation)
 
       this.steps.push({

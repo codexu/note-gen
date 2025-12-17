@@ -1099,6 +1099,7 @@
         },
         "send": "发送",
         "stop": "停止",
+        "stopped": "对话已终止",
         "terminate": "终止",
         "tagLink": {
           "on": "已关联标签",

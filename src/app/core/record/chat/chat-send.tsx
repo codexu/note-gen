@@ -27,12 +27,13 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedFile }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, chats, locale, chatMode, agentState, setAgentState } = useChatStore()
+  const { insert, loading, setLoading, saveChat, chats, locale, chatMode, setAgentState } = useChatStore()
   const { fetchMarks, marks } = useMarkStore()
   const { isLinkMark } = useChatStore()
   const { isRagEnabled } = useVectorStore()
   const { selectedServerIds } = useMcpStore()
   const abortControllerRef = useRef<AbortController | null>(null)
+  const agentHandlerRef = useRef<AgentHandler | null>(null)
   const t = useTranslations()
 
   useImperativeHandle(ref, () => ({
@@ -97,6 +98,9 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
           content: result,
           agentHistory: JSON.stringify(agentHistory),
         }, true)
+        
+        // 清空 ref
+        agentHandlerRef.current = null
       },
       onError: async (error) => {
         // 更新占位消息为错误信息
@@ -104,13 +108,22 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
           ...placeholderMessage,
           content: `Error: ${error}`,
         }, true)
+        
+        // 清空 ref
+        agentHandlerRef.current = null
       },
     })
+
+    // 保存到 ref
+    agentHandlerRef.current = agentHandler
 
     try {
       await agentHandler.execute(inputValue)
     } catch (error) {
       console.error('Agent execution error:', error)
+    } finally {
+      // 清空 ref
+      agentHandlerRef.current = null
     }
   }
 
@@ -283,9 +296,30 @@ ${ragContext}
     }
   }
 
-  const handleStop = () => {
+  const handleStop = async () => {
+    // 停止普通对话的流式输出
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
+    // 停止 Agent 执行
+    if (agentHandlerRef.current) {
+      agentHandlerRef.current.stop()
+      agentHandlerRef.current = null
+    }
+    
+    // 重置 loading 状态
+    setLoading(false)
+    
+    // 保存终止消息
+    const lastChat = chats[chats.length - 1]
+    if (lastChat && lastChat.role === 'system') {
+      // 如果最后一条消息是系统消息，更新为终止消息
+      await saveChat({
+        ...lastChat,
+        content: t('record.chat.input.stopped'),
+      }, true)
     }
   }
 

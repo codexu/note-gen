@@ -1096,6 +1096,7 @@
         },
         "send": "Send",
         "stop": "Stop",
+        "stopped": "Conversation stopped",
         "terminate": "Terminate",
         "tagLink": {
           "on": "Linked to tag",

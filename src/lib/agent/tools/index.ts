@@ -3,12 +3,14 @@ import { noteTools } from './note-tools'
 import { chatTools } from './chat-tools'
 import { tagTools } from './tag-tools'
 import { markTools } from './mark-tools'
+import { folderTools } from './folder-tools'
 
 export const allTools: Tool[] = [
   ...noteTools,
   ...chatTools,
   ...tagTools,
   ...markTools,
+  ...folderTools,
 ]
 
 export function getToolByName(name: string): Tool | undefined {
@@ -39,3 +41,4 @@ export * from './note-tools'
 export * from './chat-tools'
 export * from './tag-tools'
 export * from './mark-tools'
+export * from './folder-tools'

@@ -21,6 +21,7 @@ import ChatPlaceholder from "./chat-placeholder"
 import { ClipboardMonitor } from "./clipboard-monitor"
 import { ClearContext } from "./clear-context"
 import { ClearChat } from "./clear-chat"
+import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -340,6 +341,7 @@ export function ChatInput() {
           )}
         </div>
         <div className="flex items-center justify-end gap-2 pr-1">
+          <ChatModeSelect />
           <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} ref={chatSendRef} />
         </div>
       </div>

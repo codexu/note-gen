@@ -838,6 +838,25 @@
           "text": "文本"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "對話",
+            "agent": "智能體"
+          },
+          "agent": {
+            "running": "Agent 運行中",
+            "thinking": "思考中",
+            "acting": "執行中",
+            "observation": "觀察結果",
+            "toolCalls": "工具調用",
+            "confirmation": {
+              "title": "確認操作",
+              "description": "Agent 想要執行以下操作，請確認後繼續。",
+              "tool": "工具",
+              "parameters": "參數",
+              "cancel": "取消",
+              "confirm": "確認"
+            }
+          },
           "placeholder": {
             "default": "你可以提問或將記錄整理為文章...",
             "noApiKey": "未配置 API Key，無法使用 AI 對話功能...",
@@ -1053,6 +1072,25 @@
           "chat": "對話模式",
           "gen": "整理模式",
           "translate": "翻譯模式"
+        },
+        "chatModeSelect": {
+          "chatDescription": "快速對話，唯讀模式",
+          "agentDescription": "智能助手，可執行操作"
+        },
+        "agent": {
+          "running": "Agent 運行中",
+          "thinking": "思考中",
+          "acting": "執行中",
+          "observation": "觀察結果",
+          "toolCalls": "工具調用",
+          "confirmation": {
+            "title": "確認操作",
+            "description": "Agent 想要執行以下操作，請確認後繼續。",
+            "tool": "工具",
+            "parameters": "參數",
+            "cancel": "取消",
+            "confirm": "確認"
+          }
         },
         "fileLink": {
           "tooltip": "關聯文件",

@@ -6,7 +6,7 @@ import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import { fetchAiStream } from "@/lib/ai"
 import { TooltipButton } from "@/components/tooltip-button"
-import { useImperativeHandle, forwardRef, useRef } from "react"
+import { useImperativeHandle, forwardRef, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import useVectorStore from "@/stores/vector"
 import { getContextForQuery } from '@/lib/rag'
@@ -16,6 +16,8 @@ import { readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { useMcpStore } from "@/stores/mcp"
 import { getOpenAIFunctions } from "@/lib/mcp/tools"
+import { AgentHandler } from "@/lib/agent/agent-handler"
+import { AgentConfirmationDialog } from "./agent-confirmation-dialog"
 
 interface ChatSendProps {
   inputValue: string;
@@ -26,7 +28,7 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedFile }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, chats, locale } = useChatStore()
+  const { insert, loading, setLoading, saveChat, chats, locale, chatMode } = useChatStore()
   const { fetchMarks, marks } = useMarkStore()
   const { isLinkMark } = useChatStore()
   const { isRagEnabled } = useVectorStore()
@@ -34,15 +36,115 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
   const abortControllerRef = useRef<AbortController | null>(null)
   const t = useTranslations()
 
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    toolName: string
+    params: Record<string, any>
+    resolve: (value: boolean) => void
+  } | null>(null)
+
   useImperativeHandle(ref, () => ({
     sendChat: handleSubmit
   }))
+
+  // Agent 确认回调
+  const requestConfirmation = (toolName: string, params: Record<string, any>): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setPendingConfirmation({ toolName, params, resolve })
+      setIsConfirmationOpen(true)
+    })
+  }
+
+  const handleConfirm = () => {
+    if (pendingConfirmation) {
+      pendingConfirmation.resolve(true)
+      setPendingConfirmation(null)
+      setIsConfirmationOpen(false)
+    }
+  }
+
+  const handleCancel = () => {
+    if (pendingConfirmation) {
+      pendingConfirmation.resolve(false)
+      setPendingConfirmation(null)
+      setIsConfirmationOpen(false)
+    }
+  }
+
+  // Agent 模式处理
+  async function handleAgentMode() {
+    // 先创建一个占位的 AI 消息
+    const placeholderMessage = await insert({
+      tagId: currentTagId,
+      role: 'system',
+      content: '',
+      type: 'chat',
+      inserted: false,
+    })
+
+    if (!placeholderMessage) return
+
+    // 每次都创建新的 AgentHandler，使用当前的 placeholderMessage
+    const agentHandler = new AgentHandler({
+      requestConfirmation,
+      onComplete: async (result) => {
+        // 获取 Agent 执行历史
+        const { agentState } = useChatStore.getState()
+        // 合并所有思考内容
+        const allThoughts = [...agentState.thoughtHistory]
+        if (agentState.currentThought) {
+          allThoughts.push(agentState.currentThought)
+        }
+        const agentHistory = {
+          thought: allThoughts.join('\n\n'),
+          toolCalls: agentState.toolCalls,
+          iterations: agentState.currentIteration,
+        }
+        
+        // 更新占位消息
+        await saveChat({
+          ...placeholderMessage,
+          content: result,
+          agentHistory: JSON.stringify(agentHistory),
+        }, true)
+      },
+      onError: async (error) => {
+        // 更新占位消息为错误信息
+        await saveChat({
+          ...placeholderMessage,
+          content: `Error: ${error}`,
+        }, true)
+      },
+    })
+
+    try {
+      await agentHandler.execute(inputValue)
+    } catch (error) {
+      console.error('Agent execution error:', error)
+    }
+  }
 
   // 对话
   async function handleSubmit() {
     if (inputValue === '') return
     onSent?.()
     
+    // Agent 模式
+    if (chatMode === 'agent') {
+      setLoading(true)
+      await insert({
+        tagId: currentTagId,
+        role: 'user',
+        content: inputValue,
+        type: 'chat',
+        inserted: false,
+      })
+      await handleAgentMode()
+      setLoading(false)
+      return
+    }
+
+    // Chat 模式（原有逻辑）
     setLoading(true)
     await insert({
       tagId: currentTagId,
@@ -198,14 +300,26 @@ ${ragContext}
   }
 
   return (
-    <TooltipButton 
-      variant={loading ? "destructive" : "default"}
-      size="sm"
-      icon={loading ? <Square className="size-4" /> : <Send className="size-4" />} 
-      disabled={!loading && (!primaryModel || !inputValue.trim())} 
-      tooltipText={loading ? t('record.chat.input.stop') : t('record.chat.input.send')} 
-      onClick={loading ? handleStop : handleSubmit} 
-    />
+    <>
+      <TooltipButton 
+        variant={loading ? "destructive" : "default"}
+        size="sm"
+        icon={loading ? <Square className="size-4" /> : <Send className="size-4" />} 
+        disabled={!loading && (!primaryModel || !inputValue.trim())} 
+        tooltipText={loading ? t('record.chat.input.stop') : t('record.chat.input.send')} 
+        onClick={loading ? handleStop : handleSubmit} 
+      />
+      
+      {pendingConfirmation && (
+        <AgentConfirmationDialog
+          open={isConfirmationOpen}
+          toolName={pendingConfirmation.toolName}
+          params={pendingConfirmation.params}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      )}
+    </>
   )
 })
 

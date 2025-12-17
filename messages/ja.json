@@ -1042,6 +1042,10 @@
           "gen": "整理モード",
           "translate": "翻訳モード"
         },
+        "chatModeSelect": {
+          "chatDescription": "クイック会話、読み取り専用モード",
+          "agentDescription": "スマートアシスタント、アクション実行可能"
+        },
         "fileLink": {
           "tooltip": "ファイルをリンク",
           "selectFile": "ファイルを選択",

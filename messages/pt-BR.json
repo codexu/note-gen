@@ -1104,6 +1104,10 @@
           "gen": "Modo Organizar",
           "translate": "Modo Traduzir"
         },
+        "chatModeSelect": {
+          "chatDescription": "Conversa rápida, modo somente leitura",
+          "agentDescription": "Assistente inteligente, pode executar ações"
+        },
         "fileLink": {
           "tooltip": "Vincular Arquivo",
           "selectFile": "Selecionar Arquivo",

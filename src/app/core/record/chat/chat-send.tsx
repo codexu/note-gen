@@ -6,7 +6,7 @@ import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import { fetchAiStream } from "@/lib/ai"
 import { TooltipButton } from "@/components/tooltip-button"
-import { useImperativeHandle, forwardRef, useRef, useState } from "react"
+import { useImperativeHandle, forwardRef, useRef } from "react"
 import { useTranslations } from "next-intl"
 import useVectorStore from "@/stores/vector"
 import { getContextForQuery } from '@/lib/rag'
@@ -17,7 +17,6 @@ import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { useMcpStore } from "@/stores/mcp"
 import { getOpenAIFunctions } from "@/lib/mcp/tools"
 import { AgentHandler } from "@/lib/agent/agent-handler"
-import { AgentConfirmationDialog } from "./agent-confirmation-dialog"
 
 interface ChatSendProps {
   inputValue: string;
@@ -28,7 +27,7 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedFile }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, chats, locale, chatMode } = useChatStore()
+  const { insert, loading, setLoading, saveChat, chats, locale, chatMode, agentState, setAgentState } = useChatStore()
   const { fetchMarks, marks } = useMarkStore()
   const { isLinkMark } = useChatStore()
   const { isRagEnabled } = useVectorStore()
@@ -36,39 +35,30 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
   const abortControllerRef = useRef<AbortController | null>(null)
   const t = useTranslations()
 
-  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
-  const [pendingConfirmation, setPendingConfirmation] = useState<{
-    toolName: string
-    params: Record<string, any>
-    resolve: (value: boolean) => void
-  } | null>(null)
-
   useImperativeHandle(ref, () => ({
     sendChat: handleSubmit
   }))
 
-  // Agent 确认回调
+  // Agent 确认回调 - 使用内联确认而不是弹窗
   const requestConfirmation = (toolName: string, params: Record<string, any>): Promise<boolean> => {
     return new Promise((resolve) => {
-      setPendingConfirmation({ toolName, params, resolve })
-      setIsConfirmationOpen(true)
+      // 将确认请求保存到 store，在对话中显示
+      setAgentState({ 
+        pendingConfirmation: { toolName, params }
+      })
+      
+      // 轮询检查用户是否已确认或取消
+      const checkInterval = setInterval(() => {
+        const currentState = useChatStore.getState()
+        
+        // 如果 pendingConfirmation 被清除，说明用户已操作
+        if (!currentState.agentState.pendingConfirmation) {
+          clearInterval(checkInterval)
+          // 如果 Agent 仍在运行，说明用户确认了
+          resolve(currentState.agentState.isRunning)
+        }
+      }, 100)
     })
-  }
-
-  const handleConfirm = () => {
-    if (pendingConfirmation) {
-      pendingConfirmation.resolve(true)
-      setPendingConfirmation(null)
-      setIsConfirmationOpen(false)
-    }
-  }
-
-  const handleCancel = () => {
-    if (pendingConfirmation) {
-      pendingConfirmation.resolve(false)
-      setPendingConfirmation(null)
-      setIsConfirmationOpen(false)
-    }
   }
 
   // Agent 模式处理
@@ -309,16 +299,6 @@ ${ragContext}
         tooltipText={loading ? t('record.chat.input.stop') : t('record.chat.input.send')} 
         onClick={loading ? handleStop : handleSubmit} 
       />
-      
-      {pendingConfirmation && (
-        <AgentConfirmationDialog
-          open={isConfirmationOpen}
-          toolName={pendingConfirmation.toolName}
-          params={pendingConfirmation.params}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-        />
-      )}
     </>
   )
 })

@@ -903,8 +903,10 @@
               "description": "Agent 想要执行以下操作，请确认后继续。",
               "tool": "工具",
               "parameters": "参数",
+              "confirm": "确认",
               "cancel": "取消",
-              "confirm": "确认"
+              "confirmed": "已确认",
+              "cancelled": "已取消"
             }
           },
           "placeholder": {
@@ -1149,7 +1151,9 @@
             "tool": "工具",
             "parameters": "参数",
             "cancel": "取消",
-            "confirm": "确认"
+            "confirm": "确认",
+            "confirmed": "已确认",
+            "cancelled": "已取消"
           }
         },
         "fileLink": {

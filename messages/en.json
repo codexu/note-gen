@@ -883,7 +883,9 @@
               "tool": "Tool",
               "parameters": "Parameters",
               "cancel": "Cancel",
-              "confirm": "Confirm"
+              "confirm": "Confirm",
+              "confirmed": "Confirmed",
+              "cancelled": "Cancelled"
             }
           },
           "placeholder": {

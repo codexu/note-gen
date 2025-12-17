@@ -854,7 +854,9 @@
               "tool": "工具",
               "parameters": "參數",
               "cancel": "取消",
-              "confirm": "確認"
+              "confirm": "確認",
+              "confirmed": "已確認",
+              "cancelled": "已取消"
             }
           },
           "placeholder": {

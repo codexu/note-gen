@@ -47,17 +47,19 @@ export default function ChatContent() {
     init(currentTagId)
   }, [currentTagId])
 
+  // 监听消息变化，在底部时自动滚动
   useEffect(() => {
-    if (!isOnBottom) return
-    scrollToBottom()
-  }, [chats])
+    if (isOnBottom) {
+      scrollToBottom()
+    }
+  }, [chats, isOnBottom])
 
   // Agent 执行时自动滚动到底部
   useEffect(() => {
     if (agentState.isRunning) {
       scrollToBottom()
     }
-  }, [agentState.currentThought, agentState.thoughtHistory])
+  }, [agentState.currentThought, agentState.thoughtHistory, agentState.pendingConfirmation])
 
   return <div id="chats-wrapper" className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col items-end p-4 gap-6">
     {

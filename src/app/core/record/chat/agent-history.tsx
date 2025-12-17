@@ -1,6 +1,5 @@
 import * as React from "react"
-import { ChevronDown, ChevronUp } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { ChevronRight, Brain } from "lucide-react"
 
 interface AgentHistoryData {
   thought: string
@@ -24,8 +23,7 @@ interface AgentHistoryProps {
 }
 
 export function AgentHistory({ historyJson }: AgentHistoryProps) {
-  const t = useTranslations('record.chat.input.agent')
-  const [isExpanded, setIsExpanded] = React.useState(false)
+  const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set())
 
   let history: AgentHistoryData | null = null
   try {
@@ -41,29 +39,54 @@ export function AgentHistory({ historyJson }: AgentHistoryProps) {
   // 将思考内容按 \n\n 分割成多个思考步骤
   const thoughts = history.thought.split('\n\n').filter(t => t.trim())
 
+  const toggleExpand = (index: number) => {
+    const newExpanded = new Set(expandedItems)
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index)
+    } else {
+      newExpanded.add(index)
+    }
+    setExpandedItems(newExpanded)
+  }
+
+  // 提取思考内容的标题（第一行或前50个字符）
+  const extractTitle = (thought: string): string => {
+    const firstLine = thought.split('\n')[0]
+    if (firstLine.length > 50) {
+      return firstLine.substring(0, 50) + '...'
+    }
+    return firstLine || thought.substring(0, 50) + '...'
+  }
+
   return (
-    <div className="mb-3 text-sm">
-      {/* 思考过程 - 默认折叠 */}
-      <div className="mb-2">
-        <div 
-          className="flex items-center gap-2 py-1.5 px-3 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-950/30 transition-colors"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-400 flex-1">
-            {t('thinking')} ({thoughts.length})
-          </span>
-          {isExpanded ? <ChevronUp className="size-3.5 text-blue-700 dark:text-blue-400" /> : <ChevronDown className="size-3.5 text-blue-700 dark:text-blue-400" />}
-        </div>
-        {isExpanded && (
-          <div className="mt-2 space-y-2">
-            {thoughts.map((thought, index) => (
-              <div key={index} className="py-2 px-3 text-xs text-blue-900/80 dark:text-blue-100/80 whitespace-pre-wrap bg-blue-50/50 dark:bg-blue-950/10 rounded-md border-l-2 border-blue-300 dark:border-blue-800">
+    <div className="w-full space-y-1 mb-3">
+      {thoughts.map((thought, index) => {
+        const isExpanded = expandedItems.has(index)
+        const title = extractTitle(thought)
+        
+        return (
+          <div key={index} className="space-y-1">
+            {/* 思考卡片 - 单行 */}
+            <div 
+              className="flex items-center gap-2 py-1.5 px-3 rounded hover:bg-muted/50 cursor-pointer group"
+              onClick={() => toggleExpand(index)}
+            >
+              <Brain className="size-3.5 text-blue-500 flex-shrink-0" />
+              <span className="text-xs text-muted-foreground flex-1 break-words">
+                {title}
+              </span>
+              <ChevronRight className={`size-3.5 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+            </div>
+            
+            {/* 展开的详细内容 */}
+            {isExpanded && (
+              <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap">
                 {thought}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
+        )
+      })}
     </div>
   )
 }

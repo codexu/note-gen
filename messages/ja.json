@@ -843,7 +843,17 @@
             }
           },
           "messageControl": {
-            "words": "文字"
+            "words": "文字",
+            "confirmation": {
+              "title": "操作を確認",
+              "description": "エージェントが次の操作を実行しようとしています。続行するには確認してください。",
+              "tool": "ツール",
+              "parameters": "パラメータ",
+              "cancel": "キャンセル",
+              "confirm": "確認",
+              "confirmed": "確認済み",
+              "cancelled": "キャンセル済み"
+            }
           },
           "mcp": {
             "maxIterationsReached": "最大ツール呼び出し回数に達しました",

@@ -26,7 +26,7 @@ export class AgentHandler {
     store.setAgentState({ isRunning: true })
 
     const reactConfig: ReActConfig = {
-      maxIterations: 10,
+      maxIterations: 15,
       onIterationStart: () => {
         // 在新迭代开始时，将当前思考保存到历史
         const currentState = useChatStore.getState()

@@ -101,11 +101,13 @@ const useChatStore = create<ChatState>((set, get) => ({
     isRunning: false,
     currentThought: '',
     thoughtHistory: [],
-    currentAction: '',
-    currentObservation: '',
+    currentAction: undefined,
+    currentObservation: undefined,
     toolCalls: [],
-    maxIterations: 10,
+    maxIterations: 15,
     currentIteration: 0,
+    pendingConfirmation: undefined,
+    confirmationHistory: [],
   },
 
   setAgentState: (state: Partial<AgentState>) => {
@@ -121,8 +123,10 @@ const useChatStore = create<ChatState>((set, get) => ({
         currentAction: '',
         currentObservation: '',
         toolCalls: [],
-        maxIterations: 10,
+        maxIterations: 15,
         currentIteration: 0,
+        pendingConfirmation: undefined,
+        confirmationHistory: [],
       }
     })
   },

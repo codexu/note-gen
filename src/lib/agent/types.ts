@@ -35,15 +35,27 @@ export interface ToolCall {
 
 export type ChatMode = 'chat' | 'agent'
 
+export interface ConfirmationRecord {
+  toolName: string
+  params: Record<string, any>
+  status: 'pending' | 'confirmed' | 'cancelled'
+  timestamp: number
+}
+
 export interface AgentState {
   isRunning: boolean
   currentThought: string
   thoughtHistory: string[] // 累积的思考历史
-  currentAction: string
-  currentObservation: string
+  currentAction?: string
+  currentObservation?: string
   toolCalls: ToolCall[]
   maxIterations: number
   currentIteration: number
+  pendingConfirmation?: {
+    toolName: string
+    params: Record<string, any>
+  }
+  confirmationHistory: ConfirmationRecord[] // 确认操作的历史记录
 }
 
 export interface ReActStep {

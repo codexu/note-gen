@@ -20,7 +20,7 @@ export class ReActAgent {
   constructor(config: ReActConfig) {
     this.config = config
     if (!this.config.maxIterations) {
-      this.config.maxIterations = 10
+      this.config.maxIterations = 15
     }
   }
 
@@ -82,16 +82,13 @@ export class ReActAgent {
   private buildSystemPrompt(): string {
     const toolDescriptions = getToolDescriptions()
     
-    return `你是一个智能助手 Agent，可以使用工具来帮助用户完成任务。你需要按照 ReAct (Reasoning + Acting) 框架来思考和行动。
+    return `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
 
-## ReAct 框架说明
+## 核心原则
 
-每次迭代包含三个步骤：
-1. **Thought（思考）**：分析当前情况，决定下一步做什么
-2. **Action（行动）**：选择一个工具并提供参数
-3. **Observation（观察）**：系统会自动执行工具并返回结果
-
-重复这个过程，直到你能给出最终答案。
+**效率优先**：尽量用最少的步骤完成任务，避免不必要的思考和操作。
+**直接行动**：如果任务明确，直接执行，不要过度分析。
+**快速结束**：完成核心任务后立即给出 Final Answer。
 
 ## 可用工具
 
@@ -129,39 +126,29 @@ Final Answer: 已为您整理完成！我创建了一个名为"React 知识总�
 
 ## 重要规则
 
-1. **严格遵循格式**：每次回复必须包含 Thought，然后是 Action + Action Input 或 Final Answer
-2. **JSON 格式**：Action Input 必须是有效的 JSON 对象，使用双引号
-3. **一次一个工具**：每次只能调用一个工具，不要同时调用多个
-4. **错误处理**：如果工具执行失败，分析原因并尝试其他方法
-5. **任务完成**：当所有操作完成后，使用 Final Answer 给出清晰的总结
-6. **只使用可用工具**：不要编造不存在的工具或参数
-7. **确认危险操作**：删除、清空等操作会要求用户确认
-8. **参数准确性**：确保传递正确的参数类型和值
+1. **严格格式**：Thought → Action + Action Input 或 Final Answer
+2. **JSON 格式**：Action Input 必须是有效 JSON，使用双引号
+3. **一次一个工具**：每次只调用一个工具
+4. **快速完成**：完成核心任务后立即给出 Final Answer，不要做额外操作
+5. **只用可用工具**：不要编造工具或参数
+6. **简洁思考**：Thought 保持简短，直接说明要做什么
 
-## 工作流程示例
+## 示例
 
-**用户请求**："帮我整理所有关于 React 的笔记"
+**用户**："创建一个笔记介绍 NoteGen"
 
 **Iteration 1:**
 \`\`\`
-Thought: 首先需要搜索所有包含 React 的笔记
-Action: search_notes
-Action Input: {"query": "React"}
+Thought: 直接创建笔记
+Action: create_markdown_file
+Action Input: {"fileName": "NoteGen介绍.md", "content": "# NoteGen\\n\\n智能笔记软件..."}
 \`\`\`
-Observation: 找到 5 条匹配的笔记
+Observation: 成功创建文件
 
 **Iteration 2:**
 \`\`\`
-Thought: 找到了 5 条笔记，现在我需要创建一个总结笔记来整理这些内容
-Action: create_note
-Action Input: {"tagId": 1, "content": "# React 知识总结\\n\\n整理了 5 条相关笔记...", "locale": "zh-CN"}
-\`\`\`
-Observation: 成功创建笔记，ID: 123
-
-**Iteration 3:**
-\`\`\`
-Thought: 笔记已创建成功，任务完成
-Final Answer: 已为您整理完成！创建了"React 知识总结"笔记，整合了 5 条相关内容。
+Thought: 任务完成
+Final Answer: 已创建笔记"NoteGen介绍.md"
 \`\`\`
 
 现在开始执行任务！`
@@ -212,12 +199,95 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
   private parseAction(thought: string): { tool: string; params: Record<string, any> } | null {
     try {
       const actionMatch = thought.match(/Action:\s*(\w+)/i)
-      const inputMatch = thought.match(/Action Input:\s*({[\s\S]*?})/i)
-
+      
       if (!actionMatch) return null
 
       const tool = actionMatch[1]
-      const params = inputMatch ? JSON.parse(inputMatch[1]) : {}
+      let params = {}
+      
+      // 使用更宽松的正则匹配，获取 Action Input 后的所有内容
+      const inputMatch = thought.match(/Action Input:\s*({[\s\S]*)/i)
+      
+      if (inputMatch) {
+        let jsonStr = inputMatch[1].trim()
+        
+        // 尝试找到完整的 JSON 对象
+        let braceCount = 0
+        let jsonEnd = -1
+        let inString = false
+        let escapeNext = false
+        
+        for (let i = 0; i < jsonStr.length; i++) {
+          const char = jsonStr[i]
+          
+          if (escapeNext) {
+            escapeNext = false
+            continue
+          }
+          
+          if (char === '\\') {
+            escapeNext = true
+            continue
+          }
+          
+          if (char === '"' && !escapeNext) {
+            inString = !inString
+            continue
+          }
+          
+          if (!inString) {
+            if (char === '{') {
+              braceCount++
+            } else if (char === '}') {
+              braceCount--
+              if (braceCount === 0) {
+                jsonEnd = i + 1
+                break
+              }
+            }
+          }
+        }
+        
+        // 如果找到了完整的 JSON，截取它
+        if (jsonEnd > 0) {
+          jsonStr = jsonStr.substring(0, jsonEnd)
+        }
+        
+        try {
+          params = JSON.parse(jsonStr)
+        } catch {
+          // JSON 解析失败，尝试修复
+          console.warn('JSON parse failed, attempting repair:', jsonStr)
+          
+          // 移除末尾可能的不完整内容
+          jsonStr = jsonStr.replace(/,\s*$/, '') // 移除末尾的逗号
+          jsonStr = jsonStr.replace(/:\s*$/, ': ""') // 补全缺少值的键
+          jsonStr = jsonStr.replace(/,\s*}/, '}') // 移除对象末尾的逗号
+          
+          // 补全未闭合的引号
+          const quotes = (jsonStr.match(/"/g) || []).length
+          if (quotes % 2 !== 0) {
+            jsonStr += '"'
+          }
+          
+          // 补全未闭合的括号
+          const openBraces = (jsonStr.match(/{/g) || []).length
+          const closeBraces = (jsonStr.match(/}/g) || []).length
+          if (openBraces > closeBraces) {
+            jsonStr += '}'.repeat(openBraces - closeBraces)
+          }
+          
+          try {
+            params = JSON.parse(jsonStr)
+          } catch (retryError) {
+            console.error('Failed to parse action input after repair:', retryError)
+            console.error('Original JSON:', inputMatch[1])
+            console.error('Repaired JSON:', jsonStr)
+            // 返回 null 而不是空对象，让调用方知道解析失败
+            return null
+          }
+        }
+      }
 
       return { tool, params }
     } catch (error) {

@@ -26,13 +26,20 @@ async function generateSignature(
   const dateStamp = date.toISOString().slice(0, 10).replace(/-/g, '');
   const amzDate = date.toISOString().replace(/[:\-]|\.\d{3}/g, '');
   
+  // 必须将 x-amz-date 加入 headers 参与签名
+  headers['x-amz-date'] = amzDate;
+  
   // 创建规范请求
-  const canonicalUri = new URL(url).pathname;
+  // 必须对路径进行 URI 编码，但要保留斜杠
+  const canonicalUri = new URL(url).pathname.split('/').map(encodeURIComponent).join('/');
   const canonicalQuerystring = '';
+
+  // AWS V4 签名要求 Headers 的 Key 必须全部转为小写
   const canonicalHeaders = Object.keys(headers)
     .sort()
-    .map(key => `${key.toLowerCase()}:${headers[key]}\n`)
+    .map(key => `${key.toLowerCase()}:${headers[key].trim()}\n`)
     .join('');
+    
   const signedHeaders = Object.keys(headers)
     .sort()
     .map(key => key.toLowerCase())
@@ -154,41 +161,121 @@ export async function testS3Connection(config: S3Config): Promise<boolean> {
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    const endpoint = config.endpoint || `https://s3.${config.region}.amazonaws.com`;
-    const url = `${endpoint}/${config.bucket}`;
+    const endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
+    const bucket = config.bucket.trim();
     
+    // 智能判断 URL 风格
+    let url = `${endpoint}/${bucket}`;
+    
+    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
+    // 将 https://oss-cn-beijing.aliyuncs.com/bucket 改为 https://bucket.oss-cn-beijing.aliyuncs.com
+    const isAliyun = endpoint.includes('aliyuncs.com');
+    const isAWS = endpoint.includes('amazonaws.com');
+    
+    if (isAliyun || isAWS) {
+       try {
+         const urlObj = new URL(endpoint);
+         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
+         url = urlObj.toString();
+         // 移除末尾斜杠
+         if (url.endsWith('/')) url = url.slice(0, -1);
+         console.log('[S3] Switched to Virtual Hosted Style for optimization:', url);
+       } catch {
+         console.warn('[S3] Failed to construct Virtual Hosted URL, falling back to Path Style');
+       }
+    }
+    
+    console.log('[S3 Test] Testing connection to:', url);
+
     const emptyPayload = new ArrayBuffer(0);
     const payloadHash = await crypto.subtle.digest('SHA-256', emptyPayload);
     const payloadHashHex = Array.from(new Uint8Array(payloadHash))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
     
-    const headers = {
+    const headers: Record<string, string> = {
       'Host': new URL(url).host,
       'X-Amz-Content-Sha256': payloadHashHex
     };
     
-    const { authorization, amzDate } = await generateSignature('HEAD', url, headers, emptyPayload, config);
+    // 使用 GET 请求代替 HEAD，以便在出错时能获取具体的 XML 错误信息
+    const method = 'GET';
+    const { authorization, amzDate } = await generateSignature(method, url, headers, emptyPayload, config);
     
     const requestHeaders = new Headers();
     requestHeaders.append('Authorization', authorization);
+    // 注意：fetch 请求头的键不区分大小写，但为了与签名完全一致，建议保持一致
     requestHeaders.append('X-Amz-Date', amzDate);
     requestHeaders.append('X-Amz-Content-Sha256', payloadHashHex);
     
     const response = await fetch(url, {
-      method: 'HEAD',
+      method: method,
       headers: requestHeaders,
       proxy
     });
 
-    if (response.status !== 200) {
-      const errorText = await response.text();
-      console.error('S3 Error Response:', errorText);
+    if (response.status === 200) {
+        return true;
     }
+
+    // 如果 GET (ListObjects) 失败（可能是只有写权限），尝试 PUT 一个测试文件
+    if (response.status === 403) {
+        console.warn('ListObjects (GET) failed with 403, trying PutObject to verify write permission...');
+        
+        const testKey = '.connection-test';
+        const testUrl = `${url}/${testKey}`.replace(/([^:]\/)\/+/g, "$1");
+        const testContent = new TextEncoder().encode('test');
+        
+        const putHeaders = {
+            'Host': new URL(testUrl).host,
+            'Content-Type': 'text/plain',
+            'Content-Length': testContent.byteLength.toString()
+        };
+        
+        const { authorization: authPut, amzDate: datePut, payloadHashHex: hashPut } = 
+            await generateSignature('PUT', testUrl, putHeaders, testContent, config);
+            
+        const requestPutHeaders = new Headers();
+        requestPutHeaders.append('Authorization', authPut);
+        requestPutHeaders.append('X-Amz-Date', datePut);
+        requestPutHeaders.append('Content-Type', 'text/plain');
+        requestPutHeaders.append('X-Amz-Content-Sha256', hashPut);
+        
+        const putResponse = await fetch(testUrl, {
+            method: 'PUT',
+            headers: requestPutHeaders,
+            body: testContent,
+            proxy
+        });
+        
+        if (putResponse.status === 200 || putResponse.status === 204) {
+            console.log('PutObject verification successful!');
+            return true;
+        } else {
+             const putErrorText = await putResponse.text();
+             console.error('PutObject also failed:', putResponse.status, putErrorText);
+        }
+    }
+
+    const errorText = await response.text();
+    console.warn('S3 Check Failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        headers: Object.fromEntries(response.headers.entries()),
+        errorBody: errorText || '(empty body)'
+    });
     
-    return response.status === 200;
+    return false;
   } catch (error) {
     console.error('S3 connection test failed:', error);
+    
+    // 尝试提取更有用的错误信息
+    const errorMessage = (error as Error).message || String(error);
+    if (errorMessage.includes('error sending request')) {
+       console.warn('Network Error Details: Please check your Endpoint, Region, and Proxy settings. URL might be malformed.');
+    }
+    
     return false;
   }
 }
@@ -215,12 +302,35 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
     const id = uuid();
     const ext = file.name.split('.').pop() || 'jpg';
     const filename = `${id}.${ext}`.replace(/\s/g, '_');
-    const key = config.pathPrefix ? `${config.pathPrefix}/${filename}` : filename;
+    
+    // 处理 pathPrefix，移除末尾的斜杠以防止双斜杠问题
+    const prefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : '';
+    const key = prefix ? `${prefix}/${filename}` : filename;
     
     // 准备上传
-    const endpoint = config.endpoint || `https://s3.${config.region}.amazonaws.com`;
-    const url = `${endpoint}/${config.bucket}/${key}`;
+    let endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
+    // 移除 endpoint 末尾的斜杠
+    if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
+
+    const bucket = config.bucket.trim();
+    let url = `${endpoint}/${bucket}/${key}`;
+
+    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
+    const isAliyun = endpoint.includes('aliyuncs.com');
+    const isAWS = endpoint.includes('amazonaws.com');
     
+    if (isAliyun || isAWS) {
+       try {
+         const urlObj = new URL(endpoint);
+         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
+         // 重新构建 URL，包含 key
+         url = `${urlObj.toString()}/${key}`;
+         // 处理可能的双斜杠
+         url = url.replace(/([^:]\/)\/+/g, "$1");
+       } catch {
+         console.warn('[S3 Upload] Failed to switch to Virtual Hosted Style');
+       }
+    }
     // 读取文件内容
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
@@ -249,9 +359,21 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
     if (response.status === 200 || response.status === 204) {
       // 返回访问 URL
       if (config.customDomain) {
-        return `${config.customDomain}/${key}`;
+        const domain = config.customDomain.trim().replace(/\/+$/, '');
+        return `${domain}/${key}`;
       } else {
-        return `${endpoint}/${config.bucket}/${key}`;
+        // 如果使用了 Virtual Hosted Style，返回优化后的 URL
+        if (isAliyun || isAWS) {
+           try {
+             const urlObj = new URL(endpoint);
+             urlObj.hostname = `${bucket}.${urlObj.hostname}`;
+             const baseUrl = urlObj.toString().replace(/\/+$/, '');
+             return `${baseUrl}/${key}`;
+           } catch {
+             return `${endpoint}/${bucket}/${key}`;
+           }
+        }
+        return `${endpoint}/${bucket}/${key}`;
       }
     } else {
       const errorText = await response.text();

@@ -17,11 +17,13 @@
     "pin": "置頂",
     "unpin": "取消置頂",
     "settings": "設置",
+    "back": "返回",
     "sync": "同步",
     "language": "語言",
     "success": "成功",
     "error": "失敗",
-    "defaultFileName": "未命名文件"
+    "defaultFileName": "未命名文件",
+    "restartToApply": "，請重啟應用使配置生效"
   },
   "settings": {
     "others": "高級",
@@ -70,7 +72,14 @@
           "desc": "自訂對話工具欄按鈕的顯示順序和可見性，打造個性化的對話體驗",
           "button": "設置",
           "dialogTitle": "配置對話工具欄",
-          "dialogDesc": "拖動工具調整排序，使用開關控制顯示或隱藏"
+          "dialogDesc": "拖動工具調整排序，使用開關控制顯示或隱藏",
+          "groups": {
+            "pc": "PC 端",
+            "mobile": "移動端",
+            "bottom": "底部工具欄",
+            "topLeft": "頂部工具欄 - 左側",
+            "topRight": "頂部工具欄 - 右側"
+          }
         }
       }
     },
@@ -205,7 +214,7 @@
       "noModel": "不使用模型",
       "placeholder": "請選擇或搜索模型",
       "mainModel": "主要模型",
-      "options" : {
+      "options": {
         "primaryModel": {
           "title": "主要模型",
           "desc": "作為所有場景的主要模型，如果其他對話模型未選擇默認模型，則使用此模型。"
@@ -697,7 +706,7 @@
         "noResults": "未找到結果"
       },
       "info": {
-        "title": "工作區說明", 
+        "title": "工作區說明",
         "desc": "更改工作區後需要重啟應用程式才能完全生效。新工作區中的文件將在重啟後顯示。"
       },
       "toast": {
@@ -763,7 +772,9 @@
         "file": "文件",
         "link": "連結",
         "upload": "上傳記錄",
-        "download": "下載記錄"
+        "download": "下載記錄",
+        "uploadTo": "從本地同步到 {provider}",
+        "downloadFrom": "從 {provider} 同步到本地"
       },
       "note": {
         "organizeAs": "整理為",
@@ -827,6 +838,27 @@
           "text": "文本"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "對話",
+            "agent": "智能體"
+          },
+          "agent": {
+            "running": "Agent 運行中",
+            "thinking": "思考中",
+            "acting": "執行中",
+            "observation": "觀察結果",
+            "toolCalls": "工具調用",
+            "confirmation": {
+              "title": "確認操作",
+              "description": "Agent 想要執行以下操作，請確認後繼續。",
+              "tool": "工具",
+              "parameters": "參數",
+              "cancel": "取消",
+              "confirm": "確認",
+              "confirmed": "已確認",
+              "cancelled": "已取消"
+            }
+          },
           "placeholder": {
             "default": "你可以提問或將記錄整理為文章...",
             "noApiKey": "未配置 API Key，無法使用 AI 對話功能...",
@@ -958,7 +990,11 @@
         "selectedCount": "已選擇 {count} 項",
         "moveSelectedTags": "轉移選中的 {count} 項",
         "deleteSelected": "刪除選中的 {count} 項",
-        "deleteSelectedForever": "徹底刪除選中的 {count} 項"
+        "deleteSelectedForever": "徹底刪除選中的 {count} 項",
+        "organizeNotes": "整理筆記",
+        "organizeSuccess": "筆記整理成功：{title}",
+        "organizeError": "整理筆記失敗",
+        "currentTag": "當前標籤"
       }
     },
     "chat": {
@@ -1038,6 +1074,25 @@
           "chat": "對話模式",
           "gen": "整理模式",
           "translate": "翻譯模式"
+        },
+        "chatModeSelect": {
+          "chatDescription": "快速對話，唯讀模式",
+          "agentDescription": "智能助手，可執行操作"
+        },
+        "agent": {
+          "running": "Agent 運行中",
+          "thinking": "思考中",
+          "acting": "執行中",
+          "observation": "觀察結果",
+          "toolCalls": "工具調用",
+          "confirmation": {
+            "title": "確認操作",
+            "description": "Agent 想要執行以下操作，請確認後繼續。",
+            "tool": "工具",
+            "parameters": "參數",
+            "cancel": "取消",
+            "confirm": "確認"
+          }
         },
         "fileLink": {
           "tooltip": "關聯文件",
@@ -1159,7 +1214,13 @@
     "loading": "載入中",
     "view": "查看",
     "logout": "登出",
-    "setting": "設置"
+    "setting": "設置",
+    "files": "筆記",
+    "hideLeftSidebar": "隱藏左側邊欄",
+    "showLeftSidebar": "顯示左側邊欄",
+    "hideRightSidebar": "隱藏右側邊欄",
+    "showRightSidebar": "顯示右側邊欄",
+    "searchPlaceholder": "搜索筆記或記錄..."
   },
   "marks": {
     "types": {
@@ -1262,6 +1323,9 @@
         "uploading": "正在上傳圖片"
       },
       "toolbar": {
+        "organize": {
+          "tooltip": "整理筆記"
+        },
         "mark": {
           "title": "使用記錄",
           "tooltip": "使用記錄",

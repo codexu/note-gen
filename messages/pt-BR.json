@@ -16,6 +16,7 @@
     "pin": "Fixar",
     "unpin": "Desafixar",
     "settings": "Configurações",
+    "back": "Voltar",
     "sync": "Sincronizar",
     "language": "Idioma",
     "confirm": "Confirmar",
@@ -23,7 +24,8 @@
     "prompt": "Instrução",
     "success": "Sucesso",
     "error": "Falha",
-    "defaultFileName": "Sem Título"
+    "defaultFileName": "Sem Título",
+    "restartToApply": ", por favor reinicie o aplicativo para que a configuração entre em vigor"
   },
   "settings": {
     "others": "Avançado",
@@ -72,7 +74,14 @@
           "desc": "Personalize a ordem de exibição e a visibilidade dos botões da barra de ferramentas do chat para uma experiência de chat personalizada",
           "button": "Configurar",
           "dialogTitle": "Configurar Barra de Ferramentas do Chat",
-          "dialogDesc": "Arraste as ferramentas para ajustar a ordem, use as chaves para mostrar ou ocultar"
+          "dialogDesc": "Arraste as ferramentas para ajustar a ordem, use as chaves para mostrar ou ocultar",
+          "groups": {
+            "pc": "PC",
+            "mobile": "Móvel",
+            "bottom": "Barra de Ferramentas Inferior",
+            "topLeft": "Barra de Ferramentas Superior - Esquerda",
+            "topRight": "Barra de Ferramentas Superior - Direita"
+          }
         },
         "recordToolbar": {
           "title": "Barra de Ferramentas de Registro",
@@ -790,7 +799,9 @@
         "file": "Arquivo",
         "link": "Vínculo",
         "upload": "Upload de Registro",
-        "download": "Download de Registro"
+        "download": "Download de Registro",
+        "uploadTo": "Sincronizar do local para {provider}",
+        "downloadFrom": "Sincronizar de {provider} para local"
       },
       "uploadSuccess": "Upload de registro bem-sucedido",
       "downloadSuccess": "Download de registro bem-sucedido",
@@ -868,7 +879,17 @@
             }
           },
           "messageControl": {
-            "words": "palavras"
+            "words": "palavras",
+            "confirmation": {
+              "title": "Confirmar Ação",
+              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+              "tool": "Ferramenta",
+              "parameters": "Parâmetros",
+              "cancel": "Cancelar",
+              "confirm": "Confirmar",
+              "confirmed": "Confirmado",
+              "cancelled": "Cancelado"
+            }
           },
           "mcp": {
             "maxIterationsReached": "Número máximo de iterações de chamada de ferramenta atingido",
@@ -982,6 +1003,10 @@
         "moveSelectedTags": "Mover {count} itens selecionados",
         "deleteSelected": "Excluir {count} itens selecionados",
         "deleteSelectedForever": "Excluir {count} itens selecionados permanentemente",
+        "organizeNotes": "Organizar Notas",
+        "organizeSuccess": "Notas organizadas com sucesso: {title}",
+        "organizeError": "Falha ao organizar notas",
+        "currentTag": "Tag Atual",
         "text": "Gravar Texto",
         "recording": "Gravação de Áudio",
         "scan": "Digitalizar Imagem",
@@ -1089,6 +1114,10 @@
           "gen": "Modo Organizar",
           "translate": "Modo Traduzir"
         },
+        "chatModeSelect": {
+          "chatDescription": "Conversa rápida, modo somente leitura",
+          "agentDescription": "Assistente inteligente, pode executar ações"
+        },
         "fileLink": {
           "tooltip": "Vincular Arquivo",
           "selectFile": "Selecionar Arquivo",
@@ -1172,16 +1201,22 @@
     }
   },
   "navigation": {
-    "chat": "Bate-papo",
-    "record": "Registrar",
+    "chat": "Conversa",
+    "record": "Registro",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
     "login": "Entrar",
     "loading": "Carregando",
-    "view": "Ver",
+    "view": "Visualizar",
     "logout": "Sair",
-    "setting": "Configuração"
+    "setting": "Configurações",
+    "files": "Notas",
+    "hideLeftSidebar": "Ocultar Barra Lateral Esquerda",
+    "showLeftSidebar": "Mostrar Barra Lateral Esquerda",
+    "hideRightSidebar": "Ocultar Barra Lateral Direita",
+    "showRightSidebar": "Mostrar Barra Lateral Direita",
+    "searchPlaceholder": "Pesquisar notas ou registros..."
   },
   "marks": {
     "types": {
@@ -1314,6 +1349,9 @@
         }
       },
       "toolbar": {
+        "organize": {
+          "tooltip": "Organizar Notas"
+        },
         "mark": {
           "title": "Registros",
           "tooltip": "Registros",

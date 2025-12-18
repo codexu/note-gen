@@ -9,7 +9,6 @@ import { ControlFile } from "./control-file"
 import { ControlLink } from "./control-link"
 import { ControlRecording } from "./control-recording"
 import useMarkStore from "@/stores/mark"
-import useChatStore from "@/stores/chat"
 import useSettingStore from "@/stores/setting"
 import {
   DropdownMenu,
@@ -19,11 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { DownloadCloud, LoaderCircle, Menu, Trash2, UploadCloud, XCircle } from 'lucide-react'
-import { toast } from '@/hooks/use-toast'
-import useTagStore from '@/stores/tag'
-import { useState } from 'react'
-import useUsername from '@/hooks/use-username'
+import { Menu, Trash2, XCircle } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DndContext,
@@ -42,13 +37,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 export function MarkHeader() {
-  const [syncState, setSyncState] = useState(false)
   const t = useTranslations('record.mark');
-  const { trashState, setTrashState, fetchAllTrashMarks, fetchMarks, uploadMarks, downloadMarks } = useMarkStore()
-  const { uploadTags, downloadTags, fetchTags, currentTagId } = useTagStore()
-  const { uploadChats, downloadChats, init } = useChatStore()
+  const { trashState, setTrashState, fetchAllTrashMarks, fetchMarks } = useMarkStore()
   const { recordToolbarConfig, setRecordToolbarConfig } = useSettingStore()
-  const username = useUsername()
   const isMobile = useIsMobile()
 
   // 拖拽传感器配置（仅桌面端）
@@ -77,35 +68,6 @@ export function MarkHeader() {
       }))
       setRecordToolbarConfig(updatedItems)
     }
-  }
-
-  async function upload() {
-    setSyncState(true)
-    const tagRes = await uploadTags()
-    const markRes = await uploadMarks()
-    const chatRes = await uploadChats()
-    if (tagRes && markRes && chatRes) {
-      toast({
-        description: t('uploadSuccess'),
-      })
-    }
-    setSyncState(false)
-  }
-
-  async function download() {
-    setSyncState(true)
-    const tagRes = await downloadTags()
-    const markRes = await downloadMarks()
-    const chatRes = await downloadChats()
-    if (tagRes && markRes && chatRes) {
-      await fetchTags()
-      await fetchMarks()
-      init(currentTagId)
-      toast({
-        description: t('downloadSuccess'),
-      })
-    }
-    setSyncState(false)
   }
 
   React.useEffect(() => {
@@ -176,30 +138,18 @@ export function MarkHeader() {
         {
           trashState ? 
           <Button variant="ghost" size="icon" onClick={() => setTrashState(false)}><XCircle /></Button> :
-          syncState ? 
-            <Button variant="ghost" size="icon" disabled><LoaderCircle className="animate-spin size-4" /></Button> :
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setTrashState(true)}>
-                  <Trash2 />{t('toolbar.trash')}
-                </DropdownMenuItem>
-                {username ? (
-                  <>
-                    <DropdownMenuItem onClick={upload}>
-                      <UploadCloud />{t('type.upload')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={download}>
-                      <DownloadCloud />{t('type.download')}
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTrashState(true)}>
+                <Trash2 />{t('toolbar.trash')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       </div>
     </div>

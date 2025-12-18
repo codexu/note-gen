@@ -1,14 +1,8 @@
 'use client'
 
-import {
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-} from "@/components/ui/sidebar"
 import { useTranslations } from 'next-intl'
 import React from "react"
 import { TagManage } from './tag-manage'
-import { MarkHeader } from './mark-header'
 import { MarkList } from './mark-list'
 import { MarkToolbar } from './mark-toolbar'
 import useMarkStore from "@/stores/mark"
@@ -32,11 +26,7 @@ export function NoteSidebar() {
   }
 
   return (
-    <Sidebar id="record-sidebar" collapsible="none" className="w-full h-screen hidden md:flex flex-col">
-      <SidebarHeader className="p-0">
-        <MarkHeader />
-      </SidebarHeader>
-      
+    <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">
@@ -50,12 +40,12 @@ export function NoteSidebar() {
           <MarkList />
         </>
       ) : (
-        <SidebarContent className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           <TagManage />
-        </SidebarContent>
+        </div>
       )}
       
       <MarkToolbar />
-    </Sidebar>
+    </div>
   )
 }

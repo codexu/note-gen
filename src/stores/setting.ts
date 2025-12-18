@@ -197,9 +197,13 @@ interface SettingState {
   customCss: string
   setCustomCss: (css: string) => Promise<void>
 
-  // 聊天工具栏配置
-  chatToolbarConfig: ChatToolbarItem[]
-  setChatToolbarConfig: (config: ChatToolbarItem[]) => Promise<void>
+  // 聊天工具栏配置 - PC 端
+  chatToolbarConfigPc: ChatToolbarItem[]
+  setChatToolbarConfigPc: (config: ChatToolbarItem[]) => Promise<void>
+
+  // 聊天工具栏配置 - 移动端
+  chatToolbarConfigMobile: ChatToolbarItem[]
+  setChatToolbarConfigMobile: (config: ChatToolbarItem[]) => Promise<void>
 
   // 记录工具栏配置
   recordToolbarConfig: RecordToolbarItem[]
@@ -851,8 +855,32 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.save()
   },
 
-  // 聊天工具栏配置
-  chatToolbarConfig: [
+  // 聊天工具栏配置 - PC 端
+  chatToolbarConfigPc: [
+    // 底部工具栏
+    { id: 'modelSelect', enabled: true, order: 0 },
+    { id: 'promptSelect', enabled: true, order: 1 },
+    { id: 'chatLanguage', enabled: true, order: 2 },
+    // 顶部工具栏 - 左侧
+    { id: 'chatLink', enabled: true, order: 3 },
+    { id: 'fileLink', enabled: true, order: 4 },
+    { id: 'mcpButton', enabled: true, order: 5 },
+    { id: 'ragSwitch', enabled: true, order: 6 },
+    { id: 'chatPlaceholder', enabled: true, order: 7 },
+    { id: 'clipboardMonitor', enabled: true, order: 8 },
+    // 顶部工具栏 - 右侧
+    { id: 'clearContext', enabled: true, order: 9 },
+    { id: 'clearChat', enabled: true, order: 10 },
+  ],
+  setChatToolbarConfigPc: async (config: ChatToolbarItem[]) => {
+    set({ chatToolbarConfigPc: config })
+    const store = await Store.load('store.json');
+    await store.set('chatToolbarConfigPc', config)
+    await store.save()
+  },
+
+  // 聊天工具栏配置 - 移动端
+  chatToolbarConfigMobile: [
     { id: 'modelSelect', enabled: true, order: 0 },
     { id: 'promptSelect', enabled: true, order: 1 },
     { id: 'chatLanguage', enabled: true, order: 2 },
@@ -865,10 +893,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'clearContext', enabled: true, order: 9 },
     { id: 'clearChat', enabled: true, order: 10 },
   ],
-  setChatToolbarConfig: async (config: ChatToolbarItem[]) => {
-    set({ chatToolbarConfig: config })
+  setChatToolbarConfigMobile: async (config: ChatToolbarItem[]) => {
+    set({ chatToolbarConfigMobile: config })
     const store = await Store.load('store.json');
-    await store.set('chatToolbarConfig', config)
+    await store.set('chatToolbarConfigMobile', config)
     await store.save()
   },
 

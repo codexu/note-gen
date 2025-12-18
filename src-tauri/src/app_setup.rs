@@ -1,9 +1,19 @@
 use tauri::App;
+#[cfg(target_os = "windows")]
+use tauri::Manager;
 use crate::tray;
 use crate::window;
 
 pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let app_handle = app.handle();
+    
+    // 在 Windows 上明确禁用窗口装饰
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.set_decorations(false);
+        }
+    }
     
     // 设置托盘
     tray::setup_tray(&app_handle)?;

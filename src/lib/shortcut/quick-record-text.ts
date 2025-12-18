@@ -1,7 +1,7 @@
 import emitter from '@/lib/emitter';
 import {getCurrentWebviewWindow} from '@tauri-apps/api/webviewWindow';
 
-export default function initQuickRecordText(router: any) {
+export default function initQuickRecordText() {
     emitter.on('quickRecordText', async () => {
         const window = getCurrentWebviewWindow()
         if(!window) return
@@ -10,7 +10,6 @@ export default function initQuickRecordText(router: any) {
             await window.setFocus()
             await window.setAlwaysOnTop(true)
             await window.setAlwaysOnTop(false)
-            router.push('/core/record')
             setTimeout(() => {
                 emitter.emit('quickRecordTextHandler')
             }, 300);
@@ -21,10 +20,7 @@ export default function initQuickRecordText(router: any) {
                 await window.setFocus()
                 await window.setAlwaysOnTop(true)
                 await window.setAlwaysOnTop(false)
-                router.push('/core/record')
-                setTimeout(() => {
-                    emitter.emit('quickRecordTextHandler')
-                }, 300);
+                emitter.emit('quickRecordTextHandler')
             }, 100);
         } else {
             // 增加判断窗口是否在最前面
@@ -34,10 +30,7 @@ export default function initQuickRecordText(router: any) {
                 await window.setAlwaysOnTop(true);
                 await window.setAlwaysOnTop(false);
             }
-            router.push('/core/record')
-            setTimeout(() => {
-                emitter.emit('quickRecordTextHandler')
-            }, 300);
+            emitter.emit('quickRecordTextHandler')
         }
     })
 }

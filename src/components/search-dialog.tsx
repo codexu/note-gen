@@ -15,6 +15,7 @@ import { useTranslations } from 'next-intl'
 import useArticleStore from '@/stores/article'
 import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
+import { useSidebarStore } from '@/stores/sidebar'
 import { useRouter } from 'next/navigation'
 import emitter from '@/lib/emitter'
 import { EmitterRecordEvents } from '@/config/emitters'
@@ -48,6 +49,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const { allArticle, loadAllArticle, setActiveFilePath, setMatchPosition, setCollapsibleList } = useArticleStore()
   const { allMarks, fetchAllMarks } = useMarkStore()
   const { tags, fetchTags, setCurrentTagId } = useTagStore()
+  const { setLeftSidebarTab } = useSidebarStore()
 
   function extractTitleFromPath(path: string): string {
     if (!path) return ''
@@ -117,24 +119,22 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     if (item.searchType === 'record') {
       onOpenChange(false)
       
+      // 切换到记录标签页
+      await setLeftSidebarTab('notes')
+      
       if (item.tagId) {
         await setCurrentTagId(item.tagId)
       }
       
-      // 如果已经在记录页面，立即触发刷新事件
-      if (window.location.pathname === '/core/record') {
-        emitter.emit(EmitterRecordEvents.refreshMarks)
-      } else {
-        // 如果不在记录页面，先跳转，然后延迟触发事件（等待页面加载）
-        router.push(`/core/record`)
-        setTimeout(() => {
-          emitter.emit(EmitterRecordEvents.refreshMarks)
-        }, 500)
-      }
+      emitter.emit(EmitterRecordEvents.refreshMarks)
+
       return
     }
     
     onOpenChange(false)
+    
+    // 切换到笔记标签页
+    await setLeftSidebarTab('files')
     
     // 如果是文章类型，跳转到文章页面
     if (item.matchIndices && item.matchIndices.length > 0) {

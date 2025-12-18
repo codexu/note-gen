@@ -21,7 +21,22 @@
     "language": "语言",
     "success": "成功",
     "error": "失败",
-    "defaultFileName": "未命名文档"
+    "defaultFileName": "未命名文档",
+    "back": "返回",
+    "close": "关闭",
+    "open": "打开",
+    "add": "添加",
+    "remove": "移除",
+    "search": "搜索",
+    "filter": "筛选",
+    "sort": "排序",
+    "export": "导出",
+    "import": "导入",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "warning": "警告",
+    "info": "信息",
+    "restartToApply": "，请重启应用使配置生效"
   },
   "settings": {
     "others": "高级",
@@ -70,7 +85,14 @@
           "desc": "自定义对话工具栏按钮的显示顺序和可见性",
           "button": "设置",
           "dialogTitle": "配置对话工具栏",
-          "dialogDesc": "拖动工具调整排序，使用开关控制显示或隐藏"
+          "dialogDesc": "拖动工具调整排序，使用开关控制显示或隐藏",
+          "groups": {
+            "pc": "PC 端",
+            "mobile": "移动端",
+            "bottom": "底部工具栏",
+            "topLeft": "顶部工具栏 - 左侧",
+            "topRight": "顶部工具栏 - 右侧"
+          }
         },
         "recordToolbar": {
           "title": "记录工具栏",
@@ -796,7 +818,9 @@
         "file": "文件",
         "link": "链接",
         "upload": "上传记录",
-        "download": "下载记录"
+        "download": "下载记录",
+        "uploadTo": "从本地同步到 {provider}",
+        "downloadFrom": "从 {provider} 同步到本地"
       },
       "note": {
         "organizeAs": "整理为",
@@ -864,6 +888,27 @@
           "text": "文本"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "对话",
+            "agent": "智能体"
+          },
+          "agent": {
+            "running": "Agent 运行中",
+            "thinking": "思考中",
+            "acting": "执行中",
+            "observation": "观察结果",
+            "toolCalls": "工具调用",
+            "confirmation": {
+              "title": "确认操作",
+              "description": "Agent 想要执行以下操作，请确认后继续。",
+              "tool": "工具",
+              "parameters": "参数",
+              "confirm": "确认",
+              "cancel": "取消",
+              "confirmed": "已确认",
+              "cancelled": "已取消"
+            }
+          },
           "placeholder": {
             "default": "你可以提问或将记录整理为文章...",
             "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
@@ -977,6 +1022,11 @@
       "toolbar": {
         "search": "搜索",
         "trash": "回收站",
+        "closeTrash": "关闭回收站",
+        "organizeNotes": "整理笔记",
+        "organizeSuccess": "笔记整理成功：{title}",
+        "organizeError": "整理笔记失败",
+        "currentTag": "当前标签",
         "restore": "还原",
         "delete": "删除",
         "deleteConfirm": "确定要删除吗？",
@@ -1049,6 +1099,7 @@
         },
         "send": "发送",
         "stop": "停止",
+        "stopped": "对话已终止",
         "terminate": "终止",
         "tagLink": {
           "on": "已关联标签",
@@ -1084,6 +1135,27 @@
           "chat": "对话模式",
           "gen": "整理模式",
           "translate": "翻译模式"
+        },
+        "chatModeSelect": {
+          "chatDescription": "快速对话，只读模式",
+          "agentDescription": "智能助手，可执行操作"
+        },
+        "agent": {
+          "running": "Agent 运行中",
+          "thinking": "思考中",
+          "acting": "执行中",
+          "observation": "观察结果",
+          "toolCalls": "工具调用",
+          "confirmation": {
+            "title": "确认操作",
+            "description": "Agent 想要执行以下操作，请确认后继续。",
+            "tool": "工具",
+            "parameters": "参数",
+            "cancel": "取消",
+            "confirm": "确认",
+            "confirmed": "已确认",
+            "cancelled": "已取消"
+          }
         },
         "fileLink": {
           "tooltip": "关联文件",
@@ -1202,10 +1274,16 @@
     "search": "搜索",
     "githubImageHosting": "Github 图床",
     "login": "登录",
-    "loading": "加载中",
+    "loading": "载入中",
     "view": "查看",
     "logout": "登出",
-    "setting": "设置"
+    "setting": "设置",
+    "files": "笔记",
+    "hideLeftSidebar": "隐藏左侧边栏",
+    "showLeftSidebar": "显示左侧边栏",
+    "hideRightSidebar": "隐藏右侧边栏",
+    "showRightSidebar": "显示右侧边栏",
+    "searchPlaceholder": "搜索笔记或记录..."
   },
   "marks": {
     "types": {
@@ -1306,6 +1384,15 @@
         "error": "上传失败",
         "needToken": "上传图片需配置 accessToken",
         "uploading": "正在上传图片"
+      },
+      "saveDialog": {
+        "title": "保存文件",
+        "emptyContent": "内容为空",
+        "emptyContentDesc": "请先输入内容后再保存",
+        "success": "保存成功",
+        "successDesc": "文件已保存",
+        "error": "保存失败",
+        "errorDesc": "文件保存失败，请重试"
       },
       "toolbar": {
         "mark": {

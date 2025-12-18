@@ -51,6 +51,46 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Wrapper for AccordionItem that accepts sortable props
+function AccordionItemWrapper({ 
+  value, 
+  children,
+  sortableAttributes,
+  sortableListeners,
+  sortableActivatorRef,
+  ...props 
+}: any) {
+  return (
+    <AccordionItem value={value} {...props}>
+      {React.Children.map(children, (child) => {
+        if (React.isValidElement(child) && child.type === ContextMenu) {
+          return React.cloneElement(child as React.ReactElement, {
+            children: React.Children.map((child as React.ReactElement).props.children, (contextChild: any) => {
+              if (React.isValidElement(contextChild) && contextChild.type === ContextMenuTrigger) {
+                return React.cloneElement(contextChild as React.ReactElement, {
+                  children: React.Children.map((contextChild as React.ReactElement).props.children, (triggerChild: any) => {
+                    // 将 sortable 属性应用到 AccordionTrigger
+                    if (React.isValidElement(triggerChild) && triggerChild.type === AccordionTrigger) {
+                      return (
+                        <div ref={sortableActivatorRef} {...sortableAttributes} {...sortableListeners}>
+                          {triggerChild}
+                        </div>
+                      )
+                    }
+                    return triggerChild
+                  })
+                })
+              }
+              return contextChild
+            })
+          })
+        }
+        return child
+      })}
+    </AccordionItem>
+  )
+}
+
 // Sortable Tag Item Component
 function SortableTagItem({ tag, children }: { tag: Tag; children: React.ReactNode }) {
   const {
@@ -60,6 +100,7 @@ function SortableTagItem({ tag, children }: { tag: Tag; children: React.ReactNod
     transform,
     transition,
     isDragging,
+    setActivatorNodeRef,
   } = useSortable({ id: tag.id })
 
   const style = {
@@ -68,9 +109,14 @@ function SortableTagItem({ tag, children }: { tag: Tag; children: React.ReactNod
     opacity: isDragging ? 0.5 : 1,
   }
 
+  // 将拖拽激活器引用传递给子组件
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
+    <div ref={setNodeRef} style={style}>
+      {React.cloneElement(children as React.ReactElement, { 
+        sortableAttributes: attributes,
+        sortableListeners: listeners,
+        sortableActivatorRef: setActivatorNodeRef
+      })}
     </div>
   )
 }
@@ -85,17 +131,30 @@ export function TagManage() {
   const [hasInitialized, setHasInitialized] = React.useState(false)
   const { init } = useChatStore()
 
+  // 自定义传感器，忽略记录项的拖拽
+  const customPointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      delay: 250,
+      tolerance: 5,
+    },
+  })
+
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    }),
+    customPointerSensor,
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  // 处理拖拽开始，检查是否是记录项
+  const handleDragStart = (event: any) => {
+    const target = event.active?.node?.current as HTMLElement
+    
+    // 如果拖拽的是记录项，取消 dnd-kit 拖拽
+    if (target?.querySelector('[data-mark-item]') || target?.closest('[data-mark-item]')) {
+      event.cancel()
+    }
+  }
 
   const {
     currentTag,
@@ -183,9 +242,10 @@ export function TagManage() {
       await initTagsDb()
       await fetchTags()
       await initTags()
+      await fetchMarks()
     }
     fetchData()
-  }, [initTags, fetchTags])
+  }, [initTags, fetchTags, fetchMarks])
 
   // 初始化时展开当前标签（只执行一次）
   React.useEffect(() => {
@@ -216,6 +276,7 @@ export function TagManage() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <SortableContext
@@ -235,7 +296,7 @@ export function TagManage() {
           >
             {tags?.map((tag) => (
               <SortableTagItem key={tag.id} tag={tag}>
-                <AccordionItem value={tag.id.toString()}>
+                <AccordionItemWrapper value={tag.id.toString()}>
                   <ContextMenu>
                     <ContextMenuTrigger>
                       <AccordionTrigger 
@@ -329,7 +390,7 @@ export function TagManage() {
                       )
                     })()}
                   </AccordionContent>
-                </AccordionItem>
+                </AccordionItemWrapper>
               </SortableTagItem>
             ))}
           </Accordion>

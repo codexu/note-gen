@@ -8,8 +8,13 @@ import useSyncStore from "@/stores/sync";
 import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import { open } from '@tauri-apps/plugin-shell'
 import Image from "next/image";
+import { Button } from "./ui/button";
 
-export default function AppStatus() {
+interface AppStatusProps {
+  inTitlebar?: boolean
+}
+
+export default function AppStatus({ inTitlebar = false }: AppStatusProps) {
   const { accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod, setGithubUsername, setGitlabUsername, setGiteaUsername } = useSettingStore()
   const { 
     userInfo, 
@@ -202,10 +207,14 @@ export default function AppStatus() {
     }
   }, [accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod])
 
-  return (
-    <SidebarMenuButton size="lg" asChild className="md:size-8 p-0">
-      <div className="relative flex items-center gap-2 cursor-pointer" onClick={openUserHome} >
-        <Avatar className="size-8 rounded overflow-hidden">
+  // 不渲染 UI，只保留功能逻辑
+  return null
+
+  // 以下代码保留但不执行，用于未来可能的恢复
+  /* eslint-disable no-unreachable */
+  const avatarContent: React.ReactNode = (
+    <div className="relative flex items-center gap-2 cursor-pointer" onClick={openUserHome}>
+      <Avatar className="size-8 rounded overflow-hidden">
           {primaryBackupMethod === 'github' ? (
             <>
               <AvatarImage src={userInfo?.avatar_url} />
@@ -261,7 +270,20 @@ export default function AppStatus() {
             </div>
           ) : null
         }
-      </div>
+    </div>
+  )
+
+  if (inTitlebar) {
+    return (
+      <Button variant="ghost" size="icon" className="h-8 w-8 p-0" asChild>
+        {avatarContent}
+      </Button>
+    )
+  }
+
+  return (
+    <SidebarMenuButton size="lg" asChild className="md:size-8 p-0">
+      {avatarContent}
     </SidebarMenuButton>
   )
 }

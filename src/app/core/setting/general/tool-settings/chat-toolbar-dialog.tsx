@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Switch } from '@/components/ui/switch'
 import useSettingStore, { ChatToolbarItem } from '@/stores/setting'
 import { useEffect, useState } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { 
   BotMessageSquare, 
   Drama, 
@@ -57,31 +58,55 @@ const TOOL_CONFIG_MAP: Record<string, { icon: React.ReactNode; labelKey: string 
   clearChat: { icon: <Trash2 className="size-4" />, labelKey: 'clearChat' },
 }
 
+// 工具栏分组定义
+const TOOLBAR_GROUPS = {
+  bottom: ['modelSelect', 'promptSelect', 'chatLanguage'],
+  topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'chatPlaceholder', 'clipboardMonitor'],
+  topRight: ['clearContext', 'clearChat'],
+}
+
 export function ChatToolbarDialog({ open, onOpenChange }: ChatToolbarDialogProps) {
   const t = useTranslations()
   const tChat = useTranslations('record.chat.input')
-  const { chatToolbarConfig, setChatToolbarConfig } = useSettingStore()
-  const [localConfig, setLocalConfig] = useState<ChatToolbarItem[]>([])
+  const isMobile = useIsMobile()
+  const { chatToolbarConfigPc, setChatToolbarConfigPc, chatToolbarConfigMobile, setChatToolbarConfigMobile } = useSettingStore()
+  const [localConfigPc, setLocalConfigPc] = useState<ChatToolbarItem[]>([])
+  const [localConfigMobile, setLocalConfigMobile] = useState<ChatToolbarItem[]>([])
 
   useEffect(() => {
     if (open) {
       // 打开抽屉时，加载当前配置
-      setLocalConfig([...chatToolbarConfig].sort((a, b) => a.order - b.order))
+      setLocalConfigPc([...chatToolbarConfigPc].sort((a, b) => a.order - b.order))
+      setLocalConfigMobile([...chatToolbarConfigMobile].sort((a, b) => a.order - b.order))
     }
-  }, [open, chatToolbarConfig])
+  }, [open, chatToolbarConfigPc, chatToolbarConfigMobile])
 
-  // 自动保存配置
-  const autoSave = async (newConfig: ChatToolbarItem[]) => {
-    await setChatToolbarConfig(newConfig)
+  // 自动保存配置 - PC
+  const autoSavePc = async (newConfig: ChatToolbarItem[]) => {
+    await setChatToolbarConfigPc(newConfig)
   }
 
-  const handleToggle = (id: string) => {
-    setLocalConfig(prev => {
+  // 自动保存配置 - 移动端
+  const autoSaveMobile = async (newConfig: ChatToolbarItem[]) => {
+    await setChatToolbarConfigMobile(newConfig)
+  }
+
+  const handleTogglePc = (id: string) => {
+    setLocalConfigPc(prev => {
       const newConfig = prev.map(item => 
         item.id === id ? { ...item, enabled: !item.enabled } : item
       )
-      // 自动保存
-      autoSave(newConfig)
+      autoSavePc(newConfig)
+      return newConfig
+    })
+  }
+
+  const handleToggleMobile = (id: string) => {
+    setLocalConfigMobile(prev => {
+      const newConfig = prev.map(item => 
+        item.id === id ? { ...item, enabled: !item.enabled } : item
+      )
+      autoSaveMobile(newConfig)
       return newConfig
     })
   }
@@ -93,22 +118,41 @@ export function ChatToolbarDialog({ open, onOpenChange }: ChatToolbarDialogProps
     })
   )
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEndPc = (group: 'bottom' | 'topLeft' | 'topRight') => (event: DragEndEvent) => {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      setLocalConfig((items) => {
+      setLocalConfigPc((items) => {
+        const groupItems = items.filter(item => TOOLBAR_GROUPS[group].includes(item.id))
+        const oldIndex = groupItems.findIndex((item) => item.id === active.id)
+        const newIndex = groupItems.findIndex((item) => item.id === over.id)
+        const reorderedGroupItems = arrayMove(groupItems, oldIndex, newIndex)
+        const allItems = [...items]
+        reorderedGroupItems.forEach((item, index) => {
+          const globalIndex = allItems.findIndex(i => i.id === item.id)
+          if (globalIndex !== -1) {
+            allItems[globalIndex] = { ...item, order: groupItems[0].order + index }
+          }
+        })
+        autoSavePc(allItems)
+        return allItems
+      })
+    }
+  }
+
+  const handleDragEndMobile = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setLocalConfigMobile((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id)
         const newIndex = items.findIndex((item) => item.id === over.id)
-        
         const newItems = arrayMove(items, oldIndex, newIndex)
-        // 更新 order
         const updatedItems = newItems.map((item, index) => ({
           ...item,
           order: index
         }))
-        // 自动保存
-        autoSave(updatedItems)
+        autoSaveMobile(updatedItems)
         return updatedItems
       })
     }
@@ -124,27 +168,128 @@ export function ChatToolbarDialog({ open, onOpenChange }: ChatToolbarDialogProps
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-2 mt-6">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={localConfig.map(item => item.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {localConfig.map((item) => (
-                <SortableToolItem
-                  key={item.id}
-                  item={item}
-                  config={TOOL_CONFIG_MAP[item.id]}
-                  onToggle={handleToggle}
-                  tChat={tChat}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
+        <div className="space-y-6 mt-6">
+          {/* PC 端工具栏 */}
+          {!isMobile && (
+          <div className="space-y-4">
+            {/* 顶部工具栏 - 左侧 */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                {t('settings.general.tools.chatToolbar.groups.topLeft')}
+              </h4>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEndPc('topLeft')}
+              >
+                <SortableContext
+                  items={localConfigPc.filter(item => TOOLBAR_GROUPS.topLeft.includes(item.id)).map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {localConfigPc
+                    .filter(item => TOOLBAR_GROUPS.topLeft.includes(item.id))
+                    .map((item) => (
+                      <SortableToolItem
+                        key={item.id}
+                        item={item}
+                        config={TOOL_CONFIG_MAP[item.id]}
+                        onToggle={handleTogglePc}
+                        tChat={tChat}
+                      />
+                    ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+
+            {/* 顶部工具栏 - 右侧 */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                {t('settings.general.tools.chatToolbar.groups.topRight')}
+              </h4>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEndPc('topRight')}
+              >
+                <SortableContext
+                  items={localConfigPc.filter(item => TOOLBAR_GROUPS.topRight.includes(item.id)).map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {localConfigPc
+                    .filter(item => TOOLBAR_GROUPS.topRight.includes(item.id))
+                    .map((item) => (
+                      <SortableToolItem
+                        key={item.id}
+                        item={item}
+                        config={TOOL_CONFIG_MAP[item.id]}
+                        onToggle={handleTogglePc}
+                        tChat={tChat}
+                      />
+                    ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+
+            {/* 底部工具栏 */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                {t('settings.general.tools.chatToolbar.groups.bottom')}
+              </h4>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEndPc('bottom')}
+              >
+                <SortableContext
+                  items={localConfigPc.filter(item => TOOLBAR_GROUPS.bottom.includes(item.id)).map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {localConfigPc
+                    .filter(item => TOOLBAR_GROUPS.bottom.includes(item.id))
+                    .map((item) => (
+                      <SortableToolItem
+                        key={item.id}
+                        item={item}
+                        config={TOOL_CONFIG_MAP[item.id]}
+                        onToggle={handleTogglePc}
+                        tChat={tChat}
+                      />
+                    ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </div>
+          )}
+
+          {/* 移动端工具栏 */}
+          {isMobile && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEndMobile}
+              >
+                <SortableContext
+                  items={localConfigMobile.filter(item => !['modelSelect', 'promptSelect'].includes(item.id)).map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {localConfigMobile
+                    .filter(item => !['modelSelect', 'promptSelect'].includes(item.id))
+                    .map((item) => (
+                    <SortableToolItem
+                      key={item.id}
+                      item={item}
+                      config={TOOL_CONFIG_MAP[item.id]}
+                      onToggle={handleToggleMobile}
+                      tChat={tChat}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+          </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

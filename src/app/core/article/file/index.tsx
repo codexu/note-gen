@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useEffect } from "react"
-import { FileToolbar } from "./file-toolbar"
 import { FileManager } from "./file-manager"
-import { WorkspaceSelector } from "./workspace-selector"
+import { FileFooter } from "./file-footer"
 import useArticleStore from "@/stores/article"
 
 export function FileSidebar() {
@@ -14,12 +13,11 @@ export function FileSidebar() {
   }, [])
 
   return (
-    <div id="article-sidebar" className="w-full h-screen flex flex-col">
-      <FileToolbar />
+    <div id="article-sidebar" className="w-full h-full flex flex-col">
       <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <FileManager />
       </div>
-      <WorkspaceSelector />
+      <FileFooter />
     </div>
   )
 }

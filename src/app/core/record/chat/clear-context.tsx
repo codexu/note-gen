@@ -31,6 +31,7 @@ export function ClearContext() {
         size="icon"
         icon={<AlignVerticalJustifyCenter className="size-4" />}
         tooltipText={t('tooltip')}
+        side="bottom"
         onClick={handleClearContext}
       />
     </div>

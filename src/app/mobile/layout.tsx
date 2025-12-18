@@ -15,6 +15,7 @@ import './mobile-styles.scss'
 import useImageStore from "@/stores/imageHosting";
 import { initMcp } from "@/lib/mcp/init"
 import { reportAppStart } from "@/lib/event-report"
+import { MobileStatusBar } from "@/components/mobile-statusbar"
 
 export default function RootLayout({
   children,
@@ -60,6 +61,7 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
+      <MobileStatusBar />
       <TooltipProvider>
         <div className="flex flex-col h-full">
           <main className="flex flex-1 w-full overflow-hidden">

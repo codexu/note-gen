@@ -43,6 +43,7 @@ export function ClipboardMonitor() {
         size="icon"
         icon={isEnabled ? <Clipboard className="size-4" /> : <ClipboardX className="size-4" />}
         tooltipText={isEnabled ? t('enable') : t('disable')}
+        side="bottom"
         onClick={toggleClipboardMonitor}
       />
     </div>

@@ -7,6 +7,7 @@ import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileConten
 import { getSyncRepoName } from '@/lib/sync/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
+import { ChatMode, AgentState, ToolCall } from '@/lib/agent/types';
 
 // MCP 工具调用记录（临时，不保存到数据库）
 export interface McpToolCall {
@@ -59,6 +60,16 @@ interface ChatState {
   updateMcpToolCall: (id: string, updates: Partial<McpToolCall>) => void
   getMcpToolCallsByChatId: (chatId: number) => McpToolCall[]
   clearMcpToolCalls: () => void
+
+  // Agent 模式
+  chatMode: ChatMode
+  setChatMode: (mode: ChatMode) => void
+  
+  agentState: AgentState
+  setAgentState: (state: Partial<AgentState>) => void
+  resetAgentState: () => void
+  addAgentToolCall: (toolCall: ToolCall) => void
+  updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => void
 }
 
 const useChatStore = create<ChatState>((set, get) => ({
@@ -77,6 +88,71 @@ const useChatStore = create<ChatState>((set, get) => ({
   setPlaceholderEnabled: (isEnabled: boolean) => {
     set({ isPlaceholderEnabled: isEnabled })
   },
+
+  chatMode: (typeof window !== 'undefined' ? localStorage.getItem('chatMode') as ChatMode : null) || 'chat',
+  setChatMode: (mode: ChatMode) => {
+    set({ chatMode: mode })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatMode', mode)
+    }
+  },
+
+  agentState: {
+    isRunning: false,
+    currentThought: '',
+    thoughtHistory: [],
+    currentAction: undefined,
+    currentObservation: undefined,
+    toolCalls: [],
+    maxIterations: 15,
+    currentIteration: 0,
+    pendingConfirmation: undefined,
+    confirmationHistory: [],
+  },
+
+  setAgentState: (state: Partial<AgentState>) => {
+    set({ agentState: { ...get().agentState, ...state } })
+  },
+
+  resetAgentState: () => {
+    set({
+      agentState: {
+        isRunning: false,
+        currentThought: '',
+        thoughtHistory: [],
+        currentAction: '',
+        currentObservation: '',
+        toolCalls: [],
+        maxIterations: 15,
+        currentIteration: 0,
+        pendingConfirmation: undefined,
+        confirmationHistory: [],
+      }
+    })
+  },
+
+  addAgentToolCall: (toolCall: ToolCall) => {
+    const agentState = get().agentState
+    set({
+      agentState: {
+        ...agentState,
+        toolCalls: [...agentState.toolCalls, toolCall]
+      }
+    })
+  },
+
+  updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => {
+    const agentState = get().agentState
+    set({
+      agentState: {
+        ...agentState,
+        toolCalls: agentState.toolCalls.map(call =>
+          call.id === id ? { ...call, ...updates } : call
+        )
+      }
+    })
+  },
+
   chats: [],
   init: async (tagId: number) => {
     await initChatsDb()

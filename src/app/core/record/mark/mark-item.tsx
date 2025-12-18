@@ -29,6 +29,7 @@ import { ImageViewer } from "@/components/image-viewer";
 import ChatPreview from "../chat/chat-preview";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MarkMobileActions } from "./mark-mobile-actions";
+import { markToMarkdown } from "@/lib/mark-to-markdown";
 
 dayjs.extend(relativeTime)
 
@@ -248,6 +249,29 @@ export function MarkItem({mark}: {mark: Mark}) {
   } = useMarkStore()
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    if (isMultiSelectMode) {
+      e.preventDefault()
+      return
+    }
+    
+    const markdownContent = markToMarkdown(mark);
+    e.dataTransfer.setData('text/plain', markdownContent);
+    e.dataTransfer.setData('application/json', JSON.stringify(mark));
+    e.dataTransfer.effectAllowed = 'copy';
+    
+    // 添加拖拽时的视觉反馈
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5'
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+  };
+
   async function handleDelMark(e?: React.MouseEvent) {
     e?.stopPropagation()
     if (isMultiSelectMode && selectedMarkIds.size > 0) {
@@ -349,8 +373,14 @@ export function MarkItem({mark}: {mark: Mark}) {
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger>
-        <div className="border-t relative">
+      <ContextMenuTrigger asChild>
+        <div 
+          data-mark-item="true"
+          className="border-t relative cursor-move hover:bg-accent/50 transition-colors"
+          draggable={!isMultiSelectMode}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
           <MarkWrapper mark={mark} />
           <div className="absolute top-2 right-2">
             <MarkMobileActions

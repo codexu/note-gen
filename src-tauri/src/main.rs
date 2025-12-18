@@ -19,7 +19,6 @@ use keywords::{rank_keywords};
 use backup::{export_app_data, import_app_data};
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
-use tauri::RunEvent;
 
 fn main() {
     tauri::Builder::default()
@@ -71,10 +70,10 @@ fn main() {
         
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|app_handle, event| match event {
+        .run(|_app_handle, event| match event {
             #[cfg(target_os = "macos")]
-            RunEvent::Reopen { has_visible_windows, .. } => {
-                window::handle_macos_reopen(&app_handle, has_visible_windows);
+            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                window::handle_macos_reopen(&_app_handle, has_visible_windows);
             }
             _ => {}
         });

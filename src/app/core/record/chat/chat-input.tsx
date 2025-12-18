@@ -6,26 +6,24 @@ import { Textarea } from "@/components/ui/textarea"
 import useChatStore from "@/stores/chat"
 import useMarkStore from "@/stores/mark"
 import { fetchAiPlaceholder } from "@/lib/ai"
-import { MarkGen } from "./mark-gen"
 import { useTranslations } from 'next-intl'
-import { ChatLink } from "./chat-link"
 import { useLocalStorage } from 'react-use';
 import { ModelSelect } from "./model-select"
 import { PromptSelect } from "./prompt-select"
-import { ClearChat } from "./clear-chat"
-import { ClearContext } from "./clear-context"
 import { ChatLanguage } from "./chat-language"
-import { InputModeSelect } from "./input-mode-select"
 import { ChatSend } from "./chat-send"
-import { TranslateSend } from "./translate-send"
+import { LinkedFileDisplay, FileLink } from "./file-link"
+import { FileSelector } from "./file-selector"
+import { ChatLink } from "./chat-link"
+import { McpButton } from "./mcp-button"
+import { RagSwitch } from "./rag-switch"
 import ChatPlaceholder from "./chat-placeholder"
 import { ClipboardMonitor } from "./clipboard-monitor"
-import { RagSwitch } from "./rag-switch"
-import { FileLink, LinkedFileDisplay } from "./file-link"
-import { FileSelector } from "./file-selector"
+import { ClearContext } from "./clear-context"
+import { ClearChat } from "./clear-chat"
+import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
-import { McpButton } from "./mcp-button"
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DndContext,
@@ -46,20 +44,17 @@ import { CSS } from '@dnd-kit/utilities'
 
 export function ChatInput() {
   const [text, setText] = useState("")
-  const { primaryModel, chatToolbarConfig, setChatToolbarConfig } = useSettingStore()
+  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc, chatToolbarConfigMobile } = useSettingStore()
   const { chats, loading, locale, isLinkMark, isPlaceholderEnabled } = useChatStore()
+  const [showFileSelector, setShowFileSelector] = useState(false)
   const { marks, trashState } = useMarkStore()
   const [isComposing, setIsComposing] = useState(false)
   const [placeholder, setPlaceholder] = useState('')
   const t = useTranslations()
-  const [inputType, setInputType] = useLocalStorage('chat-input-type', 'chat')
   const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [linkedFile, setLinkedFile] = useState<MarkdownFile | null>(null)
-  const [showFileSelector, setShowFileSelector] = useState(false)
-  const markGenRef = useRef<any>(null)
   const chatSendRef = useRef<any>(null)
-  const translateSendRef = useRef<any>(null)
   const isMobile = useIsMobile()
 
   // 拖拽传感器配置（仅桌面端）
@@ -108,20 +103,9 @@ export function ChatInput() {
     }
   }
 
-  // 处理文件选择
-  function handleFileSelect(file: MarkdownFile) {
-    setLinkedFile(file)
-    setShowFileSelector(false)
-  }
-
   // 移除关联文件
   function removeLinkedFile() {
     setLinkedFile(null)
-  }
-
-  // 打开文件选择器
-  function openFileSelector() {
-    setShowFileSelector(true)
   }
 
   // 处理发送后的清理工作
@@ -169,10 +153,6 @@ export function ChatInput() {
     }
   }
 
-  // 切换输入类型
-  function inputTypeChangeHandler(value: string) {
-    setInputType(value)
-  }
 
   // 插入占位符
   function insertPlaceholder() {
@@ -182,22 +162,27 @@ export function ChatInput() {
     }
   }
 
-  // 处理拖拽结束
+  // 处理拖拽结束（仅 PC 端底部工具栏）
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      const oldIndex = chatToolbarConfig.findIndex((item) => item.id === active.id)
-      const newIndex = chatToolbarConfig.findIndex((item) => item.id === over.id)
+      const bottomTools = ['modelSelect', 'promptSelect', 'chatLanguage']
+      const bottomItems = chatToolbarConfigPc.filter(item => bottomTools.includes(item.id))
+      const oldIndex = bottomItems.findIndex((item) => item.id === active.id)
+      const newIndex = bottomItems.findIndex((item) => item.id === over.id)
       
-      const newItems = arrayMove(chatToolbarConfig, oldIndex, newIndex)
-      // 更新 order
-      const updatedItems = newItems.map((item, index) => ({
-        ...item,
-        order: index
-      }))
-      // 保存配置
-      setChatToolbarConfig(updatedItems)
+      const reorderedItems = arrayMove(bottomItems, oldIndex, newIndex)
+      const allItems = [...chatToolbarConfigPc]
+      
+      reorderedItems.forEach((item, index) => {
+        const globalIndex = allItems.findIndex(i => i.id === item.id)
+        if (globalIndex !== -1) {
+          allItems[globalIndex] = { ...item, order: bottomItems[0].order + index }
+        }
+      })
+      
+      setChatToolbarConfigPc(allItems)
     }
   }
 
@@ -227,8 +212,12 @@ export function ChatInput() {
     emitter.on('revertChat', (event: unknown) => {
       setText(event as string)
     })
+    emitter.on('fileSelected', (event: unknown) => {
+      setLinkedFile(event as MarkdownFile)
+    })
     return () => {
       emitter.off('revertChat')
+      emitter.off('fileSelected')
     }
   }, [])
 
@@ -251,13 +240,7 @@ export function ChatInput() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !isComposing && !e.shiftKey && e.keyCode === 13) {
               e.preventDefault()
-              if (inputType === "gen") {
-                markGenRef.current?.openGen()
-              } else if (inputType === "chat") {
-                chatSendRef.current?.sendChat()
-              } else if (inputType === "translate") {
-                translateSendRef.current?.sendTranslate()
-              }
+              chatSendRef.current?.sendChat()
             }
             if (e.key === "Tab") {
               e.preventDefault()
@@ -305,29 +288,25 @@ export function ChatInput() {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={chatToolbarConfig.filter(item => item.enabled).map(item => item.id)}
+                items={chatToolbarConfigPc.filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled).map(item => item.id)}
                 strategy={horizontalListSortingStrategy}
               >
                 <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
-                  {chatToolbarConfig
-                    .filter(item => item.enabled)
+                  {chatToolbarConfigPc
+                    .filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled)
                     .sort((a, b) => a.order - b.order)
                     .map(item => (
                       <SortableToolbarItem
                         key={item.id}
                         id={item.id}
-                        inputType={inputType}
-                        openFileSelector={openFileSelector}
-                        primaryModel={primaryModel}
-                        loading={loading}
                       />
                     ))}
                 </div>
               </SortableContext>
             </DndContext>
           ) : (
-            <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
-              {chatToolbarConfig
+            <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
+              {chatToolbarConfigMobile
                 .filter(item => item.enabled)
                 .sort((a, b) => a.order - b.order)
                 .map(item => {
@@ -339,9 +318,9 @@ export function ChatInput() {
                     case 'chatLanguage':
                       return <ChatLanguage key={item.id} />
                     case 'chatLink':
-                      return <ChatLink key={item.id} inputType={inputType} />
+                      return <ChatLink key={item.id} />
                     case 'fileLink':
-                      return <FileLink key={item.id} onFileLinkClick={openFileSelector} disabled={!primaryModel || loading} />
+                      return <FileLink key={item.id} onFileLinkClick={() => setShowFileSelector(true)} disabled={!primaryModel || loading} />
                     case 'mcpButton':
                       return <McpButton key={item.id} />
                     case 'ragSwitch':
@@ -362,25 +341,22 @@ export function ChatInput() {
           )}
         </div>
         <div className="flex items-center justify-end gap-2 pr-1">
-          <InputModeSelect value={inputType || 'chat'} onChange={inputTypeChangeHandler} />
-          {
-            inputType === 'gen' ? (
-              <MarkGen inputValue={text} ref={markGenRef} />
-            ) : inputType === 'chat' ? (
-              <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} ref={chatSendRef} />
-            ) : inputType === 'translate' ? (
-              <TranslateSend inputValue={text} onSent={handleSent} ref={translateSendRef} />
-            ) : null
-          }
+          <ChatModeSelect />
+          <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} ref={chatSendRef} />
         </div>
       </div>
 
-      {/* 文件选择器 - 独立于容器，避免 overflow 问题 */}
-      <FileSelector
-        isOpen={showFileSelector}
-        onFileSelect={handleFileSelect}
-        onClose={() => setShowFileSelector(false)}
-      />
+      {/* 文件选择器（移动端） */}
+      {showFileSelector && (
+        <FileSelector
+          isOpen={showFileSelector}
+          onClose={() => setShowFileSelector(false)}
+          onFileSelect={(file) => {
+            setLinkedFile(file)
+            setShowFileSelector(false)
+          }}
+        />
+      )}
     </footer>
   )
 }
@@ -388,19 +364,9 @@ export function ChatInput() {
 // 可排序的工具栏项组件
 interface SortableToolbarItemProps {
   id: string
-  inputType: string | undefined
-  openFileSelector: () => void
-  primaryModel: string | undefined
-  loading: boolean
 }
 
-function SortableToolbarItem({ 
-  id, 
-  inputType, 
-  openFileSelector, 
-  primaryModel, 
-  loading 
-}: SortableToolbarItemProps) {
+function SortableToolbarItem({ id }: SortableToolbarItemProps) {
   const {
     attributes,
     listeners,
@@ -425,22 +391,6 @@ function SortableToolbarItem({
         return <PromptSelect />
       case 'chatLanguage':
         return <ChatLanguage />
-      case 'chatLink':
-        return <ChatLink inputType={inputType} />
-      case 'fileLink':
-        return <FileLink onFileLinkClick={openFileSelector} disabled={!primaryModel || loading} />
-      case 'mcpButton':
-        return <McpButton />
-      case 'ragSwitch':
-        return <RagSwitch />
-      case 'chatPlaceholder':
-        return <ChatPlaceholder />
-      case 'clipboardMonitor':
-        return <ClipboardMonitor />
-      case 'clearContext':
-        return <ClearContext />
-      case 'clearChat':
-        return <ClearChat />
       default:
         return null
     }

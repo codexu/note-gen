@@ -68,7 +68,7 @@
     "hotkeys-js": "^3.13.15",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
-    "lucide-react": "^0.456.0",
+    "lucide-react": "^0.561.0",
     "markdown-it": "^14.1.0",
     "mitt": "^3.0.1",
     "next": "15.3.2",

@@ -16,6 +16,7 @@
     "pin": "Pin",
     "unpin": "Unpin",
     "settings": "Settings",
+    "back": "Back",
     "sync": "Sync",
     "language": "Language",
     "confirm": "Confirm",
@@ -23,7 +24,8 @@
     "prompt": "Prompt",
     "success": "Success",
     "error": "Failed",
-    "defaultFileName": "Untitled"
+    "defaultFileName": "Untitled",
+    "restartToApply": ", please restart the application for the configuration to take effect"
   },
   "settings": {
     "others": "Advanced",
@@ -72,7 +74,14 @@
           "desc": "Customize the display order and visibility of chat toolbar buttons",
           "button": "Configure",
           "dialogTitle": "Configure Chat Toolbar",
-          "dialogDesc": "Drag tools to adjust order, use switches to show or hide"
+          "dialogDesc": "Drag tools to adjust order, use switches to show or hide",
+          "groups": {
+            "pc": "PC",
+            "mobile": "Mobile",
+            "bottom": "Bottom Toolbar",
+            "topLeft": "Top Toolbar - Left",
+            "topRight": "Top Toolbar - Right"
+          }
         },
         "recordToolbar": {
           "title": "Record Toolbar",
@@ -795,7 +804,9 @@
         "file": "File",
         "link": "Link",
         "upload": "Upload Record",
-        "download": "Download Record"
+        "download": "Download Record",
+        "uploadTo": "Sync from local to {provider}",
+        "downloadFrom": "Sync from {provider} to local"
       },
       "uploadSuccess": "Record upload success",
       "downloadSuccess": "Record download success",
@@ -856,6 +867,27 @@
           "text": "Text"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agent"
+          },
+          "agent": {
+            "running": "Agent Running",
+            "thinking": "Thinking",
+            "acting": "Acting",
+            "observation": "Observation",
+            "toolCalls": "Tool Calls",
+            "confirmation": {
+              "title": "Confirm Action",
+              "description": "The agent wants to perform the following action. Please confirm to continue.",
+              "tool": "Tool",
+              "parameters": "Parameters",
+              "cancel": "Cancel",
+              "confirm": "Confirm",
+              "confirmed": "Confirmed",
+              "cancelled": "Cancelled"
+            }
+          },
           "placeholder": {
             "default": "Ask questions or organize your notes into an article...",
             "noApiKey": "API Key not configured, AI chat feature is unavailable..."
@@ -987,18 +1019,10 @@
         "enableVectorDb": "Enable Vector Database",
         "multiSelect": "Multi Select",
         "exitMultiSelect": "Exit Multi Select",
-        "selectAll": "Select All",
-        "deselectAll": "Deselect All",
-        "selectedCount": "Selected {count} items",
-        "moveSelectedTags": "Move selected {count} items",
-        "deleteSelected": "Delete selected {count} items",
-        "deleteSelectedForever": "Delete selected {count} items forever",
-        "text": "Record Text",
-        "recording": "Audio Recording",
-        "scan": "Scan Image",
-        "image": "Upload Image",
-        "link": "Record Link",
-        "file": "Upload File"
+        "organizeNotes": "Organize Notes",
+        "organizeSuccess": "Notes organized successfully: {title}",
+        "organizeError": "Failed to organize notes",
+        "currentTag": "Current Tag"
       }
     },
     "chat": {
@@ -1072,6 +1096,7 @@
         },
         "send": "Send",
         "stop": "Stop",
+        "stopped": "Conversation stopped",
         "terminate": "Terminate",
         "tagLink": {
           "on": "Linked to tag",
@@ -1104,9 +1129,28 @@
         },
         "modeSelect": {
           "tooltip": "Select input mode",
-          "chat": "Chat Mode",
-          "gen": "Organize Mode",
-          "translate": "Translate Mode"
+          "chat": "Chat mode",
+          "gen": "Organize mode",
+          "translate": "Translate mode"
+        },
+        "chatModeSelect": {
+          "chatDescription": "Quick conversation, read-only mode",
+          "agentDescription": "Smart assistant, can execute actions"
+        },
+        "agent": {
+          "running": "Agent Running",
+          "thinking": "Thinking",
+          "acting": "Acting",
+          "observation": "Observation",
+          "toolCalls": "Tool Calls",
+          "confirmation": {
+            "title": "Confirm Action",
+            "description": "The agent wants to perform the following action. Please confirm to continue.",
+            "tool": "Tool",
+            "parameters": "Parameters",
+            "cancel": "Cancel",
+            "confirm": "Confirm"
+          }
         },
         "fileLink": {
           "tooltip": "Link File",
@@ -1200,7 +1244,13 @@
     "loading": "Loading",
     "view": "View",
     "logout": "Logout",
-    "setting": "Setting"
+    "setting": "Settings",
+    "files": "Notes",
+    "hideLeftSidebar": "Hide Left Sidebar",
+    "showLeftSidebar": "Show Left Sidebar",
+    "hideRightSidebar": "Hide Right Sidebar",
+    "showRightSidebar": "Show Right Sidebar",
+    "searchPlaceholder": "Search notes or records..."
   },
   "marks": {
     "types": {
@@ -1333,6 +1383,9 @@
         }
       },
       "toolbar": {
+        "organize": {
+          "tooltip": "Organize Notes"
+        },
         "mark": {
           "title": "Records",
           "tooltip": "Records",
@@ -1375,6 +1428,15 @@
         "error": "Upload failed",
         "needToken": "Upload images need to configure accessToken",
         "uploading": "Uploading image"
+      },
+      "saveDialog": {
+        "title": "Save File",
+        "emptyContent": "Empty Content",
+        "emptyContentDesc": "Please enter content before saving",
+        "success": "Save Successful",
+        "successDesc": "File saved successfully",
+        "error": "Save Failed",
+        "errorDesc": "Failed to save file, please try again"
       }
     },
     "footer": {
@@ -1445,61 +1507,6 @@
       "modelDesc": "Requires STT model, more accurate"
     }
   },
-  "editor": {
-    "copySuccess": "Copy Success",
-    "copySuccessDescription": "Copied to clipboard",
-    "floatbar": {
-      "readAloud": {
-        "start": "Read Aloud",
-        "stop": "Stop Reading",
-        "loading": "Loading..."
-      }
-    },
-    "toolbar": {
-      "mark": {
-        "title": "Records",
-        "tooltip": "Records",
-        "description": "Convert records into content to insert into the article.",
-        "noRecords": "No records",
-        "ocrNoContent": "OCR did not recognize any content"
-      },
-      "question": {
-        "tooltip": "Q&A",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Reference text: \n{content}\nBased on the question: \n{question}\n, directly provide the answer content."
-      },
-      "continue": {
-        "tooltip": "Continue",
-        "promptTemplate": "Based on the preceding text: \n{content}\n continue writing and return content not exceeding 100 words.\nYou can reference the following text: \n{endContent}\n, but avoid duplicating its content."
-      },
-      "polish": {
-        "tooltip": "Polish",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Polish this text: \n{content}\n, keep the language unchanged, fix typos and grammatical errors, directly return the polished result."
-      },
-      "eraser": {
-        "tooltip": "Simplify",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Simplify this text: \n{content}\n, this text is too verbose, reduce the word count by at least half, keep the language unchanged, directly return the optimized result."
-      },
-      "expansion": {
-        "tooltip": "Expand",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Expand this text: \n{content}\n, this text is too short, increase the word count by at least half, keep the language unchanged, directly return the expanded result."
-      },
-      "translation": {
-        "tooltip": "Translate",
-        "description": "Translate the selected text",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result."
-      }
-    },
-    "upload": {
-      "error": "Upload failed",
-      "needToken": "Upload images need to configure accessToken",
-      "uploading": "Uploading image"
-    }
-  },
   "footer": {
     "wordCount": "Words",
     "sync": {
@@ -1527,19 +1534,5 @@
       "pending": "Pending {progress}%",
       "synced": "Synced"
     }
-  },
-  "mcp": {
-  "selectServers": "MCP Servers",
-  "searchServers": "Search servers...",
-  "noServers": "MCP service not enabled",
-  "noServersFound": "No matching servers found",
-  "addServer": "Add server...",
-  "goToSettings": "Go to Settings",
-  "close": "Close",
-  "navigate": "Select",
-  "confirm": "Confirm",
-  "tools": "tools",
-  "connecting": "Connecting",
-  "disconnected": "Disconnected"
-}
+  }
 }

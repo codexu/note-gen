@@ -1,5 +1,5 @@
 'use client'
-import { ImageUp, Search, Settings, Highlighter, SquarePen } from "lucide-react"
+import { ImageUp, Search, Settings, SquarePen, X } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -12,12 +12,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { usePathname, useRouter } from 'next/navigation'
-import Link from "next/link"
 import AppStatus from "./app-status"
 import { Store } from "@tauri-apps/plugin-store"
 import { PinToggle } from "./pin-toggle"
 import { useTranslations } from 'next-intl'
-import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState } from "react"
 import useImageStore from "@/stores/imageHosting"
  
@@ -28,20 +26,14 @@ interface AppSidebarProps {
 export function AppSidebar({ onSearchClick }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { toggleFileSidebar, toggleNoteSidebar, showFileSidebar, showNoteSidebar } = useSidebarStore()
   const t = useTranslations()
   const { imageRepoUserInfo } = useImageStore()
   const [items, setItems] = useState([
     {
-      title: t('navigation.record'),
-      url: "/core/record",
-      icon: Highlighter,
-      isActive: true,
-    },
-    {
       title: t('navigation.write'),
-      url: "/core/article",
+      url: "/core/main",
       icon: SquarePen,
+      isActive: true,
     },
     {
       title: t('navigation.search'),
@@ -70,20 +62,8 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
       return
     }
 
-    // 如果是当前页面，执行 toggle 切换显示/隐藏
-    if (pathname === '/core/article' && item.url === '/core/article') {
-      toggleFileSidebar()
-    } else if (pathname === '/core/record' && item.url === '/core/record') {
-      toggleNoteSidebar()
-    } else {
-      // 如果是路由切换，确保对应的侧边栏显示
-      if (item.url === '/core/article') {
-        await showFileSidebar()
-      } else if (item.url === '/core/record') {
-        await showNoteSidebar()
-      }
-      router.push(item.url)
-    }
+    // 直接跳转到对应页面
+    router.push(item.url)
     const store = await Store.load('store.json')
     store.set('currentPage', item.url)
   }
@@ -95,7 +75,7 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
   return (
     <Sidebar 
       collapsible="none"
-      className="!w-[calc(var(--sidebar-width-icon)_+_1px)] border-r h-screen"
+      className="!w-[calc(var(--sidebar-width-icon)_+_1px)] border-r h-[calc(100vh-36px)] mt-9"
     >
       <SidebarHeader>
         <SidebarMenu>
@@ -131,17 +111,28 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <PinToggle />
-        <SidebarMenuButton isActive={pathname.includes('/core/setting')} asChild className="md:h-8 md:p-0"
+        <SidebarMenuButton 
+          isActive={pathname.includes('/core/setting')} 
+          className="md:h-8 md:p-0"
           tooltip={{
-            children: t('common.settings'),
+            children: pathname.includes('/core/setting') ? t('common.back') : t('common.settings'),
             hidden: false,
           }}
+          onClick={() => {
+            if (pathname.includes('/core/setting')) {
+              router.push('/core/main')
+            } else {
+              router.push('/core/setting')
+            }
+          }}
         >
-          <Link href="/core/setting">
-            <div className="flex size-8 items-center justify-center rounded-lg">
+          <div className="flex size-8 items-center justify-center rounded-lg">
+            {pathname.includes('/core/setting') ? (
+              <X className="size-4" />
+            ) : (
               <Settings className="size-4" />
-            </div>
-          </Link>
+            )}
+          </div>
         </SidebarMenuButton>
       </SidebarFooter>
     </Sidebar>

@@ -310,7 +310,7 @@ export function FileItem({ item }: { item: DirTree }) {
       }
       
       // 构建新文件的完整路径用于激活文件
-      let newPath = path.split('/').slice(0, -1).join('/') + '/' + (name.endsWith('.md') ? name : name + '.md')
+      let newPath = path.split('/').slice(0, -1).join('/') + '/' + displayName
       // 判断 newPath 是否以 / 开头
       if (newPath.startsWith('/')) {
         newPath = newPath.slice(1)

@@ -1,7 +1,7 @@
 {
   "name": "note-gen",
   "version": "0.1.0",
-  "private": true,
+"private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 3456",
     "build": "next build --turbopack",

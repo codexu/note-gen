@@ -146,21 +146,20 @@ export default function ChatPreview({text}: {text: string, themeReverse?: boolea
     return codeTheme || 'github';
   };
 
-  // 处理鼠标按下事件，检测是否有选中文本
-  const handleMouseDown = (e: React.MouseEvent) => {
-    const selection = window.getSelection()
-    const selectedText = selection?.toString().trim()
-    
-    // 如果有选中文本，设置元素为可拖拽
-    if (selectedText && previewRef.current) {
-      previewRef.current.setAttribute('draggable', 'true')
-    } else if (previewRef.current) {
-      previewRef.current.setAttribute('draggable', 'false')
-    }
-  }
+  // 检测是否为 macOS
+  const isMacOS = () => {
+    if (typeof window === 'undefined') return false;
+    return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
+  };
 
-  // 处理文本选中后的拖拽
+  // 处理文本选中后的拖拽（仅 macOS）
   const handleDragStart = (e: React.DragEvent) => {
+    // 非 macOS 系统直接阻止拖拽
+    if (!isMacOS()) {
+      e.preventDefault();
+      return;
+    }
+
     const selection = window.getSelection()
     const selectedText = selection?.toString().trim()
     
@@ -195,13 +194,6 @@ export default function ChatPreview({text}: {text: string, themeReverse?: boolea
     }
   }
 
-  // 拖拽结束后重置 draggable 属性
-  const handleDragEnd = () => {
-    if (previewRef.current) {
-      previewRef.current.setAttribute('draggable', 'false')
-    }
-  }
-
   return (
     <div className="flex-1 max-w-[calc(100vw-30px)] md:max-w-[calc(100vw-440px)]">
       <div 
@@ -209,10 +201,8 @@ export default function ChatPreview({text}: {text: string, themeReverse?: boolea
         className={getThemeClass()}
         dangerouslySetInnerHTML={{ __html: htmlContent }}
         data-highlight-style={getHighlightStyle()}
-        draggable={false}
-        onMouseDown={handleMouseDown}
+        draggable={isMacOS()}
         onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
       />
     </div>
   );

@@ -67,12 +67,25 @@ jobs:
           export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
           ln -sf llvm-ranlib $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-ranlib || true
 
-      - name: Initialize Android project
-        run: pnpm tauri android init
-
-      - name: Build Android APK/AAB
+      - name: Initialize and Build Android
         run: |
           export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+          
+          # Initialize Android project if not exists
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "📱 Initializing Android project..."
+            pnpm tauri android init
+          else
+            echo "✅ Android project already initialized"
+          fi
+          
+          # Verify initialization
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "❌ Android initialization failed"
+            exit 1
+          fi
+          
+          echo "🔨 Building Android APK and AAB..."
           pnpm tauri android build --apk --aab
 
       - name: Decode keystore

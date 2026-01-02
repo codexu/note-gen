@@ -96,31 +96,45 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/android-release.keystore
           ls -la src-tauri/android-release.keystore
 
-      - name: Sign APK
+      - name: Sign APK with apksigner
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd src-tauri
-          if [ -f "gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk" ]; then
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 \
-              -keystore android-release.keystore \
-              -storepass "$ANDROID_KEYSTORE_PASSWORD" \
-              -keypass "$ANDROID_KEY_PASSWORD" \
-              gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
-              note-gen
-            echo "✅ APK signed successfully"
-          else
-            echo "❌ APK file not found"
+          APK_PATH="gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
+          SIGNED_APK_PATH="gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk"
+          
+          if [ ! -f "$APK_PATH" ]; then
+            echo "❌ APK file not found at $APK_PATH"
+            ls -la gen/android/app/build/outputs/apk/universal/release/ || true
             exit 1
           fi
+          
+          echo "📝 Signing APK with apksigner (V1 + V2 signatures)..."
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -n 1)/apksigner sign \
+            --ks android-release.keystore \
+            --ks-key-alias note-gen \
+            --ks-pass pass:"$ANDROID_KEYSTORE_PASSWORD" \
+            --key-pass pass:"$ANDROID_KEY_PASSWORD" \
+            --out "$SIGNED_APK_PATH" \
+            "$APK_PATH"
+          
+          echo "✅ APK signed successfully"
+          
+          # Verify signature
+          echo "🔍 Verifying APK signature..."
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -n 1)/apksigner verify --verbose "$SIGNED_APK_PATH"
+          
+          # Show file info
+          ls -lh "$SIGNED_APK_PATH"
 
-      - name: Upload APK as artifact
+      - name: Upload Signed APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-          if-no-files-found: warn
+          name: android-apk-signed
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk
+          if-no-files-found: error
 
       - name: Upload AAB as artifact
         uses: actions/upload-artifact@v4
@@ -157,7 +171,7 @@ jobs:
           draft: true
           prerelease: true
           files: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
 
       - name: Cleanup keystore

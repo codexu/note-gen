@@ -31,6 +31,11 @@ target/*
 .DS_Store
 *.pem
 
+# Android signing keys
+*.keystore
+*.jks
+android-app.keystore
+
 # debug
 npm-debug.log*
 yarn-debug.log*

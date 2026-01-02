@@ -1,0 +1,126 @@
+name: Android Release
+
+on:
+  push:
+    branches:
+      - test-android-action  # 在此分支推送时触发
+  workflow_dispatch:  # 支持手动触发
+    inputs:
+      version:
+        description: 'Version to build (optional)'
+        required: false
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          echo "y" | sdkmanager "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Setup NDK toolchain
+        run: |
+          export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+          ln -sf llvm-ranlib $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-ranlib || true
+
+      - name: Decode keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/android-release.keystore
+          ls -la src-tauri/android-release.keystore
+
+      - name: Build Android APK/AAB
+        uses: tauri-apps/tauri-action@v0.5.23
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        with:
+          mobile: 'android'
+          tagName: android-v__VERSION__
+          releaseName: 'NoteGen Android v__VERSION__'
+          releaseBody: 'Android release build. Download the APK to install on your device.'
+          releaseDraft: true
+          prerelease: true
+          uploadUpdaterJson: false
+
+      - name: Sign APK manually (fallback)
+        if: failure()
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd src-tauri
+          if [ -f "gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk" ]; then
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 \
+              -keystore android-release.keystore \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              -keypass "$ANDROID_KEY_PASSWORD" \
+              gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
+              note-gen
+            echo "APK signed successfully"
+          fi
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          if-no-files-found: warn
+
+      - name: Upload AAB as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-aab
+          path: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          if-no-files-found: warn
+
+      - name: Cleanup keystore
+        if: always()
+        run: |
+          rm -f src-tauri/android-release.keystore

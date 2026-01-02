@@ -1,0 +1,66 @@
+# GitHub Secrets 配置指南
+
+## 📋 需要配置的 Secrets
+
+在你的 GitHub 仓库（或测试仓库）中，需要添加以下 3 个 Secrets：
+
+### 1. ANDROID_KEYSTORE_BASE64
+
+**密钥库文件的 base64 编码**
+
+已经生成好了，复制下面的内容：
+
+```
+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
+```
+
+### 2. ANDROID_KEYSTORE_PASSWORD
+
+**密钥库密码**
+
+这是你在创建密钥库时设置的密码。
+
+### 3. ANDROID_KEY_PASSWORD
+
+**密钥密码**
+
+这是你在创建密钥库时为密钥设置的密码（通常与密钥库密码相同）。
+
+---
+
+## 🔧 如何添加 Secrets
+
+### 方法 1：在测试仓库中添加
+
+1. 进入你的测试仓库页面
+2. 点击 **Settings** 标签
+3. 在左侧菜单中找到 **Secrets and variables** → **Actions**
+4. 点击 **New repository secret** 按钮
+5. 依次添加上面 3 个 Secrets：
+   - Name: `ANDROID_KEYSTORE_BASE64`
+   - Value: 复制上面的 base64 字符串
+   - 点击 **Add secret**
+   - 重复此步骤添加另外两个 Secrets
+
+### 方法 2：在主仓库中添加（稍后）
+
+等测试成功后，在主仓库 `codexu/note-gen` 中按照相同步骤添加。
+
+---
+
+## ⚠️ 重要提示
+
+1. **密码安全**：这些 Secrets 一旦添加就无法查看，只能更新或删除
+2. **不要泄露**：永远不要在代码、日志或截图中暴露这些值
+3. **备份密钥库**：请务必备份 `src-tauri/android-app.keystore` 文件到安全的地方
+4. **密码记录**：请将密钥库密码保存在密码管理器中
+
+---
+
+## 📝 快速检查清单
+
+- [ ] 已添加 `ANDROID_KEYSTORE_BASE64`
+- [ ] 已添加 `ANDROID_KEYSTORE_PASSWORD`
+- [ ] 已添加 `ANDROID_KEY_PASSWORD`
+- [ ] 已备份密钥库文件
+- [ ] 已记录密码到安全位置

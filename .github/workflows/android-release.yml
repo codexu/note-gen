@@ -43,6 +43,7 @@ jobs:
         run: |
           echo "y" | sdkmanager "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4

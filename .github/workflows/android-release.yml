@@ -86,6 +86,29 @@ jobs:
             exit 1
           fi
           
+          # Set custom Android icon
+          echo "🎨 Setting custom Android icon..."
+          ICON_SOURCE="public/app-ios-icon.png"
+          MIPMAP_DIRS=(
+            "src-tauri/gen/android/app/src/main/res/mipmap-mdpi"
+            "src-tauri/gen/android/app/src/main/res/mipmap-hdpi"
+            "src-tauri/gen/android/app/src/main/res/mipmap-xhdpi"
+            "src-tauri/gen/android/app/src/main/res/mipmap-xxhdpi"
+            "src-tauri/gen/android/app/src/main/res/mipmap-xxxhdpi"
+          )
+          
+          # Install ImageMagick for icon conversion
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          
+          # Generate different sizes
+          convert "$ICON_SOURCE" -resize 48x48 "${MIPMAP_DIRS[0]}/ic_launcher.png"
+          convert "$ICON_SOURCE" -resize 72x72 "${MIPMAP_DIRS[1]}/ic_launcher.png"
+          convert "$ICON_SOURCE" -resize 96x96 "${MIPMAP_DIRS[2]}/ic_launcher.png"
+          convert "$ICON_SOURCE" -resize 144x144 "${MIPMAP_DIRS[3]}/ic_launcher.png"
+          convert "$ICON_SOURCE" -resize 192x192 "${MIPMAP_DIRS[4]}/ic_launcher.png"
+          
+          echo "✅ Android icon set successfully"
+          
           echo "🔨 Building Android APK and AAB..."
           pnpm tauri android build --apk --aab
 

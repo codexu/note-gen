@@ -54,3 +54,7 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 
 .idea
+
+# Exclude all markdown files in root directory except README.md
+/*.md
+!README.md

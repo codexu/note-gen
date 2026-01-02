@@ -1,0 +1,99 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ main, dev ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'pnpm-lock.yaml'
+    
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 34
+        ndk: 29.0.14206865
+    
+    - name: Cache cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+          src-tauri/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build frontend
+      run: pnpm build
+    
+    - name: Generate Android project
+      run: pnpm tauri android init
+    
+    - name: Build Android (unsigned)
+      run: |
+        export PATH=$PATH:$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin
+        ln -sf llvm-ranlib $ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-ranlib
+        pnpm tauri android build
+    
+    - name: Upload unsigned APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: unsigned-apk
+        path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+    
+    - name: Upload AAB
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-bundle
+        path: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab
+    
+    # 仅在发布标签时签名
+    - name: Sign APK (Release only)
+      if: startsWith(github.ref, 'refs/tags/v')
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        echo "$KEYSTORE_BASE64" | base64 -d > src-tauri/release.keystore
+        cd src-tauri
+        jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA256 \
+          -keystore release.keystore \
+          -storepass "$KEYSTORE_PASSWORD" \
+          -keypass "$KEY_PASSWORD" \
+          gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
+          note-gen
+    
+    - name: Upload signed APK (Release only)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: actions/upload-artifact@v3
+      with:
+        name: signed-apk
+        path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk

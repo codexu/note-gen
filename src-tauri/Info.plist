@@ -15,11 +15,5 @@
     <string>NoteGen 需要保存图片到相册。</string>
     <key>NSCameraUsageDescription</key>
     <string>NoteGen 需要访问相机以支持拍照和图片记录功能。</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>NoteGen 需要访问本地网络以连接开发服务器。</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_http._tcp</string>
-    </array>
-</dict>
+    </dict>
 </plist>

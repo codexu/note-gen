@@ -45,7 +45,7 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index
@@ -107,14 +107,14 @@ jobs:
           fi
 
       - name: Upload APK as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
           if-no-files-found: warn
 
       - name: Upload AAB as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: android-aab
           path: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab

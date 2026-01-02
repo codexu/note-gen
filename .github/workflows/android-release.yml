@@ -67,6 +67,14 @@ jobs:
           export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
           ln -sf llvm-ranlib $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-ranlib || true
 
+      - name: Initialize Android project
+        run: pnpm tauri android init
+
+      - name: Build Android APK/AAB
+        run: |
+          export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+          pnpm tauri android build --apk --aab
+
       - name: Decode keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -74,23 +82,7 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > src-tauri/android-release.keystore
           ls -la src-tauri/android-release.keystore
 
-      - name: Build Android APK/AAB
-        uses: tauri-apps/tauri-action@v0.5.23
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        with:
-          mobile: 'android'
-          tagName: android-v__VERSION__
-          releaseName: 'NoteGen Android v__VERSION__'
-          releaseBody: 'Android release build. Download the APK to install on your device.'
-          releaseDraft: true
-          prerelease: true
-          uploadUpdaterJson: false
-
-      - name: Sign APK manually (fallback)
-        if: failure()
+      - name: Sign APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -103,7 +95,10 @@ jobs:
               -keypass "$ANDROID_KEY_PASSWORD" \
               gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk \
               note-gen
-            echo "APK signed successfully"
+            echo "✅ APK signed successfully"
+          else
+            echo "❌ APK file not found"
+            exit 1
           fi
 
       - name: Upload APK as artifact
@@ -119,6 +114,37 @@ jobs:
           name: android-aab
           path: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
           if-no-files-found: warn
+
+      - name: Get version from tauri.conf.json
+        id: get_version
+        run: |
+          VERSION=$(grep -o '"version": *"[^"]*"' src-tauri/tauri.conf.json | head -1 | sed 's/"version": *"\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: android-v${{ steps.get_version.outputs.version }}
+          name: NoteGen Android v${{ steps.get_version.outputs.version }}
+          body: |
+            ## Android Release
+            
+            Download the APK file below to install on your Android device.
+            
+            ### Installation
+            1. Download the APK file
+            2. Enable "Install from Unknown Sources" in your device settings
+            3. Install the APK
+            
+            ### Files
+            - **APK**: Direct installation file
+            - **AAB**: Google Play upload format
+          draft: true
+          prerelease: true
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
 
       - name: Cleanup keystore
         if: always()

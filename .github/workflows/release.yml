@@ -285,35 +285,44 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Notarize app (macOS only)
+      - name: Notarize DMG (macOS only)
         if: matrix.platform == 'macos-latest'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # 获取构建的 app 路径
-          APP_PATH="src-tauri/target/${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || matrix.args == '--target x86_64-apple-darwin' && 'x86_64-apple-darwin' || '' }}/release/bundle/macos/NoteGen.app"
+          # 获取构建的 DMG 路径
+          TARGET_DIR="${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64-apple-darwin' || matrix.args == '--target x86_64-apple-darwin' && 'x86_64-apple-darwin' || '' }}"
+          DMG_PATH="src-tauri/target/${TARGET_DIR}/release/bundle/dmg/NoteGen_0.23.4_${{ matrix.args == '--target aarch64-apple-darwin' && 'aarch64' || matrix.args == '--target x86_64-apple-darwin' && 'x64' || '' }}.dmg"
+          APP_PATH="src-tauri/target/${TARGET_DIR}/release/bundle/macos/NoteGen.app"
           
-          if [ -f "$APP_PATH" ]; then
-            echo "🔐 开始公证 $APP_PATH"
+          echo "🔍 检查 DMG 路径: $DMG_PATH"
+          echo "🔍 检查 APP 路径: $APP_PATH"
+          
+          if [ -f "$DMG_PATH" ]; then
+            echo "🔐 开始公证 DMG: $DMG_PATH"
             
-            # 使用 xcrun notarytool 进行公证（更快）
+            # 使用 xcrun notarytool 进行公证 DMG
             # 设置 10 分钟超时
-            timeout 600 xcrun notarytool submit "$APP_PATH" \
+            timeout 600 xcrun notarytool submit "$DMG_PATH" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" \
               --wait \
               --output-format json || echo "⚠️ 公证超时，但代码签名已完成"
             
-            # 获取公证结果并附加票据
-            echo "📎 附加公证票据"
-            xcrun stapler staple "$APP_PATH"
+            # 获取公证结果并附加票据到 APP
+            if [ -f "$APP_PATH" ]; then
+              echo "📎 附加公证票据到 APP"
+              xcrun stapler staple "$APP_PATH"
+            fi
             
             echo "✅ 公证完成"
           else
-            echo "❌ 找不到应用文件: $APP_PATH"
+            echo "❌ 找不到 DMG 文件: $DMG_PATH"
+            echo "📁 可用文件列表:"
+            find src-tauri/target -name "*.dmg" -o -name "*.app" 2>/dev/null || true
           fi
 
       - name: Generate release tag

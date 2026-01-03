@@ -304,13 +304,12 @@ jobs:
             echo "🔐 开始公证 DMG: $DMG_PATH"
             
             # 使用 xcrun notarytool 进行公证 DMG
-            # 设置 10 分钟超时
-            timeout 600 xcrun notarytool submit "$DMG_PATH" \
+            xcrun notarytool submit "$DMG_PATH" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" \
               --wait \
-              --output-format json || echo "⚠️ 公证超时，但代码签名已完成"
+              --output-format json || echo "⚠️ 公证失败，但代码签名已完成"
             
             # 获取公证结果并附加票据到 APP
             if [ -f "$APP_PATH" ]; then

@@ -1411,6 +1411,10 @@
         "importSuccessDesc": "{count} 個のファイルをインポートしました",
         "importError": "インポート失敗"
       },
+      "sync": {
+        "syncingRemote": "リモートファイルをプル中...",
+        "syncComplete": "同期完了"
+      },
       "context": {
         "viewDirectory": "ディレクトリを表示",
         "cut": "切り取り",

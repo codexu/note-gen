@@ -14,6 +14,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
+import { toast } from '@/hooks/use-toast'
 
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
@@ -1005,113 +1006,84 @@ const useArticleStore = create<NoteState>((set, get) => ({
       await get().setActiveFilePath(actualPath)
     }
     
-    // 如果启用自动同步且有网络连接，先尝试自动同步
-    if (autoSync && await hasNetworkConnection()) {
-      try {
-        const syncedContent = await autoSyncIfNeeded(actualPath, {
-          autoPull: true,
-          showConfirm: false // 默认不显示确认对话框，自动拉取
-        })
-        if (syncedContent !== null) {
-          // 成功同步，直接使用同步后的内容
-          set({ currentArticle: syncedContent })
+    // 优先加载本地内容（快速响应）
+    let localContent = ''
+    let hasLocalFile = false
+    
+    try {
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(actualPath)
+      if (workspace.isCustom) {
+        localContent = await readTextFile(pathOptions.path)
+      } else {
+        localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      }
+      hasLocalFile = true
+      set({ currentArticle: localContent })
+      // 本地内容加载完成，解除加载状态
+      get().setLoading(false)
+    } catch (error) {
+      // 本地文件不存在，创建空白文件
+      if (error instanceof Error && 
+          (error.message.includes('no such file') || 
+           error.message.includes('not found') ||
+           error.message.includes('系统找不到指定的路径'))) {
+        console.log(`Local file does not exist, creating empty file: ${actualPath}`)
+        
+        // 确保目录存在并创建空白文件
+        await ensureDirectoryExists(actualPath)
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(actualPath)
+        
+        try {
+          if (workspace.isCustom) {
+            await writeTextFile(pathOptions.path, '')
+          } else {
+            await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
+          }
+          localContent = ''
+          hasLocalFile = false
+          set({ currentArticle: '' })
           get().setLoading(false)
-          return
+        } catch (createError) {
+          console.error('Failed to create empty file:', createError)
+          set({ currentArticle: '' })
+          get().setLoading(false)
         }
-      } catch (error) {
-        console.warn('Auto sync failed, falling back to normal read:', error)
+      } else {
+        console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+        set({ currentArticle: '' })
+        get().setLoading(false)
       }
     }
     
-    // 原有的读取逻辑作为后备方案
-    if (isLocale) {
-      try {
-        const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(actualPath)
-        let content = ''
-        if (workspace.isCustom) {
-          content = await readTextFile(pathOptions.path)
-        } else {
-          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-        set({ currentArticle: content })
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
-        // 本地文件不存在或目录不存在，尝试从远程获取
-        if (error instanceof Error && 
-            (error.message.includes('no such file') || 
-             error.message.includes('not found') ||
-             error.message.includes('系统找不到指定的路径'))) {
-          console.log(`Local file does not exist, trying remote: ${actualPath}`)
-        } else {
-          console.warn(`Unexpected error reading local file ${actualPath}:`, error)
-        }
-        
-        try {
-          // 如果本地文件不存在，尝试从Github/Gitee读取
-          const store = await Store.load('store.json');
-          const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-          let content = '';
-          switch (primaryBackupMethod) {
-            case 'github':
-              const githubRepo2 = await getSyncRepoName('github');
-              content = decodeBase64ToString(await getGithubFiles({ path: actualPath, repo: githubRepo2 }))
-              break;
-            case 'gitee':
-              const giteeRepo2 = await getSyncRepoName('gitee');
-              content = decodeBase64ToString(await getGiteeFiles({ path: actualPath, repo: giteeRepo2 }))
-              break;
-            case 'gitlab':
-              const gitlabRepo2 = await getSyncRepoName('gitlab');
-              content = decodeBase64ToString((await getGitlabFileContent({ path: actualPath, ref: 'main', repo: gitlabRepo2 })).content)
-              break;
-            default:
-              break;
-          }
-          
-          if (content) {
-            // 确保目录存在后保存到本地
-            await ensureDirectoryExists(actualPath)
-            const workspace = await getWorkspacePath()
-            const pathOptions = await getFilePathOptions(actualPath)
-            if (workspace.isCustom) {
-              await writeTextFile(pathOptions.path, content)
-            } else {
-              await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
-            }
-            set({ currentArticle: content })
-          }
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (_) {
-          // 文件既不在本地也不在远程
-          console.log(`File not found locally or remotely: ${actualPath}`)
-        }
-      }
-    } else {
-      const store = await Store.load('store.json');
-      const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    // 异步检查远程更新（不阻塞界面）
+    if (autoSync && await hasNetworkConnection()) {
+      // 设置远程同步状态
+      set({ remoteSyncLoading: true })
       
-      let res;
-      switch (primaryBackupMethod) {
-        case 'github':
-          const githubRepo3 = await getSyncRepoName('github');
-          res = await getGithubFiles({ path: actualPath, repo: githubRepo3 })
-          break;
-        case 'gitee':
-          const giteeRepo3 = await getSyncRepoName('gitee');
-          res = await getGiteeFiles({ path: actualPath, repo: giteeRepo3 })
-          break;
-        case 'gitlab':
-          const gitlabRepo3 = await getSyncRepoName('gitlab');
-          res = await getGitlabFileContent({ path: actualPath, ref: 'main', repo: gitlabRepo3 })
-          break;
-        default:
-          break;
+      try {
+        const syncedContent = await autoSyncIfNeeded(actualPath, {
+          autoPull: true,
+          showConfirm: false
+        })
+        
+        if (syncedContent !== null && syncedContent !== localContent) {
+          // 远程内容不同，更新显示
+          set({ currentArticle: syncedContent })
+          
+          toast({
+            title: '远程更新',
+            description: '已获取最新版本',
+          })
+        }
+      } catch (error) {
+        console.warn('Async sync failed:', error)
+      } finally {
+        // 清除远程同步状态
+        set({ remoteSyncLoading: false })
       }
-      set({ currentArticle: decodeBase64ToString(res.content) })
-      get().saveCurrentArticle(decodeBase64ToString(res.content))
     }
-    get().setLoading(false)
   },
 
   // 向量计算相关状态

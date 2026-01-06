@@ -1325,6 +1325,10 @@
         "importSuccessDesc": "Importados {count} arquivos com sucesso",
         "importError": "Falha na Importação"
       },
+      "sync": {
+        "syncingRemote": "Buscando arquivo remoto...",
+        "syncComplete": "Sincronização Concluída"
+      },
       "context": {
         "viewDirectory": "Ver Diretório",
         "cut": "Recortar",

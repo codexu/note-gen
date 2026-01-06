@@ -4,6 +4,7 @@ import { getFiles as getGiteeFiles } from '@/lib/sync/gitee'
 import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { autoSyncIfNeeded, hasNetworkConnection } from '@/lib/sync/auto-sync'
 import { getCurrentFolder } from '@/lib/path'
 import useVectorStore from './vector'
 import { join, appDataDir } from '@tauri-apps/api/path'
@@ -77,7 +78,7 @@ interface NoteState {
   clearCollapsibleList: () => Promise<void>
 
   currentArticle: string
-  readArticle: (path: string, sha?: string, isLocale?: boolean) => Promise<void>
+  readArticle: (path: string, sha?: string, isLocale?: boolean, autoSync?: boolean) => Promise<void>
   setCurrentArticle: (content: string) => void
   saveCurrentArticle: (content: string) => Promise<void>
 
@@ -991,8 +992,28 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   currentArticle: '',
-  readArticle: async (path: string, sha?: string, isLocale = true) => {
+  readArticle: async (path: string, sha?: string, isLocale = true, autoSync = true) => {
     get().setLoading(true)
+    
+    // 如果启用自动同步且有网络连接，先尝试自动同步
+    if (autoSync && await hasNetworkConnection()) {
+      try {
+        const syncedContent = await autoSyncIfNeeded(path, {
+          autoPull: true,
+          showConfirm: false // 默认不显示确认对话框，自动拉取
+        })
+        if (syncedContent !== null) {
+          // 成功同步，直接使用同步后的内容
+          set({ currentArticle: syncedContent })
+          get().setLoading(false)
+          return
+        }
+      } catch (error) {
+        console.warn('Auto sync failed, falling back to normal read:', error)
+      }
+    }
+    
+    // 原有的读取逻辑作为后备方案
     if (isLocale) {
       try {
         const workspace = await getWorkspacePath()

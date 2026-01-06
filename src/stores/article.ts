@@ -6,7 +6,7 @@ import { GiteeFile } from '@/lib/sync/gitee'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { autoSyncIfNeeded, hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
-import { getCurrentFolder } from '@/lib/path'
+import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
 import { join, appDataDir } from '@tauri-apps/api/path'
 import { BaseDirectory, DirEntry, exists, mkdir, readDir, readTextFile, writeTextFile, stat } from '@tauri-apps/plugin-fs'
@@ -14,6 +14,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
+import emitter from '@/lib/emitter'
 
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
@@ -1009,34 +1010,125 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } else {
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
+      
+      // 检查是否是远程文件且本地内容为空
+      const fileTree = get().fileTree
+      const findFileInTree = (tree: DirTree[], targetPath: string): DirTree | null => {
+        for (const item of tree) {
+          const itemPath = computedParentPath(item)
+          if (itemPath === targetPath && item.isFile) {
+            return item
+          }
+          if (item.children && item.children.length > 0) {
+            const found = findFileInTree(item.children, targetPath)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      
+      const fileInfo = findFileInTree(fileTree, actualPath)
+      const isRemoteFile = fileInfo && !fileInfo.isLocale
+      
+      // 如果是远程文件且本地内容为空，立即拉取
+      if (isRemoteFile && (!localContent || localContent.trim() === '')) {
+        console.log('Remote file with empty local content detected, starting immediate pull')
+        get().setIsPulling(true)
+        
+        // 立即触发拉取，不等待历史记录组件
+        emitter.emit('immediate-pull-needed', {
+          filePath: actualPath,
+          isRemoteFile: true
+        })
+        
+        // 设置空内容但不解除加载状态
+        set({ currentArticle: '' })
+        // 不调用 setLoading(false)，保持加载状态直到拉取完成
+        return
+      }
+      
+      // 正常的本地文件，显示内容
       set({ currentArticle: localContent })
       // 本地内容加载完成，解除加载状态
       get().setLoading(false)
     } catch (error) {
-      // 本地文件不存在，创建空白文件
+      // 本地文件不存在，检查是否是远程文件
       if (error instanceof Error && 
           (error.message.includes('no such file') || 
            error.message.includes('not found') ||
            error.message.includes('系统找不到指定的路径'))) {
-        console.log(`Local file does not exist, creating empty file: ${actualPath}`)
+        console.log(`Local file does not exist: ${actualPath}`)
         
-        // 确保目录存在并创建空白文件
-        await ensureDirectoryExists(actualPath)
-        const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(actualPath)
-        
-        try {
-          if (workspace.isCustom) {
-            await writeTextFile(pathOptions.path, '')
-          } else {
-            await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
+        // 检查是否是远程文件（通过文件管理器状态判断）
+        const fileTree = get().fileTree
+        const findFileInTree = (tree: DirTree[], targetPath: string): DirTree | null => {
+          for (const item of tree) {
+            const itemPath = computedParentPath(item)
+            if (itemPath === targetPath && item.isFile) {
+              return item
+            }
+            if (item.children && item.children.length > 0) {
+              const found = findFileInTree(item.children, targetPath)
+              if (found) return found
+            }
           }
-          set({ currentArticle: '' })
-          get().setLoading(false)
-        } catch (createError) {
-          console.error('Failed to create empty file:', createError)
-          set({ currentArticle: '' })
-          get().setLoading(false)
+          return null
+        }
+        
+        const fileInfo = findFileInTree(fileTree, actualPath)
+        const isRemoteFile = fileInfo && !fileInfo.isLocale
+        
+        if (isRemoteFile) {
+          // 远程文件且本地不存在，立即开始拉取
+          console.log('Remote file detected, starting immediate pull')
+          get().setIsPulling(true)
+          
+          // 立即触发拉取，不等待历史记录组件
+          emitter.emit('immediate-pull-needed', {
+            filePath: actualPath,
+            isRemoteFile: true
+          })
+          
+          // 创建空白文件但不设置到编辑器
+          await ensureDirectoryExists(actualPath)
+          const workspace = await getWorkspacePath()
+          const pathOptions = await getFilePathOptions(actualPath)
+          
+          try {
+            if (workspace.isCustom) {
+              await writeTextFile(pathOptions.path, '')
+            } else {
+              await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
+            }
+            // 不设置 currentArticle，保持空白直到拉取完成
+            set({ currentArticle: '' })
+            // 不调用 setLoading(false)，保持加载状态
+          } catch (createError) {
+            console.error('Failed to create empty file:', createError)
+            set({ currentArticle: '' })
+            get().setIsPulling(false)
+            get().setLoading(false)
+          }
+        } else {
+          // 本地文件，创建空白文件
+          console.log(`Creating empty local file: ${actualPath}`)
+          await ensureDirectoryExists(actualPath)
+          const workspace = await getWorkspacePath()
+          const pathOptions = await getFilePathOptions(actualPath)
+          
+          try {
+            if (workspace.isCustom) {
+              await writeTextFile(pathOptions.path, '')
+            } else {
+              await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
+            }
+            set({ currentArticle: '' })
+            get().setLoading(false)
+          } catch (createError) {
+            console.error('Failed to create empty file:', createError)
+            set({ currentArticle: '' })
+            get().setLoading(false)
+          }
         }
       } else {
         console.warn(`Unexpected error reading local file ${actualPath}:`, error)

@@ -1428,7 +1428,9 @@
       },
       "sync": {
         "syncingRemote": "リモートファイルをプル中...",
-        "syncComplete": "同期完了"
+        "syncComplete": "同期完了",
+        "pullingRemote": "リモートサーバーから最新コンテンツを取得中...",
+        "pullComplete": "プル完了"
       },
       "context": {
         "viewDirectory": "ディレクトリを表示",

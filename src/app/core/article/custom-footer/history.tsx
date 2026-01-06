@@ -277,9 +277,10 @@ export default function HistoryComponent({editor, disabled}: {editor?: Vditor, d
               disabled={commitsLoading || disabled} 
               className="outline-none">
               {
-                commitsLoading && <LoaderCircle className="animate-spin !size-3" />
+                commitsLoading ? 
+                  <LoaderCircle className="animate-spin !size-3" /> :
+                  <HistoryIcon className="!size-3" />
               }
-              <HistoryIcon className="!size-3" />
               <span className="text-xs">
                 {commitsLoading ? t('loadingHistory') : commits.length ? 
                   `${t('historyRecords')} (${commits.length})` : t('noHistory')}

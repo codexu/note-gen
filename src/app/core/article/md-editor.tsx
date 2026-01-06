@@ -29,6 +29,7 @@ import useMarkStore from '@/stores/mark'
 import { useAiCompletion } from '@/hooks/useAiCompletion'
 import { AiCompletionPreview } from './ai-completion-preview'
 import { isMobileDevice } from '@/lib/check'
+import { Loader2, Download } from 'lucide-react'
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
@@ -39,8 +40,8 @@ export function MdEditor() {
   const [selectedText, setSelectedText] = useState<string>('')
   const [editorWidth, setEditorWidth] = useState<number>(0)
   const { theme } = useTheme()
-  const t = useTranslations('article.editor')
   const { currentLocale } = useI18n()
+  const t = useTranslations('article.file.sync')
   // 移动端强制使用即时渲染模式
   const defaultMode = isMobileDevice() ? 'ir' : 'ir'
   const [localMode, setLocalMode] = useLocalStorage<'ir' | 'sv' | 'wysiwyg'>('useLocalMode', defaultMode)
@@ -1053,6 +1054,22 @@ export function MdEditor() {
     id="article-editor" 
     className={`flex-1 relative w-full h-full flex flex-col overflow-hidden dark:bg-zinc-950 transition-all ${isDraggingOver ? 'bg-accent/20' : ''}`}
   >
+    {/* 拉取加载状态覆盖层 */}
+    {isPulling && (
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="relative">
+            <Loader2 className="size-8 animate-spin" />
+            <Download className="size-4 absolute inset-0 m-auto" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium">{t('syncingRemote')}</p>
+            <p className="text-xs mt-1">{t('pullingRemote')}</p>
+          </div>
+        </div>
+      </div>
+    )}
+    
     <CustomToolbar editor={editor} />
     <div 
       id="aritcle-md-editor" 

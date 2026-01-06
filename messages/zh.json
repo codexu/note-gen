@@ -1394,8 +1394,10 @@
         "importError": "导入失败"
       },
       "sync": {
-        "syncingRemote": "正在拉取远程文件...",
-        "syncComplete": "同步完成"
+        "syncingRemote": "正在拉取远程文件",
+        "syncComplete": "同步完成",
+        "pullingRemote": "正在从远程服务器获取最新内容...",
+        "pullComplete": "拉取完成"
       },
       "context": {
         "viewDirectory": "查看目录",

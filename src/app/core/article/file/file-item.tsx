@@ -150,8 +150,11 @@ export function FileItem({ item }: { item: DirTree }) {
         const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
         const workspace = await getWorkspacePath()
         
+        // 使用当前路径，而不是重新计算的路径
+        const currentPath = computedParentPath(item)
+        
         // 根据工作区类型正确删除文件
-        const pathOptions = await getFilePathOptions(path)
+        const pathOptions = await getFilePathOptions(currentPath)
         
         if (workspace.isCustom) {
           // 自定义工作区
@@ -167,8 +170,90 @@ export function FileItem({ item }: { item: DirTree }) {
           if (index !== undefined && index !== -1 && currentFolder.children) {
             const current = currentFolder.children[index]
             if (current.sha) {
-              current.isLocale = false
+              // 远程文件：调用远程删除 API
+              try {
+                console.log('Attempting to delete remote file:', {
+                  name: item.name,
+                  currentPath: currentPath,
+                  sha: current.sha
+                })
+                
+                const useSettingStore = (await import('@/stores/setting')).default
+                const settingStore = useSettingStore.getState()
+                const method = settingStore.primaryBackupMethod
+                
+                // 获取仓库名称
+                const { getSyncRepoName } = await import('@/lib/sync/repo-utils')
+                const repo = await getSyncRepoName(method)
+                
+                // 获取远程文件列表，找到实际的文件名
+                let actualFileName = item.name
+                if (method === 'github') {
+                  const { getFiles } = await import('@/lib/sync/github')
+                  const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                  const files = await getFiles({ path: dirPath, repo })
+                  
+                  if (files && Array.isArray(files)) {
+                    // 查找 SHA 匹配的文件，使用其原始文件名
+                    const remoteFile = files.find((f: any) => f.sha === current.sha)
+                    if (remoteFile && remoteFile.name) {
+                      actualFileName = remoteFile.name
+                      console.log('Found actual file name from remote:', actualFileName)
+                    }
+                  }
+                }
+                
+                // 构建正确的删除路径
+                const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
+                
+                console.log('Using delete path:', deletePath)
+                
+                if (method === 'github') {
+                  const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
+                  await deleteGithubFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitee') {
+                  const { deleteFile: deleteGiteeFile } = await import('@/lib/sync/gitee')
+                  await deleteGiteeFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitlab') {
+                  const { deleteFile: deleteGitlabFile } = await import('@/lib/sync/gitlab')
+                  await deleteGitlabFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitea') {
+                  const { deleteFile: deleteGiteaFile } = await import('@/lib/sync/gitea')
+                  await deleteGiteaFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                }
+                
+                console.log('Remote delete successful for:', deletePath)
+                // 远程删除成功，从文件树中移除
+                currentFolder.children.splice(index, 1)
+              } catch (remoteError) {
+                console.error('Remote delete failed:', remoteError)
+                toast({
+                  title: t('context.deleteLocalFile'),
+                  description: `远程删除失败: ${remoteError}`,
+                  variant: 'destructive'
+                })
+                // 远程删除失败，只标记为非本地文件
+                current.isLocale = false
+              }
             } else {
+              // 本地文件：直接从文件树中移除
               currentFolder.children.splice(index, 1)
             }
           }
@@ -177,15 +262,97 @@ export function FileItem({ item }: { item: DirTree }) {
           if (index !== undefined && index !== -1) {
             const current = cacheTree[index]
             if (current.sha) {
-              current.isLocale = false
+              // 远程文件：调用远程删除 API
+              try {
+                console.log('Attempting to delete remote file (root level):', {
+                  name: item.name,
+                  currentPath: currentPath,
+                  sha: current.sha
+                })
+                
+                const useSettingStore = (await import('@/stores/setting')).default
+                const settingStore = useSettingStore.getState()
+                const method = settingStore.primaryBackupMethod
+                
+                // 获取仓库名称
+                const { getSyncRepoName } = await import('@/lib/sync/repo-utils')
+                const repo = await getSyncRepoName(method)
+                
+                // 获取远程文件列表，找到实际的文件名
+                let actualFileName = item.name
+                if (method === 'github') {
+                  const { getFiles } = await import('@/lib/sync/github')
+                  const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                  const files = await getFiles({ path: dirPath, repo })
+                  
+                  if (files && Array.isArray(files)) {
+                    // 查找 SHA 匹配的文件，使用其原始文件名
+                    const remoteFile = files.find((f: any) => f.sha === current.sha)
+                    if (remoteFile && remoteFile.name) {
+                      actualFileName = remoteFile.name
+                      console.log('Found actual file name from remote (root level):', actualFileName)
+                    }
+                  }
+                }
+                
+                // 构建正确的删除路径
+                const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
+                
+                console.log('Using delete path (root level):', deletePath)
+                
+                if (method === 'github') {
+                  const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
+                  await deleteGithubFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitee') {
+                  const { deleteFile: deleteGiteeFile } = await import('@/lib/sync/gitee')
+                  await deleteGiteeFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitlab') {
+                  const { deleteFile: deleteGitlabFile } = await import('@/lib/sync/gitlab')
+                  await deleteGitlabFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitea') {
+                  const { deleteFile: deleteGiteaFile } = await import('@/lib/sync/gitea')
+                  await deleteGiteaFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                }
+                
+                console.log('Remote delete successful for (root level):', deletePath)
+                // 远程删除成功，从文件树中移除
+                cacheTree.splice(index, 1)
+              } catch (remoteError) {
+                console.error('Remote delete failed (root level):', remoteError)
+                toast({
+                  title: t('context.deleteLocalFile'),
+                  description: `远程删除失败: ${remoteError}`,
+                  variant: 'destructive'
+                })
+                // 远程删除失败，只标记为非本地文件
+                current.isLocale = false
+              }
             } else {
+              // 本地文件：直接从文件树中移除
               cacheTree.splice(index, 1)
             }
           }
         }
         setFileTree(cacheTree)
         // 只有删除的是当前选中的文件时，才清空选中状态
-        if (activeFilePath === path) {
+        if (activeFilePath === currentPath) {
           setActiveFilePath('')
           setCurrentArticle('')
         }

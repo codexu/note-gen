@@ -31,7 +31,7 @@ interface PendingUpdate {
 }
 
 // 全局存储最新的 commit 信息，避免重复获取
-const latestCommitInfo: {
+let latestCommitInfo: {
   sha: string
   message: string
   author: string
@@ -49,6 +49,17 @@ export default function PullButton() {
 
   // 初始化 dayjs 插件
   dayjs.extend(relativeTime)
+
+  // 文件切换时重置状态
+  useEffect(() => {
+    // 重置所有状态
+    setPendingUpdate(null)
+    setIgnoredCommits(new Set())
+    setIsPulling(false)
+    
+    // 清空全局 commit 信息
+    latestCommitInfo = null
+  }, [activeFilePath])
 
   // 监听历史记录组件的 commit 信息
   useEffect(() => {
@@ -72,9 +83,54 @@ export default function PullButton() {
       }
     }
 
+    // 监听立即拉取事件
+    const handleImmediatePull = async (event: any) => {
+      const { filePath, isRemoteFile } = event as {
+        filePath: string
+        isRemoteFile: boolean
+      }
+      
+      if (filePath === activeFilePath && isRemoteFile) {
+        console.log('Immediate pull triggered for remote file:', filePath)
+        
+        try {
+          // 使用 autoSyncIfNeeded 来执行同步
+          const { autoSyncIfNeeded } = await import('@/lib/sync/auto-sync')
+          const result = await autoSyncIfNeeded(filePath, {
+            autoPull: true,
+            showConfirm: false,
+            enableConflictResolution: true
+          })
+          
+          if (result) {
+            // 更新编辑器内容
+            const { setCurrentArticle, loadFileTree } = useArticleStore.getState()
+            setCurrentArticle(result)
+            
+            // 刷新文件树以更新图标状态
+            await loadFileTree()
+            
+            // 重置所有状态
+            setIsPulling(false)
+            useArticleStore.getState().setLoading(false)
+            
+            // 简单的完成提示
+            console.log('立即拉取完成')
+          }
+        } catch (error) {
+          console.error('Immediate pull failed:', error)
+          setIsPulling(false)
+          useArticleStore.getState().setLoading(false)
+        }
+      }
+    }
+
     emitter.on('latest-commit-info', handleCommitInfo)
+    emitter.on('immediate-pull-needed', handleImmediatePull)
+    
     return () => {
       emitter.off('latest-commit-info', handleCommitInfo)
+      emitter.off('immediate-pull-needed', handleImmediatePull)
     }
   }, [activeFilePath, ignoredCommits])
 
@@ -95,17 +151,46 @@ export default function PullButton() {
       // 直接使用历史记录的 commit 信息，避免重复请求
       const localMeta = await getLocalFileMetadata(activeFilePath)
       
-      // 如果本地文件不存在
+      // 如果本地文件不存在，立即开始自动拉取
       if (!localMeta.localSha) {
         if (commitInfo.sha) {
-          setPendingUpdate({
-            fileName: activeFilePath,
-            reason: '本地文件不存在，需要从远程拉取',
-            commitInfo
-          })
+          // 立即设置拉取状态，不显示 pendingUpdate
+          setIsPulling(true)
+          
+          // 对于第一次加载的文件，直接拉取而不显示确认对话框
+          const autoPullFirstTime = async () => {
+            try {
+              // 使用 autoSyncIfNeeded 来执行同步
+              const { autoSyncIfNeeded } = await import('@/lib/sync/auto-sync')
+              const result = await autoSyncIfNeeded(activeFilePath, {
+                autoPull: true,
+                showConfirm: false,
+                enableConflictResolution: true
+              })
+              
+              if (result) {
+                // 更新编辑器内容
+                const { setCurrentArticle, loadFileTree } = useArticleStore.getState()
+                setCurrentArticle(result)
+                
+                // 刷新文件树以更新图标状态
+                await loadFileTree()
+                
+                // 简单的完成提示
+                console.log('首次加载，自动拉取完成')
+              }
+            } catch (error) {
+              console.error('Auto pull failed:', error)
+            } finally {
+              setIsPulling(false)
+            }
+          }
+          
+          // 立即执行拉取，不延迟
+          autoPullFirstTime()
+          
           return
         }
-        setPendingUpdate(null)
         return
       }
       
@@ -139,20 +224,6 @@ export default function PullButton() {
     }
   }
 
-  // 定期检查更新（仅在没有 commit 信息时）
-  useEffect(() => {
-    if (!activeFilePath || latestCommitInfo) return
-
-    const interval = setInterval(() => {
-      if (!latestCommitInfo) {
-        // 仅在没有 commit 信息时才检查更新
-        console.log('No commit info available, checking updates...')
-      }
-    }, 30000)
-    
-    return () => clearInterval(interval)
-  }, [activeFilePath, latestCommitInfo])
-
   const handlePull = () => {
     if (!pendingUpdate) return
 
@@ -174,8 +245,11 @@ export default function PullButton() {
           
           if (result) {
             // 更新编辑器内容
-            const { setCurrentArticle } = useArticleStore.getState()
+            const { setCurrentArticle, loadFileTree } = useArticleStore.getState()
             setCurrentArticle(result)
+            
+            // 刷新文件树以更新图标状态
+            await loadFileTree()
             
             setPendingUpdate(null)
             
@@ -203,6 +277,20 @@ export default function PullButton() {
       }
     })
   }
+
+  // 定期检查更新（仅在没有 commit 信息时）
+  useEffect(() => {
+    if (!activeFilePath || latestCommitInfo) return
+
+    const interval = setInterval(() => {
+      if (!latestCommitInfo) {
+        // 仅在没有 commit 信息时才检查更新
+        console.log('No commit info available, checking updates...')
+      }
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [activeFilePath, latestCommitInfo])
 
   if (!activeFilePath) {
     return null

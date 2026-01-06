@@ -1372,7 +1372,9 @@
       },
       "sync": {
         "syncingRemote": "Pulling remote file...",
-        "syncComplete": "Sync Complete"
+        "syncComplete": "Sync Complete",
+        "pullingRemote": "Fetching latest content from remote server...",
+        "pullComplete": "Pull Complete"
       },
       "context": {
         "viewDirectory": "View Directory",

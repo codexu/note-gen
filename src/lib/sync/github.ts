@@ -205,16 +205,39 @@ export async function deleteFile(
       proxy
     };
     
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodeURIComponent(path)}`;
+    // 分离路径和文件名，只对路径部分进行编码，保留文件名的原始字符
+    console.log('Delete file path received:', path)
+    const lastSlashIndex = path.lastIndexOf('/')
+    const dirPath = lastSlashIndex > 0 ? path.substring(0, lastSlashIndex) : ''
+    const fileName = lastSlashIndex > 0 ? path.substring(lastSlashIndex + 1) : path
+    
+    console.log('Path components:', { dirPath, fileName })
+    
+    // 对目录路径进行编码，但保留文件名不变
+    const encodedPath = dirPath ? encodeURIComponent(dirPath) + '/' + fileName : fileName
+    
+    console.log('Final encoded path:', encodedPath)
+    
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodedPath}`;
     const response = await fetch(url, requestOptions);
     
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return data;
     }
-    throw new Error('删除文件失败');
+    
+    // 输出详细的错误信息
+    const errorText = await response.text();
+    console.error('GitHub delete file error:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: url,
+      body: errorText
+    });
+    throw new Error(`删除文件失败: ${response.status} ${response.statusText}`);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
+    console.error('GitHub delete file failed:', error);
     return false
   }
 }

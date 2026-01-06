@@ -1342,7 +1342,9 @@
       },
       "sync": {
         "syncingRemote": "Buscando arquivo remoto...",
-        "syncComplete": "Sincronização Concluída"
+        "syncComplete": "Sincronização Concluída",
+        "pullingRemote": "Buscando conteúdo mais recente do servidor remoto...",
+        "pullComplete": "Pull Concluído"
       },
       "context": {
         "viewDirectory": "Ver Diretório",

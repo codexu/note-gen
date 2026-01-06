@@ -111,7 +111,7 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
             删除了内容：${removeDiff}
             对比后对本次修改返回一条标准的提交描述，仅返回描述内容，字数不能超过50个字。
           `;
-          const aiMessage = await fetchAi(text);
+          const aiMessage = await fetchAi(text, 'commit');
           if (!aiMessage.includes('请求失败')) {
             message = aiMessage;
           }

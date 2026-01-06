@@ -245,6 +245,10 @@
           "title": "快速補全",
           "desc": "用於 Markdown 編輯器的 AI 內聯補全，類似 GitHub Copilot，快速生成續寫內容。"
         },
+        "commit": {
+          "title": "自動生成 commit 資訊",
+          "desc": "用於自動生成 Git 提交資訊，基於文件內容變化智能生成描述性提交資訊。"
+        },
         "embedding": {
           "title": "嵌入模型",
           "desc": "用於處理文本嵌入和向量化的場景。"

@@ -282,6 +282,10 @@
           "title": "Fast Completion",
           "desc": "AI inline completion for Markdown editor, similar to GitHub Copilot, quickly generates continuation content."
         },
+        "commit": {
+          "title": "Auto Generate Commit Message",
+          "desc": "Used to automatically generate Git commit messages, intelligently generating descriptive commit messages based on file content changes."
+        },
         "embedding": {
           "title": "Embedding Model",
           "desc": "Used for text embedding and vectorization scenarios."

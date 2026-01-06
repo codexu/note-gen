@@ -55,6 +55,9 @@ interface SettingState {
   markDescModel: string
   setMarkDescModel: (markDescModel: string) => Promise<void>
 
+  commitModel: string
+  setCommitModel: (commitModel: string) => Promise<void>
+
   embeddingModel: string
   setEmbeddingModel: (embeddingModel: string) => Promise<void>
 
@@ -357,7 +360,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
     // 检查并初始化其他模型类型
     const modelTypes = [
       { storeKey: 'completionModel', modelType: 'chat' },
-      { storeKey: 'markDescModel', modelType: 'chat' }
+      { storeKey: 'markDescModel', modelType: 'chat' },
+      { storeKey: 'commitModel', modelType: 'chat' }
     ]
 
     for (const { storeKey, modelType } of modelTypes) {
@@ -509,6 +513,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('markDescModel', markDescModel)
     set({ markDescModel })
+  },
+
+  commitModel: '',
+  setCommitModel: async (commitModel) => {
+    const store = await Store.load('store.json');
+    await store.set('commitModel', commitModel)
+    set({ commitModel })
   },
 
   embeddingModel: '',

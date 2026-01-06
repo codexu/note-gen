@@ -4,10 +4,10 @@ import { getAISettings, validateAIService, prepareMessages, createOpenAIClient, 
 /**
  * 非流式方式获取AI结果
  */
-export async function fetchAi(text: string): Promise<string> {
+export async function fetchAi(text: string, modelType?: string): Promise<string> {
   try {
     // 获取AI设置
-    const aiConfig = await getAISettings()
+    const aiConfig = await getAISettings(modelType)
     
     // 验证AI服务
     if (validateAIService(aiConfig?.baseURL) === null) return ''

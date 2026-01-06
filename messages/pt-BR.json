@@ -278,6 +278,14 @@
           "title": "Sugestão da IA",
           "desc": "Prompts de sugestão da IA são usados para geração de conteúdo no placeholder da conversa de IA da página de registro."
         },
+        "completion": {
+          "title": "Conclusão Rápida",
+          "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Gerar Mensagem de Commit Automaticamente",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
+        },
         "translate": {
           "title": "Tradução",
           "desc": "Usado para cenários de tradução de conteúdo."
@@ -722,6 +730,10 @@
           "name": "Conclusão Rápida",
           "type": "Modelo de Conclusão",
           "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Mensagem de Commit",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "poweredBy": "Fornecido por SiliconFlow"
       }

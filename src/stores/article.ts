@@ -5,6 +5,7 @@ import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } fr
 import { GiteeFile } from '@/lib/sync/gitee'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { autoSyncIfNeeded, hasNetworkConnection } from '@/lib/sync/auto-sync'
+import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder } from '@/lib/path'
 import useVectorStore from './vector'
 import { join, appDataDir } from '@tauri-apps/api/path'
@@ -995,10 +996,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
   readArticle: async (path: string, sha?: string, isLocale = true, autoSync = true) => {
     get().setLoading(true)
     
+    // 处理文件名兼容性问题
+    let actualPath = path
+    if (hasInvalidFileNameChars(path)) {
+      actualPath = sanitizeFilePath(path)
+      console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
+      // 更新活动文件路径为清理后的路径
+      await get().setActiveFilePath(actualPath)
+    }
+    
     // 如果启用自动同步且有网络连接，先尝试自动同步
     if (autoSync && await hasNetworkConnection()) {
       try {
-        const syncedContent = await autoSyncIfNeeded(path, {
+        const syncedContent = await autoSyncIfNeeded(actualPath, {
           autoPull: true,
           showConfirm: false // 默认不显示确认对话框，自动拉取
         })
@@ -1017,7 +1027,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (isLocale) {
       try {
         const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(path)
+        const pathOptions = await getFilePathOptions(actualPath)
         let content = ''
         if (workspace.isCustom) {
           content = await readTextFile(pathOptions.path)
@@ -1035,15 +1045,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
           switch (primaryBackupMethod) {
             case 'github':
               const githubRepo2 = await getSyncRepoName('github');
-              content = decodeBase64ToString(await getGithubFiles({ path, repo: githubRepo2 }))
+              content = decodeBase64ToString(await getGithubFiles({ path: actualPath, repo: githubRepo2 }))
               break;
             case 'gitee':
               const giteeRepo2 = await getSyncRepoName('gitee');
-              content = decodeBase64ToString(await getGiteeFiles({ path, repo: giteeRepo2 }))
+              content = decodeBase64ToString(await getGiteeFiles({ path: actualPath, repo: giteeRepo2 }))
               break;
             case 'gitlab':
               const gitlabRepo2 = await getSyncRepoName('gitlab');
-              content = decodeBase64ToString((await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo2 })).content)
+              content = decodeBase64ToString((await getGitlabFileContent({ path: actualPath, ref: 'main', repo: gitlabRepo2 })).content)
               break;
             default:
               break;
@@ -1062,15 +1072,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
       switch (primaryBackupMethod) {
         case 'github':
           const githubRepo3 = await getSyncRepoName('github');
-          res = await getGithubFiles({ path, repo: githubRepo3 })
+          res = await getGithubFiles({ path: actualPath, repo: githubRepo3 })
           break;
         case 'gitee':
           const giteeRepo3 = await getSyncRepoName('gitee');
-          res = await getGiteeFiles({ path, repo: giteeRepo3 })
+          res = await getGiteeFiles({ path: actualPath, repo: giteeRepo3 })
           break;
         case 'gitlab':
           const gitlabRepo3 = await getSyncRepoName('gitlab');
-          res = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo3 })
+          res = await getGitlabFileContent({ path: actualPath, ref: 'main', repo: gitlabRepo3 })
           break;
         default:
           break;

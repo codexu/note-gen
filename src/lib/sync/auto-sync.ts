@@ -17,6 +17,7 @@ import {
   updateFileSyncTime,
   cleanupExpiredLocks
 } from './conflict-resolution'
+import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 
 export interface FileMetadata {
   path: string
@@ -47,10 +48,18 @@ export async function calculateFileSha(content: string): Promise<string> {
 }
 
 /**
- * 获取本地文件元数据
+ * 获取本地文件元数据（增强版，处理文件名兼容性）
  */
 export async function getLocalFileMetadata(path: string): Promise<FileMetadata> {
   const workspace = await getWorkspacePath()
+  
+  // 检查并清理文件名
+  if (hasInvalidFileNameChars(path)) {
+    const sanitizedPath = sanitizeFilePath(path)
+    console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${sanitizedPath}"`)
+    path = sanitizedPath
+  }
+  
   const pathOptions = await getFilePathOptions(path)
   
   try {
@@ -271,10 +280,18 @@ export async function pullRemoteFile(path: string): Promise<string> {
 }
 
 /**
- * 保存文件到本地
+ * 保存文件到本地（增强版，处理文件名兼容性）
  */
 export async function saveLocalFile(path: string, content: string): Promise<void> {
   const workspace = await getWorkspacePath()
+  
+  // 检查并清理文件名
+  if (hasInvalidFileNameChars(path)) {
+    const sanitizedPath = sanitizeFilePath(path)
+    console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${sanitizedPath}"`)
+    path = sanitizedPath
+  }
+  
   const pathOptions = await getFilePathOptions(path)
   
   try {
@@ -333,9 +350,17 @@ export async function autoSyncIfNeeded(path: string, options: {
       
       // 获取本地内容用于冲突检测
       let localContent = ''
+      let actualPath = path
+      
+      // 检查并清理文件名
+      if (hasInvalidFileNameChars(path)) {
+        actualPath = sanitizeFilePath(path)
+        console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
+      }
+      
       try {
         const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(path)
+        const pathOptions = await getFilePathOptions(actualPath)
         if (workspace.isCustom) {
           localContent = await readTextFile(pathOptions.path)
         } else {
@@ -383,14 +408,14 @@ export async function autoSyncIfNeeded(path: string, options: {
             return null
         }
         
-        await saveLocalFile(path, finalContent)
-        await updateFileSyncTime(path)
+        await saveLocalFile(actualPath, finalContent)
+        await updateFileSyncTime(actualPath)
         
         return finalContent
       } else {
         // 无冲突，直接保存
-        await saveLocalFile(path, remoteContent)
-        await updateFileSyncTime(path)
+        await saveLocalFile(actualPath, remoteContent)
+        await updateFileSyncTime(actualPath)
         
         toast({
           title: '自动同步',

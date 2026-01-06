@@ -1479,11 +1479,12 @@
     "footer": {
       "wordCount": "Contagem de Palavras",
       "pull": {
+        "pull": "Pull",
         "checking": "Verificando atualizações...",
-        "noUpdate": "Nenhuma atualização remota",
-        "clickToPull": "Clique para buscar atualizações remotas",
-        "pullSuccess": "Busca Bem-sucedida",
-        "pullFailed": "Falha na Busca",
+        "noUpdate": "Sem atualizações remotas",
+        "clickToPull": "Clique para puxar atualizações remotas",
+        "pullSuccess": "Pull Bem-sucedido",
+        "pullFailed": "Pull Falhou",
         "ignored": "Ignorado",
         "ignoreUpdate": "Ignorar Esta Atualização"
       },
@@ -1611,13 +1612,13 @@
   "footer": {
     "wordCount": "Palavras",
     "sync": {
-      "sync": "Sincronizar",
-      "synced": "Sincronizado",
-      "syncing": "Sincronizando",
-      "syncFailed": "Falha na Sincronização",
-      "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
-      "quickSync": "Sincronização Rápida"
-    },
+        "push": "Push",
+        "pushed": "Enviado",
+        "syncing": "Enviando",
+        "syncFailed": "Falha no Push",
+        "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
+        "quickSync": "Sincronização Rápida"
+      },
     "history": {
       "loadingHistory": "Carregando histórico",
       "historyRecords": "Registros do Histórico",

@@ -1503,6 +1503,7 @@
     "footer": {
       "wordCount": "字数",
       "pull": {
+        "pull": "拉取",
         "checking": "检查更新中...",
         "noUpdate": "无远程更新",
         "clickToPull": "点击拉取远程更新",
@@ -1512,10 +1513,10 @@
         "ignoreUpdate": "忽略此更新"
       },
       "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失败",
+        "push": "推送",
+        "pushed": "已推送",
+        "syncing": "推送中",
+        "syncFailed": "推送失败",
         "checkNetworkOrToken": "请检查网络连接或令牌是否正确",
         "quickSync": "快速同步"
       },

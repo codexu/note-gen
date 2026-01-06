@@ -1,6 +1,6 @@
 import Vditor from 'vditor'
 import Sync from "./sync";
-import History from "./history";
+import HistoryComponent from "./history";
 import TextNumber from "./text-number";
 import PrimarySync from "./primary-sync";
 import Copy from "./copy";
@@ -22,7 +22,7 @@ export default function CustomFooter({editor}: {editor?: Vditor}) {
     <div className="flex items-center gap-1">
       <VectorCalc />
       <PrimarySync />
-      <History editor={editor} disabled={!activeFilePath} />
+      <HistoryComponent editor={editor} disabled={!activeFilePath} />
       <PullButton />
       <Sync editor={editor} disabled={!activeFilePath} />
     </div>

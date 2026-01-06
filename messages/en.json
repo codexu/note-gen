@@ -1518,6 +1518,7 @@
     "footer": {
       "wordCount": "Word Count",
       "pull": {
+        "pull": "Pull",
         "checking": "Checking for updates...",
         "noUpdate": "No remote updates",
         "clickToPull": "Click to pull remote updates",
@@ -1527,10 +1528,10 @@
         "ignoreUpdate": "Ignore This Update"
       },
       "sync": {
-        "sync": "Sync",
-        "synced": "Synced",
-        "syncing": "Syncing",
-        "syncFailed": "Sync Failed",
+        "push": "Push",
+        "pushed": "Pushed",
+        "syncing": "Pushing",
+        "syncFailed": "Push Failed",
         "checkNetworkOrToken": "Please check network connection or token",
         "quickSync": "Quick Sync"
       },

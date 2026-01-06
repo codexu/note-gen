@@ -1530,6 +1530,7 @@
     "footer": {
       "wordCount": "文字数",
       "pull": {
+        "pull": "プル",
         "checking": "更新を確認中...",
         "noUpdate": "リモート更新なし",
         "clickToPull": "クリックしてリモート更新をプル",
@@ -1539,10 +1540,10 @@
         "ignoreUpdate": "この更新を無視"
       },
       "sync": {
-        "sync": "同期",
-        "synced": "同期済み",
-        "syncing": "同期中",
-        "syncFailed": "同期に失敗しました",
+        "push": "プッシュ",
+        "pushed": "プッシュ済み",
+        "syncing": "プッシュ中",
+        "syncFailed": "プッシュに失敗しました",
         "checkNetworkOrToken": "ネットワーク接続またはトークンを確認してください",
         "quickSync": "クイック同期"
       },

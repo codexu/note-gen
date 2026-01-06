@@ -1442,6 +1442,7 @@
     "footer": {
       "wordCount": "字數",
       "pull": {
+        "pull": "拉取",
         "checking": "檢查更新中...",
         "noUpdate": "無遠端更新",
         "clickToPull": "點擊拉取遠端更新",
@@ -1451,10 +1452,10 @@
         "ignoreUpdate": "忽略此更新"
       },
       "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失敗",
+        "push": "推送",
+        "pushed": "已推送",
+        "syncing": "推送中",
+        "syncFailed": "推送失敗",
         "checkNetworkOrToken": "請檢查網路連接或令牌是否正確",
         "quickSync": "快速同步"
       },

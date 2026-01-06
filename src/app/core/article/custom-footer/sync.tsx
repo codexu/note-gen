@@ -25,7 +25,7 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
   const [isLoading, setIsLoading] = useState(false)
   const syncTimeoutRef = useRef<number | null>(null)
   const t = useTranslations('article.footer.sync')
-  const [syncText, setSyncText] = useState(t('sync'))
+  const [syncText, setSyncText] = useState(t('push'))
   const [progressPercentage, setProgressPercentage] = useState(0)
   const progressIntervalRef = useRef<number | null>(null)
   const username = useUsername()
@@ -206,10 +206,10 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
       }
       // 检查上传结果并更新状态
       if (uploadRes?.data?.commit?.message || uploadRes?.data?.file_path) {
-        setSyncText(t('synced'));
+        setSyncText(t('pushed'));
         emitter.emit('sync-success');
         setTimeout(() => {
-          setSyncText(t('sync'));
+          setSyncText(t('push'));
         }, 3000);
       }
     } catch (error) {
@@ -338,7 +338,7 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
       
       // 检查上传结果并更新状态
       if (uploadRes?.data?.commit?.message) {
-        setSyncText(t('synced'));
+        setSyncText(t('pushed'));
         setProgressPercentage(0);
         emitter.emit('sync-success');
       }
@@ -396,8 +396,8 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
     // 处理编辑器输入事件
     const handleInput = () => {
       // 更改同步状态文本
-      if (syncText !== t('sync')) {
-        setSyncText(t('sync'));
+      if (syncText !== t('push')) {
+        setSyncText(t('push'));
       }
       
       // 清除现有的定时器

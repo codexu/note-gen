@@ -1,4 +1,4 @@
-import { GitPullRequestArrow, HistoryIcon, LoaderCircle } from "lucide-react";
+import { GitPullRequestArrow, History as HistoryIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles } from "@/lib/sync/github";
@@ -24,7 +24,7 @@ import { Store } from "@tauri-apps/plugin-store";
 
 dayjs.extend(relativeTime)
 
-export default function History({editor, disabled}: {editor?: Vditor, disabled?: boolean}) {
+export default function HistoryComponent({editor, disabled}: {editor?: Vditor, disabled?: boolean}) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { activeFilePath, setCurrentArticle, currentArticle, loadFileTree, saveCurrentArticle } = useArticleStore()
   const [commits, setCommits] = useState<ResCommit[]>([])
@@ -279,6 +279,7 @@ export default function History({editor, disabled}: {editor?: Vditor, disabled?:
               {
                 commitsLoading && <LoaderCircle className="animate-spin !size-3" />
               }
+              <HistoryIcon className="!size-3" />
               <span className="text-xs">
                 {commitsLoading ? t('loadingHistory') : commits.length ? 
                   `${t('historyRecords')} (${commits.length})` : t('noHistory')}

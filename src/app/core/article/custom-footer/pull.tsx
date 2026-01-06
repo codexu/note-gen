@@ -10,11 +10,11 @@ import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/en'
 import 'dayjs/locale/ja'
 import 'dayjs/locale/pt-br'
-import useArticleStore from '@/stores/article'
-import { useSyncConfirmStore } from '@/stores/sync-confirm'
-import { hasNetworkConnection } from '@/lib/sync/auto-sync'
-import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { useI18n } from '@/hooks/useI18n'
+import { useSyncConfirmStore } from '@/stores/sync-confirm'
+import { hasNetworkConnection, getLocalFileMetadata } from '@/lib/sync/auto-sync'
+import useArticleStore from '@/stores/article'
+import { useTranslations } from 'next-intl'
 import emitter from '@/lib/emitter'
 
 interface PendingUpdate {
@@ -43,6 +43,7 @@ const latestCommitInfo: {
 export default function PullButton() {
   const { activeFilePath, setIsPulling } = useArticleStore()
   const { currentLocale } = useI18n()
+  const t = useTranslations('article.footer.pull')
   const [pendingUpdate, setPendingUpdate] = useState<PendingUpdate | null>(null)
   const [ignoredCommits, setIgnoredCommits] = useState<Set<string>>(new Set())
 
@@ -91,12 +92,43 @@ export default function PullButton() {
     }
 
     try {
-      const syncResult = await compareFileVersions(activeFilePath)
+      // 直接使用历史记录的 commit 信息，避免重复请求
+      const localMeta = await getLocalFileMetadata(activeFilePath)
       
-      if (syncResult.shouldUpdate && syncResult.action === 'pull') {
+      // 如果本地文件不存在
+      if (!localMeta.localSha) {
+        if (commitInfo.sha) {
+          setPendingUpdate({
+            fileName: activeFilePath,
+            reason: '本地文件不存在，需要从远程拉取',
+            commitInfo
+          })
+          return
+        }
+        setPendingUpdate(null)
+        return
+      }
+      
+      // 如果远程文件不存在
+      if (!commitInfo.sha) {
+        setPendingUpdate(null)
+        return
+      }
+      
+      // 比较 SHA
+      if (localMeta.localSha === commitInfo.sha) {
+        setPendingUpdate(null)
+        return
+      }
+      
+      // 比较修改时间
+      const localTime = localMeta.lastModified || 0
+      const remoteTime = commitInfo.date.getTime()
+      
+      if (remoteTime > localTime) {
         setPendingUpdate({
           fileName: activeFilePath,
-          reason: syncResult.reason || '',
+          reason: '远程文件较新，需要拉取更新',
           commitInfo
         })
       } else {
@@ -202,8 +234,8 @@ export default function PullButton() {
               onClick={handlePull}
               className="text-green-600 hover:text-green-700 hover:bg-green-50"
             >
-              <Download className="h-4 w-4" />
-              <span className="ml-1 text-xs">拉取</span>
+              <Download className="!size-3" />
+              <span className="text-xs">{t('pull')}</span>
               {pendingUpdate.commitInfo && (
                 <span className="ml-1 text-xs text-green-600">
                   ({formatTime(pendingUpdate.commitInfo.date)})

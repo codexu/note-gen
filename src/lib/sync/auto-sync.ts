@@ -6,7 +6,7 @@ import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCo
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeTextFile, stat } from '@tauri-apps/plugin-fs'
+import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { 
   checkFileLock, 
@@ -48,7 +48,7 @@ export async function calculateFileSha(content: string): Promise<string> {
 }
 
 /**
- * 获取本地文件元数据（增强版，处理文件名兼容性）
+ * 获取本地文件元数据（增强版，处理文件名兼容性和目录检查）
  */
 export async function getLocalFileMetadata(path: string): Promise<FileMetadata> {
   const workspace = await getWorkspacePath()
@@ -84,6 +84,18 @@ export async function getLocalFileMetadata(path: string): Promise<FileMetadata> 
       syncStatus: 'unknown'
     }
   } catch (error) {
+    // 如果是目录不存在的错误，这是正常的，返回未知状态
+    if (error instanceof Error && 
+        (error.message.includes('no such file') || 
+         error.message.includes('not found') ||
+         error.message.includes('系统找不到指定的路径'))) {
+      console.warn(`Local file does not exist (this is normal for sync): ${path}`)
+      return {
+        path,
+        syncStatus: 'unknown'
+      }
+    }
+    
     console.warn(`Failed to get local metadata for ${path}:`, error)
     return {
       path,
@@ -280,7 +292,50 @@ export async function pullRemoteFile(path: string): Promise<string> {
 }
 
 /**
- * 保存文件到本地（增强版，处理文件名兼容性）
+ * 确保目录存在，如果不存在则创建
+ */
+export async function ensureDirectoryExists(filePath: string): Promise<void> {
+  const workspace = await getWorkspacePath()
+  
+  // 检查并清理文件名
+  if (hasInvalidFileNameChars(filePath)) {
+    filePath = sanitizeFilePath(filePath)
+  }
+  
+  // 提取目录路径
+  const dirPath = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : ''
+  
+  if (!dirPath) {
+    return // 根目录，无需创建
+  }
+  
+  const pathOptions = await getFilePathOptions(dirPath)
+  
+  try {
+    let dirExists = false
+    if (workspace.isCustom) {
+      dirExists = await exists(pathOptions.path)
+    } else {
+      dirExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+    }
+    
+    if (!dirExists) {
+      // 递归创建目录
+      if (workspace.isCustom) {
+        await mkdir(pathOptions.path, { recursive: true })
+      } else {
+        await mkdir(pathOptions.path, { baseDir: pathOptions.baseDir, recursive: true })
+      }
+      console.log(`Created directory: ${dirPath}`)
+    }
+  } catch (error) {
+    console.error(`Failed to create directory ${dirPath}:`, error)
+    throw error
+  }
+}
+
+/**
+ * 保存文件到本地（增强版，处理文件名兼容性和目录创建）
  */
 export async function saveLocalFile(path: string, content: string): Promise<void> {
   const workspace = await getWorkspacePath()
@@ -291,6 +346,9 @@ export async function saveLocalFile(path: string, content: string): Promise<void
     console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${sanitizedPath}"`)
     path = sanitizedPath
   }
+  
+  // 确保目录存在
+  await ensureDirectoryExists(path)
   
   const pathOptions = await getFilePathOptions(path)
   
@@ -366,8 +424,17 @@ export async function autoSyncIfNeeded(path: string, options: {
         } else {
           localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
-      } catch {
-        // 本地文件不存在，直接拉取
+      } catch (error) {
+        // 本地文件不存在或目录不存在，这是正常的同步场景
+        if (error instanceof Error && 
+            (error.message.includes('no such file') || 
+             error.message.includes('not found') ||
+             error.message.includes('系统找不到指定的路径'))) {
+          console.log(`Local file does not exist (normal for sync): ${actualPath}`)
+        } else {
+          console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+        }
+        // 继续处理，将直接拉取远程文件
       }
       
       const remoteContent = await pullRemoteFile(path)

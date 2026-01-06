@@ -4,7 +4,7 @@ import { getFiles as getGiteeFiles } from '@/lib/sync/gitee'
 import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { autoSyncIfNeeded, hasNetworkConnection } from '@/lib/sync/auto-sync'
+import { autoSyncIfNeeded, hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder } from '@/lib/path'
 import useVectorStore from './vector'
@@ -1036,7 +1036,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
         set({ currentArticle: content })
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (_) {
+      } catch (error) {
+        // 本地文件不存在或目录不存在，尝试从远程获取
+        if (error instanceof Error && 
+            (error.message.includes('no such file') || 
+             error.message.includes('not found') ||
+             error.message.includes('系统找不到指定的路径'))) {
+          console.log(`Local file does not exist, trying remote: ${actualPath}`)
+        } else {
+          console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+        }
+        
         try {
           // 如果本地文件不存在，尝试从Github/Gitee读取
           const store = await Store.load('store.json');
@@ -1058,10 +1068,23 @@ const useArticleStore = create<NoteState>((set, get) => ({
             default:
               break;
           }
-          set({ currentArticle: content })
+          
+          if (content) {
+            // 确保目录存在后保存到本地
+            await ensureDirectoryExists(actualPath)
+            const workspace = await getWorkspacePath()
+            const pathOptions = await getFilePathOptions(actualPath)
+            if (workspace.isCustom) {
+              await writeTextFile(pathOptions.path, content)
+            } else {
+              await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+            }
+            set({ currentArticle: content })
+          }
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (_) {
           // 文件既不在本地也不在远程
+          console.log(`File not found locally or remotely: ${actualPath}`)
         }
       }
     } else {

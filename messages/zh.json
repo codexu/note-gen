@@ -1333,6 +1333,17 @@
       "syncingRemote": "正在拉取远程文件...",
       "syncComplete": "同步完成"
     },
+    "syncConfirm": {
+      "title": "检测到远程文件更新",
+      "description": "文件 {fileName} 有远程更新",
+      "commitInfo": "最新提交信息",
+      "commitMessage": "提交消息",
+      "author": "作者",
+      "changes": "变更",
+      "confirmMessage": "确认要拉取远程版本并覆盖本地文件吗？此操作无法撤销。",
+      "cancel": "取消",
+      "confirmPull": "确认拉取"
+    },
     "emptyState": {
       "title": "开始创作",
       "subtitle": "选择一个文件开始编辑，或创建新的笔记",
@@ -1491,6 +1502,15 @@
     },
     "footer": {
       "wordCount": "字数",
+      "pull": {
+        "checking": "检查更新中...",
+        "noUpdate": "无远程更新",
+        "clickToPull": "点击拉取远程更新",
+        "pullSuccess": "拉取成功",
+        "pullFailed": "拉取失败",
+        "ignored": "已忽略",
+        "ignoreUpdate": "忽略此更新"
+      },
       "sync": {
         "sync": "同步",
         "synced": "已同步",

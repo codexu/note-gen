@@ -5,19 +5,17 @@ import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFile
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits } from '@/lib/sync/gitea'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
-import { confirm } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { 
   checkFileLock, 
-  acquireFileLock, 
-  releaseFileLock, 
   detectAndHandleConflict, 
   mergeSimpleContent,
   updateFileSyncTime,
   cleanupExpiredLocks
 } from './conflict-resolution'
 import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
+import { useSyncConfirmStore } from '@/stores/sync-confirm'
 
 export interface FileMetadata {
   path: string
@@ -365,7 +363,94 @@ export async function saveLocalFile(path: string, content: string): Promise<void
 }
 
 /**
- * 自动同步检测和处理（增强版，包含冲突处理）
+ * 获取远程文件的最新 commit 信息
+ */
+export async function getRemoteCommitInfo(path: string): Promise<{
+  sha: string
+  message: string
+  author: string
+  date: Date
+  additions?: number
+  deletions?: number
+} | null> {
+  try {
+    const store = await Store.load('store.json')
+    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
+    const repo = await getSyncRepoName(primaryBackupMethod as 'github' | 'gitee' | 'gitlab' | 'gitea')
+    
+    let commits: any[] = []
+    
+    switch (primaryBackupMethod) {
+      case 'github':
+        commits = await getGithubFileCommits({ path, repo })
+        break
+      case 'gitee':
+        commits = await getGiteeFileCommits({ path, repo })
+        break
+      case 'gitlab':
+        const gitlabResult = await getGitlabFileCommits({ path, repo })
+        commits = Array.isArray(gitlabResult) ? gitlabResult : []
+        break
+      case 'gitea':
+        const giteaResult = await getGiteaFileCommits({ path, repo })
+        commits = Array.isArray(giteaResult) ? giteaResult : []
+        break
+    }
+    
+    if (!commits || commits.length === 0) {
+      return null
+    }
+    
+    const latestCommit = commits[0]
+    
+    // 提取 commit 信息
+    let author = 'Unknown'
+    let message = 'No message'
+    let date = new Date()
+    let sha = ''
+    let additions: number | undefined
+    let deletions: number | undefined
+    
+    if (primaryBackupMethod === 'github') {
+      author = latestCommit.commit?.author?.name || 'Unknown'
+      message = latestCommit.commit?.message || 'No message'
+      date = new Date(latestCommit.commit?.author?.date || Date.now())
+      sha = latestCommit.sha || ''
+      additions = latestCommit.stats?.additions
+      deletions = latestCommit.stats?.deletions
+    } else if (primaryBackupMethod === 'gitee') {
+      author = latestCommit.author?.name || 'Unknown'
+      message = latestCommit.message || 'No message'
+      date = new Date(latestCommit.created_at || Date.now())
+      sha = latestCommit.sha || ''
+    } else if (primaryBackupMethod === 'gitlab') {
+      author = latestCommit.author_name || 'Unknown'
+      message = latestCommit.message || 'No message'
+      date = new Date(latestCommit.created_at || Date.now())
+      sha = latestCommit.id || ''
+    } else if (primaryBackupMethod === 'gitea') {
+      author = latestCommit.commit?.author?.name || 'Unknown'
+      message = latestCommit.commit?.message || 'No message'
+      date = new Date(latestCommit.commit?.author?.date || Date.now())
+      sha = latestCommit.sha || ''
+    }
+    
+    return {
+      sha,
+      message,
+      author,
+      date,
+      additions,
+      deletions
+    }
+  } catch (error) {
+    console.warn('Failed to get remote commit info:', error)
+    return null
+  }
+}
+
+/**
+ * 自动同步检测和处理（增强版，包含冲突处理和 commit 信息展示）
  */
 export async function autoSyncIfNeeded(path: string, options: {
   autoPull?: boolean
@@ -399,115 +484,130 @@ export async function autoSyncIfNeeded(path: string, options: {
     
     if (syncResult.action === 'pull' && autoPull) {
       if (showConfirm) {
-        const confirmed = await confirm(
-          `检测到远程文件有更新：${syncResult.reason}\n\n是否立即获取最新版本？`,
-          { title: '文件同步' }
-        )
-        if (!confirmed) return null
-      }
-      
-      // 获取本地内容用于冲突检测
-      let localContent = ''
-      let actualPath = path
-      
-      // 检查并清理文件名
-      if (hasInvalidFileNameChars(path)) {
-        actualPath = sanitizeFilePath(path)
-        console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
-      }
-      
-      try {
-        const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(actualPath)
-        if (workspace.isCustom) {
-          localContent = await readTextFile(pathOptions.path)
-        } else {
-          localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-      } catch (error) {
-        // 本地文件不存在或目录不存在，这是正常的同步场景
-        if (error instanceof Error && 
-            (error.message.includes('no such file') || 
-             error.message.includes('not found') ||
-             error.message.includes('系统找不到指定的路径'))) {
-          console.log(`Local file does not exist (normal for sync): ${actualPath}`)
-        } else {
-          console.warn(`Unexpected error reading local file ${actualPath}:`, error)
-        }
-        // 继续处理，将直接拉取远程文件
-      }
-      
-      const remoteContent = await pullRemoteFile(path)
-      
-      // 检测和处理冲突
-      if (enableConflictResolution && localContent && localContent !== remoteContent) {
-        const resolution = await detectAndHandleConflict(path, localContent, remoteContent)
+        // 获取 commit 信息
+        const commitInfo = await getRemoteCommitInfo(path)
         
-        let finalContent = remoteContent
-        switch (resolution.action) {
-          case 'keep_local':
-            finalContent = localContent
-            toast({
-              title: '冲突处理',
-              description: '保留本地版本'
-            })
-            break
-          case 'keep_remote':
-            finalContent = remoteContent
-            toast({
-              title: '冲突处理',
-              description: '使用远程版本'
-            })
-            break
-          case 'merge':
-            finalContent = mergeSimpleContent(localContent, remoteContent)
-            toast({
-              title: '冲突处理',
-              description: '自动合并成功'
-            })
-            break
-          case 'manual':
-            toast({
-              title: '需要手动处理',
-              description: '冲突较复杂，请手动处理',
-              variant: 'destructive'
-            })
-            return null
-        }
-        
-        await saveLocalFile(actualPath, finalContent)
-        await updateFileSyncTime(actualPath)
-        
-        return finalContent
-      } else {
-        // 无冲突，直接保存
-        await saveLocalFile(actualPath, remoteContent)
-        await updateFileSyncTime(actualPath)
-        
-        toast({
-          title: '自动同步',
-          description: `已从远程获取最新版本：${path}`,
+        // 使用新的确认对话框
+        return new Promise<string | null>((resolve) => {
+          useSyncConfirmStore.getState().showConfirmDialog({
+            fileName: path || '',
+            commitInfo: commitInfo || undefined,
+            onConfirm: async () => {
+              try {
+                // 执行实际的同步逻辑
+                const result = await performSync(path || '', enableConflictResolution)
+                resolve(result)
+              } catch (error) {
+                console.error('Sync failed:', error)
+                resolve(null)
+              }
+            },
+            onCancel: () => {
+              resolve(null)
+            }
+          })
         })
-        
-        return remoteContent
+      } else {
+        // 直接执行同步（不显示确认对话框）
+        return await performSync(path, enableConflictResolution)
       }
     }
     
-    if (syncResult.action === 'conflict') {
-      toast({
-        title: '同步冲突',
-        description: syncResult.reason,
-        variant: 'destructive'
-      })
+    return null
+  } catch (error) {
+    console.error('Auto sync failed:', error)
+    return null
+  }
+}
+
+/**
+ * 执行实际的同步操作
+ */
+async function performSync(path: string, enableConflictResolution: boolean): Promise<string | null> {
+  try {
+    // 获取本地内容用于冲突检测
+    let localContent = ''
+    let actualPath = path
+    
+    // 检查并清理文件名
+    if (hasInvalidFileNameChars(path)) {
+      actualPath = sanitizeFilePath(path)
+      console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
     }
     
+    try {
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(actualPath)
+      if (workspace.isCustom) {
+        localContent = await readTextFile(pathOptions.path)
+      } else {
+        localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      }
+    } catch (error) {
+      // 本地文件不存在或目录不存在，这是正常的同步场景
+      if (error instanceof Error && 
+          (error.message.includes('no such file') || 
+           error.message.includes('not found') ||
+           error.message.includes('系统找不到指定的路径'))) {
+        console.log(`Local file does not exist (normal for sync): ${actualPath}`)
+      } else {
+        console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+      }
+      // 继续处理，将直接拉取远程文件
+    }
+    
+    const remoteContent = await pullRemoteFile(path)
+    
+    // 检测和处理冲突
+    if (enableConflictResolution && localContent && localContent !== remoteContent) {
+      const resolution = await detectAndHandleConflict(path, localContent, remoteContent)
+      
+      let finalContent = remoteContent
+      switch (resolution.action) {
+        case 'keep_local':
+          finalContent = localContent
+          toast({
+            title: '冲突处理',
+            description: '保留本地版本'
+          })
+          break
+        case 'keep_remote':
+          finalContent = remoteContent
+          toast({
+            title: '冲突处理',
+            description: '使用远程版本'
+          })
+          break
+        case 'merge':
+          finalContent = mergeSimpleContent(localContent, remoteContent)
+          toast({
+            title: '冲突处理',
+            description: '自动合并成功'
+          })
+          break
+        case 'manual':
+          toast({
+            title: '需要手动处理',
+            description: '冲突较复杂，请手动处理',
+            variant: 'destructive'
+          })
+          return null
+      }
+      
+      await saveLocalFile(actualPath, finalContent)
+      await updateFileSyncTime(actualPath)
+      
+      return finalContent
+    } else {
+      // 无冲突，直接保存
+      await saveLocalFile(actualPath, remoteContent)
+      await updateFileSyncTime(actualPath)
+      
+      return remoteContent
+    }
   } catch (error) {
-    console.error(`Auto sync failed for ${path}:`, error)
-    toast({
-      title: '自动同步失败',
-      description: error instanceof Error ? error.message : '未知错误',
-      variant: 'destructive'
-    })
+    console.error('Perform sync failed:', error)
+    return null
   }
   
   return null

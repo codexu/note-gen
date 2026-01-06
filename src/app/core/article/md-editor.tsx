@@ -32,7 +32,7 @@ import { isMobileDevice } from '@/lib/check'
 
 export function MdEditor() {
   const [editor, setEditor] = useState<Vditor>();
-  const { currentArticle, saveCurrentArticle, loading, activeFilePath, matchPosition, setMatchPosition, setActiveFilePath, loadFileTree, setCurrentArticle } = useArticleStore()
+  const { currentArticle, saveCurrentArticle, loading, isPulling, activeFilePath, matchPosition, setMatchPosition, setActiveFilePath, loadFileTree, setCurrentArticle } = useArticleStore()
   const { assetsPath, contentTextScale } = useSettingStore()
   const { fetchMarks } = useMarkStore()
   const [floatBarPosition, setFloatBarPosition] = useState<{left: number, top: number} | null>(null)
@@ -713,13 +713,13 @@ export function MdEditor() {
 
   useEffect(() => {
     if (editor) {
-      if (loading) {
+      if (loading || isPulling) {
         editor.disabled()
       } else {
         editor.enable()
       }
     }
-  }, [loading])
+  }, [loading, isPulling, editor])
 
   useEffect(() => {
     let editorTheme: string | undefined

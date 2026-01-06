@@ -22,7 +22,7 @@ import { reportAppStart } from "@/lib/event-report"
 import { TitleBar } from "@/components/title-bar"
 import { Store } from '@tauri-apps/plugin-store'
 import { TextSizeProvider } from "@/contexts/text-size-context"
-import { RemoteSyncIndicator } from "@/components/remote-sync-indicator"
+import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
 
 export default function RootLayout({
   children,
@@ -152,7 +152,7 @@ export default function RootLayout({
           {children}
         </main>
         <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
-        <RemoteSyncIndicator />
+        <SyncConfirmDialog />
       </TextSizeProvider>
     </ThemeProvider>
   );

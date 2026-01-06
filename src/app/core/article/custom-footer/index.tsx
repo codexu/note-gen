@@ -7,6 +7,7 @@ import Copy from "./copy";
 import Export from "./export";
 import VectorCalc from "./vector-calc";
 import AutoCompletionToggle from "./auto-completion-toggle";
+import PullButton from "./pull";
 import useArticleStore from "@/stores/article";
 
 export default function CustomFooter({editor}: {editor?: Vditor}) {
@@ -22,6 +23,7 @@ export default function CustomFooter({editor}: {editor?: Vditor}) {
       <VectorCalc />
       <PrimarySync />
       <History editor={editor} disabled={!activeFilePath} />
+      <PullButton />
       <Sync editor={editor} disabled={!activeFilePath} />
     </div>
   </div>

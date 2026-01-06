@@ -1366,6 +1366,17 @@
       "syncingRemote": "リモートファイルをプル中...",
       "syncComplete": "同期完了"
     },
+    "syncConfirm": {
+      "title": "リモートファイルの更新を検出",
+      "description": "ファイル {fileName} にリモート更新があります",
+      "commitInfo": "最新コミット情報",
+      "commitMessage": "コミットメッセージ",
+      "author": "作者",
+      "changes": "変更",
+      "confirmMessage": "リモートバージョンをプルしてローカルファイルを上書きしてもよろしいですか？この操作は元に戻せません。",
+      "cancel": "キャンセル",
+      "confirmPull": "プルを確認"
+    },
     "emptyState": {
       "title": "作成を開始",
       "subtitle": "ファイルを選択して編集を開始するか、新しいノートを作成してください",
@@ -1518,6 +1529,15 @@
     },
     "footer": {
       "wordCount": "文字数",
+      "pull": {
+        "checking": "更新を確認中...",
+        "noUpdate": "リモート更新なし",
+        "clickToPull": "クリックしてリモート更新をプル",
+        "pullSuccess": "プル成功",
+        "pullFailed": "プル失敗",
+        "ignored": "無視しました",
+        "ignoreUpdate": "この更新を無視"
+      },
       "sync": {
         "sync": "同期",
         "synced": "同期済み",

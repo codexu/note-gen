@@ -1280,6 +1280,17 @@
       "syncingRemote": "Buscando arquivo remoto...",
       "syncComplete": "Sincronização Concluída"
     },
+    "syncConfirm": {
+      "title": "Atualização de Arquivo Remoto Detectada",
+      "description": "Arquivo {fileName} tem atualizações remotas",
+      "commitInfo": "Informações do Último Commit",
+      "commitMessage": "Mensagem do Commit",
+      "author": "Autor",
+      "changes": "Alterações",
+      "confirmMessage": "Tem certeza de que deseja buscar a versão remota e substituir o arquivo local? Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirmPull": "Confirmar Busca"
+    },
     "emptyState": {
       "title": "Começar a Criar",
       "subtitle": "Selecione um arquivo para começar a editar ou crie uma nova nota",
@@ -1466,7 +1477,16 @@
       }
     },
     "footer": {
-      "wordCount": "Palavras",
+      "wordCount": "Contagem de Palavras",
+      "pull": {
+        "checking": "Verificando atualizações...",
+        "noUpdate": "Nenhuma atualização remota",
+        "clickToPull": "Clique para buscar atualizações remotas",
+        "pullSuccess": "Busca Bem-sucedida",
+        "pullFailed": "Falha na Busca",
+        "ignored": "Ignorado",
+        "ignoreUpdate": "Ignorar Esta Atualização"
+      },
       "sync": {
         "sync": "Sincronizar",
         "synced": "Sincronizado",

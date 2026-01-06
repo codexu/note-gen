@@ -1,7 +1,7 @@
-import { decodeBase64ToString, getFiles as getGithubFiles } from '@/lib/sync/github'
+import { getFiles as getGithubFiles } from '@/lib/sync/github'
 import { GithubContent } from '@/lib/sync/github.types'
 import { getFiles as getGiteeFiles } from '@/lib/sync/gitee'
-import { getFiles as getGitlabFiles, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
+import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { autoSyncIfNeeded, hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
@@ -14,7 +14,6 @@ import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
-import { toast } from '@/hooks/use-toast'
 
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
@@ -59,7 +58,6 @@ interface NoteState {
 
   fileTree: DirTree[]
   fileTreeLoading: boolean
-  remoteSyncLoading: boolean
   setFileTree: (tree: DirTree[]) => void
   addFile: (file: DirTree) => void
   loadFileTree: () => Promise<void>
@@ -80,8 +78,10 @@ interface NoteState {
   clearCollapsibleList: () => Promise<void>
 
   currentArticle: string
+  isPulling: boolean // 新增：拉取状态
   readArticle: (path: string, sha?: string, isLocale?: boolean, autoSync?: boolean) => Promise<void>
   setCurrentArticle: (content: string) => void
+  setIsPulling: (pulling: boolean) => void
   saveCurrentArticle: (content: string) => Promise<void>
 
   // 向量计算相关
@@ -220,7 +220,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ fileTree: [file, ...get().fileTree] })
   },
   fileTreeLoading: false,
-  remoteSyncLoading: false,
   updateFileStats: async (basePath: string, tree: DirTree[]) => {
     const workspace = await getWorkspacePath()
     
@@ -418,29 +417,23 @@ const useArticleStore = create<NoteState>((set, get) => ({
   
   // 加载远程同步文件（后台任务）
   loadRemoteSyncFiles: async () => {
-    set({ remoteSyncLoading: true })
-    
     try {
       const store = await Store.load('store.json');
-      const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+      const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
       
-      // 检查是否配置了访问令牌
       if (primaryBackupMethod === 'github') {
         const accessToken = await store.get<string>('accessToken')
         if (!accessToken) {
-          set({ remoteSyncLoading: false })
           return
         }
       } else if (primaryBackupMethod === 'gitee') {
         const giteeAccessToken = await store.get<string>('giteeAccessToken')
         if (!giteeAccessToken) {
-          set({ remoteSyncLoading: false })
           return
         }
       } else if (primaryBackupMethod === 'gitlab') {
         const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
         if (!gitlabAccessToken) {
-          set({ remoteSyncLoading: false })
           return
         }
       }
@@ -564,8 +557,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
     await Promise.all(loadPromises)
     } catch (error) {
       console.error('Failed to load remote sync files:', error)
-    } finally {
-      set({ remoteSyncLoading: false })
     }
   },
   // 加载文件夹内部的本地和远程文件（按需加载）
@@ -994,7 +985,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   currentArticle: '',
-  readArticle: async (path: string, sha?: string, isLocale = true, autoSync = true) => {
+  isPulling: false, // 新增：拉取状态
+  readArticle: async (path: string, sha?: string, autoSync = true) => {
     get().setLoading(true)
     
     // 处理文件名兼容性问题
@@ -1008,7 +1000,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
     
     // 优先加载本地内容（快速响应）
     let localContent = ''
-    let hasLocalFile = false
     
     try {
       const workspace = await getWorkspacePath()
@@ -1018,7 +1009,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } else {
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
-      hasLocalFile = true
       set({ currentArticle: localContent })
       // 本地内容加载完成，解除加载状态
       get().setLoading(false)
@@ -1041,8 +1031,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
           } else {
             await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
           }
-          localContent = ''
-          hasLocalFile = false
           set({ currentArticle: '' })
           get().setLoading(false)
         } catch (createError) {
@@ -1059,29 +1047,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
     
     // 异步检查远程更新（不阻塞界面）
     if (autoSync && await hasNetworkConnection()) {
-      // 设置远程同步状态
-      set({ remoteSyncLoading: true })
-      
       try {
         const syncedContent = await autoSyncIfNeeded(actualPath, {
-          autoPull: true,
-          showConfirm: false
+          autoPull: false, // 不自动拉取，只检查更新
+          showConfirm: false // 不显示确认对话框
         })
         
         if (syncedContent !== null && syncedContent !== localContent) {
-          // 远程内容不同，更新显示
-          set({ currentArticle: syncedContent })
-          
-          toast({
-            title: '远程更新',
-            description: '已获取最新版本',
-          })
+          // 远程内容不同，但这里不自动更新，让用户通过 Pull 按钮手动处理
+          console.log('Remote update detected, user can pull via button')
         }
       } catch (error) {
-        console.warn('Async sync failed:', error)
-      } finally {
-        // 清除远程同步状态
-        set({ remoteSyncLoading: false })
+        console.warn('Async sync check failed:', error)
       }
     }
   },
@@ -1096,6 +1073,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   setCurrentArticle: (content: string) => {
     set({ currentArticle: content })
+  },
+  
+  setIsPulling: (pulling: boolean) => {
+    set({ isPulling: pulling })
   },
   
   saveCurrentArticle: async (content: string) => {

@@ -1310,6 +1310,17 @@
       "syncingRemote": "Pulling remote file...",
       "syncComplete": "Sync Complete"
     },
+    "syncConfirm": {
+      "title": "Remote File Update Detected",
+      "description": "File {fileName} has remote updates",
+      "commitInfo": "Latest Commit Info",
+      "commitMessage": "Commit Message",
+      "author": "Author",
+      "changes": "Changes",
+      "confirmMessage": "Are you sure you want to pull the remote version and overwrite the local file? This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirmPull": "Confirm Pull"
+    },
     "emptyState": {
       "title": "Start Creating",
       "subtitle": "Select a file to start editing, or create a new note",
@@ -1505,7 +1516,16 @@
       }
     },
     "footer": {
-      "wordCount": "Words",
+      "wordCount": "Word Count",
+      "pull": {
+        "checking": "Checking for updates...",
+        "noUpdate": "No remote updates",
+        "clickToPull": "Click to pull remote updates",
+        "pullSuccess": "Pull Successful",
+        "pullFailed": "Pull Failed",
+        "ignored": "Ignored",
+        "ignoreUpdate": "Ignore This Update"
+      },
       "sync": {
         "sync": "Sync",
         "synced": "Synced",

@@ -1306,6 +1306,10 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "Pulling remote file...",
+      "syncComplete": "Sync Complete"
+    },
     "emptyState": {
       "title": "Start Creating",
       "subtitle": "Select a file to start editing, or create a new note",

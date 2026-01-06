@@ -1362,6 +1362,10 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "リモートファイルをプル中...",
+      "syncComplete": "同期完了"
+    },
     "emptyState": {
       "title": "作成を開始",
       "subtitle": "ファイルを選択して編集を開始するか、新しいノートを作成してください",

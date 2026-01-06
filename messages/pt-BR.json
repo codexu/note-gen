@@ -1276,6 +1276,10 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "Buscando arquivo remoto...",
+      "syncComplete": "Sincronização Concluída"
+    },
     "emptyState": {
       "title": "Começar a Criar",
       "subtitle": "Selecione um arquivo para começar a editar ou crie uma nova nota",

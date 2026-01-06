@@ -1329,6 +1329,10 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "正在拉取远程文件...",
+      "syncComplete": "同步完成"
+    },
     "emptyState": {
       "title": "开始创作",
       "subtitle": "选择一个文件开始编辑，或创建新的笔记",

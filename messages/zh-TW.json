@@ -1274,6 +1274,10 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "正在拉取遠端檔案...",
+      "syncComplete": "同步完成"
+    },
     "emptyState": {
       "title": "開始創作",
       "subtitle": "選擇一個文件開始編輯，或創建新的筆記",

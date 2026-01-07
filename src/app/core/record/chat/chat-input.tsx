@@ -14,17 +14,16 @@ import { getWorkspacePath } from "@/lib/workspace"
 import { PromptSelect } from "./prompt-select"
 import { ChatLanguage } from "./chat-language"
 import { ChatSend } from "./chat-send"
-import { LinkedFileDisplay, FileLink } from "./file-link"
+import { LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
-import { ChatLink } from "./chat-link"
-import { McpButton } from "./mcp-button"
-import { RagSwitch } from "./rag-switch"
-import { ClipboardMonitor } from "./clipboard-monitor"
 import { ClearContext } from "./clear-context"
 import { ClearChat } from "./clear-chat"
 import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
+import { ChatSettingsDrawer } from "@/app/mobile/chat/components/chat-settings-drawer"
+import { ChatToolsDrawer } from "@/app/mobile/chat/components/chat-tools-drawer"
+import { ChatAttachmentsDrawer } from "@/app/mobile/chat/components/chat-attachments-drawer"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ImageAttachments, ImageAttachment } from "./image-attachments"
 import { ImageIcon } from "lucide-react"
@@ -53,7 +52,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 export function ChatInput() {
   const [text, setText] = useState("")
-  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc, chatToolbarConfigMobile } = useSettingStore()
+  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc } = useSettingStore()
   const { chats, loading, isLinkMark } = useChatStore()
   const [showFileSelector, setShowFileSelector] = useState(false)
   const { marks, trashState } = useMarkStore()
@@ -431,7 +430,7 @@ export function ChatInput() {
         <div className="relative w-full flex items-start">
           <Textarea
             ref={textareaRef}
-            className="flex-1 p-2 relative border-none text-xs placeholder:text-xs md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
+            className="flex-1 p-2 relative border-none text-xs placeholder:text-sm md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
             rows={1}
             disabled={!primaryModel || loading}
             value={text}
@@ -475,13 +474,7 @@ export function ChatInput() {
         </div>
         
         <div className="flex justify-between items-center w-full">
-          <div className="relative flex-1 overflow-x-auto mr-6 px-2 -translate-x-2">
-            {/* 左侧渐变遮罩 */}
-            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
-            
-            {/* 右侧渐变遮罩 */}
-            <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
-            
+          <div className="flex-1">
             {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
             {!isMobile ? (
               <DndContext
@@ -508,47 +501,29 @@ export function ChatInput() {
               </DndContext>
             ) : (
               <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
-                {chatToolbarConfigMobile
-                  .filter(item => item.enabled)
-                  .sort((a, b) => a.order - b.order)
-                  .map(item => {
-                    switch (item.id) {
-                      case 'modelSelect':
-                        return <ModelSelect key={item.id} />
-                      case 'promptSelect':
-                        return <PromptSelect key={item.id} />
-                      case 'chatLanguage':
-                        return <ChatLanguage key={item.id} />
-                      case 'chatLink':
-                        return <ChatLink key={item.id} />
-                      case 'fileLink':
-                        return <FileLink key={item.id} onFileLinkClick={() => setShowFileSelector(true)} disabled={!primaryModel || loading} />
-                      case 'mcpButton':
-                        return <McpButton key={item.id} />
-                      case 'ragSwitch':
-                        return <RagSwitch key={item.id} />
-                      case 'clipboardMonitor':
-                        return <ClipboardMonitor key={item.id} />
-                      case 'clearContext':
-                        return <ClearContext key={item.id} />
-                      case 'clearChat':
-                        return <ClearChat key={item.id} />
-                      default:
-                        return null
-                    }
-                  })}
+                <ChatAttachmentsDrawer
+                  onImageSelect={handleSelectLocalImages}
+                  onCameraOpen={handleSelectLocalImages}
+                  onFileLink={setLinkedFile}
+                />
+                <ChatSettingsDrawer />
+                <ChatToolsDrawer />
+                <ClearContext />
+                <ClearChat />
               </div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2 pr-1">
-            <TooltipButton
-              variant="link"
-              size="sm"
-              icon={<ImageIcon className="size-4" />}
-              tooltipText={t('record.chat.input.attachImage')}
-              onClick={handleSelectLocalImages}
-              disabled={!primaryModel || loading}
-            />
+            {!isMobile && (
+              <TooltipButton
+                variant="link"
+                size="sm"
+                icon={<ImageIcon className="size-4" />}
+                tooltipText={t('record.chat.input.attachImage')}
+                onClick={handleSelectLocalImages}
+                disabled={!primaryModel || loading}
+              />
+            )}
             <ChatModeSelect />
             <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} attachedImages={attachedImages} quoteData={quoteData} ref={chatSendRef} />
           </div>

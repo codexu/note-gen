@@ -1572,6 +1572,25 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "チャット設定"
+        },
+        "tools": {
+          "title": "ツール"
+        },
+        "attachments": {
+          "title": "添付ファイル",
+          "gallery": "ギャラリー",
+          "camera": "カメラ",
+          "file": "ファイル",
+          "linkNote": "ノートをリンク"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP Servers",
     "searchServers": "サーバーを検索...",

@@ -1529,6 +1529,25 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Configurações de Chat"
+        },
+        "tools": {
+          "title": "Ferramentas"
+        },
+        "attachments": {
+          "title": "Anexos",
+          "gallery": "Galeria",
+          "camera": "Câmera",
+          "file": "Arquivo",
+          "linkNote": "Vincular Nota"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "Servidores MCP",
     "searchServers": "Buscar servidores...",

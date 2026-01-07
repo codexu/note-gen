@@ -1560,6 +1560,25 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Chat Settings"
+        },
+        "tools": {
+          "title": "Tools"
+        },
+        "attachments": {
+          "title": "Attachments",
+          "gallery": "Gallery",
+          "camera": "Camera",
+          "file": "File",
+          "linkNote": "Link Note"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP Servers",
     "searchServers": "Search servers...",

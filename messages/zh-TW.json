@@ -1484,6 +1484,25 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "對話設定"
+        },
+        "tools": {
+          "title": "工具"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相簿",
+          "camera": "照相",
+          "file": "檔案",
+          "linkNote": "關聯筆記"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP 伺服器",
     "searchServers": "搜索伺服器...",

@@ -1545,6 +1545,25 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "对话设置"
+        },
+        "tools": {
+          "title": "工具"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相册",
+          "camera": "照相",
+          "file": "文件",
+          "linkNote": "关联笔记"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP 服务器",
     "searchServers": "搜索服务器...",

@@ -1,13 +1,13 @@
 "use client"
 
 import { ToolCase } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { TooltipButton } from "@/components/tooltip-button"
 import {
   Drawer,
   DrawerContent,
-  DrawerTrigger,
   DrawerHeader,
   DrawerTitle,
+  DrawerTrigger,
 } from "@/components/ui/drawer"
 import { TagLinkToggle } from "./tag-link-toggle"
 import { RagToggle } from "./rag-toggle"
@@ -20,9 +20,13 @@ export function ChatToolsDrawer() {
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8">
-          <ToolCase className="size-4" />
-        </Button>
+        <TooltipButton
+          variant="ghost"
+          size="icon"
+          icon={<ToolCase className="size-4" />}
+          tooltipText={t('tools.title')}
+          side="bottom"
+        />
       </DrawerTrigger>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>

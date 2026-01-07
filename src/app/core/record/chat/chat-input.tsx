@@ -171,6 +171,49 @@ export function ChatInput() {
     }
   }
 
+  // 移动端相册选择
+  async function handleSelectFromGallery() {
+    if (isMobileDevice_) {
+      // 在移动端，我们暂时只能使用通用的图片选择
+      // 用户可以从相册或相机中选择
+      if (imageInputRef.current) {
+        // 移除 capture 属性，让系统自己决定
+        imageInputRef.current.removeAttribute('capture')
+        imageInputRef.current.click()
+      }
+    }
+  }
+
+  // 移动端相机拍照
+  async function handleTakePhoto() {
+    if (isMobileDevice_) {
+      // 创建相机输入
+      const cameraInput = document.createElement('input')
+      cameraInput.type = 'file'
+      cameraInput.accept = 'image/*'
+      cameraInput.capture = 'environment' // 使用后置摄像头
+      cameraInput.style.display = 'none'
+      
+      cameraInput.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file) {
+          const url = URL.createObjectURL(file)
+          const newImage: ImageAttachment = {
+            id: `camera-${Date.now()}-${Math.random()}`,
+            url,
+            name: file.name,
+            source: 'file' as const
+          }
+          setAttachedImages(prev => [...prev, newImage])
+        }
+        document.body.removeChild(cameraInput)
+      }
+      
+      document.body.appendChild(cameraInput)
+      cameraInput.click()
+    }
+  }
+
   // 处理移动端文件选择
   async function handleImageInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     try {
@@ -502,8 +545,8 @@ export function ChatInput() {
             ) : (
               <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
                 <ChatAttachmentsDrawer
-                  onImageSelect={handleSelectLocalImages}
-                  onCameraOpen={handleSelectLocalImages}
+                  onImageSelect={handleSelectFromGallery}
+                  onCameraOpen={handleTakePhoto}
                   onFileLink={setLinkedFile}
                 />
                 <ChatSettingsDrawer />

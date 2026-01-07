@@ -1,13 +1,13 @@
 "use client"
 
 import { BotMessageSquare } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { TooltipButton } from "@/components/tooltip-button"
 import {
   Drawer,
   DrawerContent,
-  DrawerTrigger,
   DrawerHeader,
   DrawerTitle,
+  DrawerTrigger,
 } from "@/components/ui/drawer"
 import { ModelSelector } from "./model-selector"
 import { PromptSelector } from "./prompt-selector"
@@ -21,9 +21,13 @@ export function ChatSettingsDrawer() {
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8">
-          <BotMessageSquare className="size-4" />
-        </Button>
+        <TooltipButton
+          variant="ghost"
+          size="icon"
+          icon={<BotMessageSquare className="size-4" />}
+          tooltipText={t('settings.title')}
+          side="bottom"
+        />
       </DrawerTrigger>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader>

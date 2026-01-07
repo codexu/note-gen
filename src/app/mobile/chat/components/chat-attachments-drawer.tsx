@@ -2,6 +2,7 @@
 
 import { MessageCirclePlus, ImageIcon, Camera, AtSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TooltipButton } from "@/components/tooltip-button"
 import {
   Drawer,
   DrawerContent,
@@ -37,9 +38,13 @@ export function ChatAttachmentsDrawer({
     <>
       <Drawer>
         <DrawerTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <MessageCirclePlus className="size-4" />
-          </Button>
+          <TooltipButton
+            variant="ghost"
+            size="icon"
+            icon={<MessageCirclePlus className="size-4" />}
+            tooltipText={t('attachments.title')}
+            side="bottom"
+          />
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
           <DrawerHeader>
@@ -52,7 +57,7 @@ export function ChatAttachmentsDrawer({
                 className="flex flex-col items-center justify-center p-3 gap-1 h-auto"
                 onClick={onImageSelect}
               >
-                <ImageIcon className="size-6" aria-hidden="true" />
+                <ImageIcon className="size-4" aria-hidden="true" />
                 <span className="text-xs">{t('attachments.gallery')}</span>
               </Button>
               
@@ -61,7 +66,7 @@ export function ChatAttachmentsDrawer({
                 className="flex flex-col items-center justify-center p-3 gap-1 h-auto"
                 onClick={onCameraOpen}
               >
-                <Camera className="size-6" />
+                <Camera className="size-4" />
                 <span className="text-xs">{t('attachments.camera')}</span>
               </Button>
               
@@ -72,7 +77,7 @@ export function ChatAttachmentsDrawer({
                   disabled={!primaryModel || loading}
                   onClick={() => setShowFileSelector(true)}
                 >
-                  <AtSign className="size-6" />
+                  <AtSign className="size-4" />
                   <span className="text-xs">{t('attachments.linkNote')}</span>
                 </Button>
               </DrawerClose>

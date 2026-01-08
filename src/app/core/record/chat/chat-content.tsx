@@ -59,11 +59,15 @@ export default function ChatContent() {
     }
   }, [agentState.currentThought, agentState.thoughtHistory, agentState.pendingConfirmation])
 
-  return <div id="chats-wrapper" className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col items-end p-4 gap-6">
+  return <div id="chats-wrapper" className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col items-end gap-6">
     {
-      chats.length ? chats.map((chat) => {
-        return <Message key={chat.id} chat={chat} />
-      }) : <ChatEmpty />
+      chats.length ? (
+        <div className="w-full p-4">
+          {chats.map((chat) => {
+            return <Message key={chat.id} chat={chat} />
+          })}
+        </div>
+      ) : <ChatEmpty />
     }
     
     {/* Agent 执行状态 - 在底部实时显示，包裹在 MessageWrapper 中保持布局一致 */}

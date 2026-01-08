@@ -6,8 +6,6 @@ import { TooltipButton } from "@/components/tooltip-button"
 import {
   Drawer,
   DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
   DrawerTrigger,
   DrawerClose,
 } from "@/components/ui/drawer"
@@ -47,9 +45,6 @@ export function ChatAttachmentsDrawer({
           />
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
-          <DrawerHeader>
-            <DrawerTitle>{t('attachments.title')}</DrawerTitle>
-          </DrawerHeader>
           <div className="p-4 overflow-auto">
             <div className="grid grid-cols-3 gap-2">
               <Button

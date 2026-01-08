@@ -80,7 +80,7 @@ export default function ChatEmpty() {
           {/* Current Model */}
           <div className="px-4 rounded-lg border bg-card">
             <div className="flex h-10 items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t('currentModel')}</span>
+              <span className="text-xs min-w-24 text-muted-foreground">{t('currentModel')}</span>
               <span className="text-sm font-medium truncate ml-2">{currentModelName}</span>
             </div>
           </div>
@@ -88,7 +88,7 @@ export default function ChatEmpty() {
           {/* Current Prompt */}
           <div className="px-4 rounded-lg border bg-card">
             <div className="flex h-10 items-center justify-between">
-              <span className="text-xs text-muted-foreground">{t('currentPrompt')}</span>
+              <span className="text-xs min-w-24 text-muted-foreground">{t('currentPrompt')}</span>
               <span className="text-sm font-medium truncate ml-2">
                 {currentPrompt?.title || t('noPrompt')}
               </span>

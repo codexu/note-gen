@@ -3,70 +3,49 @@
   border: none;
   background-color: var(--color-background) !important;
   color: var(--color-foreground) !important;
+}
 
-  /* 强制覆盖所有可能的背景色 */
+/* 只覆盖特定元素的背景色，避免影响代码高亮 */
+.vditor .vditor-content,
+.vditor .vditor-ir,
+.vditor .vditor-sv,
+.vditor .vditor-wysiwyg,
+.vditor .vditor-preview,
+.vditor .vditor-toolbar,
+.vditor .vditor-panel,
+.vditor .vditor-hint {
   background-color: var(--color-background) !important;
+}
+
+/* 设置文本颜色，但排除代码块 */
+.vditor .vditor-content,
+.vditor .vditor-ir,
+.vditor .vditor-sv,
+.vditor .vditor-wysiwyg,
+.vditor .vditor-preview,
+.vditor .vditor-toolbar,
+.vditor .vditor-panel,
+.vditor .vditor-hint {
   color: var(--color-foreground) !important;
 }
 
-.vditor * {
-  background-color: var(--color-background) !important;
-  color: var(--color-foreground) !important;
-}
-
-.vditor pre {
-  background-color: var(--color-background) !important;
+/* 工具栏图标 */
+.vditor .vditor-toolbar__item svg {
   color: var(--color-foreground) !important;
 }
 
 /* 工具栏背景 */
 .vditor-toolbar {
-  background-color: var(--color-background) !important;
   border-top: none !important;
   border-left: none !important;
   border-right: none !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
 
-/* 编辑器内容区域 */
-.vditor-content,
-.vditor-ir,
-.vditor-sv,
-.vditor-wysiwyg,
-.vditor-reset {
-  background-color: var(--color-background) !important;
-  color: var(--color-foreground) !important;
-}
-
-/* 预览区域 */
-.vditor-preview {
-  background-color: var(--color-background) !important;
-  color: var(--color-foreground) !important;
-}
-
-/* 代码块 */
+/* 代码块 - 只设置背景色，保留代码高亮 */
 .vditor pre.vditor-reset {
   background-color: var(--color-background) !important;
-  color: var(--color-foreground) !important;
-}
-
-/* 提示框 */
-.vditor-hint {
-  background-color: var(--color-popover) !important;
-  border-color: var(--color-border) !important;
-  color: var(--color-foreground) !important;
-}
-
-/* 面板 */
-.vditor-panel {
-  background-color: var(--color-popover) !important;
-  border-color: var(--color-border) !important;
-  color: var(--color-foreground) !important;
-}
-
-/* 工具栏图标 */
-.vditor-toolbar__item svg {
-  color: var(--color-foreground) !important;
+  /* 不设置 color，让代码高亮显示 */
 }
 
 /* 工具栏分隔线 */
@@ -193,7 +172,7 @@
   --toolbar-height: 35px;
   --toolbar-divider-margin-top: 8px;
   --textarea-background-color: var(--color-background);
-  --textarea-text-color: var(--color-foreground);
+  /* 移除 --textarea-text-color，保留代码高亮 */
   --resize-icon-color: var(--color-foreground);
   --resize-background-color: var(--color-background);
   --resize-hover-icon-color: var(--color-background);
@@ -218,7 +197,7 @@
   --toolbar-icon-color: var(--color-foreground);
   --toolbar-icon-hover-color: var(--color-primary);
   --textarea-background-color: var(--color-background);
-  --textarea-text-color: var(--color-foreground);
+  /* 移除 --textarea-text-color，保留代码高亮 */
   --resize-icon-color: var(--color-border);
   --resize-background-color: var(--color-muted);
   --resize-hover-icon-color: var(--color-primary);

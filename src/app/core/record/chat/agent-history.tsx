@@ -105,24 +105,24 @@ export function AgentHistory({ historyJson }: AgentHistoryProps) {
               className="flex items-center gap-2 py-1.5 px-3 rounded cursor-pointer hover:bg-muted/50 min-w-0"
               onClick={() => toggleExpand(index)}
             >
-              <StatusIcon className={`size-4 ${iconColor} flex-shrink-0`} />
+              <StatusIcon className={`size-4 ${iconColor} shrink-0`} />
               <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">
                 {title}
               </span>
-              <ChevronRight className={`size-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+              <ChevronRight className={`size-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
             </div>
             
             {/* 展开的详细内容 */}
             {isExpanded && (
               <>
-                <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words">
+                <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word">
                   {step.thought}
                 </div>
                 
                 {/* Action - 行动 */}
                 {step.action && (
                   <div className="flex items-center gap-2 py-1.5 px-3 border-t">
-                    <Zap className="size-4 text-yellow-500 flex-shrink-0" />
+                    <Zap className="size-4 text-yellow-500 shrink-0" />
                     <code className="text-sm text-muted-foreground flex-1 truncate min-w-0 font-mono">
                       {step.action.tool}({JSON.stringify(step.action.params)})
                     </code>
@@ -133,10 +133,10 @@ export function AgentHistory({ historyJson }: AgentHistoryProps) {
                 {step.observation && (
                   <>
                     <div className="flex items-center gap-2 py-1.5 px-3 border-t">
-                      <Eye className="size-4 text-green-500 flex-shrink-0" />
+                      <Eye className="size-4 text-green-500 shrink-0" />
                       <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">{t('observation')}</span>
                     </div>
-                    <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words">
+                    <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word">
                       {step.observation}
                     </div>
                   </>
@@ -146,11 +146,11 @@ export function AgentHistory({ historyJson }: AgentHistoryProps) {
                 {toolCall && (
                   <div className="flex items-center gap-2 py-1.5 px-3 border-t">
                     {toolCall.status === 'success' ? (
-                      <CheckCircle className="size-4 text-green-500 flex-shrink-0" />
+                      <CheckCircle className="size-4 text-green-500 shrink-0" />
                     ) : toolCall.status === 'error' ? (
-                      <XCircle className="size-4 text-red-500 flex-shrink-0" />
+                      <XCircle className="size-4 text-red-500 shrink-0" />
                     ) : null}
-                    <code className="text-sm text-muted-foreground flex-1 break-words font-mono">
+                    <code className="text-sm text-muted-foreground flex-1 wrap-break-word font-mono">
                       {toolCall.toolName}
                     </code>
                   </div>

@@ -158,7 +158,7 @@ export function FileFooter() {
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-                    {sortDirection === 'asc' ? <SortAsc className={`!size-3.5 ${sortType !== 'none' ? 'text-primary' : ''}`} /> : <SortDesc className={`!size-3.5 ${sortType !== 'none' ? 'text-primary' : ''}`} />}
+                    {sortDirection === 'asc' ? <SortAsc className={`size-3.5! ${sortType !== 'none' ? 'text-primary' : ''}`} /> : <SortDesc className={`size-3.5! ${sortType !== 'none' ? 'text-primary' : ''}`} />}
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
@@ -198,7 +198,7 @@ export function FileFooter() {
 
         {/* 折叠/展开 */}
         <TooltipButton 
-          icon={collapsibleList.length > 0 ? <ChevronsDownUp className="!size-3.5" /> : <ChevronsUpDown className="!size-3.5" />} 
+          icon={collapsibleList.length > 0 ? <ChevronsDownUp className="size-3.5!" /> : <ChevronsUpDown className="size-3.5!" />} 
           tooltipText={collapsibleList.length > 0 ? tToolbar('collapseAll') : tToolbar('expandAll')} 
           onClick={toggleAllFolders}
           size="sm"
@@ -206,7 +206,7 @@ export function FileFooter() {
 
         {/* 刷新 */}
         <TooltipButton 
-          icon={<FolderSync className="!size-3.5" />} 
+          icon={<FolderSync className="size-3.5!" />} 
           tooltipText={tToolbar('refresh')} 
           onClick={loadFileTree}
           size="sm"

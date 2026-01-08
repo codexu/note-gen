@@ -198,7 +198,7 @@ export default function WebdavSync() {
       <FormItem title={t("backupPath")} desc={t("backupPathDesc")}>
           <div className="flex items-center gap-2">
           <Input 
-              className="flex-grow"
+              className="grow"
             value={path} 
             onChange={handlePathChange} 
               placeholder={t("backupPathPlaceholder")}

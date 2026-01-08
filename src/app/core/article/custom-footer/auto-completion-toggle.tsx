@@ -43,11 +43,11 @@ export default function AutoCompletionToggle() {
         title={isEnabled ? "关闭 AI 自动补全" : "开启 AI 自动补全"}
       >
         {isLoading ? (
-          <Loader2 className="!size-3.5 animate-spin" />
+          <Loader2 className="size-3.5! animate-spin" />
         ) : isEnabled ? (
-          <Zap className="!size-3.5" />
+          <Zap className="size-3.5!" />
         ) : (
-          <Zap className="!size-3.5 text-muted-foreground" />
+          <Zap className="size-3.5! text-muted-foreground" />
         )}
       </Button>
     </div>

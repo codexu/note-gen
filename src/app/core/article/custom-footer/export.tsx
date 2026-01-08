@@ -175,13 +175,13 @@ export default function ExportFormatSelector({editor, disabled}: {editor?: Vdito
             className="outline-none"
             disabled={disabled}
           >
-            <SquareArrowOutUpRightIcon className="!size-3" />
+            <SquareArrowOutUpRightIcon className="size-3!" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent 
           side="top" 
           align="start"
-          className="min-w-[6rem]"
+          className="min-w-24"
         >
           <DropdownMenuItem onClick={() => handleFormatSelect("Markdown")}>
             Markdown

@@ -52,21 +52,21 @@ export default function ChatThinking({chat}: { chat: Chat }) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         {isThinking ? (
-          <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
+          <Loader2 className="size-4 animate-spin text-blue-500 shrink-0" />
         ) : (
-          <Brain className="size-4 text-blue-500 flex-shrink-0" />
+          <Brain className="size-4 text-blue-500 shrink-0" />
         )}
         <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">
           {isThinking ? t('ai.thinking') : title}
         </span>
-        <ChevronRight className={`size-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`size-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
       </div>
       
       {/* 展开的详细内容 */}
       {isExpanded && (
         <div 
           ref={contentRef}
-          className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words"
+          className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word"
         >
           {thinkingContent}
         </div>

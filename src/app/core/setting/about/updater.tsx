@@ -128,7 +128,7 @@ export default function Updater() {
                     {t('ignoreVersion')}
                   </Button>
                   <Button size="sm" variant="outline" onClick={openRelease}>
-                    <Link className='!size-3' />Release
+                    <Link className='size-3!' />Release
                   </Button>
                 </div>
               </div>

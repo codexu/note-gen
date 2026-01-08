@@ -145,7 +145,7 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
                   )}
                   onClick={() => handleFileSelect(file)}
                 >
-                  <FileText className="size-4 text-muted-foreground flex-shrink-0" />
+                  <FileText className="size-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{file.name}</div>
                     <div className="text-xs text-muted-foreground truncate">

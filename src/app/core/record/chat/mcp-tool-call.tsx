@@ -58,7 +58,7 @@ export function McpToolCallCard({ toolCall }: McpToolCallCardProps) {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">{t('params')}:</span>
               </div>
-              <pre className="text-xs bg-background/50 p-2 rounded overflow-x-auto whitespace-pre-wrap break-words">
+              <pre className="text-xs bg-background/50 p-2 rounded overflow-x-auto whitespace-pre-wrap wrap-break-word">
                 <code className="text-green-600 dark:text-green-400">
                   {JSON.stringify(toolCall.params, null, 2)}
                 </code>
@@ -71,7 +71,7 @@ export function McpToolCallCard({ toolCall }: McpToolCallCardProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">{t('result')}:</span>
                 </div>
-                <pre className="text-xs bg-background/50 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
+                <pre className="text-xs bg-background/50 p-2 rounded overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap wrap-break-word">
                   <code className={toolCall.status === 'error' ? 'text-red-600 dark:text-red-400' : ''}>
                     {toolCall.result}
                   </code>

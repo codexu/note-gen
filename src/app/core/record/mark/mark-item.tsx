@@ -92,7 +92,7 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <span className={`line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} break-words cursor-pointer hover:underline`}>{content}</span>
+        <span className={`line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} wrap-break-word cursor-pointer hover:underline`}>{content}</span>
       </SheetTrigger>
       <SheetContent className="lg:min-w-[800px] w-full mt-[env(safe-area-inset-top)] p-0">
         <SheetHeader className="p-4 border-b">

@@ -5,7 +5,7 @@ import Vditor from 'vditor'
 import { exists, mkdir, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import "vditor/dist/index.css"
 import CustomToolbar from './custom-toolbar'
-import './style.scss'
+import './style.css'
 import { useTheme } from 'next-themes'
 import { toast } from '@/hooks/use-toast'
 import { Store } from '@tauri-apps/plugin-store'
@@ -134,7 +134,7 @@ export function MdEditor() {
       icon: 'material',
       cdn: '',
       tab: '\t',
-      theme: theme === 'dark' ? 'dark' : 'classic',
+      theme: 'classic', // 始终使用 classic，通过 CSS 变量控制主题
       toolbar: toolbarConfig,
       typewriterMode,
       customWysiwygToolbar: () => {
@@ -688,10 +688,9 @@ export function MdEditor() {
 
   function setTheme(theme: string) {
     if (editor) {
-      const editorTheme = theme === 'dark' ? 'dark' : 'light'
       const contentTheme = theme === 'dark' ? 'dark' : 'light'
       const codeTheme = theme === 'dark' ? 'github-dark' : 'github-light'
-      editor.setTheme(editorTheme === 'dark' ? 'dark' : 'classic', contentTheme, codeTheme)
+      editor.setTheme('classic', contentTheme, codeTheme)
     }
   }
 
@@ -891,7 +890,7 @@ export function MdEditor() {
                   icon: 'material',
                   cdn: '',
                   tab: '\t',
-                  theme: theme === 'dark' ? 'dark' : 'classic',
+                  theme: 'classic', // 始终使用 classic，通过 CSS 变量控制主题
                   toolbar: newToolbarConfig,
                   typewriterMode,
                   outline: {

@@ -324,7 +324,7 @@ export default function PullButton() {
               onClick={handlePull}
               className="text-green-600 hover:text-green-700 hover:bg-green-50"
             >
-              <Download className="!size-3" />
+              <Download className="size-3!" />
               <span className="text-xs">{t('pull')}</span>
               {!isMobile && pendingUpdate.commitInfo && (
                 <span className="ml-1 text-xs text-green-600">

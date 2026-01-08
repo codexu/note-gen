@@ -161,7 +161,7 @@ export function EmptyState() {
               onClick={action.onClick}
               className="group relative flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-accent hover:border-primary/50 transition-all duration-200 text-left"
             >
-              <div className="flex-shrink-0 mt-1 text-muted-foreground group-hover:text-primary transition-colors">
+              <div className="shrink-0 mt-1 text-muted-foreground group-hover:text-primary transition-colors">
                 {action.icon}
               </div>
               <div className="flex-1 min-w-0">

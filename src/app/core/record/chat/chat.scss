@@ -1,3 +1,5 @@
+@reference;
+
 @keyframes gradient {
   0% {
     background-position: 0% 50%;
@@ -24,20 +26,26 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  @apply bg-white dark:bg-zinc-950 text-foreground mb-2;
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground);
+  margin-bottom: 0.5rem;
 }
 
 /* 暗黑模式样式 */
 .markdown-dark {
-  @apply bg-secondary text-foreground;
+  background-color: var(--color-secondary);
+  color: var(--color-foreground);
 }
 
 .markdown-dark pre {
-  @apply bg-secondary text-foreground;
+  background-color: var(--color-secondary);
+  color: var(--color-foreground);
 }
 
 .markdown-dark code {
-  @apply bg-secondary text-foreground overflow-x-auto;
+  background-color: var(--color-secondary);
+  color: var(--color-foreground);
+  overflow-x: auto;
 }
 
 .markdown-dark a {
@@ -85,7 +93,7 @@ pre.hljs {
   white-space: pre;
   word-wrap: normal;
   max-width: 100%;
-  @apply overflow-x-auto;
+  overflow-x: auto;
 }
 
 /* 亮色模式下的代码高亮 */

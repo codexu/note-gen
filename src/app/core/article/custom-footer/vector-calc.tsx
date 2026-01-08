@@ -52,13 +52,13 @@ export default function VectorCalc() {
   const getIcon = () => {
     if (isVectorCalculating) {
       // 计算中：旋转的加载图标
-      return <Loader2 className="!size-3.5 animate-spin" />
+      return <Loader2 className="size-3.5! animate-spin" />
     } else if (pendingVectorContent) {
       // 待计算：带闪电的数据库图标
-      return <DatabaseZap className="!size-3.5" />
+      return <DatabaseZap className="size-3.5!" />
     } else {
       // 已计算：普通数据库图标
-      return <Database className="!size-3.5" />
+      return <Database className="size-3.5!" />
     }
   }
 

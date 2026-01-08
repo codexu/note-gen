@@ -46,7 +46,7 @@ export function QuoteDisplay({ quoteData, onRemove }: QuoteDisplayProps) {
             {getDisplayText()}
           </span>
         </div>
-        <div className="text-xs text-muted-foreground line-clamp-2 break-words">
+        <div className="text-xs text-muted-foreground line-clamp-2 wrap-break-word">
           {getPreviewContent()}
         </div>
       </div>

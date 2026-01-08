@@ -94,7 +94,7 @@ export function TagItem(
             <ItemIcon isLocked={tag.isLocked} isPin={tag.isPin} />
             <ItemContent value={tag.name} isEditing={isEditing} onChange={updateName} />
           </div>
-          <span className={`text-${textSize} ml-2 flex-shrink-0 ${
+          <span className={`text-${textSize} ml-2 shrink-0 ${
             tag.id === currentTagId ? 'text-primary-foreground/70' : 'text-muted-foreground'
           }`}>
             {tag.total && tag.total > 0 ? tag.total : ''}

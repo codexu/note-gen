@@ -97,7 +97,7 @@ export function AgentExecutionStatus() {
       {!hasContent && (
         <div className="w-full space-y-1 mb-2 bg-accent border rounded overflow-hidden">
           <div className="flex items-center gap-2 py-1.5 px-3 rounded bg-muted min-w-0">
-            <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
+            <Loader2 className="size-4 animate-spin text-blue-500 shrink-0" />
             <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">{t('running')}</span>
           </div>
         </div>
@@ -116,16 +116,16 @@ export function AgentExecutionStatus() {
               className="flex items-center gap-2 py-1.5 px-3 rounded cursor-pointer hover:bg-muted/50 min-w-0"
               onClick={() => toggleExpand(index)}
             >
-              <Brain className="size-4 text-blue-500 flex-shrink-0" />
+              <Brain className="size-4 text-blue-500 shrink-0" />
               <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">
                 {title}
               </span>
-              <ChevronRight className={`size-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+              <ChevronRight className={`size-4 text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
             </div>
             
             {/* 展开的详细内容 */}
             {isExpanded && (
-              <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words">
+              <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word">
                 {thought}
               </div>
             )}
@@ -134,11 +134,11 @@ export function AgentExecutionStatus() {
             {confirmationRecord && (
               <div className="flex items-center gap-2 py-1.5 px-3 border-t">
                 {confirmationRecord.status === 'confirmed' ? (
-                  <CheckCircle className="size-4 text-green-500 flex-shrink-0" />
+                  <CheckCircle className="size-4 text-green-500 shrink-0" />
                 ) : (
-                  <XCircle className="size-4 text-red-500 flex-shrink-0" />
+                  <XCircle className="size-4 text-red-500 shrink-0" />
                 )}
-                <code className="text-sm text-muted-foreground flex-1 break-words font-mono">
+                <code className="text-sm text-muted-foreground flex-1 wrap-break-word font-mono">
                   {confirmationRecord.toolName}
                 </code>
               </div>
@@ -151,7 +151,7 @@ export function AgentExecutionStatus() {
       {agentState.isThinking && !agentState.currentThought && (
         <div className="w-full space-y-1 mb-2 bg-accent border rounded overflow-hidden">
           <div className="flex items-center gap-2 py-1.5 px-3 rounded bg-muted min-w-0">
-            <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
+            <Loader2 className="size-4 animate-spin text-blue-500 shrink-0" />
             <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">{t('thinking')}</span>
           </div>
         </div>
@@ -164,12 +164,12 @@ export function AgentExecutionStatus() {
           {agentState.currentThought && (
             <>
               <div className="flex items-center gap-2 py-1.5 px-3 rounded bg-muted min-w-0">
-                <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
+                <Loader2 className="size-4 animate-spin text-blue-500 shrink-0" />
                 <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">{t('thinking')}</span>
               </div>
               <div 
                 ref={contentRef}
-                className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words"
+                className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word"
               >
                 {agentState.currentThought}
               </div>
@@ -179,7 +179,7 @@ export function AgentExecutionStatus() {
           {/* Action - 行动 */}
           {agentState.currentAction && !agentState.pendingConfirmation && (
             <div className="flex items-center gap-2 py-1.5 px-3 border-t">
-              <Zap className="size-4 text-yellow-500 flex-shrink-0" />
+              <Zap className="size-4 text-yellow-500 shrink-0" />
               <code className="text-sm text-muted-foreground flex-1 truncate min-w-0 font-mono">{agentState.currentAction}</code>
             </div>
           )}
@@ -187,11 +187,11 @@ export function AgentExecutionStatus() {
           {/* 确认请求 - 只显示工具名和按钮 */}
           {agentState.pendingConfirmation && (
             <div className="flex items-center gap-2 py-1.5 px-3 border-t">
-              <Clock className="size-4 text-orange-500 flex-shrink-0 animate-pulse" />
+              <Clock className="size-4 text-orange-500 shrink-0 animate-pulse" />
               <code className="text-sm text-muted-foreground flex-1 truncate min-w-0 font-mono">
                 {agentState.pendingConfirmation.toolName}
               </code>
-              <div className="flex gap-1 flex-shrink-0">
+              <div className="flex gap-1 shrink-0">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -216,10 +216,10 @@ export function AgentExecutionStatus() {
           {agentState.currentObservation && (
             <>
               <div className="flex items-center gap-2 py-1.5 px-3 border-t">
-                <Eye className="size-4 text-green-500 flex-shrink-0" />
+                <Eye className="size-4 text-green-500 shrink-0" />
                 <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">{t('observation')}</span>
               </div>
-              <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto break-words">
+              <div className="pl-6 pr-3 pb-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-[250px] overflow-y-auto wrap-break-word">
                 {agentState.currentObservation}
               </div>
             </>

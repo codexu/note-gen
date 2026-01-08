@@ -548,7 +548,7 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
           </>
         ) : (
           <>
-            <Upload className="!size-3 relative z-10" />
+            <Upload className="size-3! relative z-10" />
             <span className="text-xs relative z-10">{syncText}</span>
           </>
         )}

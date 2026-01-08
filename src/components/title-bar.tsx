@@ -160,7 +160,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   return (
     <TooltipProvider>
       <div
-        className="h-[36px] w-full flex flex-nowrap items-center select-none shrink-0 fixed top-0 left-0 right-0 z-[9999] border-b bg-background"
+        className="h-[36px] w-full flex flex-nowrap items-center select-none shrink-0 fixed top-0 left-0 right-0 z-9999 border-b bg-background"
         style={{
           // macOS 红绿灯按钮在左侧，需要留出空间（约 70px）
           paddingLeft: isMacOS ? '70px' : '0',

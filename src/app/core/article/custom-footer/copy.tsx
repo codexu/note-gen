@@ -39,13 +39,13 @@ export default function CopyFormatSelector({editor, disabled}: {editor?: Vditor,
             className="outline-none"
             disabled={disabled}
           >
-            <CopyIcon className="!size-3" />
+            <CopyIcon className="size-3!" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent 
           side="top" 
           align="start"
-          className="min-w-[6rem]"
+          className="min-w-24"
         >
           <DropdownMenuItem onClick={() => handleFormatSelect("Markdown")}>
             Markdown

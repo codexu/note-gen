@@ -158,7 +158,7 @@ export function ChatToolbarDialog({ open, onOpenChange }: ChatToolbarDialogProps
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="!w-full sm:!w-[520px] !max-w-none overflow-y-auto">
+      <SheetContent side="right" className="w-full! sm:w-[520px]! max-w-none! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{t('settings.general.tools.chatToolbar.dialogTitle')}</SheetTitle>
           <SheetDescription>

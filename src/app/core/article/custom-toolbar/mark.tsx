@@ -108,7 +108,7 @@ export default function MarkInsert({editor}: {editor?: Vditor}) {
         </div>
       </SheetTrigger>
       <SheetContent className="p-0 min-w-full md:min-w-[500px] flex flex-col">
-        <SheetHeader className="p-4 border-b flex-shrink-0">
+        <SheetHeader className="p-4 border-b shrink-0">
           <SheetTitle>{t('title')}</SheetTitle>
           <SheetDescription>{t('description')}</SheetDescription>
         </SheetHeader>
@@ -154,7 +154,7 @@ export default function MarkInsert({editor}: {editor?: Vditor}) {
                           marks.map((mark) => (
                             <div key={mark.id} className="flex items-center border-t first:border-t-0">
                               <Button 
-                                className="size-12 ml-2 flex-shrink-0" 
+                                className="size-12 ml-2 shrink-0" 
                                 onClick={() => handleBlock(mark)}
                                 variant="ghost"
                               >

@@ -106,7 +106,7 @@ export function RecordToolbarDialog({ open, onOpenChange }: RecordToolbarDialogP
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="!w-full sm:!w-[520px] !max-w-none overflow-y-auto">
+      <SheetContent side="right" className="w-full! sm:w-[520px]! max-w-none! overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{t('settings.general.tools.recordToolbar.dialogTitle')}</SheetTitle>
           <SheetDescription>

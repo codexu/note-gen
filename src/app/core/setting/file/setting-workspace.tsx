@@ -95,7 +95,7 @@ export function SettingWorkspace() {
                 className="w-full justify-between p-3 h-auto text-left font-normal"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <FolderOpen className="w-4 h-4 flex-shrink-0" />
+                  <FolderOpen className="w-4 h-4 shrink-0" />
                   <span className="truncate text-sm">
                     {workspacePath || t('workspace.default')}
                   </span>
@@ -148,7 +148,7 @@ export function SettingWorkspace() {
                           >
                             <div className="flex items-center justify-between w-full group">
                               <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                                <FolderOpen className="h-4 w-4 shrink-0" />
                                 <span className="truncate" title={path}>
                                   {path}
                                 </span>

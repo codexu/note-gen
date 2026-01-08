@@ -8,6 +8,7 @@ import {
   DrawerContent,
   DrawerTrigger,
   DrawerClose,
+  DrawerTitle,
 } from "@/components/ui/drawer"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
@@ -45,6 +46,9 @@ export function ChatAttachmentsDrawer({
           />
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
+          <DrawerTitle className="sr-only">
+            {t('attachments.title')}
+          </DrawerTitle>
           <div className="p-4 overflow-auto">
             <div className="grid grid-cols-3 gap-2">
               <Button

@@ -1567,7 +1567,12 @@
           "title": "Chat Settings"
         },
         "tools": {
-          "title": "Tools"
+          "title": "Tools",
+          "clearContext": "Clear Context",
+          "clearContextDesc": "Clear conversation context, keep chat history",
+          "clearChat": "Clear Chat",
+          "clearChatDesc": "Delete all chat records",
+          "clear": "Clear"
         },
         "attachments": {
           "title": "Attachments",

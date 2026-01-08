@@ -16,8 +16,6 @@ import { ChatLanguage } from "./chat-language"
 import { ChatSend } from "./chat-send"
 import { LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
-import { ClearContext } from "./clear-context"
-import { ClearChat } from "./clear-chat"
 import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
@@ -551,8 +549,6 @@ export function ChatInput() {
                 />
                 <ChatSettingsDrawer />
                 <ChatToolsDrawer />
-                <ClearContext />
-                <ClearChat />
               </div>
             )}
           </div>

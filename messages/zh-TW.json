@@ -1491,7 +1491,12 @@
           "title": "對話設定"
         },
         "tools": {
-          "title": "工具"
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除對話上下文，保留聊天記錄",
+          "clearChat": "清空對話",
+          "clearChatDesc": "刪除所有聊天記錄",
+          "clear": "清除"
         },
         "attachments": {
           "title": "附件",

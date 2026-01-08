@@ -1579,7 +1579,12 @@
           "title": "チャット設定"
         },
         "tools": {
-          "title": "ツール"
+          "title": "ツール",
+          "clearContext": "コンテキストをクリア",
+          "clearContextDesc": "会話のコンテキストをクリアし、チャット履歴を保持",
+          "clearChat": "チャットをクリア",
+          "clearChatDesc": "すべてのチャット記録を削除",
+          "clear": "クリア"
         },
         "attachments": {
           "title": "添付ファイル",

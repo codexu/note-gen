@@ -12,6 +12,8 @@ import {
 import { TagLinkToggle } from "./tag-link-toggle"
 import { RagToggle } from "./rag-toggle"
 import { McpSelector } from "./mcp-selector"
+import { MobileClearContext } from "./clear-context"
+import { MobileClearChat } from "./clear-chat"
 import { useTranslations } from "next-intl"
 
 export function ChatToolsDrawer() {
@@ -43,6 +45,8 @@ export function ChatToolsDrawer() {
             <div className="h-16 flex items-center w-full">
               <McpSelector />
             </div>
+            <MobileClearContext />
+            <MobileClearChat />
           </div>
         </div>
       </DrawerContent>

@@ -1552,7 +1552,12 @@
           "title": "对话设置"
         },
         "tools": {
-          "title": "工具"
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除对话上下文，保留聊天记录",
+          "clearChat": "清空对话",
+          "clearChatDesc": "删除所有聊天记录",
+          "clear": "清除"
         },
         "attachments": {
           "title": "附件",

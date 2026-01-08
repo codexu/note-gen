@@ -1536,7 +1536,12 @@
           "title": "Configurações de Chat"
         },
         "tools": {
-          "title": "Ferramentas"
+          "title": "Ferramentas",
+          "clearContext": "Limpar Contexto",
+          "clearContextDesc": "Limpar contexto da conversa, manter histórico",
+          "clearChat": "Limpar Chat",
+          "clearChatDesc": "Excluir todos os registros de chat",
+          "clear": "Limpar"
         },
         "attachments": {
           "title": "Anexos",

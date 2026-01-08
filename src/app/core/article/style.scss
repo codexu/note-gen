@@ -94,6 +94,21 @@
   padding-bottom: 24px !important;
 }
 
+.vditor-reset .language-infographic {
+  margin-bottom: 16px;
+  text-align: center;
+  background: transparent;
+  background-image: none;
+  padding: 0 !important;
+  white-space: normal;
+}
+
+.vditor-reset .language-infographic .infographic-diagram {
+  width: 100%;
+  min-height: 120px;
+  overflow: hidden;
+}
+
 .vditor-counter{
   display: none;
 }

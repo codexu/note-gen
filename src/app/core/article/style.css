@@ -244,3 +244,98 @@
   padding: 0.25rem;
   transform: translateY(-1rem);
 }
+
+/* 深色模式下的所有代码块文字适配 */
+.dark .vditor-content code.language-mindmap,
+.dark .vditor-content code.language-mermaid,
+.dark .vditor-content code.language-echarts,
+.dark .vditor-content code.language-abc,
+.dark .vditor-content code.language-graphviz,
+.dark .vditor-content code.language-flowchart,
+.dark .vditor-content code.language-math,
+.dark .vditor-content code.language-mathjax,
+.dark .vditor-content code.language-katex,
+.dark .vditor-content code.language-latex,
+.dark .vditor-content code.language-tex,
+.dark .vditor-content code[class^="language-"],
+.dark .vditor-content code:not([class]) {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+}
+
+/* 深色模式下的图表和数学公式容器文字适配 */
+.dark .vditor-content .mermaid,
+.dark .vditor-content .mindmap,
+.dark .vditor-content .echarts,
+.dark .vditor-content .abc,
+.dark .vditor-content .graphviz,
+.dark .vditor-content .flowchart,
+.dark .vditor-content .math,
+.dark .vditor-content .mathjax,
+.dark .vditor-content .katex,
+.dark .vditor-content .latex,
+.dark .vditor-content .tex {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+}
+
+/* 深色模式下的图表和数学公式 SVG 元素适配 */
+.dark .vditor-content .mermaid svg,
+.dark .vditor-content .mindmap svg,
+.dark .vditor-content .echarts svg,
+.dark .vditor-content .abc svg,
+.dark .vditor-content .graphviz svg,
+.dark .vditor-content .flowchart svg,
+.dark .vditor-content .math svg,
+.dark .vditor-content .mathjax svg,
+.dark .vditor-content .katex svg,
+.dark .vditor-content .latex svg,
+.dark .vditor-content .tex svg,
+/* 为所有 language-* 下的 SVG 添加白色背景 */
+.dark .vditor-content code[class^="language-"] svg,
+.dark .vditor-content div[class^="language-"] svg,
+.dark .vditor-content [class*="language-"] svg {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+}
+
+/* 更具体的选择器确保生效 */
+.dark .vditor-content .language-flowchart svg,
+.dark .vditor-content .language-mermaid svg,
+.dark .vditor-content .language-mindmap svg,
+.dark .vditor-content .language-echarts svg,
+.dark .vditor-content .language-abc svg,
+.dark .vditor-content .language-graphviz svg {
+  color: var(--color-foreground) !important;
+  background-color: var(--color-background) !important;
+}
+
+/* 深色模式下的图表和数学公式 SVG 文字适配 */
+.dark .vditor-content .mermaid svg text,
+.dark .vditor-content .mindmap svg text,
+.dark .vditor-content .echarts svg text,
+.dark .vditor-content .abc svg text,
+.dark .vditor-content .graphviz svg text,
+.dark .vditor-content .flowchart svg text,
+.dark .vditor-content .math svg text,
+.dark .vditor-content .mathjax svg text,
+.dark .vditor-content .katex svg text,
+.dark .vditor-content .latex svg text,
+.dark .vditor-content .tex svg text {
+  fill: var(--color-foreground) !important;
+}
+
+/* 深色模式下的图表和数学公式容器背景适配 */
+.dark .vditor-content .mermaid > div,
+.dark .vditor-content .mindmap > div,
+.dark .vditor-content .echarts > div,
+.dark .vditor-content .abc > div,
+.dark .vditor-content .graphviz > div,
+.dark .vditor-content .flowchart > div,
+.dark .vditor-content .math > div,
+.dark .vditor-content .mathjax > div,
+.dark .vditor-content .katex > div,
+.dark .vditor-content .latex > div,
+.dark .vditor-content .tex > div {
+  background-color: var(--color-background) !important;
+}

@@ -53,8 +53,6 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
         }
       }
       
-      console.log('使用音频格式:', mimeType)
-      
       // 创建MediaRecorder实例
       const mediaRecorder = new MediaRecorder(stream, { mimeType })
       

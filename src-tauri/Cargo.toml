@@ -37,7 +37,6 @@ url = "2.5"
 reqwest_dav = "=0.2.1"
 tauri-plugin-opener = "2.4.0"
 uuid = { version = "1.10", features = ["v4"] }
-dirs = "5.0"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]

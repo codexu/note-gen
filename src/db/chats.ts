@@ -10,9 +10,13 @@ export interface Chat {
   role: Role
   type: ChatType
   image?: string
+  images?: string // 多张图片，JSON字符串数组
   inserted: boolean // 是否插入到 mark 中
   createdAt: number
   ragSources?: string // RAG引用的文件名，JSON字符串数组
+  agentHistory?: string // Agent执行历史，JSON字符串
+  thinking?: string // AI 思考过程
+  quoteData?: string // 引用信息，JSON字符串
 }
 
 // 创建 chats 表
@@ -26,9 +30,13 @@ export async function initChatsDb() {
       role text not null,
       type text not null,
       image text default null,
+      images text default null,
       inserted boolean default false,
       createdAt integer not null,
-      ragSources text default null
+      ragSources text default null,
+      agentHistory text default null,
+      thinking text default null,
+      quoteData text default null
     )
   `)
   
@@ -41,6 +49,42 @@ export async function initChatsDb() {
     // 如果列已存在，忽略错误
     // SQLite 会抛出 "duplicate column name" 错误
   }
+  
+  // 迁移：为现有表添加 agentHistory 列（如果不存在）
+  try {
+    await db.execute(`
+      alter table chats add column agentHistory text default null
+    `)
+  } catch {
+    // 如果列已存在，忽略错误
+  }
+  
+  // 迁移：为现有表添加 images 列（如果不存在）
+  try {
+    await db.execute(`
+      alter table chats add column images text default null
+    `)
+  } catch {
+    // 如果列已存在，忽略错误
+  }
+  
+  // 迁移：为现有表添加 thinking 列（如果不存在）
+  try {
+    await db.execute(`
+      alter table chats add column thinking text default null
+    `)
+  } catch {
+    // 如果列已存在，忽略错误
+  }
+  
+  // 迁移：为现有表添加 quoteData 列（如果不存在）
+  try {
+    await db.execute(`
+      alter table chats add column quoteData text default null
+    `)
+  } catch {
+    // 如果列已存在，忽略错误
+  }
 }
 
 // 插入一条 chat
@@ -48,8 +92,8 @@ export async function insertChat(chat: Omit<Chat, 'id' | 'createdAt'>) {
   const db = await getDb()
   const createdAt = Date.now();
   return await db.execute(
-    "insert into chats (tagId, content, role, type, image, inserted, createdAt, ragSources) values ($1, $2, $3, $4, $5, $6, $7, $8)",
-    [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.inserted ? 1 : 0, createdAt, chat.ragSources])
+    "insert into chats (tagId, content, role, type, image, images, inserted, createdAt, ragSources, agentHistory, thinking, quoteData) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+    [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.agentHistory, chat.thinking, chat.quoteData])
 }
 
 // 获取所有 chats
@@ -77,8 +121,8 @@ export async function insertChats(chats: Chat[]) {
   const db = await getDb()
   for (const chat of chats) {
     await db.execute(
-      "insert into chats (tagId, content, role, type, image, inserted, createdAt, ragSources) values ($1, $2, $3, $4, $5, $6, $7, $8)",
-      [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources]
+      "insert into chats (tagId, content, role, type, image, images, inserted, createdAt, ragSources) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+      [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources]
     )
   }
 }
@@ -96,8 +140,8 @@ export async function deleteAllChats() {
 export async function updateChat(chat: Chat) {
   const db = await getDb()
   return await db.execute(
-    "update chats set content = $1, role = $2, type = $3, image = $4, inserted = $5, ragSources = $6 where id = $7",
-    [chat.content, chat.role, chat.type, chat.image, chat.inserted ? 1 : 0, chat.ragSources, chat.id])
+    "update chats set content = $1, role = $2, type = $3, image = $4, images = $5, inserted = $6, ragSources = $7, agentHistory = $8, thinking = $9, quoteData = $10 where id = $11",
+    [chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.agentHistory, chat.thinking, chat.quoteData, chat.id])
 }
 
 // 清空 tagId 下的所有 chats
@@ -122,4 +166,34 @@ export async function deleteChat(id: number) {
   return await db.execute(
     "delete from chats where id = $1",
     [id])
+}
+
+export async function updateChats(chats: Chat[]) {
+  const db = await getDb()
+  try {
+    for (const chat of chats) {
+      await db.execute(
+        "update chats set content = $1, role = $2, type = $3, image = $4, images = $5, inserted = $6, ragSources = $7, agentHistory = $8, thinking = $9, quoteData = $10 where id = $11",
+        [chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.agentHistory, chat.thinking, chat.quoteData, chat.id]
+      )
+    }
+  } catch (error) {
+    console.error('Error updating chats:', error);
+    throw error;
+  }
+}
+
+export async function deleteChats(ids: number[]) {
+  const db = await getDb()
+  try {
+    for (const id of ids) {
+      await db.execute(
+        "delete from chats where id = $1",
+        [id]
+      )
+    }
+  } catch (error) {
+    console.error('Error deleting chats:', error);
+    throw error;
+  }
 }

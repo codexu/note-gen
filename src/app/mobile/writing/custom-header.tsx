@@ -10,7 +10,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { FileManager } from '@/app/core/article/file/file-manager'
-import { FileToolbar } from '@/app/core/article/file/file-toolbar'
+import { FileActions } from '@/app/core/article/file/file-actions'
 
 export function WritingHeader() {
   const { activeFilePath } = useArticleStore()
@@ -38,7 +38,9 @@ export function WritingHeader() {
             <DrawerTitle>Files</DrawerTitle>
           </DrawerHeader>
           <div className="p-4 h-full flex flex-col overflow-auto">
-            <FileToolbar />
+            <div className="flex items-center justify-between mb-4 h-12 border-b">
+                <FileActions />
+            </div>
             <div className="flex-1">
               <FileManager />
             </div>

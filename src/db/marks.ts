@@ -115,3 +115,50 @@ export async function clearTrash() {
   const db = await getDb();
   return await db.execute("delete from marks where deleted = $1", [1])
 }
+
+export async function updateMarks(marks: Mark[]) {
+  const db = await getDb();
+  try {
+    for (const mark of marks) {
+      await db.execute(
+        "update marks set tagId = $1, url = $2, desc = $3, content = $4, createdAt = $5 where id = $6",
+        [mark.tagId, mark.url, mark.desc, mark.content, mark.createdAt, mark.id]
+      );
+    }
+  } catch (error) {
+    console.error('Error updating marks:', error);
+    throw error;
+  }
+}
+
+export async function deleteMarks(ids: number[]) {
+  const db = await getDb();
+  const createdAt = Date.now();
+  try {
+    for (const id of ids) {
+      await db.execute(
+        "update marks set deleted = $1, createdAt = $2 where id = $3",
+        [1, createdAt, id]
+      );
+    }
+  } catch (error) {
+    console.error('Error deleting marks:', error);
+    throw error;
+  }
+}
+
+export async function restoreMarks(ids: number[]) {
+  const db = await getDb();
+  const createdAt = Date.now();
+  try {
+    for (const id of ids) {
+      await db.execute(
+        "update marks set deleted = $1, createdAt = $2 where id = $3",
+        [0, createdAt, id]
+      );
+    }
+  } catch (error) {
+    console.error('Error restoring marks:', error);
+    throw error;
+  }
+}

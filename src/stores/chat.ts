@@ -7,6 +7,7 @@ import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileConten
 import { getSyncRepoName } from '@/lib/sync/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
+import { ChatMode, AgentState, ToolCall } from '@/lib/agent/types';
 
 // MCP 工具调用记录（临时，不保存到数据库）
 export interface McpToolCall {
@@ -27,9 +28,7 @@ interface ChatState {
 
   isLinkMark: boolean // 是否关联记录
   setIsLinkMark: (isLinkMark: boolean) => void
-
-  isPlaceholderEnabled: boolean // 是否启用AI提示占位符
-  setPlaceholderEnabled: (isEnabled: boolean) => void
+  initIsLinkMark: () => void // 初始化关联状态
 
   chats: Chat[]
   init: (tagId: number) => Promise<void> // 初始化 chats
@@ -59,6 +58,20 @@ interface ChatState {
   updateMcpToolCall: (id: string, updates: Partial<McpToolCall>) => void
   getMcpToolCallsByChatId: (chatId: number) => McpToolCall[]
   clearMcpToolCalls: () => void
+
+  // Agent 模式
+  chatMode: ChatMode
+  setChatMode: (mode: ChatMode) => void
+  
+  agentState: AgentState
+  setAgentState: (state: Partial<AgentState>) => void
+  resetAgentState: () => void
+  addAgentToolCall: (toolCall: ToolCall) => void
+  updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => void
+  
+  // Placeholder 状态
+  isPlaceholderEnabled: boolean
+  setPlaceholderEnabled: (enabled: boolean) => void
 }
 
 const useChatStore = create<ChatState>((set, get) => ({
@@ -68,15 +81,96 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ loading })
   },
 
-  isLinkMark: true,
+  isLinkMark: (typeof window !== 'undefined' ? localStorage.getItem('isLinkMark') === 'true' : true),
   setIsLinkMark: (isLinkMark: boolean) => {
     set({ isLinkMark })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('isLinkMark', String(isLinkMark))
+    }
+  },
+  initIsLinkMark: () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('isLinkMark')
+      if (stored === null) {
+        localStorage.setItem('isLinkMark', 'true')
+        set({ isLinkMark: true })
+      } else {
+        set({ isLinkMark: stored === 'true' })
+      }
+    }
+  },
+
+  chatMode: (typeof window !== 'undefined' ? localStorage.getItem('chatMode') as ChatMode : null) || 'chat',
+  setChatMode: (mode: ChatMode) => {
+    set({ chatMode: mode })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatMode', mode)
+    }
+  },
+
+  agentState: {
+    isRunning: false,
+    isThinking: false,
+    currentThought: '',
+    thoughtHistory: [],
+    currentAction: undefined,
+    currentObservation: undefined,
+    toolCalls: [],
+    maxIterations: 15,
+    currentIteration: 0,
+    pendingConfirmation: undefined,
+    confirmationHistory: [],
+  },
+
+  setAgentState: (state: Partial<AgentState>) => {
+    set({ agentState: { ...get().agentState, ...state } })
+  },
+
+  resetAgentState: () => {
+    set({
+      agentState: {
+        isRunning: false,
+        isThinking: false,
+        currentThought: '',
+        thoughtHistory: [],
+        currentAction: '',
+        currentObservation: '',
+        toolCalls: [],
+        maxIterations: 15,
+        currentIteration: 0,
+        pendingConfirmation: undefined,
+        confirmationHistory: [],
+      }
+    })
+  },
+
+  addAgentToolCall: (toolCall: ToolCall) => {
+    const agentState = get().agentState
+    set({
+      agentState: {
+        ...agentState,
+        toolCalls: [...agentState.toolCalls, toolCall]
+      }
+    })
+  },
+
+  updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => {
+    const agentState = get().agentState
+    set({
+      agentState: {
+        ...agentState,
+        toolCalls: agentState.toolCalls.map(call =>
+          call.id === id ? { ...call, ...updates } : call
+        )
+      }
+    })
   },
 
   isPlaceholderEnabled: true,
-  setPlaceholderEnabled: (isEnabled: boolean) => {
-    set({ isPlaceholderEnabled: isEnabled })
+  setPlaceholderEnabled: (enabled: boolean) => {
+    set({ isPlaceholderEnabled: enabled })
   },
+
   chats: [],
   init: async (tagId: number) => {
     await initChatsDb()

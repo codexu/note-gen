@@ -15,11 +15,14 @@ import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CopySlash } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import emitter from "@/lib/emitter"
+import { useRouter } from 'next/navigation'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlText() {
   const t = useTranslations();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('')
 
@@ -32,18 +35,26 @@ export function ControlText() {
     await fetchMarks()
     await fetchTags()
     getCurrentTag()
+    
+    // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+    handleRecordComplete(router)
+    
     setText('')
     setOpen(false)
   }
 
-  useEffect(() => {
-    emitter.on('quickRecordTextHandler', () => {
-      setOpen(true)
-    })
-    return () => {
-      emitter.off('quickRecordTextHandler')
-    }
+  const handleOpen = useCallback(() => {
+    setOpen(true)
   }, [])
+
+  useEffect(() => {
+    emitter.on('quickRecordTextHandler', handleOpen)
+    emitter.on('toolbar-shortcut-text', handleOpen)
+    return () => {
+      emitter.off('quickRecordTextHandler', handleOpen)
+      emitter.off('toolbar-shortcut-text', handleOpen)
+    }
+  }, [handleOpen])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

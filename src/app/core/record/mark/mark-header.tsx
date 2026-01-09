@@ -84,10 +84,10 @@ export function MarkHeader() {
 
   return (
     <div className="flex justify-between items-center h-12 border-b px-2">
-      <div className="flex">
-        <TooltipProvider>
-          {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
-          {!isMobile ? (
+      {/* 桌面端显示工具栏，移动端隐藏 */}
+      {!isMobile && (
+        <div className="flex">
+          <TooltipProvider>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -107,33 +107,9 @@ export function MarkHeader() {
                 </div>
               </SortableContext>
             </DndContext>
-          ) : (
-            <div className="flex">
-              {recordToolbarConfig
-                .filter(item => item.enabled)
-                .sort((a, b) => a.order - b.order)
-                .map(item => {
-                  switch (item.id) {
-                    case 'text':
-                      return <ControlText key={item.id} />
-                    case 'recording':
-                      return <ControlRecording key={item.id} />
-                    case 'scan':
-                      return <ControlScan key={item.id} />
-                    case 'image':
-                      return <ControlImage key={item.id} />
-                    case 'link':
-                      return <ControlLink key={item.id} />
-                    case 'file':
-                      return <ControlFile key={item.id} />
-                    default:
-                      return null
-                  }
-                })}
-            </div>
-          )}
-        </TooltipProvider>
-      </div>
+          </TooltipProvider>
+        </div>
+      )}
       <div className="flex items-center gap-1">
         {
           trashState ? 

@@ -38,17 +38,16 @@ export function LinkedFileDisplay({ linkedFile, onFileRemove }: LinkedFileDispla
   if (!linkedFile) return null
 
   return (
-    <div className="flex items-center justify-between bg-accent/50 rounded-md px-2 py-1 text-sm">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between bg-accent/50 relative z-0 rounded-xl rounded-b-none px-2 text-sm border-t border-l border-r w-full pb-2 translate-y-2">
+      <div className="flex items-center gap-2 opacity-50">
         <AtSign className="size-3" />
-        <span className="font-medium">{linkedFile.name}</span>
-        <span className="text-xs text-muted-foreground">({linkedFile.relativePath})</span>
+        <span className="font-medium text-xs">{linkedFile.name}</span>
       </div>
       <Button
         variant="ghost"
         size="sm"
         onClick={onFileRemove}
-        className="size-6 p-0"
+        className="size-6 p-0 opacity-50"
       >
         <X className="size-3" />
       </Button>

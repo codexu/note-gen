@@ -15,6 +15,9 @@ import { readFile, writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/p
 import { useRef } from 'react'
 import { isMobileDevice } from '@/lib/check'
 import { convertToWav } from '@/lib/audio-converter'
+import { useEffect } from 'react'
+import emitter from '@/lib/emitter'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlRecording() {
   const t = useTranslations();
@@ -35,6 +38,22 @@ export function ControlRecording() {
     startRecording,
     stopRecording
   } = useRecordingStore()
+  
+  // 监听快捷键
+  useEffect(() => {
+    const handleToggleRecording = () => {
+      if (isRecording) {
+        handleStop()
+      } else {
+        handleStart()
+      }
+    }
+    
+    emitter.on('toolbar-shortcut-recording', handleToggleRecording)
+    return () => {
+      emitter.off('toolbar-shortcut-recording', handleToggleRecording)
+    }
+  }, [isRecording])
 
   // 格式化录音时长
   const formatDuration = (seconds: number) => {
@@ -60,6 +79,9 @@ export function ControlRecording() {
     
     try {
       await startRecording()
+      
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
     } catch (error) {
       toast({
         title: t('recording.error'),
@@ -77,11 +99,8 @@ export function ControlRecording() {
         throw new Error(t('recording.noAudioData'))
       }
       
-      console.log('原始录音格式:', audioBlob.type, '大小:', audioBlob.size)
-      
       // 转换为 WAV 格式
       const wavBlob = await convertToWav(audioBlob)
-      console.log('转换后格式:', wavBlob.type, '大小:', wavBlob.size)
       
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
@@ -122,8 +141,6 @@ export function ControlRecording() {
     const filename = `recording_${timestamp}.${extension}`
     const audioDir = 'recordings'
     
-    console.log('保存音频文件:', filename, 'Blob类型:', audioBlob.type, 'Blob大小:', audioBlob.size)
-    
     // 确保目录存在
     const dirExists = await exists(audioDir, { baseDir: BaseDirectory.AppData })
     if (!dirExists) {
@@ -150,11 +167,8 @@ export function ControlRecording() {
         throw new Error('音频数据为空')
       }
       
-      console.log('音频 Blob 大小:', audioBlob.size, '类型:', audioBlob.type)
-      
       // 保存音频文件
       audioPath = await saveAudioFile(audioBlob)
-      console.log('音频文件已保存:', audioPath)
       
       // 调用STT API识别
       let transcription = ''

@@ -11,6 +11,8 @@ import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import useImageStore from "@/stores/imageHosting"
 import useShortcutStore from "@/stores/shortcut"
+import useChatStore from "@/stores/chat"
+import useUpdateStore from "@/stores/update"
 import initQuickRecordText from "@/lib/shortcut/quick-record-text"
 import { useRouter, usePathname } from "next/navigation"
 import initShowWindow from "@/lib/shortcut/show-window"
@@ -19,6 +21,8 @@ import { SearchDialog } from "@/components/search-dialog"
 import { reportAppStart } from "@/lib/event-report"
 import { TitleBar } from "@/components/title-bar"
 import { Store } from '@tauri-apps/plugin-store'
+import { TextSizeProvider } from "@/contexts/text-size-context"
+import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
 
 export default function RootLayout({
   children,
@@ -30,6 +34,8 @@ export default function RootLayout({
   const { currentLocale } = useI18n()
   const { initShortcut } = useShortcutStore()
   const { initVectorDb } = useVectorStore()
+  const { initIsLinkMark } = useChatStore()
+  const { initUpdateStore, checkForUpdates } = useUpdateStore()
   const router = useRouter()
   const pathname = usePathname()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -53,11 +59,16 @@ export default function RootLayout({
     initAllDatabases()
     initShortcut()
     initVectorDb()
+    initIsLinkMark()
     initQuickRecordText()
     initShowWindow()
     initMcp()
     // 上报应用启动事件
     reportAppStart()
+    // 初始化更新检查
+    initUpdateStore().then(() => {
+      checkForUpdates()
+    })
   }, [])
 
   // 应用界面缩放
@@ -135,11 +146,14 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
-      <TitleBar onSearchClick={() => setSearchOpen(true)} />
-      <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
-        {children}
-      </main>
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <TextSizeProvider>
+        <TitleBar onSearchClick={() => setSearchOpen(true)} />
+        <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
+          {children}
+        </main>
+        <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+        <SyncConfirmDialog />
+      </TextSizeProvider>
     </ThemeProvider>
   );
 }

@@ -56,6 +56,14 @@
           "title": "Escala do Conteúdo",
           "desc": "Ajuste o tamanho do texto no editor e no conteúdo Markdown do chat"
         },
+        "fileManagerTextSize": {
+          "title": "Tamanho do Texto do Gerenciador de Arquivos",
+          "desc": "Ajuste o tamanho do texto das listas de arquivos e pastas no gerenciador de arquivos"
+        },
+        "recordTextSize": {
+          "title": "Tamanho do Texto dos Registros",
+          "desc": "Ajuste o tamanho do texto dos itens de registro na lista de registros"
+        },
         "customCss": {
           "title": "CSS Personalizado",
           "desc": "Adicione estilos CSS personalizados para substituir os estilos padrão do aplicativo",
@@ -65,6 +73,12 @@
           "placeholder": "Insira o código CSS personalizado aqui",
           "save": "Salvar",
           "cancel": "Cancelar"
+        },
+        "tray": {
+          "enabled": {
+            "title": "Habilitar Bandeja",
+            "desc": "Escolher minimizar para bandeja ou fechar aplicativo ao fechar janela"
+          }
         }
       },
       "tools": {
@@ -209,6 +223,8 @@
       "updateDownloading": "Atualizando {downloaded} / {contentLength}",
       "updateInstalled": "Reiniciar aplicativo",
       "noUpdate": "A versão atual é a mais recente",
+      "ignoreVersion": "Ignorar esta versão",
+      "ignoreVersionSuccess": "Esta atualização de versão foi ignorada",
       "items": {
         "home": {
           "title": "Início",
@@ -261,6 +277,14 @@
         "placeholder": {
           "title": "Sugestão da IA",
           "desc": "Prompts de sugestão da IA são usados para geração de conteúdo no placeholder da conversa de IA da página de registro."
+        },
+        "completion": {
+          "title": "Conclusão Rápida",
+          "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Gerar Mensagem de Commit Automaticamente",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "translate": {
           "title": "Tradução",
@@ -698,9 +722,18 @@
           "desc": "Usado para vetorização de texto e busca semântica"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "Modelo de Visão",
-          "desc": "Suporta compreensão de imagem e reconhecimento OCR"
+          "desc": "Suporta compreensão de imagens e perguntas visuais"
+        },
+        "completionModel": {
+          "name": "Conclusão Rápida",
+          "type": "Modelo de Conclusão",
+          "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Mensagem de Commit",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "poweredBy": "Fornecido por SiliconFlow"
       }
@@ -798,6 +831,7 @@
         "recording": "Gravação",
         "file": "Arquivo",
         "link": "Vínculo",
+        "pdf": "PDF",
         "upload": "Upload de Registro",
         "download": "Download de Registro",
         "uploadTo": "Sincronizar do local para {provider}",
@@ -857,6 +891,27 @@
           "text": "Texto"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agente"
+          },
+          "agent": {
+            "running": "Agente em Execução",
+            "thinking": "Pensando",
+            "acting": "Agindo",
+            "observation": "Observação",
+            "toolCalls": "Chamadas de Ferramenta",
+            "confirmation": {
+              "title": "Confirmar Ação",
+              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+              "tool": "Ferramenta",
+              "parameters": "Parâmetros",
+              "cancel": "Cancelar",
+              "confirm": "Confirmar",
+              "confirmed": "Confirmado",
+              "cancelled": "Cancelado"
+            }
+          },
           "placeholder": {
             "default": "Faça perguntas ou organize suas notas em um artigo...",
             "noApiKey": "Chave de API não configurada, recurso de chat com IA indisponível..."
@@ -894,12 +949,14 @@
             "error": "Falha"
           },
           "empty": {
-            "features": {
-              "linked": "Vinculado aos seus registros ou notas",
-              "chat": "Converse com o bot de IA",
-              "organize": "Organize seus registros em notas",
-              "clipboard": "Reconhecer registros ou imagens da área de transferência"
-            }
+            "title": "Iniciar Conversa com IA",
+            "subtitle": "Use o modo Chat ou Agent para interagir com IA",
+            "currentModel": "Modelo Atual",
+            "currentPrompt": "Prompt Atual",
+            "currentMode": "Modo de Conversa",
+            "noModel": "Nenhum modelo definido",
+            "noPrompt": "Nenhum prompt definido",
+            "configureModel": "Configurar Modelo"
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"
@@ -1007,12 +1064,14 @@
     },
     "chat": {
       "empty": {
-        "features": {
-          "linked": "Vinculado aos seus registros ou notas",
-          "chat": "Converse com o bot de IA",
-          "organize": "Organize seus registros em notas",
-          "clipboard": "Reconhecer registros ou imagens da área de transferência"
-        }
+        "title": "Iniciar Conversa com IA",
+        "subtitle": "Use o modo Chat ou Agent para interagir com IA",
+        "currentModel": "Modelo Atual",
+        "currentPrompt": "Prompt Atual",
+        "noModel": "Nenhum modelo definido",
+        "noPrompt": "Nenhum prompt definido",
+        "modeHint": "Clique no botão",
+        "modeHintSuffix": "à esquerda da caixa de entrada para alternar o modo de conversa"
       },
       "newChat": "Novo Chat com Nova Tag",
       "removeChat": "Remover Chat com Tag Atual",
@@ -1104,6 +1163,35 @@
           "gen": "Modo Organizar",
           "translate": "Modo Traduzir"
         },
+        "chatModeSelect": {
+          "chatDescription": "Conversa rápida, modo somente leitura",
+          "agentDescription": "Assistente inteligente, pode executar ações"
+        },
+        "attachImage": "Anexar imagens",
+        "agent": {
+          "running": "Agente em Execução",
+          "thinking": "Pensando",
+          "acting": "Agindo",
+          "observation": "Observação",
+          "toolCalls": "Chamadas de Ferramenta",
+          "confirmation": {
+            "title": "Confirmar Ação",
+            "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+            "tool": "Ferramenta",
+            "parameters": "Parâmetros",
+            "cancel": "Cancelar",
+            "confirm": "Confirmar"
+          }
+        },
+        "imageSelector": {
+          "title": "Selecionar Imagens",
+          "local": "Arquivos Locais",
+          "records": "Dos Registros",
+          "selectFiles": "Selecionar Imagens Locais",
+          "noRecords": "Nenhum registro de imagem disponível",
+          "cancel": "Cancelar",
+          "confirm": "Confirmar"
+        },
         "fileLink": {
           "tooltip": "Vincular Arquivo",
           "selectFile": "Selecionar Arquivo",
@@ -1189,6 +1277,7 @@
   "navigation": {
     "chat": "Conversa",
     "record": "Registro",
+    "quickRecord": "Registro Rápido",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
@@ -1227,6 +1316,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "Buscando arquivo remoto...",
+      "syncComplete": "Sincronização Concluída"
+    },
+    "syncConfirm": {
+      "title": "Atualização de Arquivo Remoto Detectada",
+      "description": "Arquivo {fileName} tem atualizações remotas",
+      "commitInfo": "Informações do Último Commit",
+      "commitMessage": "Mensagem do Commit",
+      "author": "Autor",
+      "changes": "Alterações",
+      "confirmMessage": "Tem certeza de que deseja buscar a versão remota e substituir o arquivo local? Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirmPull": "Confirmar Busca"
+    },
+    "emptyState": {
+      "title": "Começar a Criar",
+      "subtitle": "Selecione um arquivo para começar a editar ou crie uma nova nota",
+      "tip": "💡 Dica: Você também pode selecionar arquivos no gerenciador de arquivos à esquerda",
+      "actions": {
+        "newNote": {
+          "title": "Criar Nota",
+          "desc": "Criar uma nova nota Markdown"
+        },
+        "newRecord": {
+          "title": "Criar Registro",
+          "desc": "Abrir função de registro de texto"
+        },
+        "globalSearch": {
+          "title": "Pesquisa Global",
+          "desc": "Encontre rapidamente o conteúdo de suas notas"
+        },
+        "openWorkspace": {
+          "title": "Abrir Workspace",
+          "desc": "Selecionar ou alternar diretório de workspace"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "Acessar Repositório",
@@ -1252,6 +1379,12 @@
         "importSuccess": "Importação Bem-sucedida",
         "importSuccessDesc": "Importados {count} arquivos com sucesso",
         "importError": "Falha na Importação"
+      },
+      "sync": {
+        "syncingRemote": "Buscando arquivo remoto...",
+        "syncComplete": "Sincronização Concluída",
+        "pullingRemote": "Buscando conteúdo mais recente do servidor remoto...",
+        "pullComplete": "Pull Concluído"
       },
       "context": {
         "viewDirectory": "Ver Diretório",
@@ -1328,6 +1461,9 @@
       "copySuccess": "Cópia Bem-sucedida",
       "copySuccessDescription": "Copiado para a área de transferência",
       "floatbar": {
+        "quote": {
+          "tooltip": "Citar"
+        },
         "readAloud": {
           "start": "Ler em Voz Alta",
           "stop": "Parar Leitura",
@@ -1383,7 +1519,17 @@
       }
     },
     "footer": {
-      "wordCount": "Palavras",
+      "wordCount": "Contagem de Palavras",
+      "pull": {
+        "pull": "Pull",
+        "checking": "Verificando atualizações...",
+        "noUpdate": "Sem atualizações remotas",
+        "clickToPull": "Clique para puxar atualizações remotas",
+        "pullSuccess": "Pull Bem-sucedido",
+        "pullFailed": "Pull Falhou",
+        "ignored": "Ignorado",
+        "ignoreUpdate": "Ignorar Esta Atualização"
+      },
       "sync": {
         "sync": "Sincronizar",
         "synced": "Sincronizado",
@@ -1408,6 +1554,30 @@
         "calculating": "Calculando",
         "pending": "Pendente {progress}%",
         "synced": "Sincronizado"
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Configurações de Chat"
+        },
+        "tools": {
+          "title": "Ferramentas",
+          "clearContext": "Limpar Contexto",
+          "clearContextDesc": "Limpar contexto da conversa, manter histórico",
+          "clearChat": "Limpar Chat",
+          "clearChatDesc": "Excluir todos os registros de chat",
+          "clear": "Limpar"
+        },
+        "attachments": {
+          "title": "Anexos",
+          "gallery": "Galeria",
+          "camera": "Câmera",
+          "file": "Arquivo",
+          "linkNote": "Vincular Nota"
+        }
       }
     }
   },
@@ -1508,13 +1678,13 @@
   "footer": {
     "wordCount": "Palavras",
     "sync": {
-      "sync": "Sincronizar",
-      "synced": "Sincronizado",
-      "syncing": "Sincronizando",
-      "syncFailed": "Falha na Sincronização",
-      "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
-      "quickSync": "Sincronização Rápida"
-    },
+        "push": "Push",
+        "pushed": "Enviado",
+        "syncing": "Enviando",
+        "syncFailed": "Falha no Push",
+        "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
+        "quickSync": "Sincronização Rápida"
+      },
     "history": {
       "loadingHistory": "Carregando histórico",
       "historyRecords": "Registros do Histórico",
@@ -1532,5 +1702,8 @@
       "pending": "Pendente {progress}%",
       "synced": "Sincronizado"
     }
+  },
+  "quickRecord": {
+    "description": "Clique para selecionar uma ferramenta de registro e criar registros rapidamente"
   }
 }

@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath } from "@/lib/path";
@@ -100,6 +100,7 @@ export function PasteInFolder({ item }: PasteInFolderProps) {
       inset 
       disabled={!clipboardItem} 
       onClick={handlePasteInFolder}
+      menuType="file"
     >
       {t('context.paste')}
     </ContextMenuItem>

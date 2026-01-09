@@ -1,0 +1,22 @@
+.image-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--background);
+}
+
+.image-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.image-editor-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

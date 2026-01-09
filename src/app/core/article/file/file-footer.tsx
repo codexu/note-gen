@@ -1,8 +1,7 @@
 'use client'
 
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { FolderOpen, FolderSync, SortAsc, SortDesc, ChevronsDownUp, ChevronsUpDown, ArrowDownAZ, Calendar, Clock } from "lucide-react"
+import { FolderOpen, FolderSync, SortAsc, SortDesc, ChevronsDownUp, ChevronsUpDown, ArrowDownAZ, Calendar, Clock, ChevronDown, FolderPlus } from "lucide-react"
 import useSettingStore from "@/stores/setting"
 import useArticleStore from "@/stores/article"
 import { useTranslations } from 'next-intl'
@@ -13,9 +12,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 
 export function FileFooter() {
   const { workspacePath, workspaceHistory, setWorkspacePath } = useSettingStore()
@@ -45,14 +47,30 @@ export function FileFooter() {
     return getWorkspaceName(workspacePath)
   }, [workspacePath, tFile])
 
+  // 选择工作区目录
+  async function handleSelectWorkspace() {
+    try {
+      const selected = await openDialog({
+        directory: true,
+        multiple: false,
+        title: tFile('workspace.select')
+      })
+      
+      if (selected) {
+        const path = selected as string
+        await switchWorkspace(path)
+      }
+    } catch (error) {
+      console.error('选择工作区失败:', error)
+    }
+  }
+
   // 切换工作区
-  async function handleWorkspaceChange(path: string) {
-    // 处理特殊的默认工作区值
-    const targetPath = path === '__default__' ? '' : path
-    if (targetPath === workspacePath) return
+  async function switchWorkspace(path: string) {
+    if (path === workspacePath) return
     
     try {
-      await setWorkspacePath(targetPath)
+      await setWorkspacePath(path)
       await clearCollapsibleList()
       setActiveFilePath('')
       setCurrentArticle('')
@@ -62,32 +80,72 @@ export function FileFooter() {
     }
   }
 
+  // 重置为默认工作区
+  async function handleResetWorkspace() {
+    try {
+      await setWorkspacePath('')
+      await clearCollapsibleList()
+      setActiveFilePath('')
+      setCurrentArticle('')
+      await loadFileTree()
+    } catch (error) {
+      console.error('重置工作区失败:', error)
+    }
+  }
+
   return (
     <div className="border-t bg-muted/30 h-6 flex items-center justify-between px-1 overflow-hidden gap-1">
       {/* 左侧：工作区选择器 */}
-      <Select value={workspacePath} onValueChange={handleWorkspaceChange}>
-        <SelectTrigger className="h-6 border-0 bg-transparent hover:bg-transparent focus:ring-0 text-sm flex-1">
-          <span className="truncate text-xs">{currentWorkspaceName}</span>
-        </SelectTrigger>
-        <SelectContent>
-          {/* 默认工作区 */}
-          <SelectItem value="__default__">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="w-4 h-4" />
-              <span>{tFile('workspace.defaultPath')}</span>
-            </div>
-          </SelectItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="flex justify-between h-6 border-0 bg-transparent hover:bg-accent focus:ring-0 text-sm flex-1 px-2"
+          >
+            <span className="truncate text-xs">{currentWorkspaceName}</span>
+            <ChevronDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {/* 选择新工作区 */}
+          <DropdownMenuLabel>{tFile('workspace.actions')}</DropdownMenuLabel>
+          <DropdownMenuItem onClick={handleSelectWorkspace}>
+            <FolderPlus className="mr-2 h-4 w-4" />
+            {tFile('workspace.select')}
+          </DropdownMenuItem>
+          {workspacePath && (
+            <DropdownMenuItem onClick={handleResetWorkspace}>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              {tFile('workspace.defaultPath')}
+            </DropdownMenuItem>
+          )}
+          
           {/* 历史工作区 */}
-          {workspaceHistory.map((path, index) => (
-            <SelectItem key={index} value={path}>
-              <div className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
-                <span>{getWorkspaceName(path)}</span>
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+          {workspaceHistory.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{tFile('workspace.history')}</DropdownMenuLabel>
+              {workspaceHistory.map((path, index) => (
+                <DropdownMenuItem key={index} onClick={() => switchWorkspace(path)}>
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  <span className="truncate" title={path}>{getWorkspaceName(path)}</span>
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+          
+          {/* 默认工作区 */}
+          {!workspacePath && workspaceHistory.length === 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                {tFile('workspace.defaultPath')}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Separator orientation="vertical" />
 

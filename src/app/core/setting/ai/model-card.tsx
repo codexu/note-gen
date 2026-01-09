@@ -16,7 +16,7 @@ import { ModelConfig, ModelType, AiConfig } from "../config"
 import { useTranslations } from 'next-intl'
 import ModelSelect from "./modelSelect"
 import { useState, useRef } from "react"
-import { createOpenAIClient } from "@/lib/ai"
+import { createOpenAIClient } from "@/lib/ai/utils"
 import { toast } from "@/hooks/use-toast"
 import { fetch } from "@tauri-apps/plugin-http"
 

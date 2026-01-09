@@ -56,6 +56,14 @@
           "title": "Content Scale",
           "desc": "Adjust the text size in editor and chat Markdown content"
         },
+        "fileManagerTextSize": {
+          "title": "File Manager Text Size",
+          "desc": "Adjust the text size of file and folder lists in the file manager"
+        },
+        "recordTextSize": {
+          "title": "Record Text Size",
+          "desc": "Adjust the text size of record items in the record list"
+        },
         "customCss": {
           "title": "Custom CSS",
           "desc": "Add custom CSS styles to override the application's default styles",
@@ -65,6 +73,12 @@
           "placeholder": "Enter custom CSS code here",
           "save": "Save",
           "cancel": "Cancel"
+        },
+        "tray": {
+          "enabled": {
+            "title": "Enable Tray",
+            "desc": "Choose to minimize to tray or close app when window is closed"
+          }
         }
       },
       "tools": {
@@ -209,6 +223,8 @@
       "updateDownloading": "Updating {downloaded} / {contentLength}",
       "updateInstalled": "Restart app",
       "noUpdate": "Current version is the latest",
+      "ignoreVersion": "Ignore this version",
+      "ignoreVersionSuccess": "This version update has been ignored",
       "items": {
         "home": {
           "title": "Home",
@@ -260,11 +276,15 @@
         },
         "placeholder": {
           "title": "AI Suggestion",
-          "desc": "AI suggestion prompts are used for content generation in the placeholder of the record page AI conversation."
+          "desc": "AI suggestion prompt for generating placeholder content in the record page AI conversation."
         },
-        "translate": {
-          "title": "Translation",
-          "desc": "Used for translation content scenes."
+        "completion": {
+          "title": "Fast Completion",
+          "desc": "AI inline completion for Markdown editor, similar to GitHub Copilot, quickly generates continuation content."
+        },
+        "commit": {
+          "title": "Auto Generate Commit Message",
+          "desc": "Used to automatically generate Git commit messages, intelligently generating descriptive commit messages based on file content changes."
         },
         "embedding": {
           "title": "Embedding Model",
@@ -702,9 +722,14 @@
           "desc": "Used for text vectorization and semantic search"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "Vision Model",
-          "desc": "Supports image understanding and OCR recognition"
+          "desc": "Supports image understanding and visual Q&A"
+        },
+        "completionModel": {
+          "name": "Fast Completion",
+          "type": "Completion Model",
+          "desc": "AI inline completion for Markdown editor, similar to GitHub Copilot, quickly generates continuation content"
         },
         "poweredBy": "Powered by SiliconFlow"
       }
@@ -803,6 +828,7 @@
         "recording": "Recording",
         "file": "File",
         "link": "Link",
+        "pdf": "PDF",
         "upload": "Upload Record",
         "download": "Download Record",
         "uploadTo": "Sync from local to {provider}",
@@ -867,6 +893,27 @@
           "text": "Text"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agent"
+          },
+          "agent": {
+            "running": "Agent Running",
+            "thinking": "Thinking",
+            "acting": "Acting",
+            "observation": "Observation",
+            "toolCalls": "Tool Calls",
+            "confirmation": {
+              "title": "Confirm Action",
+              "description": "The agent wants to perform the following action. Please confirm to continue.",
+              "tool": "Tool",
+              "parameters": "Parameters",
+              "cancel": "Cancel",
+              "confirm": "Confirm",
+              "confirmed": "Confirmed",
+              "cancelled": "Cancelled"
+            }
+          },
           "placeholder": {
             "default": "Ask questions or organize your notes into an article...",
             "noApiKey": "API Key not configured, AI chat feature is unavailable..."
@@ -904,20 +951,14 @@
             "error": "Failed"
           },
           "empty": {
-            "features": [
-              {
-                "chat": "Chat with AI bot"
-              },
-              {
-                "linked": "Linked with your records or notes"
-              },
-              {
-                "clipboard": "Recognize clipboard records or images"
-              },
-              {
-                "organize": "Organize your records into notes"
-              }
-            ]
+            "title": "Start AI Conversation",
+            "subtitle": "Use Chat or Agent mode to interact with AI",
+            "currentModel": "Current Model",
+            "currentPrompt": "Current Prompt",
+            "currentMode": "Conversation Mode",
+            "noModel": "No model set",
+            "noPrompt": "No prompt set",
+            "configureModel": "Configure Model"
           },
           "content": {
             "organize": "Organize your records into an article:"
@@ -1075,6 +1116,7 @@
         },
         "send": "Send",
         "stop": "Stop",
+        "stopped": "Conversation stopped",
         "terminate": "Terminate",
         "tagLink": {
           "on": "Linked to tag",
@@ -1107,9 +1149,38 @@
         },
         "modeSelect": {
           "tooltip": "Select input mode",
-          "chat": "Chat Mode",
-          "gen": "Organize Mode",
-          "translate": "Translate Mode"
+          "chat": "Chat mode",
+          "gen": "Organize mode",
+          "translate": "Translate mode"
+        },
+        "chatModeSelect": {
+          "chatDescription": "Quick conversation, read-only mode",
+          "agentDescription": "Smart assistant, can execute actions"
+        },
+        "attachImage": "Attach images",
+        "imageSelector": {
+          "title": "Select Images",
+          "local": "Local Files",
+          "records": "From Records",
+          "selectFiles": "Select Local Images",
+          "noRecords": "No image records available",
+          "cancel": "Cancel",
+          "confirm": "Confirm"
+        },
+        "agent": {
+          "running": "Agent Running",
+          "thinking": "Thinking",
+          "acting": "Acting",
+          "observation": "Observation",
+          "toolCalls": "Tool Calls",
+          "confirmation": {
+            "title": "Confirm Action",
+            "description": "The agent wants to perform the following action. Please confirm to continue.",
+            "tool": "Tool",
+            "parameters": "Parameters",
+            "cancel": "Cancel",
+            "confirm": "Confirm"
+          }
         },
         "fileLink": {
           "tooltip": "Link File",
@@ -1177,6 +1248,10 @@
     "results": "{count} search results",
     "noResults": "No search results",
     "tryDifferentKeywords": "Try using different keywords",
+    "mode": {
+      "fuzzy": "Fuzzy",
+      "exact": "Exact"
+    },
     "item": {
       "record": "Record",
       "article": "Article",
@@ -1196,6 +1271,7 @@
   "navigation": {
     "chat": "Chat",
     "record": "Record",
+    "quickRecord": "Quick Record",
     "write": "Write",
     "search": "Search",
     "githubImageHosting": "Github Image Hosting",
@@ -1205,10 +1281,12 @@
     "logout": "Logout",
     "setting": "Settings",
     "files": "Notes",
-    "hideLeftSidebar": "Hide Left Sidebar",
     "showLeftSidebar": "Show Left Sidebar",
-    "hideRightSidebar": "Hide Right Sidebar",
+    "hideLeftSidebar": "Hide Left Sidebar",
+    "showCenterPanel": "Show Editor",
+    "hideCenterPanel": "Hide Editor",
     "showRightSidebar": "Show Right Sidebar",
+    "hideRightSidebar": "Hide Right Sidebar",
     "searchPlaceholder": "Search notes or records..."
   },
   "marks": {
@@ -1234,6 +1312,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "Pulling remote file...",
+      "syncComplete": "Sync Complete"
+    },
+    "syncConfirm": {
+      "title": "Remote File Update Detected",
+      "description": "File {fileName} has remote updates",
+      "commitInfo": "Latest Commit Info",
+      "commitMessage": "Commit Message",
+      "author": "Author",
+      "changes": "Changes",
+      "confirmMessage": "Are you sure you want to pull the remote version and overwrite the local file? This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirmPull": "Confirm Pull"
+    },
+    "emptyState": {
+      "title": "Start Creating",
+      "subtitle": "Select a file to start editing, or create a new note",
+      "tip": "💡 Tip: You can also select files from the left sidebar",
+      "actions": {
+        "newNote": {
+          "title": "Create Note",
+          "desc": "Create a new Markdown note"
+        },
+        "newRecord": {
+          "title": "Create Record",
+          "desc": "Open text recording feature"
+        },
+        "globalSearch": {
+          "title": "Global Search",
+          "desc": "Quickly find your note content"
+        },
+        "openWorkspace": {
+          "title": "Open Workspace",
+          "desc": "Select or switch workspace directory"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "Access Repository",
@@ -1259,6 +1375,12 @@
         "importSuccess": "Import Successful",
         "importSuccessDesc": "Successfully imported {count} files",
         "importError": "Import Failed"
+      },
+      "sync": {
+        "syncingRemote": "Pulling remote file...",
+        "syncComplete": "Sync Complete",
+        "pullingRemote": "Fetching latest content from remote server...",
+        "pullComplete": "Pull Complete"
       },
       "context": {
         "viewDirectory": "View Directory",
@@ -1335,6 +1457,9 @@
       "copySuccess": "Copy Success",
       "copySuccessDescription": "Copied to clipboard",
       "floatbar": {
+        "quote": {
+          "tooltip": "Quote"
+        },
         "readAloud": {
           "start": "Read Aloud",
           "stop": "Stop Reading",
@@ -1387,15 +1512,34 @@
         "error": "Upload failed",
         "needToken": "Upload images need to configure accessToken",
         "uploading": "Uploading image"
+      },
+      "saveDialog": {
+        "title": "Save File",
+        "emptyContent": "Empty Content",
+        "emptyContentDesc": "Please enter content before saving",
+        "success": "Save Successful",
+        "successDesc": "File saved successfully",
+        "error": "Save Failed",
+        "errorDesc": "Failed to save file, please try again"
       }
     },
     "footer": {
-      "wordCount": "Words",
+      "wordCount": "Word Count",
+      "pull": {
+        "pull": "Pull",
+        "checking": "Checking for updates...",
+        "noUpdate": "No remote updates",
+        "clickToPull": "Click to pull remote updates",
+        "pullSuccess": "Pull Successful",
+        "pullFailed": "Pull Failed",
+        "ignored": "Ignored",
+        "ignoreUpdate": "Ignore This Update"
+      },
       "sync": {
-        "sync": "Sync",
-        "synced": "Synced",
-        "syncing": "Syncing",
-        "syncFailed": "Sync Failed",
+        "push": "Push",
+        "pushed": "Pushed",
+        "syncing": "Pushing",
+        "syncFailed": "Push Failed",
         "checkNetworkOrToken": "Please check network connection or token",
         "quickSync": "Quick Sync"
       },
@@ -1415,6 +1559,30 @@
         "calculating": "Calculating",
         "pending": "Pending {progress}%",
         "synced": "Synced"
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Chat Settings"
+        },
+        "tools": {
+          "title": "Tools",
+          "clearContext": "Clear Context",
+          "clearContextDesc": "Clear conversation context, keep chat history",
+          "clearChat": "Clear Chat",
+          "clearChatDesc": "Delete all chat records",
+          "clear": "Clear"
+        },
+        "attachments": {
+          "title": "Attachments",
+          "gallery": "Gallery",
+          "camera": "Camera",
+          "file": "File",
+          "linkNote": "Link Note"
+        }
       }
     }
   },
@@ -1457,61 +1625,6 @@
       "modelDesc": "Requires STT model, more accurate"
     }
   },
-  "editor": {
-    "copySuccess": "Copy Success",
-    "copySuccessDescription": "Copied to clipboard",
-    "floatbar": {
-      "readAloud": {
-        "start": "Read Aloud",
-        "stop": "Stop Reading",
-        "loading": "Loading..."
-      }
-    },
-    "toolbar": {
-      "mark": {
-        "title": "Records",
-        "tooltip": "Records",
-        "description": "Convert records into content to insert into the article.",
-        "noRecords": "No records",
-        "ocrNoContent": "OCR did not recognize any content"
-      },
-      "question": {
-        "tooltip": "Q&A",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Reference text: \n{content}\nBased on the question: \n{question}\n, directly provide the answer content."
-      },
-      "continue": {
-        "tooltip": "Continue",
-        "promptTemplate": "Based on the preceding text: \n{content}\n continue writing and return content not exceeding 100 words.\nYou can reference the following text: \n{endContent}\n, but avoid duplicating its content."
-      },
-      "polish": {
-        "tooltip": "Polish",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Polish this text: \n{content}\n, keep the language unchanged, fix typos and grammatical errors, directly return the polished result."
-      },
-      "eraser": {
-        "tooltip": "Simplify",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Simplify this text: \n{content}\n, this text is too verbose, reduce the word count by at least half, keep the language unchanged, directly return the optimized result."
-      },
-      "expansion": {
-        "tooltip": "Expand",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Expand this text: \n{content}\n, this text is too short, increase the word count by at least half, keep the language unchanged, directly return the expanded result."
-      },
-      "translation": {
-        "tooltip": "Translate",
-        "description": "Translate the selected text",
-        "selectContent": "Please select content first",
-        "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result."
-      }
-    },
-    "upload": {
-      "error": "Upload failed",
-      "needToken": "Upload images need to configure accessToken",
-      "uploading": "Uploading image"
-    }
-  },
   "footer": {
     "wordCount": "Words",
     "sync": {
@@ -1540,18 +1653,7 @@
       "synced": "Synced"
     }
   },
-  "mcp": {
-  "selectServers": "MCP Servers",
-  "searchServers": "Search servers...",
-  "noServers": "MCP service not enabled",
-  "noServersFound": "No matching servers found",
-  "addServer": "Add server...",
-  "goToSettings": "Go to Settings",
-  "close": "Close",
-  "navigate": "Select",
-  "confirm": "Confirm",
-  "tools": "tools",
-  "connecting": "Connecting",
-  "disconnected": "Disconnected"
-}
+  "quickRecord": {
+    "description": "Click to select a recording tool and quickly create records"
+  }
 }

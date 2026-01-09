@@ -204,7 +204,6 @@ export async function reportEvent(
     const result = await response.json()
 
     if (response.ok && result.code === 0) {
-      console.log('Event reported successfully:', eventType)
       return true
     } else {
       console.error('Failed to report event:', result)
@@ -232,8 +231,6 @@ export async function reportAppStart(): Promise<boolean> {
       target: deviceInfo.target,
       arch: deviceInfo.arch,
     }
-
-    console.log('Event data:', eventData)
     
     return await reportEvent(EventType.APP_START, eventData)
   } catch (error) {

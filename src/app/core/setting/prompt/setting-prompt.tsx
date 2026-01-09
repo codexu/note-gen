@@ -11,7 +11,7 @@ import usePromptStore, { Prompt } from '@/stores/prompt'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { OpenBroswer } from '@/components/open-broswer'
-import { fetchAi } from '@/lib/ai'
+import { fetchAi } from '@/lib/ai/chat'
 import { toast } from '@/hooks/use-toast'
 import { useI18n } from '@/hooks/useI18n'
 

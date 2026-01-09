@@ -12,7 +12,7 @@ import Vditor from "vditor";
 
 type CopyFormat = "HTML" | "JSON" | "Markdown";
 
-export default function CopyFormatSelector({editor}: {editor?: Vditor}) {
+export default function CopyFormatSelector({editor, disabled}: {editor?: Vditor, disabled?: boolean}) {
 
   const handleFormatSelect = (format: CopyFormat) => {
     switch (format) {
@@ -37,6 +37,7 @@ export default function CopyFormatSelector({editor}: {editor?: Vditor}) {
             variant="ghost"
             size="icon" 
             className="outline-none"
+            disabled={disabled}
           >
             <CopyIcon className="!size-3" />
           </Button>

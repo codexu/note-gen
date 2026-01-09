@@ -1,8 +1,8 @@
-import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
-import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot } from "lucide-react"
+import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot, Loader2 } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
@@ -29,9 +29,23 @@ export function FolderItem({ item }: { item: DirTree }) {
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { assetsPath } = useSettingStore()
+  const { assetsPath, fileManagerTextSize } = useSettingStore()
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
+
+  // 根据文字大小映射图标大小
+  const getIconSize = (textSize: string) => {
+    const sizeMap = {
+      'xs': 'size-3',
+      'sm': 'size-3.5', 
+      'md': 'size-4',
+      'lg': 'size-5',
+      'xl': 'size-6'
+    }
+    return sizeMap[textSize as keyof typeof sizeMap] || 'size-4'
+  }
+
+  const iconSize = getIconSize(fileManagerTextSize)
 
   const { 
     activeFilePath,
@@ -353,12 +367,12 @@ export function FolderItem({ item }: { item: DirTree }) {
                 <>
                   {
                     item.isLocale ?
-                      <Folder className="size-4" /> :
-                      <FolderDown className="size-4" />
+                      <Folder className={iconSize} /> :
+                      <FolderDown className={iconSize} />
                   }
                   <Input
                     ref={inputRef}
-                    className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
+                    className={`h-5 rounded-sm text-${fileManagerTextSize} px-1 font-normal flex-1 mr-1`}
                     value={name}
                     onBlur={handleRename}
                     onChange={handleInputChange}
@@ -379,15 +393,17 @@ export function FolderItem({ item }: { item: DirTree }) {
                   onDragLeave={(e) => handleDragleave(e)}
                   className={`${item.isLocale ? '' : 'opacity-50'} flex gap-1 items-center flex-1 select-none`}
                 >
-                  <div className="flex flex-1 gap-1 select-none relative">
-                    <div className="relative">
-                      {collapsibleList.includes(path) ? 
-                        (assetsPath === item.name ? <FolderOpenDot className="size-4" /> : <FolderOpen className="size-4" />) :
-                        (assetsPath === item.name ? <FolderDot className="size-4" /> : <Folder className="size-4" />)
+                  <div className="flex flex-1 gap-1 select-none relative items-center">
+                    <div className="relative flex items-center">
+                      {item.loading ? (
+                        <Loader2 className={`${iconSize} animate-spin text-primary`} />
+                      ) : collapsibleList.includes(path) ? 
+                        (assetsPath === item.name ? <FolderOpenDot className={iconSize} /> : <FolderOpen className={iconSize} />) :
+                        (assetsPath === item.name ? <FolderDot className={iconSize} /> : <Folder className={iconSize} />)
                       }
-                      {item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" />}
+                      {!item.loading && item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" />}
                     </div>
-                    <span className="text-xs line-clamp-1">{item.name}</span>
+                    <span className={`text-${fileManagerTextSize} line-clamp-1 ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
                   </div>
                   {isMobile && (
                     <MobileActionMenu className="ml-1">

@@ -5,7 +5,8 @@ node_modules
 
 ./dist
 dist-ssr
-src-tauri/gen
+src-tauri/gen/*
+!src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/
 *.local
 target/*
 
@@ -31,6 +32,11 @@ target/*
 .DS_Store
 *.pem
 
+# Android signing keys
+*.keystore
+*.jks
+android-app.keystore
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -49,3 +55,7 @@ docs/.vitepress/dist
 docs/.vitepress/cache
 
 .idea
+
+# Exclude all markdown files in root directory except README.md
+/*.md
+!README.md

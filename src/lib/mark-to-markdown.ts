@@ -25,9 +25,12 @@ export function markToMarkdown(mark: Mark): string {
       return `[${linkDesc}](${mark.url})`;
     
     case 'file':
-      // File: insert as markdown link with filename
+      // File: insert file link first, then content (e.g., extracted PDF text)
       const fileName = mark.desc || 'file';
-      return `[${fileName}](${mark.url})`;
+      const fileLink = `[${fileName}](${mark.url})`;
+      const fileContent = mark.content || '';
+      // 如果有内容，先插入文件链接，然后是内容
+      return fileContent ? `${fileLink}\n\n${fileContent}` : fileLink;
     
     case 'recording':
       // Recording: insert content (transcription) with audio link

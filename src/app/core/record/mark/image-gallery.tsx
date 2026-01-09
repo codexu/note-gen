@@ -11,7 +11,7 @@ import useTagStore from "@/stores/tag"
 import { appDataDir } from "@tauri-apps/api/path"
 import { open } from "@tauri-apps/plugin-shell"
 import { toast } from "@/hooks/use-toast"
-import { fetchAiDesc } from "@/lib/ai"
+import { fetchAiDesc } from "@/lib/ai/description"
 import {
   ContextMenu,
   ContextMenuContent,

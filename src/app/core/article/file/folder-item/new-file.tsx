@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { cloneDeep } from "lodash-es";
@@ -58,6 +58,7 @@ export function NewFile({ item }: NewFileProps) {
       inset 
       disabled={!!item.sha && !item.isLocale} 
       onClick={newFileHandler}
+      menuType="file"
     >
       {t('context.newFile')}
     </ContextMenuItem>

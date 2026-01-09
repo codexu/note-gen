@@ -337,7 +337,9 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
 export async function getUserInfo() {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
-  if (!accessToken) return;
+  if (!accessToken) {
+    return;
+  }
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -352,7 +354,9 @@ export async function getUserInfo() {
     
     const requestOptions = {
       method: 'GET',
-      proxy
+      proxy,
+      // 添加超时设置
+      timeout: 10000 // 10秒超时
     };
     
     const url = `https://gitee.com/api/v5/user?${params.toString()}`;
@@ -365,11 +369,12 @@ export async function getUserInfo() {
     
     return data;
   } catch (error) {
-    toast({
-      title: '获取用户信息失败',
-      description: (error as GiteeError).message,
-      variant: 'destructive',
-    })
+    console.error('Get Gitee user info error:', error);
+    // 不显示 toast，避免在检测过程中干扰用户
+    throw {
+      status: 0,
+      message: '获取用户信息失败'
+    };
   }
 }
 
@@ -377,7 +382,9 @@ export async function getUserInfo() {
 export async function checkSyncRepoState(name: string) {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
-  if (!accessToken) return;
+  if (!accessToken) {
+    return;
+  }
   
   const giteeUsername = await store.get<string>('giteeUsername')
   
@@ -394,7 +401,9 @@ export async function checkSyncRepoState(name: string) {
     
     const requestOptions = {
       method: 'GET',
-      proxy
+      proxy,
+      // 添加超时设置
+      timeout: 10000 // 10秒超时
     };
     
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${name}?${params.toString()}`;
@@ -410,6 +419,7 @@ export async function checkSyncRepoState(name: string) {
       message: '仓库不存在'
     };
   } catch (error) {
+    console.error('Check Gitee repo state error:', error);
     if ((error as GiteeError).status === 404) {
       return null;
     }

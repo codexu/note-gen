@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath } from "@/lib/path";
@@ -31,6 +31,7 @@ export function NewFolder({ item }: NewFolderProps) {
       inset 
       disabled={!!item.sha && !item.isLocale} 
       onClick={newFolderHandler}
+      menuType="file"
     >
       {t('context.newFolder')}
     </ContextMenuItem>

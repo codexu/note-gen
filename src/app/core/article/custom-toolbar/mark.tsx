@@ -1,4 +1,4 @@
-import { fetchAi } from "@/lib/ai";
+import { fetchAi } from "@/lib/ai/chat";
 import useArticleStore from "@/stores/article";
 import { Highlighter, Plus, ChevronDown, Tag } from "lucide-react";
 import { MarkWrapper } from "../../record/mark/mark-item";

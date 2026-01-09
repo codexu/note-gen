@@ -49,11 +49,14 @@ interface SettingState {
   placeholderModel: string
   setPlaceholderModel: (placeholderModel: string) => Promise<void>
 
-  translateModel: string
-  setTranslateModel: (translateModel: string) => Promise<void>
+  completionModel: string
+  setCompletionModel: (completionModel: string) => Promise<void>
 
   markDescModel: string
   setMarkDescModel: (markDescModel: string) => Promise<void>
+
+  commitModel: string
+  setCommitModel: (commitModel: string) => Promise<void>
 
   embeddingModel: string
   setEmbeddingModel: (embeddingModel: string) => Promise<void>
@@ -193,6 +196,14 @@ interface SettingState {
   contentTextScale: number
   setContentTextScale: (scale: number) => Promise<void>
 
+  // 文件管理器文字大小设置
+  fileManagerTextSize: string
+  setFileManagerTextSize: (size: string) => Promise<void>
+
+  // 记录文字大小设置
+  recordTextSize: string
+  setRecordTextSize: (size: string) => Promise<void>
+
   // 自定义 CSS 设置
   customCss: string
   setCustomCss: (css: string) => Promise<void>
@@ -208,6 +219,10 @@ interface SettingState {
   // 记录工具栏配置
   recordToolbarConfig: RecordToolbarItem[]
   setRecordToolbarConfig: (config: RecordToolbarItem[]) => Promise<void>
+
+  // 托盘设置
+  trayEnabled: boolean
+  setTrayEnabled: (enabled: boolean) => Promise<void>
 }
 
 export interface ChatToolbarItem {
@@ -344,9 +359,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     // 检查并初始化其他模型类型
     const modelTypes = [
-      { storeKey: 'placeholderModel', modelType: 'chat' },
-      { storeKey: 'translateModel', modelType: 'chat' },
-      { storeKey: 'markDescModel', modelType: 'chat' }
+      { storeKey: 'completionModel', modelType: 'chat' },
+      { storeKey: 'markDescModel', modelType: 'chat' },
+      { storeKey: 'commitModel', modelType: 'chat' }
     ]
 
     for (const { storeKey, modelType } of modelTypes) {
@@ -378,51 +393,62 @@ const useSettingStore = create<SettingState>((set, get) => ({
     }
 
     // 获取 NoteGen 限时免费模型
-    const apiKey = noteGenDefaultModels[0].apiKey
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    }
-    const res = await fetch('https://api.notegen.top/v1/models', {
-      method: 'GET',
-      headers
-    })
-
-    const resModels = await res.json()
-
-    if (resModels.data && resModels.data.length > 0) {
-      // 移除旧的 NoteGen Limited 配置
-      finalAiModelList = finalAiModelList.filter(model => 
-        model.title !== 'NoteGen Limited' && model.key !== 'note-gen-limited'
-      )
-      
-      // 过滤出不在默认模型中的限时免费模型
-      const limitedModels = resModels.data.filter((model: any) => {
-        // 检查是否在 noteGenDefaultModels 的 models 数组中
-        return !noteGenDefaultModels[0].models?.some(defaultModel => defaultModel.model === model.id)
-      })
-      
-      // 如果有限时免费模型，创建统一的 NoteGen Limited 配置
-      if (limitedModels.length > 0) {
-        const noteGenLimitedConfig = {
-          apiKey,
-          baseURL: "https://api.notegen.top/v1",
-          key: "note-gen-limited",
-          title: "NoteGen Limited",
-          models: limitedModels.map((model: any) => ({
-            id: `note-gen-limited-${model.id}`,
-            model: model.id,
-            modelType: "chat",
-            temperature: 0.7,
-            topP: 1,
-            enableStream: true
-          }))
-        }
-        
-        finalAiModelList.push(noteGenLimitedConfig)
-        await store.set('aiModelList', finalAiModelList)
-        set({ aiModelList: finalAiModelList })
+    // 如果服务不可用,静默失败,不影响用户使用自己的模型
+    try {
+      const apiKey = noteGenDefaultModels[0].apiKey
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       }
+      const res = await fetch('https://api.notegen.top/v1/models', {
+        method: 'GET',
+        headers
+      })
+
+      // 检查响应状态
+      if (!res.ok) {
+        throw new Error(`API responded with status: ${res.status}`)
+      }
+
+      const resModels = await res.json()
+
+      if (resModels.data && resModels.data.length > 0) {
+        // 移除旧的 NoteGen Limited 配置
+        finalAiModelList = finalAiModelList.filter(model => 
+          model.title !== 'NoteGen Limited' && model.key !== 'note-gen-limited'
+        )
+        
+        // 过滤出不在默认模型中的限时免费模型
+        const limitedModels = resModels.data.filter((model: any) => {
+          // 检查是否在 noteGenDefaultModels 的 models 数组中
+          return !noteGenDefaultModels[0].models?.some(defaultModel => defaultModel.model === model.id)
+        })
+        
+        // 如果有限时免费模型,创建统一的 NoteGen Limited 配置
+        if (limitedModels.length > 0) {
+          const noteGenLimitedConfig = {
+            apiKey,
+            baseURL: "https://api.notegen.top/v1",
+            key: "note-gen-limited",
+            title: "NoteGen Limited",
+            models: limitedModels.map((model: any) => ({
+              id: `note-gen-limited-${model.id}`,
+              model: model.id,
+              modelType: "chat",
+              temperature: 0.7,
+              topP: 1,
+              enableStream: true
+            }))
+          }
+          
+          finalAiModelList.push(noteGenLimitedConfig)
+          await store.set('aiModelList', finalAiModelList)
+          set({ aiModelList: finalAiModelList })
+        }
+      }
+    } catch (error) {
+      // 静默处理错误,不影响应用初始化和用户使用自己的模型
+      console.debug('NoteGen API service unavailable, skipping limited models:', error)
     }
 
     Object.entries(get()).forEach(async ([key, value]) => {
@@ -475,11 +501,11 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ placeholderModel })
   },
 
-  translateModel: '',
-  setTranslateModel: async (translateModel) => {
+  completionModel: '',
+  setCompletionModel: async (completionModel) => {
     const store = await Store.load('store.json');
-    await store.set('translateModel', translateModel)
-    set({ translateModel })
+    await store.set('completionModel', completionModel)
+    set({ completionModel })
   },
 
   markDescModel: '',
@@ -487,6 +513,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('markDescModel', markDescModel)
     set({ markDescModel })
+  },
+
+  commitModel: '',
+  setCommitModel: async (commitModel) => {
+    const store = await Store.load('store.json');
+    await store.set('commitModel', commitModel)
+    set({ commitModel })
   },
 
   embeddingModel: '',
@@ -775,7 +808,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.set('enableImageRecognition', enable)
     await store.save()
   },
-  primaryImageMethod: 'ocr',
+  primaryImageMethod: 'vlm',
   setPrimaryImageMethod: async (method: 'ocr' | 'vlm') => {
     set({ primaryImageMethod: method })
     const store = await Store.load('store.json');
@@ -801,6 +834,24 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ contentTextScale: scale })
     const store = await Store.load('store.json');
     await store.set('contentTextScale', scale)
+    await store.save()
+  },
+
+  // 文件管理器文字大小设置 (xs, sm, md, lg, xl)
+  fileManagerTextSize: 'sm',
+  setFileManagerTextSize: async (size: string) => {
+    set({ fileManagerTextSize: size })
+    const store = await Store.load('store.json');
+    await store.set('fileManagerTextSize', size)
+    await store.save()
+  },
+
+  // 记录文字大小设置 (xs, sm, md, lg, xl)
+  recordTextSize: 'sm',
+  setRecordTextSize: async (size: string) => {
+    set({ recordTextSize: size })
+    const store = await Store.load('store.json');
+    await store.set('recordTextSize', size)
     await store.save()
   },
 
@@ -866,11 +917,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'fileLink', enabled: true, order: 4 },
     { id: 'mcpButton', enabled: true, order: 5 },
     { id: 'ragSwitch', enabled: true, order: 6 },
-    { id: 'chatPlaceholder', enabled: true, order: 7 },
-    { id: 'clipboardMonitor', enabled: true, order: 8 },
+    { id: 'clipboardMonitor', enabled: true, order: 7 },
     // 顶部工具栏 - 右侧
-    { id: 'clearContext', enabled: true, order: 9 },
-    { id: 'clearChat', enabled: true, order: 10 },
+    { id: 'clearContext', enabled: true, order: 8 },
+    { id: 'clearChat', enabled: true, order: 9 },
   ],
   setChatToolbarConfigPc: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigPc: config })
@@ -888,10 +938,9 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'fileLink', enabled: true, order: 4 },
     { id: 'mcpButton', enabled: true, order: 5 },
     { id: 'ragSwitch', enabled: true, order: 6 },
-    { id: 'chatPlaceholder', enabled: true, order: 7 },
-    { id: 'clipboardMonitor', enabled: true, order: 8 },
-    { id: 'clearContext', enabled: true, order: 9 },
-    { id: 'clearChat', enabled: true, order: 10 },
+    { id: 'clipboardMonitor', enabled: true, order: 7 },
+    { id: 'clearContext', enabled: true, order: 8 },
+    { id: 'clearChat', enabled: true, order: 9 },
   ],
   setChatToolbarConfigMobile: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigMobile: config })
@@ -913,6 +962,15 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ recordToolbarConfig: config })
     const store = await Store.load('store.json');
     await store.set('recordToolbarConfig', config)
+    await store.save()
+  },
+
+  // 托盘设置
+  trayEnabled: true,
+  setTrayEnabled: async (enabled: boolean) => {
+    set({ trayEnabled: enabled })
+    const store = await Store.load('store.json');
+    await store.set('trayEnabled', enabled)
     await store.save()
   },
 }))

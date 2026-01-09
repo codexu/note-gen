@@ -31,8 +31,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+} from "@/components/ui/enhanced-context-menu"
 import { TagMobileActions } from './tag-mobile-actions'
+import { useTextSize } from "@/contexts/text-size-context"
 import {
   DndContext,
   closestCenter,
@@ -123,6 +124,7 @@ function SortableTagItem({ tag, children }: { tag: Tag; children: React.ReactNod
 
 export function TagManage() {
   const t = useTranslations();
+  const { getContextMenuTextSize } = useTextSize()
   const [newTagName, setNewTagName] = React.useState<string>("")
   const [isAdding, setIsAdding] = React.useState(false)
   const [editingTagId, setEditingTagId] = React.useState<number | null>(null)
@@ -130,6 +132,7 @@ export function TagManage() {
   const [expandedTagId, setExpandedTagId] = React.useState<string | undefined>(undefined)
   const [hasInitialized, setHasInitialized] = React.useState(false)
   const { init } = useChatStore()
+  const textSize = getContextMenuTextSize('record')
 
   // 自定义传感器，忽略记录项的拖拽
   const customPointerSensor = useSensor(PointerSensor, {
@@ -412,10 +415,10 @@ export function TagManage() {
                   setNewTagName("")
                 }
               }}
-              className="h-8 text-xs"
+              className={`h-8 text-${textSize}`}
               autoFocus
             />
-            <Button size="sm" onClick={handleAddTag} className="h-8 text-xs">
+            <Button size="sm" onClick={handleAddTag} className={`h-8 text-${textSize}`}>
               {t('record.mark.tag.add')}
             </Button>
           </div>
@@ -424,7 +427,7 @@ export function TagManage() {
             variant="ghost"
             size="sm"
             onClick={() => setIsAdding(true)}
-            className="w-full h-8 text-xs"
+            className={`w-full h-8 text-${textSize}`}
           >
             <Plus className="size-3 mr-1" />
             {t('record.mark.tag.newTag')}

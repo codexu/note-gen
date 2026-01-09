@@ -1,7 +1,7 @@
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "../components/model-select";
-import { Bot, Highlighter, Languages, Lightbulb } from "lucide-react";
+import { Bot, Highlighter, Zap, GitCommit } from "lucide-react";
 
 export function Setting() {
   const t = useTranslations('settings.defaultModel');
@@ -14,22 +14,22 @@ export function Setting() {
       icon: <Bot className="size-4" />
     },
     {
+      title: t('options.completion.title'),
+      desc: t('options.completion.desc'),
+      modelKey: 'completion',
+      icon: <Zap className="size-4" />
+    },
+    {
       title: t('options.markDesc.title'),
       desc: t('options.markDesc.desc'),
       modelKey: 'markDesc',
       icon: <Highlighter className="size-4" />
     },
     {
-      title: t('options.placeholder.title'),
-      desc: t('options.placeholder.desc'),
-      modelKey: 'placeholder',
-      icon: <Lightbulb className="size-4" />
-    },
-    {
-      title: t('options.translate.title'),
-      desc: t('options.translate.desc'),
-      modelKey: 'translate',
-      icon: <Languages className="size-4" />
+      title: t('options.commit.title'),
+      desc: t('options.commit.desc'),
+      modelKey: 'commit',
+      icon: <GitCommit className="size-4" />
     },
   ]
 

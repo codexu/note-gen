@@ -5,7 +5,6 @@ import { FileLink } from "./file-link"
 import { McpButton } from "./mcp-button"
 import { RagSwitch } from "./rag-switch"
 import { ClipboardMonitor } from "./clipboard-monitor"
-import ChatPlaceholder from "./chat-placeholder"
 import { ClearContext } from "./clear-context"
 import { ClearChat } from "./clear-chat"
 import useSettingStore from "@/stores/setting"
@@ -17,7 +16,7 @@ import emitter from "@/lib/emitter"
 
 // 工具栏分组定义
 const TOOLBAR_GROUPS = {
-  topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'chatPlaceholder', 'clipboardMonitor'],
+  topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'clipboardMonitor'],
   topRight: ['clearContext', 'clearChat'],
 }
 
@@ -49,8 +48,6 @@ export function ChatHeader() {
         return <McpButton key={id} />
       case 'ragSwitch':
         return <RagSwitch key={id} />
-      case 'chatPlaceholder':
-        return <ChatPlaceholder key={id} />
       case 'clipboardMonitor':
         return <ClipboardMonitor key={id} />
       case 'clearContext':

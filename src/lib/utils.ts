@@ -41,6 +41,12 @@ export function arrayBuffer2String(buffer: ArrayBuffer) {
 export function scrollToBottom() {
   const md = document.querySelector('#chats-wrapper')
   if (md) {
-    md.scroll(0, md.scrollHeight)
+    // 使用 requestAnimationFrame 确保在下一帧渲染后滚动
+    requestAnimationFrame(() => {
+      // 再使用 setTimeout 确保复杂内容（如代码块）已完全渲染
+      setTimeout(() => {
+        md.scroll(0, md.scrollHeight)
+      }, 0)
+    })
   }
 }

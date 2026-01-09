@@ -6,7 +6,7 @@ import useSettingStore from "@/stores/setting";
 import useMarkStore from "@/stores/mark";
 import { v4 as uuid } from 'uuid'
 import ocr from "@/lib/ocr";
-import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai";
+import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai/description";
 import { insertMark, Mark } from "@/db/marks";
 import { CheckCircle, Highlighter, ImagePlus, LoaderCircle } from "lucide-react";
 import { Chat } from "@/db/chats";

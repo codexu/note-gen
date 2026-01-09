@@ -1,29 +1,36 @@
 "use client"
 import * as React from "react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import useSettingStore from "@/stores/setting"
 import { Textarea } from "@/components/ui/textarea"
 import useChatStore from "@/stores/chat"
 import useMarkStore from "@/stores/mark"
-import { fetchAiPlaceholder } from "@/lib/ai"
+import useArticleStore from "@/stores/article"
+import { fetchAiPlaceholder } from "@/lib/ai/placeholder"
 import { useTranslations } from 'next-intl'
 import { useLocalStorage } from 'react-use';
 import { ModelSelect } from "./model-select"
+import { getWorkspacePath } from "@/lib/workspace"
 import { PromptSelect } from "./prompt-select"
 import { ChatLanguage } from "./chat-language"
 import { ChatSend } from "./chat-send"
-import { LinkedFileDisplay, FileLink } from "./file-link"
+import { LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
-import { ChatLink } from "./chat-link"
-import { McpButton } from "./mcp-button"
-import { RagSwitch } from "./rag-switch"
-import ChatPlaceholder from "./chat-placeholder"
-import { ClipboardMonitor } from "./clipboard-monitor"
-import { ClearContext } from "./clear-context"
-import { ClearChat } from "./clear-chat"
+import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
+import { ChatSettingsDrawer } from "@/app/mobile/chat/components/chat-settings-drawer"
+import { ChatToolsDrawer } from "@/app/mobile/chat/components/chat-tools-drawer"
+import { ChatAttachmentsDrawer } from "@/app/mobile/chat/components/chat-attachments-drawer"
 import { useIsMobile } from '@/hooks/use-mobile'
+import { ImageAttachments, ImageAttachment } from "./image-attachments"
+import { ImageIcon } from "lucide-react"
+import { TooltipButton } from "@/components/tooltip-button"
+import { isMobileDevice } from '@/lib/check'
+import { QuoteDisplay } from "./quote-display"
+import { convertFileSrc } from "@tauri-apps/api/core"
+import { writeFile } from "@tauri-apps/plugin-fs"
+import { BaseDirectory } from "@tauri-apps/plugin-fs"
 import {
   DndContext,
   closestCenter,
@@ -43,18 +50,33 @@ import { CSS } from '@dnd-kit/utilities'
 
 export function ChatInput() {
   const [text, setText] = useState("")
-  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc, chatToolbarConfigMobile } = useSettingStore()
-  const { chats, loading, locale, isLinkMark, isPlaceholderEnabled } = useChatStore()
+  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc } = useSettingStore()
+  const { chats, loading, isLinkMark } = useChatStore()
   const [showFileSelector, setShowFileSelector] = useState(false)
   const { marks, trashState } = useMarkStore()
+  const { activeFilePath } = useArticleStore()
   const [isComposing, setIsComposing] = useState(false)
   const [placeholder, setPlaceholder] = useState('')
   const t = useTranslations()
   const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [tempInput, setTempInput] = useState('')
   const [linkedFile, setLinkedFile] = useState<MarkdownFile | null>(null)
+  const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([])
+  const [quoteData, setQuoteData] = useState<{
+    quote: string
+    fullContent: string
+    fileName: string
+    startLine: number
+    endLine: number
+    articlePath: string
+  } | null>(null)
   const chatSendRef = useRef<any>(null)
   const isMobile = useIsMobile()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const placeholderTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const isMobileDevice_ = isMobileDevice()
 
   // 拖拽传感器配置（仅桌面端）
   const sensors = useSensors(
@@ -77,11 +99,15 @@ export function ChatInput() {
   }
 
   // 处理历史记录导航
-  function navigateHistory(direction: 'up' | 'down') {
+  function navigateHistory(direction: 'up' | 'down', currentText: string) {
     if (!inputHistory || inputHistory.length === 0) return
 
     let newIndex: number
     if (direction === 'up') {
+      // 保存当前输入内容（第一次向上时）
+      if (historyIndex === -1) {
+        setTempInput(currentText)
+      }
       newIndex = historyIndex + 1
       if (newIndex >= inputHistory.length) {
         newIndex = inputHistory.length - 1
@@ -94,9 +120,10 @@ export function ChatInput() {
     }
 
     setHistoryIndex(newIndex)
-    
+
     if (newIndex === -1) {
-      setText('')
+      // 恢复到原本输入的内容
+      setText(tempInput)
     } else {
       setText(inputHistory[newIndex])
     }
@@ -107,13 +134,168 @@ export function ChatInput() {
     setLinkedFile(null)
   }
 
+  function removeImage(id: string) {
+    setAttachedImages(prev => prev.filter(img => img.id !== id))
+  }
+
+  function removeQuote() {
+    setQuoteData(null)
+  }
+
+  async function handleSelectLocalImages() {
+    try {
+      // 移动端使用 HTML5 file input
+      if (isMobileDevice_) {
+        imageInputRef.current?.click()
+        return
+      }
+
+      // PC端使用 Tauri dialog
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        multiple: true,
+        filters: [{
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']
+        }]
+      })
+
+      if (selected && Array.isArray(selected)) {
+        const newImages: ImageAttachment[] = selected.map((path) => ({
+          id: `local-${Date.now()}-${Math.random()}`,
+          url: convertFileSrc(path),
+          name: path.split('/').pop() || path,
+          source: 'file' as const
+        }))
+        
+        setAttachedImages(prev => [...prev, ...newImages])
+      }
+    } catch (error) {
+      console.error('Failed to select files:', error)
+    }
+  }
+
+  // 移动端相册选择
+  async function handleSelectFromGallery() {
+    if (isMobileDevice_) {
+      // 在移动端，我们暂时只能使用通用的图片选择
+      // 用户可以从相册或相机中选择
+      if (imageInputRef.current) {
+        // 移除 capture 属性，让系统自己决定
+        imageInputRef.current.removeAttribute('capture')
+        imageInputRef.current.click()
+      }
+    }
+  }
+
+  // 移动端相机拍照
+  async function handleTakePhoto() {
+    if (isMobileDevice_) {
+      // 创建相机输入
+      const cameraInput = document.createElement('input')
+      cameraInput.type = 'file'
+      cameraInput.accept = 'image/*'
+      cameraInput.capture = 'environment' // 使用后置摄像头
+      cameraInput.style.display = 'none'
+      
+      cameraInput.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file) {
+          const url = URL.createObjectURL(file)
+          const newImage: ImageAttachment = {
+            id: `camera-${Date.now()}-${Math.random()}`,
+            url,
+            name: file.name,
+            source: 'file' as const
+          }
+          setAttachedImages(prev => [...prev, newImage])
+        }
+        document.body.removeChild(cameraInput)
+      }
+      
+      document.body.appendChild(cameraInput)
+      cameraInput.click()
+    }
+  }
+
+  // 处理移动端文件选择
+  async function handleImageInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    try {
+      const files = event.target.files
+      if (!files || files.length === 0) return
+
+      const newImages: ImageAttachment[] = []
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const url = URL.createObjectURL(file)
+        newImages.push({
+          id: `local-${Date.now()}-${Math.random()}`,
+          url,
+          name: file.name,
+          source: 'file' as const
+        })
+      }
+
+      setAttachedImages(prev => [...prev, ...newImages])
+      
+      // 重置 input
+      event.target.value = ''
+    } catch (error) {
+      console.error('Error in handleImageInputChange:', error)
+    }
+  }
+
+  async function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+
+    e.preventDefault()
+
+    const newImages: ImageAttachment[] = []
+    for (const item of imageItems) {
+      const blob = item.getAsFile()
+      if (!blob) continue
+
+      try {
+        const arrayBuffer = await blob.arrayBuffer()
+        const uint8Array = new Uint8Array(arrayBuffer)
+        const fileName = `paste-${Date.now()}-${Math.random().toString(36).substring(7)}.png`
+        const filePath = `screenshot/${fileName}`
+        
+        await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.AppData })
+        
+        const fullPath = await (async () => {
+          const { appDataDir, join } = await import('@tauri-apps/api/path')
+          const appData = await appDataDir()
+          return await join(appData, filePath)
+        })()
+
+        newImages.push({
+          id: `paste-${Date.now()}-${Math.random()}`,
+          url: convertFileSrc(fullPath),
+          name: fileName,
+          source: 'paste'
+        })
+      } catch (error) {
+        console.error('Failed to save pasted image:', error)
+      }
+    }
+
+    if (newImages.length > 0) {
+      setAttachedImages(prev => [...prev, ...newImages])
+    }
+  }
+
   // 处理发送后的清理工作
   function handleSent() {
-    // 添加到历史记录
     addToHistory(text)
     setText('')
     setHistoryIndex(-1)
-    // 重置 textarea 的高度为默认值
+    setAttachedImages([])
+    setQuoteData(null)
     const textarea = document.querySelector('textarea')
     if (textarea) {
       textarea.style.height = 'auto'
@@ -122,14 +304,8 @@ export function ChatInput() {
 
   // 获取输入框占位符
   async function genInputPlaceholder() {
-    setPlaceholder(t('record.chat.input.placeholder.default'))
     if (!primaryModel) return
     if (trashState) return
-    // 检查是否启用了AI占位符功能
-    if (!isPlaceholderEnabled) {
-      setPlaceholder(t('record.chat.input.placeholder.default'))
-      return
-    }
     const scanMarks = isLinkMark ? marks.filter(item => item.type === 'scan') : []
     const textMarks = isLinkMark ? marks.filter(item => item.type === 'text') : []
     const imageMarks = isLinkMark ? marks.filter(item => item.type === 'image') : []
@@ -138,12 +314,11 @@ export function ChatInput() {
     const lastClearIndex = chats.findLastIndex(item => item.type === 'clear')
     const chatsAfterClear = chats.slice(lastClearIndex + 1)
     const request_content = `
-      Use ${locale} language, don't use any other language.
       ${[...scanMarks, ...textMarks, ...imageMarks, ...fileMarks, ...linkMarks]
         .slice(0, 5)
-        .map(item => item.content?.replace(/<thinking>[\s\S]*?<thinking>/g, '').slice(0, 60))
+        .map(item => item.content?.slice(0, 60))
         .join(';\n\n')}
-      ${chatsAfterClear.slice(0, 5).map(item => item.content?.replace(/<thinking>[\s\S]*?<thinking>/g, '').slice(0, 60)).join(';\n\n')}
+      ${chatsAfterClear.slice(0, 5).map(item => item.content?.slice(0, 60)).join(';\n\n')}
     `.trim()
     // 使用非流式请求获取placeholder内容
     const content = await fetchAiPlaceholder(request_content)
@@ -151,6 +326,19 @@ export function ChatInput() {
       setPlaceholder(content + ' [Tab]')
     }
   }
+
+  // 防抖的 placeholder 生成函数，延迟 1.5 秒执行，只执行最后一次
+  const debouncedGenPlaceholder = useCallback(() => {
+    // 清除之前的定时器
+    if (placeholderTimerRef.current) {
+      clearTimeout(placeholderTimerRef.current)
+    }
+    
+    // 设置新的定时器
+    placeholderTimerRef.current = setTimeout(() => {
+      genInputPlaceholder()
+    }, 1500) // 1.5秒延迟
+  }, [primaryModel, marks, isLinkMark, chats, trashState, t])
 
 
   // 插入占位符
@@ -194,18 +382,8 @@ export function ChatInput() {
       setPlaceholder(t('record.chat.input.placeholder.default'))
       return
     }
-    if (!isPlaceholderEnabled) {
-      setPlaceholder(t('record.chat.input.placeholder.default'))
-      return
-    }
     genInputPlaceholder()
-  }, [primaryModel, marks, isLinkMark, isPlaceholderEnabled, t])
-
-  useEffect(() => {
-    if (!isPlaceholderEnabled) {
-      setPlaceholder(t('record.chat.input.placeholder.default'))
-    }
-  }, [placeholder, isPlaceholderEnabled])
+  }, [primaryModel, marks, isLinkMark, t])
 
   useEffect(() => {
     emitter.on('revertChat', (event: unknown) => {
@@ -214,147 +392,218 @@ export function ChatInput() {
     emitter.on('fileSelected', (event: unknown) => {
       setLinkedFile(event as MarkdownFile)
     })
+    emitter.on('insert-quote', (event: unknown) => {
+      const data = event as {
+        quote: string
+        fullContent: string
+        fileName: string
+        startLine: number
+        endLine: number
+        articlePath: string
+      }
+      // 设置引用数据
+      setQuoteData(data)
+      // 聚焦到输入框
+      textareaRef.current?.focus()
+      // 触发防抖的 placeholder 重新生成
+      debouncedGenPlaceholder()
+    })
     return () => {
       emitter.off('revertChat')
       emitter.off('fileSelected')
+      emitter.off('insert-quote')
     }
-  }, [])
+  }, [debouncedGenPlaceholder])
+
+  // 自动关联当前打开的 markdown 文件
+  useEffect(() => {
+    async function linkCurrentFile() {
+      if (activeFilePath && activeFilePath.endsWith('.md')) {
+        const workspace = await getWorkspacePath()
+        const fileName = activeFilePath.split('/').pop() || activeFilePath
+        
+        // 构建完整路径
+        let fullPath: string
+        if (workspace.isCustom) {
+          const pathParts = activeFilePath.split('/')
+          fullPath = workspace.path + '/' + pathParts.join('/')
+        } else {
+          fullPath = activeFilePath
+        }
+        
+        setLinkedFile({
+          name: fileName,
+          path: fullPath,
+          relativePath: activeFilePath
+        })
+      } else {
+        // 如果没有打开的文件，清除关联
+        setLinkedFile(null)
+      }
+    }
+    
+    linkCurrentFile()
+  }, [activeFilePath])
+
+  // 当关联文件变化时，触发防抖的 placeholder 重新生成
+  useEffect(() => {
+    if (linkedFile) {
+      debouncedGenPlaceholder()
+    }
+  }, [linkedFile, debouncedGenPlaceholder])
 
   return (
-    <footer className="relative flex flex-col border rounded-xl p-2 gap-2 mb-2 md:w-[calc(100%-1rem)] w-full">
-      <div className="relative w-full flex items-start">
-        <Textarea
-          className="flex-1 p-2 relative border-none text-xs placeholder:text-xs md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
-          rows={1}
-          disabled={!primaryModel || loading}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value)
-            const textarea = e.target
-            textarea.style.height = 'auto'
-            const newHeight = Math.min(textarea.scrollHeight, 240)
-            textarea.style.height = `${newHeight}px`
-          }}
-          placeholder={placeholder}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !isComposing && !e.shiftKey && e.keyCode === 13) {
-              e.preventDefault()
-              chatSendRef.current?.sendChat()
-            }
-            if (e.key === "Tab") {
-              e.preventDefault()
-              insertPlaceholder()
-            }
-            if (e.key === "ArrowUp" && !isComposing) {
-              e.preventDefault()
-              navigateHistory('up')
-            }
-            if (e.key === "ArrowDown" && !isComposing) {
-              e.preventDefault()
-              navigateHistory('down')
-            }
-            if (e.key === "Backspace") {
-              if (text === '') {
-                setPlaceholder(t('record.chat.input.placeholder.default'))
-              }
-            }
-          }}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setTimeout(() => {
-            setIsComposing(false)
-          }, 0)}
+    <footer className="flex flex-col w-full p-1 justify-between items-center">
+      {/* 移动端图片选择 */}
+      {isMobileDevice_ && (
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageInputChange}
+          className="hidden"
         />
-      </div>
-
+      )}
       <LinkedFileDisplay
         linkedFile={linkedFile}
         onFileRemove={removeLinkedFile}
       />
-      
-      <div className="flex justify-between items-center w-full">
-        <div className="relative flex-1 overflow-x-auto mr-6 px-2 -translate-x-2">
-          {/* 左侧渐变遮罩 */}
-          <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
-          
-          {/* 右侧渐变遮罩 */}
-          <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
-          
-          {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
-          {!isMobile ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={chatToolbarConfigPc.filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled).map(item => item.id)}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
-                  {chatToolbarConfigPc
-                    .filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled)
-                    .sort((a, b) => a.order - b.order)
-                    .map(item => (
-                      <SortableToolbarItem
-                        key={item.id}
-                        id={item.id}
-                      />
-                    ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          ) : (
-            <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
-              {chatToolbarConfigMobile
-                .filter(item => item.enabled)
-                .sort((a, b) => a.order - b.order)
-                .map(item => {
-                  switch (item.id) {
-                    case 'modelSelect':
-                      return <ModelSelect key={item.id} />
-                    case 'promptSelect':
-                      return <PromptSelect key={item.id} />
-                    case 'chatLanguage':
-                      return <ChatLanguage key={item.id} />
-                    case 'chatLink':
-                      return <ChatLink key={item.id} />
-                    case 'fileLink':
-                      return <FileLink key={item.id} onFileLinkClick={() => setShowFileSelector(true)} disabled={!primaryModel || loading} />
-                    case 'mcpButton':
-                      return <McpButton key={item.id} />
-                    case 'ragSwitch':
-                      return <RagSwitch key={item.id} />
-                    case 'chatPlaceholder':
-                      return <ChatPlaceholder key={item.id} />
-                    case 'clipboardMonitor':
-                      return <ClipboardMonitor key={item.id} />
-                    case 'clearContext':
-                      return <ClearContext key={item.id} />
-                    case 'clearChat':
-                      return <ClearChat key={item.id} />
-                    default:
-                      return null
-                  }
-                })}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-end gap-2 pr-1">
-          <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} ref={chatSendRef} />
-        </div>
-      </div>
+      <div className="group relative flex flex-col border rounded-xl z-10 gap-1 p-1 w-full bg-background focus-within:border-primary transition-colors">
+        {quoteData && (
+          <QuoteDisplay quoteData={quoteData} onRemove={removeQuote} />
+        )}
+        <ImageAttachments images={attachedImages} onRemove={removeImage} />
+        <div className="relative w-full flex items-start">
+          <Textarea
+            ref={textareaRef}
+            className="flex-1 p-2 relative border-none text-xs placeholder:text-sm md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
+            rows={1}
+            disabled={!primaryModel || loading}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value)
+              const textarea = e.target
+              textarea.style.height = 'auto'
+              const newHeight = Math.min(textarea.scrollHeight, 240)
+              textarea.style.height = `${newHeight}px`
+            }}
+            placeholder={placeholder}
+            onKeyDown={(e) => {
+              const textarea = e.target as HTMLTextAreaElement
+              const cursorPosition = textarea.selectionStart
+              const isAtStart = cursorPosition === 0
+              const isAtEnd = cursorPosition === text.length
 
-      {/* 文件选择器（移动端） */}
-      {showFileSelector && (
-        <FileSelector
-          isOpen={showFileSelector}
-          onClose={() => setShowFileSelector(false)}
-          onFileSelect={(file) => {
-            setLinkedFile(file)
-            setShowFileSelector(false)
-          }}
-        />
-      )}
+              if (e.key === "Enter" && !isComposing && !e.shiftKey && e.keyCode === 13) {
+                e.preventDefault()
+                chatSendRef.current?.sendChat()
+              }
+              if (e.key === "Tab") {
+                e.preventDefault()
+                insertPlaceholder()
+              }
+              if (e.key === "ArrowUp" && !isComposing) {
+                if (isAtStart) {
+                  e.preventDefault()
+                  navigateHistory('up', text)
+                } else if (isAtEnd) {
+                  e.preventDefault()
+                  // 移动光标到开头
+                  textarea.setSelectionRange(0, 0)
+                }
+              }
+              if (e.key === "ArrowDown" && !isComposing) {
+                if (isAtStart) {
+                  e.preventDefault()
+                  navigateHistory('down', text)
+                } else if (isAtEnd) {
+                  e.preventDefault()
+                  // 移动光标到开头
+                  textarea.setSelectionRange(0, 0)
+                }
+              }
+              if (e.key === "Backspace") {
+                if (text === '') {
+                  setPlaceholder(t('record.chat.input.placeholder.default'))
+                }
+              }
+            }}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setTimeout(() => {
+              setIsComposing(false)
+            }, 0)}
+            onPaste={handlePaste}
+          />
+        </div>
+        
+        <div className="flex justify-between items-center w-full">
+          <div className="flex-1">
+            {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
+            {!isMobile ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={chatToolbarConfigPc.filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled).map(item => item.id)}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible">
+                    {chatToolbarConfigPc
+                      .filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled)
+                      .sort((a, b) => a.order - b.order)
+                      .map(item => (
+                        <SortableToolbarItem
+                          key={item.id}
+                          id={item.id}
+                        />
+                      ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
+                <ChatAttachmentsDrawer
+                  onImageSelect={handleSelectFromGallery}
+                  onCameraOpen={handleTakePhoto}
+                  onFileLink={setLinkedFile}
+                />
+                <ChatSettingsDrawer />
+                <ChatToolsDrawer />
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2 pr-1">
+            {!isMobile && (
+              <TooltipButton
+                variant="link"
+                size="sm"
+                icon={<ImageIcon className="size-4" />}
+                tooltipText={t('record.chat.input.attachImage')}
+                onClick={handleSelectLocalImages}
+                disabled={!primaryModel || loading}
+              />
+            )}
+            <ChatModeSelect />
+            <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} attachedImages={attachedImages} quoteData={quoteData} ref={chatSendRef} />
+          </div>
+        </div>
+
+        {/* 文件选择器（移动端） */}
+        {showFileSelector && (
+          <FileSelector
+            isOpen={showFileSelector}
+            onClose={() => setShowFileSelector(false)}
+            onFileSelect={(file) => {
+              setLinkedFile(file)
+              setShowFileSelector(false)
+            }}
+          />
+        )}
+        
+      </div>
     </footer>
   )
 }

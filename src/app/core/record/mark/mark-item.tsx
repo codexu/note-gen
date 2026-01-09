@@ -5,19 +5,19 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSub,
-  ContextMenuSubContent,
   ContextMenuSeparator,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu"
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent
+} from "@/components/ui/enhanced-context-menu"
 import dayjs from "dayjs";
 import relativeTime from 'dayjs/plugin/relativeTime'
 import React, { useEffect, useState } from "react";
 import useMarkStore from "@/stores/mark";
 import useTagStore from "@/stores/tag";
 import { LocalImage } from "@/components/local-image";
-import { fetchAiDesc } from "@/lib/ai";
+import { fetchAiDesc } from "@/lib/ai/description";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { appDataDir } from "@tauri-apps/api/path";
 import { ImageUp } from "lucide-react";
@@ -30,6 +30,7 @@ import ChatPreview from "../chat/chat-preview";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MarkMobileActions } from "./mark-mobile-actions";
 import { markToMarkdown } from "@/lib/mark-to-markdown";
+import useSettingStore from "@/stores/setting";
 
 dayjs.extend(relativeTime)
 
@@ -37,9 +38,37 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
   const [value, setValue] = useState('')
   const [descValue, setDescValue] = useState('')
   const { updateMark } = useMarkStore()
+  const { recordTextSize } = useSettingStore()
   const t = useTranslations('record.mark.type');
   const markT = useTranslations('record.mark');
   const messageControlT = useTranslations('record.mark.mark.chat.messageControl');
+
+  // 根据文字大小映射行高
+  const getLineHeight = (textSize: string) => {
+    const heightMap = {
+      'xs': 'leading-3',
+      'sm': 'leading-4', 
+      'md': 'leading-5',
+      'lg': 'leading-6',
+      'xl': 'leading-7'
+    }
+    return heightMap[textSize as keyof typeof heightMap] || 'leading-4'
+  }
+
+  // 根据文字大小映射图片大小
+  const getImageSize = (textSize: string) => {
+    const sizeMap = {
+      'xs': 'max-h-16',
+      'sm': 'max-h-20', 
+      'md': 'max-h-24',
+      'lg': 'max-h-32',
+      'xl': 'max-h-40'
+    }
+    return sizeMap[textSize as keyof typeof sizeMap] || 'max-h-24'
+  }
+
+  const lineHeight = getLineHeight(recordTextSize)
+  const imageSize = getImageSize(recordTextSize)
 
   const getWordCount = (text: string) => {
     if (!text) return 0;
@@ -63,14 +92,14 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <span className="line-clamp-2 leading-4 mt-2 text-xs break-words cursor-pointer hover:underline">{content}</span>
+        <span className={`line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} break-words cursor-pointer hover:underline`}>{content}</span>
       </SheetTrigger>
       <SheetContent className="lg:min-w-[800px] w-full mt-[env(safe-area-inset-top)] p-0">
         <SheetHeader className="p-4 border-b">
           <SheetTitle>{t(mark.type)}</SheetTitle>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-500">{markT('createdAt')}：{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
-            <span className="text-xs text-zinc-500">
+            <span className={`text-${recordTextSize} text-zinc-500`}>{markT('createdAt')}：{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</span>
+            <span className={`text-${recordTextSize} text-zinc-500`}>
               {getWordCount(value)} {messageControlT('words')}
             </span>
           </div>
@@ -81,7 +110,7 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
             <LocalImage
               src={mark.url.includes('http') ? mark.url : `/${path}/${mark.url}`}
               alt=""
-              className="w-full max-h-80 object-contain"
+              className={`w-full ${imageSize} object-contain`}
             /> :
             null
           }
@@ -107,6 +136,21 @@ function DetailViewer({mark, content, path}: {mark: Mark, content: string, path?
 export function MarkWrapper({mark}: {mark: Mark}) {
   const t = useTranslations('record.mark.type');
   const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
+  const { recordTextSize } = useSettingStore();
+
+  // 根据文字大小映射行高
+  const getLineHeight = (textSize: string) => {
+    const heightMap = {
+      'xs': 'leading-3',
+      'sm': 'leading-4', 
+      'md': 'leading-5',
+      'lg': 'leading-6',
+      'xl': 'leading-7'
+    }
+    return heightMap[textSize as keyof typeof heightMap] || 'leading-4'
+  }
+
+  const lineHeight = getLineHeight(recordTextSize)
   
   const handleCheckboxChange = () => {
     toggleMarkSelection(mark.id);
@@ -116,25 +160,25 @@ export function MarkWrapper({mark}: {mark: Mark}) {
     switch (mark.type) {
     case 'scan':
     return (
-        <div className="flex-1 overflow-hidden text-xs pr-10 md:pr-2">
+        <div className={`flex-1 overflow-hidden text-${recordTextSize} ${lineHeight} pr-10 md:pr-2`}>
           <div className="flex w-full items-center gap-2 text-zinc-500">
-            <span className="flex items-center gap-1 bg-cyan-900 text-white px-1 rounded text-xs">
+            <span className={`flex items-center gap-1 bg-cyan-900 text-white px-1 rounded text-${recordTextSize}`}>
               {t(mark.type)}
             </span>
-            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
           <DetailViewer mark={mark} content={mark.desc || ''} path="screenshot" />
         </div>
     )
     case 'image':
     return (
-        <div className="flex-1 overflow-hidden text-xs pr-10 md:pr-2">
+        <div className={`flex-1 overflow-hidden text-${recordTextSize} ${lineHeight} pr-10 md:pr-2`}>
           <div className="flex w-full items-center gap-2 text-zinc-500">
-            <span className="flex items-center gap-1 bg-fuchsia-900 text-white px-1 rounded text-xs">
+            <span className={`flex items-center gap-1 bg-fuchsia-900 text-white px-1 rounded text-${recordTextSize}`}>
               {t(mark.type)}
             </span>
             {mark.url.includes('http') ? <ImageUp className="size-3 text-zinc-400" /> : null}
-            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
           <DetailViewer mark={mark} content={mark.desc || ''} path="image" />
         </div>
@@ -142,11 +186,11 @@ export function MarkWrapper({mark}: {mark: Mark}) {
     case 'link':
     return (
         <div className="flex-1 pr-10 md:pr-0">
-          <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+          <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
             <span className="flex items-center gap-1 bg-blue-900 text-white px-1 rounded">
               {t(mark.type)}
             </span>
-            <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+            <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
           <DetailViewer mark={mark} content={mark.desc || ''} />
           <div className="mt-1">
@@ -154,7 +198,7 @@ export function MarkWrapper({mark}: {mark: Mark}) {
               href={mark.url} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-xs text-blue-500 hover:underline truncate block"
+              className={`text-${recordTextSize} text-blue-500 hover:underline truncate block`}
             >
               {mark.url}
             </a>
@@ -164,11 +208,11 @@ export function MarkWrapper({mark}: {mark: Mark}) {
     case 'text':
       return (
           <div className="flex-1 pr-10 md:pr-0">
-            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+            <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
               <span className="flex items-center gap-1 bg-lime-900 text-white px-1 rounded">
                 {t(mark.type)}
               </span>
-              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+              <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
             <DetailViewer mark={mark} content={mark.content || ''} />
           </div>
@@ -176,11 +220,11 @@ export function MarkWrapper({mark}: {mark: Mark}) {
     case 'recording':
       return (
           <div className="flex-1 pr-10 md:pr-0">
-            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+            <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
               <span className="flex items-center gap-1 bg-red-900 text-white px-1 rounded">
                 {t(mark.type)}
               </span>
-              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+              <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
             <DetailViewer mark={mark} content={mark.content || ''} />
             {mark.url && (
@@ -193,16 +237,16 @@ export function MarkWrapper({mark}: {mark: Mark}) {
     case 'file':
       return (
           <div className="flex-1 pr-10 md:pr-0">
-            <div className="flex w-full items-center gap-2 text-zinc-500 text-xs">
+            <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
               <span className="flex items-center gap-1 bg-orange-800 text-white px-1 rounded">
                 {t(mark.type)}
               </span>
-              <span className="ml-auto text-xs">{dayjs(mark.createdAt).fromNow()}</span>
+              <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
             <DetailViewer mark={mark} content={mark.content || ''} />
             {mark.url && (
               <div className="mt-1">
-                <span className="text-xs">
+                <span className={`text-${recordTextSize}`}>
                   {mark.desc}
                 </span>
               </div>
@@ -406,7 +450,7 @@ export function MarkItem({mark}: {mark: Mark}) {
         {
           trashState ? null :
           <ContextMenuSub>
-            <ContextMenuSubTrigger inset>
+            <ContextMenuSubTrigger inset menuType="record">
               {isMultiSelectMode && selectedMarkIds.size > 0 
                 ? t('record.mark.toolbar.moveSelectedTags', { count: selectedMarkIds.size })
                 : t('record.mark.toolbar.moveTag')
@@ -419,6 +463,7 @@ export function MarkItem({mark}: {mark: Mark}) {
                     disabled={tag.id === currentTagId} 
                     key={tag.id} 
                     onClick={() => handleTransfer(tag.id)}
+                    menuType="record"
                   >
                     {tag.name}
                   </ContextMenuItem>
@@ -427,29 +472,29 @@ export function MarkItem({mark}: {mark: Mark}) {
             </ContextMenuSubContent>
           </ContextMenuSub>
         }
-        <ContextMenuItem inset disabled={isMultiSelectMode || true}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || true} menuType="record">
           {t('record.mark.toolbar.convertTo', { type: mark.type === 'scan' ? t('record.mark.type.image') : t('record.mark.type.screenshot') })}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={isMultiSelectMode || !mark.url} onClick={handleCopyLink}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || !mark.url} onClick={handleCopyLink} menuType="record">
           {t('record.mark.toolbar.copyLink')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc} menuType="record">
           {t('record.mark.toolbar.regenerateDesc')}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFolder}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFolder} menuType="record">
           {t('record.mark.toolbar.viewFolder')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFile}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFile} menuType="record">
           {t('record.mark.toolbar.viewFile')}
         </ContextMenuItem>
         {
           trashState ? 
           <>
-            <ContextMenuItem inset disabled={isMultiSelectMode} onClick={handleRestore}>
+            <ContextMenuItem inset disabled={isMultiSelectMode} onClick={handleRestore} menuType="record">
               {t('record.mark.toolbar.restore')}
             </ContextMenuItem>
-            <ContextMenuItem inset onClick={handleDelForever}>
+            <ContextMenuItem inset onClick={handleDelForever} menuType="record">
               <span className="text-red-900">
                 {isMultiSelectMode && selectedMarkIds.size > 0 
                   ? t('record.mark.toolbar.deleteSelectedForever', { count: selectedMarkIds.size })
@@ -458,7 +503,7 @@ export function MarkItem({mark}: {mark: Mark}) {
               </span>
             </ContextMenuItem>
           </> :
-          <ContextMenuItem inset onClick={handleDelMark}>
+          <ContextMenuItem inset onClick={handleDelMark} menuType="record">
             <span className="text-red-900">
               {isMultiSelectMode && selectedMarkIds.size > 0 
                 ? t('record.mark.toolbar.deleteSelected', { count: selectedMarkIds.size })

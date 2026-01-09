@@ -19,6 +19,7 @@ use keywords::{rank_keywords};
 use backup::{export_app_data, import_app_data};
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
+use tray::update_tray_enabled;
 
 fn main() {
     tauri::Builder::default()
@@ -63,6 +64,7 @@ fn main() {
             stop_mcp_server,
             send_mcp_message,
             get_device_id,
+            update_tray_enabled,
         ])
         
         // 应用设置 - 在所有插件和命令注册后

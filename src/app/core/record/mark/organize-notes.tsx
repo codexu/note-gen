@@ -3,7 +3,7 @@ import useSettingStore, { GenTemplate, GenTemplateRange } from "@/stores/setting
 import useMarkStore from "@/stores/mark"
 import useArticleStore from "@/stores/article"
 import useTagStore from "@/stores/tag"
-import { fetchAiStream } from "@/lib/ai"
+import { fetchAiStream } from "@/lib/ai/chat"
 import { convertImage } from "@/lib/utils"
 import {
   AlertDialog,
@@ -152,13 +152,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       
       const marksByRange = marks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
       const scanMarks = marksByRange.filter(item => item.type === 'scan')
-      const textMarks = marksByRange.filter(item => item.type === 'text').map(item => {
-        if (!item.content) return item
-        if (isRemoveThinking) {
-          item.content = item.content.replace(/<thinking>[\s\S]*?<thinking>/g, '');
-        }
-        return item
-      })
+      const textMarks = marksByRange.filter(item => item.type === 'text')
       const imageMarks = marksByRange.filter(item => item.type === 'image')
       const linkMarks = marksByRange.filter(item => item.type === 'link')
       const fileMarks = marksByRange.filter(item => item.type === 'file')
@@ -231,7 +225,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       }, signal)
       
       // 6. Extract title and rename file
-      const cleanedContent = fullContent.replace(/<thinking>[\s\S]*?<thinking>/g, '')
+      const cleanedContent = fullContent
       
       // Try to extract title: H1 -> H2 -> H3
       let titleMatch = cleanedContent.match(/^#\s+(.+)$/m)

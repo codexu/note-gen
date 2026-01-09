@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath } from "@/lib/path";
@@ -25,7 +25,7 @@ export function CopyFolder({ item }: CopyFolderProps) {
   }
 
   return (
-    <ContextMenuItem inset onClick={handleCopyFolder}>
+    <ContextMenuItem inset onClick={handleCopyFolder} menuType="file">
       {t('context.copy')}
     </ContextMenuItem>
   );

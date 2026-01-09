@@ -1,4 +1,4 @@
-import { fetchAiStreamToken } from "@/lib/ai";
+import { fetchAiStreamToken } from "@/lib/ai/chat";
 import emitter from "@/lib/emitter";
 import { useEffect, useRef } from "react";
 import Vditor from "vditor";

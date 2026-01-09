@@ -1,5 +1,5 @@
 import { TooltipButton } from "@/components/tooltip-button";
-import { fetchAiStreamToken } from "@/lib/ai";
+import { fetchAiStreamToken } from "@/lib/ai/chat";
 import { SquareCodeIcon } from "lucide-react";
 import Vditor from "vditor";
 import { useTranslations } from "next-intl";

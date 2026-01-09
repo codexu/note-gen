@@ -1,5 +1,5 @@
 import { TooltipButton } from "@/components/tooltip-button";
-import { fetchAiStreamToken } from "@/lib/ai";
+import { fetchAiStreamToken } from "@/lib/ai/chat";
 import emitter from "@/lib/emitter";
 import useSettingStore from "@/stores/setting";
 import { MessageCircleQuestion } from "lucide-react";

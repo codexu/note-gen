@@ -1,4 +1,4 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -13,8 +13,6 @@ import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import useClipboardStore from "@/stores/clipboard";
-import { PhotoProvider, PhotoView } from "react-photo-view";
-import { convertImageByWorkspace } from "@/lib/utils";
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { deleteFile } from "@/lib/sync/github";
 import { deleteFile as deleteGiteeFile } from "@/lib/sync/gitee";
@@ -22,6 +20,7 @@ import { deleteFile as deleteGitlabFile } from "@/lib/sync/gitlab";
 import { generateUniqueFilename } from "@/lib/default-filename";
 import { MobileActionMenu, MobileMenuItem, MobileSeparator } from "./mobile-action-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
+import useSettingStore from "@/stores/setting";
 
 export function FileItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
@@ -30,9 +29,23 @@ export function FileItem({ item }: { item: DirTree }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const { activeFilePath, setActiveFilePath, readArticle, setCurrentArticle, fileTree, setFileTree, loadFileTree } = useArticleStore()
   const { setClipboardItem, clipboardItem, clipboardOperation } = useClipboardStore()
+  const { fileManagerTextSize } = useSettingStore()
   const t = useTranslations('article.file')
-  const [imageUrl, setImageUrl] = useState('')
   const isMobile = useIsMobile()
+
+  // 根据文字大小映射图标大小
+  const getIconSize = (textSize: string) => {
+    const sizeMap = {
+      'xs': 'size-3',
+      'sm': 'size-3.5', 
+      'md': 'size-4',
+      'lg': 'size-5',
+      'xl': 'size-6'
+    }
+    return sizeMap[textSize as keyof typeof sizeMap] || 'size-4'
+  }
+
+  const iconSize = getIconSize(fileManagerTextSize)
   
   const path = computedParentPath(item)
   const isRoot = path.split('/').length === 1
@@ -97,18 +110,30 @@ export function FileItem({ item }: { item: DirTree }) {
   }, [])
 
   async function handleSelectFile() {
+    const currentPath = computedParentPath(item)
+    
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-      let path = ''
-      if (item.isLocale) {
-        path = computedParentPath(item)
+      // 图片文件：设置 activeFilePath，让 EditorWrapper 显示图片编辑器
+      if (activeFilePath === currentPath) {
+        setActiveFilePath('')
+        setCurrentArticle('')
       } else {
-        path = activeFilePath
+        setActiveFilePath(currentPath)
+        setCurrentArticle('') // 清空文本内容
       }
-      const url = await convertImageByWorkspace(path)
-      setImageUrl(url)
+    } else if (item.name.match(/\.(md|txt|markdown)$/i)) {
+      // Markdown/文本文件：设置 activeFilePath 并读取内容
+      if (activeFilePath === currentPath) {
+        setActiveFilePath('')
+        setCurrentArticle('')
+      } else {
+        setActiveFilePath(currentPath)
+        readArticle(currentPath, item.sha, item.isLocale)
+      }
     } else {
-      setActiveFilePath(computedParentPath(item))
-      readArticle(computedParentPath(item), item.sha, item.isLocale)
+      // 其他文件类型：清空编辑器
+      setActiveFilePath('')
+      setCurrentArticle('')
     }
   }
 
@@ -125,8 +150,11 @@ export function FileItem({ item }: { item: DirTree }) {
         const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
         const workspace = await getWorkspacePath()
         
+        // 使用当前路径，而不是重新计算的路径
+        const currentPath = computedParentPath(item)
+        
         // 根据工作区类型正确删除文件
-        const pathOptions = await getFilePathOptions(path)
+        const pathOptions = await getFilePathOptions(currentPath)
         
         if (workspace.isCustom) {
           // 自定义工作区
@@ -142,8 +170,90 @@ export function FileItem({ item }: { item: DirTree }) {
           if (index !== undefined && index !== -1 && currentFolder.children) {
             const current = currentFolder.children[index]
             if (current.sha) {
-              current.isLocale = false
+              // 远程文件：调用远程删除 API
+              try {
+                console.log('Attempting to delete remote file:', {
+                  name: item.name,
+                  currentPath: currentPath,
+                  sha: current.sha
+                })
+                
+                const useSettingStore = (await import('@/stores/setting')).default
+                const settingStore = useSettingStore.getState()
+                const method = settingStore.primaryBackupMethod
+                
+                // 获取仓库名称
+                const { getSyncRepoName } = await import('@/lib/sync/repo-utils')
+                const repo = await getSyncRepoName(method)
+                
+                // 获取远程文件列表，找到实际的文件名
+                let actualFileName = item.name
+                if (method === 'github') {
+                  const { getFiles } = await import('@/lib/sync/github')
+                  const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                  const files = await getFiles({ path: dirPath, repo })
+                  
+                  if (files && Array.isArray(files)) {
+                    // 查找 SHA 匹配的文件，使用其原始文件名
+                    const remoteFile = files.find((f: any) => f.sha === current.sha)
+                    if (remoteFile && remoteFile.name) {
+                      actualFileName = remoteFile.name
+                      console.log('Found actual file name from remote:', actualFileName)
+                    }
+                  }
+                }
+                
+                // 构建正确的删除路径
+                const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
+                
+                console.log('Using delete path:', deletePath)
+                
+                if (method === 'github') {
+                  const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
+                  await deleteGithubFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitee') {
+                  const { deleteFile: deleteGiteeFile } = await import('@/lib/sync/gitee')
+                  await deleteGiteeFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitlab') {
+                  const { deleteFile: deleteGitlabFile } = await import('@/lib/sync/gitlab')
+                  await deleteGitlabFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitea') {
+                  const { deleteFile: deleteGiteaFile } = await import('@/lib/sync/gitea')
+                  await deleteGiteaFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                }
+                
+                console.log('Remote delete successful for:', deletePath)
+                // 远程删除成功，从文件树中移除
+                currentFolder.children.splice(index, 1)
+              } catch (remoteError) {
+                console.error('Remote delete failed:', remoteError)
+                toast({
+                  title: t('context.deleteLocalFile'),
+                  description: `远程删除失败: ${remoteError}`,
+                  variant: 'destructive'
+                })
+                // 远程删除失败，只标记为非本地文件
+                current.isLocale = false
+              }
             } else {
+              // 本地文件：直接从文件树中移除
               currentFolder.children.splice(index, 1)
             }
           }
@@ -152,15 +262,100 @@ export function FileItem({ item }: { item: DirTree }) {
           if (index !== undefined && index !== -1) {
             const current = cacheTree[index]
             if (current.sha) {
-              current.isLocale = false
+              // 远程文件：调用远程删除 API
+              try {
+                console.log('Attempting to delete remote file (root level):', {
+                  name: item.name,
+                  currentPath: currentPath,
+                  sha: current.sha
+                })
+                
+                const useSettingStore = (await import('@/stores/setting')).default
+                const settingStore = useSettingStore.getState()
+                const method = settingStore.primaryBackupMethod
+                
+                // 获取仓库名称
+                const { getSyncRepoName } = await import('@/lib/sync/repo-utils')
+                const repo = await getSyncRepoName(method)
+                
+                // 获取远程文件列表，找到实际的文件名
+                let actualFileName = item.name
+                if (method === 'github') {
+                  const { getFiles } = await import('@/lib/sync/github')
+                  const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                  const files = await getFiles({ path: dirPath, repo })
+                  
+                  if (files && Array.isArray(files)) {
+                    // 查找 SHA 匹配的文件，使用其原始文件名
+                    const remoteFile = files.find((f: any) => f.sha === current.sha)
+                    if (remoteFile && remoteFile.name) {
+                      actualFileName = remoteFile.name
+                      console.log('Found actual file name from remote (root level):', actualFileName)
+                    }
+                  }
+                }
+                
+                // 构建正确的删除路径
+                const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
+                const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
+                
+                console.log('Using delete path (root level):', deletePath)
+                
+                if (method === 'github') {
+                  const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
+                  await deleteGithubFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitee') {
+                  const { deleteFile: deleteGiteeFile } = await import('@/lib/sync/gitee')
+                  await deleteGiteeFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitlab') {
+                  const { deleteFile: deleteGitlabFile } = await import('@/lib/sync/gitlab')
+                  await deleteGitlabFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                } else if (method === 'gitea') {
+                  const { deleteFile: deleteGiteaFile } = await import('@/lib/sync/gitea')
+                  await deleteGiteaFile({
+                    path: deletePath,
+                    sha: current.sha,
+                    repo: repo
+                  })
+                }
+                
+                console.log('Remote delete successful for (root level):', deletePath)
+                // 远程删除成功，从文件树中移除
+                cacheTree.splice(index, 1)
+              } catch (remoteError) {
+                console.error('Remote delete failed (root level):', remoteError)
+                toast({
+                  title: t('context.deleteLocalFile'),
+                  description: `远程删除失败: ${remoteError}`,
+                  variant: 'destructive'
+                })
+                // 远程删除失败，只标记为非本地文件
+                current.isLocale = false
+              }
             } else {
+              // 本地文件：直接从文件树中移除
               cacheTree.splice(index, 1)
             }
           }
         }
         setFileTree(cacheTree)
-        setActiveFilePath('')
-        setCurrentArticle('')
+        // 只有删除的是当前选中的文件时，才清空选中状态
+        if (activeFilePath === currentPath) {
+          setActiveFilePath('')
+          setCurrentArticle('')
+        }
       } catch (error) {
         console.error('Delete file failed:', error)
         toast({
@@ -310,7 +505,7 @@ export function FileItem({ item }: { item: DirTree }) {
       }
       
       // 构建新文件的完整路径用于激活文件
-      let newPath = path.split('/').slice(0, -1).join('/') + '/' + (name.endsWith('.md') ? name : name + '.md')
+      let newPath = path.split('/').slice(0, -1).join('/') + '/' + displayName
       // 判断 newPath 是否以 / 开头
       if (newPath.startsWith('/')) {
         newPath = newPath.slice(1)
@@ -478,16 +673,15 @@ export function FileItem({ item }: { item: DirTree }) {
           <div
             className={`${path === activeFilePath ? 'file-manange-item active' : 'file-manange-item'} ${!isRoot && 'translate-x-5 !w-[calc(100%-22px)]'}`}
             onClick={handleSelectFile}
-            onContextMenu={handleSelectFile}
           >
             {
               isEditing ? 
               <div className="flex gap-1 items-center w-full select-none">
-                <span className={item.parent ? 'size-0' : 'size-4 ml-1'} />
-                <File className="size-4" />
+                <span className={item.parent ? 'size-0' : `${iconSize} ml-1`} />
+                <File className={iconSize} />
                 <Input
                   ref={inputRef}
-                  className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
+                  className={`h-5 rounded-sm text-${fileManagerTextSize} px-1 font-normal flex-1 mr-1`}
                   value={name}
                   onBlur={handleRename}
                   onChange={handleInputChange}
@@ -503,63 +697,59 @@ export function FileItem({ item }: { item: DirTree }) {
                 />
               </div> :
               item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i) ? 
-              <PhotoProvider>
-                <PhotoView src={imageUrl}>
-                  <span
-                    draggable
-                    onDragStart={handleDragStart}
-                    title={item.name}
-                    className={`${item.isLocale ? '' : 'opacity-50'} flex justify-between flex-1 select-none items-center gap-1 dark:hover:text-white`}>
-                    <div className="flex flex-1 gap-1 select-none relative">
-                      <span className={item.parent ? 'size-0' : 'size-4 ml-1'}></span>
-                      <div className="relative">
-                        <ImageIcon className="size-4" />
-                        { item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" /> }
-                      </div>
-                      <span className="text-xs flex-1 line-clamp-1">{item.name}</span>
-                    </div>
-                    {isMobile && (
-                      <MobileActionMenu className="ml-1">
-                        <MobileMenuItem onClick={handleShowFileManager}>
-                          {t('context.viewDirectory')}
-                        </MobileMenuItem>
-                        <MobileSeparator />
-                        <MobileMenuItem disabled={!item.isLocale} onClick={handleCutFile}>
-                          {t('context.cut')}
-                        </MobileMenuItem>
-                        <MobileMenuItem onClick={handleCopyFile}>
-                          {t('context.copy')}
-                        </MobileMenuItem>
-                        <MobileMenuItem disabled={!clipboardItem} onClick={handlePasteFile}>
-                          {t('context.paste')}
-                        </MobileMenuItem>
-                        <MobileSeparator />
-                        <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
-                          {t('context.rename')}
-                        </MobileMenuItem>
-                        <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
-                          {t('context.deleteSyncFile')}
-                        </MobileMenuItem>
-                        <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
-                          {t('context.deleteLocalFile')}
-                        </MobileMenuItem>
-                      </MobileActionMenu>
-                    )}
-                  </span>
-                </PhotoView>
-              </PhotoProvider> :
               <span
                 draggable
                 onDragStart={handleDragStart}
                 title={item.name}
                 className={`${item.isLocale ? '' : 'opacity-50'} flex justify-between flex-1 select-none items-center gap-1 dark:hover:text-white`}>
-                <div className="flex flex-1 gap-1 select-none relative">
-                  <span className={item.parent ? 'size-0' : 'size-4 ml-1'}></span>
-                  <div className="relative">
-                    { item.isLocale ? <File className="size-4" /> : <CloudDownload className="size-4" /> }
+                <div className="flex flex-1 gap-1 select-none relative items-center">
+                  <span className={item.parent ? 'size-0' : `${iconSize} ml-1`}></span>
+                  <div className="relative flex items-center">
+                    <ImageIcon className={iconSize} />
                     { item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" /> }
                   </div>
-                  <span className="text-xs flex-1 line-clamp-1">{item.name}</span>
+                  <span className={`text-${fileManagerTextSize} flex-1 line-clamp-1`}>{item.name}</span>
+                </div>
+                {isMobile && (
+                  <MobileActionMenu className="ml-1">
+                    <MobileMenuItem onClick={handleShowFileManager}>
+                      {t('context.viewDirectory')}
+                    </MobileMenuItem>
+                    <MobileSeparator />
+                    <MobileMenuItem disabled={!item.isLocale} onClick={handleCutFile}>
+                      {t('context.cut')}
+                    </MobileMenuItem>
+                    <MobileMenuItem onClick={handleCopyFile}>
+                      {t('context.copy')}
+                    </MobileMenuItem>
+                    <MobileMenuItem disabled={!clipboardItem} onClick={handlePasteFile}>
+                      {t('context.paste')}
+                    </MobileMenuItem>
+                    <MobileSeparator />
+                    <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
+                      {t('context.rename')}
+                    </MobileMenuItem>
+                    <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
+                      {t('context.deleteSyncFile')}
+                    </MobileMenuItem>
+                    <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
+                      {t('context.deleteLocalFile')}
+                    </MobileMenuItem>
+                  </MobileActionMenu>
+                )}
+              </span> :
+              <span
+                draggable
+                onDragStart={handleDragStart}
+                title={item.name}
+                className={`${item.isLocale ? '' : 'opacity-50'} flex justify-between flex-1 select-none items-center gap-1 dark:hover:text-white`}>
+                <div className="flex flex-1 gap-1 select-none relative items-center">
+                  <span className={item.parent ? 'size-0' : `${iconSize} ml-1`}></span>
+                  <div className="relative flex items-center">
+                    { item.isLocale ? <File className={iconSize} /> : <CloudDownload className={iconSize} /> }
+                    { item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" /> }
+                  </div>
+                  <span className={`text-${fileManagerTextSize} flex-1 line-clamp-1`}>{item.name}</span>
                 </div>
                 {isMobile && (
                   <MobileActionMenu className="ml-1">
@@ -593,27 +783,27 @@ export function FileItem({ item }: { item: DirTree }) {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem inset onClick={handleShowFileManager}>
+          <ContextMenuItem inset onClick={handleShowFileManager} menuType="file">
             {t('context.viewDirectory')}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem inset disabled={!item.isLocale} onClick={handleCutFile}>
+          <ContextMenuItem inset disabled={!item.isLocale} onClick={handleCutFile} menuType="file">
             {t('context.cut')}
           </ContextMenuItem>
-          <ContextMenuItem inset onClick={handleCopyFile}>
+          <ContextMenuItem inset onClick={handleCopyFile} menuType="file">
             {t('context.copy')}
           </ContextMenuItem>
-          <ContextMenuItem inset disabled={!clipboardItem} onClick={handlePasteFile}>
+          <ContextMenuItem inset disabled={!clipboardItem} onClick={handlePasteFile} menuType="file">
             {t('context.paste')}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem disabled={!item.isLocale} inset onClick={handleStartRename}>
+          <ContextMenuItem disabled={!item.isLocale} inset onClick={handleStartRename} menuType="file">
             {t('context.rename')}
           </ContextMenuItem>
-          <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile}>
+          <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile} menuType="file">
             {t('context.deleteSyncFile')}
           </ContextMenuItem>
-          <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile}>
+          <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile} menuType="file">
             {t('context.deleteLocalFile')}
           </ContextMenuItem>
         </ContextMenuContent>

@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
@@ -100,6 +100,7 @@ export function DeleteFolder({ item }: DeleteFolderProps) {
       inset 
       className="text-red-900" 
       onClick={handleDeleteFolder}
+      menuType="file"
     >
       {t('context.delete')}
     </ContextMenuItem>

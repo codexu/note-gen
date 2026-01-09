@@ -6,8 +6,24 @@
   }
 }
 
+// 优化面板分隔条的隐藏动画
+[data-panel-handle] {
+  transition: opacity 0.2s ease-in-out;
+  
+  &.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+// 确保面板折叠时的平滑过渡
+[data-resizable-panel] {
+  transition: flex 0.2s ease-in-out;
+}
+
 .vditor-toolbar{
   @apply border-b bg-transparent !px-4 h-12 flex items-center justify-center;
+  
   .vditor-toolbar__item{
     @apply h-9 w-9 flex items-center justify-center;
     svg {
@@ -20,6 +36,58 @@
   .bottom {
     .vditor-hint{
       top: 40px;
+    }
+  }
+}
+
+// 移动端工具栏支持左右滑动
+@media (max-width: 768px) {
+  .vditor-toolbar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+    
+    // 确保工具栏内容不换行
+    & > * {
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      display: inline-flex !important;
+    }
+    
+    .vditor-toolbar__item {
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      min-width: 36px !important;
+      width: 36px !important;
+    }
+    
+    .vditor-toolbar__divider {
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      min-width: 19px !important;
+      width: 19px !important;
+    }
+  }
+  
+  // 确保移动端写作页面的编辑器容器不会阻止滑动
+  #mobile-writing {
+    .vditor-toolbar {
+      touch-action: pan-x pan-y !important;
+      overscroll-behavior-x: contain !important;
     }
   }
 }
@@ -39,6 +107,21 @@
 .vditor-reset {
   padding-top: 24px !important;
   padding-bottom: 24px !important;
+}
+
+.vditor-reset .language-infographic {
+  margin-bottom: 16px;
+  text-align: center;
+  background: transparent;
+  background-image: none;
+  padding: 0 !important;
+  white-space: normal;
+}
+
+.vditor-reset .language-infographic .infographic-diagram {
+  width: 100%;
+  min-height: 120px;
+  overflow: hidden;
 }
 
 .vditor-counter{

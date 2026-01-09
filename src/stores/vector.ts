@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { initVectorDb, processAllMarkdownFiles, processMarkdownFile, checkEmbeddingModelAvailable } from '@/lib/rag';
-import { checkRerankModelAvailable } from '@/lib/ai';
+import { checkRerankModelAvailable } from '@/lib/ai/embedding';
 import { Store } from "@tauri-apps/plugin-store";
 import { toast } from '@/hooks/use-toast';
 

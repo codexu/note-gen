@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import useSettingStore from "@/stores/setting";
 import { Input } from "@/components/ui/input";
-import { createOpenAIClient } from "@/lib/ai";
+import { createOpenAIClient } from "@/lib/ai/utils";
 import OpenAI from "openai";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";

@@ -67,6 +67,14 @@
           "title": "正文缩放",
           "desc": "调整编辑器和对话中 Markdown 内容的文字大小"
         },
+        "fileManagerTextSize": {
+          "title": "文件管理器文字大小",
+          "desc": "调整文件管理器中文件和文件夹列表的文字大小"
+        },
+        "recordTextSize": {
+          "title": "记录文字大小",
+          "desc": "调整记录列表中记录项的文字大小"
+        },
         "customCss": {
           "title": "自定义 CSS",
           "desc": "添加自定义 CSS 样式来覆盖应用的默认样式",
@@ -76,6 +84,12 @@
           "placeholder": "在此输入自定义 CSS 代码。",
           "save": "保存",
           "cancel": "取消"
+        },
+        "tray": {
+          "enabled": {
+            "title": "启用托盘",
+            "desc": "关闭窗口时选择最小化到托盘或直接关闭软件"
+          }
         }
       },
       "tools": {
@@ -247,9 +261,13 @@
           "title": "AI 建议",
           "desc": "AI 建议提示作用于记录页面 AI 对话 placeholder 内容生成。"
         },
-        "translate": {
-          "title": "翻译",
-          "desc": "用于翻译内容的场景。"
+        "completion": {
+          "title": "快速补全",
+          "desc": "用于 Markdown 编辑器的 AI 内联补全，类似 GitHub Copilot，快速生成续写内容。"
+        },
+        "commit": {
+          "title": "自动生成 commit 信息",
+          "desc": "用于自动生成 Git 提交信息，基于文件内容变化智能生成描述性提交信息。"
         },
         "embedding": {
           "title": "嵌入模型",
@@ -303,6 +321,8 @@
       "updateDownloading": "更新中 {downloaded} / {contentLength}",
       "updateInstalled": "重启应用",
       "noUpdate": "当前已是最新版本",
+      "ignoreVersion": "忽略此版本",
+      "ignoreVersionSuccess": "已忽略此版本更新",
       "items": {
         "home": {
           "title": "官网",
@@ -703,9 +723,14 @@
           "desc": "用于文本向量化、语义搜索等功能"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "视觉模型",
-          "desc": "支持图像理解、OCR识别等视觉任务"
+          "desc": "支持图像理解、视觉问答等功能"
+        },
+        "completionModel": {
+          "name": "快速补全",
+          "type": "补全模型",
+          "desc": "用于 Markdown 编辑器的 AI 内联补全，类似 GitHub Copilot，快速生成续写内容"
         },
         "poweredBy": "由 SiliconFlow 提供技术支持"
       }
@@ -817,6 +842,7 @@
         "recording": "录音",
         "file": "文件",
         "link": "链接",
+        "pdf": "PDF",
         "upload": "上传记录",
         "download": "下载记录",
         "uploadTo": "从本地同步到 {provider}",
@@ -888,6 +914,27 @@
           "text": "文本"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "对话",
+            "agent": "智能体"
+          },
+          "agent": {
+            "running": "Agent 运行中",
+            "thinking": "思考中",
+            "acting": "执行中",
+            "observation": "观察结果",
+            "toolCalls": "工具调用",
+            "confirmation": {
+              "title": "确认操作",
+              "description": "Agent 想要执行以下操作，请确认后继续。",
+              "tool": "工具",
+              "parameters": "参数",
+              "confirm": "确认",
+              "cancel": "取消",
+              "confirmed": "已确认",
+              "cancelled": "已取消"
+            }
+          },
           "placeholder": {
             "default": "你可以提问或将记录整理为文章...",
             "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
@@ -929,20 +976,14 @@
             "error": "失败"
           },
           "empty": {
-            "features": [
-              {
-                "chat": "与 AI 机器人进行聊天"
-              },
-              {
-                "linked": "与你的记录或笔记关联"
-              },
-              {
-                "clipboard": "识别剪贴板中的文字和图片"
-              },
-              {
-                "organize": "将你的记录整理为笔记"
-              }
-            ]
+            "title": "开始与 AI 对话",
+            "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",
+            "currentModel": "当前模型",
+            "currentPrompt": "当前 Prompt",
+            "noModel": "未设置模型",
+            "noPrompt": "未设置 Prompt",
+            "modeHint": "点击输入框左侧的",
+            "modeHintSuffix": "按钮可切换对话模式"
           },
           "content": {
             "organize": "将你的记录整理为文章："
@@ -1035,20 +1076,14 @@
     },
     "chat": {
       "empty": {
-        "features": [
-          {
-            "chat": "与 AI 机器人进行聊天"
-          },
-          {
-            "linked": "已与你的记录或笔记关联"
-          },
-          {
-            "clipboard": "识别剪贴板中的文字和图片"
-          },
-          {
-            "organize": "将你的记录整理为笔记"
-          }
-        ]
+        "title": "开始与 AI 对话",
+        "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",
+        "currentModel": "当前模型",
+        "currentPrompt": "当前 Prompt",
+        "currentMode": "对话模式",
+        "noModel": "未设置模型",
+        "noPrompt": "未设置 Prompt",
+        "configureModel": "配置模型"
       },
       "newChat": "使用新标签开始对话",
       "removeChat": "删除当前标签对话",
@@ -1078,6 +1113,7 @@
         },
         "send": "发送",
         "stop": "停止",
+        "stopped": "对话已终止",
         "terminate": "终止",
         "tagLink": {
           "on": "已关联标签",
@@ -1113,6 +1149,37 @@
           "chat": "对话模式",
           "gen": "整理模式",
           "translate": "翻译模式"
+        },
+        "chatModeSelect": {
+          "chatDescription": "快速对话，只读模式",
+          "agentDescription": "智能助手，可执行操作"
+        },
+        "attachImage": "附加图片",
+        "imageSelector": {
+          "title": "选择图片",
+          "local": "本地文件",
+          "records": "从记录中选择",
+          "selectFiles": "选择本地图片",
+          "noRecords": "没有可用的图片记录",
+          "cancel": "取消",
+          "confirm": "确认"
+        },
+        "agent": {
+          "running": "Agent 运行中",
+          "thinking": "思考中",
+          "acting": "执行中",
+          "observation": "观察结果",
+          "toolCalls": "工具调用",
+          "confirmation": {
+            "title": "确认操作",
+            "description": "Agent 想要执行以下操作，请确认后继续。",
+            "tool": "工具",
+            "parameters": "参数",
+            "cancel": "取消",
+            "confirm": "确认",
+            "confirmed": "已确认",
+            "cancelled": "已取消"
+          }
         },
         "fileLink": {
           "tooltip": "关联文件",
@@ -1227,6 +1294,7 @@
   "navigation": {
     "chat": "对话",
     "record": "记录",
+    "quickRecord": "快捷记录",
     "write": "写作",
     "search": "搜索",
     "githubImageHosting": "Github 图床",
@@ -1236,10 +1304,12 @@
     "logout": "登出",
     "setting": "设置",
     "files": "笔记",
-    "hideLeftSidebar": "隐藏左侧边栏",
     "showLeftSidebar": "显示左侧边栏",
-    "hideRightSidebar": "隐藏右侧边栏",
+    "hideLeftSidebar": "隐藏左侧边栏",
+    "showCenterPanel": "显示编辑器",
+    "hideCenterPanel": "隐藏编辑器",
     "showRightSidebar": "显示右侧边栏",
+    "hideRightSidebar": "隐藏右侧边栏",
     "searchPlaceholder": "搜索笔记或记录..."
   },
   "marks": {
@@ -1265,6 +1335,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "正在拉取远程文件...",
+      "syncComplete": "同步完成"
+    },
+    "syncConfirm": {
+      "title": "检测到远程文件更新",
+      "description": "文件 {fileName} 有远程更新",
+      "commitInfo": "最新提交信息",
+      "commitMessage": "提交消息",
+      "author": "作者",
+      "changes": "变更",
+      "confirmMessage": "确认要拉取远程版本并覆盖本地文件吗？此操作无法撤销。",
+      "cancel": "取消",
+      "confirmPull": "确认拉取"
+    },
+    "emptyState": {
+      "title": "开始创作",
+      "subtitle": "选择一个文件开始编辑，或创建新的笔记",
+      "tip": "💡 提示：你也可以从左侧文件管理器中选择文件",
+      "actions": {
+        "newNote": {
+          "title": "创建笔记",
+          "desc": "新建一篇 Markdown 笔记"
+        },
+        "newRecord": {
+          "title": "创建记录",
+          "desc": "打开文本记录功能"
+        },
+        "globalSearch": {
+          "title": "全局搜索",
+          "desc": "快速查找你的笔记内容"
+        },
+        "openWorkspace": {
+          "title": "打开工作区",
+          "desc": "选择或切换工作区目录"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "访问仓库",
@@ -1290,6 +1398,12 @@
         "importSuccess": "导入成功",
         "importSuccessDesc": "成功导入 {count} 个文件",
         "importError": "导入失败"
+      },
+      "sync": {
+        "syncingRemote": "正在拉取远程文件",
+        "syncComplete": "同步完成",
+        "pullingRemote": "正在从远程服务器获取最新内容...",
+        "pullComplete": "拉取完成"
       },
       "context": {
         "viewDirectory": "查看目录",
@@ -1331,6 +1445,9 @@
       "copySuccess": "复制成功",
       "copySuccessDescription": "已复制到剪贴板",
       "floatbar": {
+        "quote": {
+          "tooltip": "引用"
+        },
         "readAloud": {
           "start": "朗读",
           "stop": "停止朗读",
@@ -1341,6 +1458,15 @@
         "error": "上传失败",
         "needToken": "上传图片需配置 accessToken",
         "uploading": "正在上传图片"
+      },
+      "saveDialog": {
+        "title": "保存文件",
+        "emptyContent": "内容为空",
+        "emptyContentDesc": "请先输入内容后再保存",
+        "success": "保存成功",
+        "successDesc": "文件已保存",
+        "error": "保存失败",
+        "errorDesc": "文件保存失败，请重试"
       },
       "toolbar": {
         "mark": {
@@ -1384,11 +1510,21 @@
     },
     "footer": {
       "wordCount": "字数",
+      "pull": {
+        "pull": "拉取",
+        "checking": "检查更新中...",
+        "noUpdate": "无远程更新",
+        "clickToPull": "点击拉取远程更新",
+        "pullSuccess": "拉取成功",
+        "pullFailed": "拉取失败",
+        "ignored": "已忽略",
+        "ignoreUpdate": "忽略此更新"
+      },
       "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失败",
+        "push": "推送",
+        "pushed": "已推送",
+        "syncing": "推送中",
+        "syncFailed": "推送失败",
         "checkNetworkOrToken": "请检查网络连接或令牌是否正确",
         "quickSync": "快速同步"
       },
@@ -1408,6 +1544,30 @@
         "calculating": "计算中",
         "pending": "待计算 {progress}%",
         "synced": "已同步"
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "对话设置"
+        },
+        "tools": {
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除对话上下文，保留聊天记录",
+          "clearChat": "清空对话",
+          "clearChatDesc": "删除所有聊天记录",
+          "clear": "清除"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相册",
+          "camera": "照相",
+          "file": "文件",
+          "linkNote": "关联笔记"
+        }
       }
     }
   },
@@ -1449,5 +1609,8 @@
       "model": "大模型识别",
       "modelDesc": "需配置STT模型，更准确"
     }
+  },
+  "quickRecord": {
+    "description": "点击选择记录工具，快速创建记录"
   }
 }

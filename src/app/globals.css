@@ -1,130 +1,35 @@
 @import "tailwindcss";
 
-/* 将 :root 和 .dark 移出 @layer base，使用 hsl() 包装颜色值 */
-:root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(240 10% 3.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(240 10% 3.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(240 10% 3.9%);
-  --primary: hsl(240 5.9% 10%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(240 4.8% 95.9%);
-  --secondary-foreground: hsl(240 5.9% 10%);
-  --third: hsl(240 4.8% 90.9%);
-  --third-foreground: hsl(240 5.9% 15%);
-  --muted: hsl(240 4.8% 95.9%);
-  --muted-foreground: hsl(240 3.8% 46.1%);
-  --accent: hsl(240 4.8% 95.9%);
-  --accent-foreground: hsl(240 5.9% 10%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(240 5.9% 90%);
-  --input: hsl(240 5.9% 90%);
-  --ring: hsl(240 10% 3.9%);
-  --chart-1: hsl(12 76% 61%);
-  --chart-2: hsl(173 58% 39%);
-  --chart-3: hsl(197 37% 24%);
-  --chart-4: hsl(43 74% 66%);
-  --chart-5: hsl(27 87% 67%);
-  --radius: 0.5rem;
-  --sidebar-background: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
-  --component-inactive-color: var(--muted-foreground);
-  --component-bg: var(--card);
-  --component-shadow: var(--border);
-  --component-active-bg: var(--secondary);
-  --component-line-inactive-color: var(--border);
-  --component-active-color-default: var(--accent-foreground);
-}
+/* 导入动画库 */
+@import "tw-animate-css";
 
-.dark {
-  --background: hsl(240 10% 3.9%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(240 10% 3.9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(240 10% 3.9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(240 5.9% 10%);
-  --secondary: hsl(240 3.7% 15.9%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(240 3.7% 15.9%);
-  --muted-foreground: hsl(240 5% 64.9%);
-  --accent: hsl(240 3.7% 15.9%);
-  --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(240 3.7% 15.9%);
-  --input: hsl(240 3.7% 15.9%);
-  --ring: hsl(240 4.9% 83.9%);
-  --chart-1: hsl(220 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-  --sidebar-background: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
-  --component-inactive-color: var(--muted-foreground);
-  --component-bg: var(--card);
-  --component-shadow: var(--border);
-  --component-active-bg: var(--secondary);
-  --component-line-inactive-color: var(--muted-foreground);
-  --component-active-color-default: var(--accent-foreground);
-}
+/* 配置 dark mode 变体 - 必须在 @theme 外面 */
+@variant dark (&:where(.dark, .dark *));
 
 /* 使用 @theme inline 替代 tailwind.config.ts */
 @theme inline {
-  /* 颜色映射 - 注意这里不需要 hsl() 包装 */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-third: var(--third);
-  --color-third-foreground: var(--third-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-
-  /* Sidebar 颜色 */
-  --color-sidebar-background: var(--sidebar-background);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  /* 颜色映射 */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-third: hsl(var(--third));
+  --color-third-foreground: hsl(var(--third-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
 
   /* 边框圆角 */
   --radius-lg: var(--radius);
@@ -169,22 +74,104 @@
   }
 }
 
-/* 导入动画库 */
-@import "tw-animate-css";
-
-/* 基础样式 */
+/* 基础样式 - 包含主题变量定义 */
 @layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --third: 240 4.8% 90.9%;
+    --third-foreground: 240 5.9% 15%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    --component-inactive-color: var(--muted-foreground);
+    --component-bg: var(--card);
+    --component-shadow: var(--border);
+    --component-active-bg: var(--secondary);
+    --component-line-inactive-color: var(--border);
+    --component-active-color-default: var(--accent-foreground);
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    --component-inactive-color: var(--muted-foreground);
+    --component-bg: var(--card);
+    --component-shadow: var(--border);
+    --component-active-bg: var(--secondary);
+    --component-line-inactive-color: var(--muted-foreground);
+    --component-active-color-default: var(--accent-foreground);
+  }
+
   * {
-    border-color: var(--color-border);
+    border-color: hsl(var(--border));
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 
-/* 自定义组件样式 */
+/* 自定义组件样式 - 使用 Tailwind 类以支持主题切换 */
 html, body {
   height: 100vh;
   overflow: hidden;
@@ -198,8 +185,6 @@ html, body {
   font-size: 0.875rem;
   cursor: pointer;
   width: 100%;
-  background-color: transparent;
-  color: rgb(0 0 0);
 }
 
 .file-manange-item:hover {
@@ -208,26 +193,25 @@ html, body {
 
 .dark .file-manange-item:hover {
   background-color: rgb(39 39 42);
-  color: rgb(255 255 255);
 }
 
 .file-manange-item.active {
-  background-color: var(--color-third);
-  color: var(--color-third-foreground);
+  background-color: hsl(var(--third));
+  color: hsl(var(--third-foreground));
   font-weight: 700;
 }
 
 .dark .file-manange-item.active {
-  background-color: var(--color-third-foreground);
+  background-color: hsl(var(--third-foreground));
   color: rgb(255 255 255);
 }
 
 .file-manange-item.active .bg-primary-foreground {
-  background-color: var(--color-third);
+  background-color: hsl(var(--third));
 }
 
 .dark .file-manange-item.active .bg-primary-foreground {
-  background-color: var(--color-third-foreground);
+  background-color: hsl(var(--third-foreground));
 }
 
 :not(table)::-webkit-scrollbar {
@@ -241,7 +225,7 @@ html, body {
 
 :not(table)::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: var(--color-border);
+  background-color: hsl(var(--border));
   border-width: 1px;
   border-style: solid;
   border-color: transparent;
@@ -251,13 +235,6 @@ html, body {
 .setting-anchor {
   font-size: 0.875rem;
   width: 100%;
-}
-
-.setting-anchor:hover {
-  background-color: var(--color-accent);
-}
-
-.setting-anchor {
   padding-left: 1rem;
   padding-right: 1rem;
   padding-top: 0.5rem;
@@ -269,14 +246,18 @@ html, body {
   align-items: center;
 }
 
+.setting-anchor:hover {
+  background-color: hsl(var(--accent));
+}
+
 .setting-anchor svg {
   width: 1rem;
   height: 1rem;
 }
 
 .search-highlight i {
-  background-color: var(--color-secondary-foreground);
-  color: var(--color-secondary);
+  background-color: hsl(var(--secondary-foreground));
+  color: hsl(var(--secondary));
 }
 
 .setting-input {

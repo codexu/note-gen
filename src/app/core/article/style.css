@@ -3,12 +3,14 @@
   border-style: none;
 }
 
-.vditor pre {
-  background-color: rgb(9 9 11);
+/* light 模式下的 pre 样式 - 使用白色背景 */
+.vditor:not(.vditor--dark) pre {
+  background-color: hsl(var(--background)) !important;
 }
 
-.dark .vditor pre {
-  background-color: rgb(9 9 11) !important;
+/* dark 模式下的 pre 样式 */
+.vditor--dark pre {
+  background-color: hsl(var(--background)) !important;
 }
 
 /* 优化面板分隔条的隐藏动画 */
@@ -29,6 +31,7 @@
 .vditor-toolbar {
   border-bottom-width: 1px;
   border-bottom-style: solid;
+  border-color: hsl(var(--border));
   background-color: transparent;
   padding-left: 1rem;
   padding-right: 1rem;
@@ -122,12 +125,24 @@
 .vditor--dark .vditor-reset p,
 .vditor--dark .vditor-reset span,
 .vditor--dark .vditor-reset li {
-  color: rgb(244 244 245) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .vditor-reset {
   padding-top: 24px !important;
   padding-bottom: 24px !important;
+}
+
+/* 覆盖 Vditor 默认的代码块背景色 - 亮色模式 */
+.vditor:not(.vditor--dark) .vditor-reset code:not(.hljs):not(.highlight-chroma) {
+  background-color: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground));
+}
+
+/* 覆盖 Vditor 默认的代码块背景色 - 暗色模式 */
+.vditor--dark .vditor-reset code:not(.hljs):not(.highlight-chroma) {
+  background-color: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground));
 }
 
 .vditor-reset .language-infographic {
@@ -151,24 +166,24 @@
 
 /* Vditor 主题变量 - 亮色模式 */
 .vditor {
-  --border-color: rgb(228, 228, 231);
-  --second-color: rgba(88, 96, 105, 0.36);
-  --panel-background-color: #fff;
-  --panel-shadow: #000;
-  --toolbar-background-color: #f6f8fa;
-  --toolbar-icon-color: #586069;
-  --toolbar-icon-hover-color: rgba(148, 163, 184, 0.8);
+  --border-color: hsl(var(--border));
+  --second-color: hsl(var(--muted-foreground) / 0.36);
+  --panel-background-color: hsl(var(--background));
+  --panel-shadow: hsl(var(--foreground));
+  --toolbar-background-color: hsl(var(--accent));
+  --toolbar-icon-color: hsl(var(--muted-foreground));
+  --toolbar-icon-hover-color: hsl(var(--foreground) / 0.8);
   --toolbar-height: 35px;
   --toolbar-divider-margin-top: 8px;
-  --textarea-background-color: #fff;
-  --textarea-text-color: #24292e;
+  --textarea-background-color: hsl(var(--background));
+  --textarea-text-color: hsl(var(--foreground));
   --resize-icon-color: var(--toolbar-icon-color);
   --resize-background-color: var(--toolbar-background-color);
   --resize-hover-icon-color: var(--panel-background-color);
   --resize-hover-background-color: var(--toolbar-icon-hover-color);
-  --count-background-color: rgba(27, 31, 35, 0.05);
-  --heading-border-color: #eaecef;
-  --blockquote-color: #6a737d;
+  --count-background-color: hsl(var(--foreground) / 0.05);
+  --heading-border-color: hsl(var(--border));
+  --blockquote-color: hsl(var(--muted-foreground));
   --ir-heading-color: #660e7a;
   --ir-title-color: #808080;
   --ir-bi-color: #0033b3;
@@ -179,20 +194,20 @@
 
 /* Vditor 主题变量 - 暗色模式 */
 .vditor--dark {
-  --border-color: rgb(39, 39, 42);
-  --second-color: rgba(185, 185, 185, 0.36);
-  --panel-background-color: #000;
-  --panel-shadow: #000;
-  --toolbar-background-color: #000;
-  --toolbar-icon-color: #b9b9b9;
-  --toolbar-icon-hover-color: #fff;
-  --textarea-background-color: #000;
-  --textarea-text-color: #d1d5da;
+  --border-color: hsl(var(--border));
+  --second-color: hsl(var(--muted-foreground) / 0.36);
+  --panel-background-color: hsl(var(--background));
+  --panel-shadow: hsl(var(--foreground));
+  --toolbar-background-color: hsl(var(--background));
+  --toolbar-icon-color: hsl(var(--muted-foreground));
+  --toolbar-icon-hover-color: hsl(var(--foreground));
+  --textarea-background-color: hsl(var(--background));
+  --textarea-text-color: hsl(var(--foreground));
   --resize-icon-color: var(--border-color);
   --resize-background-color: var(--second-color);
   --resize-hover-icon-color: var(--toolbar-icon-hover-color);
-  --resize-hover-background-color: rgba(185, 185, 185, 0.86);
-  --count-background-color: rgba(255, 255, 255, 0.36);
+  --resize-hover-background-color: hsl(var(--foreground) / 0.86);
+  --count-background-color: hsl(var(--foreground) / 0.36);
   --heading-border-color: var(--textarea-text-color);
   --blockquote-color: var(--toolbar-icon-color);
   --ir-heading-color: #9876aa;
@@ -213,12 +228,12 @@
   border-radius: 0.375rem;
   border-width: 1px;
   border-style: solid;
-  background-color: var(--color-popover);
+  background-color: hsl(var(--popover));
 }
 
 .vditor-hint button {
   font-size: 0.75rem;
-  color: var(--color-primary);
+  color: hsl(var(--primary));
   cursor: default;
   user-select: none;
   display: flex;

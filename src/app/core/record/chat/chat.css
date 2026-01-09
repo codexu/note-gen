@@ -24,29 +24,25 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  background-color: rgb(255 255 255);
-  color: var(--color-foreground);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   margin-bottom: 0.5rem;
-}
-
-.dark .markdown-body {
-  background-color: rgb(9 9 11);
 }
 
 /* 暗黑模式样式 */
 .markdown-dark {
-  background-color: var(--color-secondary);
-  color: var(--color-foreground);
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .markdown-dark pre {
-  background-color: var(--color-secondary);
-  color: var(--color-foreground);
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .markdown-dark code {
-  background-color: var(--color-secondary);
-  color: var(--color-foreground);
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
   overflow-x: auto;
 }
 

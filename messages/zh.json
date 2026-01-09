@@ -1293,6 +1293,7 @@
   "navigation": {
     "chat": "对话",
     "record": "记录",
+    "quickRecord": "快捷记录",
     "write": "写作",
     "search": "搜索",
     "githubImageHosting": "Github 图床",
@@ -1545,6 +1546,30 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "对话设置"
+        },
+        "tools": {
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除对话上下文，保留聊天记录",
+          "clearChat": "清空对话",
+          "clearChatDesc": "删除所有聊天记录",
+          "clear": "清除"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相册",
+          "camera": "照相",
+          "file": "文件",
+          "linkNote": "关联笔记"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP 服务器",
     "searchServers": "搜索服务器...",
@@ -1583,5 +1608,8 @@
       "model": "大模型识别",
       "modelDesc": "需配置STT模型，更准确"
     }
+  },
+  "quickRecord": {
+    "description": "点击选择记录工具，快速创建记录"
   }
 }

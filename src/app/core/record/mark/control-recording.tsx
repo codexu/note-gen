@@ -3,7 +3,6 @@ import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import useSettingStore from "@/stores/setting"
 import useRecordingStore from "@/stores/recording"
-import { useSidebarStore } from "@/stores/sidebar"
 import { Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -18,6 +17,7 @@ import { isMobileDevice } from '@/lib/check'
 import { convertToWav } from '@/lib/audio-converter'
 import { useEffect } from 'react'
 import emitter from '@/lib/emitter'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlRecording() {
   const t = useTranslations();
@@ -30,7 +30,6 @@ export function ControlRecording() {
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, removeQueue } = useMarkStore()
-  const { setLeftSidebarTab } = useSidebarStore()
   
   // 大模型录音
   const {
@@ -42,15 +41,17 @@ export function ControlRecording() {
   
   // 监听快捷键
   useEffect(() => {
-    emitter.on('toolbar-shortcut-recording', () => {
+    const handleToggleRecording = () => {
       if (isRecording) {
         handleStop()
       } else {
         handleStart()
       }
-    })
+    }
+    
+    emitter.on('toolbar-shortcut-recording', handleToggleRecording)
     return () => {
-      emitter.off('toolbar-shortcut-recording')
+      emitter.off('toolbar-shortcut-recording', handleToggleRecording)
     }
   }, [isRecording])
 
@@ -79,8 +80,8 @@ export function ControlRecording() {
     try {
       await startRecording()
       
-      // 切换到记录标签页
-      await setLeftSidebarTab('notes')
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
     } catch (error) {
       toast({
         title: t('recording.error'),

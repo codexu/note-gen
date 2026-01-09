@@ -6,6 +6,21 @@
   }
 }
 
+// 优化面板分隔条的隐藏动画
+[data-panel-handle] {
+  transition: opacity 0.2s ease-in-out;
+  
+  &.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+// 确保面板折叠时的平滑过渡
+[data-resizable-panel] {
+  transition: flex 0.2s ease-in-out;
+}
+
 .vditor-toolbar{
   @apply border-b bg-transparent !px-4 h-12 flex items-center justify-center;
   

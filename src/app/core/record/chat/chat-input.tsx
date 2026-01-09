@@ -14,17 +14,14 @@ import { getWorkspacePath } from "@/lib/workspace"
 import { PromptSelect } from "./prompt-select"
 import { ChatLanguage } from "./chat-language"
 import { ChatSend } from "./chat-send"
-import { LinkedFileDisplay, FileLink } from "./file-link"
+import { LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
-import { ChatLink } from "./chat-link"
-import { McpButton } from "./mcp-button"
-import { RagSwitch } from "./rag-switch"
-import { ClipboardMonitor } from "./clipboard-monitor"
-import { ClearContext } from "./clear-context"
-import { ClearChat } from "./clear-chat"
 import { ChatModeSelect } from "./chat-mode-select"
 import { MarkdownFile } from "@/lib/files"
 import emitter from "@/lib/emitter"
+import { ChatSettingsDrawer } from "@/app/mobile/chat/components/chat-settings-drawer"
+import { ChatToolsDrawer } from "@/app/mobile/chat/components/chat-tools-drawer"
+import { ChatAttachmentsDrawer } from "@/app/mobile/chat/components/chat-attachments-drawer"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ImageAttachments, ImageAttachment } from "./image-attachments"
 import { ImageIcon } from "lucide-react"
@@ -53,7 +50,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 export function ChatInput() {
   const [text, setText] = useState("")
-  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc, chatToolbarConfigMobile } = useSettingStore()
+  const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc } = useSettingStore()
   const { chats, loading, isLinkMark } = useChatStore()
   const [showFileSelector, setShowFileSelector] = useState(false)
   const { marks, trashState } = useMarkStore()
@@ -63,6 +60,7 @@ export function ChatInput() {
   const t = useTranslations()
   const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [tempInput, setTempInput] = useState('')
   const [linkedFile, setLinkedFile] = useState<MarkdownFile | null>(null)
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([])
   const [quoteData, setQuoteData] = useState<{
@@ -101,11 +99,15 @@ export function ChatInput() {
   }
 
   // 处理历史记录导航
-  function navigateHistory(direction: 'up' | 'down') {
+  function navigateHistory(direction: 'up' | 'down', currentText: string) {
     if (!inputHistory || inputHistory.length === 0) return
 
     let newIndex: number
     if (direction === 'up') {
+      // 保存当前输入内容（第一次向上时）
+      if (historyIndex === -1) {
+        setTempInput(currentText)
+      }
       newIndex = historyIndex + 1
       if (newIndex >= inputHistory.length) {
         newIndex = inputHistory.length - 1
@@ -118,9 +120,10 @@ export function ChatInput() {
     }
 
     setHistoryIndex(newIndex)
-    
+
     if (newIndex === -1) {
-      setText('')
+      // 恢复到原本输入的内容
+      setText(tempInput)
     } else {
       setText(inputHistory[newIndex])
     }
@@ -169,6 +172,49 @@ export function ChatInput() {
       }
     } catch (error) {
       console.error('Failed to select files:', error)
+    }
+  }
+
+  // 移动端相册选择
+  async function handleSelectFromGallery() {
+    if (isMobileDevice_) {
+      // 在移动端，我们暂时只能使用通用的图片选择
+      // 用户可以从相册或相机中选择
+      if (imageInputRef.current) {
+        // 移除 capture 属性，让系统自己决定
+        imageInputRef.current.removeAttribute('capture')
+        imageInputRef.current.click()
+      }
+    }
+  }
+
+  // 移动端相机拍照
+  async function handleTakePhoto() {
+    if (isMobileDevice_) {
+      // 创建相机输入
+      const cameraInput = document.createElement('input')
+      cameraInput.type = 'file'
+      cameraInput.accept = 'image/*'
+      cameraInput.capture = 'environment' // 使用后置摄像头
+      cameraInput.style.display = 'none'
+      
+      cameraInput.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]
+        if (file) {
+          const url = URL.createObjectURL(file)
+          const newImage: ImageAttachment = {
+            id: `camera-${Date.now()}-${Math.random()}`,
+            url,
+            name: file.name,
+            source: 'file' as const
+          }
+          setAttachedImages(prev => [...prev, newImage])
+        }
+        document.body.removeChild(cameraInput)
+      }
+      
+      document.body.appendChild(cameraInput)
+      cameraInput.click()
     }
   }
 
@@ -431,7 +477,7 @@ export function ChatInput() {
         <div className="relative w-full flex items-start">
           <Textarea
             ref={textareaRef}
-            className="flex-1 p-2 relative border-none text-xs placeholder:text-xs md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
+            className="flex-1 p-2 relative border-none text-xs placeholder:text-sm md:placeholder:text-sm md:text-sm focus-visible:ring-0 shadow-none min-h-[36px] max-h-[240px] resize-none overflow-y-auto"
             rows={1}
             disabled={!primaryModel || loading}
             value={text}
@@ -444,6 +490,11 @@ export function ChatInput() {
             }}
             placeholder={placeholder}
             onKeyDown={(e) => {
+              const textarea = e.target as HTMLTextAreaElement
+              const cursorPosition = textarea.selectionStart
+              const isAtStart = cursorPosition === 0
+              const isAtEnd = cursorPosition === text.length
+
               if (e.key === "Enter" && !isComposing && !e.shiftKey && e.keyCode === 13) {
                 e.preventDefault()
                 chatSendRef.current?.sendChat()
@@ -453,12 +504,24 @@ export function ChatInput() {
                 insertPlaceholder()
               }
               if (e.key === "ArrowUp" && !isComposing) {
-                e.preventDefault()
-                navigateHistory('up')
+                if (isAtStart) {
+                  e.preventDefault()
+                  navigateHistory('up', text)
+                } else if (isAtEnd) {
+                  e.preventDefault()
+                  // 移动光标到开头
+                  textarea.setSelectionRange(0, 0)
+                }
               }
               if (e.key === "ArrowDown" && !isComposing) {
-                e.preventDefault()
-                navigateHistory('down')
+                if (isAtStart) {
+                  e.preventDefault()
+                  navigateHistory('down', text)
+                } else if (isAtEnd) {
+                  e.preventDefault()
+                  // 移动光标到开头
+                  textarea.setSelectionRange(0, 0)
+                }
               }
               if (e.key === "Backspace") {
                 if (text === '') {
@@ -475,13 +538,7 @@ export function ChatInput() {
         </div>
         
         <div className="flex justify-between items-center w-full">
-          <div className="relative flex-1 overflow-x-auto mr-6 px-2 -translate-x-2">
-            {/* 左侧渐变遮罩 */}
-            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
-            
-            {/* 右侧渐变遮罩 */}
-            <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
-            
+          <div className="flex-1">
             {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
             {!isMobile ? (
               <DndContext
@@ -508,47 +565,27 @@ export function ChatInput() {
               </DndContext>
             ) : (
               <div className="flex overflow-x-auto scrollbar-hide md:overflow-visible gap-1">
-                {chatToolbarConfigMobile
-                  .filter(item => item.enabled)
-                  .sort((a, b) => a.order - b.order)
-                  .map(item => {
-                    switch (item.id) {
-                      case 'modelSelect':
-                        return <ModelSelect key={item.id} />
-                      case 'promptSelect':
-                        return <PromptSelect key={item.id} />
-                      case 'chatLanguage':
-                        return <ChatLanguage key={item.id} />
-                      case 'chatLink':
-                        return <ChatLink key={item.id} />
-                      case 'fileLink':
-                        return <FileLink key={item.id} onFileLinkClick={() => setShowFileSelector(true)} disabled={!primaryModel || loading} />
-                      case 'mcpButton':
-                        return <McpButton key={item.id} />
-                      case 'ragSwitch':
-                        return <RagSwitch key={item.id} />
-                      case 'clipboardMonitor':
-                        return <ClipboardMonitor key={item.id} />
-                      case 'clearContext':
-                        return <ClearContext key={item.id} />
-                      case 'clearChat':
-                        return <ClearChat key={item.id} />
-                      default:
-                        return null
-                    }
-                  })}
+                <ChatAttachmentsDrawer
+                  onImageSelect={handleSelectFromGallery}
+                  onCameraOpen={handleTakePhoto}
+                  onFileLink={setLinkedFile}
+                />
+                <ChatSettingsDrawer />
+                <ChatToolsDrawer />
               </div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2 pr-1">
-            <TooltipButton
-              variant="link"
-              size="sm"
-              icon={<ImageIcon className="size-4" />}
-              tooltipText={t('record.chat.input.attachImage')}
-              onClick={handleSelectLocalImages}
-              disabled={!primaryModel || loading}
-            />
+            {!isMobile && (
+              <TooltipButton
+                variant="link"
+                size="sm"
+                icon={<ImageIcon className="size-4" />}
+                tooltipText={t('record.chat.input.attachImage')}
+                onClick={handleSelectLocalImages}
+                disabled={!primaryModel || loading}
+              />
+            )}
             <ChatModeSelect />
             <ChatSend inputValue={text} onSent={handleSent} linkedFile={linkedFile} attachedImages={attachedImages} quoteData={quoteData} ref={chatSendRef} />
           </div>

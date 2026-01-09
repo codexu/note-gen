@@ -890,6 +890,27 @@
           "text": "Texto"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agente"
+          },
+          "agent": {
+            "running": "Agente em Execução",
+            "thinking": "Pensando",
+            "acting": "Agindo",
+            "observation": "Observação",
+            "toolCalls": "Chamadas de Ferramenta",
+            "confirmation": {
+              "title": "Confirmar Ação",
+              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+              "tool": "Ferramenta",
+              "parameters": "Parâmetros",
+              "cancel": "Cancelar",
+              "confirm": "Confirmar",
+              "confirmed": "Confirmado",
+              "cancelled": "Cancelado"
+            }
+          },
           "placeholder": {
             "default": "Faça perguntas ou organize suas notas em um artigo...",
             "noApiKey": "Chave de API não configurada, recurso de chat com IA indisponível..."
@@ -912,17 +933,7 @@
             }
           },
           "messageControl": {
-            "words": "palavras",
-            "confirmation": {
-              "title": "Confirmar Ação",
-              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
-              "tool": "Ferramenta",
-              "parameters": "Parâmetros",
-              "cancel": "Cancelar",
-              "confirm": "Confirmar",
-              "confirmed": "Confirmado",
-              "cancelled": "Cancelado"
-            }
+            "words": "palavras"
           },
           "mcp": {
             "maxIterationsReached": "Número máximo de iterações de chamada de ferramenta atingido",
@@ -1156,6 +1167,21 @@
           "agentDescription": "Assistente inteligente, pode executar ações"
         },
         "attachImage": "Anexar imagens",
+        "agent": {
+          "running": "Agente em Execução",
+          "thinking": "Pensando",
+          "acting": "Agindo",
+          "observation": "Observação",
+          "toolCalls": "Chamadas de Ferramenta",
+          "confirmation": {
+            "title": "Confirmar Ação",
+            "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+            "tool": "Ferramenta",
+            "parameters": "Parâmetros",
+            "cancel": "Cancelar",
+            "confirm": "Confirmar"
+          }
+        },
         "imageSelector": {
           "title": "Selecionar Imagens",
           "local": "Arquivos Locais",
@@ -1250,6 +1276,7 @@
   "navigation": {
     "chat": "Conversa",
     "record": "Registro",
+    "quickRecord": "Registro Rápido",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
@@ -1529,6 +1556,30 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Configurações de Chat"
+        },
+        "tools": {
+          "title": "Ferramentas",
+          "clearContext": "Limpar Contexto",
+          "clearContextDesc": "Limpar contexto da conversa, manter histórico",
+          "clearChat": "Limpar Chat",
+          "clearChatDesc": "Excluir todos os registros de chat",
+          "clear": "Limpar"
+        },
+        "attachments": {
+          "title": "Anexos",
+          "gallery": "Galeria",
+          "camera": "Câmera",
+          "file": "Arquivo",
+          "linkNote": "Vincular Nota"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "Servidores MCP",
     "searchServers": "Buscar servidores...",
@@ -1650,5 +1701,8 @@
       "pending": "Pendente {progress}%",
       "synced": "Sincronizado"
     }
+  },
+  "quickRecord": {
+    "description": "Clique para selecionar uma ferramenta de registro e criar registros rapidamente"
   }
 }

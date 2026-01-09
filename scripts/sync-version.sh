@@ -12,9 +12,9 @@ echo "同步版本号: $VERSION"
 PLIST_PATH="src-tauri/gen/apple/note-gen_iOS/Info.plist"
 
 if [ -f "$PLIST_PATH" ]; then
-    # 更新版本号
-    sed -i '' "s/<key>CFBundleShortVersionString<\/key>/<key>CFBundleShortVersionString<\/key>/; s/<string>.*<\/string>/<string>$VERSION<\/string>/" "$PLIST_PATH"
-    sed -i '' "s/<key>CFBundleVersion<\/key>/<key>CFBundleVersion<\/key>/; s/<string>.*<\/string>/<string>$VERSION<\/string>/" "$PLIST_PATH"
+    # 更新版本号 - 使用更精确的匹配模式
+    sed -i '' '/CFBundleShortVersionString/,/<string>/s/<string>.*<\/string>/<string>'$VERSION'<\/string>/' "$PLIST_PATH"
+    sed -i '' '/CFBundleVersion/,/<string>/s/<string>.*<\/string>/<string>'$VERSION'<\/string>/' "$PLIST_PATH"
     
     echo "iOS 版本号已更新为: $VERSION"
 else

@@ -6,9 +6,10 @@ import { readTextFile } from "@tauri-apps/plugin-fs";
 import useTagStore from "@/stores/tag";
 import useMarkStore from "@/stores/mark";
 import { insertMark } from "@/db/marks";
-import { useSidebarStore } from "@/stores/sidebar";
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import emitter from '@/lib/emitter'
+import { useRouter } from 'next/navigation'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 // 常见的代码格式
 const codeExtensions = [
@@ -28,18 +29,20 @@ const fileExtensions: string[] = []
 
 export function ControlFile() {
   const t = useTranslations();
+  const router = useRouter();
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks } = useMarkStore()
-  const { setLeftSidebarTab } = useSidebarStore()
+
+  const handleSelectFile = useCallback(() => {
+    selectFile()
+  }, [])
 
   useEffect(() => {
-    emitter.on('toolbar-shortcut-file', () => {
-      selectFile()
-    })
+    emitter.on('toolbar-shortcut-file', handleSelectFile)
     return () => {
-      emitter.off('toolbar-shortcut-file')
+      emitter.off('toolbar-shortcut-file', handleSelectFile)
     }
-  }, [])
+  }, [handleSelectFile])
 
   async function selectFile() {
     const filePath = await open({
@@ -52,8 +55,8 @@ export function ControlFile() {
     });
     if (!filePath) return
     
-    // 切换到记录标签页（在耗时操作之前）
-    await setLeftSidebarTab('notes')
+    // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+    handleRecordComplete(router)
     
     await readFileByPath(filePath)
   }

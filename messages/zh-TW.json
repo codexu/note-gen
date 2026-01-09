@@ -1240,6 +1240,7 @@
   "navigation": {
     "chat": "對話",
     "record": "記錄",
+    "quickRecord": "快捷記錄",
     "write": "寫作",
     "search": "搜索",
     "githubImageHosting": "Github 圖床",
@@ -1484,6 +1485,30 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "對話設定"
+        },
+        "tools": {
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除對話上下文，保留聊天記錄",
+          "clearChat": "清空對話",
+          "clearChatDesc": "刪除所有聊天記錄",
+          "clear": "清除"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相簿",
+          "camera": "照相",
+          "file": "檔案",
+          "linkNote": "關聯筆記"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP 伺服器",
     "searchServers": "搜索伺服器...",
@@ -1497,5 +1522,8 @@
     "tools": "個工具",
     "connecting": "連線中",
     "disconnected": "未連接"
+  },
+  "quickRecord": {
+    "description": "點擊選擇記錄工具，快速創建記錄"
   }
 }

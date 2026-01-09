@@ -1270,6 +1270,7 @@
   "navigation": {
     "chat": "Chat",
     "record": "Record",
+    "quickRecord": "Quick Record",
     "write": "Write",
     "search": "Search",
     "githubImageHosting": "Github Image Hosting",
@@ -1560,6 +1561,30 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Chat Settings"
+        },
+        "tools": {
+          "title": "Tools",
+          "clearContext": "Clear Context",
+          "clearContextDesc": "Clear conversation context, keep chat history",
+          "clearChat": "Clear Chat",
+          "clearChatDesc": "Delete all chat records",
+          "clear": "Clear"
+        },
+        "attachments": {
+          "title": "Attachments",
+          "gallery": "Gallery",
+          "camera": "Camera",
+          "file": "File",
+          "linkNote": "Link Note"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP Servers",
     "searchServers": "Search servers...",
@@ -1626,5 +1651,8 @@
       "pending": "Pending {progress}%",
       "synced": "Synced"
     }
+  },
+  "quickRecord": {
+    "description": "Click to select a recording tool and quickly create records"
   }
 }

@@ -1,40 +1,23 @@
-import { SidebarMenuButton } from "./ui/sidebar";
 import { checkSyncRepoState, getUserInfo } from "@/lib/sync/github";
 import { useEffect } from "react";
 import useSettingStore from "@/stores/setting";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { SyncStateEnum, UserInfo } from "@/lib/sync/github.types";
 import useSyncStore from "@/stores/sync";
 import { getSyncRepoName } from "@/lib/sync/repo-utils";
-import { open } from '@tauri-apps/plugin-shell'
-import Image from "next/image";
-import { Button } from "./ui/button";
 
-interface AppStatusProps {
-  inTitlebar?: boolean
-}
-
-export default function AppStatus({ inTitlebar = false }: AppStatusProps) {
+export default function AppStatus() {
   const { accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod, setGithubUsername, setGitlabUsername, setGiteaUsername } = useSettingStore()
   const { 
-    userInfo, 
-    giteeUserInfo, 
-    gitlabUserInfo,
-    giteaUserInfo,
     setUserInfo, 
     setGiteeUserInfo,
     setGitlabUserInfo,
     setGiteaUserInfo,
-    syncRepoState,
     setSyncRepoState,
     setSyncRepoInfo,
-    giteeSyncRepoState,
     setGiteeSyncRepoState,
     setGiteeSyncRepoInfo,
-    gitlabSyncProjectState,
     setGitlabSyncProjectState,
     setGitlabSyncProjectInfo,
-    giteaSyncRepoState,
     setGiteaSyncRepoState,
     setGiteaSyncRepoInfo
   } = useSyncStore()
@@ -187,23 +170,6 @@ export default function AppStatus({ inTitlebar = false }: AppStatusProps) {
     }
   }
 
-  function openUserHome() {
-    if (primaryBackupMethod === 'github') {
-      if (!userInfo) return
-      open(`https://github.com/${userInfo?.login}`)
-    } else if (primaryBackupMethod === 'gitee') {
-      if (!giteeUserInfo) return
-      open(`https://gitee.com/${giteeUserInfo?.login}`)
-    } else if (primaryBackupMethod === 'gitlab') {
-      if (!gitlabUserInfo) return
-      open(gitlabUserInfo.web_url)
-    } else if (primaryBackupMethod === 'gitea') {
-      if (!giteaUserInfo) return
-      // Gitea 用户主页链接需要根据实例类型动态构建
-      open(giteaUserInfo.html_url || '#')
-    }
-  }
-
   // 监听 token 变化，获取用户信息
   useEffect(() => {
     if (accessToken || giteeAccessToken || gitlabAccessToken || giteaAccessToken) {
@@ -211,83 +177,5 @@ export default function AppStatus({ inTitlebar = false }: AppStatusProps) {
     }
   }, [accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod])
 
-  // 不渲染 UI，只保留功能逻辑
   return null
-
-  // 以下代码保留但不执行，用于未来可能的恢复
-  /* eslint-disable no-unreachable */
-  const avatarContent: React.ReactNode = (
-    <>
-      <Avatar className="size-8 rounded overflow-hidden">
-          {primaryBackupMethod === 'github' ? (
-            <>
-              <AvatarImage src={userInfo?.avatar_url} />
-              <AvatarFallback>
-                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
-              </AvatarFallback>
-            </>
-          ) : primaryBackupMethod === 'gitee' ? (
-            <>
-              <AvatarImage src={giteeUserInfo?.avatar_url} />
-              <AvatarFallback>
-                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
-              </AvatarFallback>
-            </>
-          ) : primaryBackupMethod === 'gitlab' ? (
-            <>
-              <AvatarImage src={gitlabUserInfo?.avatar_url} />
-              <AvatarFallback>
-                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
-              </AvatarFallback>
-            </>
-          ) : primaryBackupMethod === 'gitea' ? (
-            <>
-              <AvatarImage src={giteaUserInfo?.avatar_url} />
-              <AvatarFallback>
-                <Image src="/app-icon.png" alt="" width={0} height={0} className="size-8" />
-              </AvatarFallback>
-            </>
-          ) : null
-        }
-        </Avatar>
-        {
-          primaryBackupMethod === 'github' && accessToken ? (  
-            <div className={`
-              absolute right-0.5 bottom-0.5 rounded-full size-2 
-              ${syncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
-                syncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : primaryBackupMethod === 'gitee' && giteeAccessToken ? (
-            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
-              ${giteeSyncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
-              giteeSyncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : primaryBackupMethod === 'gitlab' && gitlabAccessToken ? (
-            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
-              ${gitlabSyncProjectState === SyncStateEnum.fail ? 'bg-red-700' : 
-              gitlabSyncProjectState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : primaryBackupMethod === 'gitea' && giteaAccessToken ? (
-            <div className={`absolute right-0.5 bottom-0.5 rounded-full size-2
-              ${giteaSyncRepoState === SyncStateEnum.fail ? 'bg-red-700' : 
-              giteaSyncRepoState === SyncStateEnum.checking ? 'bg-orange-400' : ''}`}>
-            </div>
-          ) : null
-        }
-    </>
-  )
-
-  if (inTitlebar) {
-    return (
-      <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={openUserHome}>
-        {avatarContent}
-      </Button>
-    )
-  }
-
-  return (
-    <SidebarMenuButton size="lg" className="md:size-8 p-0" onClick={openUserHome}>
-      {avatarContent}
-    </SidebarMenuButton>
-  )
 }

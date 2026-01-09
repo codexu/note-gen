@@ -67,10 +67,17 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   leftSidebarVisible: initialState.left,
   toggleLeftSidebar: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
-    // 防止全部关闭，至少保持一个面板开启
-    if (leftSidebarVisible && !centerPanelVisible && !rightSidebarVisible) {
-      return
+    
+    // 计算当前可见的面板数量
+    const visibleCount = [leftSidebarVisible, centerPanelVisible, rightSidebarVisible].filter(Boolean).length
+    
+    // 如果要关闭左侧面板，需要确保关闭后不会变成"仅左"状态（这是不可能的，因为关闭左侧）
+    // 但要确保不会变成无面板状态
+    if (leftSidebarVisible && visibleCount === 1) {
+      return // 不允许关闭最后一个面板
     }
+    
+    // 如果要打开左侧面板，总是允许
     const newState = !leftSidebarVisible
     set({ leftSidebarVisible: newState })
     localStorage.setItem('leftSidebarVisible', String(newState))
@@ -81,10 +88,21 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   centerPanelVisible: initialState.center,
   toggleCenterPanel: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
-    // 防止全部关闭，至少保持一个面板开启
-    if (!leftSidebarVisible && centerPanelVisible && !rightSidebarVisible) {
-      return
+    
+    // 计算当前可见的面板数量
+    const visibleCount = [leftSidebarVisible, centerPanelVisible, rightSidebarVisible].filter(Boolean).length
+    
+    // 如果要关闭中间面板，需要确保关闭后不会变成"仅左"状态
+    if (centerPanelVisible && visibleCount === 2 && leftSidebarVisible && !rightSidebarVisible) {
+      return // 不允许关闭，否则会变成"仅左"状态
     }
+    
+    // 如果要关闭中间面板，也要确保不会变成无面板状态
+    if (centerPanelVisible && visibleCount === 1) {
+      return // 不允许关闭最后一个面板
+    }
+    
+    // 如果要打开中间面板，总是允许
     const newState = !centerPanelVisible
     set({ centerPanelVisible: newState })
     localStorage.setItem('centerPanelVisible', String(newState))
@@ -95,10 +113,21 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   rightSidebarVisible: initialState.right,
   toggleRightSidebar: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
-    // 防止全部关闭，至少保持一个面板开启
-    if (!leftSidebarVisible && !centerPanelVisible && rightSidebarVisible) {
-      return
+    
+    // 计算当前可见的面板数量
+    const visibleCount = [leftSidebarVisible, centerPanelVisible, rightSidebarVisible].filter(Boolean).length
+    
+    // 如果要关闭右侧面板，需要确保关闭后不会变成"仅左"状态
+    if (rightSidebarVisible && visibleCount === 2 && leftSidebarVisible && !centerPanelVisible) {
+      return // 不允许关闭，否则会变成"仅左"状态
     }
+    
+    // 如果要关闭右侧面板，也要确保不会变成无面板状态
+    if (rightSidebarVisible && visibleCount === 1) {
+      return // 不允许关闭最后一个面板
+    }
+    
+    // 如果要打开右侧面板，总是允许
     const newState = !rightSidebarVisible
     set({ rightSidebarVisible: newState })
     localStorage.setItem('rightSidebarVisible', String(newState))

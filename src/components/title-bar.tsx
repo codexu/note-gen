@@ -52,8 +52,24 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   const router = useRouter()
   const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible, toggleLeftSidebar, toggleCenterPanel, toggleRightSidebar } = useSidebarStore()
   
-  // 检查是否只有一个面板开启
-  const onlyOneVisible = [leftSidebarVisible, centerPanelVisible, rightSidebarVisible].filter(Boolean).length === 1
+  // 检查关闭面板后是否会导致"仅左"状态或无面板状态
+  const wouldCauseLeftOnly = (currentVisible: boolean, panel: 'left' | 'center' | 'right') => {
+    // 如果面板本来就不可见，不会导致问题（打开面板总是允许的）
+    if (!currentVisible) return false
+    
+    const visibleCount = [leftSidebarVisible, centerPanelVisible, rightSidebarVisible].filter(Boolean).length
+    
+    if (visibleCount === 1) return true // 不允许关闭最后一个面板
+    
+    if (visibleCount === 2) {
+      // 只有当关闭中间或右侧面板会导致"仅左"状态时才阻止
+      if (panel === 'center' && leftSidebarVisible && !rightSidebarVisible) return true
+      if (panel === 'right' && leftSidebarVisible && !centerPanelVisible) return true
+      // 关闭左侧面板不会导致"仅左"状态（它会变成"仅中"或"仅右"），所以允许
+    }
+    
+    return false
+  }
   const { recordToolbarConfig, setRecordToolbarConfig } = useSettingStore()
   const { activeFilePath } = useArticleStore()
   const { hasUpdate } = useUpdateStore()
@@ -242,14 +258,14 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 ${onlyOneVisible && leftSidebarVisible ? 'cursor-not-allowed' : ''}`}
+                className={`h-8 w-8 ${wouldCauseLeftOnly(leftSidebarVisible, 'left') ? 'cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => {
-                  if (!(onlyOneVisible && leftSidebarVisible)) {
+                  if (!wouldCauseLeftOnly(leftSidebarVisible, 'left')) {
                     toggleLeftSidebar()
                   }
                 }}
               >
-                <PanelLeft className={`h-4 w-4 ${!leftSidebarVisible ? 'opacity-50' : ''}`} />
+                <PanelLeft className={`h-4 w-4 ${!leftSidebarVisible ? 'opacity-30' : ''}`} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -263,14 +279,14 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 ${onlyOneVisible && centerPanelVisible ? 'cursor-not-allowed' : ''}`}
+                className={`h-8 w-8 ${wouldCauseLeftOnly(centerPanelVisible, 'center') ? 'cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => {
-                  if (!(onlyOneVisible && centerPanelVisible)) {
+                  if (!wouldCauseLeftOnly(centerPanelVisible, 'center')) {
                     toggleCenterPanel()
                   }
                 }}
               >
-                <SquarePen className={`h-4 w-4 ${!centerPanelVisible ? 'opacity-50' : ''}`} />
+                <SquarePen className={`h-4 w-4 ${!centerPanelVisible ? 'opacity-30' : ''}`} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -284,14 +300,14 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 ${onlyOneVisible && rightSidebarVisible ? 'cursor-not-allowed' : ''}`}
+                className={`h-8 w-8 ${wouldCauseLeftOnly(rightSidebarVisible, 'right') ? 'cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => {
-                  if (!(onlyOneVisible && rightSidebarVisible)) {
+                  if (!wouldCauseLeftOnly(rightSidebarVisible, 'right')) {
                     toggleRightSidebar()
                   }
                 }}
               >
-                <PanelRight className={`h-4 w-4 ${!rightSidebarVisible ? 'opacity-50' : ''}`} />
+                <PanelRight className={`h-4 w-4 ${!rightSidebarVisible ? 'opacity-30' : ''}`} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">

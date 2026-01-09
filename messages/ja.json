@@ -289,9 +289,9 @@
       "checkUpdate": "アップデートを確認",
       "checkError": "アップデートの確認に失敗しました",
       "updateAvailable": "新しいバージョンが利用可能です",
-      "updateDownloading": "Updating {downloaded} / {contentLength}",
-      "updateInstalled": "Restart app",
-      "noUpdate": "現在已是最新版本",
+      "updateDownloading": "更新中 {downloaded} / {contentLength}",
+      "updateInstalled": "アプリを再起動",
+      "noUpdate": "現在は最新バージョンです",
       "ignoreVersion": "このバージョンを無視",
       "ignoreVersionSuccess": "このバージョンの更新を無視しました",
       "items": {
@@ -369,6 +369,7 @@
         "selfHostedDesc": "自建 GitLab インスタンスの URL を入力してください（例：https://gitlab.example.com）"
       },
       "gitlabAccessTokenDesc": "{instanceDisplayName}でパーソナルアクセストークンを作成するには、api権限が必要です",
+      "autoSync": "自動同期",
       "autoSyncOptions": {
         "placeholder": "自動同期時間",
         "disabled": "無効",
@@ -377,6 +378,24 @@
         "1m": "1 分",
         "5m": "5 分",
         "30m": "30 分"
+      },
+      "exclusions": {
+        "title": "同期除外設定",
+        "desc": "以下の設定はデバイス固有のものであるため、デバイス間で同期されません",
+        "workspacePath": "ワークスペースパス",
+        "workspaceHistory": "ワークスペース履歴",
+        "assetsPath": "リソースパス",
+        "uiScale": "UIスケール",
+        "contentTextScale": "コンテンツテキストスケール",
+        "customCss": "カスタムCSS",
+        "reason": "これらの設定はデバイスによって異なる場合があるため、同期から除外することでパスエラーなどの問題を回避できます"
+      },
+      "settingsSync": {
+        "uploadSuccess": "設定のアップロードに成功しました",
+        "uploadFailed": "設定のアップロードに失敗しました",
+        "downloadSuccess": "設定のダウンロードに成功しました",
+        "downloadFailed": "設定のダウンロードに失敗しました",
+        "autoSync": "アップロード/ダウンロード時に設定が自動的に同期されます（ワークスペースパスなどのデバイス固有の設定を除く）"
       }
     },
     "imageHosting": {
@@ -844,6 +863,27 @@
           "text": "テキスト"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "チャット",
+            "agent": "エージェント"
+          },
+          "agent": {
+            "running": "エージェント実行中",
+            "thinking": "思考中",
+            "acting": "実行中",
+            "observation": "観察結果",
+            "toolCalls": "ツール呼び出し",
+            "confirmation": {
+              "title": "操作の確認",
+              "description": "エージェントが以下の操作を実行しようとしています。続行するには確認してください。",
+              "tool": "ツール",
+              "parameters": "パラメータ",
+              "cancel": "キャンセル",
+              "confirm": "確認",
+              "confirmed": "確認済み",
+              "cancelled": "キャンセル済み"
+            }
+          },
           "placeholder": {
             "default": "質問したり記録を文章に整理したりできます...",
             "noApiKey": "API Keyが設定されていないため、AI対話機能を使用できません..."
@@ -868,17 +908,7 @@
             }
           },
           "messageControl": {
-            "words": "文字",
-            "confirmation": {
-              "title": "操作を確認",
-              "description": "エージェントが次の操作を実行しようとしています。続行するには確認してください。",
-              "tool": "ツール",
-              "parameters": "パラメータ",
-              "cancel": "キャンセル",
-              "confirm": "確認",
-              "confirmed": "確認済み",
-              "cancelled": "キャンセル済み"
-            }
+            "words": "文字"
           },
           "mcp": {
             "maxIterationsReached": "最大ツール呼び出し回数に達しました",
@@ -994,16 +1024,16 @@
       "empty": {
         "features": [
           {
-            "chat": "与 AI 机器人进行对话"
+            "chat": "AIボットと対話する"
           },
           {
-            "linked": "已与你的記録关联"
+            "linked": "あなたの記録に関連付けられています"
           },
           {
             "clipboard": "クリップボードの記録を識別"
           },
           {
-            "organize": "将你的記録整理为笔记"
+            "organize": "あなたの記録をノートに整理します"
           }
         ]
       },
@@ -1018,10 +1048,10 @@
         "chat": "チャット",
         "placeholder": {
           "default": "メッセージを入力...",
-          "noApiKey": "無 API KEY 設定、AI 話題できません...",
+          "noApiKey": "API Keyが設定されていないため、AIチャットを使用できません...",
           "on": "AIサジェスト有効",
           "off": "AIサジェスト無効",
-          "noPrimaryModel": "無主模型設定、AI 話題できません..."
+          "noPrimaryModel": "メインモデルが設定されていないため、AIチャットを使用できません..."
         },
         "translate": {
           "tooltip": "翻訳",
@@ -1076,6 +1106,21 @@
           "agentDescription": "スマートアシスタント、アクション実行可能"
         },
         "attachImage": "画像を添付",
+        "agent": {
+          "running": "エージェント実行中",
+          "thinking": "思考中",
+          "acting": "実行中",
+          "observation": "観察結果",
+          "toolCalls": "ツール呼び出し",
+          "confirmation": {
+            "title": "操作の確認",
+            "description": "エージェントが以下の操作を実行しようとしています。続行するには確認してください。",
+            "tool": "ツール",
+            "parameters": "パラメータ",
+            "cancel": "キャンセル",
+            "confirm": "確認"
+          }
+        },
         "imageSelector": {
           "title": "画像を選択",
           "local": "ローカルファイル",
@@ -1127,9 +1172,9 @@
         "label": "参照ファイル"
       },
       "preview": {
-        "close": "关闭",
-        "copy": "复制",
-        "copied": "已复制！"
+        "close": "閉じる",
+        "copy": "コピー",
+        "copied": "コピーしました！"
       },
       "control": {
         "edit": "編集",
@@ -1139,17 +1184,17 @@
         "deleteConfirm": "本当に削除しますか？"
       },
       "content": {
-        "organize": "将你的記録整理为文章："
+        "organize": "あなたの記録を記事に整理："
       },
       "note": {
         "organize": "整理",
         "writing": "執筆",
-        "convert": "文章に変換",
-        "description": "現在のノートはAIによって生成され、編集できません。ノートを文章（ローカルファイル）に変換して、執筆ページで二次創作できます。",
+        "convert": "記事に変換",
+        "description": "現在のノートはAIによって生成されており、編集できません。現在のノートを記事に変換（ローカルファイルを生成）して、執筆ページで二次創作を行うことができます。",
         "filename": "ファイル名",
-        "selectFolder": "ファイル夹を選択",
+        "selectFolder": "フォルダを選択",
         "rootDirectory": "ルートディレクトリ",
-        "deleteTag": "削除タグ、記録とノート（ゴミ箱で復元可能）",
+        "deleteTag": "現在のタグ、記録、ノートを削除（ゴミ箱から復元可能）",
         "warning": "変換後、執筆ページに移動します。",
         "convert_button": "変換",
         "organizeAs": "記録を整理します...",
@@ -1185,6 +1230,7 @@
   "navigation": {
     "chat": "チャット",
     "record": "記録",
+    "quickRecord": "クイック記録",
     "write": "執筆",
     "search": "検索",
     "githubImageHosting": "Github 画像ホスティング",
@@ -1424,7 +1470,7 @@
         "processingVectors": "ベクトルデータ処理中",
         "calculateVectors": "知識庫計算（全量）",
         "enableVectorDb": "ベクトルデータベースを有効化",
-        "importMarkdown": "をインポート",
+        "importMarkdown": "インポート",
         "importing": "インポート中...",
         "importSuccess": "インポート成功",
         "importSuccessDesc": "{count} 個のファイルをインポートしました",
@@ -1451,10 +1497,10 @@
         "newFile": "新規ファイル",
         "newFolder": "新規フォルダ",
         "syncFolder": "同期",
-        "syncFolderDesc": "同期するファイル夹下的所有 Markdown 文件",
-        "syncFolderSuccess": "ファイル夹同步成功",
-        "syncFolderError": "ファイル夹同步失败",
-        "syncFolderProgress": "正在同步文件夹...",
+        "syncFolderDesc": "現在のフォルダ内のすべての Markdown ファイルを同期",
+        "syncFolderSuccess": "フォルダの同期に成功しました",
+        "syncFolderError": "フォルダの同期に失敗しました",
+        "syncFolderProgress": "フォルダを同期中...",
         "deleteSyncFileSuccess": "削除しました",
         "deleteSyncFileError": "削除に失敗しました"
       },
@@ -1485,9 +1531,9 @@
           "tooltip": "引用"
         },
         "readAloud": {
-          "start": "朗读",
+          "start": "読み上げ",
           "stop": "停止",
-          "loading": "加载中..."
+          "loading": "読み込み中..."
         }
       },
       "toolbar": {
@@ -1495,9 +1541,9 @@
           "tooltip": "ノート整理"
         },
         "mark": {
-          "title": "使用記録",
-          "tooltip": "使用記録",
-          "description": "消費記録をコンテンツとして記事に挿入する。",
+          "title": "記録を使用",
+          "tooltip": "記録を使用",
+          "description": "記録をコンテンツとして記事に挿入する。",
           "noRecords": "記録なし",
           "ocrNoContent": "OCRはコンテンツを認識しませんでした"
         },
@@ -1572,6 +1618,30 @@
       }
     }
   },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "チャット設定"
+        },
+        "tools": {
+          "title": "ツール",
+          "clearContext": "コンテキストをクリア",
+          "clearContextDesc": "会話のコンテキストをクリアし、チャット履歴を保持",
+          "clearChat": "チャットをクリア",
+          "clearChatDesc": "すべてのチャット記録を削除",
+          "clear": "クリア"
+        },
+        "attachments": {
+          "title": "添付ファイル",
+          "gallery": "ギャラリー",
+          "camera": "カメラ",
+          "file": "ファイル",
+          "linkNote": "ノートをリンク"
+        }
+      }
+    }
+  },
   "mcp": {
     "selectServers": "MCP Servers",
     "searchServers": "サーバーを検索...",
@@ -1610,5 +1680,8 @@
       "model": "AIモデル認識",
       "modelDesc": "STTモデルが必要、より正確"
     }
+  },
+  "quickRecord": {
+    "description": "記録ツールを選択して、素早く記録を作成"
   }
 }

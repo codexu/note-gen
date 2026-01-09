@@ -30,24 +30,24 @@ function getDefaultLayout(layoutKey: string) {
     }
   }
   
-  // 根据布局组合返回默认值
+  // 根据布局组合返回默认值，但始终返回3个面板的尺寸
   switch (layoutKey) {
     case 'left-center-right':
       return [20, 50, 30]
     case 'left-center':
-      return [30, 70]
+      return [30, 70, 0] // 右侧折叠
     case 'center-right':
-      return [60, 40]
+      return [0, 60, 40] // 左侧折叠
     case 'left-right':
-      return [50, 50]
+      return [50, 0, 50] // 中间折叠
     case 'left':
-      return [100]
+      return [100, 0, 0] // 只有左侧
     case 'center':
-      return [100]
+      return [0, 100, 0] // 只有中间
     case 'right':
-      return [100]
+      return [0, 0, 100] // 只有右侧
     default:
-      return [100]
+      return [30, 40, 30] // 默认三等分
   }
 }
 
@@ -56,10 +56,7 @@ function ResizableWrapper() {
     leftSidebarVisible, 
     centerPanelVisible, 
     rightSidebarVisible, 
-    initSidebarState,
-    toggleLeftSidebar,
-    toggleCenterPanel,
-    toggleRightSidebar
+    initSidebarState
   } = useSidebarStore()
   
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
@@ -70,6 +67,14 @@ function ResizableWrapper() {
   const MIN_EDITOR_WIDTH_PX = 400
   const [minSidebarSize, setMinSidebarSize] = useState(20)
   const [minEditorSize, setMinEditorSize] = useState(30)
+  
+  // 使用稳定的 layoutKey 用于存储，但不作为 React key
+  const visiblePanels = [
+    leftSidebarVisible && 'left',
+    centerPanelVisible && 'center',
+    rightSidebarVisible && 'right'
+  ].filter(Boolean)
+  const layoutKey = visiblePanels.join('-')
   
   const calculateMinSizes = () => {
     const windowWidth = window.innerWidth
@@ -88,17 +93,34 @@ function ResizableWrapper() {
     return () => window.removeEventListener('resize', calculateMinSizes)
   }, [])
 
-  // 当面板可见性变化时，展开面板到默认大小
+  // 当面板可见性变化时，控制面板的折叠和展开
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (leftSidebarVisible && leftPanelRef.current) {
-        leftPanelRef.current.expand()
+      // 左侧面板
+      if (leftPanelRef.current) {
+        if (leftSidebarVisible) {
+          leftPanelRef.current.expand()
+        } else {
+          leftPanelRef.current.collapse()
+        }
       }
-      if (centerPanelVisible && centerPanelRef.current) {
-        centerPanelRef.current.expand()
+      
+      // 中间面板
+      if (centerPanelRef.current) {
+        if (centerPanelVisible) {
+          centerPanelRef.current.expand()
+        } else {
+          centerPanelRef.current.collapse()
+        }
       }
-      if (rightSidebarVisible && rightPanelRef.current) {
-        rightPanelRef.current.expand()
+      
+      // 右侧面板
+      if (rightPanelRef.current) {
+        if (rightSidebarVisible) {
+          rightPanelRef.current.expand()
+        } else {
+          rightPanelRef.current.collapse()
+        }
       }
     }, 100)
     return () => clearTimeout(timer)
@@ -106,100 +128,26 @@ function ResizableWrapper() {
 
   // 根据面板可见性渲染布局
   // 注意：左侧面板始终渲染，所以 layoutKey 用于存储，但实际布局计算需要考虑左侧始终存在
-  const visiblePanels = [
-    leftSidebarVisible && 'left',
-    centerPanelVisible && 'center',
-    rightSidebarVisible && 'right'
-  ].filter(Boolean)
-
-  const layoutKey = visiblePanels.join('-')
   
-  // 计算实际需要的默认尺寸（左侧始终存在）
+  // 计算实际需要的默认尺寸（所有面板始终存在）
   const getActualLayout = () => {
     const savedLayout = getDefaultLayout(layoutKey)
-    const result = []
-    let savedIndex = 0
     
-    // 特殊处理：只有左右两侧显示时，左侧保持保存的宽度，右侧填满剩余空间
-    if (!centerPanelVisible && leftSidebarVisible && rightSidebarVisible) {
-      const leftSize = savedLayout[savedIndex] // 左右布局时，savedLayout[0] 是左侧的宽度
-      const rightSize = 100 - leftSize
-      result.push(leftSize)
-      result.push(rightSize)
-      return result
+    // 所有面板都始终渲染，直接返回保存的布局或默认布局
+    if (savedLayout.length === 3) {
+      return savedLayout
     }
     
-    // 左侧：如果可见使用保存的值，否则为0
-    result.push(leftSidebarVisible ? savedLayout[savedIndex++] : 0)
-    
-    // 中间：如果可见使用保存的值
-    if (centerPanelVisible) {
-      result.push(savedLayout[savedIndex++])
-    }
-    
-    // 右侧：如果可见使用保存的值
-    if (rightSidebarVisible) {
-      result.push(savedLayout[savedIndex++])
-    }
-    
-    return result
+    // 如果保存的布局不是3个值，使用默认布局
+    return [30, 40, 30] // 左侧30%，中间40%，右侧30%
   }
   
   const actualLayout = getActualLayout()
   
   const onLayout = (sizes: number[]) => {
-    // 检测面板是否被折叠（尺寸接近 0）
-    let panelIndex = 0
-    let hasCollapsed = false
-    
-    // 左侧面板始终存在，所以始终检查
-    const leftSize = sizes[panelIndex++]
-    if (leftSidebarVisible && leftSize < 1) {
-      hasCollapsed = true
-      toggleLeftSidebar()
-    }
-    
-    if (centerPanelVisible) {
-      const centerSize = sizes[panelIndex++]
-      if (centerSize < 1) {
-        hasCollapsed = true
-        toggleCenterPanel()
-      }
-    }
-    if (rightSidebarVisible) {
-      const rightSize = sizes[panelIndex++]
-      if (rightSize < 1) {
-        hasCollapsed = true
-        toggleRightSidebar()
-      }
-    }
-    
-    // 只在没有面板被折叠时才保存布局
-    if (!hasCollapsed) {
-      // 需要过滤掉隐藏的左侧面板的尺寸
-      const sizesToSave = []
-      let sizeIndex = 0
-      
-      // 左侧：只在可见时保存
-      if (leftSidebarVisible) {
-        sizesToSave.push(sizes[sizeIndex])
-      }
-      sizeIndex++
-      
-      // 中间：可见时保存
-      if (centerPanelVisible) {
-        sizesToSave.push(sizes[sizeIndex])
-        sizeIndex++
-      }
-      
-      // 右侧：可见时保存
-      if (rightSidebarVisible) {
-        sizesToSave.push(sizes[sizeIndex])
-      }
-      
-      const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
-      localStorage.setItem(storageKey, JSON.stringify(sizesToSave));
-    }
+    // 保存当前面板布局
+    const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
+    localStorage.setItem(storageKey, JSON.stringify(sizes));
   };
 
   // 根据可见面板数量动态构建布局
@@ -221,54 +169,55 @@ function ResizableWrapper() {
       </ResizablePanel>
     )
 
-    if (leftSidebarVisible && centerPanelVisible) {
-      panels.push(<ResizableHandle key="handle-left-center" />)
-    }
+    // 左侧和中间之间的分隔条
+    panels.push(
+      <ResizableHandle 
+        key="handle-left-center" 
+        className={`${!leftSidebarVisible || !centerPanelVisible ? 'hidden' : ''}`}
+      />
+    )
 
-    if (centerPanelVisible) {
-      panels.push(
-        <ResizablePanel 
-          key="center"
-          ref={centerPanelRef}
-          defaultSize={actualLayout[index++]}
-          minSize={minEditorSize}
-          collapsible={true}
-          collapsedSize={0}
-        >
-          <EditorWrapper />
-        </ResizablePanel>
-      )
-    }
+    // 中间面板
+    panels.push(
+      <ResizablePanel 
+        key="center"
+        ref={centerPanelRef}
+        defaultSize={actualLayout[index++]}
+        minSize={minEditorSize}
+        collapsible={true}
+        collapsedSize={0}
+      >
+        <EditorWrapper />
+      </ResizablePanel>
+    )
 
-    if (leftSidebarVisible && !centerPanelVisible && rightSidebarVisible) {
-      panels.push(<ResizableHandle key="handle-left-right" />)
-    }
+    // 中间和右侧之间的分隔条
+    panels.push(
+      <ResizableHandle 
+        key="handle-center-right" 
+        className={`${!centerPanelVisible || !rightSidebarVisible ? 'hidden' : ''}`}
+      />
+    )
 
-    if (centerPanelVisible && rightSidebarVisible) {
-      panels.push(<ResizableHandle key="handle-center-right" />)
-    }
-
-    if (rightSidebarVisible) {
-      panels.push(
-        <ResizablePanel 
-          key="right"
-          ref={rightPanelRef}
-          defaultSize={actualLayout[index++]}
-          minSize={minSidebarSize}
-          collapsible={true}
-          collapsedSize={0}
-        >
-          <Chat />
-        </ResizablePanel>
-      )
-    }
+    // 右侧面板
+    panels.push(
+      <ResizablePanel 
+        key="right"
+        ref={rightPanelRef}
+        defaultSize={actualLayout[index++]}
+        minSize={minSidebarSize}
+        collapsible={true}
+        collapsedSize={0}
+      >
+        <Chat />
+      </ResizablePanel>
+    )
 
     return panels
   }
 
   return (
     <ResizablePanelGroup 
-      key={layoutKey}
       direction="horizontal" 
       onLayout={onLayout} 
       className="h-full"

@@ -9,7 +9,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import {
   Carousel,
   CarouselContent,
@@ -31,11 +31,13 @@ import useSettingStore from "@/stores/setting"
 import ocr from "@/lib/ocr"
 import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai/description"
 import { insertMark } from "@/db/marks"
-import { useSidebarStore } from "@/stores/sidebar"
 import emitter from '@/lib/emitter'
+import { useRouter } from 'next/navigation'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlScan() {
   const t = useTranslations();
+  const router = useRouter();
   const [open, setOpen] = useState(false)
   const [image, setImage] = useState<HTMLImageElement>();
   const [files, setFiles] = useState<ScreenshotImage[]>([])
@@ -43,7 +45,6 @@ export function ControlScan() {
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
   const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
-  const { setLeftSidebarTab } = useSidebarStore()
 
   function initCropper() {
     if (cropperRef.current) {
@@ -99,8 +100,8 @@ export function ControlScan() {
         baseDir: BaseDirectory.AppData
       })
       
-      // 切换到记录标签页（在耗时操作之前）
-      await setLeftSidebarTab('notes')
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
       
       let content = ''
       let desc = ''
@@ -140,15 +141,17 @@ export function ControlScan() {
     }
   }, [image, open])
 
-  useEffect(() => {
-    emitter.on('toolbar-shortcut-scan', () => {
-      createScreenShot()
-      setOpen(true)
-    })
-    return () => {
-      emitter.off('toolbar-shortcut-scan')
-    }
+  const handleScan = useCallback(() => {
+    createScreenShot()
+    setOpen(true)
   }, [])
+
+  useEffect(() => {
+    emitter.on('toolbar-shortcut-scan', handleScan)
+    return () => {
+      emitter.off('toolbar-shortcut-scan', handleScan)
+    }
+  }, [handleScan])
 
   return (
     <div className="hidden md:block">

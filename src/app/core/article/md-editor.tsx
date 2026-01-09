@@ -39,7 +39,6 @@ export function MdEditor() {
   const { fetchMarks } = useMarkStore()
   const [floatBarPosition, setFloatBarPosition] = useState<{left: number, top: number} | null>(null)
   const [selectedText, setSelectedText] = useState<string>('')
-  const [editorWidth, setEditorWidth] = useState<number>(0)
   const { theme } = useTheme()
   const { currentLocale } = useI18n()
   const t = useTranslations('article.file.sync')
@@ -125,9 +124,7 @@ export function MdEditor() {
     const outlinePosition = await store.get<'left' | 'right'>('outlinePosition') || 'left'
     const enableOutline = await store.get<boolean>('enableOutline') || false
     const enableLineNumber = await store.get<boolean>('enableLineNumber') || false
-    const editorElement = document.getElementById('aritcle-md-editor')
-    const currentWidth = editorElement?.clientWidth || 0
-    const toolbarConfig = createToolbarConfig(t, currentWidth)
+    const toolbarConfig = createToolbarConfig()
 
     const vditor = new Vditor('aritcle-md-editor', {
       lang: getLang(),
@@ -832,157 +829,6 @@ export function MdEditor() {
       })
     }
   }, [editor])
-
-  // 监听编辑器宽度变化，动态更新工具栏
-  useEffect(() => {
-    if (!editor) return
-
-    const editorElement = document.getElementById('aritcle-md-editor')
-    if (!editorElement) return
-
-    let resizeTimer: NodeJS.Timeout | null = null
-    let lastToolbarLevel = -1
-
-    // 根据宽度计算当前应该显示的工具栏级别
-    const getToolbarLevel = (width: number) => {
-      const BUTTON_WIDTH = 36
-      const PADDING = 16
-      const availableWidth = width - PADDING
-      const maxButtons = Math.floor(availableWidth / BUTTON_WIDTH)
-      return maxButtons // 直接返回可显示的按钮数量
-    }
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width
-        
-        // 清除之前的定时器
-        if (resizeTimer) {
-          clearTimeout(resizeTimer)
-        }
-
-        // 防抖：等待拖拽结束后再更新
-        resizeTimer = setTimeout(() => {
-          const currentButtonCount = getToolbarLevel(width)
-          
-          // 只在按钮数量发生变化时才更新工具栏
-          if (currentButtonCount !== lastToolbarLevel && lastToolbarLevel !== -1) {
-            setEditorWidth(width)
-            
-            // 在重建编辑器之前先保存当前内容
-            const currentContent = editor.getValue()
-            if (currentContent && activeFilePath) {
-              // 立即保存当前内容到文件
-              saveCurrentArticle(currentContent)
-            }
-            
-            const newToolbarConfig = createToolbarConfig(t, width)
-            const toolbarElement = editor.vditor.toolbar?.element
-            if (toolbarElement) {
-              const store = Store.load('store.json')
-              store.then(async (s) => {
-                const typewriterMode = await s.get<boolean>('typewriterMode') || false
-                const outlinePosition = await s.get<'left' | 'right'>('outlinePosition') || 'left'
-                const enableOutline = await s.get<boolean>('enableOutline') || false
-                const enableLineNumber = await s.get<boolean>('enableLineNumber') || false
-                
-                const currentMode = editor.vditor.currentMode
-                
-                editor.destroy()
-                
-                const vditor = new Vditor('aritcle-md-editor', {
-                  lang: getLang(),
-                  height: '100%',
-                  icon: 'material',
-                  cdn: '',
-                  tab: '\t',
-                  theme: theme === 'dark' ? 'dark' : 'classic',
-                  toolbar: newToolbarConfig,
-                  typewriterMode,
-                  outline: {
-                    enable: enableOutline,
-                    position: outlinePosition,
-                  },
-                  preview: {
-                    hljs: {
-                      lineNumber: enableLineNumber,
-                    },
-                  },
-                  customRenders: [infographicRenderer],
-                  mode: currentMode,
-                  select: (value: string) => {
-                    setSelectedText(value)
-                    setFloatBarPosition(vditor.getCursorPosition())
-                  },
-                  unSelect: () => {
-                    resetSelectedText()
-                  },
-                  after: () => {
-                    // 重建后恢复内容，使用 false 参数保留撤销历史
-                    vditor.setValue(currentContent, false)
-                    setEditor(vditor)
-                    setEditorPadding(vditor)
-                    
-                    // 监听键盘事件，包含剪切、删除等操作
-                    const editorElement = vditor.vditor.element
-                    const handleKeyDown = (e: KeyboardEvent) => {
-                      // 方向键：隐藏浮动工具栏
-                      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                        resetSelectedText()
-                      }
-                      
-                      // 剪切、删除操作：隐藏浮动工具栏
-                      if (['x', 'X'].includes(e.key) && (e.ctrlKey || e.metaKey)) {
-                        // Ctrl/Cmd + X 剪切
-                        resetSelectedText()
-                      }
-                      
-                      if (['Delete', 'Backspace'].includes(e.key)) {
-                        // 删除键
-                        resetSelectedText()
-                      }
-                    }
-                    editorElement?.addEventListener('keydown', handleKeyDown)
-                    
-                    // 监听失焦事件，隐藏浮动工具栏
-                    const handleBlur = (e: FocusEvent) => {
-                      // 检查失焦是否不是因为点击了浮动工具栏本身
-                      const floatBarElement = document.querySelector('[data-float-bar="true"]')
-                      if (floatBarElement && floatBarElement.contains(e.relatedTarget as Node)) {
-                        return // 如果焦点移动到浮动工具栏，不隐藏
-                      }
-                      resetSelectedText()
-                    }
-                    editorElement?.addEventListener('blur', handleBlur, true)
-                  },
-                  input: (value) => {
-                    saveCurrentArticle(value)
-                    emitter.emit('editor-input')
-                    handleLocalImage(vditor)
-                  },
-                })
-              })
-            }
-          }
-          
-          lastToolbarLevel = currentButtonCount
-        }, 300) // 300ms 防抖延迟
-      }
-    })
-
-    resizeObserver.observe(editorElement)
-    
-    // 初始化时记录当前级别
-    const initialWidth = editorElement.clientWidth
-    lastToolbarLevel = getToolbarLevel(initialWidth)
-
-    return () => {
-      if (resizeTimer) {
-        clearTimeout(resizeTimer)
-      }
-      resizeObserver.disconnect()
-    }
-  }, [editor, editorWidth, t, theme, currentLocale])
 
   // 应用正文文字大小缩放
   useEffect(() => {

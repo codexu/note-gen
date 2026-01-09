@@ -14,31 +14,34 @@ import { Input } from "@/components/ui/input"
 import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
-import { useSidebarStore } from "@/stores/sidebar"
 import { Link } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { fetch } from '@tauri-apps/plugin-http'
 import { v4 as uuidv4 } from 'uuid'
 import emitter from '@/lib/emitter'
+import { useRouter } from 'next/navigation'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlLink() {
   const t = useTranslations();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
-  const { setLeftSidebarTab } = useSidebarStore()
+
+  const handleOpen = useCallback(() => {
+    setOpen(true)
+  }, [])
 
   useEffect(() => {
-    emitter.on('toolbar-shortcut-link', () => {
-      setOpen(true)
-    })
+    emitter.on('toolbar-shortcut-link', handleOpen)
     return () => {
-      emitter.off('toolbar-shortcut-link')
+      emitter.off('toolbar-shortcut-link', handleOpen)
     }
-  }, [])
+  }, [handleOpen])
 
   async function handleSuccess() {
     if (!url) return
@@ -60,8 +63,8 @@ export function ControlLink() {
       startTime: Date.now()
     })
     
-    // 切换到记录标签页（在耗时操作之前）
-    await setLeftSidebarTab('notes')
+    // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+    handleRecordComplete(router)
     
     try {
       setQueue(queueId, { progress: '30%' });

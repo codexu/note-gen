@@ -5,34 +5,37 @@ import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai/description"
 import ocr from "@/lib/ocr"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
-import { useSidebarStore } from "@/stores/sidebar"
 import { BaseDirectory, copyFile, exists, mkdir, readFile, writeFile } from "@tauri-apps/plugin-fs"
 import { ImagePlus } from "lucide-react"
 import useSettingStore from "@/stores/setting"
 import { v4 as uuid } from 'uuid'
 import { open } from '@tauri-apps/plugin-dialog';
 import { uploadImage } from "@/lib/imageHosting"
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { isMobileDevice } from '@/lib/check'
 import emitter from '@/lib/emitter'
+import { useRouter } from 'next/navigation'
+import { handleRecordComplete } from '@/lib/record-navigation'
 
 export function ControlImage() {
   const t = useTranslations();
+  const router = useRouter();
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
-  const { setLeftSidebarTab } = useSidebarStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = isMobileDevice()
 
-  useEffect(() => {
-    emitter.on('toolbar-shortcut-image', () => {
-      selectImages()
-    })
-    return () => {
-      emitter.off('toolbar-shortcut-image')
-    }
+  const handleSelectImages = useCallback(() => {
+    selectImages()
   }, [])
+
+  useEffect(() => {
+    emitter.on('toolbar-shortcut-image', handleSelectImages)
+    return () => {
+      emitter.off('toolbar-shortcut-image', handleSelectImages)
+    }
+  }, [handleSelectImages])
 
   async function selectImages() {
     try {
@@ -57,8 +60,8 @@ export function ControlImage() {
       });
       if (!filePaths) return
       
-      // 切换到记录标签页（在耗时操作之前）
-      await setLeftSidebarTab('notes')
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
       
       filePaths.forEach(async (path) => {
         await upload(path)
@@ -76,8 +79,8 @@ export function ControlImage() {
         return
       }
       
-      // 切换到记录标签页（在耗时操作之前）
-      await setLeftSidebarTab('notes')
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
       
       for (let i = 0; i < files.length; i++) {
         await uploadMobileFile(files[i])

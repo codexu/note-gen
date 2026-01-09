@@ -11,7 +11,7 @@ import json from 'highlight.js/lib/languages/json';
 import xml from 'highlight.js/lib/languages/xml';
 import css from 'highlight.js/lib/languages/css';
 import 'highlight.js/styles/github.min.css';
-import './chat.scss';
+import './chat.css';
 
 type ThemeType = 'light' | 'dark' | 'system';
 

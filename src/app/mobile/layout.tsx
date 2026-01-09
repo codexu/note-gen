@@ -11,7 +11,7 @@ import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import { AppFootbar } from "@/components/app-footbar"
 import { TooltipProvider } from "@/components/ui/tooltip";
-import './mobile-styles.scss'
+import './mobile-styles.css'
 import useImageStore from "@/stores/imageHosting";
 import { initMcp } from "@/lib/mcp/init"
 import { reportAppStart } from "@/lib/event-report"

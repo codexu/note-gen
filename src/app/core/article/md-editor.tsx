@@ -5,7 +5,7 @@ import Vditor from 'vditor'
 import { exists, mkdir, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import "vditor/dist/index.css"
 import CustomToolbar from './custom-toolbar'
-import './style.scss'
+import './style.css'
 import { useTheme } from 'next-themes'
 import { toast } from '@/hooks/use-toast'
 import { Store } from '@tauri-apps/plugin-store'

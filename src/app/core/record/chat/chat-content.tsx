@@ -114,7 +114,7 @@ function MessageWrapper({ chat, children }: { chat: Chat, children: React.ReactN
   // AI 消息：左对齐，无边框，无图标
   return (
     <div className="flex w-full min-w-0">
-      <div className='text-sm leading-6 flex-1 break-words min-w-0 overflow-hidden'>
+      <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden'>
         {children}
       </div>
     </div>

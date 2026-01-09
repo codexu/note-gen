@@ -31,6 +31,7 @@ import { QuoteDisplay } from "./quote-display"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import { writeFile } from "@tauri-apps/plugin-fs"
 import { BaseDirectory } from "@tauri-apps/plugin-fs"
+import { ShineBorder } from "@/components/ui/shine-border"
 import {
   DndContext,
   closestCenter,
@@ -469,7 +470,14 @@ export function ChatInput() {
         linkedFile={linkedFile}
         onFileRemove={removeLinkedFile}
       />
-      <div className="group relative flex flex-col border rounded-xl z-10 gap-1 p-1 w-full bg-background focus-within:border-primary transition-colors">
+      <div className="group relative flex flex-col border rounded-xl z-10 gap-1 p-1 w-full bg-background focus-within:border-primary transition-colors overflow-hidden">
+        {loading && (
+          <ShineBorder
+            borderWidth={1}
+            duration={5}
+            shineColor={["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A"]}
+          />
+        )}
         {quoteData && (
           <QuoteDisplay quoteData={quoteData} onRemove={removeQuote} />
         )}

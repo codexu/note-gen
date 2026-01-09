@@ -3,6 +3,8 @@
 /* 导入动画库 */
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 /* 配置 dark mode 变体 - 必须在 @theme 外面 */
 @variant dark (&:where(.dark, .dark *));
 
@@ -72,7 +74,16 @@
       transform: translateY(0);
     }
   }
-}
+
+  --animate-shine: shine var(--duration) infinite linear
+;
+  @keyframes shine {
+  0% {
+    background-position: 0% 0%;}
+  50% {
+    background-position: 100% 100%;}
+  to {
+    background-position: 0% 0%;}}}
 
 /* 基础样式 - 包含主题变量定义 */
 @layer base {
@@ -289,4 +300,13 @@ ol {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }

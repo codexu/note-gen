@@ -23,13 +23,14 @@ import { TitleBar } from "@/components/title-bar"
 import { Store } from '@tauri-apps/plugin-store'
 import { TextSizeProvider } from "@/contexts/text-size-context"
 import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
+import { applyThemeColors } from "@/lib/theme-utils"
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { initSettingData, uiScale, customCss } = useSettingStore()
+  const { initSettingData, uiScale, customThemeColors } = useSettingStore()
   const { initMainHosting } = useImageStore()
   const { currentLocale } = useI18n()
   const { initShortcut } = useShortcutStore()
@@ -78,18 +79,10 @@ export default function RootLayout({
     }
   }, [uiScale])
 
-  // 应用自定义 CSS
+  // 应用自定义主题颜色
   useEffect(() => {
-    if (customCss) {
-      let styleElement = document.getElementById('custom-css-style')
-      if (!styleElement) {
-        styleElement = document.createElement('style')
-        styleElement.id = 'custom-css-style'
-        document.head.appendChild(styleElement)
-      }
-      styleElement.textContent = customCss
-    }
-  }, [customCss])
+    applyThemeColors(customThemeColors)
+  }, [customThemeColors])
 
   useEffect(() => {
     switch (currentLocale) {

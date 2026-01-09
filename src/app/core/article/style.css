@@ -145,6 +145,56 @@
   color: hsl(var(--foreground));
 }
 
+/* 覆盖 Vditor 代码高亮块背景色 - 使用主题变量 */
+.vditor .vditor-reset pre.hljs,
+.vditor .vditor-reset pre.highlight-chroma,
+.vditor .vditor-reset .hljs,
+.vditor .vditor-reset .highlight-chroma {
+  background-color: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* 覆盖 Vditor 代码高亮块内的代码背景色 */
+.vditor .vditor-reset pre.hljs code,
+.vditor .vditor-reset pre.highlight-chroma code,
+.vditor .vditor-reset .hljs code,
+.vditor .vditor-reset .highlight-chroma code {
+  background-color: transparent !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* 覆盖 Vditor 表格背景色 */
+.vditor .vditor-reset table tr {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.vditor .vditor-reset table tr:nth-child(2n) {
+  background-color: hsl(var(--muted) / 0.5) !important;
+}
+
+.vditor .vditor-reset table th,
+.vditor .vditor-reset table td {
+  border-color: hsl(var(--border)) !important;
+  background-color: transparent !important;
+}
+
+.vditor .vditor-reset table th {
+  background-color: hsl(var(--muted) / 0.3) !important;
+}
+
+/* 覆盖 Vditor blockquote 样式 */
+.vditor .vditor-reset blockquote {
+  border-left-color: hsl(var(--border)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* 覆盖 Vditor hr 分隔线颜色 */
+.vditor .vditor-reset hr {
+  background-color: hsl(var(--border)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
 .vditor-reset .language-infographic {
   margin-bottom: 16px;
   text-align: center;

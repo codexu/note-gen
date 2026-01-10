@@ -324,7 +324,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 relative ${pathname.includes('/core/setting') ? 'bg-destructive/65 hover:bg-destructive/85' : ''}`}
+                className={`h-8 w-8 relative ${pathname.includes('/core/setting') ? 'bg-primary/50 hover:bg-primary/60' : ''}`}
                 onClick={() => {
                   if (pathname.includes('/core/setting')) {
                     router.push('/core/main')

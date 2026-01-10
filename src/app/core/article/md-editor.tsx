@@ -5,7 +5,7 @@ import Vditor from 'vditor'
 import { exists, mkdir, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import "vditor/dist/index.css"
 import CustomToolbar from './custom-toolbar'
-import './style.scss'
+import './style.css'
 import { useTheme } from 'next-themes'
 import { toast } from '@/hooks/use-toast'
 import { Store } from '@tauri-apps/plugin-store'
@@ -958,7 +958,7 @@ export function MdEditor() {
 
   return <div 
     id="article-editor" 
-    className={`flex-1 relative w-full h-full flex flex-col overflow-hidden dark:bg-zinc-950 transition-all ${isDraggingOver ? 'bg-accent/20' : ''}`}
+    className={`flex-1 relative w-full h-full flex flex-col overflow-hidden transition-all ${isDraggingOver ? 'bg-accent/20' : ''}`}
   >
     {/* 拉取加载状态覆盖层 */}
     {isPulling && (

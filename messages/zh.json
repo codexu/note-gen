@@ -85,6 +85,90 @@
           "save": "保存",
           "cancel": "取消"
         },
+        "customTheme": {
+          "title": "自定义主题颜色",
+          "desc": "自定义应用的主题颜色，包括背景色、前景色、边框色等",
+          "button": "编辑颜色",
+          "dialogTitle": "自定义主题颜色",
+          "dialogDesc": "配置自定义主题颜色。颜色更改会实时保存并生效，同时覆盖亮色和暗色主题。",
+          "close": "关闭",
+          "reset": "重置全部",
+          "tabs": {
+            "custom": "自定义",
+            "presets": "预设方案",
+            "importExport": "导入导出"
+          },
+          "export": {
+            "title": "导出配色方案",
+            "button": "生成导出代码",
+            "placeholder": "点击生成按钮将当前配色导出为代码"
+          },
+          "import": {
+            "title": "导入配色方案",
+            "button": "导入配色",
+            "placeholder": "粘贴配色方案的 JSON 代码"
+          },
+          "colors": {
+            "background": "背景色",
+            "foreground": "前景色",
+            "card": "卡片背景色",
+            "cardForeground": "卡片前景色",
+            "primary": "主色调",
+            "primaryForeground": "主色调前景色",
+            "secondary": "次要色调",
+            "secondaryForeground": "次要色调前景色",
+            "third": "第三色调",
+            "thirdForeground": "第三色调前景色",
+            "muted": "柔和色",
+            "mutedForeground": "柔和色前景色",
+            "accent": "强调色",
+            "accentForeground": "强调色前景色",
+            "border": "边框色",
+            "shadow": "阴影色"
+          },
+          "presets": {
+            "apply": "应用",
+            "reset": {
+              "name": "恢复默认"
+            },
+            "default": {
+              "name": "默认白色"
+            },
+            "ocean": {
+              "name": "海洋蓝"
+            },
+            "forest": {
+              "name": "森林绿"
+            },
+            "sunset": {
+              "name": "日落红"
+            },
+            "lavender": {
+              "name": "薰衣草紫"
+            },
+            "midnight": {
+              "name": "午夜暗"
+            },
+            "deepSea": {
+              "name": "深海蓝"
+            },
+            "darkForest": {
+              "name": "暗夜绿"
+            },
+            "darkViolet": {
+              "name": "紫罗兰暗"
+            },
+            "coralWarm": {
+              "name": "珊瑚暖"
+            },
+            "slateGray": {
+              "name": "石板灰"
+            },
+            "darkGold": {
+              "name": "暗夜金"
+            }
+          }
+        },
         "tray": {
           "enabled": {
             "title": "启用托盘",

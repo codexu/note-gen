@@ -15,7 +15,7 @@ import {
   KeyboardIcon,
   Volume2,
   Settings,
-  Puzzle
+  Puzzle,
 } from "lucide-react"
 
 const baseConfig = [

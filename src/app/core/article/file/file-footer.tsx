@@ -94,7 +94,7 @@ export function FileFooter() {
   }
 
   return (
-    <div className="border-t bg-muted/30 h-6 flex items-center justify-between px-1 overflow-hidden gap-1">
+    <div className="border-t h-6 flex items-center justify-between px-1 overflow-hidden gap-1">
       {/* 左侧：工作区选择器 */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

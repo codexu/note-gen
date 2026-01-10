@@ -6,6 +6,8 @@ import { GitlabInstanceType } from '@/lib/sync/gitlab.types'
 import { GiteaInstanceType } from '@/lib/sync/gitea.types'
 import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { fetch } from '@tauri-apps/plugin-http'
+import { CustomThemeColors } from '@/types/theme'
+import { applyThemeColors, removeThemeColors } from '@/lib/theme-utils'
 
 export enum GenTemplateRange {
   All = 'all',
@@ -204,9 +206,10 @@ interface SettingState {
   recordTextSize: string
   setRecordTextSize: (size: string) => Promise<void>
 
-  // 自定义 CSS 设置
-  customCss: string
-  setCustomCss: (css: string) => Promise<void>
+  // 自定义主题颜色设置
+  customThemeColors: CustomThemeColors
+  setCustomThemeColors: (colors: CustomThemeColors) => Promise<void>
+  resetCustomThemeColors: () => Promise<void>
 
   // 聊天工具栏配置 - PC 端
   chatToolbarConfigPc: ChatToolbarItem[]
@@ -855,22 +858,100 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.save()
   },
 
-  // 自定义 CSS 设置
-  customCss: '',
-  setCustomCss: async (css: string) => {
-    set({ customCss: css })
+  // 自定义主题颜色设置
+  customThemeColors: {
+    light: {
+      background: null,
+      foreground: null,
+      card: null,
+      cardForeground: null,
+      primary: null,
+      primaryForeground: null,
+      secondary: null,
+      secondaryForeground: null,
+      third: null,
+      thirdForeground: null,
+      muted: null,
+      mutedForeground: null,
+      accent: null,
+      accentForeground: null,
+      border: null,
+      shadow: null,
+    },
+    dark: {
+      background: null,
+      foreground: null,
+      card: null,
+      cardForeground: null,
+      primary: null,
+      primaryForeground: null,
+      secondary: null,
+      secondaryForeground: null,
+      third: null,
+      thirdForeground: null,
+      muted: null,
+      mutedForeground: null,
+      accent: null,
+      accentForeground: null,
+      border: null,
+      shadow: null,
+    },
+  },
+  setCustomThemeColors: async (colors: CustomThemeColors) => {
+    set({ customThemeColors: colors })
     const store = await Store.load('store.json');
-    await store.set('customCss', css)
+    await store.set('customThemeColors', colors)
     await store.save()
-    
-    // 应用自定义 CSS
-    let styleElement = document.getElementById('custom-css-style')
-    if (!styleElement) {
-      styleElement = document.createElement('style')
-      styleElement.id = 'custom-css-style'
-      document.head.appendChild(styleElement)
+
+    // 应用主题颜色（同时应用亮色和暗色主题）
+    applyThemeColors(colors)
+  },
+  resetCustomThemeColors: async () => {
+    const defaultColors: CustomThemeColors = {
+      light: {
+        background: null,
+        foreground: null,
+        card: null,
+        cardForeground: null,
+        primary: null,
+        primaryForeground: null,
+        secondary: null,
+        secondaryForeground: null,
+        third: null,
+        thirdForeground: null,
+        muted: null,
+        mutedForeground: null,
+        accent: null,
+        accentForeground: null,
+        border: null,
+        shadow: null,
+      },
+      dark: {
+        background: null,
+        foreground: null,
+        card: null,
+        cardForeground: null,
+        primary: null,
+        primaryForeground: null,
+        secondary: null,
+        secondaryForeground: null,
+        third: null,
+        thirdForeground: null,
+        muted: null,
+        mutedForeground: null,
+        accent: null,
+        accentForeground: null,
+        border: null,
+        shadow: null,
+      },
     }
-    styleElement.textContent = css
+    set({ customThemeColors: defaultColors })
+    const store = await Store.load('store.json');
+    await store.set('customThemeColors', defaultColors)
+    await store.save()
+
+    // 清除自定义主题颜色
+    removeThemeColors()
   },
 
   // 自定义仓库名称设置

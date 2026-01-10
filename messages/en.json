@@ -74,6 +74,90 @@
           "save": "Save",
           "cancel": "Cancel"
         },
+        "customTheme": {
+          "title": "Custom Theme Colors",
+          "desc": "Customize application theme colors including background, foreground, border, etc.",
+          "button": "Edit Colors",
+          "dialogTitle": "Custom Theme Colors",
+          "dialogDesc": "Configure custom theme colors. Color changes are saved and applied in real-time, overriding both light and dark themes.",
+          "close": "Close",
+          "reset": "Reset All",
+          "tabs": {
+            "custom": "Custom",
+            "presets": "Presets",
+            "importExport": "Import/Export"
+          },
+          "export": {
+            "title": "Export Color Scheme",
+            "button": "Generate Export Code",
+            "placeholder": "Click the generate button to export current color scheme as code"
+          },
+          "import": {
+            "title": "Import Color Scheme",
+            "button": "Import Scheme",
+            "placeholder": "Paste the JSON code of the color scheme"
+          },
+          "colors": {
+            "background": "Background",
+            "foreground": "Foreground",
+            "card": "Card Background",
+            "cardForeground": "Card Foreground",
+            "primary": "Primary",
+            "primaryForeground": "Primary Foreground",
+            "secondary": "Secondary",
+            "secondaryForeground": "Secondary Foreground",
+            "third": "Third",
+            "thirdForeground": "Third Foreground",
+            "muted": "Muted",
+            "mutedForeground": "Muted Foreground",
+            "accent": "Accent",
+            "accentForeground": "Accent Foreground",
+            "border": "Border",
+            "shadow": "Shadow"
+          },
+          "presets": {
+            "apply": "Apply",
+            "reset": {
+              "name": "Reset to Default"
+            },
+            "default": {
+              "name": "Default White"
+            },
+            "ocean": {
+              "name": "Ocean Blue"
+            },
+            "forest": {
+              "name": "Forest Green"
+            },
+            "sunset": {
+              "name": "Sunset Red"
+            },
+            "lavender": {
+              "name": "Lavender Purple"
+            },
+            "midnight": {
+              "name": "Midnight Dark"
+            },
+            "deepSea": {
+              "name": "Deep Sea"
+            },
+            "darkForest": {
+              "name": "Dark Forest"
+            },
+            "darkViolet": {
+              "name": "Dark Violet"
+            },
+            "coralWarm": {
+              "name": "Coral Warm"
+            },
+            "slateGray": {
+              "name": "Slate Gray"
+            },
+            "darkGold": {
+              "name": "Dark Gold"
+            }
+          }
+        },
         "tray": {
           "enabled": {
             "title": "Enable Tray",
@@ -624,11 +708,8 @@
       "windowPin": "Window Pin"
     },
     "theme": {
-      "title": "Appearance",
-      "appTheme": "Application theme",
-      "previewTheme": "Preview content theme",
-      "codeTheme": "Code block highlight theme",
-      "selectTheme": "Select Theme"
+      "title": "Theme Settings",
+      "desc": "Customize application theme colors"
     },
     "dev": {
       "title": "Developer",

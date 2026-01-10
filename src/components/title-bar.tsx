@@ -348,7 +348,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
             </TooltipContent>
           </Tooltip>
           
-          <AppStatus inTitlebar />
+          <AppStatus />
         </div>
 
         {/* Windows 控制按钮 */}

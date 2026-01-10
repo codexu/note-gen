@@ -29,9 +29,8 @@ input, textarea, select, [contenteditable] {
 }
 
 /* Ensure input elements are properly sized on mobile */
-input, textarea, select, button {
+input, textarea, select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  border-radius: 0;
 }

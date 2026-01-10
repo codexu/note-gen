@@ -106,11 +106,14 @@
             "primaryForeground": "Primary Foreground",
             "secondary": "Secondary",
             "secondaryForeground": "Secondary Foreground",
+            "third": "Third",
+            "thirdForeground": "Third Foreground",
             "muted": "Muted",
             "mutedForeground": "Muted Foreground",
             "accent": "Accent",
             "accentForeground": "Accent Foreground",
-            "border": "Border"
+            "border": "Border",
+            "shadow": "Shadow"
           },
           "presets": {
             "apply": "Apply",

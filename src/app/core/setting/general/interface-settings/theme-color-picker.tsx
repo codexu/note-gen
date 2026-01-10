@@ -16,11 +16,14 @@ interface ThemeColorPickerProps {
     primaryForeground: HSLValue | null
     secondary: HSLValue | null
     secondaryForeground: HSLValue | null
+    third: HSLValue | null
+    thirdForeground: HSLValue | null
     muted: HSLValue | null
     mutedForeground: HSLValue | null
     accent: HSLValue | null
     accentForeground: HSLValue | null
     border: HSLValue | null
+    shadow: HSLValue | null
   }
   onColorChange: (colorKey: string, value: HSLValue | null) => void
   t: (key: string) => string
@@ -36,11 +39,14 @@ export function ThemeColorPicker({ colors, onColorChange, t }: ThemeColorPickerP
     { key: 'primaryForeground', label: t('colors.primaryForeground'), defaultColor: '#fafafa' },
     { key: 'secondary', label: t('colors.secondary'), defaultColor: '#f5f5f5' },
     { key: 'secondaryForeground', label: t('colors.secondaryForeground'), defaultColor: '#171717' },
+    { key: 'third', label: t('colors.third'), defaultColor: '#e5e5e5' },
+    { key: 'thirdForeground', label: t('colors.thirdForeground'), defaultColor: '#262626' },
     { key: 'muted', label: t('colors.muted'), defaultColor: '#f5f5f5' },
     { key: 'mutedForeground', label: t('colors.mutedForeground'), defaultColor: '#737373' },
     { key: 'accent', label: t('colors.accent'), defaultColor: '#f5f5f5' },
     { key: 'accentForeground', label: t('colors.accentForeground'), defaultColor: '#171717' },
     { key: 'border', label: t('colors.border'), defaultColor: '#e5e5e5' },
+    { key: 'shadow', label: t('colors.shadow'), defaultColor: '#000000' },
   ]
 
   // 分成两列

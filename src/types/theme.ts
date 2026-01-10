@@ -14,11 +14,14 @@ export interface CustomThemeColors {
     primaryForeground: HSLValue | null
     secondary: HSLValue | null
     secondaryForeground: HSLValue | null
+    third: HSLValue | null
+    thirdForeground: HSLValue | null
     muted: HSLValue | null
     mutedForeground: HSLValue | null
     accent: HSLValue | null
     accentForeground: HSLValue | null
     border: HSLValue | null
+    shadow: HSLValue | null
   }
   // 暗色主题颜色
   dark: {
@@ -30,11 +33,14 @@ export interface CustomThemeColors {
     primaryForeground: HSLValue | null
     secondary: HSLValue | null
     secondaryForeground: HSLValue | null
+    third: HSLValue | null
+    thirdForeground: HSLValue | null
     muted: HSLValue | null
     mutedForeground: HSLValue | null
     accent: HSLValue | null
     accentForeground: HSLValue | null
     border: HSLValue | null
+    shadow: HSLValue | null
   }
 }
 
@@ -56,11 +62,14 @@ export const THEME_VARIABLE_MAP = {
     primaryForeground: '--primary-foreground',
     secondary: '--secondary',
     secondaryForeground: '--secondary-foreground',
+    third: '--third',
+    thirdForeground: '--third-foreground',
     muted: '--muted',
     mutedForeground: '--muted-foreground',
     accent: '--accent',
     accentForeground: '--accent-foreground',
     border: '--border',
+    shadow: '--shadow',
   },
   dark: {
     background: '--background',
@@ -71,10 +80,13 @@ export const THEME_VARIABLE_MAP = {
     primaryForeground: '--primary-foreground',
     secondary: '--secondary',
     secondaryForeground: '--secondary-foreground',
+    third: '--third',
+    thirdForeground: '--third-foreground',
     muted: '--muted',
     mutedForeground: '--muted-foreground',
     accent: '--accent',
     accentForeground: '--accent-foreground',
     border: '--border',
+    shadow: '--shadow',
   },
 } as const

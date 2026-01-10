@@ -958,7 +958,7 @@ export function MdEditor() {
 
   return <div 
     id="article-editor" 
-    className={`flex-1 relative w-full h-full flex flex-col overflow-hidden dark:bg-zinc-950 transition-all ${isDraggingOver ? 'bg-accent/20' : ''}`}
+    className={`flex-1 relative w-full h-full flex flex-col overflow-hidden transition-all ${isDraggingOver ? 'bg-accent/20' : ''}`}
   >
     {/* 拉取加载状态覆盖层 */}
     {isPulling && (

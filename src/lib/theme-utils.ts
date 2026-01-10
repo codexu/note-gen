@@ -63,7 +63,9 @@ export function removeThemeColors(): void {
   const lightVars = [
     'background', 'foreground', 'card', 'cardForeground',
     'primary', 'primaryForeground', 'secondary', 'secondaryForeground',
-    'muted', 'mutedForeground', 'accent', 'accentForeground', 'border'
+    'third', 'thirdForeground',
+    'muted', 'mutedForeground', 'accent', 'accentForeground', 'border',
+    'shadow'
   ]
 
   lightVars.forEach(key => {

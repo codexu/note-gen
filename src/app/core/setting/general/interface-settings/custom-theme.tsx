@@ -26,11 +26,14 @@ interface ColorScheme {
     primaryForeground: string
     secondary: string
     secondaryForeground: string
+    third: string
+    thirdForeground: string
     muted: string
     mutedForeground: string
     accent: string
     accentForeground: string
     border: string
+    shadow: string
   }
 }
 
@@ -105,11 +108,14 @@ export function CustomThemeSettings() {
         primaryForeground: hexToHsl(preset.colors.primaryForeground),
         secondary: hexToHsl(preset.colors.secondary),
         secondaryForeground: hexToHsl(preset.colors.secondaryForeground),
+        third: hexToHsl(preset.colors.third),
+        thirdForeground: hexToHsl(preset.colors.thirdForeground),
         muted: hexToHsl(preset.colors.muted),
         mutedForeground: hexToHsl(preset.colors.mutedForeground),
         accent: hexToHsl(preset.colors.accent),
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
+        shadow: hexToHsl(preset.colors.shadow),
       },
       dark: {
         background: hexToHsl(preset.colors.background),
@@ -120,11 +126,14 @@ export function CustomThemeSettings() {
         primaryForeground: hexToHsl(preset.colors.primaryForeground),
         secondary: hexToHsl(preset.colors.secondary),
         secondaryForeground: hexToHsl(preset.colors.secondaryForeground),
+        third: hexToHsl(preset.colors.third),
+        thirdForeground: hexToHsl(preset.colors.thirdForeground),
         muted: hexToHsl(preset.colors.muted),
         mutedForeground: hexToHsl(preset.colors.mutedForeground),
         accent: hexToHsl(preset.colors.accent),
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
+        shadow: hexToHsl(preset.colors.shadow),
       },
     }
 
@@ -153,11 +162,14 @@ export function CustomThemeSettings() {
         primaryForeground: hslToHex(customThemeColors.light.primaryForeground || [0, 0, 100]),
         secondary: hslToHex(customThemeColors.light.secondary || [0, 0, 100]),
         secondaryForeground: hslToHex(customThemeColors.light.secondaryForeground || [0, 0, 0]),
+        third: hslToHex(customThemeColors.light.third || [240, 4.8, 90.9]),
+        thirdForeground: hslToHex(customThemeColors.light.thirdForeground || [240, 5.9, 15]),
         muted: hslToHex(customThemeColors.light.muted || [0, 0, 100]),
         mutedForeground: hslToHex(customThemeColors.light.mutedForeground || [0, 0, 50]),
         accent: hslToHex(customThemeColors.light.accent || [0, 0, 100]),
         accentForeground: hslToHex(customThemeColors.light.accentForeground || [0, 0, 0]),
         border: hslToHex(customThemeColors.light.border || [0, 0, 90]),
+        shadow: hslToHex(customThemeColors.light.shadow || [0, 0, 0]),
       },
     }
     setExportCode(JSON.stringify(exportData, null, 2))

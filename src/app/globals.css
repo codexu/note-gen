@@ -109,6 +109,7 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
+    --shadow: 0 0% 0%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -142,6 +143,8 @@
     --primary-foreground: 240 5.9% 10%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
+    --third: 240 3.7% 20.9%;
+    --third-foreground: 240 4.8% 90.9%;
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
     --accent: 240 3.7% 15.9%;
@@ -151,6 +154,7 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+    --shadow: 0 0% 0%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -199,11 +203,11 @@ html, body {
 }
 
 .file-manange-item:hover {
-  background-color: rgb(244 244 245);
+  background-color: hsl(var(--third));
 }
 
 .dark .file-manange-item:hover {
-  background-color: rgb(39 39 42);
+  background-color: hsl(var(--third-foreground));
 }
 
 .file-manange-item.active {

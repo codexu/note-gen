@@ -117,11 +117,14 @@
             "primaryForeground": "主色调前景色",
             "secondary": "次要色调",
             "secondaryForeground": "次要色调前景色",
+            "third": "第三色调",
+            "thirdForeground": "第三色调前景色",
             "muted": "柔和色",
             "mutedForeground": "柔和色前景色",
             "accent": "强调色",
             "accentForeground": "强调色前景色",
-            "border": "边框色"
+            "border": "边框色",
+            "shadow": "阴影色"
           },
           "presets": {
             "apply": "应用",

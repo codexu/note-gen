@@ -51,7 +51,7 @@ export function SettingTab() {
             return (
               <li
                 key={item.anchor}
-                className={currentPage === item.anchor ? '!bg-zinc-800 text-white setting-anchor' : 'setting-anchor'}
+                className={currentPage === item.anchor ? 'bg-primary text-white setting-anchor' : 'setting-anchor'}
                 onClick={() => handleNavigation(item.anchor)}
               >
                 {item.icon}

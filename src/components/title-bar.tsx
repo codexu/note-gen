@@ -237,7 +237,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
         </div>
 
         {/* 中间搜索输入框 */}
-        <div className="flex-1 flex items-center justify-center px-4 min-w-[200px] max-w-[600px] mx-auto">
+        <div className="flex-1 flex items-center justify-center px-4 min-w-[200px] max-w-[600px] mx-auto" data-tauri-drag-region>
           <div 
             className="relative w-full h-6 max-w-md group cursor-pointer flex justify-center items-center border rounded-sm"
             onClick={() => onSearchClick?.()}

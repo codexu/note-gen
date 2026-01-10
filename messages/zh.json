@@ -128,6 +128,9 @@
           },
           "presets": {
             "apply": "应用",
+            "reset": {
+              "name": "恢复默认"
+            },
             "default": {
               "name": "默认白色"
             },
@@ -701,10 +704,6 @@
       "previewTheme": "预览内容主题",
       "codeTheme": "代码块高亮主题",
       "selectTheme": "选择主题"
-    },
-    "theme": {
-      "title": "主题设置",
-      "desc": "自定义应用的主题颜色"
     },
     "dev": {
       "title": "开发者",

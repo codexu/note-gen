@@ -24,11 +24,14 @@ interface ColorScheme {
     primaryForeground: string
     secondary: string
     secondaryForeground: string
+    third: string
+    thirdForeground: string
     muted: string
     mutedForeground: string
     accent: string
     accentForeground: string
     border: string
+    shadow: string
   }
 }
 
@@ -45,11 +48,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#fafafa',
       secondary: '#f5f5f5',
       secondaryForeground: '#171717',
+      third: '#e5e5e5',
+      thirdForeground: '#262626',
       muted: '#f5f5f5',
       mutedForeground: '#737373',
       accent: '#f5f5f5',
       accentForeground: '#171717',
       border: '#e5e5e5',
+      shadow: '#000000',
     },
   },
   {
@@ -64,11 +70,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#e0f2fe',
       secondaryForeground: '#0c4a6e',
+      third: '#bae6fd',
+      thirdForeground: '#0369a1',
       muted: '#f1f5f9',
       mutedForeground: '#64748b',
       accent: '#0ea5e9',
       accentForeground: '#ffffff',
       border: '#bae6fd',
+      shadow: '#0c4a6e',
     },
   },
   {
@@ -83,11 +92,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#dcfce7',
       secondaryForeground: '#14532d',
+      third: '#bbf7d0',
+      thirdForeground: '#166534',
       muted: '#f7fee7',
       mutedForeground: '#4d7c0f',
       accent: '#22c55e',
       accentForeground: '#ffffff',
       border: '#bbf7d0',
+      shadow: '#14532d',
     },
   },
   {
@@ -102,11 +114,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#fee2e2',
       secondaryForeground: '#7f1d1d',
+      third: '#fecaca',
+      thirdForeground: '#b91c1c',
       muted: '#fef2f2',
       mutedForeground: '#991b1b',
       accent: '#f87171',
       accentForeground: '#ffffff',
       border: '#fecaca',
+      shadow: '#7f1d1d',
     },
   },
   {
@@ -121,11 +136,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#f3e8ff',
       secondaryForeground: '#581c87',
+      third: '#e9d5ff',
+      thirdForeground: '#7e22ce',
       muted: '#faf5ff',
       mutedForeground: '#7e22ce',
       accent: '#a855f7',
       accentForeground: '#ffffff',
       border: '#e9d5ff',
+      shadow: '#581c87',
     },
   },
   {
@@ -140,11 +158,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#eaeaea',
       secondary: '#1f4068',
       secondaryForeground: '#eaeaea',
+      third: '#0f3460',
+      thirdForeground: '#a0a0a0',
       muted: '#16213e',
       mutedForeground: '#a0a0a0',
       accent: '#e94560',
       accentForeground: '#ffffff',
       border: '#0f3460',
+      shadow: '#000000',
     },
   },
   {
@@ -159,11 +180,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#334155',
       secondaryForeground: '#e2e8f0',
+      third: '#1e3a8a',
+      thirdForeground: '#cbd5e1',
       muted: '#1e293b',
       mutedForeground: '#94a3b8',
       accent: '#60a5fa',
       accentForeground: '#ffffff',
       border: '#334155',
+      shadow: '#020617',
     },
   },
   {
@@ -178,11 +202,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#1a3a33',
       secondaryForeground: '#e2e8f0',
+      third: '#14532d',
+      thirdForeground: '#bbf7d0',
       muted: '#142b26',
       mutedForeground: '#86efac',
       accent: '#4ade80',
       accentForeground: '#0a1f1a',
       border: '#1a3a33',
+      shadow: '#052e16',
     },
   },
   {
@@ -197,11 +224,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#3b2466',
       secondaryForeground: '#e2e8f0',
+      third: '#581c87',
+      thirdForeground: '#d8b4fe',
       muted: '#2d1b4e',
       mutedForeground: '#c4b5fd',
       accent: '#c084fc',
       accentForeground: '#1a0b2e',
       border: '#3b2466',
+      shadow: '#2e1065',
     },
   },
   {
@@ -216,11 +246,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#ffedd5',
       secondaryForeground: '#431407',
+      third: '#fed7aa',
+      thirdForeground: '#c2410c',
       muted: '#fed7aa',
       mutedForeground: '#9a3412',
       accent: '#fb923c',
       accentForeground: '#ffffff',
       border: '#fed7aa',
+      shadow: '#431407',
     },
   },
   {
@@ -235,11 +268,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#ffffff',
       secondary: '#e2e8f0',
       secondaryForeground: '#1e293b',
+      third: '#cbd5e1',
+      thirdForeground: '#334155',
       muted: '#f1f5f9',
       mutedForeground: '#64748b',
       accent: '#64748b',
       accentForeground: '#ffffff',
       border: '#e2e8f0',
+      shadow: '#0f172a',
     },
   },
   {
@@ -254,11 +290,14 @@ const presets: ColorScheme[] = [
       primaryForeground: '#1a1915',
       secondary: '#3a3934',
       secondaryForeground: '#e2e8f0',
+      third: '#78350f',
+      thirdForeground: '#fde68a',
       muted: '#2a2924',
       mutedForeground: '#fcd34d',
       accent: '#f59e0b',
       accentForeground: '#1a1915',
       border: '#3a3934',
+      shadow: '#000000',
     },
   },
 ]
@@ -288,11 +327,6 @@ export default function ThemeSettingsPage() {
     await store.save()
     useSettingStore.setState({ customThemeColors: updatedColors })
     applyThemeColors(updatedColors)
-
-    // 同时设置系统主题模式
-    await store.set('theme', preset.mode)
-    await store.save()
-    useSettingStore.setState({ theme: preset.mode })
   }
 
   // 应用预设方案
@@ -332,11 +366,14 @@ export default function ThemeSettingsPage() {
         primaryForeground: hexToHsl(preset.colors.primaryForeground),
         secondary: hexToHsl(preset.colors.secondary),
         secondaryForeground: hexToHsl(preset.colors.secondaryForeground),
+        third: hexToHsl(preset.colors.third),
+        thirdForeground: hexToHsl(preset.colors.thirdForeground),
         muted: hexToHsl(preset.colors.muted),
         mutedForeground: hexToHsl(preset.colors.mutedForeground),
         accent: hexToHsl(preset.colors.accent),
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
+        shadow: hexToHsl(preset.colors.shadow),
       },
       dark: {
         background: hexToHsl(preset.colors.background),
@@ -347,11 +384,14 @@ export default function ThemeSettingsPage() {
         primaryForeground: hexToHsl(preset.colors.primaryForeground),
         secondary: hexToHsl(preset.colors.secondary),
         secondaryForeground: hexToHsl(preset.colors.secondaryForeground),
+        third: hexToHsl(preset.colors.third),
+        thirdForeground: hexToHsl(preset.colors.thirdForeground),
         muted: hexToHsl(preset.colors.muted),
         mutedForeground: hexToHsl(preset.colors.mutedForeground),
         accent: hexToHsl(preset.colors.accent),
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
+        shadow: hexToHsl(preset.colors.shadow),
       },
     }
 
@@ -360,11 +400,6 @@ export default function ThemeSettingsPage() {
     await store.save()
     useSettingStore.setState({ customThemeColors: updatedColors })
     applyThemeColors(updatedColors)
-
-    // 同时设置系统主题模式
-    await store.set('theme', preset.mode)
-    await store.save()
-    useSettingStore.setState({ theme: preset.mode })
   }
 
   // 生成导出代码

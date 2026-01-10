@@ -117,6 +117,9 @@
           },
           "presets": {
             "apply": "Apply",
+            "reset": {
+              "name": "Reset to Default"
+            },
             "default": {
               "name": "Default White"
             },

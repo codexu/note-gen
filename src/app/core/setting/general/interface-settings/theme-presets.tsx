@@ -1,5 +1,7 @@
 'use client'
 
+import { RotateCcw } from 'lucide-react'
+
 interface ColorScheme {
   name: string
   mode: 'light' | 'dark'
@@ -21,18 +23,21 @@ interface ColorScheme {
     border: string
     shadow: string
   }
+  isReset?: boolean
 }
 
 interface ThemePresetsProps {
   onApplyPreset: (preset: ColorScheme) => void
+  onResetDefault?: () => void
   t: (key: string) => string
 }
 
-export function ThemePresets({ onApplyPreset, t }: ThemePresetsProps) {
+export function ThemePresets({ onApplyPreset, onResetDefault, t }: ThemePresetsProps) {
   const presets: ColorScheme[] = [
     {
-      name: t('presets.default.name'),
+      name: t('presets.reset.name'),
       mode: 'light',
+      isReset: true,
       colors: {
         background: '#ffffff',
         foreground: '#0a0a0a',
@@ -303,29 +308,54 @@ export function ThemePresets({ onApplyPreset, t }: ThemePresetsProps) {
           key={preset.name}
           role="button"
           tabIndex={0}
-          onClick={() => onApplyPreset(preset)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
+          onClick={() => {
+            if (preset.isReset && onResetDefault) {
+              onResetDefault()
+            } else {
               onApplyPreset(preset)
             }
           }}
-          className="group relative flex flex-col items-center gap-3 p-4 rounded-lg border-2 border-border hover:border-primary transition-all cursor-pointer"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              if (preset.isReset && onResetDefault) {
+                onResetDefault()
+              } else {
+                onApplyPreset(preset)
+              }
+            }
+          }}
+          className={`group relative flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+            preset.isReset
+              ? 'border-dashed border-muted-foreground/50 hover:border-primary'
+              : 'border-border hover:border-primary'
+          }`}
         >
-          {/* 颜色预览条 */}
-          <div className="flex w-full h-3 rounded-full overflow-hidden">
-            <div className="flex-1" style={{ backgroundColor: preset.colors.background }} />
-            <div className="flex-1" style={{ backgroundColor: preset.colors.foreground }} />
-            <div className="flex-1" style={{ backgroundColor: preset.colors.primary }} />
-            <div className="flex-1" style={{ backgroundColor: preset.colors.secondary }} />
-            <div className="flex-1" style={{ backgroundColor: preset.colors.accent }} />
-          </div>
+          {/* 恢复默认图标 - 只对第一个显示 */}
+          {preset.isReset && (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground">
+              <RotateCcw className="w-4 h-4" />
+            </div>
+          )}
+
+          {/* 颜色预览条 - 恢复默认不显示 */}
+          {!preset.isReset && (
+            <div className="flex w-full h-3 rounded-full overflow-hidden">
+              <div className="flex-1" style={{ backgroundColor: preset.colors.background }} />
+              <div className="flex-1" style={{ backgroundColor: preset.colors.foreground }} />
+              <div className="flex-1" style={{ backgroundColor: preset.colors.primary }} />
+              <div className="flex-1" style={{ backgroundColor: preset.colors.secondary }} />
+              <div className="flex-1" style={{ backgroundColor: preset.colors.accent }} />
+            </div>
+          )}
 
           {/* 标签和名称 */}
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {preset.mode === 'light' ? 'Light' : 'Dark'}
-            </span>
+            {!preset.isReset && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                {preset.mode === 'light' ? 'Light' : 'Dark'}
+              </span>
+            )}
             <span className="text-sm font-medium">{preset.name}</span>
           </div>
         </div>

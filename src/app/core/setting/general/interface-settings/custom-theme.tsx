@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
+import { useTheme } from 'next-themes'
 import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Palette, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import { ThemePresets } from './theme-presets'
 
 interface ColorScheme {
   name: string
+  mode?: 'light' | 'dark'
   colors: {
     background: string
     foreground: string
@@ -40,6 +42,7 @@ interface ColorScheme {
 export function CustomThemeSettings() {
   const t = useTranslations('settings.general.interface.customTheme')
   const { customThemeColors } = useSettingStore()
+  const { setTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'custom' | 'presets' | 'import-export'>('custom')
   const [importCode, setImportCode] = useState('')
@@ -144,9 +147,14 @@ export function CustomThemeSettings() {
     applyThemeColors(updatedColors)
 
     // 同时设置系统主题模式
-    await store.set('theme', preset.mode)
-    await store.save()
-    useSettingStore.setState({ theme: preset.mode })
+    if (preset.mode) {
+      setTheme(preset.mode)
+    }
+  }
+
+  // 重置为默认主题
+  const handleResetDefault = async () => {
+    await useSettingStore.getState().resetCustomThemeColors()
   }
 
   // 生成导出代码
@@ -227,7 +235,7 @@ export function CustomThemeSettings() {
             </TabsContent>
 
             <TabsContent value="presets" className="mt-4">
-              <ThemePresets onApplyPreset={applyPreset} t={t} />
+              <ThemePresets onApplyPreset={applyPreset} onResetDefault={handleResetDefault} t={t} />
             </TabsContent>
 
             <TabsContent value="import-export" className="mt-4 space-y-4">

@@ -155,6 +155,21 @@
             },
             "darkGold": {
               "name": "Dark Gold"
+            },
+            "beigeWarm": {
+              "name": "Beige Warm"
+            },
+            "beigeRetro": {
+              "name": "Beige Retro"
+            },
+            "beigeElegant": {
+              "name": "Beige Elegant"
+            },
+            "beigeDark": {
+              "name": "Beige Dark"
+            },
+            "beigeCoffee": {
+              "name": "Beige Coffee"
             }
           }
         },

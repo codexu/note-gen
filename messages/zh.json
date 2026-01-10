@@ -166,6 +166,21 @@
             },
             "darkGold": {
               "name": "暗夜金"
+            },
+            "beigeWarm": {
+              "name": "米黄暖"
+            },
+            "beigeRetro": {
+              "name": "米黄古"
+            },
+            "beigeElegant": {
+              "name": "米黄雅"
+            },
+            "beigeDark": {
+              "name": "米黄暗"
+            },
+            "beigeCoffee": {
+              "name": "米黄咖"
             }
           }
         },
@@ -332,7 +347,7 @@
       "noModel": "不使用模型",
       "placeholder": "请选择或搜索模型",
       "mainModel": "主要模型",
-      "options" : {
+      "options": {
         "primaryModel": {
           "title": "主要模型",
           "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。"
@@ -859,7 +874,7 @@
         "noResults": "未找到结果"
       },
       "info": {
-        "title": "工作区说明", 
+        "title": "工作区说明",
         "desc": "更改工作区后需要重启应用程序才能完全生效。新工作区中的文件将在重启后显示。"
       },
       "toast": {

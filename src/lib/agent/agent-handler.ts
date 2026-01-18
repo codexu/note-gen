@@ -29,6 +29,10 @@ export class AgentHandler {
 
     // 获取所有可用的 Skills（让 AI 自己选择）
     const activeSkills = await this.getAvailableSkills()
+    // 获取 Skills 的详细信息用于 UI 显示
+    const skillsInfo = await this.getSkillsInfo()
+    // 将加载的 Skills 信息存储到状态中，用于 UI 显示
+    store.setAgentState({ loadedSkills: skillsInfo })
 
     const reactConfig: ReActConfig = {
       maxIterations: 15,
@@ -103,6 +107,11 @@ export class AgentHandler {
           currentState.addAgentToolCall(toolCall)
         }
       },
+      onSkillsSelected: (skillIds: string[]) => {
+        // 当 AI 选择 Skills 后，更新状态
+        console.log('[Agent Handler] Skills selected:', skillIds)
+        store.setAgentState({ selectedSkills: skillIds })
+      },
       requestConfirmation: this.config.requestConfirmation,
     }
 
@@ -143,7 +152,7 @@ export class AgentHandler {
   }
 
   /**
-   * 获取所有可用的 Skills（不进行匹配，让 AI 自己选择）
+   * 获取所有可用的 Skills（只返回元数据，让 AI 先选择）
    */
   private async getAvailableSkills(): Promise<string[]> {
     const skillsStore = useSkillsStore.getState()
@@ -170,6 +179,10 @@ export class AgentHandler {
       await skillManager.initialize()
       console.log('[Skills Debug] Skill manager initialized')
 
+      // 每次对话开始前重新加载 Skills，确保使用最新的配置
+      await skillsStore.refreshSkills()
+      console.log('[Skills Debug] Skills refreshed')
+
       // 获取所有已启用的 Skills
       const enabledSkills = await skillManager.getEnabledSkills()
 
@@ -182,12 +195,40 @@ export class AgentHandler {
         }))
       })
 
-      // 返回所有已启用 Skill 的 ID 列表，让 AI 自己选择使用哪些
+      // 返回所有已启用 Skill 的 ID 列表
+      // 注意：这里只传递 ID，具体内容在 formatSkillsInstructions 中按需加载
       const skillIds = enabledSkills.map(skill => skill.metadata.id)
       console.log('[Skills Debug] Returning skill IDs:', skillIds)
       return skillIds
     } catch (error) {
       console.error('[Skills Debug] Failed to get skills:', error)
+      return []
+    }
+  }
+
+  /**
+   * 获取 Skills 的详细信息用于 UI 显示
+   */
+  private async getSkillsInfo(): Promise<Array<{ id: string; name: string; description?: string }>> {
+    const skillsStore = useSkillsStore.getState()
+
+    // 如果 Skills 功能未启用，返回空数组
+    if (!skillsStore.enabled || !skillsStore.autoMatch) {
+      return []
+    }
+
+    try {
+      await skillManager.initialize()
+      await skillsStore.refreshSkills()
+      const enabledSkills = await skillManager.getEnabledSkills()
+
+      return enabledSkills.map(skill => ({
+        id: skill.metadata.id,
+        name: skill.metadata.name,
+        description: skill.metadata.description
+      }))
+    } catch (error) {
+      console.error('[Skills Debug] Failed to get skills info:', error)
       return []
     }
   }

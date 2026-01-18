@@ -121,6 +121,8 @@ const useChatStore = create<ChatState>((set, get) => ({
     currentIteration: 0,
     pendingConfirmation: undefined,
     confirmationHistory: [],
+    loadedSkills: undefined,
+    selectedSkills: undefined,
   },
 
   setAgentState: (state: Partial<AgentState>) => {
@@ -142,6 +144,8 @@ const useChatStore = create<ChatState>((set, get) => ({
         currentIteration: 0,
         pendingConfirmation: undefined,
         confirmationHistory: [],
+        loadedSkills: undefined,
+        selectedSkills: undefined,
       }
     })
   },

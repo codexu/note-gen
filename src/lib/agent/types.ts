@@ -58,6 +58,12 @@ export interface AgentState {
     params: Record<string, any>
   }
   confirmationHistory: ConfirmationRecord[] // 确认操作的历史记录
+  loadedSkills?: Array<{
+    id: string
+    name: string
+    description?: string
+  }> // 当前对话加载的 Skills 列表
+  selectedSkills?: string[] // AI 选择的 Skill ID 列表
 }
 
 export interface ReActStep {

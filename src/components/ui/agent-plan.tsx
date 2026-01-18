@@ -69,6 +69,12 @@ interface AgentPlanProps {
     params: Record<string, any>;
   };
   confirmationHistory?: ConfirmationRecord[];
+  loadedSkills?: Array<{ // 加载的 Skills 信息
+    id: string;
+    name: string;
+    description?: string;
+  }>;
+  selectedSkills?: string[]; // AI 选择的 Skill ID 列表
 
   // Props for history mode
   historyJson?: string;
@@ -107,6 +113,8 @@ export function AgentPlan({
   toolCalls = [],
   pendingConfirmation,
   confirmationHistory = [],
+  loadedSkills = [],
+  selectedSkills,
   historyJson,
   onConfirm,
   onCancel,
@@ -435,9 +443,40 @@ export function AgentPlan({
 
   // Show loading state in live mode
   if (mode === "live" && isRunning && displaySteps.length === 0) {
+    // 获取选择的 Skills 详情
+    const selectedSkillsDetails = selectedSkills
+      ? loadedSkills?.filter(s => selectedSkills.includes(s.id)) || []
+      : []
+
     return (
       <div className="w-full">
         <div className="bg-card border-border rounded-lg border shadow overflow-hidden">
+          {/* Skills 横幅 - 显示选择的 Skills */}
+          {selectedSkillsDetails && selectedSkillsDetails.length > 0 ? (
+            <div className="border-b border-border/50 bg-muted/30 px-4 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium">已选择 {selectedSkillsDetails.length} 个 Skills:</span>
+                <div className="flex flex-wrap gap-1">
+                  {selectedSkillsDetails.map((skill) => (
+                    <span
+                      key={skill.id}
+                      className="bg-green-500/20 text-green-600 dark:text-green-400 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                      title={skill.description}
+                    >
+                      {skill.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : loadedSkills && loadedSkills.length > 0 && !selectedSkills ? (
+            // 还没有选择 Skills 时，只显示数量
+            <div className="border-b border-border/50 bg-muted/30 px-4 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium">已加载 {loadedSkills.length} 个 Skills...</span>
+              </div>
+            </div>
+          ) : null}
           <div className="p-4">
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
               {/* 旋转的 loading 图标 */}
@@ -472,6 +511,37 @@ export function AgentPlan({
   return (
     <div className="bg-background text-foreground h-full overflow-auto mb-2">
       <div className="bg-card border-border rounded-lg border overflow-hidden">
+        {/* Skills 横幅（仅在 live 模式且有 Skills 时显示） */}
+        {mode === "live" && (
+          <>
+            {selectedSkills && selectedSkills.length > 0 ? (
+              // 显示选择的 Skills（绿色）
+              <div className="border-b border-border/50 bg-muted/30 px-4 py-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium">已选择 {selectedSkills.length} 个 Skills:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(loadedSkills?.filter(s => selectedSkills.includes(s.id)) || []).map((skill) => (
+                      <span
+                        key={skill.id}
+                        className="bg-green-500/20 text-green-600 dark:text-green-400 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        title={skill.description}
+                      >
+                        {skill.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : loadedSkills && loadedSkills.length > 0 ? (
+              // 还没有选择 Skills 时，只显示数量
+              <div className="border-b border-border/50 bg-muted/30 px-4 py-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium">已加载 {loadedSkills.length} 个 Skills...</span>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
         <div className="p-2 overflow-hidden" ref={contentRef}>
           <ul className="space-y-1">
             {displaySteps.map((step, index) => {

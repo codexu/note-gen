@@ -12,14 +12,8 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
   const store = await Store.load('store.json')
   const workspacePath = await store.get<string>('workspacePath')
 
-  console.log('[getWorkspacePath] 工作区配置', {
-    workspacePath,
-    hasCustomPath: !!workspacePath,
-  })
-
   // 如果设置了自定义工作区路径，则使用自定义路径
   if (workspacePath) {
-    console.log('[getWorkspacePath] 使用自定义工作区', { path: workspacePath })
     return {
       path: workspacePath,
       isCustom: true
@@ -27,7 +21,6 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
   }
 
   // 否则使用默认路径
-  console.log('[getWorkspacePath] 使用默认工作区', { path: 'article' })
   return {
     path: 'article',
     isCustom: false
@@ -42,29 +35,13 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
 export async function getFilePathOptions(relativePath: string): Promise<{ path: string, baseDir?: BaseDirectory }> {
   const workspace = await getWorkspacePath()
 
-  console.log('[getFilePathOptions] 输入参数', {
-    relativePath,
-    workspacePath: workspace.path,
-    isCustom: workspace.isCustom,
-  })
-
   if (workspace.isCustom) {
     // 对于自定义工作区，返回绝对路径，不设置baseDir
     const fullPath = await join(workspace.path, relativePath)
-    console.log('[getFilePathOptions] 自定义工作区路径解析', {
-      relativePath,
-      workspaceBase: workspace.path,
-      fullPath,
-    })
     return { path: fullPath }
   } else {
     // 对于默认工作区，使用AppData作为baseDir
     const resolvedPath = `article/${relativePath}`
-    console.log('[getFilePathOptions] 默认工作区路径解析', {
-      relativePath,
-      resolvedPath,
-      baseDir: 'AppData',
-    })
     return {
       path: resolvedPath,
       baseDir: BaseDirectory.AppData

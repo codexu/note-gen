@@ -9,6 +9,7 @@ export interface ReActConfig {
   onObservation?: (observation: string) => void
   onToolCall?: (toolCall: ToolCall) => void
   onIterationStart?: () => void
+  onSkillsSelected?: (skillIds: string[]) => void  // 当 AI 选择 Skills 时调用
   requestConfirmation?: (toolName: string, params: Record<string, any>) => Promise<boolean>
   activeSkills?: string[]  // 当前激活的 Skills
 }
@@ -20,6 +21,7 @@ export class ReActAgent {
   private toolCallCounter = 0
   private stopped = false
   private abortController: AbortController | null = null
+  private selectedSkills: Set<string> = new Set() // 记录 AI 选择的 Skills
 
   constructor(config: ReActConfig) {
     this.config = config
@@ -46,10 +48,10 @@ export class ReActAgent {
     this.currentIteration = 0
     this.toolCallCounter = 0
     this.stopped = false
+    this.selectedSkills.clear()
     // 创建新的 AbortController
     this.abortController = new AbortController()
 
-    const systemPrompt = this.buildSystemPrompt()
     let finalAnswer = ''
 
     while (this.currentIteration < this.config.maxIterations) {
@@ -65,6 +67,9 @@ export class ReActAgent {
       if (this.currentIteration > 1) {
         this.config.onIterationStart?.()
       }
+
+      // 每次迭代都重新构建系统提示词，因为 Skills 指令依赖于当前迭代次数
+      const systemPrompt = this.buildSystemPrompt()
 
       const thought = await this.think(userInput, context, systemPrompt, imageUrls)
 
@@ -172,6 +177,15 @@ export class ReActAgent {
       finalAnswer = '已达到最大迭代次数，任务可能未完全完成。'
     }
 
+    // 记录最终结果
+    console.log('[Skills Debug] Final result:', {
+      iterations: this.currentIteration,
+      finalAnswerLength: finalAnswer.length,
+      activeSkills: this.config.activeSkills,
+      toolsUsed: this.steps.map(s => s.action?.tool).filter(Boolean),
+      finalAnswerPreview: finalAnswer.substring(0, 200)
+    })
+
     return finalAnswer || '任务执行完成。'
   }
 
@@ -179,13 +193,26 @@ export class ReActAgent {
     const toolDescriptions = getToolDescriptions()
     const skillsInstructions = this.formatSkillsInstructions()
 
-    console.log('[ReAct Agent] Building system prompt...', {
+    console.log('[Skills Debug] Building system prompt...', {
       hasSkillsInstructions: !!skillsInstructions,
       skillsInstructionsLength: skillsInstructions?.length || 0,
+      skillsInstructionsPreview: skillsInstructions?.substring(0, 500),
       activeSkills: this.config.activeSkills
     })
 
     let prompt = `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
+
+## 🚨 重要警告：Skills 不是工具
+
+**绝对不能使用以下格式**：
+- ❌ Action: style-detector
+- ❌ Action: skill_detector
+- ❌ Action: any_skill_name
+
+**Skills 只是指导文档，不是可调用的工具！**
+- Skills 告诉你应该如何完成任务
+- 你需要理解 Skill 的要求，然后使用**实际的工具**（如 create_markdown_file）来执行
+- 例如：如果 style-detector 说要写网文，你应该 Action: create_markdown_file，在内容里写网文风格
 
 ## 核心原则
 
@@ -248,8 +275,9 @@ Final Answer: 已为您整理完成！我创建了一个名为"React 知识总�
 3. **一次一个工具**：每次只调用一个工具
 4. **立即结束**：完成核心任务后**必须**给出 Final Answer，不要做额外操作
 5. **不要重复**：仔细观察 Observation，如果操作已经成功完成，立即给出 Final Answer，不要重复执行
-6. **只用可用工具**：不要编造工具或参数
+6. **只用可用工具**：不要编造工具或参数，**绝对不要调用 Skill 名称作为工具**
 7. **简洁思考**：Thought 保持简短，直接说明要做什么
+8. **🚨 Skills 不是工具**：永远不要使用 Action: skill_xxx，Skills 只是指导文档
 
 ## 🚫 常见错误（避免）
 
@@ -261,6 +289,9 @@ Final Answer: 已为您整理完成！我创建了一个名为"React 知识总�
 
 ❌ **错误3**：创建文件后，又继续创建相同或相似的文件
 ✅ **正确**：创建文件后，确认成功，立即给出 Final Answer
+
+❌ **错误4**：试图调用 Skill 作为工具（如 Action: style-detector）
+✅ **正确**：理解 Skill 的指导，使用实际工具（如 Action: create_markdown_file）并在内容中按 Skill 要求执行
 
 ## 示例
 
@@ -340,7 +371,44 @@ Final Answer: 任务已被用户终止`
       if (response.length !== lastUpdateLength) {
         this.config.onThought?.(response)
       }
-      
+
+      // 记录 AI 的思考内容，用于调试
+      const mentionedSkills = this.extractMentionedSkills(response)
+
+      // 第一次迭代后，如果 AI 选择了 Skills，记录下来
+      if (this.currentIteration === 1 && mentionedSkills.length > 0) {
+        console.log('[Skills Debug] AI selected skills:', mentionedSkills)
+        // 将提到的 Skills ID 添加到已选择集合
+        const activeSkillIds = this.config.activeSkills || []
+        const selectedSkillIds: string[] = []
+        for (const skillName of mentionedSkills) {
+          // 通过名称查找对应的 Skill ID
+          const skill = activeSkillIds
+            .map(id => skillManager.getSkill(id))
+            .filter((s): s is Exclude<typeof s, undefined> => s !== undefined)
+            .find(s => s.metadata.name === skillName)
+
+          if (skill) {
+            this.selectedSkills.add(skill.metadata.id)
+            selectedSkillIds.push(skill.metadata.id)
+            console.log('[Skills Debug] Added to selected skills:', skill.metadata.id)
+          }
+        }
+
+        // 通知外部选择的 Skills
+        if (selectedSkillIds.length > 0) {
+          this.config.onSkillsSelected?.(selectedSkillIds)
+        }
+      }
+
+      console.log('[Skills Debug] AI Thought:', {
+        iteration: this.currentIteration,
+        thought: response,
+        thoughtLength: response.length,
+        mentionedSkills,
+        selectedSkills: Array.from(this.selectedSkills)
+      })
+
       return response
     } catch (error) {
       // 检查是否是因为终止导致的错误
@@ -467,12 +535,32 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     this.toolCallCounter++
     const toolCall: ToolCall = {
-      id: `${Date.now()}-${this.toolCallCounter}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${this.toolCallCounter}-${Math.random().toString(36).substring(2, 11)}`,
       toolName,
       params,
       status: 'pending',
       timestamp: Date.now(),
     }
+
+    // 查找哪个 Skill 授权了这个工具
+    const authorizingSkills: string[] = []
+    if (this.config.activeSkills && this.config.activeSkills.length > 0) {
+      for (const skillId of this.config.activeSkills) {
+        const skill = skillManager.getSkill(skillId)
+        // 移除 enabled 判断，只要 Skill 存在就检查授权
+        if (skill && skill.metadata.allowedTools?.includes(toolName)) {
+          authorizingSkills.push(skill.metadata.name)
+        }
+      }
+    }
+
+    console.log('[Skills Debug] Tool call:', {
+      toolName,
+      params,
+      authorizingSkills,
+      isAuthorized: authorizingSkills.length > 0,
+      allActiveSkills: this.config.activeSkills
+    })
 
     this.config.onToolCall?.(toolCall)
 
@@ -556,26 +644,84 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     console.log('[Skills Debug] Formatting skills instructions...', {
       activeSkillIds,
-      count: activeSkillIds.length
+      count: activeSkillIds.length,
+      selectedSkills: Array.from(this.selectedSkills),
+      currentIteration: this.currentIteration,
+      isFirstIteration: this.currentIteration === 1
     })
+
+    // 第一次迭代：只发送 Skills 的简要信息（名称和描述），让 AI 选择
+    if (this.currentIteration === 1) {
+      const skillsList: string[] = []
+      const skillsDebugInfo: any[] = []
+
+      for (const skillId of activeSkillIds) {
+        const skill = skillManager.getSkill(skillId)
+        if (!skill) {
+          console.log('[Skills Debug] Skipping skill (not found):', skillId)
+          continue
+        }
+
+        // 只发送简要信息
+        let skillText = `### ${skill.metadata.name}\n\n`
+        skillText += `- 描述：${skill.metadata.description}\n`
+        skillText += `- ID：${skill.metadata.id}\n\n`
+
+        skillsList.push(skillText)
+        skillsDebugInfo.push({
+          id: skill.metadata.id,
+          name: skill.metadata.name,
+          description: skill.metadata.description
+        })
+      }
+
+      if (skillsList.length === 0) {
+        console.log('[Skills Debug] No valid skills after filtering')
+        return ''
+      }
+
+      const result = `## 可用的 Skills
+
+**第一步：选择合适的 Skill**
+
+请根据用户任务，从以下 Skills 中选择最相关的一个或多个：
+
+${skillsList.join('\n---\n\n')}
+
+**重要说明**：
+- 仔细阅读每个 Skill 的描述
+- 选择与用户任务最匹配的 Skill
+- 在你的 Thought 中明确说明你选择了哪个 Skill（例如："我选择 style-detector Skill，因为用户要求写网文"）
+- **不要直接调用 Skill**，Skills 是指导文档，不是工具
+
+选择 Skill 后，继续使用实际工具（如 create_markdown_file）完成任务，并按照选定 Skill 的要求执行。`
+
+      console.log('[Skills Debug] Formatted skills selection instructions (iteration 1):', {
+        skillsCount: skillsList.length,
+        totalLength: result.length,
+        skills: skillsDebugInfo
+      })
+
+      return result
+    }
+
+    // 后续迭代：只发送已选择的 Skills 的完整内容
+    if (this.selectedSkills.size === 0) {
+      console.log('[Skills Debug] No skills selected yet')
+      return ''
+    }
 
     const skillsList: string[] = []
     const skillsDebugInfo: any[] = []
 
-    for (const skillId of activeSkillIds) {
+    for (const skillId of this.selectedSkills) {
       const skill = skillManager.getSkill(skillId)
-      if (!skill || !skill.metadata.enabled) {
-        console.log('[Skills Debug] Skipping skill:', {
-          skillId,
-          found: !!skill,
-          enabled: skill?.metadata.enabled
-        })
+      if (!skill) {
+        console.log('[Skills Debug] Skipping selected skill (not found):', skillId)
         continue
       }
 
-      // 发送 Skill 的完整信息，按照 SKILL.md 的结构组织：
-      // 1. YAML 元数据（让 AI 快速了解）
-      // 2. 完整指令（让 AI 知道具体怎么做）
+      // 发送完整的 Skill 信息
       let skillText = `### ${skill.metadata.name}\n\n`
 
       // YAML 元数据部分
@@ -600,38 +746,68 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         id: skill.metadata.id,
         name: skill.metadata.name,
         description: skill.metadata.description,
-        version: skill.metadata.version,
-        author: skill.metadata.author,
-        instructionLength: skill.instructions.length,
-        allowedTools: skill.metadata.allowedTools
+        instructionLength: skill.instructions.length
       })
     }
 
     if (skillsList.length === 0) {
-      console.log('[Skills Debug] No valid skills after filtering')
+      console.log('[Skills Debug] No valid selected skills after filtering')
       return ''
     }
 
-    const result = `## 可用的 Skills
+    const result = `## 已选择的 Skills
 
-**重要说明**：Skills 是任务指导，不是工具。你需要根据用户需求选择合适的 Skill，然后按照 Skill 的要求使用相应的工具（如 create_markdown_file）完成任务，不要直接调用 Skill 名称。
+你选择了以下 Skills 来指导当前任务：
 
-根据用户任务需求，你应该使用以下 Skills 之一或多个：
+${skillsList.join('\n---\n\n')}
 
-${skillsList.join('\n---\n\n')}`
+**⚠️ 重要提醒**：
+- 严格按照上述 Skills 的要求执行任务
+- 不要尝试调用 Skill 作为工具
+- 使用实际可用的工具（如 create_markdown_file）来完成 Skills 描述的任务`
 
-    console.log('[Skills Debug] Formatted skills instructions:', {
+    console.log('[Skills Debug] Formatted selected skills instructions:', {
+      selectedSkills: Array.from(this.selectedSkills),
       skillsCount: skillsList.length,
       totalLength: result.length,
-      skills: skillsDebugInfo,
-      fullOutput: result
+      skills: skillsDebugInfo
     })
 
     return result
   }
 
   /**
-   * 检查工具是否在当前激活的 Skills 中被授权
+   * 从思考内容中提取提到的 Skills
+   */
+  private extractMentionedSkills(thought: string): string[] {
+    const mentioned: string[] = []
+    if (!this.config.activeSkills || this.config.activeSkills.length === 0) {
+      return mentioned
+    }
+
+    for (const skillId of this.config.activeSkills) {
+      const skill = skillManager.getSkill(skillId)
+      if (skill) {
+        // 检查是否提到了 Skill 的名称或描述中的关键词
+        const skillName = skill.metadata.name.toLowerCase()
+        const keywords = [
+          skillName,
+          ...skill.metadata.name.split(/\s+/),
+          ...skill.metadata.description.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+        ]
+
+        const thoughtLower = thought.toLowerCase()
+        if (keywords.some(keyword => thoughtLower.includes(keyword))) {
+          mentioned.push(skill.metadata.name)
+        }
+      }
+    }
+
+    return mentioned
+  }
+
+  /**
+   * 检查工具是否在当前激活的 Skills 中被授权（移除 enabled 判断）
    */
   isToolAuthorized(toolName: string): boolean {
     const activeSkillIds = this.config.activeSkills
@@ -641,7 +817,8 @@ ${skillsList.join('\n---\n\n')}`
 
     for (const skillId of activeSkillIds) {
       const skill = skillManager.getSkill(skillId)
-      if (skill && skill.metadata.enabled && skill.metadata.allowedTools?.includes(toolName)) {
+      // 移除 enabled 判断，只要 Skill 存在且授权了工具就返回 true
+      if (skill && skill.metadata.allowedTools?.includes(toolName)) {
         return true
       }
     }

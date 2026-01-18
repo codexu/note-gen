@@ -120,11 +120,21 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
 
   // 刷新 Skills 列表
   refreshSkills: async () => {
+    console.log('[Skills Debug] Store refreshSkills() called')
     await skillManager.reload()
 
     const allSkills = skillManager.getAllSkills()
     const globalSkills = skillManager.getSkillsByScope('global')
     const projectSkills = skillManager.getSkillsByScope('project')
+
+    console.log('[Skills Debug] Store refreshSkills() result:', {
+      allSkillsCount: allSkills.length,
+      globalSkillsCount: globalSkills.length,
+      projectSkillsCount: projectSkills.length,
+      allSkills: allSkills.map(s => ({ id: s.metadata.id, name: s.metadata.name })),
+      globalSkills: globalSkills.map(s => ({ id: s.metadata.id, name: s.metadata.name })),
+      projectSkills: projectSkills.map(s => ({ id: s.metadata.id, name: s.metadata.name }))
+    })
 
     set({
       skills: allSkills.map(s => s.metadata),

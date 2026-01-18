@@ -1,5 +1,6 @@
 import { ReActStep, ToolCall, ToolResult } from './types'
 import { getToolByName, getToolDescriptions } from './tools'
+import { skillManager } from '@/lib/skills'
 
 export interface ReActConfig {
   maxIterations: number
@@ -9,6 +10,7 @@ export interface ReActConfig {
   onToolCall?: (toolCall: ToolCall) => void
   onIterationStart?: () => void
   requestConfirmation?: (toolName: string, params: Record<string, any>) => Promise<boolean>
+  activeSkills?: string[]  // 当前激活的 Skills
 }
 
 export class ReActAgent {
@@ -175,8 +177,15 @@ export class ReActAgent {
 
   private buildSystemPrompt(): string {
     const toolDescriptions = getToolDescriptions()
+    const skillsInstructions = this.formatSkillsInstructions()
 
-    return `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
+    console.log('[ReAct Agent] Building system prompt...', {
+      hasSkillsInstructions: !!skillsInstructions,
+      skillsInstructionsLength: skillsInstructions?.length || 0,
+      activeSkills: this.config.activeSkills
+    })
+
+    let prompt = `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
 
 ## 核心原则
 
@@ -186,7 +195,21 @@ export class ReActAgent {
 
 ## 可用工具
 
-${toolDescriptions}
+${toolDescriptions}`
+
+    // 添加 Skills 指令
+    if (skillsInstructions) {
+      prompt += `
+
+## 可用的 Skills
+
+${skillsInstructions}`
+      console.log('[ReAct Agent] Added skills instructions to prompt')
+    } else {
+      console.log('[ReAct Agent] No skills instructions to add')
+    }
+
+    prompt += `
 
 ## 输出格式要求
 
@@ -258,6 +281,8 @@ Final Answer: 已创建笔记"NoteGen介绍.md"
 \`\`\`
 
 现在开始执行任务！`
+
+    return prompt
   }
 
   private async think(userInput: string, context: string | undefined, systemPrompt: string, imageUrls?: string[]): Promise<string> {
@@ -435,7 +460,7 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
   private async act(toolName: string, params: Record<string, any>): Promise<string> {
     const tool = getToolByName(toolName)
-    
+
     if (!tool) {
       return `错误：未找到工具 "${toolName}"。请使用可用的工具列表中的工具。`
     }
@@ -451,9 +476,13 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     this.config.onToolCall?.(toolCall)
 
-    if (tool.requiresConfirmation && this.config.requestConfirmation) {
+    // 检查工具是否在当前激活的 Skills 中被授权
+    const isAuthorized = this.isToolAuthorized(toolName)
+    const requiresConfirmation = tool.requiresConfirmation && !isAuthorized
+
+    if (requiresConfirmation && this.config.requestConfirmation) {
       const confirmed = await this.config.requestConfirmation(toolName, params)
-      
+
       if (!confirmed) {
         toolCall.status = 'error'
         toolCall.result = {
@@ -512,5 +541,111 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
   getCurrentIteration(): number {
     return this.currentIteration
+  }
+
+  /**
+   * 格式化 Skills 指令为系统提示
+   * 只发送元数据和简要说明，完整指令由 AI 根据描述理解并执行
+   */
+  private formatSkillsInstructions(): string {
+    const activeSkillIds = this.config.activeSkills
+    if (!activeSkillIds || activeSkillIds.length === 0) {
+      console.log('[Skills Debug] No active skills to format')
+      return ''
+    }
+
+    console.log('[Skills Debug] Formatting skills instructions...', {
+      activeSkillIds,
+      count: activeSkillIds.length
+    })
+
+    const skillsList: string[] = []
+    const skillsDebugInfo: any[] = []
+
+    for (const skillId of activeSkillIds) {
+      const skill = skillManager.getSkill(skillId)
+      if (!skill || !skill.metadata.enabled) {
+        console.log('[Skills Debug] Skipping skill:', {
+          skillId,
+          found: !!skill,
+          enabled: skill?.metadata.enabled
+        })
+        continue
+      }
+
+      // 发送 Skill 的完整信息，按照 SKILL.md 的结构组织：
+      // 1. YAML 元数据（让 AI 快速了解）
+      // 2. 完整指令（让 AI 知道具体怎么做）
+      let skillText = `### ${skill.metadata.name}\n\n`
+
+      // YAML 元数据部分
+      skillText += `**元数据**：\n`
+      skillText += `- 描述：${skill.metadata.description}\n`
+      skillText += `- 版本：${skill.metadata.version}\n`
+      if (skill.metadata.author) {
+        skillText += `- 作者：${skill.metadata.author}\n`
+      }
+      if (skill.metadata.allowedTools && skill.metadata.allowedTools.length > 0) {
+        skillText += `- 授权工具：${skill.metadata.allowedTools.join(', ')}\n`
+      }
+      skillText += `\n`
+
+      // 完整指令部分（Markdown 内容）
+      skillText += `**执行指令**：\n${skill.instructions}\n\n`
+
+      skillsList.push(skillText)
+
+      // 收集调试信息
+      skillsDebugInfo.push({
+        id: skill.metadata.id,
+        name: skill.metadata.name,
+        description: skill.metadata.description,
+        version: skill.metadata.version,
+        author: skill.metadata.author,
+        instructionLength: skill.instructions.length,
+        allowedTools: skill.metadata.allowedTools
+      })
+    }
+
+    if (skillsList.length === 0) {
+      console.log('[Skills Debug] No valid skills after filtering')
+      return ''
+    }
+
+    const result = `## 可用的 Skills
+
+**重要说明**：Skills 是任务指导，不是工具。你需要根据用户需求选择合适的 Skill，然后按照 Skill 的要求使用相应的工具（如 create_markdown_file）完成任务，不要直接调用 Skill 名称。
+
+根据用户任务需求，你应该使用以下 Skills 之一或多个：
+
+${skillsList.join('\n---\n\n')}`
+
+    console.log('[Skills Debug] Formatted skills instructions:', {
+      skillsCount: skillsList.length,
+      totalLength: result.length,
+      skills: skillsDebugInfo,
+      fullOutput: result
+    })
+
+    return result
+  }
+
+  /**
+   * 检查工具是否在当前激活的 Skills 中被授权
+   */
+  isToolAuthorized(toolName: string): boolean {
+    const activeSkillIds = this.config.activeSkills
+    if (!activeSkillIds || activeSkillIds.length === 0) {
+      return false
+    }
+
+    for (const skillId of activeSkillIds) {
+      const skill = skillManager.getSkill(skillId)
+      if (skill && skill.metadata.enabled && skill.metadata.allowedTools?.includes(toolName)) {
+        return true
+      }
+    }
+
+    return false
   }
 }

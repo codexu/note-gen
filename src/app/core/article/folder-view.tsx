@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Folder, Database, Clock, RefreshCw, Loader2, FileText } from 'lucide-react'
+import { Folder, Database, Clock, RefreshCw, Loader2, FileText, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import useArticleStore from '@/stores/article'
 import useVectorStore from '@/stores/vector'
+import { useSkillsStore } from '@/stores/skills'
+import { isSkillsFolder } from '@/lib/skills/utils'
 import { getVectorDocumentsByFilename } from '@/db/vector'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
@@ -28,6 +30,97 @@ interface FolderStats {
   lastUpdated: string | null
 }
 
+interface SkillMetadata {
+  id: string
+  name: string
+  description: string
+  version: string
+  author?: string
+  scope: 'global' | 'project'
+  allowedTools?: string[]
+  userInvocable: boolean
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+// Skills 列表视图组件
+function SkillsListView({
+  skills,
+}: {
+  skills: SkillMetadata[]
+}) {
+  return (
+    <div className="flex-1 h-full flex flex-col items-center justify-center bg-background gap-6 p-8">
+      {/* Skills Icon and Name */}
+      <div className="flex flex-col items-center gap-3">
+        <Sparkles className="w-20 h-20 text-primary" />
+        <h2 className="text-2xl font-semibold tracking-tight">Skills</h2>
+        <p className="text-muted-foreground text-sm">
+          工作区 Skills ({skills.length})
+        </p>
+      </div>
+
+      {/* Skills 列表 */}
+      {skills.length === 0 ? (
+        <div className="text-center py-12">
+          <Sparkles className="mx-auto h-12 w-12 mb-4 opacity-50" />
+          <p className="text-muted-foreground">还没有 Skills</p>
+          <p className="text-sm text-muted-foreground">
+            在 skills 文件夹中创建 SKILL.md 文件来添加 Skill
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 w-full max-w-2xl">
+          {skills.map((skill) => (
+            <div
+              key={skill.id}
+              className="p-4 border rounded-lg hover:bg-accent/5 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="size-5 text-primary" />
+                    <h3 className="font-semibold">{skill.name}</h3>
+                    {skill.enabled ? (
+                      <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                                已启用
+                              </span>
+                            ) : (
+                              <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
+                                未启用
+                              </span>
+                            )}
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {skill.description}
+                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                    <span>v{skill.version}</span>
+                    {skill.author && <span>{skill.author}</span>}
+                  </div>
+                </div>
+                <div className="flex flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // TODO: 打开编辑对话框
+                      console.log('Edit skill:', skill.id)
+                    }}
+                  >
+                    编辑
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FolderView({ folderPath }: FolderViewProps) {
   const [stats, setStats] = useState<FolderStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
@@ -40,59 +133,62 @@ export function FolderView({ folderPath }: FolderViewProps) {
 
   const { fileTree, vectorIndexedFiles } = useArticleStore()
   const { isVectorDbEnabled } = useVectorStore()
+  const { getSkillsByScope } = useSkillsStore()
 
   const folderName = folderPath.split('/').pop() || folderPath
 
-  // Get all files in the current folder (recursively)
-  const folderFiles = useMemo(() => {
-    function collectFiles(tree: typeof fileTree, targetPath: string): string[] {
-      const files: string[] = []
+  // 检查是否是 Skills 文件夹
+  const isSkillsView = isSkillsFolder(folderName)
 
-      // Helper to collect files from a directory and its subdirectories
-      function collectFromDirectory(item: typeof tree[0], currentPath: string) {
-        if (item.isFile && item.name.endsWith('.md')) {
-          files.push(currentPath)
-          return
-        }
+  // 原有的文件夹向量视图逻辑...
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function collectFiles(_tree: typeof fileTree, _targetPath: string): string[] {
+    const files: string[] = []
 
-        if (item.isDirectory && item.children) {
-          for (const child of item.children) {
-            const childPath = currentPath ? `${currentPath}/${child.name}` : child.name
-            collectFromDirectory(child, childPath)
-          }
-        }
+    // Helper to collect files from a directory and its subdirectories
+    function collectFromDirectory(item: typeof fileTree[0], currentPath: string) {
+      if (item.isFile && item.name.endsWith('.md')) {
+        files.push(currentPath)
+        return
       }
 
-      // Find the target folder in the tree
-      function findAndCollect(tree: typeof fileTree, targetPath: string): boolean {
-        for (const item of tree) {
-          const itemPath = item.parent?.name ? `${item.parent?.name}/${item.name}` : item.name
-
-          if (item.isDirectory && itemPath === targetPath) {
-            // Found the target folder, collect all files recursively
-            if (item.children) {
-              for (const child of item.children) {
-                const childPath = `${itemPath}/${child.name}`
-                collectFromDirectory(child, childPath)
-              }
-            }
-            return true
-          }
-
-          // Search in subdirectories
-          if (item.children && findAndCollect(item.children, targetPath)) {
-            return true
-          }
+      if (item.isDirectory && item.children) {
+        for (const child of item.children) {
+          const childPath = currentPath ? `${currentPath}/${child.name}` : child.name
+          collectFromDirectory(child, childPath)
         }
-        return false
       }
-
-      findAndCollect(tree, targetPath)
-      return files
     }
 
-    return collectFiles(fileTree, folderPath)
-  }, [fileTree, folderPath])
+    // Find the target folder in the tree
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    function findAndCollect(_tree: typeof fileTree, _targetPath: string): boolean {
+      for (const item of _tree) {
+        if (item.isDirectory && folderPath === _targetPath) {
+          // Found the target folder, collect all files recursively
+          if (item.children) {
+            for (const child of item.children) {
+              const childPath = `${folderPath}/${child.name}`
+              collectFromDirectory(child, childPath)
+            }
+          }
+          return true
+        }
+
+        // Search in subdirectories
+        if (item.children && findAndCollect(item.children, _targetPath)) {
+          return true
+        }
+      }
+      return false
+    }
+
+    findAndCollect(fileTree, folderPath)
+    return files
+  }
+
+  // Get all files in the current folder (recursively)
+  const folderFiles = useMemo(() => collectFiles(fileTree, folderPath), [fileTree, folderPath])
 
   // Calculate folder statistics
   const calculateStats = useCallback(async () => {
@@ -211,6 +307,12 @@ export function FolderView({ folderPath }: FolderViewProps) {
     await calculateStats()
     setBatchProgress(null)
   }, [folderFiles, calculateStats])
+
+  // 如果是 Skills 文件夹，显示 Skills 视图
+  if (isSkillsView) {
+    const projectSkills = getSkillsByScope('project')
+    return <SkillsListView skills={projectSkills.map(s => s.metadata)} />
+  }
 
   if (!isVectorDbEnabled) {
     return (

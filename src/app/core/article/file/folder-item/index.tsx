@@ -2,13 +2,14 @@ import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigg
 import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
-import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot, Loader2, Database } from "lucide-react"
+import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot, Loader2, Database, Sparkles } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import useSettingStore from '@/stores/setting'
+import { isSkillsFolder } from "@/lib/skills/utils"
 import SyncFolder from './sync-folder'
 import { NewFile } from './new-file'
 import { NewFolder } from './new-folder'
@@ -486,10 +487,13 @@ export function FolderItem({ item }: { item: DirTree }) {
                     <div className="relative flex items-center">
                       {item.loading ? (
                         <Loader2 className={`${iconSize} animate-spin text-primary`} />
-                      ) : collapsibleList.includes(path) ?
-                        (assetsPath === item.name ? <FolderOpenDot className={iconSize} /> : <FolderOpen className={iconSize} />) :
-                        (assetsPath === item.name ? <FolderDot className={iconSize} /> : <Folder className={iconSize} />)
-                      }
+                      ) : isSkillsFolder(item.name) ? (
+                        <Sparkles className={`${iconSize} text-primary`} />
+                      ) : collapsibleList.includes(path) ? (
+                        assetsPath === item.name ? <FolderOpenDot className={iconSize} /> : <FolderOpen className={iconSize} />
+                      ) : (
+                        assetsPath === item.name ? <FolderDot className={iconSize} /> : <Folder className={iconSize} />
+                      )}
                       {!item.loading && item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" />}
                     </div>
                     <span className={`text-${fileManagerTextSize} line-clamp-1 ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
@@ -546,15 +550,18 @@ export function FolderItem({ item }: { item: DirTree }) {
           <NewFolder item={item} />
           <ViewDirectory item={item} />
           <ContextMenuSeparator />
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <Database className="mr-2 h-4 w-4" />
-              {t('context.knowledgeBase')}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              <FolderVectorMenu item={item} />
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          {/* Skills 文件夹不显示知识库选项 */}
+          {!isSkillsFolder(item.name) && (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <Database className="mr-2 h-4 w-4" />
+                {t('context.knowledgeBase')}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                <FolderVectorMenu item={item} />
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )}
           <ContextMenuSeparator />
           <CutFolder item={item} />
           <CopyFolder item={item} />

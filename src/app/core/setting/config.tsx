@@ -16,6 +16,7 @@ import {
   Volume2,
   Settings,
   Puzzle,
+  Sparkles,
 } from "lucide-react"
 
 const baseConfig = [
@@ -56,6 +57,10 @@ const baseConfig = [
   {
     icon: <Puzzle className="size-4 md:size-6" />,
     anchor: 'mcp',
+  },
+  {
+    icon: <Sparkles className="size-4 md:size-6" />,
+    anchor: 'skills',
   },
   {
     icon: <Drama className="size-4 md:size-6" />,

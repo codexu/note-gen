@@ -234,6 +234,9 @@ const useChatStore = create<ChatState>((set, get) => ({
   clearChats: async (tagId) => {
     set({ chats: [] })
     await clearChatsByTagId(tagId)
+    // 清空聊天记录时同步清理 Agent 状态
+    get().resetAgentState()
+    get().clearMcpToolCalls()
   },
 
   updateInsert: async (id) => {

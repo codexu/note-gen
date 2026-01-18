@@ -74,46 +74,93 @@ export async function collectMarkdownFiles(folderPath: string): Promise<Array<{p
  */
 export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
   const workspace = await getWorkspacePath();
+
+  console.log('[getAllMarkdownFiles] 开始获取文件列表', {
+    workspacePath: workspace.path,
+    isCustom: workspace.isCustom,
+  });
+
   const files: MarkdownFile[] = [];
-  
+
   // 递归处理目录的辅助函数
-  async function processDirectory(dirPath: string, useCustomPath: boolean, relativePath: string = ""): Promise<void> {
+  async function processDirectory(dirPath: string, useCustomPath: boolean, relativePath: string = "", depth: number = 0): Promise<void> {
     let entries: DirEntry[];
-    
-    if (useCustomPath) {
-      entries = await readDir(dirPath);
-    } else {
-      entries = await readDir(dirPath, { baseDir: BaseDirectory.AppData });
-    }
-    
-    for (const entry of entries) {
-      // 跳过隐藏文件和文件夹
-      if (entry.name === '.DS_Store' || entry.name.startsWith('.')) continue;
-      
-      const currentRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-      
-      if (entry.isDirectory) {
-        // 递归处理子目录
-        const childPath = await join(dirPath, entry.name);
-        await processDirectory(childPath, useCustomPath, currentRelativePath);
-      } else if (entry.name.endsWith('.md')) {
-        // 添加Markdown文件
-        const fullPath = useCustomPath 
-          ? await join(dirPath, entry.name)
-          : currentRelativePath;
-        
-        files.push({
-          name: entry.name,
-          path: fullPath,
-          relativePath: currentRelativePath
-        });
+
+    const debugPrefix = '[getAllMarkdownFiles]'.padEnd(depth * 2 + 20, ' ');
+
+    try {
+      console.log(`${debugPrefix} 处理目录`, {
+        dirPath,
+        useCustomPath,
+        relativePath: relativePath || '(root)',
+        depth,
+      });
+
+      if (useCustomPath) {
+        entries = await readDir(dirPath);
+      } else {
+        entries = await readDir(dirPath, { baseDir: BaseDirectory.AppData });
       }
+
+      console.log(`${debugPrefix} 目录读取成功`, {
+        entryCount: entries.length,
+        entries: entries.map(e => ({ name: e.name, isDir: e.isDirectory })),
+      });
+
+      for (const entry of entries) {
+        // 跳过隐藏文件和文件夹
+        if (entry.name === '.DS_Store' || entry.name.startsWith('.')) {
+          console.log(`${debugPrefix} 跳过隐藏项`, { name: entry.name });
+          continue;
+        }
+
+        const currentRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+        if (entry.isDirectory) {
+          // 递归处理子目录
+          const childPath = await join(dirPath, entry.name);
+          await processDirectory(childPath, useCustomPath, currentRelativePath, depth + 1);
+        } else if (entry.name.endsWith('.md')) {
+          // 添加Markdown文件
+          const fullPath = useCustomPath
+            ? await join(dirPath, entry.name)
+            : currentRelativePath;
+
+          console.log(`${debugPrefix} 找到 Markdown 文件`, {
+            name: entry.name,
+            relativePath: currentRelativePath,
+            fullPath,
+          });
+
+          files.push({
+            name: entry.name,
+            path: fullPath,
+            relativePath: currentRelativePath
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`${debugPrefix} 目录处理失败`, {
+        dirPath,
+        error: String(error),
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
     }
   }
-  
+
   // 开始处理根目录
   const rootPath = workspace.isCustom ? workspace.path : 'article';
+  console.log('[getAllMarkdownFiles] 开始处理根目录', {
+    rootPath,
+    useCustomPath: workspace.isCustom,
+  });
+
   await processDirectory(rootPath, workspace.isCustom);
-  
+
+  console.log('[getAllMarkdownFiles] 完成', {
+    totalFiles: files.length,
+    files: files.map(f => ({ name: f.name, relativePath: f.relativePath })),
+  });
+
   return files;
 }

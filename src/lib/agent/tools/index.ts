@@ -4,6 +4,7 @@ import { chatTools } from './chat-tools'
 import { tagTools } from './tag-tools'
 import { markTools } from './mark-tools'
 import { folderTools } from './folder-tools'
+import { systemTools } from './system-tools'
 
 export const allTools: Tool[] = [
   ...noteTools,
@@ -11,6 +12,7 @@ export const allTools: Tool[] = [
   ...tagTools,
   ...markTools,
   ...folderTools,
+  ...systemTools,
 ]
 
 export function getToolByName(name: string): Tool | undefined {
@@ -42,3 +44,4 @@ export * from './chat-tools'
 export * from './tag-tools'
 export * from './mark-tools'
 export * from './folder-tools'
+export * from './system-tools'

@@ -157,6 +157,7 @@ export interface SkillFileInfo {
   mainFile: string              // SKILL.md 文件路径
   hasReference: boolean         // 是否有 REFERENCE.md
   hasExamples: boolean          // 是否有 EXAMPLES.md
+  hasKeywords?: boolean         // 是否有 KEYWORDS.md
   isValid: boolean              // 是否有效 Skill
   error?: string                // 错误信息
 }

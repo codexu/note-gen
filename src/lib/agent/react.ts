@@ -587,14 +587,28 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     try {
       const result: ToolResult = await tool.execute(params)
-      
+
       toolCall.status = result.success ? 'success' : 'error'
       toolCall.result = result
       this.config.onToolCall?.(toolCall)
 
       if (result.success) {
+        // 特殊处理 select_skill 工具
+        if (toolName === 'select_skill' && result.data?.selected_skills) {
+          const selectedSkillIds: string[] = result.data.selected_skills
+          console.log('[ReAct Agent] select_skill 工具执行成功，选择的 Skills:', selectedSkillIds)
+
+          // 更新 selectedSkills
+          for (const skillId of selectedSkillIds) {
+            this.selectedSkills.add(skillId)
+          }
+
+          // 通知外部选择的 Skills
+          this.config.onSkillsSelected?.(selectedSkillIds)
+        }
+
         let observation = result.message || `工具 ${toolName} 执行成功。`
-        
+
         // 如果有数据，将其完整添加到观察结果中
         // AI 需要看到完整数据才能生成准确的笔记
         if (result.data) {
@@ -607,7 +621,7 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
             observation += `\n\n数据详情：\n${JSON.stringify(result.data, null, 2)}`
           }
         }
-        
+
         return observation
       } else {
         return `工具 ${toolName} 执行失败：${result.error}`
@@ -682,19 +696,29 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
       const result = `## 可用的 Skills
 
-**第一步：选择合适的 Skill**
+**第一步：使用 select_skill 工具选择合适的 Skill**
 
 请根据用户任务，从以下 Skills 中选择最相关的一个或多个：
 
 ${skillsList.join('\n---\n\n')}
 
+**🚨 必须使用工具来选择 Skill！**
+
+正确的选择 Skill 方式：
+\`\`\`
+Thought: 用户要求写网文，我需要选择 style-detector Skill 来指导写作风格。
+Action: select_skill
+Action Input: {"skill_ids": ["style-detector"]}
+\`\`\`
+
+选择 Skill 后，你将在下一个迭代中收到该 Skill 的完整指令。然后你可以使用实际的工具（如 create_markdown_file）来完成任务。
+
 **重要说明**：
 - 仔细阅读每个 Skill 的描述
-- 选择与用户任务最匹配的 Skill
-- 在你的 Thought 中明确说明你选择了哪个 Skill（例如："我选择 style-detector Skill，因为用户要求写网文"）
-- **不要直接调用 Skill**，Skills 是指导文档，不是工具
-
-选择 Skill 后，继续使用实际工具（如 create_markdown_file）完成任务，并按照选定 Skill 的要求执行。`
+- 使用 \`select_skill\` 工具来选择 Skill
+- 在 Action Input 中传入 Skill ID 数组（例如：["style-detector", "weekly"]）
+- 选择后等待下一个迭代，Skill 的完整指令会提供给你
+- 永远不要直接使用 Skill 名称作为 Action`
 
       console.log('[Skills Debug] Formatted skills selection instructions (iteration 1):', {
         skillsCount: skillsList.length,
@@ -761,10 +785,19 @@ ${skillsList.join('\n---\n\n')}
 
 ${skillsList.join('\n---\n\n')}
 
+**📋 如何使用这些 Skills**：
+
+1. **仔细阅读上述 Skills 的完整指令**
+2. **理解 Skills 的要求后，直接应用到你的工作中**
+3. **不要询问用户确认** - 直接按照 Skills 的指导执行任务
+4. **不要尝试读取额外的文件** - Skills 已包含所有必要信息
+5. **使用实际工具完成任务** - 如 create_markdown_file, modify_current_note 等
+
 **⚠️ 重要提醒**：
 - 严格按照上述 Skills 的要求执行任务
 - 不要尝试调用 Skill 作为工具
-- 使用实际可用的工具（如 create_markdown_file）来完成 Skills 描述的任务`
+- 不要询问用户风格选择 - 直接应用最相关的风格
+- 如果是 style-detector Skill，直接应用对应风格（如网文风格）到你的内容中`
 
     console.log('[Skills Debug] Formatted selected skills instructions:', {
       selectedSkills: Array.from(this.selectedSkills),

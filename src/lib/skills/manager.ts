@@ -203,6 +203,25 @@ class SkillManager {
       `${skillDirPath}/EXAMPLES.md`,
       scope
     )
+    const hasKeywords = await this.fileExists(
+      `${skillDirPath}/KEYWORDS.md`,
+      scope
+    )
+
+    // 读取支持文件内容
+    let referenceContent: string | undefined
+    let examplesContent: string | undefined
+    let keywordsContent: string | undefined
+
+    if (hasReference) {
+      referenceContent = await this.readFileContent(`${skillDirPath}/REFERENCE.md`, scope)
+    }
+    if (hasExamples) {
+      examplesContent = await this.readFileContent(`${skillDirPath}/EXAMPLES.md`, scope)
+    }
+    if (hasKeywords) {
+      keywordsContent = await this.readFileContent(`${skillDirPath}/KEYWORDS.md`, scope)
+    }
 
     // 构建 Skill 内容
     const now = Date.now()
@@ -224,10 +243,19 @@ class SkillManager {
         updatedAt: now,
       },
       instructions: parsed.content,
-      examples: hasExamples
-        ? await this.readFileContent(`${skillDirPath}/EXAMPLES.md`, scope)
-        : undefined,
+      examples: examplesContent,
       resources: [],
+    }
+
+    // 将额外的支持文件内容附加到 instructions 中，以便 AI 可以访问
+    if (keywordsContent || referenceContent) {
+      skill.instructions += '\n\n---\n\n## 补充资料\n\n'
+      if (keywordsContent) {
+        skill.instructions += '### 关键词和详细说明\n\n' + keywordsContent + '\n\n'
+      }
+      if (referenceContent) {
+        skill.instructions += '### 参考文档\n\n' + referenceContent + '\n\n'
+      }
     }
 
     // 注册 Skill
@@ -247,6 +275,7 @@ class SkillManager {
       hasReference,
       hasExamples,
       isValid: true,
+      hasKeywords,
     })
   }
 

@@ -56,3 +56,33 @@ export function filterKnowledgeBaseMenuItems(
     return !itemId.includes('knowledge-base')
   })
 }
+
+/**
+ * 提取 Skill ID 从路径中
+ * 例如: "skills/code-reviewer" -> "code-reviewer"
+ */
+export function extractSkillIdFromPath(path: string): string | null {
+  const normalizedPath = path.replace(/\\/g, '/')
+
+  // 检查是否在 skills 文件夹下
+  const skillsFolderPattern = new RegExp(
+    `${SKILLS_DIR_NAME}/([^/]+)`
+  )
+  const match = normalizedPath.match(skillsFolderPattern)
+
+  if (match && match[1]) {
+    return match[1]
+  }
+
+  return null
+}
+
+/**
+ * 检查路径是否是 Skill 子文件夹
+ * 例如: "skills/code-reviewer" -> true
+ *       "skills" -> false
+ *       "other/code-reviewer" -> false
+ */
+export function isSkillSubfolder(path: string): boolean {
+  return extractSkillIdFromPath(path) !== null
+}

@@ -29,13 +29,19 @@ import { LinkedFolder } from '@/lib/files'
 export function FolderItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
-  const [isComposing, setIsComposing] = useState(false) 
+  const [isComposing, setIsComposing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { assetsPath, fileManagerTextSize } = useSettingStore()
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
+
+  // 检查路径是否在 skills 文件夹下
+  const isInSkillsFolder = (itemPath: string): boolean => {
+    const parts = itemPath.split('/')
+    return parts.some(part => isSkillsFolder(part))
+  }
 
   // 根据文字大小映射图标大小
   const getIconSize = (textSize: string) => {
@@ -498,8 +504,8 @@ export function FolderItem({ item }: { item: DirTree }) {
                     </div>
                     <span className={`text-${fileManagerTextSize} line-clamp-1 ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
                   </div>
-                  {/* 向量状态指示器 - 放在最右侧 */}
-                  {folderVectorStatus().hasVector && (
+                  {/* 向量状态指示器 - 放在最右侧，skills 文件夹及其子内容不显示 */}
+                  {!isInSkillsFolder(path) && folderVectorStatus().hasVector && (
                     <div className="flex items-center mr-2">
                       <span className={`text-xs text-muted-foreground ${folderVectorStatus().isComplete ? 'opacity-100' : 'opacity-60'}`}>
                         {folderVectorStatus().indexedCount}/{folderVectorStatus().totalCount}
@@ -550,19 +556,21 @@ export function FolderItem({ item }: { item: DirTree }) {
           <NewFolder item={item} />
           <ViewDirectory item={item} />
           <ContextMenuSeparator />
-          {/* Skills 文件夹不显示知识库选项 */}
-          {!isSkillsFolder(item.name) && (
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <Database className="mr-2 h-4 w-4" />
-                {t('context.knowledgeBase')}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                <FolderVectorMenu item={item} />
-              </ContextMenuSubContent>
-            </ContextMenuSub>
+          {/* skills 文件夹及其子内容不显示知识库选项 */}
+          {!isInSkillsFolder(path) && (
+            <>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <Database className="mr-2 h-4 w-4" />
+                  {t('context.knowledgeBase')}
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <FolderVectorMenu item={item} />
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+            </>
           )}
-          <ContextMenuSeparator />
           <CutFolder item={item} />
           <CopyFolder item={item} />
           <PasteInFolder item={item} />

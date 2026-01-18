@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { join } from "@tauri-apps/api/path";
 import { Store } from "@tauri-apps/plugin-store";
 import { createHash } from 'crypto';
+import { isSkillsFolder } from './skills/utils';
 
 /**
  * 统一错误处理函数
@@ -173,10 +174,17 @@ export function chunkText(
  * 处理单个Markdown文件，计算向量并存储到数据库
  */
 export async function processMarkdownFile(
-  filePath: string, 
+  filePath: string,
   fileContent?: string
 ): Promise<boolean> {
   try {
+    // 检查文件是否在 skills 文件夹下，如果是则跳过处理
+    const pathParts = filePath.split('/');
+    if (pathParts.some(part => isSkillsFolder(part))) {
+      console.log(`跳过 skills 文件夹下的文件: ${filePath}`);
+      return false;
+    }
+
     const workspace = await getWorkspacePath()
     let content = ''
     if (workspace.isCustom) {
@@ -191,22 +199,22 @@ export async function processMarkdownFile(
     const chunks = chunkText(content, chunkSize, chunkOverlap);
     // 文件名（不含路径）
     const filename = filePath.split('/').pop() || filePath;
-    
+
     // 先删除该文件的旧记录
     await deleteVectorDocumentsByFilename(filename);
-    
+
     // 处理每个文本块
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      
+
       // 计算嵌入向量
       const embedding = await fetchEmbedding(chunk);
-      
+
       if (!embedding) {
         console.error(`无法计算文件 ${filename} 第 ${i+1} 块的向量`);
         continue;
       }
-      
+
       // 保存到数据库
       await upsertVectorDocument({
         filename,
@@ -216,7 +224,7 @@ export async function processMarkdownFile(
         updated_at: Date.now()
       });
     }
-    
+
     return true;
   } catch (error) {
     console.error(`处理文件 ${filePath} 失败:`, error);

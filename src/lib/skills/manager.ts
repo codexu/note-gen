@@ -276,26 +276,17 @@ class SkillManager {
     try {
       const store = await Store.load('store.json')
       enabledSkillsMap = await store.get<Record<string, boolean>>('skills.enabledSkills') || {}
-      console.log('[SkillManager] Loaded user enabled skills from store:', enabledSkillsMap)
     } catch (error) {
       console.error('[SkillManager] Failed to load skills enabled state:', error)
     }
 
     const allSkills = this.getAllSkills()
-    console.log('[SkillManager] All skills in manager:', allSkills.map(s => ({
-      id: s.metadata.id,
-      name: s.metadata.name,
-      defaultEnabled: s.metadata.enabled,
-      userEnabled: enabledSkillsMap[s.metadata.id]
-    })))
-
     const enabled = allSkills.filter((skill) => {
       const userEnabled = enabledSkillsMap[skill.metadata.id]
       const isEnabled = userEnabled !== undefined ? userEnabled : skill.metadata.enabled
       return isEnabled
     })
 
-    console.log('[SkillManager] Final enabled skills:', enabled.map(s => s.metadata.id))
     return enabled
   }
 
@@ -337,24 +328,11 @@ class SkillManager {
     userInput: string,
     maxResults: number = 3
   ): Promise<SkillContent[]> {
-    console.log('[SkillManager] Getting enabled skills...')
     const enabledSkills = await this.getEnabledSkills()
-    console.log('[SkillManager] Found enabled skills:', {
-      total: this.getAllSkills().length,
-      enabled: enabledSkills.length,
-      skills: enabledSkills.map(s => ({ id: s.metadata.id, name: s.metadata.name, enabled: s.metadata.enabled }))
-    })
-
     const scores: SkillMatchScore[] = []
 
     for (const skill of enabledSkills) {
       const score = this.calculateMatchScore(skill, userInput)
-      console.log('[SkillManager] Skill match score:', {
-        skillId: skill.metadata.id,
-        skillName: skill.metadata.name,
-        score: score.score,
-        reasons: score.reasons
-      })
       if (score.score > 0) {
         scores.push(score)
       }
@@ -367,7 +345,6 @@ class SkillManager {
       .slice(0, maxResults)
       .map((score) => score.skill)
 
-    console.log('[SkillManager] Final matched skills:', result.map(s => s.metadata.id))
     return result
   }
 
@@ -391,15 +368,9 @@ class SkillManager {
 
     // 关键词匹配
     const keywords = this.extractKeywords(description)
-    console.log('[SkillManager] Extracted keywords:', {
-      description,
-      keywords,
-      userInput: input
-    })
     const matchedKeywords = keywords.filter((keyword) =>
       input.includes(keyword)
     )
-    console.log('[SkillManager] Matched keywords:', matchedKeywords)
     if (matchedKeywords.length > 0) {
       score += matchedKeywords.length * 0.5
       reasons.push(`匹配关键词: ${matchedKeywords.join(', ')}`)

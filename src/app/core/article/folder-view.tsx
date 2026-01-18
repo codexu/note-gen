@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import useArticleStore from '@/stores/article'
 import useVectorStore from '@/stores/vector'
 import { useSkillsStore } from '@/stores/skills'
-import { isSkillsFolder } from '@/lib/skills/utils'
+import { isSkillsFolder, extractSkillIdFromPath } from '@/lib/skills/utils'
 import { getVectorDocumentsByFilename } from '@/db/vector'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
@@ -37,11 +37,19 @@ interface SkillMetadata {
   version: string
   author?: string
   scope: 'global' | 'project'
+  model?: string
   allowedTools?: string[]
   userInvocable: boolean
   enabled: boolean
   createdAt: number
   updatedAt: number
+}
+
+interface SkillContent {
+  metadata: SkillMetadata
+  instructions: string
+  examples?: string
+  resources: any[]
 }
 
 // Skills 列表视图组件
@@ -50,73 +58,132 @@ function SkillsListView({
 }: {
   skills: SkillMetadata[]
 }) {
+  // 按 scope 分组
+  const globalSkills = skills.filter(s => s.scope === 'global')
+  const projectSkills = skills.filter(s => s.scope === 'project')
+
+  // 跟踪每个技能的展开状态
+  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = (skillId: string) => {
+    setExpandedSkills(prev => {
+      const next = new Set(prev)
+      if (next.has(skillId)) {
+        next.delete(skillId)
+      } else {
+        next.add(skillId)
+      }
+      return next
+    })
+  }
+
   return (
     <div className="flex-1 h-full flex flex-col items-center justify-center bg-background gap-6 p-8">
       {/* Skills Icon and Name */}
       <div className="flex flex-col items-center gap-3">
         <Sparkles className="w-20 h-20 text-primary" />
-        <h2 className="text-2xl font-semibold tracking-tight">Skills</h2>
-        <p className="text-muted-foreground text-sm">
-          工作区 Skills ({skills.length})
-        </p>
+        <h2 className="text-2xl font-semibold tracking-tight">Skills ({skills.length})</h2>
       </div>
 
       {/* Skills 列表 */}
-      {skills.length === 0 ? (
-        <div className="text-center py-12">
-          <Sparkles className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p className="text-muted-foreground">还没有 Skills</p>
-          <p className="text-sm text-muted-foreground">
-            在 skills 文件夹中创建 SKILL.md 文件来添加 Skill
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3 w-full max-w-2xl">
-          {skills.map((skill) => (
-            <div
-              key={skill.id}
-              className="p-4 border rounded-lg hover:bg-accent/5 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="size-5 text-primary" />
-                    <h3 className="font-semibold">{skill.name}</h3>
-                    {skill.enabled ? (
-                      <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                                已启用
-                              </span>
-                            ) : (
-                              <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded">
-                                未启用
-                              </span>
-                            )}
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {skill.description}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span>v{skill.version}</span>
-                    {skill.author && <span>{skill.author}</span>}
+      {skills.length === 0 ? null : (
+        <div className="flex flex-col gap-4 w-full max-w-2xl">
+          {/* 全局 Skills */}
+          {globalSkills.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground px-1">全局 Skills</h3>
+              {globalSkills.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer"
+                  onClick={() => toggleExpanded(skill.id)}
+                >
+                  <div className="flex items-start gap-4">
+                    <Sparkles className="size-5 text-primary mt-1" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1">{skill.name}</h3>
+                      <p className="text-sm text-muted-foreground cursor-pointer">
+                        {expandedSkills.has(skill.id) ? skill.description : (
+                          <span className="line-clamp-1">{skill.description}</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // TODO: 打开编辑对话框
-                      console.log('Edit skill:', skill.id)
-                    }}
-                  >
-                    编辑
-                  </Button>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* 工作区 Skills */}
+          {projectSkills.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground px-1">工作区 Skills</h3>
+              {projectSkills.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-purple-50/50 dark:bg-purple-950/20 cursor-pointer"
+                  onClick={() => toggleExpanded(skill.id)}
+                >
+                  <div className="flex items-start gap-4">
+                    <Sparkles className="size-5 text-primary mt-1" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1">{skill.name}</h3>
+                      <p className="text-sm text-muted-foreground cursor-pointer">
+                        {expandedSkills.has(skill.id) ? skill.description : (
+                          <span className="line-clamp-1">{skill.description}</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+// 单个 Skill 详情视图组件
+function SkillDetailView({
+  skillContent,
+}: {
+  skillContent: SkillContent
+}) {
+  const { metadata, instructions, examples } = skillContent
+
+  return (
+    <div className="flex-1 h-full flex flex-col items-center justify-center bg-background gap-6 p-8 overflow-y-auto">
+      {/* Skill Icon and Name */}
+      <div className="flex flex-col items-center gap-3">
+        <Sparkles className="w-20 h-20 text-primary" />
+        <h2 className="text-2xl font-semibold tracking-tight">{metadata.name}</h2>
+        <p className="text-sm text-muted-foreground max-w-md text-center">
+          {metadata.description}
+        </p>
+      </div>
+
+      {/* Skill Details */}
+      <div className="flex flex-col gap-4 w-full max-w-2xl">
+        {/* 指令 */}
+        <div className="border rounded-lg p-4 space-y-3">
+          <h3 className="font-semibold text-sm">指令</h3>
+          <div className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded max-h-60 overflow-y-auto">
+            {instructions}
+          </div>
+        </div>
+
+        {/* 示例 */}
+        {examples && (
+          <div className="border rounded-lg p-4 space-y-3">
+            <h3 className="font-semibold text-sm">示例</h3>
+            <div className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded max-h-60 overflow-y-auto">
+              {examples}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -133,12 +200,23 @@ export function FolderView({ folderPath }: FolderViewProps) {
 
   const { fileTree, vectorIndexedFiles } = useArticleStore()
   const { isVectorDbEnabled } = useVectorStore()
-  const { getSkillsByScope } = useSkillsStore()
+  const { getSkillsByScope, initSkills, initialized: skillsStoreInitialized } = useSkillsStore()
 
   const folderName = folderPath.split('/').pop() || folderPath
 
   // 检查是否是 Skills 文件夹
   const isSkillsView = isSkillsFolder(folderName)
+
+  // 检查是否是 Skill 子文件夹（单个 skill）
+  const skillId = extractSkillIdFromPath(folderPath)
+  const isSkillDetailView = skillId !== null
+
+  // 初始化 Skills（如果是 Skills 相关视图）
+  useEffect(() => {
+    if ((isSkillsView || isSkillDetailView) && !skillsStoreInitialized) {
+      initSkills()
+    }
+  }, [isSkillsView, isSkillDetailView, skillsStoreInitialized, initSkills])
 
   // 原有的文件夹向量视图逻辑...
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -310,8 +388,54 @@ export function FolderView({ folderPath }: FolderViewProps) {
 
   // 如果是 Skills 文件夹，显示 Skills 视图
   if (isSkillsView) {
+    // 如果 skills 还未初始化，显示加载状态
+    if (!skillsStoreInitialized) {
+      return (
+        <div className="flex-1 h-full flex flex-col items-center justify-center bg-background">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground mt-4">加载 Skills...</p>
+        </div>
+      )
+    }
+
+    const globalSkills = getSkillsByScope('global')
     const projectSkills = getSkillsByScope('project')
-    return <SkillsListView skills={projectSkills.map(s => s.metadata)} />
+    const allSkills = [...globalSkills, ...projectSkills].map(s => s.metadata)
+    return <SkillsListView skills={allSkills} />
+  }
+
+  // 如果是 Skill 子文件夹，显示 Skill 详情视图
+  if (isSkillDetailView) {
+    // 如果 skills 还未初始化，显示加载状态
+    if (!skillsStoreInitialized) {
+      return (
+        <div className="flex-1 h-full flex flex-col items-center justify-center bg-background">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground mt-4">加载 Skill...</p>
+        </div>
+      )
+    }
+
+    // 获取所有 skills 并查找匹配的 skill
+    const globalSkills = getSkillsByScope('global')
+    const projectSkills = getSkillsByScope('project')
+    const allSkills = [...globalSkills, ...projectSkills]
+
+    const skillContent = allSkills.find(s => s.metadata.id === skillId)
+
+    if (!skillContent) {
+      return (
+        <div className="flex-1 h-full flex flex-col items-center justify-center bg-background">
+          <Sparkles className="w-16 h-16 text-muted-foreground" />
+          <h2 className="text-2xl font-semibold tracking-tight mt-4">Skill 未找到</h2>
+          <p className="text-muted-foreground text-sm mt-2">
+            无法找到 ID 为 {skillId} 的 Skill
+          </p>
+        </div>
+      )
+    }
+
+    return <SkillDetailView skillContent={skillContent} />
   }
 
   if (!isVectorDbEnabled) {

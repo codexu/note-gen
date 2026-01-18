@@ -15,6 +15,7 @@ import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
 import emitter from '@/lib/emitter'
+import { isSkillsFolder } from '@/lib/skills/utils'
 
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
@@ -175,40 +176,48 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const sortType = get().sortType
     const sortDirection = get().sortDirection
     if (sortType === 'none') return tree
-    
+
     const sortedTree = cloneDeep(tree)
-    
-    const compareItems = (a: DirTree, b: DirTree): number => {
-      switch (sortType) {
-        case 'name':
-          return a.name.localeCompare(b.name)
-        case 'created':
-          if (a.createdAt && b.createdAt) {
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          }
-          return a.name.localeCompare(b.name)
-        case 'modified':
-          if (a.modifiedAt && b.modifiedAt) {
-            return new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime()
-          }
-          return a.name.localeCompare(b.name)
-        default:
-          return 0
-      }
-    }
 
     const sortFunction = (a: DirTree, b: DirTree) => {
+      // skills 文件夹始终置顶（在任何排序方式下）
+      const aIsSkills = a.isDirectory && isSkillsFolder(a.name)
+      const bIsSkills = b.isDirectory && isSkillsFolder(b.name)
+      if (aIsSkills && !bIsSkills) return -1
+      if (!aIsSkills && bIsSkills) return 1
+
       // 文件夹始终在文件上方
       if (a.isDirectory && !b.isDirectory) return -1
       if (!a.isDirectory && b.isDirectory) return 1
 
       // 同类型的进行排序
-      const result = compareItems(a, b)
+      let result = 0
+      switch (sortType) {
+        case 'name':
+          result = a.name.localeCompare(b.name)
+          break
+        case 'created':
+          if (a.createdAt && b.createdAt) {
+            result = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          } else {
+            result = a.name.localeCompare(b.name)
+          }
+          break
+        case 'modified':
+          if (a.modifiedAt && b.modifiedAt) {
+            result = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime()
+          } else {
+            result = a.name.localeCompare(b.name)
+          }
+          break
+        default:
+          result = 0
+      }
       return sortDirection === 'asc' ? result : -result
     }
-    
+
     sortedTree.sort(sortFunction)
-    
+
     const sortChildren = (items: DirTree[]) => {
       for (const item of items) {
         if (item.children && item.children.length > 0) {
@@ -217,7 +226,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
       }
     }
-    
+
     sortChildren(sortedTree)
     return sortedTree
   },

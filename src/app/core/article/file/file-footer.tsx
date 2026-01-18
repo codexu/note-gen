@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { FolderOpen, FolderSync, SortAsc, SortDesc, ChevronsDownUp, ChevronsUpDown, ArrowDownAZ, Calendar, Clock, ChevronDown, FolderPlus } from "lucide-react"
 import useSettingStore from "@/stores/setting"
 import useArticleStore from "@/stores/article"
+import { useSkillsStore } from "@/stores/skills"
 import { useTranslations } from 'next-intl'
 import { useMemo } from "react"
 import { TooltipButton } from "@/components/tooltip-button"
@@ -21,6 +22,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 
 export function FileFooter() {
   const { workspacePath, workspaceHistory, setWorkspacePath } = useSettingStore()
+  const { refreshSkills } = useSkillsStore()
   const { 
     clearCollapsibleList, 
     loadFileTree, 
@@ -68,13 +70,14 @@ export function FileFooter() {
   // 切换工作区
   async function switchWorkspace(path: string) {
     if (path === workspacePath) return
-    
+
     try {
       await setWorkspacePath(path)
       await clearCollapsibleList()
       setActiveFilePath('')
       setCurrentArticle('')
       await loadFileTree()
+      await refreshSkills()
     } catch (error) {
       console.error('切换工作区失败:', error)
     }
@@ -88,6 +91,7 @@ export function FileFooter() {
       setActiveFilePath('')
       setCurrentArticle('')
       await loadFileTree()
+      await refreshSkills()
     } catch (error) {
       console.error('重置工作区失败:', error)
     }

@@ -19,37 +19,19 @@ export const checkFolderExistsTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      console.log('[check_folder_exists] 开始执行', { folderPath: params.folderPath })
-
       const workspace = await getWorkspacePath()
-      console.log('[check_folder_exists] 工作区信息', {
-        workspacePath: workspace.path,
-        isCustom: workspace.isCustom,
-        inputPath: params.folderPath,
-      })
 
       let fullPath = ''
       let folderExists = false
 
       if (workspace.isCustom) {
         fullPath = await join(workspace.path, params.folderPath)
-        console.log('[check_folder_exists] 自定义工作区路径', { fullPath })
         folderExists = await exists(fullPath)
       } else {
         const { path, baseDir } = await getFilePathOptions(params.folderPath)
         fullPath = path
-        console.log('[check_folder_exists] 默认工作区路径', {
-          resolvedPath: fullPath,
-          baseDir: baseDir?.toString(),
-        })
         folderExists = await exists(fullPath, { baseDir })
       }
-
-      console.log('[check_folder_exists] 检查结果', {
-        folderPath: params.folderPath,
-        exists: folderExists,
-        fullPath,
-      })
 
       return {
         success: true,
@@ -240,14 +222,7 @@ export const listFoldersTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      console.log('[list_folders] 开始执行', { params })
-
       const workspace = await getWorkspacePath()
-      console.log('[list_folders] 工作区信息', {
-        workspacePath: workspace.path,
-        isCustom: workspace.isCustom,
-        inputPath: params.folderPath,
-      })
 
       if (workspace.isCustom) {
         // 自定义工作区：使用绝对路径
@@ -255,14 +230,10 @@ export const listFoldersTool: Tool = {
           ? await join(workspace.path, params.folderPath)
           : workspace.path
 
-        console.log('[list_folders] 解析后的完整路径', { fullPath })
-
         // 检查路径是否存在
         const pathExists = await exists(fullPath)
-        console.log('[list_folders] 路径存在性检查', { fullPath, exists: pathExists })
 
         if (!pathExists) {
-          console.log('[list_folders] 路径不存在，返回错误')
           return {
             success: false,
             error: `路径不存在: ${params.folderPath || '根目录'}`,
@@ -271,11 +242,6 @@ export const listFoldersTool: Tool = {
 
         // 读取目录内容
         const entries = await readDir(fullPath)
-        console.log('[list_folders] 读取目录内容', {
-          fullPath,
-          entryCount: entries.length,
-          entries: entries.map(e => ({ name: e.name, isDir: e.isDirectory })),
-        })
 
         // 过滤出文件夹
         const folders = entries
@@ -284,11 +250,6 @@ export const listFoldersTool: Tool = {
             name: entry.name,
             path: params.folderPath ? `${params.folderPath}/${entry.name}` : entry.name,
           }))
-
-        console.log('[list_folders] 过滤后的文件夹', {
-          folderCount: folders.length,
-          folders,
-        })
 
         return {
           success: true,
@@ -299,18 +260,10 @@ export const listFoldersTool: Tool = {
         // 默认工作区：使用 baseDir
         const { path, baseDir } = await getFilePathOptions(params.folderPath || '')
 
-        console.log('[list_folders] 默认工作区路径解析', {
-          inputPath: params.folderPath || '',
-          resolvedPath: path,
-          baseDir: baseDir?.toString(),
-        })
-
         // 检查路径是否存在
         const pathExists = await exists(path, { baseDir })
-        console.log('[list_folders] 路径存在性检查', { path, exists: pathExists })
 
         if (!pathExists) {
-          console.log('[list_folders] 路径不存在，返回错误')
           return {
             success: false,
             error: `路径不存在: ${params.folderPath || '根目录'}`,
@@ -319,11 +272,6 @@ export const listFoldersTool: Tool = {
 
         // 读取目录内容
         const entries = await readDir(path, { baseDir })
-        console.log('[list_folders] 读取目录内容', {
-          path,
-          entryCount: entries.length,
-          entries: entries.map(e => ({ name: e.name, isDir: e.isDirectory })),
-        })
 
         // 过滤出文件夹
         const folders = entries
@@ -332,11 +280,6 @@ export const listFoldersTool: Tool = {
             name: entry.name,
             path: params.folderPath ? `${params.folderPath}/${entry.name}` : entry.name,
           }))
-
-        console.log('[list_folders] 过滤后的文件夹', {
-          folderCount: folders.length,
-          folders,
-        })
 
         return {
           success: true,

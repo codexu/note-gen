@@ -27,7 +27,6 @@ export default function AutoCompletionToggle() {
 
   const handleToggle = () => {
     const newValue = !isEnabled;
-    console.log('[AutoCompletionToggle] Toggling from', isEnabled, 'to', newValue);
     setIsEnabled(newValue);
     // 立即通过 emitter 发送状态变化
     emitter.emit('auto-completion-enabled-changed', newValue);

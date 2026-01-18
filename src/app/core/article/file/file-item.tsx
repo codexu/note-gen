@@ -211,12 +211,6 @@ export function FileItem({ item }: { item: DirTree }) {
             if (current.sha) {
               // 远程文件：调用远程删除 API
               try {
-                console.log('Attempting to delete remote file:', {
-                  name: item.name,
-                  currentPath: currentPath,
-                  sha: current.sha
-                })
-                
                 const useSettingStore = (await import('@/stores/setting')).default
                 const settingStore = useSettingStore.getState()
                 const method = settingStore.primaryBackupMethod
@@ -237,7 +231,6 @@ export function FileItem({ item }: { item: DirTree }) {
                     const remoteFile = files.find((f: any) => f.sha === current.sha)
                     if (remoteFile && remoteFile.name) {
                       actualFileName = remoteFile.name
-                      console.log('Found actual file name from remote:', actualFileName)
                     }
                   }
                 }
@@ -245,9 +238,7 @@ export function FileItem({ item }: { item: DirTree }) {
                 // 构建正确的删除路径
                 const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
                 const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
-                
-                console.log('Using delete path:', deletePath)
-                
+
                 if (method === 'github') {
                   const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
                   await deleteGithubFile({
@@ -277,8 +268,7 @@ export function FileItem({ item }: { item: DirTree }) {
                     repo: repo
                   })
                 }
-                
-                console.log('Remote delete successful for:', deletePath)
+
                 // 远程删除成功，从文件树中移除
                 currentFolder.children.splice(index, 1)
               } catch (remoteError) {
@@ -303,12 +293,6 @@ export function FileItem({ item }: { item: DirTree }) {
             if (current.sha) {
               // 远程文件：调用远程删除 API
               try {
-                console.log('Attempting to delete remote file (root level):', {
-                  name: item.name,
-                  currentPath: currentPath,
-                  sha: current.sha
-                })
-                
                 const useSettingStore = (await import('@/stores/setting')).default
                 const settingStore = useSettingStore.getState()
                 const method = settingStore.primaryBackupMethod
@@ -329,7 +313,6 @@ export function FileItem({ item }: { item: DirTree }) {
                     const remoteFile = files.find((f: any) => f.sha === current.sha)
                     if (remoteFile && remoteFile.name) {
                       actualFileName = remoteFile.name
-                      console.log('Found actual file name from remote (root level):', actualFileName)
                     }
                   }
                 }
@@ -337,9 +320,7 @@ export function FileItem({ item }: { item: DirTree }) {
                 // 构建正确的删除路径
                 const dirPath = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : ''
                 const deletePath = dirPath ? `${dirPath}/${actualFileName}` : actualFileName
-                
-                console.log('Using delete path (root level):', deletePath)
-                
+
                 if (method === 'github') {
                   const { deleteFile: deleteGithubFile } = await import('@/lib/sync/github')
                   await deleteGithubFile({
@@ -369,8 +350,7 @@ export function FileItem({ item }: { item: DirTree }) {
                     repo: repo
                   })
                 }
-                
-                console.log('Remote delete successful for (root level):', deletePath)
+
                 // 远程删除成功，从文件树中移除
                 cacheTree.splice(index, 1)
               } catch (remoteError) {

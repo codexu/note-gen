@@ -30,9 +30,7 @@ export default function ChatThinking({chat}: { chat: Chat }) {
   if (!chat.thinking) {
     return null
   }
-  
-  console.log('[ChatThinking] Rendering thinking panel')
-  
+
   // 提取标题（第一行或前50个字符）
   const extractTitle = (text: string): string => {
     const firstLine = text.split('\n')[0]

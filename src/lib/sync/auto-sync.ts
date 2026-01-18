@@ -324,7 +324,6 @@ export async function ensureDirectoryExists(filePath: string): Promise<void> {
       } else {
         await mkdir(pathOptions.path, { baseDir: pathOptions.baseDir, recursive: true })
       }
-      console.log(`Created directory: ${dirPath}`)
     }
   } catch (error) {
     console.error(`Failed to create directory ${dirPath}:`, error)
@@ -549,7 +548,6 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
           (error.message.includes('no such file') || 
            error.message.includes('not found') ||
            error.message.includes('系统找不到指定的路径'))) {
-        console.log(`Local file does not exist (normal for sync): ${actualPath}`)
       } else {
         console.warn(`Unexpected error reading local file ${actualPath}:`, error)
       }

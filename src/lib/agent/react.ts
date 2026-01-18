@@ -177,28 +177,12 @@ export class ReActAgent {
       finalAnswer = '已达到最大迭代次数，任务可能未完全完成。'
     }
 
-    // 记录最终结果
-    console.log('[Skills Debug] Final result:', {
-      iterations: this.currentIteration,
-      finalAnswerLength: finalAnswer.length,
-      activeSkills: this.config.activeSkills,
-      toolsUsed: this.steps.map(s => s.action?.tool).filter(Boolean),
-      finalAnswerPreview: finalAnswer.substring(0, 200)
-    })
-
     return finalAnswer || '任务执行完成。'
   }
 
   private buildSystemPrompt(): string {
     const toolDescriptions = getToolDescriptions()
     const skillsInstructions = this.formatSkillsInstructions()
-
-    console.log('[Skills Debug] Building system prompt...', {
-      hasSkillsInstructions: !!skillsInstructions,
-      skillsInstructionsLength: skillsInstructions?.length || 0,
-      skillsInstructionsPreview: skillsInstructions?.substring(0, 500),
-      activeSkills: this.config.activeSkills
-    })
 
     let prompt = `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
 
@@ -231,9 +215,6 @@ ${toolDescriptions}`
 ## 可用的 Skills
 
 ${skillsInstructions}`
-      console.log('[ReAct Agent] Added skills instructions to prompt')
-    } else {
-      console.log('[ReAct Agent] No skills instructions to add')
     }
 
     prompt += `
@@ -377,7 +358,6 @@ Final Answer: 任务已被用户终止`
 
       // 第一次迭代后，如果 AI 选择了 Skills，记录下来
       if (this.currentIteration === 1 && mentionedSkills.length > 0) {
-        console.log('[Skills Debug] AI selected skills:', mentionedSkills)
         // 将提到的 Skills ID 添加到已选择集合
         const activeSkillIds = this.config.activeSkills || []
         const selectedSkillIds: string[] = []
@@ -391,7 +371,6 @@ Final Answer: 任务已被用户终止`
           if (skill) {
             this.selectedSkills.add(skill.metadata.id)
             selectedSkillIds.push(skill.metadata.id)
-            console.log('[Skills Debug] Added to selected skills:', skill.metadata.id)
           }
         }
 
@@ -400,14 +379,6 @@ Final Answer: 任务已被用户终止`
           this.config.onSkillsSelected?.(selectedSkillIds)
         }
       }
-
-      console.log('[Skills Debug] AI Thought:', {
-        iteration: this.currentIteration,
-        thought: response,
-        thoughtLength: response.length,
-        mentionedSkills,
-        selectedSkills: Array.from(this.selectedSkills)
-      })
 
       return response
     } catch (error) {
@@ -554,14 +525,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       }
     }
 
-    console.log('[Skills Debug] Tool call:', {
-      toolName,
-      params,
-      authorizingSkills,
-      isAuthorized: authorizingSkills.length > 0,
-      allActiveSkills: this.config.activeSkills
-    })
-
     this.config.onToolCall?.(toolCall)
 
     // 检查工具是否在当前激活的 Skills 中被授权
@@ -596,7 +559,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         // 特殊处理 select_skill 工具
         if (toolName === 'select_skill' && result.data?.selected_skills) {
           const selectedSkillIds: string[] = result.data.selected_skills
-          console.log('[ReAct Agent] select_skill 工具执行成功，选择的 Skills:', selectedSkillIds)
 
           // 更新 selectedSkills
           for (const skillId of selectedSkillIds) {
@@ -652,17 +614,8 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
   private formatSkillsInstructions(): string {
     const activeSkillIds = this.config.activeSkills
     if (!activeSkillIds || activeSkillIds.length === 0) {
-      console.log('[Skills Debug] No active skills to format')
       return ''
     }
-
-    console.log('[Skills Debug] Formatting skills instructions...', {
-      activeSkillIds,
-      count: activeSkillIds.length,
-      selectedSkills: Array.from(this.selectedSkills),
-      currentIteration: this.currentIteration,
-      isFirstIteration: this.currentIteration === 1
-    })
 
     // 第一次迭代：只发送 Skills 的简要信息（名称和描述），让 AI 选择
     if (this.currentIteration === 1) {
@@ -672,7 +625,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       for (const skillId of activeSkillIds) {
         const skill = skillManager.getSkill(skillId)
         if (!skill) {
-          console.log('[Skills Debug] Skipping skill (not found):', skillId)
           continue
         }
 
@@ -690,7 +642,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       }
 
       if (skillsList.length === 0) {
-        console.log('[Skills Debug] No valid skills after filtering')
         return ''
       }
 
@@ -720,18 +671,11 @@ Action Input: {"skill_ids": ["style-detector"]}
 - 选择后等待下一个迭代，Skill 的完整指令会提供给你
 - 永远不要直接使用 Skill 名称作为 Action`
 
-      console.log('[Skills Debug] Formatted skills selection instructions (iteration 1):', {
-        skillsCount: skillsList.length,
-        totalLength: result.length,
-        skills: skillsDebugInfo
-      })
-
       return result
     }
 
     // 后续迭代：只发送已选择的 Skills 的完整内容
     if (this.selectedSkills.size === 0) {
-      console.log('[Skills Debug] No skills selected yet')
       return ''
     }
 
@@ -741,7 +685,6 @@ Action Input: {"skill_ids": ["style-detector"]}
     for (const skillId of this.selectedSkills) {
       const skill = skillManager.getSkill(skillId)
       if (!skill) {
-        console.log('[Skills Debug] Skipping selected skill (not found):', skillId)
         continue
       }
 
@@ -775,7 +718,6 @@ Action Input: {"skill_ids": ["style-detector"]}
     }
 
     if (skillsList.length === 0) {
-      console.log('[Skills Debug] No valid selected skills after filtering')
       return ''
     }
 
@@ -798,13 +740,6 @@ ${skillsList.join('\n---\n\n')}
 - 不要尝试调用 Skill 作为工具
 - 不要询问用户风格选择 - 直接应用最相关的风格
 - 如果是 style-detector Skill，直接应用对应风格（如网文风格）到你的内容中`
-
-    console.log('[Skills Debug] Formatted selected skills instructions:', {
-      selectedSkills: Array.from(this.selectedSkills),
-      skillsCount: skillsList.length,
-      totalLength: result.length,
-      skills: skillsDebugInfo
-    })
 
     return result
   }

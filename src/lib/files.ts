@@ -75,10 +75,6 @@ export async function collectMarkdownFiles(folderPath: string): Promise<Array<{p
 export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
   const workspace = await getWorkspacePath();
 
-  console.log('[getAllMarkdownFiles] 开始获取文件列表', {
-    workspacePath: workspace.path,
-    isCustom: workspace.isCustom,
-  });
 
   const files: MarkdownFile[] = [];
 
@@ -86,31 +82,16 @@ export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
   async function processDirectory(dirPath: string, useCustomPath: boolean, relativePath: string = "", depth: number = 0): Promise<void> {
     let entries: DirEntry[];
 
-    const debugPrefix = '[getAllMarkdownFiles]'.padEnd(depth * 2 + 20, ' ');
-
     try {
-      console.log(`${debugPrefix} 处理目录`, {
-        dirPath,
-        useCustomPath,
-        relativePath: relativePath || '(root)',
-        depth,
-      });
-
       if (useCustomPath) {
         entries = await readDir(dirPath);
       } else {
         entries = await readDir(dirPath, { baseDir: BaseDirectory.AppData });
       }
 
-      console.log(`${debugPrefix} 目录读取成功`, {
-        entryCount: entries.length,
-        entries: entries.map(e => ({ name: e.name, isDir: e.isDirectory })),
-      });
-
       for (const entry of entries) {
         // 跳过隐藏文件和文件夹
         if (entry.name === '.DS_Store' || entry.name.startsWith('.')) {
-          console.log(`${debugPrefix} 跳过隐藏项`, { name: entry.name });
           continue;
         }
 
@@ -126,12 +107,6 @@ export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
             ? await join(dirPath, entry.name)
             : currentRelativePath;
 
-          console.log(`${debugPrefix} 找到 Markdown 文件`, {
-            name: entry.name,
-            relativePath: currentRelativePath,
-            fullPath,
-          });
-
           files.push({
             name: entry.name,
             path: fullPath,
@@ -140,7 +115,7 @@ export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
         }
       }
     } catch (error) {
-      console.error(`${debugPrefix} 目录处理失败`, {
+      console.error(`目录处理失败`, {
         dirPath,
         error: String(error),
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -150,17 +125,8 @@ export async function getAllMarkdownFiles(): Promise<MarkdownFile[]> {
 
   // 开始处理根目录
   const rootPath = workspace.isCustom ? workspace.path : 'article';
-  console.log('[getAllMarkdownFiles] 开始处理根目录', {
-    rootPath,
-    useCustomPath: workspace.isCustom,
-  });
 
   await processDirectory(rootPath, workspace.isCustom);
-
-  console.log('[getAllMarkdownFiles] 完成', {
-    totalFiles: files.length,
-    files: files.map(f => ({ name: f.name, relativePath: f.relativePath })),
-  });
 
   return files;
 }

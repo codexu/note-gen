@@ -96,7 +96,6 @@ export default function Sync({editor, disabled}: {editor?: Vditor, disabled?: bo
               }
             } catch {
               // 如果文件不存在（首次上传），跳过
-              console.log('Gitea file not found, this might be first upload');
             }
             break;
         } 

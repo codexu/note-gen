@@ -20,22 +20,17 @@ export function AiCompletionPreview({ completion, isLoading, editorElement }: Ai
     // 查找 Vditor 的编辑区域
     const editableArea = editorElement.querySelector('.vditor-ir__marker, .vditor-wysiwyg, .vditor-sv__marker') as HTMLElement
     if (!editableArea) {
-      console.log('[AiCompletionPreview] Editable area not found')
       return
     }
 
     // 获取当前光标位置
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) {
-      console.log('[AiCompletionPreview] No selection found')
       return
     }
 
     const range = selection.getRangeAt(0)
-    const container = range.endContainer
-    
-    console.log('[AiCompletionPreview] Container:', container.nodeName, 'Text:', container.textContent?.substring(0, 30))
-    
+
     // 创建补全预览元素
     const previewSpan = document.createElement('span')
     previewSpan.className = 'ai-completion-preview'
@@ -84,9 +79,7 @@ export function AiCompletionPreview({ completion, isLoading, editorElement }: Ai
       const newRange = range.cloneRange()
       newRange.collapse(false) // 到范围末尾
       newRange.insertNode(previewSpan)
-      
-      console.log('[AiCompletionPreview] Preview inserted successfully')
-      
+
       // 不移动光标，保持在原位置
       selection.removeAllRanges()
       selection.addRange(range)

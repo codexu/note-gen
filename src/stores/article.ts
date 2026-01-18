@@ -1104,7 +1104,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
       
       // 如果是远程文件且本地内容为空，立即拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
-        console.log('Remote file with empty local content detected, starting immediate pull')
         get().setIsPulling(true)
         
         // 立即触发拉取，不等待历史记录组件
@@ -1129,10 +1128,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } catch (error) {
       // 本地文件不存在，检查是否是远程文件
       if (error instanceof Error && 
-          (error.message.includes('no such file') || 
+          (error.message.includes('no such file') ||
            error.message.includes('not found') ||
            error.message.includes('系统找不到指定的路径'))) {
-        console.log(`Local file does not exist: ${actualPath}`)
         
         // 检查是否是远程文件（通过文件管理器状态判断）
         const fileTree = get().fileTree
@@ -1155,7 +1153,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
         
         if (isRemoteFile) {
           // 远程文件且本地不存在，立即开始拉取
-          console.log('Remote file detected, starting immediate pull')
           get().setIsPulling(true)
           
           // 立即触发拉取，不等待历史记录组件
@@ -1186,7 +1183,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
         } else {
           // 本地文件，创建空白文件
-          console.log(`Creating empty local file: ${actualPath}`)
           await ensureDirectoryExists(actualPath)
           const workspace = await getWorkspacePath()
           const pathOptions = await getFilePathOptions(actualPath)
@@ -1222,7 +1218,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
         
         if (syncedContent !== null && syncedContent !== localContent) {
           // 远程内容不同，但这里不自动更新，让用户通过 Pull 按钮手动处理
-          console.log('Remote update detected, user can pull via button')
         }
       } catch (error) {
         console.warn('Async sync check failed:', error)

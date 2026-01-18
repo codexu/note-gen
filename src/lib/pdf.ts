@@ -31,7 +31,6 @@ async function ocrPage(canvas: HTMLCanvasElement, pageNum: number): Promise<stri
     const ret = (await worker.recognize(blob)).data.text
     await worker.terminate()
 
-    console.log(`OCR page ${pageNum} extracted ${ret.length} characters`)
     return ret
   } catch (error) {
     console.error(`OCR failed for page ${pageNum}:`, error)
@@ -57,7 +56,6 @@ export async function extractTextFromPDF(
     const loadingTask = pdfjsLib.getDocument({ data: fileData })
     const pdfDocument = await loadingTask.promise
 
-    console.log(`PDF has ${pdfDocument.numPages} pages`)
     onProgress?.(`读取 PDF (${pdfDocument.numPages} 页)`)
 
     let fullText = ''
@@ -71,7 +69,6 @@ export async function extractTextFromPDF(
       const textItems = textContent.items
 
       if (textItems.length === 0) {
-        console.log(`Page ${pageNum} has no text layer, will use OCR`)
         needsOCR = true
         break
       }
@@ -82,7 +79,6 @@ export async function extractTextFromPDF(
       )
 
       if (!hasRealText) {
-        console.log(`Page ${pageNum} has no real text, will use OCR`)
         needsOCR = true
         break
       }
@@ -90,7 +86,6 @@ export async function extractTextFromPDF(
 
     // 如果需要 OCR，使用 OCR 提取所有页面
     if (needsOCR) {
-      console.log('Using OCR to extract text from PDF')
       onProgress?.('OCR 识别中...')
       return await extractTextWithOCR(pdfDocument, onProgress)
     }
@@ -137,7 +132,6 @@ export async function extractTextFromPDF(
     }
 
     const result = fullText.trim()
-    console.log(`Extracted ${result.length} characters from PDF (text layer)`)
     return result
   } catch (error) {
     console.error('PDF text extraction error:', error)
@@ -180,7 +174,6 @@ async function extractTextWithOCR(
   }
 
   const result = fullText.trim()
-  console.log(`Extracted ${result.length} characters from PDF (OCR)`)
   return result
 }
 

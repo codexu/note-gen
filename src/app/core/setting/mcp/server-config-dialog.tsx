@@ -94,12 +94,6 @@ export function ServerConfigDialog({
     try {
       // 使用临时 ID 进行测试
       const config = buildConfig(true)
-      console.log('测试连接配置:', {
-        id: config.id,
-        command: config.command,
-        args: config.args,
-        type: config.type
-      })
       const success = await mcpServerManager.testConnection(config)
       
       if (success) {

@@ -263,8 +263,6 @@ export function ControlRecording() {
       // 将 Uint8Array 转换为 ArrayBuffer
       const buffer = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength) as ArrayBuffer
       const audioBlob = new Blob([buffer], { type: mimeType })
-      
-      console.log('选择的文件:', filePath, 'MIME类型:', mimeType)
 
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
@@ -297,8 +295,6 @@ export function ControlRecording() {
     if (!file) return
 
     try {
-      console.log('移动端选择的文件:', file.name, 'MIME类型:', file.type, '大小:', file.size)
-      
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
       

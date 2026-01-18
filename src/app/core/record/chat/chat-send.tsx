@@ -341,12 +341,10 @@ ${ragContext}
     // 使用流式方式获取AI结果
     let cache_content = '';
     let cache_thinking = '';
-    console.log('[chat-send] Starting fetchAiStream with thinking callback')
     try {
       await fetchAiStream(request_content, async (content) => {
         cache_content = content
-        console.log('[chat-send] Content callback, length:', content.length)
-        
+
         // 每次收到流式内容时更新消息
         await saveChat({
           ...message,
@@ -354,16 +352,14 @@ ${ragContext}
           thinking: cache_thinking || undefined
         }, false)
       }, signal, mcpTools, t, message.id, imageUrls, async (thinking) => {
-        console.log('[chat-send] Thinking callback received:', thinking.substring(0, 100))
         cache_thinking = thinking
-        
+
         // 每次收到思考内容时更新消息
         await saveChat({
           ...message,
           content: cache_content,
           thinking: thinking
         }, false)
-        console.log('[chat-send] Saved chat with thinking, length:', thinking.length)
       })
     } catch (error: any) {
       // 如果不是中止错误，则记录错误信息
@@ -373,8 +369,7 @@ ${ragContext}
     } finally {
       abortControllerRef.current = null
       setLoading(false)
-      
-      console.log('[chat-send] Final save - content length:', cache_content.length, 'thinking length:', cache_thinking.length)
+
       // 最终保存
       await saveChat({
         ...message,

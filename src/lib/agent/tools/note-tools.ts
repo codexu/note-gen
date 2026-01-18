@@ -1,7 +1,7 @@
 import { Tool, ToolResult } from '../types'
 import { readTextFile, writeTextFile, remove } from '@tauri-apps/plugin-fs'
 import { getAllMarkdownFiles } from '@/lib/files'
-import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
+import { getFilePathOptions } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 
 export const listMarkdownFilesTool: Tool = {
@@ -12,20 +12,7 @@ export const listMarkdownFilesTool: Tool = {
   parameters: [],
   execute: async (): Promise<ToolResult> => {
     try {
-      console.log('[list_markdown_files] 开始执行')
-
-      const workspace = await getWorkspacePath()
-      console.log('[list_markdown_files] 工作区信息', {
-        workspacePath: workspace.path,
-        isCustom: workspace.isCustom,
-      })
-
       const files = await getAllMarkdownFiles()
-
-      console.log('[list_markdown_files] 获取文件列表成功', {
-        fileCount: files.length,
-        files: files.map(f => ({ name: f.name, relativePath: f.relativePath, path: f.path })),
-      })
 
       return {
         success: true,
@@ -61,36 +48,16 @@ export const readMarkdownFileTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      console.log('[read_markdown_file] 开始执行', { filePath: params.filePath })
-
-      const workspace = await getWorkspacePath()
-      console.log('[read_markdown_file] 工作区信息', {
-        inputPath: params.filePath,
-        workspacePath: workspace.path,
-        isCustom: workspace.isCustom,
-      })
-
       let content = ''
 
       // 统一使用 getFilePathOptions 来处理路径，无论是自定义工作区还是默认工作区
       const { path, baseDir } = await getFilePathOptions(params.filePath)
-
-      console.log('[read_markdown_file] 路径解析', {
-        inputPath: params.filePath,
-        resolvedPath: path,
-        baseDir: baseDir?.toString() || 'undefined',
-      })
 
       if (baseDir) {
         content = await readTextFile(path, { baseDir })
       } else {
         content = await readTextFile(path)
       }
-
-      console.log('[read_markdown_file] 读取成功', {
-        filePath: params.filePath,
-        contentLength: content.length,
-      })
 
       return {
         success: true,

@@ -158,11 +158,11 @@ export function GiteeSync() {
 
     // 添加网络状态监听
     const handleOnline = () => {
-      console.log('网络已连接')
+      // Network connected
     }
-    
+
     const handleOffline = () => {
-      console.log('网络已断开')
+      // Network disconnected
       setGiteeSyncRepoState(SyncStateEnum.fail)
       setGiteeSyncRepoInfo(undefined)
     }

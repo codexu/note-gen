@@ -20,7 +20,6 @@ import { validateSkillYamlMetadata } from './validator'
 import { readTextFile, readDir, BaseDirectory, DirEntry } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
 import { exists } from '@tauri-apps/plugin-fs'
-import { Store } from '@tauri-apps/plugin-store'
 
 // ============================================================================
 // SkillManager 类
@@ -50,27 +49,21 @@ class SkillManager {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      console.log('[Skills Debug] Already initialized, skipping...')
       return
     }
 
-    console.log('[Skills Debug] Initializing skill manager...')
     await this.discoverSkills()
     this.initialized = true
-    console.log('[Skills Debug] Skill manager initialized, found', this.skills.size, 'skills')
   }
 
   /**
    * 重新加载所有 Skills
    */
   async reload(): Promise<void> {
-    console.log('[Skills Debug] Manager reload() called, clearing cache...')
     this.skills.clear()
     this.skillFiles.clear()
     this.initialized = false
-    console.log('[Skills Debug] Cache cleared, reinitializing...')
     await this.initialize()
-    console.log('[Skills Debug] Reload complete, total skills:', this.skills.size)
   }
 
   // ========================================================================
@@ -81,13 +74,11 @@ class SkillManager {
    * 发现并加载所有 Skills
    */
   async discoverSkills(): Promise<void> {
-    console.log('[Skills Debug] Discovering skills...')
     // 加载工作区 Skills
     await this.discoverProjectSkills()
 
     // 加载全局 Skills
     await this.discoverGlobalSkills()
-    console.log('[Skills Debug] Discovery complete, total skills:', this.skills.size)
   }
 
   /**
@@ -95,19 +86,15 @@ class SkillManager {
    */
   private async discoverProjectSkills(): Promise<void> {
     try {
-      console.log('[Skills Debug] Discovering project skills...')
       const skillsDirExists = await this.directoryExists(SKILLS_DIR_NAME, 'project')
       if (!skillsDirExists) {
-        console.log('[Skills Debug] Project skills directory does not exist')
         return
       }
 
       const skillDirs = await this.listSkillDirectories(SKILLS_DIR_NAME, 'project')
-      console.log('[Skills Debug] Found project skill directories:', skillDirs)
 
       for (const dirName of skillDirs) {
         try {
-          console.log('[Skills Debug] Loading project skill:', dirName)
           await this.loadSkillFromDirectory(SKILLS_DIR_NAME, dirName, 'project')
         } catch (error) {
           console.error(`加载工作区 Skill 失败: ${dirName}`, error)
@@ -123,19 +110,15 @@ class SkillManager {
    */
   private async discoverGlobalSkills(): Promise<void> {
     try {
-      console.log('[Skills Debug] Discovering global skills...')
       const skillsDirExists = await this.directoryExists(SKILLS_DIR_NAME, 'global')
       if (!skillsDirExists) {
-        console.log('[Skills Debug] Global skills directory does not exist')
         return
       }
 
       const skillDirs = await this.listSkillDirectories(SKILLS_DIR_NAME, 'global')
-      console.log('[Skills Debug] Found global skill directories:', skillDirs)
 
       for (const dirName of skillDirs) {
         try {
-          console.log('[Skills Debug] Loading global skill:', dirName)
           await this.loadSkillFromDirectory(SKILLS_DIR_NAME, dirName, 'global')
         } catch (error) {
           console.error(`加载全局 Skill 失败: ${dirName}`, error)
@@ -259,12 +242,6 @@ class SkillManager {
     }
 
     // 注册 Skill
-    console.log('[Skills Debug] Registering skill:', {
-      id: skill.metadata.id,
-      name: skill.metadata.name,
-      scope,
-      enabled: skill.metadata.enabled
-    })
     this.registerSkill(skill)
 
     // 记录文件信息
@@ -324,10 +301,6 @@ class SkillManager {
   async getEnabledSkills(): Promise<SkillContent[]> {
     // 直接返回所有已加载的 Skills，不进行启用/禁用过滤
     const allSkills = this.getAllSkills()
-    console.log('[Skills Debug] Returning all loaded skills:', allSkills.map(s => ({
-      id: s.metadata.id,
-      name: s.metadata.name
-    })))
     return allSkills
   }
 

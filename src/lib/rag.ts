@@ -181,7 +181,6 @@ export async function processMarkdownFile(
     // 检查文件是否在 skills 文件夹下，如果是则跳过处理
     const pathParts = filePath.split('/');
     if (pathParts.some(part => isSkillsFolder(part))) {
-      console.log(`跳过 skills 文件夹下的文件: ${filePath}`);
       return false;
     }
 

@@ -9,8 +9,6 @@ export const getCurrentTimeTool: Tool = {
   parameters: [],
   execute: async (): Promise<ToolResult> => {
     try {
-      console.log('[get_current_time] 开始执行')
-
       const now = new Date()
 
       const year = now.getFullYear()
@@ -19,8 +17,6 @@ export const getCurrentTimeTool: Tool = {
 
       // 安全的文件名格式：YYYY-MM-DD
       const safeFileNameDate = `${year}-${month}-${day}`
-
-      console.log('[get_current_time] 获取成功', { safeFileNameDate })
 
       return {
         success: true,
@@ -61,8 +57,6 @@ export const selectSkillTool: Tool = {
     try {
       const { skill_ids } = params
 
-      console.log('[select_skill] 开始执行', { skill_ids })
-
       if (!Array.isArray(skill_ids)) {
         return {
           success: false,
@@ -96,11 +90,6 @@ export const selectSkillTool: Tool = {
           error: '没有选择任何有效的 Skill',
         }
       }
-
-      console.log('[select_skill] 选择成功', {
-        validSkills,
-        count: validSkills.length,
-      })
 
       return {
         success: true,
@@ -149,8 +138,6 @@ export const loadSkillContentTool: Tool = {
   execute: async (params: Record<string, any>): Promise<ToolResult> => {
     try {
       const { skill_id, file_type } = params
-
-      console.log('[load_skill_content] 开始执行', { skill_id, file_type })
 
       const skill = skillManager.getSkill(skill_id)
       if (!skill) {
@@ -212,7 +199,6 @@ export const loadSkillContentTool: Tool = {
               }
             }
             results[type] = content
-            console.log(`[load_skill_content] 成功加载 ${type} 文件，长度:`, content.length)
           } catch (error) {
             console.error(`[load_skill_content] 读取 ${type} 文件失败:`, error)
           }

@@ -93,8 +93,6 @@ export default function PullButton() {
       }
       
       if (filePath === activeFilePath && isRemoteFile) {
-        console.log('Immediate pull triggered for remote file:', filePath)
-        
         try {
           // 使用 autoSyncIfNeeded 来执行同步
           const { autoSyncIfNeeded } = await import('@/lib/sync/auto-sync')
@@ -115,9 +113,6 @@ export default function PullButton() {
             // 重置所有状态
             setIsPulling(false)
             useArticleStore.getState().setLoading(false)
-            
-            // 简单的完成提示
-            console.log('立即拉取完成')
           }
         } catch (error) {
           console.error('Immediate pull failed:', error)
@@ -177,9 +172,6 @@ export default function PullButton() {
                 
                 // 刷新文件树以更新图标状态
                 await loadFileTree()
-                
-                // 简单的完成提示
-                console.log('首次加载，自动拉取完成')
               }
             } catch (error) {
               console.error('Auto pull failed:', error)
@@ -254,9 +246,6 @@ export default function PullButton() {
             await loadFileTree()
             
             setPendingUpdate(null)
-            
-            // 简单的完成提示
-            console.log('拉取完成')
           }
         } catch (error) {
           console.error('Pull failed:', error)
@@ -285,10 +274,7 @@ export default function PullButton() {
     if (!activeFilePath || latestCommitInfo) return
 
     const interval = setInterval(() => {
-      if (!latestCommitInfo) {
-        // 仅在没有 commit 信息时才检查更新
-        console.log('No commit info available, checking updates...')
-      }
+      // Periodic update check
     }, 30000)
     
     return () => clearInterval(interval)

@@ -36,7 +36,9 @@
     "loading": "加载中...",
     "warning": "警告",
     "info": "信息",
-    "restartToApply": "，请重启应用使配置生效"
+    "restartToApply": "，请重启应用使配置生效",
+    "unsaved": "未保存",
+    "saving": "保存中..."
   },
   "settings": {
     "others": "高级",
@@ -299,6 +301,11 @@
       "deleteSkill": "删除 Skill",
       "exportSkill": "导出 Skill",
       "importSkill": "导入 Skill",
+      "selectSkillZip": "选择 Skill zip 文件",
+      "importSuccess": "导入成功",
+      "importError": "导入失败",
+      "imported": "已导入",
+      "importing": "导入中...",
       "skillName": "Skill 名称",
       "skillDescription": "描述",
       "skillVersion": "版本",
@@ -306,6 +313,8 @@
       "allowedTools": "允许使用的工具",
       "userInvocable": "在斜杠菜单显示",
       "instructions": "指令内容",
+      "instructionsPlaceholder": "输入给 AI 的详细指令...",
+      "importHelp": "支持导入 zip 格式的 Skill，zip 文件需包含 SKILL.md 文件。",
       "metadata": "元数据",
       "content": "指令内容",
       "noSkills": "还没有 Skills",

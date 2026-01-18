@@ -1,46 +1,84 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
-import { Sparkles, Plus, Upload } from 'lucide-react'
+import { Sparkles, Upload, Loader2, Info } from 'lucide-react'
 import { useSkillsStore } from '@/stores/skills'
 import { SkillCard } from './skill-card'
+import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { useToast } from '@/hooks/use-toast'
 
 export function GlobalSkillsManager() {
   const t = useTranslations('settings.skills')
+  const { toast } = useToast()
   const { globalSkills, refreshSkills } = useSkillsStore()
+  const [isImporting, setIsImporting] = useState(false)
 
-  const handleRefresh = async () => {
-    await refreshSkills()
-  }
+  const handleImport = async () => {
+    try {
+      setIsImporting(true)
 
-  const handleImport = () => {
-    // TODO: 实现导入功能
-    console.log('Import Skill')
-  }
+      // 选择 zip 文件
+      const filePath = await open({
+        title: t('selectSkillZip'),
+        filters: [{
+          name: 'ZIP Files',
+          extensions: ['zip']
+        }],
+        multiple: false
+      })
 
-  const handleCreate = () => {
-    // TODO: 实现创建功能
-    console.log('Create Skill')
+      if (!filePath || Array.isArray(filePath)) {
+        setIsImporting(false)
+        return
+      }
+
+      // 调用后端命令导入 Skill
+      const skillName = await invoke<string>('import_skill_zip', { zipPath: filePath })
+
+      toast({
+        title: t('importSuccess'),
+        description: `${skillName} ${t('imported')}`,
+      })
+
+      // 刷新 Skills 列表
+      await refreshSkills()
+    } catch (error) {
+      console.error('Import skill failed:', error)
+      toast({
+        title: t('importError'),
+        description: (error as Error).message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   return (
     <div className="global-skills-manager">
       {/* 操作栏 */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">
-          {t('installedGlobalSkills')} ({globalSkills.length})
-        </h3>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleImport}>
-            <Upload className="size-4" />
-            {t('importSkill')}
-          </Button>
-          <Button size="sm" onClick={handleCreate}>
-            <Plus className="size-4" />
-            {t('createSkill')}
-          </Button>
+        <div>
+          <h3 className="text-lg font-semibold">
+            {t('installedGlobalSkills')} ({globalSkills.length})
+          </h3>
+          {/* 导入说明 */}
+          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+            <Info className="size-4" />
+            <p>{t('importHelp')}</p>
+          </div>
         </div>
+        <Button variant="outline" size="sm" onClick={handleImport} disabled={isImporting}>
+          {isImporting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Upload className="size-4" />
+          )}
+          {isImporting ? t('importing') : t('importSkill')}
+        </Button>
       </div>
 
       {/* Skills 列表 */}
@@ -49,7 +87,7 @@ export function GlobalSkillsManager() {
           <SkillCard
             key={skill.id}
             skill={skill}
-            onRefresh={handleRefresh}
+            onRefresh={refreshSkills}
           />
         ))}
 

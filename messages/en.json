@@ -25,7 +25,9 @@
     "success": "Success",
     "error": "Failed",
     "defaultFileName": "Untitled",
-    "restartToApply": ", please restart the application for the configuration to take effect"
+    "restartToApply": ", please restart the application for the configuration to take effect",
+    "unsaved": "Unsaved",
+    "saving": "Saving..."
   },
   "settings": {
     "others": "Advanced",
@@ -287,6 +289,11 @@
       "deleteSkill": "Delete Skill",
       "exportSkill": "Export Skill",
       "importSkill": "Import Skill",
+      "selectSkillZip": "Select Skill zip file",
+      "importSuccess": "Import successful",
+      "importError": "Import failed",
+      "imported": "imported",
+      "importing": "Importing...",
       "skillName": "Skill Name",
       "skillDescription": "Description",
       "skillVersion": "Version",
@@ -294,6 +301,8 @@
       "allowedTools": "Allowed Tools",
       "userInvocable": "Show in Slash Menu",
       "instructions": "Instructions",
+      "instructionsPlaceholder": "Enter detailed instructions for AI...",
+      "importHelp": "Support importing Skills in zip format. The zip file must contain a SKILL.md file.",
       "metadata": "Metadata",
       "content": "Instructions",
       "noSkills": "No Skills yet",

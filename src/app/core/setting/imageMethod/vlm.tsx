@@ -14,7 +14,7 @@ export function VlmSetting() {
           <ItemTitle>{t('title')}</ItemTitle>
           <ItemDescription>{t('desc')}</ItemDescription>
         </ItemContent>
-        <ItemActions>
+        <ItemActions className='max-md:w-full'>
           <ModelSelect modelKey={'imageMethod'} />
         </ItemActions>
       </Item>

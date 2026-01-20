@@ -60,7 +60,7 @@ export function GlobalSkillsManager() {
   return (
     <div className="global-skills-manager">
       {/* 操作栏 */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex max-md:flex-col max-md:items-start max-md:gap-4 justify-between items-center mb-4">
         <div>
           <h3 className="text-lg font-semibold">
             {t('installedGlobalSkills')} ({globalSkills.length})

@@ -150,11 +150,11 @@ export function ServerList() {
       </div>
       <div className="flex items-center gap-2">
         <Button onClick={handleAddServer}>
-          <Plus className="mr-2 size-4" />
+          <Plus className="mr-2 max-md:hidden size-4" />
           {t('addServer')}
         </Button>
         <Button variant="outline" onClick={() => setJsonImportOpen(true)}>
-          <FileJson className="mr-2 size-4" />
+          <FileJson className="mr-2 max-md:hidden size-4" />
           {t('importJson')}
         </Button>
         {servers.filter(s => s.enabled).length > 0 && (

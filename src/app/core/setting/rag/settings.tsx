@@ -90,7 +90,7 @@ export function Settings() {
           {settings.map((setting) => {
             const Icon = setting.icon
             return (
-            <Item key={setting.title} variant="outline">
+            <Item key={setting.title} className="max-md:flex-col max-md:items-start" variant="outline">
               <ItemMedia variant="icon">
                 <Icon className="size-4" />
               </ItemMedia>
@@ -98,8 +98,8 @@ export function Settings() {
                 <ItemTitle>{setting.title}</ItemTitle>
                 <ItemDescription>{setting.desc}</ItemDescription>
               </ItemContent>
-              <ItemActions>
-                <div className="space-y-3 w-[180px]">
+              <ItemActions className="w-[180px] max-md:w-full">
+                <div className="space-y-3 w-full">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{setting.min}</span>
                     <span className="text-xs font-medium">{setting.value}</span>
@@ -120,7 +120,7 @@ export function Settings() {
           })}
         </ItemGroup>
       </FormItem>
-      <div className="flex flex-col md:flex-row gap-2 mt-4">
+      <div className="flex gap-2 mt-4">
         <Button variant="outline" onClick={resetToDefaults}>
           <RefreshCw className="size-4 mr-2" /> {t('resetToDefaults')}
         </Button>

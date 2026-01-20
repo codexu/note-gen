@@ -247,7 +247,7 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full md:w-[280px] justify-between"
+              className="w-[280px] justify-between"
             >
               {model
                 ? findSelectedModelDisplay()

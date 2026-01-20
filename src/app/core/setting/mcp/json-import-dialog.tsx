@@ -10,6 +10,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -18,6 +26,8 @@ import type { MCPServerConfig } from '@/lib/mcp/types'
 import { useToast } from '@/hooks/use-toast'
 import { mcpServerManager } from '@/lib/mcp/server-manager'
 import { AlertCircle } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
 interface JsonImportDialogProps {
   open: boolean
@@ -25,6 +35,7 @@ interface JsonImportDialogProps {
 }
 
 export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) {
+  const isMobile = useIsMobile() || checkIsMobileDevice()
   const t = useTranslations('settings.mcp')
   const { toast } = useToast()
   const { addServer, servers } = useMcpStore()
@@ -243,24 +254,26 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{t('jsonImportTitle')}</DialogTitle>
-          <DialogDescription>{t('jsonImportDesc')}</DialogDescription>
-        </DialogHeader>
+    <>
+      {isMobile ? (
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader>
+              <DrawerTitle>{t('jsonImportTitle')}</DrawerTitle>
+              <DrawerDescription>{t('jsonImportDesc')}</DrawerDescription>
+            </DrawerHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="json-input">{t('jsonInput')}</Label>
-            <Textarea
-              id="json-input"
-              value={jsonText}
-              onChange={(e) => {
-                setJsonText(e.target.value)
-                setError('')
-              }}
-              placeholder={`{
+            <div className="space-y-4 px-4 overflow-y-auto">
+              <div className="space-y-2">
+                <Label htmlFor="json-input">{t('jsonInput')}</Label>
+                <Textarea
+                  id="json-input"
+                  value={jsonText}
+                  onChange={(e) => {
+                    setJsonText(e.target.value)
+                    setError('')
+                  }}
+                  placeholder={`{
   "mcpServers": {
     "fetch": {
       "command": "uvx",
@@ -268,27 +281,77 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
     }
   }
 }`}
-              rows={12}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">{t('jsonInputHelp')}</p>
-          </div>
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">{t('jsonInputHelp')}</p>
+              </div>
 
-          {error && (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
-              <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />
-              <p className="text-sm">{error}</p>
+              {error && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                  <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
-            {t('cancel')}
-          </Button>
-          <Button onClick={handleImport}>{t('import')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <DrawerFooter>
+              <Button variant="outline" onClick={handleCancel}>
+                {t('cancel')}
+              </Button>
+              <Button onClick={handleImport}>{t('import')}</Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t('jsonImportTitle')}</DialogTitle>
+              <DialogDescription>{t('jsonImportDesc')}</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="json-input">{t('jsonInput')}</Label>
+                <Textarea
+                  id="json-input"
+                  value={jsonText}
+                  onChange={(e) => {
+                    setJsonText(e.target.value)
+                    setError('')
+                  }}
+                  placeholder={`{
+  "mcpServers": {
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  }
+}`}
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">{t('jsonInputHelp')}</p>
+              </div>
+
+              {error && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                  <AlertCircle className="size-4 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancel}>
+                {t('cancel')}
+              </Button>
+              <Button onClick={handleImport}>{t('import')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }

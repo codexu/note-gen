@@ -8,12 +8,31 @@ import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash, Pencil, Check, X, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import usePromptStore, { Prompt } from '@/stores/prompt'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer'
 import { Label } from '@/components/ui/label'
 import { OpenBroswer } from '@/components/open-broswer'
 import { fetchAi } from '@/lib/ai/chat'
 import { toast } from '@/hooks/use-toast'
 import { useI18n } from '@/hooks/useI18n'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
 export function SettingPrompt({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations('settings')
@@ -25,6 +44,7 @@ export function SettingPrompt({id, icon}: {id: string, icon?: React.ReactNode}) 
   const [newContent, setNewContent] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
+  const isMobile = useIsMobile() || checkIsMobileDevice()
 
   useEffect(() => {
     initPromptData()
@@ -126,62 +146,121 @@ ${newContent}`
     <SettingType id={id} title={t('prompt.title')} desc={t('prompt.desc')} icon={icon}>
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-center">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={handleOpenAddDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('prompt.addPrompt')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
+          {isMobile ? (
+            <Drawer open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DrawerTrigger asChild>
+                <Button variant="outline" size="sm" onClick={handleOpenAddDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
                   {t('prompt.addPrompt')}
-                </DialogTitle>
-                <DialogDescription>
-                  {t('prompt.addPromptDesc')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="title">{t('prompt.promptTitle')}</Label>
-                  <Input
-                    id="title"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder={t('prompt.promptTitlePlaceholder')}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="content">{t('prompt.promptContent')}</Label>
-                  <div className="space-y-2">
-                    <Textarea
-                      id="content"
-                      value={newContent}
-                      onChange={(e) => setNewContent(e.target.value)}
-                      placeholder={t('prompt.promptContentPlaceholder')}
-                      rows={5}
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>
+                    {t('prompt.addPrompt')}
+                  </DrawerTitle>
+                  <DrawerDescription>
+                    {t('prompt.addPromptDesc')}
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="grid gap-4 px-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">{t('prompt.promptTitle')}</Label>
+                    <Input
+                      id="title"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder={t('prompt.promptTitlePlaceholder')}
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleOptimizePrompt}
-                      disabled={isOptimizing || !newContent.trim()}
-                      className="w-full"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      {isOptimizing ? t('prompt.optimizing') : t('prompt.optimizePrompt')}
-                    </Button>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content">{t('prompt.promptContent')}</Label>
+                    <div className="space-y-2">
+                      <Textarea
+                        id="content"
+                        value={newContent}
+                        onChange={(e) => setNewContent(e.target.value)}
+                        placeholder={t('prompt.promptContentPlaceholder')}
+                        rows={5}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOptimizePrompt}
+                        disabled={isOptimizing || !newContent.trim()}
+                        className="w-full"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {isOptimizing ? t('prompt.optimizing') : t('prompt.optimizePrompt')}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>{commonT('cancel')}</Button>
-                <Button onClick={handleAddPrompt}>{commonT('confirm')}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DrawerFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>{commonT('cancel')}</Button>
+                  <Button onClick={handleAddPrompt}>{commonT('confirm')}</Button>
+                </DrawerFooter>
+              </DrawerContent>
+            </Drawer>
+          ) : (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" onClick={handleOpenAddDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('prompt.addPrompt')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {t('prompt.addPrompt')}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {t('prompt.addPromptDesc')}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">{t('prompt.promptTitle')}</Label>
+                    <Input
+                      id="title"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder={t('prompt.promptTitlePlaceholder')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content">{t('prompt.promptContent')}</Label>
+                    <div className="space-y-2">
+                      <Textarea
+                        id="content"
+                        value={newContent}
+                        onChange={(e) => setNewContent(e.target.value)}
+                        placeholder={t('prompt.promptContentPlaceholder')}
+                        rows={5}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOptimizePrompt}
+                        disabled={isOptimizing || !newContent.trim()}
+                        className="w-full"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {isOptimizing ? t('prompt.optimizing') : t('prompt.optimizePrompt')}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>{commonT('cancel')}</Button>
+                  <Button onClick={handleAddPrompt}>{commonT('confirm')}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           <OpenBroswer title="Awesome Prompts" url="https://github.com/f/awesome-chatgpt-prompts" className='text-sm' />
         </div>
         <div className="grid gap-4">

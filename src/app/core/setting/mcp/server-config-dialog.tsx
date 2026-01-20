@@ -9,6 +9,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +33,8 @@ import type { MCPServerConfig, MCPServerType } from '@/lib/mcp/types'
 import { Loader2 } from 'lucide-react'
 import { mcpServerManager } from '@/lib/mcp/server-manager'
 import { useToast } from '@/hooks/use-toast'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
 interface ServerConfigDialogProps {
   open: boolean
@@ -38,6 +47,7 @@ export function ServerConfigDialog({
   onOpenChange,
   editingServer,
 }: ServerConfigDialogProps) {
+  const isMobile = useIsMobile() || checkIsMobileDevice()
   const t = useTranslations('settings.mcp')
   const { toast } = useToast()
   const { addServer, updateServer } = useMcpStore()
@@ -187,130 +197,260 @@ export function ServerConfigDialog({
   }
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {editingServer ? t('editServer') : t('addServer')}
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          {/* 服务器名称 */}
-          <div className="space-y-2">
-            <Label htmlFor="name">{t('serverName')}</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('serverNamePlaceholder')}
-            />
-          </div>
-          
-          {/* 启用状态 */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>{t('serverEnabled')}</Label>
-              <p className="text-xs text-muted-foreground">{t('serverEnabledDesc')}</p>
+    <>
+      {isMobile ? (
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader>
+              <DrawerTitle>
+                {editingServer ? t('editServer') : t('addServer')}
+              </DrawerTitle>
+            </DrawerHeader>
+
+            <div className="space-y-4 px-4 overflow-y-auto">
+              {/* 服务器名称 */}
+              <div className="space-y-2">
+                <Label htmlFor="name">{t('serverName')}</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('serverNamePlaceholder')}
+                />
+              </div>
+
+              {/* 启用状态 */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>{t('serverEnabled')}</Label>
+                  <p className="text-xs text-muted-foreground">{t('serverEnabledDesc')}</p>
+                </div>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                />
+              </div>
+
+              {/* 服务器类型 */}
+              <div className="space-y-2">
+                <Label htmlFor="type">{t('serverType')}</Label>
+                <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stdio">{t('stdio')}</SelectItem>
+                    <SelectItem value="http">{t('http')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* stdio 配置 */}
+              {type === 'stdio' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="command">{t('command')}</Label>
+                    <Input
+                      id="command"
+                      value={command}
+                      onChange={(e) => setCommand(e.target.value)}
+                      placeholder="npx @modelcontextprotocol/server-filesystem"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="args">{t('args')}</Label>
+                    <Input
+                      id="args"
+                      value={args}
+                      onChange={(e) => setArgs(e.target.value)}
+                      placeholder="/path/to/directory"
+                    />
+                    <p className="text-xs text-muted-foreground">{t('argsDesc')}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="env">{t('env')}</Label>
+                    <Textarea
+                      id="env"
+                      value={env}
+                      onChange={(e) => setEnv(e.target.value)}
+                      placeholder='{"KEY": "value"}'
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('envDesc')}</p>
+                  </div>
+                </>
+              )}
+
+              {/* HTTP 配置 */}
+              {type === 'http' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="url">{t('url')}</Label>
+                    <Input
+                      id="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="http://localhost:3000/mcp"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="headers">{t('headers')}</Label>
+                    <Textarea
+                      id="headers"
+                      value={headers}
+                      onChange={(e) => setHeaders(e.target.value)}
+                      placeholder='{"Authorization": "Bearer token"}'
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('headersDesc')}</p>
+                  </div>
+                </>
+              )}
             </div>
-            <Switch
-              checked={enabled}
-              onCheckedChange={setEnabled}
-            />
-          </div>
-          
-          {/* 服务器类型 */}
-          <div className="space-y-2">
-            <Label htmlFor="type">{t('serverType')}</Label>
-            <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="stdio">{t('stdio')}</SelectItem>
-                <SelectItem value="http">{t('http')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* stdio 配置 */}
-          {type === 'stdio' && (
-            <>
+
+            <DrawerFooter>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing}
+              >
+                {testing && <Loader2 className="mr-2 size-4 animate-spin" />}
+                {t('testConnection')}
+              </Button>
+              <Button onClick={handleSave}>{t('save')}</Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingServer ? t('editServer') : t('addServer')}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* 服务器名称 */}
               <div className="space-y-2">
-                <Label htmlFor="command">{t('command')}</Label>
+                <Label htmlFor="name">{t('serverName')}</Label>
                 <Input
-                  id="command"
-                  value={command}
-                  onChange={(e) => setCommand(e.target.value)}
-                  placeholder="npx @modelcontextprotocol/server-filesystem"
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('serverNamePlaceholder')}
                 />
               </div>
-              
+
+              {/* 启用状态 */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>{t('serverEnabled')}</Label>
+                  <p className="text-xs text-muted-foreground">{t('serverEnabledDesc')}</p>
+                </div>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                />
+              </div>
+
+              {/* 服务器类型 */}
               <div className="space-y-2">
-                <Label htmlFor="args">{t('args')}</Label>
-                <Input
-                  id="args"
-                  value={args}
-                  onChange={(e) => setArgs(e.target.value)}
-                  placeholder="/path/to/directory"
-                />
-                <p className="text-xs text-muted-foreground">{t('argsDesc')}</p>
+                <Label htmlFor="type">{t('serverType')}</Label>
+                <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stdio">{t('stdio')}</SelectItem>
+                    <SelectItem value="http">{t('http')}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="env">{t('env')}</Label>
-                <Textarea
-                  id="env"
-                  value={env}
-                  onChange={(e) => setEnv(e.target.value)}
-                  placeholder='{"KEY": "value"}'
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">{t('envDesc')}</p>
-              </div>
-            </>
-          )}
-          
-          {/* HTTP 配置 */}
-          {type === 'http' && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="url">{t('url')}</Label>
-                <Input
-                  id="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="http://localhost:3000/mcp"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="headers">{t('headers')}</Label>
-                <Textarea
-                  id="headers"
-                  value={headers}
-                  onChange={(e) => setHeaders(e.target.value)}
-                  placeholder='{"Authorization": "Bearer token"}'
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">{t('headersDesc')}</p>
-              </div>
-            </>
-          )}
-        </div>
-        
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={handleTestConnection}
-            disabled={testing}
-          >
-            {testing && <Loader2 className="mr-2 size-4 animate-spin" />}
-            {t('testConnection')}
-          </Button>
-          <Button onClick={handleSave}>{t('save')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+              {/* stdio 配置 */}
+              {type === 'stdio' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="command">{t('command')}</Label>
+                    <Input
+                      id="command"
+                      value={command}
+                      onChange={(e) => setCommand(e.target.value)}
+                      placeholder="npx @modelcontextprotocol/server-filesystem"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="args">{t('args')}</Label>
+                    <Input
+                      id="args"
+                      value={args}
+                      onChange={(e) => setArgs(e.target.value)}
+                      placeholder="/path/to/directory"
+                    />
+                    <p className="text-xs text-muted-foreground">{t('argsDesc')}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="env">{t('env')}</Label>
+                    <Textarea
+                      id="env"
+                      value={env}
+                      onChange={(e) => setEnv(e.target.value)}
+                      placeholder='{"KEY": "value"}'
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('envDesc')}</p>
+                  </div>
+                </>
+              )}
+
+              {/* HTTP 配置 */}
+              {type === 'http' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="url">{t('url')}</Label>
+                    <Input
+                      id="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="http://localhost:3000/mcp"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="headers">{t('headers')}</Label>
+                    <Textarea
+                      id="headers"
+                      value={headers}
+                      onChange={(e) => setHeaders(e.target.value)}
+                      placeholder='{"Authorization": "Bearer token"}'
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('headersDesc')}</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing}
+              >
+                {testing && <Loader2 className="mr-2 size-4 animate-spin" />}
+                {t('testConnection')}
+              </Button>
+              <Button onClick={handleSave}>{t('save')}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }

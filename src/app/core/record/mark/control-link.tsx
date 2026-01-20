@@ -10,6 +10,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
@@ -21,6 +30,8 @@ import { v4 as uuidv4 } from 'uuid'
 import emitter from '@/lib/emitter'
 import { useRouter } from 'next/navigation'
 import { handleRecordComplete } from '@/lib/record-navigation'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
 export function ControlLink() {
   const t = useTranslations();
@@ -28,6 +39,7 @@ export function ControlLink() {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
+  const isMobile = useIsMobile() || checkIsMobileDevice()
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
@@ -186,36 +198,74 @@ export function ControlLink() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
-      </DialogTrigger>
-      <DialogContent className="min-w-full md:min-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{t('record.mark.link.title') || '链接记录'}</DialogTitle>
-          <DialogDescription>
-            {t('record.mark.link.description') || '输入网页链接，系统将自动爬取页面内容并保存'}
-          </DialogDescription>
-        </DialogHeader>
-        <Input 
-          placeholder="https://example.com" 
-          value={url} 
-          onChange={(e) => setUrl(e.target.value)}
-          disabled={loading}
-        />
-        <DialogFooter className="flex items-center justify-between">
-          <p className="text-sm text-zinc-500 mr-4">
-            {loading ? '正在爬取页面内容...' : ''}
-          </p>
-          <Button 
-            type="submit" 
-            onClick={handleSuccess} 
-            disabled={!url || loading}
-          >
-            {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <>
+      {isMobile ? (
+        <Drawer open={open} onOpenChange={setOpen}>
+          <DrawerTrigger asChild>
+            <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>{t('record.mark.link.title') || '链接记录'}</DrawerTitle>
+              <DrawerDescription>
+                {t('record.mark.link.description') || '输入网页链接，系统将自动爬取页面内容并保存'}
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="px-4">
+              <Input
+                placeholder="https://example.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <DrawerFooter className="flex items-center justify-between">
+              <p className="text-sm text-zinc-500 mr-4">
+                {loading ? '正在爬取页面内容...' : ''}
+              </p>
+              <Button
+                type="submit"
+                onClick={handleSuccess}
+                disabled={!url || loading}
+              >
+                {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
+              </Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
+          </DialogTrigger>
+          <DialogContent className="min-w-full md:min-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{t('record.mark.link.title') || '链接记录'}</DialogTitle>
+              <DialogDescription>
+                {t('record.mark.link.description') || '输入网页链接，系统将自动爬取页面内容并保存'}
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={loading}
+            />
+            <DialogFooter className="flex items-center justify-between">
+              <p className="text-sm text-zinc-500 mr-4">
+                {loading ? '正在爬取页面内容...' : ''}
+              </p>
+              <Button
+                type="submit"
+                onClick={handleSuccess}
+                disabled={!url || loading}
+              >
+                {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }

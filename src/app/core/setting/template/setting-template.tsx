@@ -11,8 +11,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState } from "react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
+import { useIsMobile } from '@/hooks/use-mobile'
+import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
 export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}) {
   const t = useTranslations();
@@ -20,6 +39,7 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<GenTemplate | null>(null);
+  const isMobile = useIsMobile() || checkIsMobileDevice()
 
   // Form states
   const [templateTitle, setTemplateTitle] = useState('');
@@ -97,27 +117,167 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
     <SettingType id={id} icon={icon} title={t('settings.template.title')} desc={t('settings.template.desc')}>
       <div className="flex flex-col gap-4">
         <div className="flex justify-between items-center">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={openAddDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('settings.template.addTemplate')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
+          {isMobile ? (
+            <Drawer open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DrawerTrigger asChild>
+                <Button variant="outline" size="sm" onClick={openAddDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
                   {t('settings.template.addTemplate')}
-                </DialogTitle>
-                <DialogDescription>
-                  {t('settings.template.addTemplateDesc') || t('settings.template.customTemplate')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>
+                    {t('settings.template.addTemplate')}
+                  </DrawerTitle>
+                  <DrawerDescription>
+                    {t('settings.template.addTemplateDesc') || t('settings.template.customTemplate')}
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="grid gap-4 px-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">{t('settings.template.name')}</Label>
+                    <Input
+                      id="title"
+                      value={templateTitle}
+                      onChange={(e) => setTemplateTitle(e.target.value)}
+                      placeholder={t('settings.template.name')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="range">{t('settings.template.scope')}</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="status">{t('settings.template.status')}</Label>
+                        <Switch
+                          id="status"
+                          checked={templateStatus}
+                          onCheckedChange={setTemplateStatus}
+                        />
+                      </div>
+                    </div>
+                    <Select
+                      value={templateRange}
+                      onValueChange={(value: GenTemplateRange) => setTemplateRange(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('settings.template.selectScope')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {getTemplateRangeOptions(t).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content">{t('settings.template.content')}</Label>
+                    <Textarea
+                      id="content"
+                      rows={5}
+                      value={templateContent}
+                      onChange={(e) => setTemplateContent(e.target.value)}
+                      placeholder={t('settings.template.content')}
+                    />
+                  </div>
+                </div>
+                <DrawerFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
+                  <Button onClick={createTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
+                </DrawerFooter>
+              </DrawerContent>
+            </Drawer>
+          ) : (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" onClick={openAddDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('settings.template.addTemplate')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {t('settings.template.addTemplate')}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {t('settings.template.addTemplateDesc') || t('settings.template.customTemplate')}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">{t('settings.template.name')}</Label>
+                    <Input
+                      id="title"
+                      value={templateTitle}
+                      onChange={(e) => setTemplateTitle(e.target.value)}
+                      placeholder={t('settings.template.name')}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="range">{t('settings.template.scope')}</Label>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="status">{t('settings.template.status')}</Label>
+                        <Switch
+                          id="status"
+                          checked={templateStatus}
+                          onCheckedChange={setTemplateStatus}
+                        />
+                      </div>
+                    </div>
+                    <Select
+                      value={templateRange}
+                      onValueChange={(value: GenTemplateRange) => setTemplateRange(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('settings.template.selectScope')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {getTemplateRangeOptions(t).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content">{t('settings.template.content')}</Label>
+                    <Textarea
+                      id="content"
+                      rows={5}
+                      value={templateContent}
+                      onChange={(e) => setTemplateContent(e.target.value)}
+                      placeholder={t('settings.template.content')}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
+                  <Button onClick={createTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+
+        {/* Edit Template Dialog/Drawer */}
+        {isMobile ? (
+          <Drawer open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>
+                  {t('settings.template.editTemplate') || 'Edit Template'}
+                </DrawerTitle>
+              </DrawerHeader>
+              <div className="grid gap-4 px-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="title">{t('settings.template.name')}</Label>
+                  <Label htmlFor="edit-title">{t('settings.template.name')}</Label>
                   <Input
-                    id="title"
+                    id="edit-title"
                     value={templateTitle}
                     onChange={(e) => setTemplateTitle(e.target.value)}
                     placeholder={t('settings.template.name')}
@@ -125,18 +285,19 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
                 </div>
                 <div className="grid gap-2">
                   <div className="flex justify-between">
-                    <Label htmlFor="range">{t('settings.template.scope')}</Label>
+                    <Label htmlFor="edit-range">{t('settings.template.scope')}</Label>
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="status">{t('settings.template.status')}</Label>
+                      <Label htmlFor="edit-status">{t('settings.template.status')}</Label>
                       <Switch
-                        id="status"
+                        id="edit-status"
                         checked={templateStatus}
                         onCheckedChange={setTemplateStatus}
+                        disabled={currentTemplate?.id === '0'}
                       />
                     </div>
                   </div>
-                  <Select 
-                    value={templateRange} 
+                  <Select
+                    value={templateRange}
                     onValueChange={(value: GenTemplateRange) => setTemplateRange(value)}
                   >
                     <SelectTrigger>
@@ -152,9 +313,73 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="content">{t('settings.template.content')}</Label>
+                  <Label htmlFor="edit-content">{t('settings.template.content')}</Label>
                   <Textarea
-                    id="content"
+                    id="edit-content"
+                    rows={5}
+                    value={templateContent}
+                    onChange={(e) => setTemplateContent(e.target.value)}
+                    placeholder={t('settings.template.content')}
+                  />
+                </div>
+              </div>
+              <DrawerFooter>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
+                <Button onClick={updateTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {t('settings.template.editTemplate') || 'Edit Template'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-title">{t('settings.template.name')}</Label>
+                  <Input
+                    id="edit-title"
+                    value={templateTitle}
+                    onChange={(e) => setTemplateTitle(e.target.value)}
+                    placeholder={t('settings.template.name')}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="edit-range">{t('settings.template.scope')}</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="edit-status">{t('settings.template.status')}</Label>
+                      <Switch
+                        id="edit-status"
+                        checked={templateStatus}
+                        onCheckedChange={setTemplateStatus}
+                        disabled={currentTemplate?.id === '0'}
+                      />
+                    </div>
+                  </div>
+                  <Select
+                    value={templateRange}
+                    onValueChange={(value: GenTemplateRange) => setTemplateRange(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('settings.template.selectScope')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {getTemplateRangeOptions(t).map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-content">{t('settings.template.content')}</Label>
+                  <Textarea
+                    id="edit-content"
                     rows={5}
                     value={templateContent}
                     onChange={(e) => setTemplateContent(e.target.value)}
@@ -163,78 +388,13 @@ export function SettingTemplate({id, icon}: {id: string, icon?: React.ReactNode}
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
-                <Button onClick={createTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
+                <Button onClick={updateTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
-        
-        {/* Edit Template Dialog */}
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {t('settings.template.editTemplate') || 'Edit Template'}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-title">{t('settings.template.name')}</Label>
-                <Input
-                  id="edit-title"
-                  value={templateTitle}
-                  onChange={(e) => setTemplateTitle(e.target.value)}
-                  placeholder={t('settings.template.name')}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="edit-range">{t('settings.template.scope')}</Label>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="edit-status">{t('settings.template.status')}</Label>
-                    <Switch
-                      id="edit-status"
-                      checked={templateStatus}
-                      onCheckedChange={setTemplateStatus}
-                      disabled={currentTemplate?.id === '0'}
-                    />
-                  </div>
-                </div>
-                <Select 
-                  value={templateRange} 
-                  onValueChange={(value: GenTemplateRange) => setTemplateRange(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('settings.template.selectScope')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {getTemplateRangeOptions(t).map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-content">{t('settings.template.content')}</Label>
-                <Textarea
-                  id="edit-content"
-                  rows={5}
-                  value={templateContent}
-                  onChange={(e) => setTemplateContent(e.target.value)}
-                  placeholder={t('settings.template.content')}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{t('common.cancel') || 'Cancel'}</Button>
-              <Button onClick={updateTemplateHandler}>{t('common.confirm') || 'Confirm'}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        
+        )}
+
         <div className="grid gap-4">
           {templateList.map((item) => (
             <Card key={item.id}>

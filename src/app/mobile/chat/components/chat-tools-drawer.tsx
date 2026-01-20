@@ -42,7 +42,7 @@ export function ChatToolsDrawer() {
             <div className="h-16 flex items-center w-full">
               <RagToggle />
             </div>
-            <div className="h-16 flex items-center w-full">
+            <div className="py-2">
               <McpSelector />
             </div>
             <MobileClearContext />

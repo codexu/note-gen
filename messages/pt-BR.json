@@ -845,6 +845,7 @@
         "recording": "Gravação",
         "file": "Arquivo",
         "link": "Vínculo",
+        "todo": "Todo",
         "pdf": "PDF",
         "upload": "Upload de Registro",
         "download": "Download de Registro",
@@ -881,6 +882,22 @@
         "description": "Insira um link de página da web, e o sistema rastreará automaticamente o conteúdo da página e o salvará",
         "save": "Salvar",
         "autoReadClipboard": "Ler link da área de transferência automaticamente"
+      },
+      "todo": {
+        "title": "Registro Todo",
+        "description": "Crie itens todo para gerenciar suas tarefas",
+        "titlePlaceholder": "Digite o título do todo...",
+        "descriptionPlaceholder": "Digite descrição detalhada (opcional)",
+        "priority": "Prioridade",
+        "priorityLow": "Baixa",
+        "priorityMedium": "Média",
+        "priorityHigh": "Alta",
+        "dueDate": "Data de Vencimento",
+        "dueDatePlaceholder": "Selecione a data",
+        "save": "Criar Todo",
+        "selectTag": "Selecionar Tag",
+        "completed": "Concluído",
+        "uncompleted": "Não Concluído"
       },
       "clipboard": {
         "detectedImage": "Imagem da área de transferência detectada",
@@ -1077,7 +1094,8 @@
         "scan": "Digitalizar Imagem",
         "image": "Carregar Imagem",
         "link": "Gravar Link",
-        "file": "Carregar Arquivo"
+        "file": "Carregar Arquivo",
+        "todo": "Registro Todo"
       },
       "list": {
         "title": "Registros"

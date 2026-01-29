@@ -810,6 +810,7 @@
         "text": "文本",
         "file": "文件",
         "link": "連結",
+        "todo": "待辦",
         "pdf": "PDF",
         "upload": "上傳記錄",
         "download": "下載記錄",
@@ -854,6 +855,22 @@
         "description": "輸入網頁連結，系統將自動爬取頁面內容並保存",
         "save": "保存",
         "autoReadClipboard": "自動讀取剪貼簿連結"
+      },
+      "todo": {
+        "title": "待辦記錄",
+        "description": "創建待辦事項，管理你的任務",
+        "titlePlaceholder": "輸入待辦標題...",
+        "descriptionPlaceholder": "輸入詳細描述（可選）",
+        "priority": "優先級",
+        "priorityLow": "低",
+        "priorityMedium": "中",
+        "priorityHigh": "高",
+        "dueDate": "截止日期",
+        "dueDatePlaceholder": "選擇日期",
+        "save": "創建待辦",
+        "selectTag": "選擇標籤",
+        "completed": "已完成",
+        "uncompleted": "未完成"
       },
       "clipboard": {
         "detectedImage": "檢測到剪貼簿圖片",
@@ -1032,7 +1049,14 @@
         "organizeNotes": "整理筆記",
         "organizeSuccess": "筆記整理成功：{title}",
         "organizeError": "整理筆記失敗",
-        "currentTag": "當前標籤"
+        "currentTag": "當前標籤",
+        "text": "記錄文本",
+        "recording": "錄音記錄",
+        "scan": "掃描圖片",
+        "image": "上傳圖片",
+        "link": "記錄連結",
+        "file": "上傳文件",
+        "todo": "待辦記錄"
       },
       "list": {
         "title": "記錄"

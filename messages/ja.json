@@ -815,6 +815,7 @@
         "text": "テキスト",
         "file": "ファイル",
         "link": "リンク",
+        "todo": "Todo",
         "pdf": "PDF",
         "upload": "アップロード",
         "download": "ダウンロード",
@@ -854,6 +855,22 @@
         "description": "ウェブページのリンクを入力すると、システムは自動的にページの内容を取得して保存します",
         "save": "保存",
         "autoReadClipboard": "クリップボードのリンクを自動読み取り"
+      },
+      "todo": {
+        "title": "Todo記録",
+        "description": "Todoアイテムを作成してタスクを管理",
+        "titlePlaceholder": "Todoのタイトルを入力...",
+        "descriptionPlaceholder": "詳細説明を入力（オプション）",
+        "priority": "優先度",
+        "priorityLow": "低",
+        "priorityMedium": "中",
+        "priorityHigh": "高",
+        "dueDate": "期限",
+        "dueDatePlaceholder": "日付を選択",
+        "save": "Todo作成",
+        "selectTag": "タグを選択",
+        "completed": "完了",
+        "uncompleted": "未完了"
       },
       "clipboard": {
         "detectedImage": "クリップボードの画像を検出しました",
@@ -1036,7 +1053,8 @@
         "scan": "画像スキャン",
         "image": "画像アップロード",
         "link": "リンク記録",
-        "file": "ファイルアップロード"
+        "file": "ファイルアップロード",
+        "todo": "Todo記録"
       },
       "list": {
         "title": "記録"

@@ -4,7 +4,7 @@ import { BaseDirectory, exists, mkdir } from "@tauri-apps/plugin-fs"
 export interface Mark {
   id: number
   tagId: number
-  type: 'scan' | 'text' | 'image' | 'link' | 'file' | 'recording'
+  type: 'scan' | 'text' | 'image' | 'link' | 'file' | 'recording' | 'todo'
   content?: string
   desc?: string
   url: string

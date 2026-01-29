@@ -1004,6 +1004,7 @@
         "recording": "录音",
         "file": "文件",
         "link": "链接",
+        "todo": "待办",
         "pdf": "PDF",
         "upload": "上传记录",
         "download": "下载记录",
@@ -1052,6 +1053,22 @@
         "description": "输入网页链接，系统将自动爬取页面内容并保存",
         "save": "保存",
         "autoReadClipboard": "自动读取剪贴板链接"
+      },
+      "todo": {
+        "title": "待办记录",
+        "description": "创建待办事项，管理你的任务",
+        "titlePlaceholder": "输入待办标题...",
+        "descriptionPlaceholder": "输入详细描述（可选）",
+        "priority": "优先级",
+        "priorityLow": "低",
+        "priorityMedium": "中",
+        "priorityHigh": "高",
+        "dueDate": "截止日期",
+        "dueDatePlaceholder": "选择日期",
+        "save": "创建待办",
+        "selectTag": "选择标签",
+        "completed": "已完成",
+        "uncompleted": "未完成"
       },
       "clipboard": {
         "detectedImage": "检测到剪贴板图片",
@@ -1237,7 +1254,8 @@
         "scan": "扫描图片",
         "image": "上传图片",
         "link": "记录链接",
-        "file": "上传文件"
+        "file": "上传文件",
+        "todo": "待办记录"
       },
       "list": {
         "title": "记录"

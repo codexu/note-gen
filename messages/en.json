@@ -987,6 +987,7 @@
         "recording": "Recording",
         "file": "File",
         "link": "Link",
+        "todo": "Todo",
         "pdf": "PDF",
         "upload": "Upload Record",
         "download": "Download Record",
@@ -1028,6 +1029,22 @@
         "description": "Enter a webpage link, and the system will automatically crawl the page content and save it",
         "save": "Save",
         "autoReadClipboard": "Auto-read clipboard link"
+      },
+      "todo": {
+        "title": "Todo Record",
+        "description": "Create todo items to manage your tasks",
+        "titlePlaceholder": "Enter todo title...",
+        "descriptionPlaceholder": "Enter detailed description (optional)",
+        "priority": "Priority",
+        "priorityLow": "Low",
+        "priorityMedium": "Medium",
+        "priorityHigh": "High",
+        "dueDate": "Due Date",
+        "dueDatePlaceholder": "Select date",
+        "save": "Create Todo",
+        "selectTag": "Select Tag",
+        "completed": "Completed",
+        "uncompleted": "Uncompleted"
       },
       "clipboard": {
         "detectedImage": "Clipboard image detected",
@@ -1205,7 +1222,14 @@
         "organizeNotes": "Organize Notes",
         "organizeSuccess": "Notes organized successfully: {title}",
         "organizeError": "Failed to organize notes",
-        "currentTag": "Current Tag"
+        "currentTag": "Current Tag",
+        "text": "Record Text",
+        "recording": "Recording Record",
+        "scan": "Scan Image",
+        "image": "Upload Image",
+        "link": "Record Link",
+        "file": "Upload File",
+        "todo": "Todo Record"
       },
       "list": {
         "title": "Records"

@@ -23,6 +23,7 @@ import { ControlScan } from '@/app/core/record/mark/control-scan'
 import { ControlImage } from '@/app/core/record/mark/control-image'
 import { ControlLink } from '@/app/core/record/mark/control-link'
 import { ControlFile } from '@/app/core/record/mark/control-file'
+import { ControlTodo } from '@/app/core/record/mark/control-todo'
 import {
   DndContext,
   closestCenter,
@@ -214,6 +215,8 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
                             return <ControlLink />
                           case 'file':
                             return <ControlFile />
+                          case 'todo':
+                            return <ControlTodo />
                           default:
                             return null
                         }

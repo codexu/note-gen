@@ -467,6 +467,30 @@ const useSettingStore = create<SettingState>((set, get) => ({
         } else if (key === 'aiModelList' && hasNoteGenModels) {
           // 如果已经有NoteGen模型，使用存储的配置
           set({ [key]: res as AiConfig[] })
+        } else if (key === 'recordToolbarConfig') {
+          // 确保包含所有工具，如果缺少新工具则自动添加
+          const storedConfig = res as RecordToolbarItem[]
+          const defaultConfig = value as RecordToolbarItem[]
+
+          // 检查是否有缺失的工具
+          const missingTools = defaultConfig.filter(
+            defaultItem => !storedConfig.some(stored => stored.id === defaultItem.id)
+          )
+
+          if (missingTools.length > 0) {
+            // 合并配置：保留用户的顺序和启用状态，添加新工具
+            const mergedConfig = [...storedConfig]
+            let maxOrder = Math.max(...storedConfig.map(item => item.order), 0)
+
+            missingTools.forEach(tool => {
+              mergedConfig.push({ ...tool, order: ++maxOrder })
+            })
+
+            await store.set(key, mergedConfig)
+            set({ [key]: mergedConfig })
+          } else {
+            set({ [key]: res })
+          }
         } else if (key !== 'aiModelList') {
           set({ [key]: res })
         }
@@ -1038,6 +1062,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'image', enabled: true, order: 3 },
     { id: 'link', enabled: true, order: 4 },
     { id: 'file', enabled: true, order: 5 },
+    { id: 'todo', enabled: true, order: 6 },
   ],
   setRecordToolbarConfig: async (config: RecordToolbarItem[]) => {
     set({ recordToolbarConfig: config })

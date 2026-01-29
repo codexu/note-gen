@@ -31,6 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MarkMobileActions } from "./mark-mobile-actions";
 import { markToMarkdown } from "@/lib/mark-to-markdown";
 import useSettingStore from "@/stores/setting";
+import { TodoItemContent } from "./todo-item-content";
 
 dayjs.extend(relativeTime)
 
@@ -253,6 +254,8 @@ export function MarkWrapper({mark}: {mark: Mark}) {
             )}
           </div>
       )
+    case 'todo':
+      return <TodoItemContent mark={mark} />
     default:
       return null
     }

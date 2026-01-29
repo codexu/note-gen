@@ -1,6 +1,5 @@
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { useTranslations } from 'next-intl'
 import {
   Dialog,
@@ -20,8 +19,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
-import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
 import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
@@ -32,30 +29,17 @@ import { useRouter } from 'next/navigation'
 import { handleRecordComplete } from '@/lib/record-navigation'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-type Priority = 'low' | 'medium' | 'high'
-
-interface TodoData {
-  title: string
-  description: string
-  priority: Priority
-}
+import { TodoForm, TodoFormData } from "./todo-form"
 
 export function ControlTodo() {
   const t = useTranslations();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<Priority>('medium')
+  const [formData, setFormData] = useState<TodoFormData>({
+    title: '',
+    description: '',
+    priority: 'medium'
+  })
   const isMobile = useIsMobile() || checkIsMobileDevice()
 
   const { currentTagId, fetchTags, getCurrentTag, tags } = useTagStore()
@@ -63,20 +47,20 @@ export function ControlTodo() {
   const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
 
   async function handleSuccess() {
-    if (!title.trim()) {
+    if (!formData.title.trim()) {
       return
     }
 
-    const todoData: TodoData = {
-      title: title.trim(),
-      description: description.trim(),
-      priority
+    const todoData = {
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      priority: formData.priority
     }
 
     await insertMark({
       tagId: selectedTagId,
       type: 'todo',
-      desc: title.trim(),
+      desc: formData.title.trim(),
       content: JSON.stringify(todoData),
       url: ''
     })
@@ -87,9 +71,11 @@ export function ControlTodo() {
 
     handleRecordComplete(router)
 
-    setTitle('')
-    setDescription('')
-    setPriority('medium')
+    setFormData({
+      title: '',
+      description: '',
+      priority: 'medium'
+    })
     setOpen(false)
   }
 
@@ -115,77 +101,16 @@ export function ControlTodo() {
     }
   }, [open, currentTagId])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSuccess()
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-    }
-  }
-
   const formContent = (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="todo-tag">{t('record.mark.todo.selectTag')}</Label>
-        <Select value={String(selectedTagId)} onValueChange={(value) => setSelectedTagId(Number(value))}>
-          <SelectTrigger className="mt-1.5">
-            <SelectValue placeholder={t('record.mark.todo.selectTag')} />
-          </SelectTrigger>
-          <SelectContent>
-            {tags.map((tag) => (
-              <SelectItem key={tag.id} value={String(tag.id)}>
-                <div className="flex items-center gap-2">
-                  <span className="truncate">{tag.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <Label htmlFor="todo-title">{t('record.mark.todo.title')} *</Label>
-        <Input
-          id="todo-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t('record.mark.todo.titlePlaceholder')}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          className="mt-1.5"
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="todo-description">{t('record.mark.todo.description')}</Label>
-        <Textarea
-          id="todo-description"
-          rows={3}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={t('record.mark.todo.descriptionPlaceholder')}
-          className="mt-1.5"
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="todo-priority">{t('record.mark.todo.priority')}</Label>
-        <Tabs value={priority} onValueChange={(value) => setPriority(value as Priority)} className="mt-1.5">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="low" className="data-[state=active]:bg-green-800 data-[state=active]:text-white">
-              {t('record.mark.todo.priorityLow')}
-            </TabsTrigger>
-            <TabsTrigger value="medium" className="data-[state=active]:bg-orange-700 data-[state=active]:text-white">
-              {t('record.mark.todo.priorityMedium')}
-            </TabsTrigger>
-            <TabsTrigger value="high" className="data-[state=active]:bg-red-900 data-[state=active]:text-white">
-              {t('record.mark.todo.priorityHigh')}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-    </div>
+    <TodoForm
+      mode="create"
+      data={formData}
+      onChange={setFormData}
+      selectedTagId={selectedTagId}
+      onTagChange={setSelectedTagId}
+      tags={tags}
+      showTagSelector={true}
+    />
   )
 
   return (
@@ -209,7 +134,7 @@ export function ControlTodo() {
               <Button
                 type="submit"
                 onClick={handleSuccess}
-                disabled={!title.trim()}
+                disabled={!formData.title.trim()}
                 className="w-full"
               >
                 {t('record.mark.todo.save')}
@@ -234,7 +159,7 @@ export function ControlTodo() {
               <Button
                 type="submit"
                 onClick={handleSuccess}
-                disabled={!title.trim()}
+                disabled={!formData.title.trim()}
               >
                 {t('record.mark.todo.save')}
               </Button>

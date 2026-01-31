@@ -346,17 +346,53 @@ export const searchMarkdownFilesTool: Tool = {
   },
 }
 
+/**
+ * 替换文本中的指定行范围
+ * @param content 原始内容
+ * @param startLine 起始行号（从 1 开始）
+ * @param endLine 结束行号（从 1 开始，包含该行）
+ * @param newLines 新的行内容数组
+ * @returns 修改后的内容
+ */
+function replaceLinesInRange(
+  content: string,
+  startLine: number,
+  endLine: number,
+  newLines: string[]
+): string {
+  const lines = content.split('\n')
+  // 将行号转换为数组索引（从 0 开始）
+  const startIndex = startLine - 1
+  const endIndex = endLine - 1
+
+  // 验证行号范围
+  if (startIndex < 0 || endIndex >= lines.length || startIndex > endIndex) {
+    throw new Error(`无效的行号范围: ${startLine}-${endLine}，文件共 ${lines.length} 行`)
+  }
+
+  // 替换指定行
+  const before = lines.slice(0, startIndex)
+  const after = lines.slice(endIndex + 1)
+  return [...before, ...newLines, ...after].join('\n')
+}
+
 export const modifyCurrentNoteTool: Tool = {
   name: 'modify_current_note',
-  description: '修改当前打开的笔记内容。使用前提：必须先用 read_markdown_file 读取当前笔记的内容，了解现有内容后再调用此工具进行修改。此工具会自动获取当前打开的笔记路径，无需指定文件名。',
+  description: '修改当前打开的笔记内容。使用前提：必须先用 read_markdown_file 读取当前笔记的内容，了解现有内容后再调用此工具进行修改。此工具会自动获取当前打开的笔记路径，无需指定文件名。推荐使用按行修改模式（lineEdits），速度更快且更精确。',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
+      name: 'lineEdits',
+      type: 'array',
+      description: '按行修改的编辑操作数组。每个编辑操作包含：startLine（起始行号，从1开始）、endLine（结束行号，包含该行）、newLines（新的行内容数组）。这种方式比输出完整内容更快更精确。示例：[{ "startLine": 5, "endLine": 5, "newLines": ["新的第5行内容"] }]',
+      required: false,
+    },
+    {
       name: 'content',
       type: 'string',
-      description: '修改后的完整笔记内容（Markdown 格式）。必须基于已读取的原内容进行修改，不能凭空生成。',
-      required: true,
+      description: '修改后的完整笔记内容（Markdown 格式）。仅在不使用 lineEdits 时使用。必须基于已读取的原内容进行修改，不能凭空生成。',
+      required: false,
     },
   ],
   execute: async (params): Promise<ToolResult> => {
@@ -371,10 +407,63 @@ export const modifyCurrentNoteTool: Tool = {
         }
       }
 
+      // 优先使用 lineEdits（按行修改）
+      if (params.lineEdits && Array.isArray(params.lineEdits) && params.lineEdits.length > 0) {
+        // 读取当前文件内容
+        const { path, baseDir } = await getFilePathOptions(currentFilePath)
+        let currentContent = ''
+        if (baseDir) {
+          currentContent = await readTextFile(path, { baseDir })
+        } else {
+          currentContent = await readTextFile(path)
+        }
+
+        let modifiedContent = currentContent
+
+        // 应用所有编辑操作（从后往前应用，避免行号偏移）
+        const sortedEdits = [...params.lineEdits].sort((a, b) => b.startLine - a.startLine)
+
+        for (const edit of sortedEdits) {
+          if (!edit.startLine || !edit.endLine || !edit.newLines) {
+            return {
+              success: false,
+              error: 'lineEdits 中的每个编辑操作必须包含 startLine、endLine 和 newLines 字段',
+            }
+          }
+          modifiedContent = replaceLinesInRange(
+            modifiedContent,
+            edit.startLine as number,
+            edit.endLine as number,
+            edit.newLines as string[]
+          )
+        }
+
+        // 写入修改后的内容
+        if (baseDir) {
+          await writeTextFile(path, modifiedContent, { baseDir })
+        } else {
+          await writeTextFile(path, modifiedContent)
+        }
+
+        // 通知编辑器内容已从外部更新
+        const emitter = (await import('@/lib/emitter')).default
+        emitter.emit('external-content-update', modifiedContent)
+
+        return {
+          success: true,
+          data: {
+            filePath: currentFilePath,
+            editCount: params.lineEdits.length,
+          },
+          message: `成功修改当前笔记 ${params.lineEdits.length} 处: ${currentFilePath}`,
+        }
+      }
+
+      // 兼容原有的 content 模式（完整替换）
       if (!params.content || typeof params.content !== 'string') {
         return {
           success: false,
-          error: '缺少必需参数 content 或参数类型错误',
+          error: '缺少必需参数，请提供 lineEdits 或 content',
         }
       }
 

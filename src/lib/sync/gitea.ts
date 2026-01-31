@@ -15,16 +15,18 @@ import {
   GiteaFileContent
 } from './gitea.types';
 
-// 获取 Gitea 实例的 API 基础 URL 
+// 获取 Gitea 实例的 API 基础 URL
 async function getGiteaApiBaseUrl(): Promise<string> {
   const store = await Store.load('store.json');
   const instanceType = await store.get<GiteaInstanceType>('giteaInstanceType') || GiteaInstanceType.OFFICIAL;
-  
+
   if (instanceType === GiteaInstanceType.SELF_HOSTED) {
-    const customUrl = await store.get<string>('giteaCustomUrl') || '';
+    let customUrl = await store.get<string>('giteaCustomUrl') || '';
+    // 移除末尾的斜杠，避免双斜杠问题
+    customUrl = customUrl.replace(/\/+$/, '');
     return `${customUrl}/api/v1`;
   }
-  
+
   const instance = GITEA_INSTANCES[instanceType];
   return `${instance.baseUrl}/api/v1`;
 }
@@ -110,6 +112,7 @@ export async function uploadFile({
     }
 
     const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${_path}`;
+    // Gitea API: POST 创建新文件，PUT 更新现有文件
     const method = sha ? 'PUT' : 'POST';
 
     const response = await fetch(url, {
@@ -153,16 +156,18 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const giteaUsername = await store.get<string>('giteaUsername');
-    
+
     if (!giteaUsername) {
-      throw new Error('用户名未配置');
+      return null;
     }
 
     const baseUrl = await getGiteaApiBaseUrl();
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${path}`;
+    // 对路径进行 URL 编码，处理特殊字符
+    const encodedPath = path.replace(/\s/g, '_').split('/').map(encodeURIComponent).join('/');
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -172,7 +177,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
 
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
-      
+
       // 如果是单个文件，返回文件信息（包含 content）
       if (!Array.isArray(data)) {
         return {
@@ -183,7 +188,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
           content: data.content || '', // 文件内容（base64）
         };
       }
-      
+
       // 如果是目录，返回文件列表
       return data.map((item: GiteaDirectoryItem) => {
         return {
@@ -195,24 +200,17 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
       })
     }
 
+    // 文件或目录不存在，返回 null
     if (response.status >= 400 && response.status < 500) {
       return null
     }
 
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '获取文件列表失败'
-    } as GiteaError;
+    return null;
 
   } catch (error) {
     console.error('Gitea 获取文件列表失败:', error);
-    toast({
-      title: '获取文件列表失败',
-      description: (error as GiteaError).message || '获取文件列表时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    // 静默处理错误，返回 null
+    return null;
   }
 }
 

@@ -1,94 +1,150 @@
 import { Button } from "@/components/ui/button";
 import useArticleStore from "@/stores/article";
 import useVectorStore from "@/stores/vector";
-import { Database, DatabaseZap, Loader2 } from "lucide-react";
+import {
+  Cylinder,
+  Database,
+  Loader2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export default function VectorCalc() {
-  const { 
-    vectorCalcProgress, 
-    isVectorCalculating, 
-    executeVectorCalculation,
-    pendingVectorContent 
-  } = useArticleStore()
-  const { isVectorDbEnabled } = useVectorStore()
-  const t = useTranslations('article.footer.vectorCalc')
-  const [displayProgress, setDisplayProgress] = useState(0)
+  const {
+    isVectorCalculating,
+    triggerVectorCalculation,
+    activeFilePath,
+    vectorIndexedFiles,
+    lastEditTime,
+  } = useArticleStore();
+  const { isVectorDbEnabled } = useVectorStore();
+  const t = useTranslations("article.footer.vectorCalc");
+  const [progressPercentage, setProgressPercentage] = useState(0);
 
-  // 平滑更新进度显示
+  // 获取当前文件名
+  const currentFilename = activeFilePath?.split("/").pop() || "";
+  const isIndexed = currentFilename && vectorIndexedFiles.has(currentFilename);
+
+  // 获取向量状态
+  const getVectorStatus = () => {
+    if (isVectorCalculating) return "calculating";
+    if (lastEditTime > 0) return "pending";
+    if (isIndexed) return "indexed";
+    return "none";
+  };
+
+  const vectorStatus = getVectorStatus();
+
+  // 进度动画效果
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDisplayProgress(prev => {
-        const diff = vectorCalcProgress - prev
-        if (Math.abs(diff) < 0.1) return vectorCalcProgress
-        return prev + diff * 0.1
-      })
-    }, 16) // 60fps
-
-    return () => clearInterval(interval)
-  }, [vectorCalcProgress])
-
-  // 如果向量数据库未启用，不显示按钮
-  if (!isVectorDbEnabled) {
-    return null
-  }
-
-  // 计算背景色（根据进度从透明到主题色）
-  const getBackgroundStyle = () => {
-    const opacity = Math.min(displayProgress / 100, 1)
-    return {
-      background: `linear-gradient(to right, hsl(var(--primary) / ${opacity * 0.2}) ${displayProgress}%, transparent ${displayProgress}%)`
+    // 计算结束后清除进度
+    if (isVectorCalculating || vectorStatus === "indexed" || vectorStatus === "none") {
+      setProgressPercentage(0);
+      return;
     }
-  }
 
+    if (vectorStatus === "pending" && lastEditTime > 0) {
+      // 计算距离上次编辑的时间（5秒后自动计算）
+      const elapsed = Date.now() - lastEditTime;
+
+      // 如果已经超过5秒，不显示进度条
+      if (elapsed >= 5000) {
+        setProgressPercentage(0);
+        return;
+      }
+
+      const currentProgress = (elapsed / 5000) * 100;
+      setProgressPercentage(currentProgress);
+
+      // 每隔100ms更新一次进度
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - lastEditTime;
+
+        // 超过5秒后清除进度
+        if (elapsed >= 5000) {
+          setProgressPercentage(0);
+          clearInterval(interval);
+          return;
+        }
+
+        const progress = (elapsed / 5000) * 100;
+        setProgressPercentage(progress > 100 ? 100 : progress);
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [vectorStatus, lastEditTime, isVectorCalculating]);
+
+  // 处理点击 - 任何状态都可以点击开始计算
   const handleClick = () => {
-    if (!isVectorCalculating && pendingVectorContent) {
-      executeVectorCalculation()
+    if (!isVectorCalculating) {
+      triggerVectorCalculation();
     }
-  }
+  };
 
   // 根据状态选择图标
   const getIcon = () => {
-    if (isVectorCalculating) {
-      // 计算中：旋转的加载图标
-      return <Loader2 className="!size-3.5 animate-spin" />
-    } else if (pendingVectorContent) {
-      // 待计算：带闪电的数据库图标
-      return <DatabaseZap className="!size-3.5" />
-    } else {
-      // 已计算：普通数据库图标
-      return <Database className="!size-3.5" />
+    switch (vectorStatus) {
+      case "calculating":
+        return <Loader2 className="size-3.5! animate-spin text-primary relative z-10" />;
+      case "pending":
+        return <Database className="size-3.5! relative z-10" />;
+      case "indexed":
+        return <Database className="size-3.5! relative z-10" />;
+      default:
+        return <Cylinder className="size-3.5! text-muted-foreground relative z-10" />;
     }
-  }
+  };
 
-  // 根据状态生成tooltip文本
-  const getTooltipText = () => {
+  // 获取显示文本
+  const getDisplayText = () => {
     if (isVectorCalculating) {
-      return t('calculating')
-    } else if (pendingVectorContent) {
-      return t('pending', { progress: Math.round(displayProgress) })
-    } else {
-      return t('synced')
+      return t("status.calculating");
     }
+    return null;
+  };
+
+  // 获取提示文本
+  const getTooltipText = () => {
+    switch (vectorStatus) {
+      case "none":
+        return t("tooltip.none");
+      case "indexed":
+        return t("tooltip.indexed");
+      case "pending":
+        return t("tooltip.pending");
+      case "calculating":
+        return t("tooltip.calculating");
+      default:
+        return t("tooltip.default");
+    }
+  };
+
+  const displayText = getDisplayText();
+
+  // 如果向量数据库未启用，不显示按钮
+  if (!isVectorDbEnabled) {
+    return null;
   }
 
   return (
     <Button
       variant="ghost"
       size="sm"
-      className="h-5 px-1 text-xs relative overflow-hidden"
+      className="relative outline-none overflow-hidden h-5 px-1.5 text-xs gap-1"
       onClick={handleClick}
-      disabled={isVectorCalculating || !pendingVectorContent}
-      title={`${t('tooltip')} - ${getTooltipText()}`}
+      disabled={isVectorCalculating}
+      title={getTooltipText()}
     >
-      <div 
-        className="absolute inset-0 transition-all duration-100"
-        style={getBackgroundStyle()}
-      />
-      <div className="relative flex items-center">
-        {getIcon()}
-      </div>
+      {/* 进度条背景 */}
+      {progressPercentage > 0 && (
+        <div
+          className="absolute inset-0 bg-primary/20 transition-all duration-100 z-0"
+          style={{ width: `${progressPercentage}%` }}
+        />
+      )}
+      {getIcon()}
+      {displayText && <span className="text-xs relative z-10">{displayText}</span>}
     </Button>
-  )
+  );
 }

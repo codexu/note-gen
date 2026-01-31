@@ -44,7 +44,6 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       
       // 过滤掉不应同步的字段
       const syncableSettings = filterSyncData(allSettings)
-      console.log(syncableSettings)
       
       // 转换为 JSON 字符串
       const content = JSON.stringify(syncableSettings, null, 2)

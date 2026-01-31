@@ -236,30 +236,34 @@ export function SyncToggle() {
   }
 
   return (
-    <Tooltip>
-      <DropdownMenu onOpenChange={(open) => {
+    <DropdownMenu onOpenChange={(open) => {
         if (!open) {
           setTimeout(() => {
             (document.activeElement as HTMLElement)?.blur()
           }, 0)
         }
       }}>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              disabled={syncing}
-            >
-              {syncing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CloudSync className="h-4 w-4" />
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={syncing}
+              >
+                {syncing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CloudSync className="h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>{t('common.sync')}</p>
+          </TooltipContent>
+        </Tooltip>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={uploadAll}>
             <UploadCloud className="mr-2 h-4 w-4" />
@@ -271,9 +275,5 @@ export function SyncToggle() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <TooltipContent side="bottom">
-        <p>{t('common.sync')}</p>
-      </TooltipContent>
-    </Tooltip>
   )
 }

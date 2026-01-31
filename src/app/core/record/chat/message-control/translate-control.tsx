@@ -2,7 +2,7 @@ import { Chat } from "@/db/chats"
 import { GlobeIcon, Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
-import { fetchAiTranslate } from "@/lib/ai"
+import { fetchAiTranslate } from "@/lib/ai/translate"
 import {
   DropdownMenu,
   DropdownMenuContent,

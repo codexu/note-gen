@@ -1,5 +1,5 @@
 import { Tool, ToolResult } from '../types'
-import { getMarks, insertMark, updateMark, delMark, restoreMark, Mark } from '@/db/marks'
+import { getMarks, insertMark, updateMark, delMark, restoreMark, Mark, insertMarks, updateMarks, deleteMarks, restoreMarks } from '@/db/marks'
 
 export const readMarksTool: Tool = {
   name: 'read_marks',
@@ -267,6 +267,179 @@ export const searchMarksTool: Tool = {
   },
 }
 
+export const createMarksBatchTool: Tool = {
+  name: 'create_marks_batch',
+  description: '批量创建多条记录（marks），避免循环调用。适用于需要一次性创建多条记录的场景。',
+  category: 'mark',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'marks',
+      type: 'array',
+      description: '要创建的记录数组，每个记录包含 tagId, type, content, url, desc 等字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.marks) || params.marks.length === 0) {
+        return {
+          success: false,
+          error: '参数 marks 必须是非空数组',
+        }
+      }
+
+      const marksToInsert: Partial<Mark>[] = params.marks.map((mark: any) => ({
+        tagId: mark.tagId,
+        type: mark.type as 'scan' | 'text' | 'image' | 'link' | 'file' | 'recording',
+        content: mark.content,
+        url: mark.url || '',
+        desc: mark.desc,
+        createdAt: Date.now(),
+        deleted: 0,
+      }))
+
+      await insertMarks(marksToInsert)
+      
+      return {
+        success: true,
+        data: { count: marksToInsert.length },
+        message: `成功批量创建 ${marksToInsert.length} 条记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量创建记录失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const updateMarksBatchTool: Tool = {
+  name: 'update_marks_batch',
+  description: '批量更新多条记录，避免循环调用。每条记录必须包含 id 字段。',
+  category: 'mark',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'marks',
+      type: 'array',
+      description: '要更新的记录数组，每个记录必须包含 id 以及要更新的字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.marks) || params.marks.length === 0) {
+        return {
+          success: false,
+          error: '参数 marks 必须是非空数组',
+        }
+      }
+
+      const marksToUpdate: Mark[] = params.marks.map((mark: any) => ({
+        id: mark.id,
+        tagId: mark.tagId,
+        type: mark.type,
+        content: mark.content,
+        url: mark.url,
+        desc: mark.desc,
+        deleted: mark.deleted ?? 0,
+        createdAt: mark.createdAt || Date.now(),
+      }))
+
+      await updateMarks(marksToUpdate)
+      
+      return {
+        success: true,
+        data: { count: marksToUpdate.length },
+        message: `成功批量更新 ${marksToUpdate.length} 条记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量更新记录失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const deleteMarksBatchTool: Tool = {
+  name: 'delete_marks_batch',
+  description: '批量删除多条记录（软删除，可恢复），避免循环调用。',
+  category: 'mark',
+  requiresConfirmation: true,
+  parameters: [
+    {
+      name: 'ids',
+      type: 'array',
+      description: '要删除的记录ID数组',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.ids) || params.ids.length === 0) {
+        return {
+          success: false,
+          error: '参数 ids 必须是非空数组',
+        }
+      }
+
+      await deleteMarks(params.ids)
+      
+      return {
+        success: true,
+        data: { count: params.ids.length },
+        message: `成功批量删除 ${params.ids.length} 条记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量删除记录失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const restoreMarksBatchTool: Tool = {
+  name: 'restore_marks_batch',
+  description: '批量恢复已删除的记录，避免循环调用。',
+  category: 'mark',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'ids',
+      type: 'array',
+      description: '要恢复的记录ID数组',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.ids) || params.ids.length === 0) {
+        return {
+          success: false,
+          error: '参数 ids 必须是非空数组',
+        }
+      }
+
+      await restoreMarks(params.ids)
+      
+      return {
+        success: true,
+        data: { count: params.ids.length },
+        message: `成功批量恢复 ${params.ids.length} 条记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量恢复记录失败: ${error}`,
+      }
+    }
+  },
+}
+
 export const markTools: Tool[] = [
   readMarksTool,
   createMarkTool,
@@ -274,4 +447,8 @@ export const markTools: Tool[] = [
   deleteMarkTool,
   restoreMarkTool,
   searchMarksTool,
+  createMarksBatchTool,
+  updateMarksBatchTool,
+  deleteMarksBatchTool,
+  restoreMarksBatchTool,
 ]

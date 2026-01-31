@@ -11,19 +11,19 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
   // 查询本地存储
   const store = await Store.load('store.json')
   const workspacePath = await store.get<string>('workspacePath')
-  
+
   // 如果设置了自定义工作区路径，则使用自定义路径
   if (workspacePath) {
-    return { 
+    return {
       path: workspacePath,
-      isCustom: true 
+      isCustom: true
     }
   }
-  
+
   // 否则使用默认路径
-  return { 
-    path: 'article', 
-    isCustom: false 
+  return {
+    path: 'article',
+    isCustom: false
   }
 }
 
@@ -34,16 +34,17 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
  */
 export async function getFilePathOptions(relativePath: string): Promise<{ path: string, baseDir?: BaseDirectory }> {
   const workspace = await getWorkspacePath()
-  
+
   if (workspace.isCustom) {
     // 对于自定义工作区，返回绝对路径，不设置baseDir
     const fullPath = await join(workspace.path, relativePath)
     return { path: fullPath }
   } else {
     // 对于默认工作区，使用AppData作为baseDir
-    return { 
-      path: `article/${relativePath}`, 
-      baseDir: BaseDirectory.AppData 
+    const resolvedPath = `article/${relativePath}`
+    return {
+      path: resolvedPath,
+      baseDir: BaseDirectory.AppData
     }
   }
 }

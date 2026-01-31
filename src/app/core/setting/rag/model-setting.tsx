@@ -25,7 +25,7 @@ export function ModelSetting() {
     <ItemGroup className="gap-4">
       {
         modelOptions.map((option) => (
-          <Item key={option.modelKey} variant="outline">
+          <Item key={option.modelKey} className='max-md:flex-col max-md:items-start' variant="outline">
             <ItemMedia variant="icon">{option.icon}</ItemMedia>
             <ItemContent>
               <ItemTitle>{option.title}</ItemTitle>

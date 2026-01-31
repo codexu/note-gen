@@ -1,6 +1,5 @@
 'use client'
 
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,16 +23,15 @@ export function MobileActionMenu({ children, className }: MobileActionMenuProps)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`h-6 w-6 p-0 hover:bg-muted ${className}`}
+        <div
+          className={`h-6 w-6 p-0 hover:bg-muted rounded flex items-center justify-center cursor-pointer ${className}`}
           onClick={(e) => {
             e.stopPropagation()
+            e.preventDefault()
           }}
         >
           <MoreVertical className="h-4 w-4" />
-        </Button>
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         {children}

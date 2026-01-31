@@ -22,9 +22,6 @@ export function CopyControl({ chat, translatedContent }: CopyControlProps) {
       // 使用翻译后的内容或原始内容
       let textToCopy = translatedContent || chat.content
       
-      // 移除 <thinking> 标签及其内容
-      textToCopy = textToCopy.replace(/<thinking[^>]*>[\s\S]*?<thinking>/gi, '')
-      
       // 清理多余的空白字符
       textToCopy = textToCopy.trim()
       

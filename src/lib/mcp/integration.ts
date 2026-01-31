@@ -25,13 +25,9 @@ export class MCPIntegration {
    */
   async initialize(): Promise<void> {
     const store = useMcpStore.getState()
-    
-    if (!store.enabled) {
-      return
-    }
-    
+
     const enabledServers = store.servers.filter(s => s.enabled)
-    
+
     for (const server of enabledServers) {
       try {
         await mcpServerManager.connectServer(server)

@@ -5,7 +5,10 @@ import { ThemeSettings } from './theme'
 import { LanguageSettings } from './language'
 import { ScaleSettings } from './scale'
 import { ContentTextScaleSettings } from './content-text-scale'
-import { CustomCssSettings } from './custom-css'
+import { FileManagerTextSizeSettings } from './file-manager-text-size'
+import { RecordTextSizeSettings } from './record-text-size'
+import { CustomThemeSettings } from './custom-theme'
+import { TraySettings } from './tray-settings'
 
 export function InterfaceSettings() {
   const t = useTranslations('settings.general.interface')
@@ -17,7 +20,10 @@ export function InterfaceSettings() {
       <LanguageSettings />
       <ScaleSettings />
       <ContentTextScaleSettings />
-      <CustomCssSettings />
+      <FileManagerTextSizeSettings />
+      <RecordTextSizeSettings />
+      <CustomThemeSettings />
+      <TraySettings />
     </div>
   )
 }

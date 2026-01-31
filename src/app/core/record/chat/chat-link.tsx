@@ -18,7 +18,6 @@ export function ChatLink() {
         tooltipText={isLinkMark ? `${t('on')} ${currentTag?.name}(${marks.length})` : t('off')}
         size="icon"
         side="bottom"
-        disabled={marks.length === 0}
         onClick={() => setIsLinkMark(!isLinkMark)}
       />
     </div>

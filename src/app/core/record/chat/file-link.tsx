@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { AtSign, X } from "lucide-react"
-import { MarkdownFile } from "@/lib/files"
+import { AtSign, X, FolderOpen } from "lucide-react"
+import { LinkedResource, isLinkedFolder } from "@/lib/files"
 import { TooltipButton } from "@/components/tooltip-button"
 import { useTranslations } from 'next-intl'
 
@@ -28,27 +28,37 @@ export function FileLink({ onFileLinkClick, disabled = false }: FileLinkProps) {
   )
 }
 
-// 独立的关联文件显示组件
-interface LinkedFileDisplayProps {
-  linkedFile: MarkdownFile | null
+// 独立的关联资源显示组件
+interface LinkedResourceDisplayProps {
+  linkedResource: LinkedResource | null
   onFileRemove: () => void
 }
 
-export function LinkedFileDisplay({ linkedFile, onFileRemove }: LinkedFileDisplayProps) {
-  if (!linkedFile) return null
+export function LinkedFileDisplay({ linkedResource, onFileRemove }: LinkedResourceDisplayProps) {
+  if (!linkedResource) return null
+
+  const isFolder = isLinkedFolder(linkedResource)
 
   return (
-    <div className="flex items-center justify-between bg-accent/50 rounded-md px-2 py-1 text-sm">
-      <div className="flex items-center gap-2">
-        <AtSign className="size-3" />
-        <span className="font-medium">{linkedFile.name}</span>
-        <span className="text-xs text-muted-foreground">({linkedFile.relativePath})</span>
+    <div className="flex items-center justify-between bg-third rounded-xl rounded-b-none px-2 text-sm border-t border-l border-r w-full pb-2 translate-y-2">
+      <div className="flex items-center gap-2 opacity-50">
+        {isFolder ? (
+          <FolderOpen className="size-3" />
+        ) : (
+          <AtSign className="size-3" />
+        )}
+        <span className="font-medium text-xs">{linkedResource.name}</span>
+        {isFolder && (
+          <span className="text-xs opacity-70">
+            ({(linkedResource as any).indexedCount}/{(linkedResource as any).fileCount})
+          </span>
+        )}
       </div>
       <Button
         variant="ghost"
         size="sm"
         onClick={onFileRemove}
-        className="size-6 p-0"
+        className="size-6 p-0 opacity-50"
       >
         <X className="size-3" />
       </Button>

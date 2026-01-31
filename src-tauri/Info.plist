@@ -9,5 +9,11 @@
     </dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>NoteGen 需要访问麦克风以支持语音录音和语音转文字功能。</string>
-</dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>NoteGen 需要访问相册以支持图片上传和图片记录功能。</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>NoteGen 需要保存图片到相册。</string>
+    <key>NSCameraUsageDescription</key>
+    <string>NoteGen 需要访问相机以支持拍照和图片记录功能。</string>
+    </dict>
 </plist>

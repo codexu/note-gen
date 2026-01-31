@@ -1,8 +1,9 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { cloneDeep } from "lodash-es";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
+import { FilePlus } from "lucide-react"
 
 interface NewFileProps {
   item: DirTree;
@@ -54,11 +55,13 @@ export function NewFile({ item }: NewFileProps) {
   }
 
   return (
-    <ContextMenuItem 
-      inset 
-      disabled={!!item.sha && !item.isLocale} 
+    <ContextMenuItem
+      inset
+      disabled={!!item.sha && !item.isLocale}
       onClick={newFileHandler}
+      menuType="file"
     >
+      <FilePlus className="mr-2 h-4 w-4" />
       {t('context.newFile')}
     </ContextMenuItem>
   );

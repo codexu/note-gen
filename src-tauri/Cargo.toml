@@ -37,7 +37,6 @@ url = "2.5"
 reqwest_dav = "=0.2.1"
 tauri-plugin-opener = "2.4.0"
 uuid = { version = "1.10", features = ["v4"] }
-dirs = "5.0"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
@@ -53,6 +52,10 @@ reqwest_dav = "=0.2.1"
 tauri-plugin-process = "=2.0.0"
 jieba-rs = { version = "0.7", features = ["textrank"] }
 machine-uid = "0.5"
+regex = "1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }

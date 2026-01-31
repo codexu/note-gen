@@ -1,46 +1,91 @@
 'use client'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Files, Highlighter } from "lucide-react"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Files, Highlighter, ListTree } from "lucide-react"
 import { FileSidebar } from "../article/file"
 import { NoteSidebar } from "../record/mark"
+import { OutlineSidebar } from "./outline-sidebar"
 import { FileActions } from "../article/file/file-actions"
 import { MarkActions } from "../record/mark/mark-actions"
 import { useTranslations } from "next-intl"
 import { useSidebarStore } from "@/stores/sidebar"
+import { ExpandableTabs } from "@/components/ui/expandable-tabs"
+import { AnimatePresence, motion } from "framer-motion"
+
+const SIDEBAR_TABS = [
+  { title: "files", icon: Files },
+  { title: "notes", icon: Highlighter },
+  { title: "outline", icon: ListTree },
+] as const
 
 export function LeftSidebar() {
   const { leftSidebarTab, setLeftSidebarTab } = useSidebarStore()
   const t = useTranslations()
 
-  const handleTabChange = (value: string) => {
-    if (value === 'files' || value === 'notes') {
-      setLeftSidebarTab(value)
+  const handleTabChange = (index: number | null) => {
+    if (index !== null) {
+      setLeftSidebarTab(SIDEBAR_TABS[index].title)
     }
   }
 
+  const getSelectedIndex = () => {
+    return SIDEBAR_TABS.findIndex(tab => tab.title === leftSidebarTab)
+  }
+
+  // Prepare tabs with translated titles
+  const tabs = SIDEBAR_TABS.map(tab => ({
+    ...tab,
+    title: t(`navigation.${
+      tab.title === 'notes' ? 'record' :
+      tab.title === 'outline' ? 'outline' :
+      tab.title
+    }`),
+  }))
+
   return (
     <div className="w-full h-full flex flex-col">
-      <Tabs value={leftSidebarTab} onValueChange={handleTabChange} className="w-full h-full flex flex-col">
+      <Tabs value={leftSidebarTab} className="w-full h-full flex flex-col">
         <div className="w-full h-12 border-b flex items-center justify-between px-2">
-          <TabsList>
-            <TabsTrigger value="files" className="gap-2">
-              <Files className="h-4 w-4" />
-              <span>{t('navigation.files')}</span>
-            </TabsTrigger>
-            <TabsTrigger value="notes" className="gap-2">
-              <Highlighter className="h-4 w-4" />
-              <span>{t('navigation.record')}</span>
-            </TabsTrigger>
-          </TabsList>
-          {leftSidebarTab === "files" && <FileActions />}
-          {leftSidebarTab === "notes" && <MarkActions />}
+          <ExpandableTabs
+            tabs={tabs}
+            onChange={handleTabChange}
+            selected={getSelectedIndex()}
+          />
+          <div className="relative">
+            <AnimatePresence mode="wait">
+              {leftSidebarTab === "files" && (
+                <motion.div
+                  key="files-actions"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <FileActions />
+                </motion.div>
+              )}
+              {leftSidebarTab === "notes" && (
+                <motion.div
+                  key="notes-actions"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <MarkActions />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
         <TabsContent value="files" className="flex-1 m-0 overflow-hidden">
           <FileSidebar />
         </TabsContent>
         <TabsContent value="notes" className="flex-1 m-0 overflow-hidden">
           <NoteSidebar />
+        </TabsContent>
+        <TabsContent value="outline" className="flex-1 m-0 overflow-hidden">
+          <OutlineSidebar />
         </TabsContent>
       </Tabs>
     </div>

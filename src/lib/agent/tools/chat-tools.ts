@@ -1,5 +1,5 @@
 import { Tool, ToolResult } from '../types'
-import { getChats, insertChat, updateChat, deleteChat, clearChatsByTagId, Chat } from '@/db/chats'
+import { getChats, insertChat, updateChat, deleteChat, clearChatsByTagId, Chat, insertChats, updateChats, deleteChats } from '@/db/chats'
 
 export const readChatsTool: Tool = {
   name: 'read_chats',
@@ -242,6 +242,146 @@ export const searchChatsTool: Tool = {
   },
 }
 
+export const createChatsBatchTool: Tool = {
+  name: 'create_chats_batch',
+  description: '批量创建多条对话记录，避免循环调用。适用于需要一次性创建多条对话的场景。',
+  category: 'chat',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'chats',
+      type: 'array',
+      description: '要创建的对话记录数组，每条记录包含 tagId, content, role, type 等字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.chats) || params.chats.length === 0) {
+        return {
+          success: false,
+          error: '参数 chats 必须是非空数组',
+        }
+      }
+
+      const chatsToInsert: Chat[] = params.chats.map((chat: any) => ({
+        id: 0,
+        tagId: chat.tagId,
+        content: chat.content,
+        role: chat.role as 'system' | 'user',
+        type: (chat.type || 'chat') as 'chat' | 'note' | 'clipboard' | 'clear',
+        inserted: false,
+        createdAt: Date.now(),
+      }))
+
+      await insertChats(chatsToInsert)
+      
+      return {
+        success: true,
+        data: { count: chatsToInsert.length },
+        message: `成功批量创建 ${chatsToInsert.length} 条对话记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量创建对话记录失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const updateChatsBatchTool: Tool = {
+  name: 'update_chats_batch',
+  description: '批量更新多条对话记录，避免循环调用。每条记录必须包含 id 字段。',
+  category: 'chat',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'chats',
+      type: 'array',
+      description: '要更新的对话记录数组，每条记录必须包含 id 以及要更新的字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.chats) || params.chats.length === 0) {
+        return {
+          success: false,
+          error: '参数 chats 必须是非空数组',
+        }
+      }
+
+      const chatsToUpdate: Chat[] = params.chats.map((chat: any) => ({
+        id: chat.id,
+        tagId: chat.tagId,
+        content: chat.content,
+        role: chat.role,
+        type: chat.type,
+        inserted: chat.inserted ?? false,
+        createdAt: chat.createdAt || Date.now(),
+        image: chat.image,
+        images: chat.images,
+        ragSources: chat.ragSources,
+        agentHistory: chat.agentHistory,
+        thinking: chat.thinking,
+        quoteData: chat.quoteData,
+      }))
+
+      await updateChats(chatsToUpdate)
+      
+      return {
+        success: true,
+        data: { count: chatsToUpdate.length },
+        message: `成功批量更新 ${chatsToUpdate.length} 条对话记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量更新对话记录失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const deleteChatsBatchTool: Tool = {
+  name: 'delete_chats_batch',
+  description: '批量删除多条对话记录，避免循环调用。',
+  category: 'chat',
+  requiresConfirmation: true,
+  parameters: [
+    {
+      name: 'ids',
+      type: 'array',
+      description: '要删除的对话记录ID数组',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.ids) || params.ids.length === 0) {
+        return {
+          success: false,
+          error: '参数 ids 必须是非空数组',
+        }
+      }
+
+      await deleteChats(params.ids)
+      
+      return {
+        success: true,
+        data: { count: params.ids.length },
+        message: `成功批量删除 ${params.ids.length} 条对话记录`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量删除对话记录失败: ${error}`,
+      }
+    }
+  },
+}
+
 export const chatTools: Tool[] = [
   readChatsTool,
   createChatTool,
@@ -249,4 +389,7 @@ export const chatTools: Tool[] = [
   deleteChatTool,
   clearChatsTool,
   searchChatsTool,
+  createChatsBatchTool,
+  updateChatsBatchTool,
+  deleteChatsBatchTool,
 ]

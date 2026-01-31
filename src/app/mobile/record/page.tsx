@@ -1,5 +1,5 @@
 'use client'
-import { MarkHeader } from '@/app/core/record/mark/mark-header'
+import { MobileMarkHeader } from './mobile-mark-header'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { TagManage } from '@/app/core/record/mark/tag-manage'
@@ -11,7 +11,7 @@ import { confirm } from '@tauri-apps/plugin-dialog'
 export default function Record() {
   const t = useTranslations()
   const { trashState, marks, setMarks } = useMarkStore()
-  
+
   async function handleClearTrash() {
     const res = await confirm(t('record.trash.confirm'), {
       title: t('record.trash.title'),
@@ -22,10 +22,10 @@ export default function Record() {
       setMarks([])
     }
   }
-  
+
   return (
     <div id="mobile-record" className="flex flex-col h-full w-full bg-background">
-      <MarkHeader />
+      <MobileMarkHeader />
       {trashState ? (
         <>
           <div className="flex p-3 border-b items-center justify-between bg-muted/50">

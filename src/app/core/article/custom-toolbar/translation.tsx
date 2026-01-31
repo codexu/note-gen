@@ -1,5 +1,5 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { fetchAiTranslate } from "@/lib/ai";
+import { fetchAiTranslate } from "@/lib/ai/translate";
 import { useEffect, useState } from "react";
 import emitter from "@/lib/emitter";
 import { Languages } from "lucide-react";

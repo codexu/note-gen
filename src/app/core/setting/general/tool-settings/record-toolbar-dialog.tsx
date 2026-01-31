@@ -5,13 +5,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Switch } from '@/components/ui/switch'
 import useSettingStore, { RecordToolbarItem } from '@/stores/setting'
 import { useEffect, useState } from 'react'
-import { 
+import {
   CopySlash,
   Mic,
   ScanLine,
   ImagePlus,
   Link2,
   FileText,
+  CheckSquare,
   GripVertical
 } from 'lucide-react'
 import {
@@ -45,6 +46,7 @@ const TOOL_CONFIG_MAP: Record<string, { icon: React.ReactNode; labelKey: string 
   image: { icon: <ImagePlus className="size-4" />, labelKey: 'image' },
   link: { icon: <Link2 className="size-4" />, labelKey: 'link' },
   file: { icon: <FileText className="size-4" />, labelKey: 'file' },
+  todo: { icon: <CheckSquare className="size-4" />, labelKey: 'todo' },
 }
 
 export function RecordToolbarDialog({ open, onOpenChange }: RecordToolbarDialogProps) {

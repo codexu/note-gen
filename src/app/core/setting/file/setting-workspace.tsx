@@ -7,20 +7,22 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, exists, mkdir } from "@tauri-apps/plugin-fs"
 import { useTranslations } from 'next-intl'
 import useArticleStore from "@/stores/article"
+import { useSkillsStore } from "@/stores/skills"
 import { X, FolderOpen, History, Trash2, ChevronDown } from "lucide-react"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useState } from "react"
 
 export function SettingWorkspace() {
-  const { 
-    workspacePath, 
-    setWorkspacePath, 
-    workspaceHistory, 
-    removeWorkspaceHistory, 
-    clearWorkspaceHistory 
+  const {
+    workspacePath,
+    setWorkspacePath,
+    workspaceHistory,
+    removeWorkspaceHistory,
+    clearWorkspaceHistory
   } = useSettingStore()
   const {clearCollapsibleList, loadFileTree, setActiveFilePath, setCurrentArticle} = useArticleStore()
+  const { refreshSkills } = useSkillsStore()
   const t = useTranslations('settings.file')
   const [open, setOpen] = useState(false)
 
@@ -50,6 +52,7 @@ export function SettingWorkspace() {
       setActiveFilePath('')
       setCurrentArticle('')
       await loadFileTree()
+      await refreshSkills()
     } catch (error) {
       console.error('切换工作区失败:', error)
     }
@@ -74,6 +77,7 @@ export function SettingWorkspace() {
       setActiveFilePath('')
       setCurrentArticle('')
       await loadFileTree()
+      await refreshSkills()
     } catch (error) {
       console.error('重置工作区失败:', error)
     }

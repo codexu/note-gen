@@ -38,8 +38,6 @@ export function AudioPlayer({ audioPath }: AudioPlayerProps) {
                         extension === 'mp3' ? 'audio/mpeg' :
                         'audio/webm'
         
-        console.log('加载音频:', audioPath, '类型:', mimeType)
-        
         // 创建 Blob URL
         const buffer = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength) as ArrayBuffer
         const blob = new Blob([buffer], { type: mimeType })
@@ -116,12 +114,10 @@ export function AudioPlayer({ audioPath }: AudioPlayerProps) {
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => {
           const duration = e.currentTarget.duration
-          console.log('音频元数据已加载, 时长:', duration)
           setDuration(duration)
           setIsReady(true)
         }}
         onCanPlay={() => {
-          console.log('音频可以播放了')
           setIsReady(true)
         }}
         onEnded={() => setIsPlaying(false)}
@@ -131,8 +127,8 @@ export function AudioPlayer({ audioPath }: AudioPlayerProps) {
           console.error('音频加载错误:', e.currentTarget.error)
           setIsReady(false)
         }}
-        onLoadStart={() => console.log('开始加载音频')}
-        onLoadedData={() => console.log('音频数据已加载')}
+        onLoadStart={() => {}}
+        onLoadedData={() => {}}
       />
 
       {/* 播放/暂停按钮 */}

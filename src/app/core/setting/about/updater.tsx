@@ -1,9 +1,9 @@
-import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
 import useSettingStore from '@/stores/setting';
+import useUpdateStore from '@/stores/update';
 import Image from 'next/image';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -17,19 +17,14 @@ export default function Updater() {
     const [checking, setChecking] = useState(false);
     const [loading, setLoading] = useState(false);
     const { version } = useSettingStore();
-    const [update, setUpdate] = useState<Update | null>(null);
+    const { update, checkForUpdates, ignoreCurrentVersion } = useUpdateStore();
     const [latestBody, setLatestBody] = useState(null);
     const [isMobile, setIsMobile] = useState(false);
 
     async function checkUpdate() {
       setChecking(true);
       try {
-        setUpdate(await check({
-          headers: {
-            'X-AccessKey': 'wHi8Tkuc5i6v1UCAuVk48A',
-          },
-          timeout: 5000,
-        }));
+        await checkForUpdates();
         getRelease().then((release) => {
           if (release) {
             setLatestBody(release.body)
@@ -71,6 +66,14 @@ export default function Updater() {
 
     function openRelease() {
       open('https://github.com/codexu/note-gen/releases');
+    }
+
+    async function handleIgnoreVersion() {
+      await ignoreCurrentVersion();
+      toast({
+        title: t('ignoreVersionSuccess'),
+        variant: 'default'
+      });
     }
 
     useEffect(() => {
@@ -120,9 +123,14 @@ export default function Updater() {
             <div className="mt-8 p-4 border rounded-md">
               <div className="flex items-center gap-2 justify-between mb-4">
                 <h1 className="text-lg font-bold">NoteGen v{update.version}</h1>
-                <Button size="sm" variant="outline" onClick={openRelease}>
-                  <Link className='!size-3' />Release
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={handleIgnoreVersion}>
+                    {t('ignoreVersion')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={openRelease}>
+                    <Link className='!size-3' />Release
+                  </Button>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground whitespace-pre-line">{latestBody}</p>
             </div>

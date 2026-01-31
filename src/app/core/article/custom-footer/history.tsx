@@ -1,4 +1,4 @@
-import { GitPullRequestArrow, HistoryIcon, LoaderCircle } from "lucide-react";
+import { GitPullRequestArrow, History as HistoryIcon, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { decodeBase64ToString, getFileCommits as getGithubFileCommits, getFiles as getGithubFiles } from "@/lib/sync/github";
@@ -24,7 +24,7 @@ import { Store } from "@tauri-apps/plugin-store";
 
 dayjs.extend(relativeTime)
 
-export default function History({editor}: {editor?: Vditor}) {
+export default function HistoryComponent({editor, disabled}: {editor?: Vditor, disabled?: boolean}) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { activeFilePath, setCurrentArticle, currentArticle, loadFileTree, saveCurrentArticle } = useArticleStore()
   const [commits, setCommits] = useState<ResCommit[]>([])
@@ -114,6 +114,20 @@ export default function History({editor}: {editor?: Vditor}) {
 
     setCommits(res || [])
     setCommitsLoading(false)
+    
+    // 通知 Pull 组件最新的 commit 信息
+    if (res && res.length > 0) {
+      const latestCommit = res[0]
+      const commitInfo = {
+        sha: latestCommit.sha,
+        message: latestCommit.commit?.message || 'No message',
+        author: latestCommit.commit?.author?.name || latestCommit.author?.login || 'Unknown',
+        date: new Date(latestCommit.commit?.author?.date || latestCommit.commit?.committer?.date || Date.now()),
+        additions: latestCommit.stats?.additions,
+        deletions: latestCommit.stats?.deletions
+      }
+      emitter.emit('latest-commit-info', commitInfo)
+    }
   }
 
   async function handleCommit(sha: string) {
@@ -127,15 +141,17 @@ export default function History({editor}: {editor?: Vditor}) {
     const backupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
     let res;
+    let contentLoaded = false;
     switch (backupMethod) {
       case 'github':
         try {
           const githubRepo2 = await getSyncRepoName('github');
-          res = await getGithubFiles({path: `${activeFilePath}?ref=${sha}`, repo: githubRepo2});
+          res = await getGithubFiles({path: activeFilePath, repo: githubRepo2, ref: sha});
           if (res && res.content) {
             const content = decodeBase64ToString(res.content)
             setCurrentArticle(content);
             await saveCurrentArticle(content)
+            contentLoaded = true;
           } else {
             setCurrentArticle(cacheArticle);
           }
@@ -152,6 +168,7 @@ export default function History({editor}: {editor?: Vditor}) {
             const content = decodeBase64ToString(res.content)
             setCurrentArticle(content);
             await saveCurrentArticle(content)
+            contentLoaded = true;
           } else {
             setCurrentArticle(cacheArticle);
           }
@@ -169,6 +186,7 @@ export default function History({editor}: {editor?: Vditor}) {
             const content = decodeBase64ToString(fileContent.content)
             setCurrentArticle(content);
             await saveCurrentArticle(content)
+            contentLoaded = true;
           } else {
             setCurrentArticle(cacheArticle);
           }
@@ -186,6 +204,7 @@ export default function History({editor}: {editor?: Vditor}) {
             const content = decodeBase64ToString(giteaFileContent.content)
             setCurrentArticle(content);
             await saveCurrentArticle(content)
+            contentLoaded = true;
           } else {
             setCurrentArticle(cacheArticle);
           }
@@ -198,6 +217,33 @@ export default function History({editor}: {editor?: Vditor}) {
         break;
     }
     
+    // 如果成功加载了历史内容，将编辑器滚动到顶部
+    if (contentLoaded && editor) {
+      setTimeout(() => {
+        try {
+          const vditor = editor as any;
+          if (vditor.vditor) {
+            // 根据不同的编辑模式获取对应的编辑器元素
+            let editorElement: HTMLElement | null = null;
+            if (vditor.vditor.ir?.element) {
+              editorElement = vditor.vditor.ir.element;
+            } else if (vditor.vditor.wysiwyg?.element) {
+              editorElement = vditor.vditor.wysiwyg.element;
+            } else if (vditor.vditor.sv?.element) {
+              editorElement = vditor.vditor.sv.element;
+            }
+            
+            // 滚动到顶部
+            if (editorElement) {
+              editorElement.scrollTop = 0;
+            }
+          }
+        } catch (error) {
+          console.error('滚动编辑器到顶部失败:', error);
+        }
+      }, 100);
+    }
+    
     setCommitsLoading(false);
   }
 
@@ -208,6 +254,8 @@ export default function History({editor}: {editor?: Vditor}) {
   useEffect(() => {
     if (activeFilePath) {
       fetchCommits()
+    } else {
+      setCommits([])
     }
     emitter.on('sync-success', async () => {
       await loadFileTree()
@@ -226,14 +274,16 @@ export default function History({editor}: {editor?: Vditor}) {
             <Button 
               variant="ghost" 
               size="sm" 
-              disabled={commitsLoading} 
+              disabled={commitsLoading || disabled} 
               className="outline-none">
               {
-                commitsLoading && <LoaderCircle className="animate-spin !size-3" />
+                commitsLoading ? 
+                  <LoaderCircle className="animate-spin !size-3" /> :
+                  <HistoryIcon className="!size-3" />
               }
               <span className="text-xs">
                 {commitsLoading ? t('loadingHistory') : commits.length ? 
-                  `${t('historyRecords')} (${dayjs(commits[0].commit.committer.date).fromNow()})` : t('noHistory')}
+                  `${t('historyRecords')} (${commits.length})` : t('noHistory')}
               </span>
             </Button> :
             null

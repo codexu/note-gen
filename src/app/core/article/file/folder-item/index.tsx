@@ -1,14 +1,15 @@
-import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
-import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot } from "lucide-react"
+import { ChevronRight, Cloud, Folder, FolderDot, FolderDown, FolderOpen, FolderOpenDot, Loader2, LoaderCircle, Database, Sparkles } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import useSettingStore from '@/stores/setting'
+import { isSkillsFolder } from "@/lib/skills/utils"
 import SyncFolder from './sync-folder'
 import { NewFile } from './new-file'
 import { NewFolder } from './new-folder'
@@ -21,32 +22,114 @@ import { DeleteFolder } from './delete-folder'
 import { MobileActionMenu, MobileMenuItem, MobileSeparator } from "../mobile-action-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTranslations } from "next-intl"
+import { FolderVectorMenu } from './folder-vector-menu'
+import emitter from '@/lib/emitter'
+import { LinkedFolder } from '@/lib/files'
 
 export function FolderItem({ item }: { item: DirTree }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
-  const [isComposing, setIsComposing] = useState(false) 
+  const [isComposing, setIsComposing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { assetsPath } = useSettingStore()
+  const { assetsPath, fileManagerTextSize } = useSettingStore()
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
 
-  const { 
+  // 检查路径是否在 skills 文件夹下
+  const isInSkillsFolder = (itemPath: string): boolean => {
+    const parts = itemPath.split('/')
+    return parts.some(part => isSkillsFolder(part))
+  }
+
+  // 根据文字大小映射图标大小
+  const getIconSize = (textSize: string) => {
+    const sizeMap = {
+      'xs': 'size-3',
+      'sm': 'size-3.5', 
+      'md': 'size-4',
+      'lg': 'size-5',
+      'xl': 'size-6'
+    }
+    return sizeMap[textSize as keyof typeof sizeMap] || 'size-4'
+  }
+
+  const iconSize = getIconSize(fileManagerTextSize)
+
+  const {
     activeFilePath,
     loadFileTree,
     setActiveFilePath,
     collapsibleList,
     setCollapsibleList,
+    loadCollapsibleFiles,
     fileTree,
-    setFileTree
+    setFileTree,
+    vectorIndexedFiles
   } = useArticleStore()
 
   const path = computedParentPath(item)
   const cacheTree = cloneDeep(fileTree)
   const currentFolder = getCurrentFolder(path, cacheTree)
   const parentFolder = currentFolder?.parent
+
+  // 计算文件夹的向量状态
+  const folderVectorStatus = useCallback(() => {
+    let totalCount = 0
+    let indexedCount = 0
+
+    function countFiles(node: DirTree) {
+      if (!node.children) {
+        // 如果是文件（没有 children）
+        if (node.name.endsWith('.md')) {
+          totalCount++
+          if (vectorIndexedFiles.has(node.name)) {
+            indexedCount++
+          }
+        }
+        return
+      }
+
+      // 递归计算子节点
+      node.children.forEach(child => countFiles(child))
+    }
+
+    countFiles(item)
+
+    return {
+      totalCount,
+      indexedCount,
+      hasVector: totalCount > 0 && indexedCount > 0,
+      isComplete: totalCount > 0 && indexedCount === totalCount
+    }
+  }, [item, vectorIndexedFiles])
+
+  // 渲染文件夹的向量状态图标
+  const renderFolderVectorIcon = () => {
+    if (isInSkillsFolder(path)) return null
+
+    const status = item.vectorCalcStatus
+    const vectorStatus = folderVectorStatus()
+
+    if (status === 'calculating') {
+      return (
+        <div className="flex items-center mr-2">
+          <LoaderCircle className={`${iconSize} animate-spin`} />
+        </div>
+      )
+    } else if (status === 'completed' || vectorStatus.hasVector) {
+      return (
+        <div className="flex items-center mr-2">
+          <span className={`text-xs text-muted-foreground ${vectorStatus.isComplete ? 'opacity-100' : 'opacity-60'}`}>
+            {vectorStatus.indexedCount}/{vectorStatus.totalCount}
+          </span>
+          <Database className={`${iconSize} text-muted-foreground ml-1 ${vectorStatus.isComplete ? 'opacity-100' : 'opacity-60'}`} />
+        </div>
+      )
+    }
+    return null
+  }
 
   // 移动端处理函数
   function handleNewFile() {
@@ -317,6 +400,52 @@ export function FolderItem({ item }: { item: DirTree }) {
     setIsDragging(false)
   }
 
+  async function handleSelectFolder() {
+    // 设置选中状态
+    await setActiveFilePath(path)
+
+    // 自动展开文件夹（如果未展开）
+    if (!collapsibleList.includes(path)) {
+      await setCollapsibleList(path, true)
+    }
+
+    // 加载文件夹内容
+    await loadCollapsibleFiles(path)
+
+    // 触发文件夹选择事件
+    const folderName = path.split('/').pop() || path
+    let fullPath: string
+    const { getWorkspacePath } = await import('@/lib/workspace')
+    const workspace = await getWorkspacePath()
+    if (workspace.isCustom) {
+      const pathParts = path.split('/')
+      fullPath = workspace.path + '/' + pathParts.join('/')
+    } else {
+      fullPath = path
+    }
+
+    // 计算文件夹中的文件数量
+    const { collectMarkdownFiles } = await import('@/lib/files')
+    const files = await collectMarkdownFiles(path)
+
+    // 获取向量索引状态
+    const indexedCount = files.filter(f =>
+      vectorIndexedFiles.has(f.name)
+    ).length
+
+    // 只有在有索引文件时才触发关联事件
+    if (indexedCount > 0) {
+      // 触发事件
+      emitter.emit('folderSelected', {
+        name: folderName,
+        path: fullPath,
+        relativePath: path,
+        fileCount: files.length,
+        indexedCount: indexedCount
+      } as LinkedFolder)
+    }
+  }
+
 
 
   function handleEditEnd() {
@@ -346,19 +475,26 @@ export function FolderItem({ item }: { item: DirTree }) {
     <CollapsibleTrigger className="w-full select-none">
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className={`${isDragging ? 'file-on-drop' : ''} group file-manange-item flex select-none`}>
+          <div
+            className={`${isDragging ? 'file-on-drop' : ''} ${path === activeFilePath ? 'active' : ''} group file-manange-item flex select-none`}
+            onClick={() => handleSelectFolder()}
+            onContextMenu={(e) => {
+              // 右键打开菜单时阻止冒泡，防止触发折叠/展开
+              e.stopPropagation();
+            }}
+          >
             <ChevronRight className="transition-transform size-4 ml-1 bg-sidebar group-hover:bg-transparent" />
             {
               isEditing ?
                 <>
                   {
                     item.isLocale ?
-                      <Folder className="size-4" /> :
-                      <FolderDown className="size-4" />
+                      <Folder className={iconSize} /> :
+                      <FolderDown className={iconSize} />
                   }
                   <Input
                     ref={inputRef}
-                    className="h-5 rounded-sm text-xs px-1 font-normal flex-1 mr-1"
+                    className={`h-5 rounded-sm text-${fileManagerTextSize} px-1 font-normal flex-1 mr-1`}
                     value={name}
                     onBlur={handleRename}
                     onChange={handleInputChange}
@@ -379,16 +515,23 @@ export function FolderItem({ item }: { item: DirTree }) {
                   onDragLeave={(e) => handleDragleave(e)}
                   className={`${item.isLocale ? '' : 'opacity-50'} flex gap-1 items-center flex-1 select-none`}
                 >
-                  <div className="flex flex-1 gap-1 select-none relative">
-                    <div className="relative">
-                      {collapsibleList.includes(path) ? 
-                        (assetsPath === item.name ? <FolderOpenDot className="size-4" /> : <FolderOpen className="size-4" />) :
-                        (assetsPath === item.name ? <FolderDot className="size-4" /> : <Folder className="size-4" />)
-                      }
-                      {item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" />}
+                  <div className="flex flex-1 gap-1 select-none relative items-center">
+                    <div className="relative flex items-center">
+                      {item.loading ? (
+                        <Loader2 className={`${iconSize} animate-spin text-primary`} />
+                      ) : isSkillsFolder(item.name) ? (
+                        <Sparkles className={`${iconSize} text-primary`} />
+                      ) : collapsibleList.includes(path) ? (
+                        assetsPath === item.name ? <FolderOpenDot className={iconSize} /> : <FolderOpen className={iconSize} />
+                      ) : (
+                        assetsPath === item.name ? <FolderDot className={iconSize} /> : <Folder className={iconSize} />
+                      )}
+                      {!item.loading && item.sha && item.isLocale && <Cloud className="size-2.5 absolute left-0 bottom-0 z-10 bg-primary-foreground" />}
                     </div>
-                    <span className="text-xs line-clamp-1">{item.name}</span>
+                    <span className={`text-${fileManagerTextSize} line-clamp-1 ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
                   </div>
+                  {/* 向量状态指示器 - 放在最右侧，skills 文件夹及其子内容不显示 */}
+                  {renderFolderVectorIcon()}
                   {isMobile && (
                     <MobileActionMenu className="ml-1">
                       <MobileMenuItem onClick={handleNewFile} disabled={!!item.sha && !item.isLocale}>
@@ -432,6 +575,21 @@ export function FolderItem({ item }: { item: DirTree }) {
           <NewFolder item={item} />
           <ViewDirectory item={item} />
           <ContextMenuSeparator />
+          {/* skills 文件夹及其子内容不显示知识库选项 */}
+          {!isInSkillsFolder(path) && (
+            <>
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <Database className="mr-2 h-4 w-4" />
+                  {t('context.knowledgeBase')}
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <FolderVectorMenu item={item} />
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+            </>
+          )}
           <CutFolder item={item} />
           <CopyFolder item={item} />
           <PasteInFolder item={item} />

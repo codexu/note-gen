@@ -1,8 +1,9 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { cloneDeep } from "lodash-es";
+import { FolderInput } from "lucide-react"
 
 interface RenameFolderProps {
   item: DirTree;
@@ -34,7 +35,8 @@ export function RenameFolder({ item, onStartRename }: RenameFolderProps) {
   }
 
   return (
-    <ContextMenuItem inset onClick={handleStartRename}>
+    <ContextMenuItem inset onClick={handleStartRename} menuType="file">
+      <FolderInput className="mr-2 h-4 w-4" />
       {t('context.rename')}
     </ContextMenuItem>
   );

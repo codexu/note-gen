@@ -1,4 +1,4 @@
-import { ContextMenuItem } from "@/components/ui/context-menu";
+import { ContextMenuItem } from "@/components/ui/enhanced-context-menu";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { useTranslations } from "next-intl";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { ask } from '@tauri-apps/plugin-dialog';
 import useSettingStore from '@/stores/setting';
+import { Trash2 } from "lucide-react"
 
 interface DeleteFolderProps {
   item: DirTree;
@@ -96,11 +97,13 @@ export function DeleteFolder({ item }: DeleteFolderProps) {
   }
 
   return (
-    <ContextMenuItem 
-      inset 
-      className="text-red-900" 
+    <ContextMenuItem
+      inset
+      className="text-red-900"
       onClick={handleDeleteFolder}
+      menuType="file"
     >
+      <Trash2 className="mr-2 h-4 w-4" />
       {t('context.delete')}
     </ContextMenuItem>
   );

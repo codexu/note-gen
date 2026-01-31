@@ -1,0 +1,221 @@
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 2s ease infinite;
+}
+
+/* 自定义Markdown预览样式 */
+
+/* 基础样式 */
+.markdown-body {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  margin-bottom: 0.5rem;
+}
+
+/* 暗黑模式样式 */
+.markdown-dark {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground)) !important;
+}
+
+.markdown-dark pre {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground)) !important;
+}
+
+.markdown-dark code {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  overflow-x: auto;
+}
+
+.markdown-dark a {
+  color: hsl(var(--primary)) !important;
+}
+
+.markdown-dark h1,
+.markdown-dark h2,
+.markdown-dark h3,
+.markdown-dark h4,
+.markdown-dark h5,
+.markdown-dark h6 {
+  color: hsl(var(--foreground)) !important;
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.markdown-dark hr {
+  background-color: hsl(var(--border)) !important;
+}
+
+.markdown-dark blockquote {
+  border-left-color: hsl(var(--border)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.markdown-dark table tr {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.markdown-dark table tr:nth-child(2n) {
+  background-color: hsl(var(--muted) / 0.5) !important;
+}
+
+.markdown-dark table th,
+.markdown-dark table td {
+  border-color: hsl(var(--border)) !important;
+}
+
+/* 代码高亮容器 */
+pre.hljs {
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+  word-wrap: normal;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* 亮色模式下的代码高亮 */
+.hljs-light {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+/* 暗色模式下的代码高亮 */
+.hljs-dark {
+  background: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* 针对暗色模式下的代码高亮覆盖样式 */
+.hljs-dark .hljs-comment,
+.hljs-dark .hljs-punctuation {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.hljs-dark .hljs-attr,
+.hljs-dark .hljs-attribute,
+.hljs-dark .hljs-meta,
+.hljs-dark .hljs-selector-attr,
+.hljs-dark .hljs-selector-class,
+.hljs-dark .hljs-selector-id {
+  color: hsl(var(--primary)) !important;
+}
+
+.hljs-dark .hljs-variable,
+.hljs-dark .hljs-literal,
+.hljs-dark .hljs-number,
+.hljs-dark .hljs-doctag {
+  color: hsl(var(--destructive)) !important;
+}
+
+.hljs-dark .hljs-string,
+.hljs-dark .hljs-regexp {
+  color: hsl(var(--primary)) !important;
+  opacity: 0.8;
+}
+
+.hljs-dark .hljs-built_in,
+.hljs-dark .hljs-keyword,
+.hljs-dark .hljs-name,
+.hljs-dark .hljs-selector-tag,
+.hljs-dark .hljs-tag {
+  color: hsl(var(--secondary)) !important;
+}
+
+/* 确保图片不会超过容器宽度 */
+.markdown-body img {
+  max-width: 100%;
+}
+
+/* 覆盖 Markdown 表格背景色 - 使用主题变量 */
+.markdown-body table tr {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.markdown-body table tr:nth-child(2n) {
+  background-color: hsl(var(--muted) / 0.5) !important;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+  border-color: hsl(var(--border)) !important;
+}
+
+.markdown-body table th {
+  background-color: hsl(var(--muted) / 0.3) !important;
+}
+
+/* 覆盖代码块背景色 - 使用主题变量 */
+.markdown-body pre,
+.markdown-body .highlight pre,
+.markdown-body .highlight {
+  background-color: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* 覆盖行内代码背景色 */
+.markdown-body code,
+.markdown-body tt {
+  background-color: hsl(var(--muted) / 0.5) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* 覆盖 pre 内部的 code 背景色 */
+.markdown-body pre code,
+.markdown-body pre tt {
+  background-color: transparent !important;
+}
+
+/* 覆盖 CSV 数据表格背景色 */
+.markdown-body .csv-data .blob-num {
+  background: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.markdown-body .csv-data th {
+  background: hsl(var(--muted) / 0.5) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* 覆盖 kbd 元素样式 */
+.markdown-body kbd {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  box-shadow: none !important;
+}
+
+/* 覆盖 hr 分隔线颜色 */
+.markdown-body hr {
+  background-color: hsl(var(--border)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* 覆盖 blockquote 样式 */
+.markdown-body blockquote {
+  border-left-color: hsl(var(--border)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}

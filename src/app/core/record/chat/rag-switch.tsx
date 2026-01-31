@@ -1,25 +1,22 @@
-'use client'
+"use client"
 
-import { Book, BookOpen, Loader2 } from "lucide-react"
-import { useTranslations } from "next-intl"
-import { TooltipButton } from "@/components/tooltip-button"
-import useVectorStore from "@/stores/vector"
-import { checkEmbeddingModelAvailable } from "@/lib/rag"
-import { toast } from "@/hooks/use-toast"
-import { useState } from "react"
+import { useState } from 'react'
+import { Database, DatabaseZap } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { TooltipButton } from '@/components/tooltip-button'
+import useVectorStore from '@/stores/vector'
+import { checkEmbeddingModelAvailable } from '@/lib/rag'
+import { toast } from '@/hooks/use-toast'
 
 export function RagSwitch() {
   const { isRagEnabled, setRagEnabled, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
   const t = useTranslations('record.chat.input')
   const [loading, setLoading] = useState(false)
 
-  // 处理开关点击
-  const handleClick = async () => {
+  const handleToggle = async () => {
     if (isRagEnabled) {
-      // 如果已启用，则禁用
       await setRagEnabled(false)
     } else {
-      // 向量模型
       setLoading(true)
       const embeddingModelAvailable = await checkEmbeddingModelAvailable()
       setLoading(false)
@@ -30,13 +27,10 @@ export function RagSwitch() {
         })
         return
       }
-      // 如果未启用且向量数据库已启用，则启用RAG
       if (isVectorDbEnabled) {
         await setRagEnabled(true)
       } else {
-        // 如果向量数据库未启用，则先启用向量数据库
         await setVectorDbEnabled(true)
-        // 然后启用RAG
         await setRagEnabled(true)
       }
     }
@@ -45,22 +39,13 @@ export function RagSwitch() {
   return (
     <div>
       <TooltipButton
-        variant="ghost"
-        size="icon"
-        icon={
-          loading ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            isRagEnabled ? (
-              <BookOpen />
-            ) : (
-              <Book />
-            )
-          )
-        }
+        icon={isRagEnabled ? <DatabaseZap className="size-4" /> : <Database className="size-4" />}
         tooltipText={isRagEnabled ? t('rag.enabled') : t('rag.disabled')}
+        size="icon"
         side="bottom"
-        onClick={handleClick}
+        onClick={handleToggle}
+        disabled={loading}
+        variant="ghost"
       />
     </div>
   )

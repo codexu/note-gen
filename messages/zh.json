@@ -36,7 +36,9 @@
     "loading": "加载中...",
     "warning": "警告",
     "info": "信息",
-    "restartToApply": "，请重启应用使配置生效"
+    "restartToApply": "，请重启应用使配置生效",
+    "unsaved": "未保存",
+    "saving": "保存中..."
   },
   "settings": {
     "others": "高级",
@@ -67,6 +69,14 @@
           "title": "正文缩放",
           "desc": "调整编辑器和对话中 Markdown 内容的文字大小"
         },
+        "fileManagerTextSize": {
+          "title": "文件管理器文字大小",
+          "desc": "调整文件管理器中文件和文件夹列表的文字大小"
+        },
+        "recordTextSize": {
+          "title": "记录文字大小",
+          "desc": "调整记录列表中记录项的文字大小"
+        },
         "customCss": {
           "title": "自定义 CSS",
           "desc": "添加自定义 CSS 样式来覆盖应用的默认样式",
@@ -76,6 +86,102 @@
           "placeholder": "在此输入自定义 CSS 代码。",
           "save": "保存",
           "cancel": "取消"
+        },
+        "customTheme": {
+          "title": "自定义主题颜色",
+          "desc": "自定义应用的主题颜色，包括背景色、前景色、边框色等",
+          "button": "编辑颜色",
+          "dialogTitle": "自定义主题颜色",
+          "dialogDesc": "配置自定义主题颜色。颜色更改会实时保存并生效，同时覆盖亮色和暗色主题。",
+          "close": "关闭",
+          "reset": "重置全部",
+          "tabs": {
+            "custom": "自定义",
+            "presets": "预设方案",
+            "importExport": "导入导出"
+          },
+          "export": {
+            "title": "导出配色方案",
+            "button": "生成导出代码",
+            "placeholder": "点击生成按钮将当前配色导出为代码"
+          },
+          "import": {
+            "title": "导入配色方案",
+            "button": "导入配色",
+            "placeholder": "粘贴配色方案的 JSON 代码"
+          },
+          "colors": {
+            "background": "背景色",
+            "foreground": "前景色",
+            "card": "卡片背景色",
+            "cardForeground": "卡片前景色",
+            "primary": "主色调",
+            "primaryForeground": "主色调前景色",
+            "secondary": "次要色调",
+            "secondaryForeground": "次要色调前景色",
+            "third": "第三色调",
+            "thirdForeground": "第三色调前景色",
+            "muted": "柔和色",
+            "mutedForeground": "柔和色前景色",
+            "accent": "强调色",
+            "accentForeground": "强调色前景色",
+            "border": "边框色",
+            "shadow": "阴影色"
+          },
+          "presets": {
+            "apply": "应用",
+            "reset": {
+              "name": "恢复默认"
+            },
+            "default": {
+              "name": "默认白色"
+            },
+            "ocean": {
+              "name": "海洋蓝"
+            },
+            "forest": {
+              "name": "森林绿"
+            },
+            "sunset": {
+              "name": "日落红"
+            },
+            "lavender": {
+              "name": "薰衣草紫"
+            },
+            "midnight": {
+              "name": "午夜暗"
+            },
+            "deepSea": {
+              "name": "深海蓝"
+            },
+            "darkForest": {
+              "name": "暗夜绿"
+            },
+            "darkViolet": {
+              "name": "紫罗兰暗"
+            },
+            "coralWarm": {
+              "name": "珊瑚暖"
+            },
+            "slateGray": {
+              "name": "石板灰"
+            },
+            "darkGold": {
+              "name": "暗夜金"
+            },
+            "beigeWarm": {
+              "name": "米黄暖"
+            },
+            "beigeDark": {
+              "name": "米黄暗"
+            }
+          }
+        },
+        "tray": {
+          "enabled": {
+            "title": "启用托盘",
+            "desc": "关闭窗口时选择最小化到托盘或直接关闭软件"
+          }
         }
       },
       "tools": {
@@ -177,7 +283,77 @@
       "testAllFailed": "连接测试失败",
       "save": "保存",
       "cancel": "取消",
-      "delete": "删除"
+      "delete": "删除",
+      "importJson": "导入 JSON",
+      "jsonImportTitle": "从 JSON 导入服务器配置",
+      "jsonImportDesc": "粘贴 MCP 服务器的 mcpServers 配置格式",
+      "jsonInput": "JSON 配置",
+      "jsonInputHelp": "支持 mcpServers 格式，会自动使用服务器名称作为 key",
+      "jsonRequired": "请输入 JSON 配置",
+      "jsonEmpty": "JSON 配置不能为空",
+      "jsonInvalidJson": "JSON 格式错误",
+      "jsonInvalidFormat": "配置格式无效，必须包含 name 和 type 字段",
+      "jsonInvalidType": "服务器类型必须是 stdio 或 http",
+      "jsonMissingCommand": "stdio 类型服务器必须指定 command",
+      "jsonMissingUrl": "http 类型服务器必须指定 url",
+      "jsonImportSuccess": "成功导入 {count} 个服务器",
+      "jsonImportSkipped": "跳过 {count} 个已存在的服务器",
+      "jsonImportNoServers": "没有导入任何服务器",
+      "import": "导入"
+    },
+    "skills": {
+      "title": "Skills",
+      "desc": "Skills 是可重用的 AI 能力包，让 AI 助手能够根据任务自动应用特定的行为模式。",
+      "enable": "启用 Skills 功能",
+      "enableDesc": "启用后，AI 可以使用已配置的 Skills",
+      "autoMatch": "自动匹配 Skills",
+      "autoMatchDesc": "根据用户输入自动选择合适的 Skills",
+      "project": "工作区 Skills",
+      "global": "全局 Skills",
+      "globalPath": "全局 Skills 存储位置",
+      "openInFileManager": "在文件管理器中打开",
+      "createSkill": "创建 Skill",
+      "editSkill": "编辑 Skill",
+      "deleteSkill": "删除 Skill",
+      "exportSkill": "导出 Skill",
+      "importSkill": "导入 Skill",
+      "selectSkillZip": "选择 Skill zip 文件",
+      "importSuccess": "导入成功",
+      "importError": "导入失败",
+      "imported": "已导入",
+      "importing": "导入中...",
+      "skillName": "Skill 名称",
+      "skillDescription": "描述",
+      "skillVersion": "版本",
+      "skillAuthor": "作者",
+      "allowedTools": "允许使用的工具",
+      "userInvocable": "在斜杠菜单显示",
+      "instructions": "指令内容",
+      "instructionsPlaceholder": "输入给 AI 的详细指令...",
+      "importHelp": "支持导入 zip 格式的 Skill，zip 文件需包含 SKILL.md 文件。",
+      "metadata": "元数据",
+      "content": "指令内容",
+      "noSkills": "还没有 Skills",
+      "noSkillsDesc": "创建或导入 Skills 以开始使用",
+      "noSkillsGlobal": "还没有全局 Skills",
+      "noSkillsGlobalDesc": "创建或导入 Skills 以在所有项目中使用",
+      "emptyWorkspace": "工作区中没有 Skills",
+      "emptyWorkspaceDesc": "在 skills 文件夹中创建 SKILL.md 文件来添加 Skill",
+      "basicSettings": "基础设置",
+      "installedGlobalSkills": "已安装的全局 Skills",
+      "nameRequired": "请输入 Skill 名称",
+      "descriptionRequired": "请输入描述",
+      "namePlaceholder": "note-organizer",
+      "versionPlaceholder": "1.0.0",
+      "descriptionPlaceholder": "自动整理和优化笔记结构...",
+      "authorPlaceholder": "Your Name",
+      "descriptionHelp": "用于 AI 匹配，描述此 Skill 的功能和适用场景",
+      "allowedToolsHelp": "这些工具使用时不需要用户确认",
+      "userInvocableHelp": "用户可以通过 /skill-name 手动触发",
+      "instructionsHelp": "给 AI 的详细指令，支持 Markdown 格式",
+      "deleteSkillTitle": "删除 Skill",
+      "deleteSkillDesc": "确定要删除这个 Skill 吗？此操作无法撤销。",
+      "skillDeleted": "Skill 删除成功"
     },
     "editor": {
       "title": "Markdown 编辑器",
@@ -234,7 +410,7 @@
       "noModel": "不使用模型",
       "placeholder": "请选择或搜索模型",
       "mainModel": "主要模型",
-      "options" : {
+      "options": {
         "primaryModel": {
           "title": "主要模型",
           "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。"
@@ -247,9 +423,13 @@
           "title": "AI 建议",
           "desc": "AI 建议提示作用于记录页面 AI 对话 placeholder 内容生成。"
         },
-        "translate": {
-          "title": "翻译",
-          "desc": "用于翻译内容的场景。"
+        "completion": {
+          "title": "快速补全",
+          "desc": "用于 Markdown 编辑器的 AI 内联补全，类似 GitHub Copilot，快速生成续写内容。"
+        },
+        "commit": {
+          "title": "自动生成 commit 信息",
+          "desc": "用于自动生成 Git 提交信息，基于文件内容变化智能生成描述性提交信息。"
         },
         "embedding": {
           "title": "嵌入模型",
@@ -303,6 +483,8 @@
       "updateDownloading": "更新中 {downloaded} / {contentLength}",
       "updateInstalled": "重启应用",
       "noUpdate": "当前已是最新版本",
+      "ignoreVersion": "忽略此版本",
+      "ignoreVersionSuccess": "已忽略此版本更新",
       "items": {
         "home": {
           "title": "官网",
@@ -703,9 +885,14 @@
           "desc": "用于文本向量化、语义搜索等功能"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "视觉模型",
-          "desc": "支持图像理解、OCR识别等视觉任务"
+          "desc": "支持图像理解、视觉问答等功能"
+        },
+        "completionModel": {
+          "name": "快速补全",
+          "type": "补全模型",
+          "desc": "用于 Markdown 编辑器的 AI 内联补全，类似 GitHub Copilot，快速生成续写内容"
         },
         "poweredBy": "由 SiliconFlow 提供技术支持"
       }
@@ -750,7 +937,7 @@
         "noResults": "未找到结果"
       },
       "info": {
-        "title": "工作区说明", 
+        "title": "工作区说明",
         "desc": "更改工作区后需要重启应用程序才能完全生效。新工作区中的文件将在重启后显示。"
       },
       "toast": {
@@ -817,6 +1004,8 @@
         "recording": "录音",
         "file": "文件",
         "link": "链接",
+        "todo": "待办",
+        "pdf": "PDF",
         "upload": "上传记录",
         "download": "下载记录",
         "uploadTo": "从本地同步到 {provider}",
@@ -856,12 +1045,36 @@
         "title": "记录文本",
         "description": "记录一段文本，笔记整理时将插入到合适的位置。",
         "characterCount": "{count} 字符",
-        "save": "记录"
+        "save": "记录",
+        "autoReadClipboard": "自动读取剪贴板文本"
       },
       "link": {
         "title": "链接记录",
         "description": "输入网页链接，系统将自动爬取页面内容并保存",
-        "save": "保存"
+        "save": "保存",
+        "autoReadClipboard": "自动读取剪贴板链接"
+      },
+      "todo": {
+        "title": "待办记录",
+        "description": "创建待办事项，管理你的任务",
+        "titlePlaceholder": "输入待办标题...",
+        "descriptionPlaceholder": "输入详细描述（可选）",
+        "priority": "优先级",
+        "priorityLow": "低",
+        "priorityMedium": "中",
+        "priorityHigh": "高",
+        "dateRange": "日期范围",
+        "dateRangePlaceholder": "选择日期范围",
+        "dueDate": "截止日期",
+        "dueDatePlaceholder": "选择日期",
+        "save": "创建待办",
+        "saveEdit": "保存",
+        "edit": "编辑待办",
+        "editDescription": "修改待办事项的详细信息",
+        "cancel": "取消",
+        "selectTag": "选择标签",
+        "completed": "已完成",
+        "uncompleted": "未完成"
       },
       "clipboard": {
         "detectedImage": "检测到剪贴板图片",
@@ -897,6 +1110,8 @@
             "thinking": "思考中",
             "acting": "执行中",
             "observation": "观察结果",
+            "thought": "思考",
+            "action": "行动",
             "toolCalls": "工具调用",
             "confirmation": {
               "title": "确认操作",
@@ -950,20 +1165,14 @@
             "error": "失败"
           },
           "empty": {
-            "features": [
-              {
-                "chat": "与 AI 机器人进行聊天"
-              },
-              {
-                "linked": "与你的记录或笔记关联"
-              },
-              {
-                "clipboard": "识别剪贴板中的文字和图片"
-              },
-              {
-                "organize": "将你的记录整理为笔记"
-              }
-            ]
+            "title": "开始与 AI 对话",
+            "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",
+            "currentModel": "当前模型",
+            "currentPrompt": "当前 Prompt",
+            "noModel": "未设置模型",
+            "noPrompt": "未设置 Prompt",
+            "modeHint": "点击输入框左侧的",
+            "modeHintSuffix": "按钮可切换对话模式"
           },
           "content": {
             "organize": "将你的记录整理为文章："
@@ -1051,25 +1260,23 @@
         "scan": "扫描图片",
         "image": "上传图片",
         "link": "记录链接",
-        "file": "上传文件"
+        "file": "上传文件",
+        "todo": "待办记录"
+      },
+      "list": {
+        "title": "记录"
       }
     },
     "chat": {
       "empty": {
-        "features": [
-          {
-            "chat": "与 AI 机器人进行聊天"
-          },
-          {
-            "linked": "已与你的记录或笔记关联"
-          },
-          {
-            "clipboard": "识别剪贴板中的文字和图片"
-          },
-          {
-            "organize": "将你的记录整理为笔记"
-          }
-        ]
+        "title": "开始与 AI 对话",
+        "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",
+        "currentModel": "当前模型",
+        "currentPrompt": "当前 Prompt",
+        "currentMode": "对话模式",
+        "noModel": "未设置模型",
+        "noPrompt": "未设置 Prompt",
+        "configureModel": "配置模型"
       },
       "newChat": "使用新标签开始对话",
       "removeChat": "删除当前标签对话",
@@ -1140,11 +1347,24 @@
           "chatDescription": "快速对话，只读模式",
           "agentDescription": "智能助手，可执行操作"
         },
+        "attachImage": "附加图片",
+        "imageSelector": {
+          "title": "选择图片",
+          "local": "本地文件",
+          "records": "从记录中选择",
+          "selectFiles": "选择本地图片",
+          "noRecords": "没有可用的图片记录",
+          "cancel": "取消",
+          "confirm": "确认"
+        },
         "agent": {
           "running": "Agent 运行中",
           "thinking": "思考中",
+          "analyzingRequest": "Agent 正在分析您的请求...",
           "acting": "执行中",
           "observation": "观察结果",
+          "thought": "思考",
+          "action": "行动",
           "toolCalls": "工具调用",
           "confirmation": {
             "title": "确认操作",
@@ -1196,7 +1416,8 @@
         "copied": "已复制"
       },
       "ragSources": {
-        "label": "引用文件"
+        "label": "知识库检索到 {count} 篇笔记",
+        "openFile": "打开文件"
       },
       "preview": {
         "close": "关闭",
@@ -1270,6 +1491,7 @@
   "navigation": {
     "chat": "对话",
     "record": "记录",
+    "quickRecord": "快捷记录",
     "write": "写作",
     "search": "搜索",
     "githubImageHosting": "Github 图床",
@@ -1279,10 +1501,13 @@
     "logout": "登出",
     "setting": "设置",
     "files": "笔记",
-    "hideLeftSidebar": "隐藏左侧边栏",
+    "outline": "大纲",
     "showLeftSidebar": "显示左侧边栏",
-    "hideRightSidebar": "隐藏右侧边栏",
+    "hideLeftSidebar": "隐藏左侧边栏",
+    "showCenterPanel": "显示编辑器",
+    "hideCenterPanel": "隐藏编辑器",
     "showRightSidebar": "显示右侧边栏",
+    "hideRightSidebar": "隐藏右侧边栏",
     "searchPlaceholder": "搜索笔记或记录..."
   },
   "marks": {
@@ -1308,6 +1533,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "正在拉取远程文件...",
+      "syncComplete": "同步完成"
+    },
+    "syncConfirm": {
+      "title": "检测到远程文件更新",
+      "description": "文件 {fileName} 有远程更新",
+      "commitInfo": "最新提交信息",
+      "commitMessage": "提交消息",
+      "author": "作者",
+      "changes": "变更",
+      "confirmMessage": "确认要拉取远程版本并覆盖本地文件吗？此操作无法撤销。",
+      "cancel": "取消",
+      "confirmPull": "确认拉取"
+    },
+    "emptyState": {
+      "title": "开始创作",
+      "subtitle": "选择一个文件开始编辑，或创建新的笔记",
+      "tip": "💡 提示：你也可以从左侧文件管理器中选择文件",
+      "actions": {
+        "newNote": {
+          "title": "创建笔记",
+          "desc": "新建一篇 Markdown 笔记"
+        },
+        "newRecord": {
+          "title": "创建记录",
+          "desc": "打开文本记录功能"
+        },
+        "globalSearch": {
+          "title": "全局搜索",
+          "desc": "快速查找你的笔记内容"
+        },
+        "openWorkspace": {
+          "title": "打开工作区",
+          "desc": "选择或切换工作区目录"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "访问仓库",
@@ -1325,6 +1588,8 @@
         "sortAsc": "升序排列",
         "sortDesc": "降序排列",
         "sort": "排序",
+        "hideCloudFiles": "隐藏云端文件",
+        "showCloudFiles": "显示云端文件",
         "processingVectors": "正在处理向量数据",
         "calculateVectors": "知识库计算（全量）",
         "enableVectorDb": "启用向量数据库",
@@ -1333,6 +1598,12 @@
         "importSuccess": "导入成功",
         "importSuccessDesc": "成功导入 {count} 个文件",
         "importError": "导入失败"
+      },
+      "sync": {
+        "syncingRemote": "正在拉取远程文件",
+        "syncComplete": "同步完成",
+        "pullingRemote": "正在从远程服务器获取最新内容...",
+        "pullComplete": "拉取完成"
       },
       "context": {
         "viewDirectory": "查看目录",
@@ -1354,7 +1625,55 @@
         "syncFolderError": "文件夹同步失败",
         "syncFolderProgress": "正在同步文件夹...",
         "deleteSyncFileSuccess": "删除成功",
-        "deleteSyncFileError": "删除失败"
+        "deleteSyncFileError": "删除失败",
+        "knowledgeBase": "知识库",
+        "calculateVectors": "计算向量",
+        "updateVectors": "更新向量",
+        "deleteVectors": "删除向量",
+        "includeInKB": "包含在知识库",
+        "includeInKBFile": "包含在知识库中",
+        "autoVectorCalc": "自动向量计算",
+        "vectorCalculated": "向量已更新",
+        "vectorCalcCompleted": "向量计算完成",
+        "vectorCalcFailed": "向量计算失败",
+        "vectorDeleted": "向量已删除",
+        "vectorDeleteFailed": "删除向量失败",
+        "batchCalcSuccess": "成功计算 {count} 个文件的向量",
+        "batchCalcPartial": "计算完成：成功 {success} 个，失败 {failed} 个",
+        "batchCalcFailed": "批量计算向量失败",
+        "batchDeleteSuccess": "成功删除 {count} 个文件的向量",
+        "batchDeletePartial": "删除完成：成功 {success} 个，失败 {failed} 个",
+        "batchDeleteFailed": "批量删除向量失败",
+        "noMarkdownFiles": "文件夹中没有 Markdown 文件",
+        "includedInKB": "已包含在知识库中",
+        "excludedFromKB": "已从知识库中排除",
+        "autoCalcEnabled": "已启用自动向量计算",
+        "autoCalcDisabled": "已禁用自动向量计算",
+        "settingFailed": "设置失败",
+        "confirmDeleteVectors": "确定要删除 {count} 个文件的向量吗？"
+      },
+      "folderView": {
+        "vectorDbNotEnabled": "向量数据库未启用",
+        "indexed": "已计算",
+        "vectorCount": "向量数",
+        "databaseSize": "数据库大小",
+        "lastCalculated": "最后计算",
+        "never": "从未",
+        "calculating": "计算中...",
+        "failed": "失败",
+        "recalculateVectors": "重新计算向量",
+        "skills": "Skills",
+        "skillNotFound": "Skill 未找到",
+        "skillNotFoundDesc": "无法找到 ID 为 {id} 的 Skill",
+        "loadingSkills": "加载 Skills...",
+        "loadingSkill": "加载 Skill...",
+        "globalSkills": "全局 Skills",
+        "workspaceSkills": "工作区 Skills",
+        "instructions": "指令",
+        "examples": "示例",
+        "scripts": "脚本",
+        "references": "参考文档",
+        "assets": "静态资源"
       },
       "error": {
         "fileExists": "文件名已存在"
@@ -1373,7 +1692,19 @@
     "editor": {
       "copySuccess": "复制成功",
       "copySuccessDescription": "已复制到剪贴板",
+      "search": {
+        "placeholder": "在文档中查找",
+        "replacePlaceholder": "替换为",
+        "caseSensitive": "区分大小写",
+        "replace": "替换",
+        "replaceAll": "全部替换",
+        "findPrev": "上一个",
+        "findNext": "下一个"
+      },
       "floatbar": {
+        "quote": {
+          "tooltip": "引用"
+        },
         "readAloud": {
           "start": "朗读",
           "stop": "停止朗读",
@@ -1436,11 +1767,21 @@
     },
     "footer": {
       "wordCount": "字数",
+      "pull": {
+        "pull": "拉取",
+        "checking": "检查更新中...",
+        "noUpdate": "无远程更新",
+        "clickToPull": "点击拉取远程更新",
+        "pullSuccess": "拉取成功",
+        "pullFailed": "拉取失败",
+        "ignored": "已忽略",
+        "ignoreUpdate": "忽略此更新"
+      },
       "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失败",
+        "push": "推送",
+        "pushed": "已推送",
+        "syncing": "推送中",
+        "syncFailed": "推送失败",
         "checkNetworkOrToken": "请检查网络连接或令牌是否正确",
         "quickSync": "快速同步"
       },
@@ -1456,10 +1797,40 @@
         "quickSync": "快速同步"
       },
       "vectorCalc": {
-        "tooltip": "向量计算：编辑完成30秒后自动计算，或点击立即计算",
-        "calculating": "计算中",
-        "pending": "待计算 {progress}%",
-        "synced": "已同步"
+        "tooltip": {
+          "default": "向量索引状态",
+          "none": "点击开始向量计算",
+          "indexed": "已索引",
+          "pending": "待更新，点击立即计算",
+          "calculating": "计算中..."
+        },
+        "status": {
+          "calculating": "计算中"
+        }
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "对话设置"
+        },
+        "tools": {
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除对话上下文，保留聊天记录",
+          "clearChat": "清空对话",
+          "clearChatDesc": "删除所有聊天记录",
+          "clear": "清除"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相册",
+          "camera": "照相",
+          "file": "文件",
+          "linkNote": "关联笔记"
+        }
       }
     }
   },
@@ -1501,5 +1872,8 @@
       "model": "大模型识别",
       "modelDesc": "需配置STT模型，更准确"
     }
+  },
+  "quickRecord": {
+    "description": "点击选择记录工具，快速创建记录"
   }
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { initVectorDb, processAllMarkdownFiles, processMarkdownFile, checkEmbeddingModelAvailable } from '@/lib/rag';
-import { checkRerankModelAvailable } from '@/lib/ai';
+import { initVectorDb, processAllMarkdownFiles, processMarkdownFile, checkEmbeddingModelAvailable, initBM25Search } from '@/lib/rag';
+import { checkRerankModelAvailable } from '@/lib/ai/embedding';
 import { Store } from "@tauri-apps/plugin-store";
 import { toast } from '@/hooks/use-toast';
 
@@ -41,7 +41,10 @@ const useVectorStore = create<VectorState>((set, get) => ({
   initVectorDb: async () => {
     try {
       await initVectorDb();
-      
+
+      // 初始化 BM25 索引
+      await initBM25Search();
+
       // 读取用户设置
       const store = await Store.load('store.json');
       const isVectorDbEnabled = await store.get<boolean>('isVectorDbEnabled') || false;
@@ -121,7 +124,7 @@ const useVectorStore = create<VectorState>((set, get) => ({
   processAllDocuments: async () => {
     // 如果已经在处理中，直接返回
     if (get().isProcessing) return;
-    
+
     try {
       // 检查嵌入模型是否可用
       const modelAvailable = await get().checkEmbeddingModel();
@@ -133,39 +136,61 @@ const useVectorStore = create<VectorState>((set, get) => ({
         });
         return;
       }
-      
+
       // 设置处理状态
       set({ isProcessing: true });
-      
+
       // 显示处理开始的提示
       toast({
         title: '向量处理',
         description: '开始处理文档向量，这可能需要一些时间...',
       });
-      
-      // 处理所有文档
-      const result = await processAllMarkdownFiles();
-      
+
+      // 处理所有文档，带进度回调
+      const result = await processAllMarkdownFiles((current, total, fileName) => {
+        // 更新进度提示（只显示关键节点）
+        if (current === 1 || current === total || current % 5 === 0) {
+          toast({
+            title: '向量处理中',
+            description: `正在处理 ${fileName} (${current}/${total})`,
+          });
+        }
+      });
+
       // 更新处理时间和状态
       const currentTime = Date.now();
       const store = await Store.load('store.json');
       await store.set('lastVectorProcessTime', currentTime);
-      
-      set({ 
+
+      set({
         isProcessing: false,
         lastProcessTime: currentTime,
         documentCount: result.success
       });
-      
+
+      // 重新初始化 BM25 索引
+      await initBM25Search();
+
       // 显示处理结果
+      let description = `成功处理 ${result.success} 个文档`;
+      if (result.failed > 0) {
+        description += `，失败 ${result.failed} 个文档`;
+        // 如果有失败文件，显示前几个
+        if (result.failedFiles && result.failedFiles.length > 0) {
+          const failedSample = result.failedFiles.slice(0, 3).map(f => f.fileName).join('、');
+          description += `\n失败文件: ${failedSample}${result.failedFiles.length > 3 ? ' 等' : ''}`;
+        }
+      }
+
       toast({
-        title: '向量处理完成',
-        description: `成功处理 ${result.success} 个文档，失败 ${result.failed} 个文档。`,
+        title: result.failed > 0 ? '向量处理完成（部分失败）' : '向量处理完成',
+        description,
+        variant: result.failed > 0 ? 'destructive' : 'default',
       });
     } catch (error) {
       console.error('处理文档向量失败:', error);
       set({ isProcessing: false });
-      
+
       toast({
         title: '向量处理失败',
         description: '处理文档向量时发生错误，请查看控制台日志',

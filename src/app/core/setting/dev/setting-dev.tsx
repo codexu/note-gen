@@ -73,7 +73,7 @@ export function SettingDev({id, icon}: {id: string, icon?: React.ReactNode}) {
   return (
     <SettingType id={id} icon={icon} title={t('settings.dev.title')} desc={t('settings.dev.desc')}>
       <ItemGroup className="gap-4">
-        <Item variant="outline">
+        <Item variant="outline" className="max-md:flex-col max-md:items-start">
           <ItemMedia variant="icon"><Network className="size-4" /></ItemMedia>
           <ItemContent>
             <ItemTitle>{t('settings.dev.proxyTitle')}</ItemTitle>

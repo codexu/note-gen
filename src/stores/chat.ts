@@ -7,7 +7,7 @@ import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileConten
 import { getSyncRepoName } from '@/lib/sync/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
-import { ChatMode, AgentState, ToolCall } from '@/lib/agent/types';
+import { AgentState, ToolCall } from '@/lib/agent/types'
 
 // MCP 工具调用记录（临时，不保存到数据库）
 export interface McpToolCall {
@@ -28,9 +28,7 @@ interface ChatState {
 
   isLinkMark: boolean // 是否关联记录
   setIsLinkMark: (isLinkMark: boolean) => void
-
-  isPlaceholderEnabled: boolean // 是否启用AI提示占位符
-  setPlaceholderEnabled: (isEnabled: boolean) => void
+  initIsLinkMark: () => void // 初始化关联状态
 
   chats: Chat[]
   init: (tagId: number) => Promise<void> // 初始化 chats
@@ -62,14 +60,15 @@ interface ChatState {
   clearMcpToolCalls: () => void
 
   // Agent 模式
-  chatMode: ChatMode
-  setChatMode: (mode: ChatMode) => void
-  
   agentState: AgentState
   setAgentState: (state: Partial<AgentState>) => void
   resetAgentState: () => void
   addAgentToolCall: (toolCall: ToolCall) => void
   updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => void
+  
+  // Placeholder 状态
+  isPlaceholderEnabled: boolean
+  setPlaceholderEnabled: (enabled: boolean) => void
 }
 
 const useChatStore = create<ChatState>((set, get) => ({
@@ -79,28 +78,31 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ loading })
   },
 
-  isLinkMark: true,
+  isLinkMark: (typeof window !== 'undefined' ? localStorage.getItem('isLinkMark') === 'true' : true),
   setIsLinkMark: (isLinkMark: boolean) => {
     set({ isLinkMark })
-  },
-
-  isPlaceholderEnabled: true,
-  setPlaceholderEnabled: (isEnabled: boolean) => {
-    set({ isPlaceholderEnabled: isEnabled })
-  },
-
-  chatMode: (typeof window !== 'undefined' ? localStorage.getItem('chatMode') as ChatMode : null) || 'chat',
-  setChatMode: (mode: ChatMode) => {
-    set({ chatMode: mode })
     if (typeof window !== 'undefined') {
-      localStorage.setItem('chatMode', mode)
+      localStorage.setItem('isLinkMark', String(isLinkMark))
+    }
+  },
+  initIsLinkMark: () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('isLinkMark')
+      if (stored === null) {
+        localStorage.setItem('isLinkMark', 'true')
+        set({ isLinkMark: true })
+      } else {
+        set({ isLinkMark: stored === 'true' })
+      }
     }
   },
 
   agentState: {
     isRunning: false,
+    isThinking: false,
     currentThought: '',
     thoughtHistory: [],
+    completedSteps: [],
     currentAction: undefined,
     currentObservation: undefined,
     toolCalls: [],
@@ -108,6 +110,11 @@ const useChatStore = create<ChatState>((set, get) => ({
     currentIteration: 0,
     pendingConfirmation: undefined,
     confirmationHistory: [],
+    loadedSkills: undefined,
+    selectedSkills: undefined,
+    currentStepStartTime: undefined,
+    ragSources: undefined,
+    ragSourceDetails: undefined,
   },
 
   setAgentState: (state: Partial<AgentState>) => {
@@ -115,11 +122,14 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   resetAgentState: () => {
+    const currentState = get().agentState
     set({
       agentState: {
         isRunning: false,
+        isThinking: false,
         currentThought: '',
         thoughtHistory: [],
+        completedSteps: [],
         currentAction: '',
         currentObservation: '',
         toolCalls: [],
@@ -127,6 +137,12 @@ const useChatStore = create<ChatState>((set, get) => ({
         currentIteration: 0,
         pendingConfirmation: undefined,
         confirmationHistory: [],
+        loadedSkills: undefined,
+        selectedSkills: undefined,
+        currentStepStartTime: undefined,
+        // 保留 RAG 字段，因为它们应该在整个 Agent 执行期间显示
+        ragSources: currentState.ragSources,
+        ragSourceDetails: currentState.ragSourceDetails,
       }
     })
   },
@@ -151,6 +167,11 @@ const useChatStore = create<ChatState>((set, get) => ({
         )
       }
     })
+  },
+
+  isPlaceholderEnabled: true,
+  setPlaceholderEnabled: (enabled: boolean) => {
+    set({ isPlaceholderEnabled: enabled })
   },
 
   chats: [],
@@ -179,7 +200,14 @@ const useChatStore = create<ChatState>((set, get) => ({
     const chats = get().chats
     const newChats = chats.map(item => {
       if (item.id === chat.id) {
-        return chat
+        // 合并更新，只覆盖非 undefined 的字段，保留已存在的字段（如 ragSources）
+        const result = { ...item }
+        for (const key in chat) {
+          if ((chat as any)[key] !== undefined) {
+            (result as any)[key] = (chat as any)[key]
+          }
+        }
+        return result
       }
       return item
     })
@@ -214,6 +242,9 @@ const useChatStore = create<ChatState>((set, get) => ({
   clearChats: async (tagId) => {
     set({ chats: [] })
     await clearChatsByTagId(tagId)
+    // 清空聊天记录时同步清理 Agent 状态
+    get().resetAgentState()
+    get().clearMcpToolCalls()
   },
 
   updateInsert: async (id) => {

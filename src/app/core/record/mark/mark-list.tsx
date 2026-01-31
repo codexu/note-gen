@@ -6,9 +6,9 @@ import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
 
-export function MarkList() {
-  const { 
-    marks, 
+export const MarkList = React.memo(function MarkList() {
+  const {
+    marks,
     queues
   } = useMarkStore()
 
@@ -34,4 +34,4 @@ export function MarkList() {
       </div>
     </div>
   )
-}
+})

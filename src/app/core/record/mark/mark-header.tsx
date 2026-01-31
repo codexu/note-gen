@@ -8,6 +8,7 @@ import { ControlImage } from "./control-image"
 import { ControlFile } from "./control-file"
 import { ControlLink } from "./control-link"
 import { ControlRecording } from "./control-recording"
+import { ControlTodo } from "./control-todo"
 import useMarkStore from "@/stores/mark"
 import useSettingStore from "@/stores/setting"
 import {
@@ -19,7 +20,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Menu, Trash2, XCircle } from 'lucide-react'
-import { useIsMobile } from '@/hooks/use-mobile'
 import {
   DndContext,
   closestCenter,
@@ -40,7 +40,6 @@ export function MarkHeader() {
   const t = useTranslations('record.mark');
   const { trashState, setTrashState, fetchAllTrashMarks, fetchMarks } = useMarkStore()
   const { recordToolbarConfig, setRecordToolbarConfig } = useSettingStore()
-  const isMobile = useIsMobile()
 
   // 拖拽传感器配置（仅桌面端）
   const sensors = useSensors(
@@ -84,60 +83,38 @@ export function MarkHeader() {
 
   return (
     <div className="flex justify-between items-center h-12 border-b px-2">
+      {/* 工具栏 */}
       <div className="flex">
         <TooltipProvider>
-          {/* 可拖拽排序的按钮容器（桌面端）或普通容器（移动端） */}
-          {!isMobile ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={recordToolbarConfig.filter(item => item.enabled).map(item => item.id)}
+              strategy={horizontalListSortingStrategy}
             >
-              <SortableContext
-                items={recordToolbarConfig.filter(item => item.enabled).map(item => item.id)}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex">
-                  {recordToolbarConfig
-                    .filter(item => item.enabled)
-                    .sort((a, b) => a.order - b.order)
-                    .map(item => (
-                      <SortableToolbarItem key={item.id} id={item.id} />
-                    ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          ) : (
-            <div className="flex">
-              {recordToolbarConfig
-                .filter(item => item.enabled)
-                .sort((a, b) => a.order - b.order)
-                .map(item => {
-                  switch (item.id) {
-                    case 'text':
-                      return <ControlText key={item.id} />
-                    case 'recording':
-                      return <ControlRecording key={item.id} />
-                    case 'scan':
-                      return <ControlScan key={item.id} />
-                    case 'image':
-                      return <ControlImage key={item.id} />
-                    case 'link':
-                      return <ControlLink key={item.id} />
-                    case 'file':
-                      return <ControlFile key={item.id} />
-                    default:
-                      return null
-                  }
-                })}
-            </div>
-          )}
+              <div className="flex">
+                {recordToolbarConfig
+                  .filter(item => item.enabled)
+                  .sort((a, b) => a.order - b.order)
+                  .map(item => (
+                    <SortableToolbarItem key={item.id} id={item.id} />
+                  ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </TooltipProvider>
       </div>
+
+      {/* 菜单按钮 */}
       <div className="flex items-center gap-1">
-        {
-          trashState ? 
-          <Button variant="ghost" size="icon" onClick={() => setTrashState(false)}><XCircle /></Button> :
+        {trashState ? (
+          <Button variant="ghost" size="icon" onClick={() => setTrashState(false)}>
+            <XCircle />
+          </Button>
+        ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -150,7 +127,7 @@ export function MarkHeader() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        }
+        )}
       </div>
     </div>
   )
@@ -192,6 +169,8 @@ function SortableToolbarItem({ id }: SortableToolbarItemProps) {
         return <ControlLink />
       case 'file':
         return <ControlFile />
+      case 'todo':
+        return <ControlTodo />
       default:
         return null
     }

@@ -54,6 +54,14 @@
           "title": "正文縮放",
           "desc": "調整編輯器和對話中 Markdown 內容的文字大小"
         },
+        "fileManagerTextSize": {
+          "title": "文件管理器文字大小",
+          "desc": "調整文件管理器中文件和文件夾列表的文字大小"
+        },
+        "recordTextSize": {
+          "title": "記錄文字大小",
+          "desc": "調整記錄列表中記錄項的文字大小"
+        },
         "customCss": {
           "title": "自訂 CSS",
           "desc": "添加自訂 CSS 樣式來覆蓋應用的默認樣式",
@@ -63,6 +71,12 @@
           "placeholder": "在此輸入自訂 CSS 代碼。",
           "save": "保存",
           "cancel": "取消"
+        },
+        "tray": {
+          "enabled": {
+            "title": "啟用托盤",
+            "desc": "關閉窗口時選擇最小化到托盤或直接關閉軟件"
+          }
         }
       },
       "tools": {
@@ -107,8 +121,6 @@
     "mcp": {
       "title": "MCP",
       "desc": "Model Context Protocol 允許 AI 調用外部工具和訪問資源，擴展 AI 的能力邊界。",
-      "enableTitle": "啟用 MCP 功能",
-      "enableDesc": "啟用後，AI 可以調用配置的 MCP 伺服器提供的工具。",
       "servers": "伺服器列表",
       "serversDesc": "管理 MCP 伺服器配置，每個伺服器可以提供不同的工具和資源。",
       "addServer": "添加伺服器",
@@ -157,7 +169,23 @@
       "testAllFailed": "連接測試失敗",
       "save": "保存",
       "cancel": "取消",
-      "delete": "刪除"
+      "delete": "刪除",
+      "importJson": "導入 JSON",
+      "jsonImportTitle": "從 JSON 導入伺服器配置",
+      "jsonImportDesc": "粘貼 MCP 伺服器的 mcpServers 配置格式",
+      "jsonInput": "JSON 配置",
+      "jsonInputHelp": "支持 mcpServers 格式，會自動使用伺服器名稱作為 key",
+      "jsonRequired": "請輸入 JSON 配置",
+      "jsonEmpty": "JSON 配置不能為空",
+      "jsonInvalidJson": "JSON 格式錯誤",
+      "jsonInvalidFormat": "配置格式無效，必須包含 name 和 type 字段",
+      "jsonInvalidType": "伺服器類型必須是 stdio 或 http",
+      "jsonMissingCommand": "stdio 類型伺服器必須指定 command",
+      "jsonMissingUrl": "http 類型伺服器必須指定 url",
+      "jsonImportSuccess": "成功導入 {count} 個伺服器",
+      "jsonImportSkipped": "跳過 {count} 個已存在的伺服器",
+      "jsonImportNoServers": "沒有導入任何伺服器",
+      "import": "導入"
     },
     "editor": {
       "title": "Markdown 編輯器",
@@ -227,9 +255,13 @@
           "title": "AI 建議",
           "desc": "AI 建議提示作用於記錄頁面 AI 對話 placeholder 內容生成。"
         },
-        "translate": {
-          "title": "翻譯",
-          "desc": "用於翻譯內容的場景。"
+        "completion": {
+          "title": "快速補全",
+          "desc": "用於 Markdown 編輯器的 AI 內聯補全，類似 GitHub Copilot，快速生成續寫內容。"
+        },
+        "commit": {
+          "title": "自動生成 commit 資訊",
+          "desc": "用於自動生成 Git 提交資訊，基於文件內容變化智能生成描述性提交資訊。"
         },
         "embedding": {
           "title": "嵌入模型",
@@ -272,6 +304,8 @@
       "updateDownloading": "更新中 {downloaded} / {contentLength}",
       "updateInstalled": "重啟應用",
       "noUpdate": "當前已是最新版本",
+      "ignoreVersion": "忽略此版本",
+      "ignoreVersionSuccess": "已忽略此版本更新",
       "items": {
         "home": {
           "title": "官網",
@@ -663,9 +697,14 @@
           "desc": "用於文本向量化、語義搜索等功能"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "視覺模型",
-          "desc": "支持圖像理解、OCR識別等視覺任務"
+          "desc": "支持圖像理解、視覺問答等功能"
+        },
+        "completionModel": {
+          "name": "快速補全",
+          "type": "補全模型",
+          "desc": "用於 Markdown 編輯器的 AI 內聯補全，類似 GitHub Copilot，快速生成續寫內容"
         },
         "poweredBy": "由 SiliconFlow 提供技術支援"
       }
@@ -771,6 +810,8 @@
         "text": "文本",
         "file": "文件",
         "link": "連結",
+        "todo": "待辦",
+        "pdf": "PDF",
         "upload": "上傳記錄",
         "download": "下載記錄",
         "uploadTo": "從本地同步到 {provider}",
@@ -806,12 +847,36 @@
         "title": "記錄文本",
         "description": "記錄一段文本，筆記整理時將插入到合適的位置。",
         "characterCount": "{count} 字元",
-        "save": "記錄"
+        "save": "記錄",
+        "autoReadClipboard": "自動讀取剪貼簿文本"
       },
       "link": {
         "title": "連結記錄",
         "description": "輸入網頁連結，系統將自動爬取頁面內容並保存",
-        "save": "保存"
+        "save": "保存",
+        "autoReadClipboard": "自動讀取剪貼簿連結"
+      },
+      "todo": {
+        "title": "待辦記錄",
+        "description": "創建待辦事項，管理你的任務",
+        "titlePlaceholder": "輸入待辦標題...",
+        "descriptionPlaceholder": "輸入詳細描述（可選）",
+        "priority": "優先級",
+        "priorityLow": "低",
+        "priorityMedium": "中",
+        "priorityHigh": "高",
+        "dateRange": "日期範圍",
+        "dateRangePlaceholder": "選擇日期範圍",
+        "dueDate": "截止日期",
+        "dueDatePlaceholder": "選擇日期",
+        "save": "創建待辦",
+        "saveEdit": "保存",
+        "edit": "編輯待辦",
+        "editDescription": "修改待辦事項的詳細信息",
+        "cancel": "取消",
+        "selectTag": "選擇標籤",
+        "completed": "已完成",
+        "uncompleted": "未完成"
       },
       "clipboard": {
         "detectedImage": "檢測到剪貼簿圖片",
@@ -848,6 +913,8 @@
             "acting": "執行中",
             "observation": "觀察結果",
             "toolCalls": "工具調用",
+            "thought": "思考",
+            "action": "行動",
             "confirmation": {
               "title": "確認操作",
               "description": "Agent 想要執行以下操作，請確認後繼續。",
@@ -900,20 +967,14 @@
             "error": "失敗"
           },
           "empty": {
-            "features": [
-              {
-                "chat": "與 AI 機器人進行聊天"
-              },
-              {
-                "linked": "與你的紀錄或筆記關聯"
-              },
-              {
-                "clipboard": "識別剪貼簿中的文字和圖片"
-              },
-              {
-                "organize": "將你的紀錄整理為筆記"
-              }
-            ]
+            "title": "開始與 AI 對話",
+            "subtitle": "使用 Chat 或 Agent 模式與 AI 互動",
+            "currentModel": "當前模型",
+            "currentPrompt": "當前 Prompt",
+            "currentMode": "對話模式",
+            "noModel": "未設置模型",
+            "noPrompt": "未設置 Prompt",
+            "configureModel": "配置模型"
           },
           "content": {
             "organize": "將你的紀錄整理為文章："
@@ -994,7 +1055,17 @@
         "organizeNotes": "整理筆記",
         "organizeSuccess": "筆記整理成功：{title}",
         "organizeError": "整理筆記失敗",
-        "currentTag": "當前標籤"
+        "currentTag": "當前標籤",
+        "text": "記錄文本",
+        "recording": "錄音記錄",
+        "scan": "掃描圖片",
+        "image": "上傳圖片",
+        "link": "記錄連結",
+        "file": "上傳文件",
+        "todo": "待辦記錄"
+      },
+      "list": {
+        "title": "記錄"
       }
     },
     "chat": {
@@ -1079,12 +1150,25 @@
           "chatDescription": "快速對話，唯讀模式",
           "agentDescription": "智能助手，可執行操作"
         },
+        "attachImage": "附加圖片",
+        "imageSelector": {
+          "title": "選擇圖片",
+          "local": "本地文件",
+          "records": "從記錄中選擇",
+          "selectFiles": "選擇本地圖片",
+          "noRecords": "沒有可用的圖片記錄",
+          "cancel": "取消",
+          "confirm": "確認"
+        },
         "agent": {
           "running": "Agent 運行中",
           "thinking": "思考中",
+          "analyzingRequest": "Agent 正在分析您的請求...",
           "acting": "執行中",
           "observation": "觀察結果",
           "toolCalls": "工具調用",
+          "thought": "思考",
+          "action": "行動",
           "confirmation": {
             "title": "確認操作",
             "description": "Agent 想要執行以下操作，請確認後繼續。",
@@ -1133,7 +1217,8 @@
         "copied": "已複製"
       },
       "ragSources": {
-        "label": "引用文件"
+        "label": "知識庫檢索到 {count} 篇筆記",
+        "openFile": "打開文件"
       },
       "preview": {
         "close": "關閉",
@@ -1188,6 +1273,10 @@
     "results": "{count} 個搜索結果",
     "noResults": "暫無搜索結果",
     "tryDifferentKeywords": "嘗試使用不同的關鍵字搜索",
+    "mode": {
+      "fuzzy": "模糊",
+      "exact": "精確"
+    },
     "item": {
       "record": "記錄",
       "article": "文章",
@@ -1207,6 +1296,7 @@
   "navigation": {
     "chat": "對話",
     "record": "記錄",
+    "quickRecord": "快捷記錄",
     "write": "寫作",
     "search": "搜索",
     "githubImageHosting": "Github 圖床",
@@ -1216,6 +1306,7 @@
     "logout": "登出",
     "setting": "設置",
     "files": "筆記",
+    "outline": "大綱",
     "hideLeftSidebar": "隱藏左側邊欄",
     "showLeftSidebar": "顯示左側邊欄",
     "hideRightSidebar": "隱藏右側邊欄",
@@ -1245,6 +1336,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "正在拉取遠端檔案...",
+      "syncComplete": "同步完成"
+    },
+    "syncConfirm": {
+      "title": "檢測到遠端檔案更新",
+      "description": "檔案 {fileName} 有遠端更新",
+      "commitInfo": "最新提交資訊",
+      "commitMessage": "提交訊息",
+      "author": "作者",
+      "changes": "變更",
+      "confirmMessage": "確認要拉取遠端版本並覆蓋本地檔案嗎？此操作無法撤銷。",
+      "cancel": "取消",
+      "confirmPull": "確認拉取"
+    },
+    "emptyState": {
+      "title": "開始創作",
+      "subtitle": "選擇一個文件開始編輯，或創建新的筆記",
+      "tip": "💡 提示：你也可以從左側文件管理器中選擇文件",
+      "actions": {
+        "newNote": {
+          "title": "創建筆記",
+          "desc": "新建一篇 Markdown 筆記"
+        },
+        "newRecord": {
+          "title": "創建記錄",
+          "desc": "打開文本記錄功能"
+        },
+        "globalSearch": {
+          "title": "全局搜索",
+          "desc": "快速查找你的筆記內容"
+        },
+        "openWorkspace": {
+          "title": "打開工作區",
+          "desc": "選擇或切換工作區目錄"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "訪問倉庫",
@@ -1262,6 +1391,8 @@
         "sortAsc": "升序排列",
         "sortDesc": "降序排列",
         "sort": "排序",
+        "hideCloudFiles": "隱藏雲端檔案",
+        "showCloudFiles": "顯示雲端檔案",
         "processingVectors": "正在處理向量數據",
         "calculateVectors": "知識庫計算（全量）",
         "enableVectorDb": "啟用向量資料庫",
@@ -1270,6 +1401,12 @@
         "importSuccess": "匯入成功",
         "importSuccessDesc": "成功匯入 {count} 個文件",
         "importError": "匯入失敗"
+      },
+      "sync": {
+        "syncingRemote": "正在拉取遠端檔案",
+        "syncComplete": "同步完成",
+        "pullingRemote": "正在從遠端伺服器取得最新內容...",
+        "pullComplete": "拉取完成"
       },
       "context": {
         "viewDirectory": "查看目錄",
@@ -1291,7 +1428,55 @@
         "syncFolderError": "文件夾同步失敗",
         "syncFolderProgress": "正在同步文件夾...",
         "deleteSyncFileSuccess": "刪除成功",
-        "deleteSyncFileError": "刪除失敗"
+        "deleteSyncFileError": "刪除失敗",
+        "knowledgeBase": "知識庫",
+        "calculateVectors": "計算向量",
+        "updateVectors": "更新向量",
+        "deleteVectors": "刪除向量",
+        "includeInKB": "包含在知識庫",
+        "includeInKBFile": "包含在知識庫中",
+        "autoVectorCalc": "自動向量計算",
+        "vectorCalculated": "向量已更新",
+        "vectorCalcCompleted": "向量計算完成",
+        "vectorCalcFailed": "向量計算失敗",
+        "vectorDeleted": "向量已刪除",
+        "vectorDeleteFailed": "刪除向量失敗",
+        "batchCalcSuccess": "成功計算 {count} 個文件的向量",
+        "batchCalcPartial": "計算完成：成功 {success} 個，失敗 {failed} 個",
+        "batchCalcFailed": "批量計算向量失敗",
+        "batchDeleteSuccess": "成功刪除 {count} 個文件的向量",
+        "batchDeletePartial": "刪除完成：成功 {success} 個，失敗 {failed} 個",
+        "batchDeleteFailed": "批量刪除向量失敗",
+        "noMarkdownFiles": "文件夾中沒有 Markdown 文件",
+        "includedInKB": "已包含在知識庫中",
+        "excludedFromKB": "已從知識庫中排除",
+        "autoCalcEnabled": "已啟用自動向量計算",
+        "autoCalcDisabled": "已禁用自動向量計算",
+        "settingFailed": "設置失敗",
+        "confirmDeleteVectors": "確定要刪除 {count} 個文件的向量嗎？"
+      },
+      "folderView": {
+        "vectorDbNotEnabled": "向量資料庫未啟用",
+        "indexed": "已計算",
+        "vectorCount": "向量數",
+        "databaseSize": "資料庫大小",
+        "lastCalculated": "最後計算",
+        "never": "從未",
+        "calculating": "計算中...",
+        "failed": "失敗",
+        "recalculateVectors": "重新計算向量",
+        "skills": "Skills",
+        "skillNotFound": "Skill 未找到",
+        "skillNotFoundDesc": "無法找到 ID 為 {id} 的 Skill",
+        "loadingSkills": "載入 Skills...",
+        "loadingSkill": "載入 Skill...",
+        "globalSkills": "全域 Skills",
+        "workspaceSkills": "工作區 Skills",
+        "instructions": "指令",
+        "examples": "示例",
+        "scripts": "腳本",
+        "references": "參考文檔",
+        "assets": "靜態資源"
       },
       "error": {
         "fileExists": "檔案名已存在"
@@ -1310,7 +1495,19 @@
     "editor": {
       "copySuccess": "複製成功",
       "copySuccessDescription": "已複製到剪貼簿",
+      "search": {
+        "placeholder": "在文件中尋找",
+        "replacePlaceholder": "取代為",
+        "caseSensitive": "區分大小寫",
+        "replace": "取代",
+        "replaceAll": "全部取代",
+        "findPrev": "上一個",
+        "findNext": "下一個"
+      },
       "floatbar": {
+        "quote": {
+          "tooltip": "引用"
+        },
         "readAloud": {
           "start": "朗讀",
           "stop": "停止朗讀",
@@ -1367,11 +1564,21 @@
     },
     "footer": {
       "wordCount": "字數",
+      "pull": {
+        "pull": "拉取",
+        "checking": "檢查更新中...",
+        "noUpdate": "無遠端更新",
+        "clickToPull": "點擊拉取遠端更新",
+        "pullSuccess": "拉取成功",
+        "pullFailed": "拉取失敗",
+        "ignored": "已忽略",
+        "ignoreUpdate": "忽略此更新"
+      },
       "sync": {
-        "sync": "同步",
-        "synced": "已同步",
-        "syncing": "同步中",
-        "syncFailed": "同步失敗",
+        "push": "推送",
+        "pushed": "已推送",
+        "syncing": "推送中",
+        "syncFailed": "推送失敗",
         "checkNetworkOrToken": "請檢查網路連接或令牌是否正確",
         "quickSync": "快速同步"
       },
@@ -1387,10 +1594,40 @@
         "quickSync": "快速同步"
       },
       "vectorCalc": {
-        "tooltip": "向量計算：編輯完成30秒後自動計算，或點擊立即計算",
-        "calculating": "計算中",
-        "pending": "待計算 {progress}%",
-        "synced": "已同步"
+        "tooltip": {
+          "default": "向量索引狀態",
+          "none": "點擊開始向量計算",
+          "indexed": "已索引",
+          "pending": "待更新，點擊立即計算",
+          "calculating": "計算中..."
+        },
+        "status": {
+          "calculating": "計算中"
+        }
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "對話設定"
+        },
+        "tools": {
+          "title": "工具",
+          "clearContext": "清除上下文",
+          "clearContextDesc": "清除對話上下文，保留聊天記錄",
+          "clearChat": "清空對話",
+          "clearChatDesc": "刪除所有聊天記錄",
+          "clear": "清除"
+        },
+        "attachments": {
+          "title": "附件",
+          "gallery": "相簿",
+          "camera": "照相",
+          "file": "檔案",
+          "linkNote": "關聯筆記"
+        }
       }
     }
   },
@@ -1407,5 +1644,8 @@
     "tools": "個工具",
     "connecting": "連線中",
     "disconnected": "未連接"
+  },
+  "quickRecord": {
+    "description": "點擊選擇記錄工具，快速創建記錄"
   }
 }

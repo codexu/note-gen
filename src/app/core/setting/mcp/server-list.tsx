@@ -16,9 +16,11 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  FileJson,
 } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { ServerConfigDialog } from './server-config-dialog'
+import { JsonImportDialog } from './json-import-dialog'
 import type { MCPServerConfig } from '@/lib/mcp/types'
 import { useToast } from '@/hooks/use-toast'
 import { mcpServerManager } from '@/lib/mcp/server-manager'
@@ -41,6 +43,7 @@ export function ServerList() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [jsonImportOpen, setJsonImportOpen] = useState(false)
   const [serverToDelete, setServerToDelete] = useState<string | null>(null)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
   const [testingAll, setTestingAll] = useState(false)
@@ -147,12 +150,16 @@ export function ServerList() {
       </div>
       <div className="flex items-center gap-2">
         <Button onClick={handleAddServer}>
-          <Plus className="mr-2 size-4" />
+          <Plus className="mr-2 max-md:hidden size-4" />
           {t('addServer')}
         </Button>
+        <Button variant="outline" onClick={() => setJsonImportOpen(true)}>
+          <FileJson className="mr-2 max-md:hidden size-4" />
+          {t('importJson')}
+        </Button>
         {servers.filter(s => s.enabled).length > 0 && (
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleTestAllConnections}
             disabled={testingAll}
           >
@@ -292,7 +299,12 @@ export function ServerList() {
         onOpenChange={setDialogOpen}
         editingServer={editingServer}
       />
-      
+
+      <JsonImportDialog
+        open={jsonImportOpen}
+        onOpenChange={setJsonImportOpen}
+      />
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

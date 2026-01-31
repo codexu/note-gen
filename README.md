@@ -22,7 +22,7 @@
 
 NoteGen is a cross-platform `Markdown` note-taking application dedicated to using AI to bridge recording and writing, organizing fragmented knowledge into a readable note.
 
-![](https://s2.loli.net/2025/06/13/UbVGPrhFl3etnQz.png)
+![](https://s2.loli.net/2025/12/22/jlpEP2c6ogwHhIA.png)
 
 ## Features
 
@@ -31,6 +31,7 @@ NoteGen is a cross-platform `Markdown` note-taking application dedicated to usin
 - 🆓 Free AI and sync solutions.
 - 📦 Out-of-the-box RAG support.
 - 🔌 MCP support for AI tool integration.
+- 🤖 Intelligent agents for automated note processing.
 - ✍️ Quick note-taking for fragmented information.
 - 📝 Native Markdown storage format.
 
@@ -45,12 +46,13 @@ NoteGen is a cross-platform `Markdown` note-taking application dedicated to usin
 
 ## From Recording to Writing
 
-Conventional note-taking applications typically don't provide recording functionality. Users need to manually copy and paste content for recording, which greatly reduces efficiency. When faced with scattered recorded content, it requires significant effort to organize.
+Traditional note-taking apps typically don't offer note-taking functionality, but NoteGen makes it easier for you to record scattered knowledge points and avoid disrupting your train of thought while taking notes.
 
-NoteGen is divided into `Recording` and `Writing` pages, with the following relationship:
+NoteGen is divided into three parts: Recording, Notes, and AI Dialogue. They have the following features: 
 
-- Recordings can be organized into notes and transferred to the writing page for in-depth composition.
-- During writing, you can insert recordings at any time.
+- You don't need to consider the order and logic of recording, AI will help you organize the notes into well-organized and coherent ones.
+- AI Dialogue is a feature that allows you to interact with AI in real-time, helping you to better understand and remember the content you are recording.
+- The note-taking feature can help you optimize the details of your notes independently.
 
 ## Contribute
 

@@ -1,5 +1,5 @@
 import { Tool, ToolResult } from '../types'
-import { getTags, insertTag, updateTag, delTag, Tag } from '@/db/tags'
+import { getTags, insertTag, updateTag, delTag, Tag, insertTags } from '@/db/tags'
 
 export const listTagsTool: Tool = {
   name: 'list_tags',
@@ -157,9 +157,112 @@ export const deleteTagTool: Tool = {
   },
 }
 
+export const createTagsBatchTool: Tool = {
+  name: 'create_tags_batch',
+  description: '批量创建多个标签，避免循环调用。适用于需要一次性创建多个标签的场景。',
+  category: 'tag',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'tags',
+      type: 'array',
+      description: '要创建的标签数组，每个标签包含 name 等字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.tags) || params.tags.length === 0) {
+        return {
+          success: false,
+          error: '参数 tags 必须是非空数组',
+        }
+      }
+
+      const results = []
+      for (const tag of params.tags) {
+        const result = await insertTag({ name: tag.name })
+        results.push({ name: tag.name, id: result.lastInsertId })
+      }
+      
+      return {
+        success: true,
+        data: { count: results.length, tags: results },
+        message: `成功批量创建 ${results.length} 个标签`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量创建标签失败: ${error}`,
+      }
+    }
+  },
+}
+
+export const updateTagsBatchTool: Tool = {
+  name: 'update_tags_batch',
+  description: '批量更新多个标签，避免循环调用。每个标签必须包含 id 字段。',
+  category: 'tag',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'tags',
+      type: 'array',
+      description: '要更新的标签数组，每个标签必须包含 id 以及要更新的字段',
+      required: true,
+    },
+  ],
+  execute: async (params): Promise<ToolResult> => {
+    try {
+      if (!Array.isArray(params.tags) || params.tags.length === 0) {
+        return {
+          success: false,
+          error: '参数 tags 必须是非空数组',
+        }
+      }
+
+      const allTags = await getTags()
+      const tagsToUpdate: Tag[] = []
+      
+      for (const tagUpdate of params.tags) {
+        const existingTag = allTags.find(t => t.id === tagUpdate.id)
+        if (!existingTag) {
+          return {
+            success: false,
+            error: `未找到ID为 ${tagUpdate.id} 的标签`,
+          }
+        }
+        
+        tagsToUpdate.push({
+          ...existingTag,
+          name: tagUpdate.name !== undefined ? tagUpdate.name : existingTag.name,
+          isPin: tagUpdate.isPin !== undefined ? tagUpdate.isPin : existingTag.isPin,
+          isLocked: tagUpdate.isLocked !== undefined ? tagUpdate.isLocked : existingTag.isLocked,
+          sortOrder: tagUpdate.sortOrder !== undefined ? tagUpdate.sortOrder : existingTag.sortOrder,
+        })
+      }
+
+      await insertTags(tagsToUpdate)
+      
+      return {
+        success: true,
+        data: { count: tagsToUpdate.length },
+        message: `成功批量更新 ${tagsToUpdate.length} 个标签`,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `批量更新标签失败: ${error}`,
+      }
+    }
+  },
+}
+
 export const tagTools: Tool[] = [
   listTagsTool,
   createTagTool,
   updateTagTool,
   deleteTagTool,
+  createTagsBatchTool,
+  updateTagsBatchTool,
 ]

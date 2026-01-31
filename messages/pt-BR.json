@@ -56,6 +56,14 @@
           "title": "Escala do Conteúdo",
           "desc": "Ajuste o tamanho do texto no editor e no conteúdo Markdown do chat"
         },
+        "fileManagerTextSize": {
+          "title": "Tamanho do Texto do Gerenciador de Arquivos",
+          "desc": "Ajuste o tamanho do texto das listas de arquivos e pastas no gerenciador de arquivos"
+        },
+        "recordTextSize": {
+          "title": "Tamanho do Texto dos Registros",
+          "desc": "Ajuste o tamanho do texto dos itens de registro na lista de registros"
+        },
         "customCss": {
           "title": "CSS Personalizado",
           "desc": "Adicione estilos CSS personalizados para substituir os estilos padrão do aplicativo",
@@ -65,6 +73,12 @@
           "placeholder": "Insira o código CSS personalizado aqui",
           "save": "Salvar",
           "cancel": "Cancelar"
+        },
+        "tray": {
+          "enabled": {
+            "title": "Habilitar Bandeja",
+            "desc": "Escolher minimizar para bandeja ou fechar aplicativo ao fechar janela"
+          }
         }
       },
       "tools": {
@@ -115,8 +129,6 @@
     "mcp": {
       "title": "MCP",
       "desc": "O Protocolo de Contexto de Modelo (MCP) permite que a IA chame ferramentas externas e acesse recursos, expandindo as capacidades da IA.",
-      "enableTitle": "Habilitar MCP",
-      "enableDesc": "Quando habilitado, a IA pode chamar ferramentas fornecidas pelos servidores MCP configurados.",
       "servers": "Lista de Servidores",
       "serversDesc": "Gerencie as configurações do servidor MCP. Cada servidor pode fornecer diferentes ferramentas e recursos.",
       "addServer": "Adicionar Servidor",
@@ -165,7 +177,23 @@
       "testAllFailed": "Falha no teste de conexão",
       "save": "Salvar",
       "cancel": "Cancelar",
-      "delete": "Excluir"
+      "delete": "Excluir",
+      "importJson": "Importar JSON",
+      "jsonImportTitle": "Importar Configuração do Servidor de JSON",
+      "jsonImportDesc": "Cole o formato de configuração mcpServers dos servidores MCP",
+      "jsonInput": "Configuração JSON",
+      "jsonInputHelp": "Suporta formato mcpServers, usa automaticamente o nome do servidor como chave",
+      "jsonRequired": "Por favor, insira a configuração JSON",
+      "jsonEmpty": "A configuração JSON não pode estar vazia",
+      "jsonInvalidJson": "Formato JSON inválido",
+      "jsonInvalidFormat": "Formato de configuração inválido, deve conter campos name e type",
+      "jsonInvalidType": "O tipo de servidor deve ser stdio ou http",
+      "jsonMissingCommand": "Servidor tipo stdio deve especificar command",
+      "jsonMissingUrl": "Servidor tipo http deve especificar url",
+      "jsonImportSuccess": "Importado com sucesso {count} servidor(es)",
+      "jsonImportSkipped": "Ignorado {count} servidor(es) existente(s)",
+      "jsonImportNoServers": "Nenhum servidor foi importado",
+      "import": "Importar"
     },
     "editor": {
       "title": "Editor Markdown",
@@ -209,6 +237,8 @@
       "updateDownloading": "Atualizando {downloaded} / {contentLength}",
       "updateInstalled": "Reiniciar aplicativo",
       "noUpdate": "A versão atual é a mais recente",
+      "ignoreVersion": "Ignorar esta versão",
+      "ignoreVersionSuccess": "Esta atualização de versão foi ignorada",
       "items": {
         "home": {
           "title": "Início",
@@ -261,6 +291,14 @@
         "placeholder": {
           "title": "Sugestão da IA",
           "desc": "Prompts de sugestão da IA são usados para geração de conteúdo no placeholder da conversa de IA da página de registro."
+        },
+        "completion": {
+          "title": "Conclusão Rápida",
+          "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Gerar Mensagem de Commit Automaticamente",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "translate": {
           "title": "Tradução",
@@ -698,9 +736,18 @@
           "desc": "Usado para vetorização de texto e busca semântica"
         },
         "visionModel": {
-          "name": "THUDM/GLM-4.1V-9B-Thinking",
+          "name": "OpenGVLab/InternVL2-8B",
           "type": "Modelo de Visão",
-          "desc": "Suporta compreensão de imagem e reconhecimento OCR"
+          "desc": "Suporta compreensão de imagens e perguntas visuais"
+        },
+        "completionModel": {
+          "name": "Conclusão Rápida",
+          "type": "Modelo de Conclusão",
+          "desc": "Conclusão inline de IA para editor Markdown, semelhante ao GitHub Copilot, gera rapidamente conteúdo de continuação"
+        },
+        "commit": {
+          "title": "Mensagem de Commit",
+          "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "poweredBy": "Fornecido por SiliconFlow"
       }
@@ -798,6 +845,8 @@
         "recording": "Gravação",
         "file": "Arquivo",
         "link": "Vínculo",
+        "todo": "Todo",
+        "pdf": "PDF",
         "upload": "Upload de Registro",
         "download": "Download de Registro",
         "uploadTo": "Sincronizar do local para {provider}",
@@ -825,12 +874,36 @@
         "title": "Gravar Texto",
         "description": "Grave um pedaço de texto, que será inserido na posição apropriada ao organizar notas.",
         "characterCount": "{count} caracteres",
-        "save": "Salvar"
+        "save": "Salvar",
+        "autoReadClipboard": "Ler texto da área de transferência automaticamente"
       },
       "link": {
         "title": "Gravar Link",
         "description": "Insira um link de página da web, e o sistema rastreará automaticamente o conteúdo da página e o salvará",
-        "save": "Salvar"
+        "save": "Salvar",
+        "autoReadClipboard": "Ler link da área de transferência automaticamente"
+      },
+      "todo": {
+        "title": "Registro Todo",
+        "description": "Crie itens todo para gerenciar suas tarefas",
+        "titlePlaceholder": "Digite o título do todo...",
+        "descriptionPlaceholder": "Digite descrição detalhada (opcional)",
+        "priority": "Prioridade",
+        "priorityLow": "Baixa",
+        "priorityMedium": "Média",
+        "priorityHigh": "Alta",
+        "dateRange": "Intervalo de Datas",
+        "dateRangePlaceholder": "Selecione o intervalo de datas",
+        "dueDate": "Data de Vencimento",
+        "dueDatePlaceholder": "Selecione a data",
+        "save": "Criar Todo",
+        "saveEdit": "Salvar",
+        "edit": "Editar Todo",
+        "editDescription": "Modificar os detalhes do item todo",
+        "cancel": "Cancelar",
+        "selectTag": "Selecionar Tag",
+        "completed": "Concluído",
+        "uncompleted": "Não Concluído"
       },
       "clipboard": {
         "detectedImage": "Imagem da área de transferência detectada",
@@ -857,6 +930,29 @@
           "text": "Texto"
         },
         "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agente"
+          },
+          "agent": {
+            "running": "Agente em Execução",
+            "thinking": "Pensando",
+            "acting": "Agindo",
+            "observation": "Observação",
+            "toolCalls": "Chamadas de Ferramenta",
+            "thought": "Pensamento",
+            "action": "Ação",
+            "confirmation": {
+              "title": "Confirmar Ação",
+              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+              "tool": "Ferramenta",
+              "parameters": "Parâmetros",
+              "cancel": "Cancelar",
+              "confirm": "Confirmar",
+              "confirmed": "Confirmado",
+              "cancelled": "Cancelado"
+            }
+          },
           "placeholder": {
             "default": "Faça perguntas ou organize suas notas em um artigo...",
             "noApiKey": "Chave de API não configurada, recurso de chat com IA indisponível..."
@@ -879,17 +975,7 @@
             }
           },
           "messageControl": {
-            "words": "palavras",
-            "confirmation": {
-              "title": "Confirmar Ação",
-              "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
-              "tool": "Ferramenta",
-              "parameters": "Parâmetros",
-              "cancel": "Cancelar",
-              "confirm": "Confirmar",
-              "confirmed": "Confirmado",
-              "cancelled": "Cancelado"
-            }
+            "words": "palavras"
           },
           "mcp": {
             "maxIterationsReached": "Número máximo de iterações de chamada de ferramenta atingido",
@@ -904,12 +990,14 @@
             "error": "Falha"
           },
           "empty": {
-            "features": {
-              "linked": "Vinculado aos seus registros ou notas",
-              "chat": "Converse com o bot de IA",
-              "organize": "Organize seus registros em notas",
-              "clipboard": "Reconhecer registros ou imagens da área de transferência"
-            }
+            "title": "Iniciar Conversa com IA",
+            "subtitle": "Use o modo Chat ou Agent para interagir com IA",
+            "currentModel": "Modelo Atual",
+            "currentPrompt": "Prompt Atual",
+            "currentMode": "Modo de Conversa",
+            "noModel": "Nenhum modelo definido",
+            "noPrompt": "Nenhum prompt definido",
+            "configureModel": "Configurar Modelo"
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"
@@ -1012,17 +1100,23 @@
         "scan": "Digitalizar Imagem",
         "image": "Carregar Imagem",
         "link": "Gravar Link",
-        "file": "Carregar Arquivo"
+        "file": "Carregar Arquivo",
+        "todo": "Registro Todo"
+      },
+      "list": {
+        "title": "Registros"
       }
     },
     "chat": {
       "empty": {
-        "features": {
-          "linked": "Vinculado aos seus registros ou notas",
-          "chat": "Converse com o bot de IA",
-          "organize": "Organize seus registros em notas",
-          "clipboard": "Reconhecer registros ou imagens da área de transferência"
-        }
+        "title": "Iniciar Conversa com IA",
+        "subtitle": "Use o modo Chat ou Agent para interagir com IA",
+        "currentModel": "Modelo Atual",
+        "currentPrompt": "Prompt Atual",
+        "noModel": "Nenhum modelo definido",
+        "noPrompt": "Nenhum prompt definido",
+        "modeHint": "Clique no botão",
+        "modeHintSuffix": "à esquerda da caixa de entrada para alternar o modo de conversa"
       },
       "newChat": "Novo Chat com Nova Tag",
       "removeChat": "Remover Chat com Tag Atual",
@@ -1118,6 +1212,34 @@
           "chatDescription": "Conversa rápida, modo somente leitura",
           "agentDescription": "Assistente inteligente, pode executar ações"
         },
+        "attachImage": "Anexar imagens",
+        "agent": {
+          "running": "Agente em Execução",
+          "thinking": "Pensando",
+          "analyzingRequest": "O agente está analisando sua solicitação...",
+          "acting": "Agindo",
+          "observation": "Observação",
+          "toolCalls": "Chamadas de Ferramenta",
+          "thought": "Pensamento",
+          "action": "Ação",
+          "confirmation": {
+            "title": "Confirmar Ação",
+            "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",
+            "tool": "Ferramenta",
+            "parameters": "Parâmetros",
+            "cancel": "Cancelar",
+            "confirm": "Confirmar"
+          }
+        },
+        "imageSelector": {
+          "title": "Selecionar Imagens",
+          "local": "Arquivos Locais",
+          "records": "Dos Registros",
+          "selectFiles": "Selecionar Imagens Locais",
+          "noRecords": "Nenhum registro de imagem disponível",
+          "cancel": "Cancelar",
+          "confirm": "Confirmar"
+        },
         "fileLink": {
           "tooltip": "Vincular Arquivo",
           "selectFile": "Selecionar Arquivo",
@@ -1156,7 +1278,8 @@
         "copied": "Copiado"
       },
       "ragSources": {
-        "label": "Arquivos Referenciados"
+        "label": "Encontrado {count} notas na base de conhecimento",
+        "openFile": "Abrir arquivo"
       },
       "preview": {
         "close": "Fechar",
@@ -1203,6 +1326,7 @@
   "navigation": {
     "chat": "Conversa",
     "record": "Registro",
+    "quickRecord": "Registro Rápido",
     "write": "Escrever",
     "search": "Pesquisar",
     "githubImageHosting": "Hospedagem de Imagens Github",
@@ -1212,6 +1336,7 @@
     "logout": "Sair",
     "setting": "Configurações",
     "files": "Notas",
+    "outline": "Sumário",
     "hideLeftSidebar": "Ocultar Barra Lateral Esquerda",
     "showLeftSidebar": "Mostrar Barra Lateral Esquerda",
     "hideRightSidebar": "Ocultar Barra Lateral Direita",
@@ -1241,6 +1366,44 @@
     }
   },
   "article": {
+    "sync": {
+      "syncingRemote": "Buscando arquivo remoto...",
+      "syncComplete": "Sincronização Concluída"
+    },
+    "syncConfirm": {
+      "title": "Atualização de Arquivo Remoto Detectada",
+      "description": "Arquivo {fileName} tem atualizações remotas",
+      "commitInfo": "Informações do Último Commit",
+      "commitMessage": "Mensagem do Commit",
+      "author": "Autor",
+      "changes": "Alterações",
+      "confirmMessage": "Tem certeza de que deseja buscar a versão remota e substituir o arquivo local? Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirmPull": "Confirmar Busca"
+    },
+    "emptyState": {
+      "title": "Começar a Criar",
+      "subtitle": "Selecione um arquivo para começar a editar ou crie uma nova nota",
+      "tip": "💡 Dica: Você também pode selecionar arquivos no gerenciador de arquivos à esquerda",
+      "actions": {
+        "newNote": {
+          "title": "Criar Nota",
+          "desc": "Criar uma nova nota Markdown"
+        },
+        "newRecord": {
+          "title": "Criar Registro",
+          "desc": "Abrir função de registro de texto"
+        },
+        "globalSearch": {
+          "title": "Pesquisa Global",
+          "desc": "Encontre rapidamente o conteúdo de suas notas"
+        },
+        "openWorkspace": {
+          "title": "Abrir Workspace",
+          "desc": "Selecionar ou alternar diretório de workspace"
+        }
+      }
+    },
     "file": {
       "toolbar": {
         "accessRepo": "Acessar Repositório",
@@ -1258,6 +1421,8 @@
         "sortAsc": "Ordem Crescente",
         "sortDesc": "Ordem Decrescente",
         "sort": "Ordenar",
+        "hideCloudFiles": "Ocultar Arquivos da Nuvem",
+        "showCloudFiles": "Mostrar Arquivos da Nuvem",
         "processingVectors": "Processando Dados Vetoriais",
         "calculateVectors": "Cálculo da Base de Conhecimento (Completo)",
         "enableVectorDb": "Habilitar Banco de Dados Vetorial",
@@ -1266,6 +1431,12 @@
         "importSuccess": "Importação Bem-sucedida",
         "importSuccessDesc": "Importados {count} arquivos com sucesso",
         "importError": "Falha na Importação"
+      },
+      "sync": {
+        "syncingRemote": "Buscando arquivo remoto...",
+        "syncComplete": "Sincronização Concluída",
+        "pullingRemote": "Buscando conteúdo mais recente do servidor remoto...",
+        "pullComplete": "Pull Concluído"
       },
       "context": {
         "viewDirectory": "Ver Diretório",
@@ -1287,7 +1458,55 @@
         "syncFolderError": "Erro ao sincronizar pasta",
         "syncFolderProgress": "Sincronizando pasta...",
         "deleteSyncFileSuccess": "Sucesso ao Excluir Arquivo Sincronizado",
-        "deleteSyncFileError": "Erro ao Excluir Arquivo Sincronizado"
+        "deleteSyncFileError": "Erro ao Excluir Arquivo Sincronizado",
+        "knowledgeBase": "Base de Conhecimento",
+        "calculateVectors": "Calcular Vetores",
+        "updateVectors": "Atualizar Vetores",
+        "deleteVectors": "Excluir Vetores",
+        "includeInKB": "Incluir na Base de Conhecimento",
+        "includeInKBFile": "Incluir na Base de Conhecimento",
+        "autoVectorCalc": "Cálculo Automático de Vetores",
+        "vectorCalculated": "Vetor Atualizado",
+        "vectorCalcCompleted": "Cálculo de Vetor Concluído",
+        "vectorCalcFailed": "Falha no Cálculo de Vetor",
+        "vectorDeleted": "Vetor Excluído",
+        "vectorDeleteFailed": "Falha ao Excluir Vetor",
+        "batchCalcSuccess": "Vetores calculados com sucesso para {count} arquivos",
+        "batchCalcPartial": "Cálculo concluído: {success} succeeded, {failed} failed",
+        "batchCalcFailed": "Falha no cálculo em lote de vetores",
+        "batchDeleteSuccess": "Vetores excluídos com sucesso para {count} arquivos",
+        "batchDeletePartial": "Exclusão concluída: {success} succeeded, {failed} failed",
+        "batchDeleteFailed": "Falha na exclusão em lote de vetores",
+        "noMarkdownFiles": "Nenhum arquivo Markdown na pasta",
+        "includedInKB": "Incluído na Base de Conhecimento",
+        "excludedFromKB": "Excluído da Base de Conhecimento",
+        "autoCalcEnabled": "Cálculo automático de vetores habilitado",
+        "autoCalcDisabled": "Cálculo automático de vetores desabilitado",
+        "settingFailed": "Falha na configuração",
+        "confirmDeleteVectors": "Tem certeza de que deseja excluir vetores de {count} arquivos?"
+      },
+      "folderView": {
+        "vectorDbNotEnabled": "Banco de dados vetorial não está habilitado",
+        "indexed": "Indexado",
+        "vectorCount": "Contagem de Vetores",
+        "databaseSize": "Tamanho do Banco de Dados",
+        "lastCalculated": "Último Cálculo",
+        "never": "Nunca",
+        "calculating": "Calculando...",
+        "failed": "Falhou",
+        "recalculateVectors": "Recalcular Vetores",
+        "skills": "Skills",
+        "skillNotFound": "Skill Não Encontrado",
+        "skillNotFoundDesc": "Não foi possível encontrar Skill com ID {id}",
+        "loadingSkills": "Carregando Skills...",
+        "loadingSkill": "Carregando Skill...",
+        "globalSkills": "Skills Globais",
+        "workspaceSkills": "Skills do Workspace",
+        "instructions": "Instruções",
+        "examples": "Exemplos",
+        "scripts": "Scripts",
+        "references": "Referências",
+        "assets": "Ativos"
       },
       "error": {
         "fileExists": "O nome do arquivo já existe"
@@ -1341,7 +1560,19 @@
     "editor": {
       "copySuccess": "Cópia Bem-sucedida",
       "copySuccessDescription": "Copiado para a área de transferência",
+      "search": {
+        "placeholder": "Localizar no documento",
+        "replacePlaceholder": "Substituir por",
+        "caseSensitive": "Diferenciar maiúsculas e minúsculas",
+        "replace": "Substituir",
+        "replaceAll": "Substituir tudo",
+        "findPrev": "Anterior",
+        "findNext": "Próximo"
+      },
       "floatbar": {
+        "quote": {
+          "tooltip": "Citar"
+        },
         "readAloud": {
           "start": "Ler em Voz Alta",
           "stop": "Parar Leitura",
@@ -1397,7 +1628,17 @@
       }
     },
     "footer": {
-      "wordCount": "Palavras",
+      "wordCount": "Contagem de Palavras",
+      "pull": {
+        "pull": "Pull",
+        "checking": "Verificando atualizações...",
+        "noUpdate": "Sem atualizações remotas",
+        "clickToPull": "Clique para puxar atualizações remotas",
+        "pullSuccess": "Pull Bem-sucedido",
+        "pullFailed": "Pull Falhou",
+        "ignored": "Ignorado",
+        "ignoreUpdate": "Ignorar Esta Atualização"
+      },
       "sync": {
         "sync": "Sincronizar",
         "synced": "Sincronizado",
@@ -1418,10 +1659,40 @@
         "quickSync": "Sincronização Rápida"
       },
       "vectorCalc": {
-        "tooltip": "Cálculo Vetorial: Cálculo automático 30s após a edição, ou clique para calcular agora",
-        "calculating": "Calculando",
-        "pending": "Pendente {progress}%",
-        "synced": "Sincronizado"
+        "tooltip": {
+          "default": "Status do Índice Vetorial",
+          "none": "Clique para iniciar o cálculo vetorial",
+          "indexed": "Indexado",
+          "pending": "Atualização pendente, clique para calcular agora",
+          "calculating": "Calculando..."
+        },
+        "status": {
+          "calculating": "Calculando"
+        }
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Configurações de Chat"
+        },
+        "tools": {
+          "title": "Ferramentas",
+          "clearContext": "Limpar Contexto",
+          "clearContextDesc": "Limpar contexto da conversa, manter histórico",
+          "clearChat": "Limpar Chat",
+          "clearChatDesc": "Excluir todos os registros de chat",
+          "clear": "Limpar"
+        },
+        "attachments": {
+          "title": "Anexos",
+          "gallery": "Galeria",
+          "camera": "Câmera",
+          "file": "Arquivo",
+          "linkNote": "Vincular Nota"
+        }
       }
     }
   },
@@ -1467,6 +1738,15 @@
   "editor": {
     "copySuccess": "Cópia Bem-sucedida",
     "copySuccessDescription": "Copiado para a área de transferência",
+    "search": {
+      "placeholder": "Localizar no documento",
+      "replacePlaceholder": "Substituir por",
+      "caseSensitive": "Diferenciar maiúsculas e minúsculas",
+      "replace": "Substituir",
+      "replaceAll": "Substituir tudo",
+      "findPrev": "Anterior",
+      "findNext": "Próximo"
+    },
     "floatbar": {
       "readAloud": {
         "start": "Ler em Voz Alta",
@@ -1522,13 +1802,13 @@
   "footer": {
     "wordCount": "Palavras",
     "sync": {
-      "sync": "Sincronizar",
-      "synced": "Sincronizado",
-      "syncing": "Sincronizando",
-      "syncFailed": "Falha na Sincronização",
-      "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
-      "quickSync": "Sincronização Rápida"
-    },
+        "push": "Push",
+        "pushed": "Enviado",
+        "syncing": "Enviando",
+        "syncFailed": "Falha no Push",
+        "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
+        "quickSync": "Sincronização Rápida"
+      },
     "history": {
       "loadingHistory": "Carregando histórico",
       "historyRecords": "Registros do Histórico",
@@ -1546,5 +1826,8 @@
       "pending": "Pendente {progress}%",
       "synced": "Sincronizado"
     }
+  },
+  "quickRecord": {
+    "description": "Clique para selecionar uma ferramenta de registro e criar registros rapidamente"
   }
 }

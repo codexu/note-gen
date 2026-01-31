@@ -11,6 +11,8 @@ import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import useImageStore from "@/stores/imageHosting"
 import useShortcutStore from "@/stores/shortcut"
+import useChatStore from "@/stores/chat"
+import useUpdateStore from "@/stores/update"
 import initQuickRecordText from "@/lib/shortcut/quick-record-text"
 import { useRouter, usePathname } from "next/navigation"
 import initShowWindow from "@/lib/shortcut/show-window"
@@ -19,17 +21,22 @@ import { SearchDialog } from "@/components/search-dialog"
 import { reportAppStart } from "@/lib/event-report"
 import { TitleBar } from "@/components/title-bar"
 import { Store } from '@tauri-apps/plugin-store'
+import { TextSizeProvider } from "@/contexts/text-size-context"
+import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
+import { applyThemeColors } from "@/lib/theme-utils"
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { initSettingData, uiScale, customCss } = useSettingStore()
+  const { initSettingData, uiScale, customThemeColors } = useSettingStore()
   const { initMainHosting } = useImageStore()
   const { currentLocale } = useI18n()
   const { initShortcut } = useShortcutStore()
   const { initVectorDb } = useVectorStore()
+  const { initIsLinkMark } = useChatStore()
+  const { initUpdateStore, checkForUpdates } = useUpdateStore()
   const router = useRouter()
   const pathname = usePathname()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -53,11 +60,16 @@ export default function RootLayout({
     initAllDatabases()
     initShortcut()
     initVectorDb()
+    initIsLinkMark()
     initQuickRecordText()
     initShowWindow()
     initMcp()
     // 上报应用启动事件
     reportAppStart()
+    // 初始化更新检查
+    initUpdateStore().then(() => {
+      checkForUpdates()
+    })
   }, [])
 
   // 应用界面缩放
@@ -67,18 +79,10 @@ export default function RootLayout({
     }
   }, [uiScale])
 
-  // 应用自定义 CSS
+  // 应用自定义主题颜色
   useEffect(() => {
-    if (customCss) {
-      let styleElement = document.getElementById('custom-css-style')
-      if (!styleElement) {
-        styleElement = document.createElement('style')
-        styleElement.id = 'custom-css-style'
-        document.head.appendChild(styleElement)
-      }
-      styleElement.textContent = customCss
-    }
-  }, [customCss])
+    applyThemeColors(customThemeColors)
+  }, [customThemeColors])
 
   useEffect(() => {
     switch (currentLocale) {
@@ -98,6 +102,21 @@ export default function RootLayout({
     const handleKeyDown = (e: KeyboardEvent) => {
       // 搜索快捷键：Cmd+F (macOS) 或 Ctrl+F (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        // 检查焦点是否在编辑器内
+        const target = e.target as HTMLElement
+        const editorElement = document.getElementById('aritcle-md-editor')
+        const isFocusInEditor = editorElement && editorElement.contains(target)
+
+        // 如果焦点在编辑器内，触发编辑器搜索
+        if (isFocusInEditor) {
+          e.preventDefault()
+          // 触发编辑器内搜索
+          const searchButton = document.getElementById('editor-search-button-container')
+          searchButton?.click()
+          return
+        }
+
+        // 否则打开全局搜索
         e.preventDefault()
         setSearchOpen(true)
         return
@@ -106,17 +125,17 @@ export default function RootLayout({
       // 如果按下 Backspace 键，且不在可编辑元素中
       if (e.key === 'Backspace') {
         const target = e.target as HTMLElement
-        const isEditable = 
+        const isEditable =
           target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable ||
           target.getAttribute('contenteditable') === 'true'
-        
+
         // 如果在可编辑元素中，允许正常删除
         if (isEditable) {
           return
         }
-        
+
         // 否则阻止默认的后退行为
         e.preventDefault()
       }
@@ -135,11 +154,14 @@ export default function RootLayout({
       enableSystem
       disableTransitionOnChange
     >
-      <TitleBar onSearchClick={() => setSearchOpen(true)} />
-      <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
-        {children}
-      </main>
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <TextSizeProvider>
+        <TitleBar onSearchClick={() => setSearchOpen(true)} />
+        <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
+          {children}
+        </main>
+        <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+        <SyncConfirmDialog />
+      </TextSizeProvider>
     </ThemeProvider>
   );
 }

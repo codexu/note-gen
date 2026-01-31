@@ -156,7 +156,7 @@ export async function uploadFile({
 }
 
 /**
- * 获取 Gitlab 项目文件列表
+ * 获取 Gitlab 项目文件列表或单个文件信息
  * @param params 查询参数
  */
 export async function getFiles({ path, repo }: { path: string; repo: string }) {
@@ -172,6 +172,31 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
+    // 先尝试获取单个文件信息
+    const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}?ref=main`;
+    
+    try {
+      const fileResponse = await fetch(fileUrl, {
+        method: 'GET',
+        headers,
+        proxy
+      });
+
+      if (fileResponse.status >= 200 && fileResponse.status < 300) {
+        const fileData = await fileResponse.json();
+        // 返回单个文件对象，包含 sha (使用 blob_id 作为 sha)
+        return {
+          name: fileData.file_name,
+          path: fileData.file_path,
+          sha: fileData.blob_id,
+          size: fileData.size,
+        };
+      }
+    } catch {
+      // 如果获取单个文件失败，继续尝试获取目录列表
+    }
+
+    // 如果不是单个文件，尝试获取目录列表
     const url = `${baseUrl}/projects/${projectId}/repository/tree?path=${path}`;
 
     const response = await fetch(url, {
@@ -204,12 +229,8 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
 
   } catch (error) {
     console.error('Gitlab 获取文件列表失败:', error);
-    toast({
-      title: '获取文件列表失败',
-      description: (error as GitlabError).message || '获取文件列表时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    // 静默处理错误，不显示 toast，因为这可能只是文件不存在
+    return null;
   }
 }
 

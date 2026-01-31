@@ -51,11 +51,19 @@ export function SettingTab() {
             return (
               <li
                 key={item.anchor}
-                className={currentPage === item.anchor ? '!bg-zinc-800 text-white setting-anchor' : 'setting-anchor'}
+                className={`
+                  w-full px-4 py-2.5 rounded-md cursor-pointer flex items-center gap-3 text-sm transition-colors
+                  ${currentPage === item.anchor
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-accent hover:text-accent-foreground text-foreground/80'
+                  }
+                `}
                 onClick={() => handleNavigation(item.anchor)}
               >
-                {item.icon}
-                <span>{item.title}</span>
+                <span className="size-4 shrink-0 flex items-center justify-center">
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.title}</span>
               </li>
             )
           })

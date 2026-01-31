@@ -28,7 +28,6 @@ export async function initTagsDb() {
     await db.execute("select sortOrder from tags limit 1")
   } catch {
     // sortOrder 列不存在，添加该列
-    console.log('Adding sortOrder column to tags table')
     await db.execute("alter table tags add column sortOrder integer DEFAULT 0")
     
     // 为现有标签设置初始排序值

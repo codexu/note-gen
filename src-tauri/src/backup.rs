@@ -2,8 +2,6 @@ use std::process::Command;
 use std::path::Path;
 use std::fs;
 use tauri::{command, AppHandle, Manager};
-use tauri_plugin_store::StoreExt;
-use serde_json::Value;
 
 #[command]
 pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Result<(), String> {
@@ -65,42 +63,28 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         return Err(format!("Unzip command failed: {}", stderr_msg));
     }
 
-    // 处理 store.json
+    // 处理 store.json - 直接替换文件而不是循环 set
     let store_path = temp_dir.join("store.json");
     if store_path.exists() {
-        let store_content = fs::read_to_string(&store_path)
-            .map_err(|e| format!("Failed to read store.json: {}", e))?;
-        
-        let store_data: Value = serde_json::from_str(&store_content)
-            .map_err(|e| format!("Failed to parse store.json: {}", e))?;
-
-        // 获取 store 实例并保存数据
-        let store = app_handle.store("store.json")
-            .map_err(|e| format!("Failed to get store: {}", e))?;
-        
-        if let Value::Object(obj) = store_data {
-            for (key, value) in obj {
-                store.set(&key, value);
-            }
-        }
-        
-        store.save().map_err(|e| format!("Failed to save store: {}", e))?;
+        let dest_store_path = app_data_dir.join("store.json");
+        fs::copy(&store_path, &dest_store_path)
+            .map_err(|e| format!("Failed to copy store.json: {}", e))?;
     }
 
-    // 复制其他文件（除了 store.json）
+    // 复制其他文件
     for entry in fs::read_dir(&temp_dir)
         .map_err(|e| format!("Failed to read temp directory: {}", e))? {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
-        
-        // 跳过 store.json，因为已经通过 store API 处理了
+
+        // 跳过 store.json，已经在上面处理过了
         if file_name == "store.json" {
             continue;
         }
-        
+
         let src_path = entry.path();
         let dest_path = app_data_dir.join(&file_name);
-        
+
         if src_path.is_file() {
             fs::copy(&src_path, &dest_path)
                 .map_err(|e| format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e))?;

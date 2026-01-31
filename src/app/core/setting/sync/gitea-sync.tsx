@@ -138,7 +138,9 @@ export function GiteaSync() {
 
   // 自定义 URL 变化处理
   async function customUrlChangeHandler(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value
+    let value = e.target.value
+    // 自动移除末尾的斜杠
+    value = value.replace(/\/+$/, '')
     await setGiteaCustomUrl(value)
     // 如果是自建实例且有 token，重新检查仓库状态
     if (giteaInstanceType === GiteaInstanceType.SELF_HOSTED && giteaAccessToken.trim() && value.trim()) {

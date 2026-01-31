@@ -1236,6 +1236,11 @@
       "content": {
         "organize": "あなたの記録を記事に整理："
       },
+      "quote": {
+        "lineSingle": "{fileName} の {line} 行目から引用",
+        "lineRange": "{fileName} の {startLine}-{endLine} 行目から引用",
+        "noLine": "{fileName} から引用"
+      },
       "note": {
         "organize": "整理",
         "writing": "執筆",

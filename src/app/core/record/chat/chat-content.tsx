@@ -1,7 +1,7 @@
 import React from 'react'
 import useChatStore from '@/stores/chat'
 import useTagStore from '@/stores/tag'
-import { ArrowDownToLine, X, Loader2 } from 'lucide-react'
+import { ArrowDownToLine, X, Loader2, QuoteIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Chat } from '@/db/chats'
 import ChatPreview from './chat-preview'
@@ -137,7 +137,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
     return (
       <div className="flex w-full justify-end">
         <div
-          className="group relative max-w-[85%] rounded-lg border bg-primary px-3 py-2"
+          className="group relative max-w-[85%] rounded-lg border px-3 py-2"
           onMouseEnter={() => setShowDelete(true)}
           onMouseLeave={() => setShowDelete(false)}
         >
@@ -319,24 +319,27 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
           </div>
         ) : (
           // 用户消息
-          <div className="w-full space-y-3">
+          <div className="w-full space-y-3 text-primary">
             {/* 显示用户消息中的图片 */}
             {images.length > 0 && <ChatImages images={images} />}
             {/* 显示用户消息中的引用 */}
             {quoteData && (
-              <div className="p-2 border-l-2 border-primary bg-muted/50 rounded">
-                <div className="text-xs text-primary-foreground/80 mb-1 font-medium">
-                  {quoteData.startLine !== -1 && quoteData.endLine !== -1 ? (
-                    quoteData.startLine === quoteData.endLine ? (
-                      `引用自 ${quoteData.fileName} 第 ${quoteData.startLine} 行`
+              <div className="flex flex-col gap-1 text-[11px]">
+                <div className="flex items-center gap-1">
+                  <QuoteIcon className="size-3 text-primary/75" />
+                  <span className="text-primary/75">
+                    {quoteData.startLine !== -1 && quoteData.endLine !== -1 ? (
+                      quoteData.startLine === quoteData.endLine ? (
+                        t('record.chat.quote.lineSingle', { fileName: quoteData.fileName, line: quoteData.startLine })
+                      ) : (
+                        t('record.chat.quote.lineRange', { fileName: quoteData.fileName, startLine: quoteData.startLine, endLine: quoteData.endLine })
+                      )
                     ) : (
-                      `引用自 ${quoteData.fileName} 第 ${quoteData.startLine}-${quoteData.endLine} 行`
-                    )
-                  ) : (
-                    `引用自 ${quoteData.fileName}`
-                  )}
+                      t('record.chat.quote.noLine', { fileName: quoteData.fileName })
+                    )}
+                  </span>
                 </div>
-                <div className="text-xs text-primary-foreground/70 line-clamp-3 whitespace-pre-wrap">
+                <div className="text-primary/50 line-clamp-2 whitespace-pre-wrap pl-4">
                   {quoteData.fullContent}
                 </div>
               </div>

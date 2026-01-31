@@ -1127,6 +1127,11 @@
       "content": {
         "organize": "Organize seus registros em um artigo:"
       },
+      "quote": {
+        "lineSingle": "Citado de {fileName} linha {line}",
+        "lineRange": "Citado de {fileName} linhas {startLine}-{endLine}",
+        "noLine": "Citado de {fileName}"
+      },
       "note": {
         "organize": "Organizar",
         "writing": "Escrever",

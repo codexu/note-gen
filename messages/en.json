@@ -1267,6 +1267,11 @@
       "content": {
         "organize": "Organize your records into an article:"
       },
+      "quote": {
+        "lineSingle": "Quoted from {fileName} line {line}",
+        "lineRange": "Quoted from {fileName} lines {startLine}-{endLine}",
+        "noLine": "Quoted from {fileName}"
+      },
       "note": {
         "organize": "Organize",
         "writing": "Write",

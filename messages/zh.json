@@ -1434,6 +1434,11 @@
       "content": {
         "organize": "将你的记录整理为文章："
       },
+      "quote": {
+        "lineSingle": "引用自 {fileName} 第 {line} 行",
+        "lineRange": "引用自 {fileName} 第 {startLine}-{endLine} 行",
+        "noLine": "引用自 {fileName}"
+      },
       "note": {
         "organize": "整理",
         "writing": "写作",

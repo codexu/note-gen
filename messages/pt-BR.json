@@ -25,7 +25,22 @@
     "success": "Sucesso",
     "error": "Falha",
     "defaultFileName": "Sem Título",
-    "restartToApply": ", por favor reinicie o aplicativo para que a configuração entre em vigor"
+    "restartToApply": ", por favor reinicie o aplicativo para que a configuração entre em vigor",
+    "close": "Fechar",
+    "open": "Abrir",
+    "add": "Adicionar",
+    "remove": "Remover",
+    "search": "Pesquisar",
+    "filter": "Filtrar",
+    "sort": "Ordenar",
+    "export": "Exportar",
+    "import": "Importar",
+    "refresh": "Atualizar",
+    "loading": "Carregando",
+    "warning": "Aviso",
+    "info": "Informação",
+    "unsaved": "Não salvo",
+    "saving": "Salvando"
   },
   "settings": {
     "others": "Avançado",
@@ -79,6 +94,100 @@
             "title": "Habilitar Bandeja",
             "desc": "Escolher minimizar para bandeja ou fechar aplicativo ao fechar janela"
           }
+        },
+        "customTheme": {
+          "title": "Cores do tema personalizado",
+          "desc": "Personalize as cores do tema do aplicativo, incluindo cor de fundo, cor do texto, cor da borda e outras.",
+          "button": "Editar cores",
+          "dialogTitle": "Cores do tema personalizado",
+          "dialogDesc": "Configure cores personalizadas do tema. As alterações são salvas e aplicadas em tempo real, substituindo os temas claro e escuro.",
+          "close": "Fechar",
+          "reset": "Redefinir tudo",
+          "tabs": {
+            "custom": "Personalizar",
+            "presets": "Predefinições",
+            "importExport": "Importar/Exportar"
+          },
+          "export": {
+            "title": "Exportar configuração",
+            "button": "Exportar",
+            "placeholder": "Cole aqui a configuração exportada"
+          },
+          "import": {
+            "title": "Importar configuração",
+            "button": "Importar",
+            "placeholder": "Cole aqui a configuração para importar",
+            "error": "Falha ao importar: formato inválido",
+            "success": "Importado com sucesso"
+          },
+          "presets": {
+            "title": "Predefinições",
+            "desc": "Escolha uma paleta de cores pronta",
+            "apply": "Aplicar",
+            "reset": {
+              "name": "Restaurar padrão"
+            },
+            "default": {
+              "name": "Branco padrão"
+            },
+            "ocean": {
+              "name": "Azul oceano"
+            },
+            "forest": {
+              "name": "Verde floresta"
+            },
+            "sunset": {
+              "name": "Vermelho pôr do sol"
+            },
+            "lavender": {
+              "name": "Roxo lavanda"
+            },
+            "midnight": {
+              "name": "Meia-noite escuro"
+            },
+            "deepSea": {
+              "name": "Azul mar profundo"
+            },
+            "darkForest": {
+              "name": "Verde floresta escuro"
+            },
+            "darkViolet": {
+              "name": "Violeta escuro"
+            },
+            "coralWarm": {
+              "name": "Coral quente"
+            },
+            "slateGray": {
+              "name": "Cinza ardósia"
+            },
+            "darkGold": {
+              "name": "Dourado escuro"
+            },
+            "beigeWarm": {
+              "name": "Bege quente"
+            },
+            "beigeDark": {
+              "name": "Bege escuro"
+            }
+          },
+          "colors": {
+            "background": "Cor de fundo",
+            "foreground": "Cor do texto",
+            "card": "Cor de fundo do cartão",
+            "cardForeground": "Cor do texto do cartão",
+            "primary": "Cor principal",
+            "primaryForeground": "Cor do texto (principal)",
+            "secondary": "Cor secundária",
+            "secondaryForeground": "Cor do texto (secundária)",
+            "third": "Cor terciária",
+            "thirdForeground": "Cor do texto (terciária)",
+            "muted": "Cor suave",
+            "mutedForeground": "Cor do texto (suave)",
+            "accent": "Cor de destaque",
+            "accentForeground": "Cor do texto (destaque)",
+            "border": "Cor da borda",
+            "shadow": "Cor da sombra"
+          }
         }
       },
       "tools": {
@@ -124,7 +233,8 @@
       "similarityThreshold": "Limiar de Similaridade",
       "similarityThresholdDesc": "O limiar mínimo de similaridade entre documentos e consultas. Apenas documentos que excederem este limiar serão retornados. O valor varia de 0.0 a 1.0; quanto maior o limiar, mais rigoroso o requisito.",
       "resetToDefaults": "Redefinir para Padrões",
-      "deleteVector": "Limpar Base de Conhecimento"
+      "deleteVector": "Limpar Base de Conhecimento",
+      "topPDesc": "O parâmetro Top P controla a diversidade do texto gerado pelo modelo: quanto menor o valor, mais determinístico; quanto maior, mais variado."
     },
     "mcp": {
       "title": "MCP",
@@ -193,7 +303,9 @@
       "jsonImportSuccess": "Importado com sucesso {count} servidor(es)",
       "jsonImportSkipped": "Ignorado {count} servidor(es) existente(s)",
       "jsonImportNoServers": "Nenhum servidor foi importado",
-      "import": "Importar"
+      "import": "Importar",
+      "enableTitle": "Ativar MCP",
+      "enableDesc": "Quando ativado, a IA pode chamar as ferramentas fornecidas pelos servidores MCP configurados."
     },
     "editor": {
       "title": "Editor Markdown",
@@ -312,7 +424,8 @@
           "title": "Modelo de Reordenação",
           "desc": "Usado para reordenar e otimizar resultados de busca."
         }
-      }
+      },
+      "mainModel": "Modelo principal"
     },
     "audio": {
       "title": "Configurações de Áudio",
@@ -438,7 +551,8 @@
         "downloadSuccess": "Configurações baixadas com sucesso",
         "downloadFailed": "Falha ao baixar configurações",
         "autoSync": "As configurações serão sincronizadas automaticamente durante o upload/download (excluindo configurações específicas do dispositivo como o caminho do workspace)"
-      }
+      },
+      "jsdelivrSettingDesc": "Use jsDelivr para acelerar o acesso às imagens."
     },
     "imageHosting": {
       "title": "Hospedagem de Imagens",
@@ -536,6 +650,10 @@
       "vlm": {
         "title": "Modelo de Linguagem Visual",
         "desc": "Use o modelo de linguagem visual para reconhecer o conteúdo da imagem."
+      },
+      "enable": {
+        "title": "Ativar reconhecimento de imagens",
+        "desc": "Quando ativado, ao registrar uma captura de tela ou inserir uma imagem, o reconhecimento será feito automaticamente. Quando desativado, a etapa de reconhecimento de imagem será ignorada."
       }
     },
     "backupSync": {
@@ -698,7 +816,8 @@
         "tts": "Texto para Fala (TTS)",
         "stt": "Fala para Texto (STT)",
         "embedding": "Embedding",
-        "rerank": "Reordenação"
+        "rerank": "Reordenação",
+        "audio": "Áudio"
       },
       "modelList": {
         "error": {
@@ -750,7 +869,17 @@
           "desc": "Usado para gerar automaticamente mensagens de commit Git, gerando inteligentemente mensagens de commit descritivas com base nas alterações do conteúdo do arquivo."
         },
         "poweredBy": "Fornecido por SiliconFlow"
-      }
+      },
+      "connectionFailed": "Falha na conexão",
+      "enableStream": "Resposta em streaming",
+      "enableStreamDesc": "Ativar resposta em streaming permite mostrar o conteúdo gerado em tempo real, mas alguns modelos podem não oferecer suporte a este recurso.",
+      "selectConfig": "Selecione uma configuração",
+      "models": "Lista de modelos",
+      "modelsDesc": "Gerencie aqui todos os modelos da configuração atual. Cada modelo pode ter tipos e parâmetros diferentes.",
+      "addModel": "Adicionar modelo",
+      "newModel": "Novo modelo",
+      "checkConnection": "Testar conexão",
+      "model": "Modelo"
     },
     "ocr": {
       "title": "OCR",
@@ -813,6 +942,79 @@
           "desc": "Abrir rapidamente a janela principal e alternar para a gravação de texto."
         }
       }
+    },
+    "skills": {
+      "title": "Skills",
+      "desc": "Skills são pacotes reutilizáveis de capacidades de IA, permitindo que o assistente aplique automaticamente comportamentos específicos conforme a tarefa.",
+      "enable": "Ativar Skills",
+      "enableDesc": "Quando ativado, a IA pode usar as Skills configuradas.",
+      "autoMatch": "Combinar Skills automaticamente",
+      "autoMatchDesc": "Seleciona automaticamente Skills adequadas com base no que você digitar.",
+      "project": "Skills do workspace",
+      "global": "Skills globais",
+      "globalPath": "Local de armazenamento das Skills globais",
+      "openInFileManager": "Abrir no gerenciador de arquivos",
+      "createSkill": "Criar Skill",
+      "editSkill": "Editar Skill",
+      "deleteSkill": "Excluir Skill",
+      "exportSkill": "Exportar Skill",
+      "importSkill": "Importar Skill",
+      "selectSkillZip": "Selecionar arquivo .zip de Skill",
+      "importHelp": "Suporta importar Skill em formato .zip. O arquivo .zip precisa conter um arquivo SKILL.md.",
+      "importing": "Importando...",
+      "imported": "Importado",
+      "importSuccess": "Importado com sucesso",
+      "importError": "Falha ao importar",
+      "noSkills": "Ainda não há Skills",
+      "noSkillsDesc": "Crie ou importe Skills para começar a usar.",
+      "noSkillsGlobal": "Ainda não há Skills globais",
+      "noSkillsGlobalDesc": "Crie ou importe Skills para usar em todos os projetos.",
+      "emptyWorkspace": "Não há Skills neste workspace",
+      "emptyWorkspaceDesc": "Crie um arquivo SKILL.md na pasta skills para adicionar uma Skill.",
+      "installedGlobalSkills": "Skills globais instaladas",
+      "basicSettings": "Configurações básicas",
+      "metadata": "Metadados",
+      "skillName": "Nome da Skill",
+      "skillDescription": "Descrição",
+      "skillVersion": "Versão",
+      "skillAuthor": "Autor",
+      "nameRequired": "Informe o nome da Skill",
+      "descriptionRequired": "Informe a descrição",
+      "namePlaceholder": "note-organizer",
+      "versionPlaceholder": "1.0.0",
+      "descriptionPlaceholder": "Organiza e otimiza automaticamente a estrutura das notas...",
+      "authorPlaceholder": "Seu nome",
+      "descriptionHelp": "Usado para a IA combinar; descreva a função desta Skill e quando ela deve ser aplicada.",
+      "allowedTools": "Ferramentas permitidas",
+      "allowedToolsHelp": "Essas ferramentas podem ser usadas sem confirmação do usuário.",
+      "userInvocable": "Mostrar no menu de barra (/)",
+      "userInvocableHelp": "O usuário pode acionar manualmente via /nome-da-skill",
+      "instructions": "Conteúdo das instruções",
+      "instructionsHelp": "Instruções detalhadas para a IA (suporta Markdown).",
+      "instructionsPlaceholder": "Digite instruções detalhadas para a IA...",
+      "content": "Conteúdo das instruções",
+      "deleteSkillTitle": "Excluir Skill",
+      "deleteSkillDesc": "Tem certeza de que deseja excluir esta Skill? Esta ação não pode ser desfeita.",
+      "skillDeleted": "Skill excluída com sucesso"
+    },
+    "readAloud": {
+      "title": "Leitura em voz alta",
+      "desc": "Aqui você pode configurar opções de leitura em voz alta para reproduzir o conteúdo do chat em áudio.",
+      "noModel": "Não usar modelo",
+      "alert": {
+        "title": "Você está usando a leitura do sistema",
+        "description": "Nenhum modelo de áudio foi configurado. Usando a leitura do próprio sistema."
+      },
+      "options": {
+        "audioModel": {
+          "title": "Modelo de áudio",
+          "desc": "Escolha o modelo de IA para texto-para-fala (TTS). Suporta diferentes vozes e parâmetros."
+        },
+        "speed": {
+          "title": "Velocidade",
+          "desc": "Ajuste a velocidade da voz (de 0,25× a 4×). O padrão é 1×."
+        }
+      }
     }
   },
   "record": {
@@ -831,7 +1033,8 @@
       "recording": "Gravando...",
       "recorded": "Gravado",
       "record": "Gravar",
-      "detected": "Detectado"
+      "detected": "Detectado",
+      "save": "Salvar"
     },
     "mark": {
       "empty": "Nenhum registro ainda",
@@ -955,11 +1158,15 @@
           },
           "placeholder": {
             "default": "Faça perguntas ou organize suas notas em um artigo...",
-            "noApiKey": "Chave de API não configurada, recurso de chat com IA indisponível..."
+            "noApiKey": "Chave de API não configurada, recurso de chat com IA indisponível...",
+            "on": "Sugestão da IA: ligado",
+            "off": "Sugestão da IA: desligado"
           },
           "header": {
             "configApiKey": "Configurar CHAVE DE API",
-            "clearChat": "Limpar Chat"
+            "clearChat": "Limpar Chat",
+            "configPrompt": "Configurar Prompt",
+            "selectPrompt": "Selecionar Prompt"
           },
           "clipboard": {
             "image": {
@@ -997,7 +1204,9 @@
             "currentMode": "Modo de Conversa",
             "noModel": "Nenhum modelo definido",
             "noPrompt": "Nenhum prompt definido",
-            "configureModel": "Configurar Modelo"
+            "configureModel": "Configurar Modelo",
+            "modeHint": "Toque no botão à esquerda do campo de entrada",
+            "modeHintSuffix": "para alternar o modo de conversa"
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"
@@ -1101,10 +1310,24 @@
         "image": "Carregar Imagem",
         "link": "Gravar Link",
         "file": "Carregar Arquivo",
-        "todo": "Registro Todo"
+        "todo": "Registro Todo",
+        "closeTrash": "Fechar lixeira"
       },
       "list": {
         "title": "Registros"
+      },
+      "note": {
+        "organizeAs": "Organizar como",
+        "template": "Modelo",
+        "setting": "Configurações",
+        "confirm": "Confirmar",
+        "cancel": "Cancelar",
+        "removeThinking": "Remover processo de raciocínio",
+        "stop": "Parar"
+      },
+      "imageGallery": {
+        "expand": "Expandir",
+        "collapse": "Recolher"
       }
     },
     "chat": {
@@ -1116,7 +1339,23 @@
         "noModel": "Nenhum modelo definido",
         "noPrompt": "Nenhum prompt definido",
         "modeHint": "Clique no botão",
-        "modeHintSuffix": "à esquerda da caixa de entrada para alternar o modo de conversa"
+        "modeHintSuffix": "à esquerda da caixa de entrada para alternar o modo de conversa",
+        "currentMode": "Modo de conversa",
+        "configureModel": "Configurar modelo",
+        "features": [
+          {
+            "chat": "Converse com o assistente de IA"
+          },
+          {
+            "linked": "Vinculado aos seus registros ou notas"
+          },
+          {
+            "clipboard": "Reconhece texto e imagens da área de transferência"
+          },
+          {
+            "organize": "Organiza seus registros em notas"
+          }
+        ]
       },
       "newChat": "Novo Chat com Nova Tag",
       "removeChat": "Remover Chat com Tag Atual",
@@ -1126,11 +1365,6 @@
       "confirmRemoveDescription": "Note que excluir esta tag também removerá todos os registros contidos nela. Confirme a ação para continuar.",
       "content": {
         "organize": "Organize seus registros em um artigo:"
-      },
-      "quote": {
-        "lineSingle": "Citado de {fileName} linha {line}",
-        "lineRange": "Citado de {fileName} linhas {startLine}-{endLine}",
-        "noLine": "Citado de {fileName}"
       },
       "note": {
         "organize": "Organizar",
@@ -1149,7 +1383,8 @@
         "filterThinkingContent": "Remover conteúdo de 'pensamento' dos registros",
         "startOrganize": "Começar a organizar",
         "manageTemplate": "Gerenciar template",
-        "cancel": "Cancelar"
+        "cancel": "Cancelar",
+        "stop": "Parar"
       },
       "mark": {
         "recorded": "Gravado",
@@ -1233,7 +1468,9 @@
             "tool": "Ferramenta",
             "parameters": "Parâmetros",
             "cancel": "Cancelar",
-            "confirm": "Confirmar"
+            "confirm": "Confirmar",
+            "confirmed": "Confirmado",
+            "cancelled": "Cancelado"
           }
         },
         "imageSelector": {
@@ -1252,13 +1489,15 @@
           "searchPlaceholder": "Pesquisar arquivos...",
           "noFiles": "Nenhum arquivo encontrado",
           "loading": "Carregando..."
-        }
+        },
+        "stopped": "A conversa foi encerrada"
       },
       "header": {
         "configApiKey": "Configurar CHAVE DE API",
         "clearChat": "Limpar Chat",
         "selectPrompt": "Selecionar Prompt",
-        "noModel": "Modelo de IA não selecionado"
+        "noModel": "Modelo de IA não selecionado",
+        "configPrompt": "Configurar Prompt"
       },
       "clipboard": {
         "image": {
@@ -1317,6 +1556,10 @@
       "article": "Artigo",
       "matches": "{count} correspondências",
       "scanType": "digitalização"
+    },
+    "mode": {
+      "fuzzy": "Aproximada",
+      "exact": "Exata"
     }
   },
   "image": {
@@ -1346,7 +1589,9 @@
     "showLeftSidebar": "Mostrar Barra Lateral Esquerda",
     "hideRightSidebar": "Ocultar Barra Lateral Direita",
     "showRightSidebar": "Mostrar Barra Lateral Direita",
-    "searchPlaceholder": "Pesquisar notas ou registros..."
+    "searchPlaceholder": "Pesquisar notas ou registros...",
+    "showCenterPanel": "Mostrar editor",
+    "hideCenterPanel": "Ocultar editor"
   },
   "marks": {
     "types": {
@@ -1559,8 +1804,10 @@
           "description": "Traduzir o texto selecionado",
           "selectContent": "Por favor, selecione o conteúdo primeiro",
           "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido."
-        }
-      }
+        },
+        "notSupported": "Esta ação não é suportada"
+      },
+      "deleteConfirm": "Confirmar exclusão deste arquivo?"
     },
     "editor": {
       "copySuccess": "Cópia Bem-sucedida",
@@ -1630,6 +1877,15 @@
         "error": "Falha no upload",
         "needToken": "O upload de imagens precisa configurar o accessToken",
         "uploading": "Enviando imagem"
+      },
+      "saveDialog": {
+        "title": "Salvar arquivo",
+        "emptyContent": "Conteúdo vazio",
+        "emptyContentDesc": "Digite algum conteúdo antes de salvar.",
+        "success": "Salvo com sucesso",
+        "successDesc": "O arquivo foi salvo.",
+        "error": "Falha ao salvar",
+        "errorDesc": "Não foi possível salvar o arquivo. Tente novamente."
       }
     },
     "footer": {
@@ -1650,7 +1906,9 @@
         "syncing": "Sincronizando",
         "syncFailed": "Falha na Sincronização",
         "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
-        "quickSync": "Sincronização Rápida"
+        "quickSync": "Sincronização Rápida",
+        "push": "Enviar",
+        "pushed": "Enviado"
       },
       "history": {
         "loadingHistory": "Carregando histórico",
@@ -1807,13 +2065,13 @@
   "footer": {
     "wordCount": "Palavras",
     "sync": {
-        "push": "Push",
-        "pushed": "Enviado",
-        "syncing": "Enviando",
-        "syncFailed": "Falha no Push",
-        "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
-        "quickSync": "Sincronização Rápida"
-      },
+      "push": "Push",
+      "pushed": "Enviado",
+      "syncing": "Enviando",
+      "syncFailed": "Falha no Push",
+      "checkNetworkOrToken": "Por favor, verifique a conexão de rede ou o token",
+      "quickSync": "Sincronização Rápida"
+    },
     "history": {
       "loadingHistory": "Carregando histórico",
       "historyRecords": "Registros do Histórico",

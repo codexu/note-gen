@@ -809,6 +809,47 @@
       "importButton": "导入",
       "exportButton": "导出"
     },
+    "conversation": {
+      "title": "对话设置",
+      "desc": "在这里，你可以配置对话相关的设置，包括摘要生成等功能。",
+      "condense": {
+        "title": "对话摘要",
+        "enable": {
+          "title": "启用摘要",
+          "desc": "自动压缩长对话以节省 token 使用量"
+        },
+        "model": {
+          "title": "摘要模型",
+          "desc": "选择用于生成摘要的 AI 模型",
+          "placeholder": "使用主模型"
+        },
+        "threshold": {
+          "title": "触发阈值",
+          "desc": "AI 消息超过此数量时检查压缩"
+        },
+        "minToken": {
+          "title": "最小 Token 数",
+          "desc": "单条消息超过此 token 数才进行压缩"
+        },
+        "keepLatest": {
+          "title": "保留最新条数",
+          "desc": "保留最新的 N 条 AI 消息不进行压缩"
+        },
+        "maxLength": {
+          "title": "摘要长度限制",
+          "desc": "控制生成摘要的最大字数"
+        },
+        "prompt": {
+          "title": "自定义摘要提示词",
+          "desc": "自定义生成摘要时使用的提示词模板",
+          "label": "提示词模板",
+          "placeholder": "输入自定义提示词...",
+          "help": "使用 {content} 作为原始内容的占位符",
+          "save": "保存",
+          "reset": "重置为默认"
+        }
+      }
+    },
     "ai": {
       "title": "模型配置",
       "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",

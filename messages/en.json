@@ -815,6 +815,47 @@
       "importButton": "Import",
       "exportButton": "Export"
     },
+    "conversation": {
+      "title": "Conversation Settings",
+      "desc": "Configure conversation-related settings here, including summary generation.",
+      "condense": {
+        "title": "Conversation Summary",
+        "enable": {
+          "title": "Enable Summary",
+          "desc": "Automatically compress long conversations to save token usage"
+        },
+        "model": {
+          "title": "Summary Model",
+          "desc": "Select the AI model for generating summaries",
+          "placeholder": "Use primary model"
+        },
+        "threshold": {
+          "title": "Trigger Threshold",
+          "desc": "Check compression when AI messages exceed this count"
+        },
+        "minToken": {
+          "title": "Min Token Count",
+          "desc": "Only compress messages exceeding this token count"
+        },
+        "keepLatest": {
+          "title": "Keep Latest",
+          "desc": "Keep the latest N AI messages uncompressed"
+        },
+        "maxLength": {
+          "title": "Max Summary Length",
+          "desc": "Control the maximum word count of generated summaries"
+        },
+        "prompt": {
+          "title": "Custom Summary Prompt",
+          "desc": "Customize the prompt template for generating summaries",
+          "label": "Prompt Template",
+          "placeholder": "Enter custom prompt...",
+          "help": "Use {content} as a placeholder for original content",
+          "save": "Save",
+          "reset": "Reset to Default"
+        }
+      }
+    },
     "ai": {
       "title": "Model Management",
       "desc": "Here, you can add and manage various custom model services. After configuration, you will unlock AI-related features, such as organization and conversation functions.",

@@ -762,6 +762,47 @@
       "codeTheme": "Tema de destaque do bloco de código",
       "selectTheme": "Selecionar Tema"
     },
+    "conversation": {
+      "title": "Configurações de Conversa",
+      "desc": "Configure as configurações relacionadas à conversa aqui, incluindo geração de resumo.",
+      "condense": {
+        "title": "Resumo da Conversa",
+        "enable": {
+          "title": "Ativar Resumo",
+          "desc": "Comprimir automaticamente conversas longas para economizar uso de tokens"
+        },
+        "model": {
+          "title": "Modelo de Resumo",
+          "desc": "Selecione o modelo de IA para gerar resumos",
+          "placeholder": "Usar modelo principal"
+        },
+        "threshold": {
+          "title": "Limiar de Gatilho",
+          "desc": "Verificar compressão quando mensagens da IA excederem esta contagem"
+        },
+        "minToken": {
+          "title": "Contagem Mínima de Tokens",
+          "desc": "Comprimir apenas mensagens que excedam esta contagem de tokens"
+        },
+        "keepLatest": {
+          "title": "Manter Mais Recentes",
+          "desc": "Manter as últimas N mensagens da IA não compactadas"
+        },
+        "maxLength": {
+          "title": "Comprimento Máximo do Resumo",
+          "desc": "Controlar a contagem máxima de palavras dos resumos gerados"
+        },
+        "prompt": {
+          "title": "Prompt de Resumo Personalizado",
+          "desc": "Personalize o modelo de prompt para gerar resumos",
+          "label": "Modelo de Prompt",
+          "placeholder": "Digite o prompt personalizado...",
+          "help": "Use {content} como um espaço reservado para o conteúdo original",
+          "save": "Salvar",
+          "reset": "Redefinir para o Padrão"
+        }
+      }
+    },
     "dev": {
       "title": "Desenvolvedor",
       "desc": "Aqui você pode configurar opções de desenvolvedor, incluindo proxy de rede, limpeza de dados e gerenciamento de arquivos de configuração.",

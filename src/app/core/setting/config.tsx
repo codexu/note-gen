@@ -17,6 +17,7 @@ import {
   Settings,
   Puzzle,
   Sparkles,
+  MessageSquare,
 } from "lucide-react"
 
 const baseConfig = [
@@ -45,6 +46,10 @@ const baseConfig = [
   {
     icon: <BotMessageSquare className="size-4 md:size-6" />,
     anchor: 'ai',
+  },
+  {
+    icon: <MessageSquare className="size-4 md:size-6" />,
+    anchor: 'conversation',
   },
   {
     icon: <Package className="size-4 md:size-6" />,

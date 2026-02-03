@@ -4,25 +4,8 @@ import { estimateTokens } from './token-counter'
 import useSettingStore from '@/stores/setting'
 import OpenAI from 'openai'
 
-const CONDENSE_THRESHOLD = 3 // AI 消息超过 3 条（不包括最新的 2 条）时检查压缩
+const CONDENSE_THRESHOLD = 3 // AI 消息超过 3 条时检查压缩
 const MIN_TOKEN_TO_CONDENSE = 100 // 单条消息超过 100 token 才压缩
-const KEEP_LATEST_COUNT = 2 // 保留最新的 N 条 AI 消息不压缩
-
-// 压缩提示词
-const CONDENSE_PROMPT = `
-请将以下对话内容压缩为简洁的摘要，用于节省 token 使用量。
-
-压缩原则：
-1. 保留代码块、数据、结论、TODO 等关键信息
-2. 简化过程描述和中间思考
-3. 使用清晰的段落或要点组织内容
-4. 控制在 100 字以内
-
-原始内容：
-{content}
-
-请输出摘要：
-`
 
 /**
  * 获取可压缩的 AI 消息（排除用户消息和已压缩的）
@@ -31,7 +14,7 @@ const CONDENSE_PROMPT = `
  * - 最新的 N 条 AI 消息不压缩
  * - 已有摘要的消息不重复压缩
  */
-function getCondensableChats(chats: Chat[]): Chat[] {
+function getCondensableChats(chats: Chat[], keepLatestCount: number): Chat[] {
   // 只处理 AI (system) 的 chat 和 note 类型消息
   const aiMessages = chats.filter(c =>
     (c.type === 'chat' || c.type === 'note') &&
@@ -39,7 +22,7 @@ function getCondensableChats(chats: Chat[]): Chat[] {
   )
 
   // 排除最新的 N 条
-  const toCheck = aiMessages.slice(0, -KEEP_LATEST_COUNT)
+  const toCheck = aiMessages.slice(0, -keepLatestCount)
 
   // 只返回没有摘要的消息
   return toCheck.filter(c => !c.condensedContent)
@@ -49,8 +32,15 @@ function getCondensableChats(chats: Chat[]): Chat[] {
  * 检查是否需要压缩
  */
 export async function shouldCondense(chatsAfterClear: Chat[]): Promise<boolean> {
+  const settings = useSettingStore.getState()
+
+  // 检查是否启用摘要
+  if (!settings.enableCondense) {
+    return false
+  }
+
   // 获取可压缩的 AI 消息
-  const condensableChats = getCondensableChats(chatsAfterClear)
+  const condensableChats = getCondensableChats(chatsAfterClear, settings.keepLatestCount)
 
   if (condensableChats.length < CONDENSE_THRESHOLD) {
     return false
@@ -69,19 +59,40 @@ export async function shouldCondense(chatsAfterClear: Chat[]): Promise<boolean> 
  * @returns 每条消息的摘要结果数组
  */
 export async function condenseChats(chatsAfterClear: Chat[]): Promise<Array<{ chatId: number, summary: string | null }>> {
+  const settings = useSettingStore.getState()
+
+  // 检查是否启用摘要
+  if (!settings.enableCondense) {
+    return []
+  }
+
   // 获取需要压缩的消息
-  const toCondense = getCondensableChats(chatsAfterClear)
+  const toCondense = getCondensableChats(chatsAfterClear, settings.keepLatestCount)
 
   if (toCondense.length === 0) {
     return []
   }
 
   // 获取用户配置的摘要模型
-  const { condenseModel } = useSettingStore.getState()
+  const { condenseModel } = settings
   const hasCondenseModel = !!condenseModel
 
   // 如果配置了 condenseModel，使用 'condenseModel' store key，否则使用 'primaryModel'
   const storeKey = hasCondenseModel ? 'condenseModel' : 'primaryModel'
+
+  // 构建提示词
+  const prompt = `请将以下对话内容压缩为简洁的摘要，用于节省 token 使用量。
+
+压缩原则：
+1. 保留代码块、数据、结论、TODO 等关键信息
+2. 简化过程描述和中间思考
+3. 使用清晰的段落或要点组织内容
+4. 控制在 ${settings.condenseMaxLength} 字以内
+
+原始内容：
+{content}
+
+请输出摘要：`
 
   const results: Array<{ chatId: number, summary: string | null }> = []
 
@@ -97,8 +108,8 @@ export async function condenseChats(chatsAfterClear: Chat[]): Promise<Array<{ ch
     }
 
     try {
-      const prompt = CONDENSE_PROMPT.replace('{content}', content)
-      const summary = await fetchAi(prompt, storeKey)
+      const finalPrompt = prompt.replace('{content}', content)
+      const summary = await fetchAi(finalPrompt, storeKey)
 
       if (summary) {
         results.push({ chatId: chat.id, summary })

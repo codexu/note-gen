@@ -1,7 +1,7 @@
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { useTranslations } from 'next-intl';
 import { ModelSelect } from "../components/model-select";
-import { Bot, Highlighter, Zap, GitCommit, Sparkles } from "lucide-react";
+import { Bot, Highlighter, Zap, GitCommit } from "lucide-react";
 
 export function Setting() {
   const t = useTranslations('settings.defaultModel');
@@ -30,12 +30,6 @@ export function Setting() {
       desc: t('options.commit.desc'),
       modelKey: 'commit',
       icon: <GitCommit className="size-4" />
-    },
-    {
-      title: t('options.condense.title'),
-      desc: t('options.condense.desc'),
-      modelKey: 'condense',
-      icon: <Sparkles className="size-4" />
     },
   ]
 

@@ -596,6 +596,47 @@
       "codeTheme": "代碼塊高亮主題",
       "selectTheme": "選擇主題"
     },
+    "conversation": {
+      "title": "對話設置",
+      "desc": "在這裡，你可以配置對話相關的設置，包括摘要生成等功能。",
+      "condense": {
+        "title": "對話摘要",
+        "enable": {
+          "title": "啟用摘要",
+          "desc": "自動壓縮長對話以節省 token 使用量"
+        },
+        "model": {
+          "title": "摘要模型",
+          "desc": "選擇用於生成摘要的 AI 模型",
+          "placeholder": "使用主模型"
+        },
+        "threshold": {
+          "title": "觸發閾值",
+          "desc": "AI 消息超過此數量時檢查壓縮"
+        },
+        "minToken": {
+          "title": "最小 Token 數",
+          "desc": "單條消息超過此 token 數才進行壓縮"
+        },
+        "keepLatest": {
+          "title": "保留最新條數",
+          "desc": "保留最新的 N 條 AI 消息不進行壓縮"
+        },
+        "maxLength": {
+          "title": "摘要長度限制",
+          "desc": "控制生成摘要的最大字數"
+        },
+        "prompt": {
+          "title": "自定義摘要提示詞",
+          "desc": "自定義生成摘要時使用的提示詞模板",
+          "label": "提示詞模板",
+          "placeholder": "輸入自定義提示詞...",
+          "help": "使用 {content} 作為原始內容的佔位符",
+          "save": "保存",
+          "reset": "重置為默認"
+        }
+      }
+    },
     "dev": {
       "title": "開發者",
       "desc": "在這裡，你可以配置開發者選項，包括網路代理、數據清理和設定檔管理等進階功能。",

@@ -968,6 +968,13 @@
           "title": "Title Generation Model",
           "desc": "Select the AI model for generating conversation titles"
         }
+      },
+      "inspiration": {
+        "title": "Inspiration Model",
+        "model": {
+          "title": "Quick Prompt Generator",
+          "desc": "Generate quick prompt suggestions to help users start conversations"
+        }
       }
     },
     "ai": {

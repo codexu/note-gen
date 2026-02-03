@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import useChatStore from "@/stores/chat"
 import useMarkStore from "@/stores/mark"
 import useArticleStore from "@/stores/article"
-import { fetchAiPlaceholder } from "@/lib/ai/placeholder"
+import { fetchAiQuickPrompts } from "@/lib/ai/placeholder"
 import { useTranslations } from 'next-intl'
 import { useLocalStorage } from 'react-use';
 import { ModelSelect } from "./model-select"
@@ -321,10 +321,15 @@ export const ChatInput = React.memo(function ChatInput() {
         .join(';\n\n')}
       ${chatsAfterClear.slice(0, 5).map(item => item.content?.slice(0, 60)).join(';\n\n')}
     `.trim()
-    // 使用非流式请求获取placeholder内容
-    const content = await fetchAiPlaceholder(request_content)
-    if (content) {
-      setPlaceholder(content + ' [Tab]')
+    // 使用 fetchAiQuickPrompts 获取4条提示词
+    const prompts = await fetchAiQuickPrompts(request_content)
+    // 发送事件给 chat-empty 组件，显示前3条
+    if (prompts.length >= 3) {
+      emitter.emit('ai-prompts-generated', prompts)
+    }
+    // 取第4条作为 placeholder
+    if (prompts.length >= 4 && prompts[3]?.text) {
+      setPlaceholder(prompts[3].text + ' [Tab]')
     }
   }
 
@@ -425,12 +430,19 @@ export const ChatInput = React.memo(function ChatInput() {
       setText(prompt)
       textareaRef.current?.focus()
     })
+    emitter.on('ai-placeholder-generated', (event: unknown) => {
+      const promptText = event as string
+      if (promptText) {
+        setPlaceholder(promptText)
+      }
+    })
     return () => {
       emitter.off('revertChat')
       emitter.off('fileSelected')
       emitter.off('folderSelected')
       emitter.off('insert-quote')
       emitter.off('quick-prompt-insert')
+      emitter.off('ai-placeholder-generated')
     }
   }, [debouncedGenPlaceholder])
 

@@ -886,6 +886,13 @@
           "save": "Salvar",
           "reset": "Redefinir para o Padrão"
         }
+      },
+      "inspiration": {
+        "title": "Modelo de Inspiração",
+        "model": {
+          "title": "Gerador de Sugestões Rápidas",
+          "desc": "Gere sugestões de prompt rápidas para ajudar os usuários a iniciar conversas"
+        }
       }
     },
     "dev": {

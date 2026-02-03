@@ -9,7 +9,7 @@ import {
   ItemDescription,
   ItemActions,
 } from '@/components/ui/item'
-import { BotMessageSquare, PenTool, Zap, GitCommit, FileText, MessageSquare } from 'lucide-react'
+import { BotMessageSquare, PenTool, Zap, GitCommit, FileText, MessageSquare, Lightbulb } from 'lucide-react'
 import { ModelSelect } from './model-select'
 
 interface DefaultModelsSettingsProps {
@@ -62,6 +62,19 @@ export function DefaultModelsSettings({ type }: DefaultModelsSettingsProps) {
             </ItemContent>
             <ItemActions>
               <ModelSelect modelKey="conversationTitle" />
+            </ItemActions>
+          </Item>
+
+          <Item variant="outline">
+            <ItemMedia variant="icon">
+              <Lightbulb className="size-4" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t('chat.inspiration.model.title')}</ItemTitle>
+              <ItemDescription>{t('chat.inspiration.model.desc')}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ModelSelect modelKey="inspiration" />
             </ItemActions>
           </Item>
         </>

@@ -1,4 +1,5 @@
 import mitt from 'mitt'
+import type { QuickPrompt } from '@/lib/ai/placeholder'
 
 // 定义事件类型
 interface Events {
@@ -65,6 +66,8 @@ interface Events {
   'refresh-marks': unknown;
   'quick-prompt-insert': string;
   'quick-prompt-send': string;
+  'ai-placeholder-generated': string;
+  'ai-prompts-generated': QuickPrompt[];
   [key: string]: unknown; // 添加索引签名以支持动态事件名
   [key: symbol]: unknown; // 添加 symbol 索引签名以满足 Record 约束
 }

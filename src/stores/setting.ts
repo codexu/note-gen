@@ -81,6 +81,9 @@ interface SettingState {
   conversationTitleModel: string
   setConversationTitleModel: (conversationTitleModel: string) => Promise<void>
 
+  inspirationModel: string
+  setInspirationModel: (inspirationModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -380,7 +383,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
       { storeKey: 'markDescModel', modelType: 'chat' },
       { storeKey: 'commitModel', modelType: 'chat' },
       { storeKey: 'condenseModel', modelType: 'chat' },
-      { storeKey: 'conversationTitleModel', modelType: 'chat' }
+      { storeKey: 'conversationTitleModel', modelType: 'chat' },
+      { storeKey: 'inspirationModel', modelType: 'chat' }
     ]
 
     for (const { storeKey, modelType } of modelTypes) {
@@ -636,6 +640,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('conversationTitleModel', conversationTitleModel)
     set({ conversationTitleModel })
+  },
+
+  inspirationModel: '',
+  setInspirationModel: async (inspirationModel) => {
+    const store = await Store.load('store.json');
+    await store.set('inspirationModel', inspirationModel)
+    set({ inspirationModel })
   },
 
   templateList: [

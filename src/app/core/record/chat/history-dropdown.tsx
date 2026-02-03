@@ -55,10 +55,10 @@ export function HistoryDropdown({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="w-full px-4 py-3 rounded-lg border border-transparent hover:border-primary/50 transition-colors justify-between"
+          className="px-1 hover:bg-transparent cursor-pointer justify-start"
         >
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{t('viewMore')}</span>
+            <span className="text-xs font-medium">{t('viewMore')}</span>
             <span className="text-xs text-muted-foreground">
               ({filteredConversations.length})
             </span>
@@ -67,7 +67,7 @@ export function HistoryDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="center"
+        align="end"
         className="w-[340px] max-h-[400px] overflow-y-auto"
       >
         {/* 搜索框 */}

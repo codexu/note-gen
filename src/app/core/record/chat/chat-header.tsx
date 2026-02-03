@@ -5,8 +5,7 @@ import { FileLink } from "./file-link"
 import { McpButton } from "./mcp-button"
 import { RagSwitch } from "./rag-switch"
 import { ClipboardMonitor } from "./clipboard-monitor"
-import { ClearContext } from "./clear-context"
-import { ClearChat } from "./clear-chat"
+import { NewChat } from "./new-chat"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
 import { useState } from "react"
@@ -17,7 +16,7 @@ import emitter from "@/lib/emitter"
 // 工具栏分组定义
 const TOOLBAR_GROUPS = {
   topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'clipboardMonitor'],
-  topRight: ['clearContext', 'clearChat'],
+  topRight: ['newChat'],
 }
 
 export function ChatHeader() {
@@ -50,10 +49,8 @@ export function ChatHeader() {
         return <RagSwitch key={id} />
       case 'clipboardMonitor':
         return <ClipboardMonitor key={id} />
-      case 'clearContext':
-        return <ClearContext key={id} />
-      case 'clearChat':
-        return <ClearChat key={id} />
+      case 'newChat':
+        return <NewChat key={id} />
       default:
         return null
     }
@@ -75,7 +72,7 @@ export function ChatHeader() {
           {getToolbarItems('topLeft')}
         </div>
 
-        {/* 右侧：剪贴板监听、AI建议、清除上下文、清空对话 */}
+        {/* 右侧：新建对话 */}
         <div className="flex items-center gap-1">
           {getToolbarItems('topRight')}
         </div>

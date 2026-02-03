@@ -1333,7 +1333,14 @@
             "noPrompt": "Nenhum prompt definido",
             "configureModel": "Configurar Modelo",
             "modeHint": "Toque no botão à esquerda do campo de entrada",
-            "modeHintSuffix": "para alternar o modo de conversa"
+            "modeHintSuffix": "para alternar o modo de conversa",
+            "recentConversations": "Conversas Recentes",
+            "deleteConversation": "Excluir conversa",
+            "viewMore": "Ver mais",
+            "messages": "mensagens",
+            "searchPlaceholder": "Pesquisar conversas...",
+            "noMatchingConversations": "Nenhuma conversa correspondente encontrada",
+            "noConversationHistory": "Sem histórico de conversa"
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"

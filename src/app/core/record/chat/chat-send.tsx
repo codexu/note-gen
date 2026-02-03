@@ -157,6 +157,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         await saveChat({
           id: placeholderMessage.id,
           tagId: placeholderMessage.tagId,
+          conversationId: placeholderMessage.conversationId,
           role: placeholderMessage.role,
           type: placeholderMessage.type,
           inserted: placeholderMessage.inserted,
@@ -181,6 +182,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         await saveChat({
           id: placeholderMessage.id,
           tagId: placeholderMessage.tagId,
+          conversationId: placeholderMessage.conversationId,
           role: placeholderMessage.role,
           type: placeholderMessage.type,
           inserted: placeholderMessage.inserted,

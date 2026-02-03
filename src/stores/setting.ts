@@ -78,6 +78,9 @@ interface SettingState {
   condenseModel: string
   setCondenseModel: (condenseModel: string) => Promise<void>
 
+  conversationTitleModel: string
+  setConversationTitleModel: (conversationTitleModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -376,7 +379,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
       { storeKey: 'completionModel', modelType: 'chat' },
       { storeKey: 'markDescModel', modelType: 'chat' },
       { storeKey: 'commitModel', modelType: 'chat' },
-      { storeKey: 'condenseModel', modelType: 'chat' }
+      { storeKey: 'condenseModel', modelType: 'chat' },
+      { storeKey: 'conversationTitleModel', modelType: 'chat' }
     ]
 
     for (const { storeKey, modelType } of modelTypes) {
@@ -503,6 +507,30 @@ const useSettingStore = create<SettingState>((set, get) => ({
           } else {
             set({ [key]: res as RecordToolbarItem[] })
           }
+        } else if (key === 'chatToolbarConfigPc' || key === 'chatToolbarConfigMobile') {
+          // 确保聊天工具栏包含所有工具，如果缺少新工具则自动添加
+          const storedConfig = res as ChatToolbarItem[]
+          const defaultConfig = value as ChatToolbarItem[]
+
+          // 检查是否有缺失的工具
+          const missingTools = defaultConfig.filter(
+            defaultItem => !storedConfig.some(stored => stored.id === defaultItem.id)
+          )
+
+          if (missingTools.length > 0) {
+            // 合并配置：保留用户的顺序和启用状态，添加新工具
+            const mergedConfig = [...storedConfig]
+            let maxOrder = Math.max(...storedConfig.map(item => item.order), 0)
+
+            missingTools.forEach(tool => {
+              mergedConfig.push({ ...tool, order: ++maxOrder })
+            })
+
+            await store.set(key, mergedConfig)
+            set({ [key]: mergedConfig })
+          } else {
+            set({ [key]: res as ChatToolbarItem[] })
+          }
         } else if (key !== 'aiModelList') {
           set({ [key]: res })
         }
@@ -601,6 +629,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('condenseModel', condenseModel)
     set({ condenseModel })
+  },
+
+  conversationTitleModel: '',
+  setConversationTitleModel: async (conversationTitleModel) => {
+    const store = await Store.load('store.json');
+    await store.set('conversationTitleModel', conversationTitleModel)
+    set({ conversationTitleModel })
   },
 
   templateList: [
@@ -1043,8 +1078,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'ragSwitch', enabled: true, order: 6 },
     { id: 'clipboardMonitor', enabled: true, order: 7 },
     // 顶部工具栏 - 右侧
-    { id: 'clearContext', enabled: true, order: 8 },
-    { id: 'clearChat', enabled: true, order: 9 },
+    { id: 'newChat', enabled: true, order: 8 },
   ],
   setChatToolbarConfigPc: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigPc: config })
@@ -1063,8 +1097,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     { id: 'mcpButton', enabled: true, order: 5 },
     { id: 'ragSwitch', enabled: true, order: 6 },
     { id: 'clipboardMonitor', enabled: true, order: 7 },
-    { id: 'clearContext', enabled: true, order: 8 },
-    { id: 'clearChat', enabled: true, order: 9 },
+    { id: 'newChat', enabled: true, order: 8 },
   ],
   setChatToolbarConfigMobile: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigMobile: config })

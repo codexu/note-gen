@@ -1099,7 +1099,14 @@
             "currentMode": "会話モード",
             "noModel": "モデルが設定されていません",
             "noPrompt": "Promptが設定されていません",
-            "configureModel": "モデルを設定"
+            "configureModel": "モデルを設定",
+            "recentConversations": "最近の会話",
+            "deleteConversation": "会話を削除",
+            "viewMore": "もっと見る",
+            "messages": "件のメッセージ",
+            "searchPlaceholder": "会話を検索...",
+            "noMatchingConversations": "一致する会話が見つかりませんでした",
+            "noConversationHistory": "会話履歴はありません"
           },
           "content": {
             "organize": "あなたの記録を文章に整理："

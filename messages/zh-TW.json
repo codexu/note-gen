@@ -1101,7 +1101,14 @@
             "currentMode": "對話模式",
             "noModel": "未設置模型",
             "noPrompt": "未設置 Prompt",
-            "configureModel": "配置模型"
+            "configureModel": "配置模型",
+            "recentConversations": "最近對話",
+            "deleteConversation": "刪除對話",
+            "viewMore": "查看更多",
+            "messages": "條消息",
+            "searchPlaceholder": "搜索對話...",
+            "noMatchingConversations": "沒有找到匹配的對話",
+            "noConversationHistory": "暫無歷史對話"
           },
           "content": {
             "organize": "將你的紀錄整理為文章："

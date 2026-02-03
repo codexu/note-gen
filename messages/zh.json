@@ -189,6 +189,7 @@
       },
       "tools": {
         "title": "工具设置",
+        "desc": "配置各种工具栏按钮的显示和排序",
         "chatToolbar": {
           "title": "对话工具栏",
           "desc": "自定义对话工具栏按钮的显示顺序和可见性",
@@ -954,6 +955,13 @@
           "save": "保存",
           "reset": "重置为默认"
         }
+      },
+      "conversationTitle": {
+        "title": "会话标题",
+        "model": {
+          "title": "标题生成模型",
+          "desc": "选择用于生成会话标题的 AI 模型"
+        }
       }
     },
     "ai": {
@@ -1432,7 +1440,14 @@
         "currentMode": "对话模式",
         "noModel": "未设置模型",
         "noPrompt": "未设置 Prompt",
-        "configureModel": "配置模型"
+        "configureModel": "配置模型",
+        "recentConversations": "最近对话",
+        "deleteConversation": "删除对话",
+        "viewMore": "查看更多",
+        "messages": "条消息",
+        "searchPlaceholder": "搜索对话...",
+        "noMatchingConversations": "没有找到匹配的对话",
+        "noConversationHistory": "暂无历史对话"
       },
       "newChat": "使用新标签开始对话",
       "removeChat": "删除当前标签对话",
@@ -1480,10 +1495,7 @@
           "tooltip": "选择 Prompt",
           "placeholder": "搜索 Prompt"
         },
-        "clearChat": "清空对话",
-        "clearContext": {
-          "tooltip": "清除上下文"
-        },
+        "newChat": "开始新对话",
         "chatLanguage": {
           "tooltip": "选择对话语言",
           "placeholder": "搜索语言"
@@ -1980,11 +1992,8 @@
         },
         "tools": {
           "title": "工具",
-          "clearContext": "清除上下文",
-          "clearContextDesc": "清除对话上下文，保留聊天记录",
-          "clearChat": "清空对话",
-          "clearChatDesc": "删除所有聊天记录",
-          "clear": "清除"
+          "newChat": "开始新对话",
+          "start": "开始"
         },
         "attachments": {
           "title": "附件",

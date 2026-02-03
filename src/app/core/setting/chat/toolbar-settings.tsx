@@ -12,8 +12,7 @@ import {
   ServerCrash,
   Database,
   Clipboard,
-  AlignVerticalJustifyCenter,
-  Eraser,
+  SquareCode,
   GripVertical
 } from 'lucide-react'
 import useSettingStore, { ChatToolbarItem } from '@/stores/setting'
@@ -75,15 +74,10 @@ const TOOL_CONFIGS = {
     titleKey: 'settings.chat.toolbar.chatToolbar.clipboardMonitor.title',
     descKey: 'settings.chat.toolbar.chatToolbar.clipboardMonitor.desc',
   },
-  clearContext: {
-    icon: <AlignVerticalJustifyCenter className="size-4" />,
-    titleKey: 'record.chat.input.clearContext.tooltip',
-    descKey: 'settings.chat.toolbar.chatToolbar.clearContext.desc',
-  },
-  clearChat: {
-    icon: <Eraser className="size-4" />,
-    titleKey: 'record.chat.input.clearChat',
-    descKey: 'settings.chat.toolbar.chatToolbar.clearChat.desc',
+  newChat: {
+    icon: <SquareCode className="size-4" />,
+    titleKey: 'record.chat.input.newChat',
+    descKey: 'Start a new conversation',
   },
 }
 
@@ -91,7 +85,7 @@ const TOOL_CONFIGS = {
 const TOOLBAR_GROUPS = {
   bottom: ['modelSelect', 'promptSelect', 'chatLanguage'],
   topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'clipboardMonitor'],
-  topRight: ['clearContext', 'clearChat'],
+  topRight: ['newChat'],
 }
 
 // 可排序的工具栏项组件

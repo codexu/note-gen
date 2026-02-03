@@ -17,8 +17,10 @@ export async function initAllDatabases() {
   const { initNotesDb } = await import('./notes');
   const { initTagsDb } = await import('./tags');
   const { initVectorDb } = await import('./vector');
-  
-  // 执行初始化
+  const { initConversationsDb } = await import('./conversations');
+
+  // 执行初始化（conversations 需要在 chats 之前初始化，因为要迁移数据）
+  await initConversationsDb();
   await initChatsDb();
   await initMarksDb();
   await initNotesDb();

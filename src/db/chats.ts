@@ -5,7 +5,8 @@ export type ChatType = 'chat' | 'note' | 'clipboard' | 'clear' | 'condensed'
 
 export interface Chat {
   id: number
-  tagId: number
+  tagId?: number // 可选，用于兼容过渡期
+  conversationId?: number // 关联的会话 ID
   content?: string
   role: Role
   type: ChatType
@@ -143,16 +144,30 @@ export async function initChatsDb() {
   } catch {
     // 如果列已存在，忽略错误
   }
+
+  // 迁移：为现有表添加 conversationId 列（如果不存在）
+  // 注意：这个迁移已移到 conversations.ts 的 initConversationsDb 中执行
+  // 这里保留是为了向后兼容，如果 conversations 初始化失败，这里会确保列存在
+  try {
+    await db.execute(`
+      alter table chats add column conversationId integer default null
+    `)
+  } catch {
+    // 如果列已存在，忽略错误
+  }
 }
 
 // 插入一条 chat
 export async function insertChat(chat: Omit<Chat, 'id' | 'createdAt'>) {
   const db = await getDb()
   const createdAt = Date.now();
-  return await db.execute(
-    "insert into chats (tagId, content, role, type, image, images, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
-    [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt]
+  console.log('[DB] insertChat called with conversationId:', chat.conversationId, 'role:', chat.role, 'content:', chat.content?.slice(0, 50))
+  const result = await db.execute(
+    "insert into chats (tagId, conversationId, content, role, type, image, images, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+    [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt]
   )
+  console.log('[DB] insertChat result, lastInsertId:', result.lastInsertId)
+  return result
 }
 
 // 获取所有 chats
@@ -162,6 +177,17 @@ export async function getChats(tagId: number) {
     "select * from chats where tagId = $1 order by createdAt",
     [tagId]
   )
+  return result
+}
+
+// 根据会话 ID 获取聊天记录（新方式）
+export async function getChatsByConversation(conversationId: number) {
+  const db = await getDb()
+  const result = await db.select<Chat[]>(
+    "select * from chats where conversationId = $1 order by createdAt",
+    [conversationId]
+  )
+  console.log('[DB] getChatsByConversation for conversationId:', conversationId, 'found', result.length, 'chats', result)
   return result
 }
 
@@ -198,9 +224,10 @@ export async function deleteAllChats() {
 // 更新一条 chat
 export async function updateChat(chat: Chat) {
   const db = await getDb()
+  console.log('[DB] updateChat called with id:', chat.id, 'conversationId:', chat.conversationId, 'role:', chat.role, 'content:', chat.content?.slice(0, 50))
   return await db.execute(
-    "update chats set content = $1, role = $2, type = $3, image = $4, images = $5, inserted = $6, ragSources = $7, ragSourceDetails = $8, agentHistory = $9, thinking = $10, quoteData = $11, condensedContent = $12, condensedAt = $13 where id = $14",
-    [chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.id])
+    "update chats set tagId = $1, conversationId = $2, content = $3, role = $4, type = $5, image = $6, images = $7, inserted = $8, ragSources = $9, ragSourceDetails = $10, agentHistory = $11, thinking = $12, quoteData = $13, condensedContent = $14, condensedAt = $15 where id = $16",
+    [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.id])
 }
 
 // 清空 tagId 下的所有 chats
@@ -232,8 +259,8 @@ export async function updateChats(chats: Chat[]) {
   try {
     for (const chat of chats) {
       await db.execute(
-        "update chats set content = $1, role = $2, type = $3, image = $4, images = $5, inserted = $6, ragSources = $7, ragSourceDetails = $8, agentHistory = $9, thinking = $10, quoteData = $11, condensedContent = $12, condensedAt = $13 where id = $14",
-        [chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.id]
+        "update chats set tagId = $1, conversationId = $2, content = $3, role = $4, type = $5, image = $6, images = $7, inserted = $8, ragSources = $9, ragSourceDetails = $10, agentHistory = $11, thinking = $12, quoteData = $13, condensedContent = $14, condensedAt = $15 where id = $16",
+        [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.id]
       )
     }
   } catch (error) {

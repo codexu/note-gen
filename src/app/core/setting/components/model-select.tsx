@@ -33,7 +33,7 @@ interface GroupedModel {
 
 export function ModelSelect({modelKey}: {modelKey: string}) {
   const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
-  const { setCompletionModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel, setSttModel, setEmbeddingModel, setRerankingModel, setCondenseModel } = useSettingStore()
+  const { setCompletionModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel, setSttModel, setEmbeddingModel, setRerankingModel, setCondenseModel, setConversationTitleModel } = useSettingStore()
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
@@ -60,6 +60,8 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
         return 'rerankingModel'
       case 'condense':
         return 'condenseModel'
+      case 'conversationTitle':
+        return 'conversationTitleModel'
       default:
         return `${modelKey}Model`
     }
@@ -95,6 +97,9 @@ export function ModelSelect({modelKey}: {modelKey: string}) {
         break;
       case 'condense':
         setCondenseModel(primaryModel)
+        break;
+      case 'conversationTitle':
+        setConversationTitleModel(primaryModel)
         break;
       default:
         break;

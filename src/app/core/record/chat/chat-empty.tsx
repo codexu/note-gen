@@ -42,10 +42,14 @@ export default function ChatEmpty() {
 
   // 获取最近 3 条会话（排除当前会话）
   const recentConversations = useMemo(() => {
-    return conversations
+    const filtered = conversations
       .filter(c => c.id !== currentConversationId)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3)
+    console.log('[ChatEmpty] conversations:', conversations)
+    console.log('[ChatEmpty] currentConversationId:', currentConversationId)
+    console.log('[ChatEmpty] recentConversations:', filtered)
+    return filtered
   }, [conversations, currentConversationId])
 
   // 是否有更多历史记录

@@ -48,6 +48,28 @@ export async function initConversationsDb() {
 async function migrateExistingChats() {
   const db = await getDb()
 
+  // 获取所有现有聊天记录
+  const allChats = await db.select<{ createdAt: number }[]>(
+    "select createdAt from chats order by createdAt",
+    []
+  )
+
+  // 如果没有聊天记录，不需要迁移
+  if (allChats.length === 0) {
+    return
+  }
+
+  // 检查是否有聊天记录没有 conversationId
+  const chatsWithoutConversation = await db.select<{ id: number }[]>(
+    "select id from chats where conversationId is null limit 1",
+    []
+  )
+
+  // 如果所有聊天记录都已经有 conversationId，不需要迁移
+  if (chatsWithoutConversation.length === 0) {
+    return
+  }
+
   // 检查是否已经有默认会话
   const existingConversations = await db.select<Conversation[]>(
     "select * from conversations where title = '历史对话' limit 1",
@@ -57,36 +79,20 @@ async function migrateExistingChats() {
   let defaultConversationId: number
 
   if (existingConversations.length === 0) {
-    // 获取所有现有聊天记录
-    const allChats = await db.select<{ createdAt: number }[]>(
-      "select createdAt from chats order by createdAt",
-      []
+    // 创建历史会话
+    const firstChat = allChats[0]
+    const lastChat = allChats[allChats.length - 1]
+    const result = await db.execute(
+      "insert into conversations (title, createdAt, updatedAt, messageCount, isPinned) values ($1, $2, $3, $4, $5)",
+      ['历史对话', firstChat.createdAt, lastChat.createdAt, allChats.length, 0]
     )
+    defaultConversationId = result.lastInsertId as number
 
-    if (allChats.length === 0) {
-      // 没有聊天记录，创建空的历史会话
-      const now = Date.now()
-      const result = await db.execute(
-        "insert into conversations (title, createdAt, updatedAt, messageCount, isPinned) values ($1, $2, $3, $4, $5)",
-        ['历史对话', now, now, 0, 0]
-      )
-      defaultConversationId = result.lastInsertId as number
-    } else {
-      // 创建历史会话
-      const firstChat = allChats[0]
-      const lastChat = allChats[allChats.length - 1]
-      const result = await db.execute(
-        "insert into conversations (title, createdAt, updatedAt, messageCount, isPinned) values ($1, $2, $3, $4, $5)",
-        ['历史对话', firstChat.createdAt, lastChat.createdAt, allChats.length, 0]
-      )
-      defaultConversationId = result.lastInsertId as number
-
-      // 更新所有现有聊天记录的 conversationId
-      await db.execute(
-        "update chats set conversationId = $1 where conversationId is null",
-        [defaultConversationId]
-      )
-    }
+    // 更新所有现有聊天记录的 conversationId
+    await db.execute(
+      "update chats set conversationId = $1 where conversationId is null",
+      [defaultConversationId]
+    )
   } else {
     defaultConversationId = existingConversations[0].id
     // 更新所有没有 conversationId 的聊天记录

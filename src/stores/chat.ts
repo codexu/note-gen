@@ -603,6 +603,10 @@ const useChatStore = create<ChatState>((set, get) => ({
   initConversations: async () => {
     const { getAllConversations } = await import('@/db/conversations')
     const conversations = await getAllConversations()
+    console.log('[ChatStore] initConversations: loaded', conversations.length, 'conversations')
+    conversations.forEach(c => {
+      console.log('[ChatStore]   - id:', c.id, 'title:', c.title, 'messageCount:', c.messageCount, 'isPinned:', c.isPinned)
+    })
     set({ conversations })
   },
 
@@ -637,6 +641,7 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteConversation: async (id: number) => {
+    console.log('[ChatStore] deleteConversation called with id:', id)
     const { deleteConversation: deleteConv } = await import('@/db/conversations')
     await deleteConv(id)
 
@@ -645,6 +650,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     // 如果删除的是当前会话，切换到另一个会话
     if (id === currentConversationId) {
       const remainingConversations = conversations.filter(c => c.id !== id)
+      console.log('[ChatStore] Deleted current conversation, remaining:', remainingConversations.length)
       if (remainingConversations.length > 0) {
         await switchConversation(remainingConversations[0].id)
       } else {
@@ -655,6 +661,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     }
 
     // 刷新会话列表
+    console.log('[ChatStore] Refreshing conversations after delete')
     await get().initConversations()
   },
 

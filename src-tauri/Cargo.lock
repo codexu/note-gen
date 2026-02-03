@@ -3401,12 +3401,15 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 name = "note-gen"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "core-graphics 0.23.2",
+ "flate2",
  "fuzzy-matcher",
  "jieba-rs",
  "machine-uid",
  "openssl",
  "percent-encoding",
+ "png",
  "rayon",
  "regex",
  "reqwest_dav",

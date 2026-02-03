@@ -487,7 +487,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
             })
 
             await store.set(key, mergedConfig)
-            set({ [key]: mergedConfig })
+            set({ recordToolbarConfig: mergedConfig })
           } else {
             set({ [key]: res as RecordToolbarItem[] })
           }

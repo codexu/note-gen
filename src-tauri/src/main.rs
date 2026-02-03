@@ -12,6 +12,7 @@ mod backup;
 mod mcp;
 mod device;
 mod skills;
+mod tavern;
 
 use screenshot::{screenshot};
 use webdav::{webdav_backup, webdav_sync, webdav_test, webdav_create_dir};
@@ -22,6 +23,7 @@ use skills::import_skill_zip;
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
 use tray::update_tray_enabled;
+use tavern::{parse_character_png, parse_character_pngs, encode_character_to_base64, export_character_png};
 
 fn main() {
     tauri::Builder::default()
@@ -68,6 +70,10 @@ fn main() {
             send_mcp_message,
             get_device_id,
             update_tray_enabled,
+            parse_character_png,
+            parse_character_pngs,
+            encode_character_to_base64,
+            export_character_png,
         ])
         
         // 应用设置 - 在所有插件和命令注册后

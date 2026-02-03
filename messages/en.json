@@ -1478,6 +1478,7 @@
     "record": "Record",
     "quickRecord": "Quick Record",
     "write": "Write",
+    "tavern": "Tavern",
     "search": "Search",
     "githubImageHosting": "Github Image Hosting",
     "login": "Login",
@@ -1926,5 +1927,37 @@
   },
   "quickRecord": {
     "description": "Click to select a recording tool and quickly create records"
+  },
+  "extensions": {
+    "title": "Extensions",
+    "description": "Manage and configure application extensions",
+    "tavernHelper": {
+      "name": "Tavern Helper",
+      "description": "Provides JS-Slash-Runner compatible API for advanced scripting, including variables, messages, macros, and more.",
+      "settings": {
+        "title": "Settings",
+        "logLevel": {
+          "label": "Log Level",
+          "description": "Set the minimum log level to display"
+        },
+        "console": {
+          "label": "Console Output",
+          "description": "Enable console output for debugging"
+        },
+        "maxHistory": {
+          "label": "Max History",
+          "description": "Maximum number of log entries to keep"
+        }
+      },
+      "features": {
+        "title": "Features",
+        "variables": "Variable System - Multi-scope variable storage and management",
+        "messages": "Message System - Chat message CRUD and swipe management",
+        "generate": "Generate System - AI generation with streaming support",
+        "macros": "Macro System - Text macro processing and custom macros",
+        "inject": "Inject System - Prompt injection with position control",
+        "events": "Event System - Pub/sub event bus with priority"
+      }
+    }
   }
 }

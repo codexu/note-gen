@@ -41,14 +41,14 @@ export default function RootLayout({
   const pathname = usePathname()
   const [searchOpen, setSearchOpen] = useState(false)
 
-  // 重定向旧路径到新的 /core/main
+  // 重定向旧路径到 Tavern 页面
   useEffect(() => {
     async function redirectOldPaths() {
-      if (pathname === '/core/article' || pathname === '/core/record') {
+      if (pathname === '/core/article' || pathname === '/core/record' || pathname === '/core/main') {
         const store = await Store.load('store.json')
-        await store.set('currentPage', '/core/main')
+        await store.set('currentPage', '/core/tavern')
         await store.save()
-        router.replace('/core/main')
+        router.replace('/core/tavern')
       }
     }
     redirectOldPaths()

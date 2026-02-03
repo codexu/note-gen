@@ -1,5 +1,5 @@
 'use client'
-import { ImageUp, Search, Settings, SquarePen, X } from "lucide-react"
+import { ImageUp, Search, Settings, SquarePen, X, MessageCircle } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +34,11 @@ export function AppSidebar({ onSearchClick }: AppSidebarProps) {
       url: "/core/main",
       icon: SquarePen,
       isActive: true,
+    },
+    {
+      title: t('navigation.tavern') || 'Tavern',
+      url: "/core/tavern",
+      icon: MessageCircle,
     },
     {
       title: t('navigation.search'),

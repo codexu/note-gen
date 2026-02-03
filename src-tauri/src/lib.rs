@@ -3,12 +3,14 @@ mod mcp;
 mod device;
 mod backup;
 mod skills;
+mod tavern;
 
 use webdav::{webdav_backup, webdav_create_dir, webdav_sync, webdav_test};
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
 use backup::{export_app_data, import_app_data};
 use skills::import_skill_zip;
+use tavern::{parse_character_png, parse_character_pngs, encode_character_to_base64, export_character_png};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -33,6 +35,10 @@ pub fn run() {
             export_app_data,
             import_app_data,
             import_skill_zip,
+            parse_character_png,
+            parse_character_pngs,
+            encode_character_to_base64,
+            export_character_png,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

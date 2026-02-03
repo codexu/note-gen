@@ -1498,6 +1498,7 @@
     "record": "记录",
     "quickRecord": "快捷记录",
     "write": "写作",
+    "tavern": "酒馆",
     "search": "搜索",
     "githubImageHosting": "Github 图床",
     "login": "登录",
@@ -1880,5 +1881,37 @@
   },
   "quickRecord": {
     "description": "点击选择记录工具，快速创建记录"
+  },
+  "extensions": {
+    "title": "扩展管理",
+    "description": "管理和配置应用扩展",
+    "tavernHelper": {
+      "name": "Tavern Helper",
+      "description": "提供与 JS-Slash-Runner 兼容的 API，支持变量、消息、宏等高级脚本功能。",
+      "settings": {
+        "title": "设置",
+        "logLevel": {
+          "label": "日志级别",
+          "description": "设置显示的最低日志级别"
+        },
+        "console": {
+          "label": "控制台输出",
+          "description": "启用控制台输出用于调试"
+        },
+        "maxHistory": {
+          "label": "历史记录上限",
+          "description": "保留的最大日志条目数"
+        }
+      },
+      "features": {
+        "title": "功能特性",
+        "variables": "变量系统 - 多作用域变量存储和管理",
+        "messages": "消息系统 - 聊天消息增删改查和 Swipe 管理",
+        "generate": "生成系统 - 支持流式输出的 AI 生成",
+        "macros": "宏系统 - 文本宏处理和自定义宏",
+        "inject": "注入系统 - 支持位置控制的提示词注入",
+        "events": "事件系统 - 支持优先级的发布订阅事件总线"
+      }
+    }
   }
 }

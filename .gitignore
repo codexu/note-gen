@@ -64,3 +64,10 @@ docs/.vitepress/cache
 # backup files
 *.backup
 .backup
+build.log
+
+pnpm-build.log
+
+build.log
+
+pnpm-build.log

@@ -32,8 +32,19 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
   const store = await Store.load('store.json')
   const aiConfigs = await store.get<AiConfig[]>('aiModelList')
   const modelId = await store.get(modelType || 'primaryModel')
-  
+
+  console.log('[getAISettings] 查询模型配置:', {
+    modelType,
+    storeKey: modelType || 'primaryModel',
+    modelId,
+    aiConfigsCount: aiConfigs?.length || 0
+  })
+
   if (!modelId || !aiConfigs) {
+    console.log('[getAISettings] 未找到模型配置:', {
+      hasModelId: !!modelId,
+      hasAiConfigs: !!aiConfigs
+    })
     return undefined
   }
 
@@ -43,7 +54,7 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
     if (config.models && config.models.length > 0) {
       // 首先尝试直接匹配模型ID
       let targetModel = config.models.find(model => model.id === modelId)
-      
+
       // 如果没找到，尝试匹配组合键格式 ${config.key}-${model.id}
       if (!targetModel && typeof modelId === 'string' && modelId.includes('-')) {
         const expectedPrefix = `${config.key}-`
@@ -52,10 +63,9 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
           targetModel = config.models.find(model => model.id === originalModelId)
         }
       }
-      
+
       if (targetModel) {
-        // 返回合并了模型配置的 AiConfig
-        return {
+        const result = {
           ...config,
           model: targetModel.model,
           modelType: targetModel.modelType,
@@ -64,15 +74,27 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
           voice: targetModel.voice,
           enableStream: targetModel.enableStream
         }
+        console.log('[getAISettings] 找到模型配置:', {
+          key: config.key,
+          modelId: targetModel.id,
+          model: targetModel.model,
+          baseURL: config.baseURL
+        })
+        return result
       }
     } else {
       // 向后兼容：处理旧的单模型结构
       if (config.key === modelId) {
+        console.log('[getAISettings] 使用旧格式模型配置:', {
+          key: config.key,
+          baseURL: config.baseURL
+        })
         return config
       }
     }
   }
-  
+
+  console.log('[getAISettings] 未找到匹配的模型配置, modelId:', modelId)
   return undefined
 }
 
@@ -213,7 +235,15 @@ export async function createOpenAIClient(AiConfig?: AiConfig) {
     apiKey = await store.get<string>('apiKey')
   }
   const proxyUrl = await store.get<string>('proxy')
-  
+
+  console.log('[createOpenAIClient] 创建客户端:', {
+    hasAiConfig: !!AiConfig,
+    baseURL,
+    hasApiKey: !!apiKey,
+    apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'none',
+    hasProxy: !!proxyUrl
+  })
+
   // 创建OpenAI客户端
   return new OpenAI({
     apiKey: apiKey || '',

@@ -1182,7 +1182,8 @@
             }
           },
           "messageControl": {
-            "words": "palavras"
+            "words": "palavras",
+            "summary": "Resumo"
           },
           "mcp": {
             "maxIterationsReached": "Número máximo de iterações de chamada de ferramenta atingido",

@@ -26,6 +26,7 @@ const ChatContent = React.memo(function ChatContent() {
   const { currentTagId } = useTagStore()
   const [isOnBottom, setIsOnBottom] = useState(true)
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
+  const t = useTranslations()
 
   const handleScroll = useCallback(() => {
     const md = document.querySelector('#chats-wrapper')

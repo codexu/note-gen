@@ -4,7 +4,7 @@ import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
 import useTagStore from "@/stores/tag"
 import { TooltipButton } from "@/components/tooltip-button"
-import { useImperativeHandle, forwardRef, useRef } from "react"
+import { useImperativeHandle, forwardRef, useRef, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import useVectorStore from "@/stores/vector"
 import { getContextForQuery, getContextForQueryInFolder } from '@/lib/rag'
@@ -36,11 +36,25 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedResource, attachedImages = [], quoteData = null }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, setAgentState } = useChatStore()
+  const { insert, loading, setLoading, saveChat, setAgentState, maybeCondense } = useChatStore()
   const { isRagEnabled } = useVectorStore()
   const abortControllerRef = useRef<AbortController | null>(null)
   const agentHandlerRef = useRef<AgentHandler | null>(null)
   const t = useTranslations()
+
+  // 跟踪上一次的 loading 状态
+  const wasLoadingRef = useRef(false)
+
+  // 在 AI 响应完成后，触发压缩检查
+  useEffect(() => {
+    if (wasLoadingRef.current && !loading) {
+      // loading 从 true 变为 false，AI 响应完成
+      console.log('[ChatSend] AI 响应完成，触发压缩检查')
+      // 异步触发，不等待完成
+      maybeCondense()
+    }
+    wasLoadingRef.current = loading
+  }, [loading, maybeCondense])
 
   // RAG 关键词停用词过滤
   // 过滤掉没有实际检索意义的虚词
@@ -281,7 +295,17 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         }
       }
 
-      // 4. 如果有引用内容，添加引用上下文
+      // 4. 添加对话历史（使用压缩摘要替代已压缩的消息）
+      const { chats } = useChatStore.getState()
+      if (chats.length > 0) {
+        const { buildChatHistoryForAI } = await import('@/lib/ai/condense')
+        const chatHistory = buildChatHistoryForAI(chats)
+        if (chatHistory) {
+          context += `\n## 对话历史\n\n${chatHistory}\n\n`
+        }
+      }
+
+      // 5. 如果有引用内容，添加引用上下文
       if (quoteData) {
         const { fileName, startLine, endLine, fullContent } = quoteData
         let lineInfo = ''

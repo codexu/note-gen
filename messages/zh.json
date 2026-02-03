@@ -438,6 +438,10 @@
         "reranking": {
           "title": "重排模型",
           "desc": "用于搜索结果的重新排序和优化。"
+        },
+        "condense": {
+          "title": "摘要模型",
+          "desc": "用于压缩历史对话内容，节省 token 使用量"
         }
       }
     },
@@ -1150,7 +1154,8 @@
             }
           },
           "messageControl": {
-            "words": "字"
+            "words": "字",
+            "summary": "摘要"
           },
           "mcp": {
             "maxIterationsReached": "达到最大工具调用次数限制",
@@ -1268,6 +1273,10 @@
       }
     },
     "chat": {
+      "condensing": "正在压缩上下文...",
+      "condensed": {
+        "message": "已压缩 {count} 条历史消息"
+      },
       "empty": {
         "title": "开始与 AI 对话",
         "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",

@@ -952,7 +952,8 @@
             }
           },
           "messageControl": {
-            "words": "字"
+            "words": "字",
+            "summary": "摘要"
           },
           "mcp": {
             "maxIterationsReached": "達到最大工具調用次數限制",

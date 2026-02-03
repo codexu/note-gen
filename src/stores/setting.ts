@@ -75,6 +75,9 @@ interface SettingState {
   sttModel: string
   setSttModel: (sttModel: string) => Promise<void>
 
+  condenseModel: string
+  setCondenseModel: (condenseModel: string) => Promise<void>
+
   templateList: GenTemplate[]
   setTemplateList: (templateList: GenTemplate[]) => Promise<void>
 
@@ -364,7 +367,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const modelTypes = [
       { storeKey: 'completionModel', modelType: 'chat' },
       { storeKey: 'markDescModel', modelType: 'chat' },
-      { storeKey: 'commitModel', modelType: 'chat' }
+      { storeKey: 'commitModel', modelType: 'chat' },
+      { storeKey: 'condenseModel', modelType: 'chat' }
     ]
 
     for (const { storeKey, modelType } of modelTypes) {
@@ -582,6 +586,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('sttModel', sttModel)
     set({ sttModel })
+  },
+
+  condenseModel: '',
+  setCondenseModel: async (condenseModel) => {
+    const store = await Store.load('store.json');
+    await store.set('condenseModel', condenseModel)
+    set({ condenseModel })
   },
 
   templateList: [

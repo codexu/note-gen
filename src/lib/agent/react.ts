@@ -348,6 +348,16 @@ ${userInput}
 
 现在是第 ${this.currentIteration} 次迭代，请给出你的 Thought 和 Action（或 Final Answer）：`
 
+    // 打印完整的 AI 请求参数
+    console.log('[AI Request] ========================================')
+    console.log('[AI Request] 系统提示词长度:', systemPrompt.length)
+    console.log('[AI Request] 上下文信息长度:', context?.length || 0)
+    console.log('[AI Request] 对话历史长度:', historyContext.length)
+    console.log('[AI Request] 用户输入:', userInput.substring(0, 200) + (userInput.length > 200 ? '...' : ''))
+    console.log('[AI Request] 完整 Prompt:')
+    console.log(prompt)
+    console.log('[AI Request] ========================================\n')
+
     // 调用实际的 LLM API
     try {
       const { fetchAiStream } = await import('@/lib/ai')

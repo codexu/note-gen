@@ -455,6 +455,10 @@
         "reranking": {
           "title": "Reranking Model",
           "desc": "Used for reordering and optimizing search results."
+        },
+        "condense": {
+          "title": "Condense Model",
+          "desc": "Used to compress historical conversation content to save token usage"
         }
       }
     },
@@ -1122,7 +1126,8 @@
             }
           },
           "messageControl": {
-            "words": "words"
+            "words": "words",
+            "summary": "Summary"
           },
           "mcp": {
             "maxIterationsReached": "Maximum tool call iterations reached",
@@ -1242,6 +1247,10 @@
       }
     },
     "chat": {
+      "condensing": "Condensing context...",
+      "condensed": {
+        "message": "Condensed {count} historical messages"
+      },
       "empty": {
         "features": [
           {

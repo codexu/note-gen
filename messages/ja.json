@@ -950,7 +950,8 @@
             }
           },
           "messageControl": {
-            "words": "文字"
+            "words": "文字",
+            "summary": "要約"
           },
           "mcp": {
             "maxIterationsReached": "最大ツール呼び出し回数に達しました",

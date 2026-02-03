@@ -8,24 +8,33 @@ export async function fetchAi(text: string, modelType?: string): Promise<string>
   try {
     // 获取AI设置
     const aiConfig = await getAISettings(modelType)
-    
+
+    console.log('[fetchAi] 模型配置:', {
+      modelType,
+      hasConfig: !!aiConfig,
+      baseURL: aiConfig?.baseURL,
+      model: aiConfig?.model,
+      hasApiKey: !!aiConfig?.apiKey
+    })
+
     // 验证AI服务
     if (validateAIService(aiConfig?.baseURL) === null) return ''
-    
+
     // 准备消息
     const { messages } = await prepareMessages(text)
 
     const openai = await createOpenAIClient(aiConfig)
-    
+
     const completion = await openai.chat.completions.create({
       model: aiConfig?.model || '',
       messages: messages,
       temperature: aiConfig?.temperature || 1,
       top_p: aiConfig?.topP || 1,
     })
-    
+
     return completion.choices[0].message.content || ''
   } catch (error) {
+    console.error('[fetchAi] 请求失败:', error)
     return handleAIError(error) || ''
   }
 }

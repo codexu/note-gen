@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Chat, clearChatsByTagId, deleteChat, getChats, initChatsDb, insertChat, updateChat, updateChatsInsertedById, getAllChats, deleteAllChats, insertChats } from '@/db/chats'
+import { Chat, clearChatsByTagId, deleteChat, getChats, initChatsDb, insertChat, updateChat, updateChatsInsertedById, getAllChats, deleteAllChats, insertChats, updateChatCondensedContent } from '@/db/chats'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github';
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee';
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab';
@@ -26,6 +26,10 @@ export interface McpToolCall {
 interface ChatState {
   loading: boolean
   setLoading: (loading: boolean) => void
+
+  isCondensing: boolean // 压缩状态
+  _condenseLock: boolean // 内部锁，防止并发压缩
+  maybeCondense: () => void // 触发压缩检查（异步，不阻塞）
 
   isLinkMark: boolean // 是否关联记录
   setIsLinkMark: (isLinkMark: boolean) => void
@@ -81,6 +85,77 @@ const useChatStore = create<ChatState>((set, get) => ({
 
   setLoading: (loading: boolean) => {
     set({ loading })
+  },
+
+  isCondensing: false,
+  _condenseLock: false,
+
+  maybeCondense: () => {
+    const state = get()
+
+    console.log('[ChatStore] maybeCondense 被调用', {
+      _condenseLock: state._condenseLock,
+      总消息数: state.chats.length
+    })
+
+    // 防并发：已有压缩任务在执行，直接返回
+    if (state._condenseLock) {
+      console.log('[ChatStore] 压缩锁已启用，跳过本次检查')
+      return
+    }
+
+    const { chats } = state
+
+    // 获取最后一次清除后的消息
+    const lastClearIndex = chats.findLastIndex(c => c.type === 'clear')
+    const chatsAfterClear = lastClearIndex === -1 ? chats : chats.slice(lastClearIndex + 1)
+
+    console.log('[ChatStore] 待检查的消息数:', chatsAfterClear.length)
+
+    // 使用 IIFE 立即执行异步函数，不等待结果
+    ;(async () => {
+      // 动态导入 condense 模块（避免循环依赖）
+      const { shouldCondense, condenseChats } = await import('@/lib/ai/condense')
+
+      if (!(await shouldCondense(chatsAfterClear))) {
+        console.log('[ChatStore] 不需要压缩，退出')
+        return
+      }
+
+      console.log('[ChatStore] 触发压缩，设置锁')
+
+      // 设置锁（不显示进度）
+      set({ _condenseLock: true })
+
+      try {
+        // 为每条消息生成摘要并存储
+        const condensedResults = await condenseChats(chatsAfterClear)
+
+        for (const result of condensedResults) {
+          if (result.summary) {
+            // 更新数据库中的摘要内容
+            await updateChatCondensedContent(result.chatId, result.summary)
+
+            // 更新 state 中的消息
+            set({
+              chats: get().chats.map(c =>
+                c.id === result.chatId
+                  ? { ...c, condensedContent: result.summary, condensedAt: Date.now() }
+                  : c
+              )
+            })
+          }
+        }
+
+        console.log('[ChatStore] 压缩完成，已更新', condensedResults.length, '条消息的摘要')
+      } catch (error) {
+        // 静默失败，不影响用户体验
+        console.error('[ChatStore] 压缩失败:', error)
+      } finally {
+        console.log('[ChatStore] 释放压缩锁')
+        set({ _condenseLock: false })
+      }
+    })()
   },
 
   isLinkMark: (typeof window !== 'undefined' ? localStorage.getItem('isLinkMark') === 'true' : true),

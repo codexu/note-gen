@@ -88,8 +88,6 @@ export class BM25Index {
     const N = documents.length;
     let totalLength = 0;
 
-    console.log(`[BM25] 开始构建索引，共 ${N} 个文档`);
-
     // 1. 处理每个文档
     for (const doc of documents) {
       const tokens = this.tokenize(doc.content);
@@ -112,8 +110,6 @@ export class BM25Index {
 
     // 3. 计算 IDF
     this.calculateIDF(N);
-
-    console.log(`[BM25] 索引构建完成，平均文档长度: ${this.averageDocLength.toFixed(2)}`);
   }
 
   /**

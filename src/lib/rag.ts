@@ -190,8 +190,6 @@ export async function initBM25Search(): Promise<void> {
 
     // 初始化索引
     initBM25Index(documents);
-
-    console.log(`BM25 索引初始化完成，共 ${documents.length} 个文档`);
   } catch (error) {
     console.error('初始化 BM25 索引失败:', error);
   }

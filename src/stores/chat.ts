@@ -124,8 +124,8 @@ const useChatStore = create<ChatState>((set, get) => ({
 
       console.log('[ChatStore] 触发压缩，设置锁')
 
-      // 设置锁（不显示进度）
-      set({ _condenseLock: true })
+      // 设置锁和压缩状态
+      set({ _condenseLock: true, isCondensing: true })
 
       try {
         // 为每条消息生成摘要并存储
@@ -153,7 +153,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         console.error('[ChatStore] 压缩失败:', error)
       } finally {
         console.log('[ChatStore] 释放压缩锁')
-        set({ _condenseLock: false })
+        set({ _condenseLock: false, isCondensing: false })
       }
     })()
   },

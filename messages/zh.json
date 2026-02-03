@@ -1417,6 +1417,7 @@
       },
       "messageControl": {
         "words": "字",
+        "summary": "摘要",
         "readAloud": "朗读",
         "playing": "播放中",
         "loading": "准备中",

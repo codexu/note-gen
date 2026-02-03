@@ -1210,6 +1210,7 @@
       },
       "messageControl": {
         "words": "字",
+        "summary": "摘要",
         "readAloud": "朗讀",
         "playing": "播放中",
         "loading": "準備中",

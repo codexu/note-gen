@@ -1515,6 +1515,7 @@
       },
       "messageControl": {
         "words": "palavras",
+        "summary": "Resumo",
         "readAloud": "Ler em Voz Alta",
         "playing": "Reproduzindo",
         "loading": "Carregando",

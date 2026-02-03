@@ -1,6 +1,7 @@
 import { ReActStep, ToolCall, ToolResult } from './types'
 import { getToolByName, getToolDescriptions } from './tools'
 import { skillManager } from '@/lib/skills'
+import OpenAI from 'openai'
 
 export interface ReActConfig {
   maxIterations: number
@@ -43,7 +44,11 @@ export class ReActAgent {
     return this.stopped
   }
 
-  async run(userInput: string, context?: string, imageUrls?: string[]): Promise<string> {
+  async run(
+    userInput: string,
+    contextOrMessages?: string | OpenAI.Chat.ChatCompletionMessageParam[],
+    imageUrls?: string[]
+  ): Promise<string> {
     this.steps = []
     this.currentIteration = 0
     this.toolCallCounter = 0
@@ -53,6 +58,11 @@ export class ReActAgent {
     this.abortController = new AbortController()
 
     let finalAnswer = ''
+
+    // 检测 contextOrMessages 的类型
+    const isMessagesArray = Array.isArray(contextOrMessages)
+    const contextString = isMessagesArray ? undefined : contextOrMessages as string | undefined
+    const messagesArray = isMessagesArray ? contextOrMessages as OpenAI.Chat.ChatCompletionMessageParam[] : undefined
 
     while (this.currentIteration < this.config.maxIterations) {
       // 检查是否已停止
@@ -71,7 +81,7 @@ export class ReActAgent {
       // 每次迭代都重新构建系统提示词，因为 Skills 指令依赖于当前迭代次数
       const systemPrompt = this.buildSystemPrompt()
 
-      const thought = await this.think(userInput, context, systemPrompt, imageUrls)
+      const thought = await this.think(userInput, contextString, messagesArray, systemPrompt, imageUrls)
 
       // 再次检查是否已停止
       if (this.stopped) {
@@ -326,7 +336,13 @@ Final Answer: 已创建笔记"NoteGen介绍.md"
     return prompt
   }
 
-  private async think(userInput: string, context: string | undefined, systemPrompt: string, imageUrls?: string[]): Promise<string> {
+  private async think(
+    userInput: string,
+    context: string | undefined,
+    messages: OpenAI.Chat.ChatCompletionMessageParam[] | undefined,
+    systemPrompt: string,
+    imageUrls?: string[]
+  ): Promise<string> {
     const historyContext = this.steps.map((step, i) =>
       `Iteration ${i + 1}:
 Thought: ${step.thought}
@@ -336,6 +352,114 @@ Observation: ${step.observation}
 `
     ).join('\n')
 
+    // 如果提供了 messages 数组，使用它；否则使用旧的字符串拼接方式
+    if (messages && messages.length > 0) {
+      // 使用消息数组模式 - 构建 messages 并添加用户请求
+      const messagesForAI: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+      // 添加系统提示词（如果有）
+      if (systemPrompt) {
+        messagesForAI.push({
+          role: 'system',
+          content: systemPrompt
+        })
+      }
+
+      // 添加对话历史
+      messagesForAI.push(...messages)
+
+      // 添加当前迭代的上下文（ReAct 步骤历史）
+      if (historyContext) {
+        messagesForAI.push({
+          role: 'system',
+          content: `## 之前的迭代\n${historyContext}`
+        })
+      }
+
+      // 添加用户请求
+      messagesForAI.push({
+        role: 'user',
+        content: `现在是第 ${this.currentIteration} 次迭代，请给出你的 Thought 和 Action（或 Final Answer）：\n\n用户请求：${userInput}`
+      })
+
+      // 调用实际的 LLM API
+      try {
+        const { fetchAiStream } = await import('@/lib/ai')
+        let response = ''
+        let lastUpdateLength = 0
+
+        // 传递 AbortSignal 以支持终止，同时传递图片URL（仅在第一次迭代时）
+        const imagesForThisIteration = this.currentIteration === 1 ? imageUrls : undefined
+        await fetchAiStream('', (content) => {
+          // 检查是否已终止
+          if (this.stopped) {
+            return
+          }
+
+          response = content
+
+          // 实时更新，但只在内容有实质性增长时更新（避免频繁更新）
+          if (content.length - lastUpdateLength > 10 || content.includes('Action:') || content.includes('Final Answer:')) {
+            this.config.onThought?.(content)
+            lastUpdateLength = content.length
+          }
+        }, this.abortController?.signal, undefined, undefined, undefined, imagesForThisIteration, undefined, messagesForAI)
+
+        // 检查是否已终止
+        if (this.stopped) {
+          return `Thought: 用户终止了任务
+Final Answer: 任务已被用户终止`
+        }
+
+        // 确保最终内容被更新
+        if (response.length !== lastUpdateLength) {
+          this.config.onThought?.(response)
+        }
+
+        // 记录 AI 的思考内容，用于调试
+        const mentionedSkills = this.extractMentionedSkills(response)
+
+        // 第一次迭代后，处理 Skills 选择
+        if (this.currentIteration === 1) {
+          const activeSkillIds = this.config.activeSkills || []
+          const selectedSkillIds: string[] = []
+
+          if (mentionedSkills.length > 0) {
+            // 将提到的 Skills ID 添加到已选择集合
+            for (const skillName of mentionedSkills) {
+              // 通过名称查找对应的 Skill ID
+              const skill = activeSkillIds
+                .map(id => skillManager.getSkill(id))
+                .filter((s): s is Exclude<typeof s, undefined> => s !== undefined)
+                .find(s => s.metadata.name === skillName)
+
+              if (skill) {
+                this.selectedSkills.add(skill.metadata.id)
+                selectedSkillIds.push(skill.metadata.id)
+              }
+            }
+          }
+
+          // 无论是否选择了 Skills，都要通知外部（空数组表示未选择）
+          this.config.onSkillsSelected?.(selectedSkillIds)
+        }
+
+        return response
+      } catch (error) {
+        // 检查是否是因为终止导致的错误
+        if (this.stopped || (error instanceof Error && error.name === 'AbortError')) {
+          return `Thought: 用户终止了任务
+Final Answer: 任务已被用户终止`
+        }
+
+        console.error('LLM API call failed:', error)
+        // 如果 API 调用失败，返回错误提示
+        return `Thought: 抱歉，AI 服务暂时不可用
+Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
+      }
+    }
+
+    // 旧的字符串拼接模式（向后兼容）
     const prompt = `${systemPrompt}
 
 ${context ? `## 上下文信息\n${context}\n` : ''}
@@ -347,16 +471,6 @@ ${historyContext}
 ${userInput}
 
 现在是第 ${this.currentIteration} 次迭代，请给出你的 Thought 和 Action（或 Final Answer）：`
-
-    // 打印完整的 AI 请求参数
-    console.log('[AI Request] ========================================')
-    console.log('[AI Request] 系统提示词长度:', systemPrompt.length)
-    console.log('[AI Request] 上下文信息长度:', context?.length || 0)
-    console.log('[AI Request] 对话历史长度:', historyContext.length)
-    console.log('[AI Request] 用户输入:', userInput.substring(0, 200) + (userInput.length > 200 ? '...' : ''))
-    console.log('[AI Request] 完整 Prompt:')
-    console.log(prompt)
-    console.log('[AI Request] ========================================\n')
 
     // 调用实际的 LLM API
     try {

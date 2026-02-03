@@ -2,6 +2,7 @@ import { fetchAi } from './chat'
 import { Chat } from '@/db/chats'
 import { estimateTokens } from './token-counter'
 import useSettingStore from '@/stores/setting'
+import OpenAI from 'openai'
 
 const CONDENSE_THRESHOLD = 3 // AI 消息超过 3 条（不包括最新的 2 条）时检查压缩
 const MIN_TOKEN_TO_CONDENSE = 100 // 单条消息超过 100 token 才压缩
@@ -51,14 +52,7 @@ export async function shouldCondense(chatsAfterClear: Chat[]): Promise<boolean> 
   // 获取可压缩的 AI 消息
   const condensableChats = getCondensableChats(chatsAfterClear)
 
-  console.log('[Condense] 检查是否需要压缩:', {
-    总消息数: chatsAfterClear.length,
-    可压缩的AI消息: condensableChats.length,
-    threshold: CONDENSE_THRESHOLD
-  })
-
   if (condensableChats.length < CONDENSE_THRESHOLD) {
-    console.log('[Condense] 不满足压缩条件: 可压缩的 AI 消息数量不足')
     return false
   }
 
@@ -66,11 +60,6 @@ export async function shouldCondense(chatsAfterClear: Chat[]): Promise<boolean> 
   const needsCondense = condensableChats.some(chat =>
     estimateTokens(chat.content || '') > MIN_TOKEN_TO_CONDENSE
   )
-
-  console.log('[Condense] Token 检查:', {
-    需要压缩的消息数: condensableChats.filter(c => estimateTokens(c.content || '') > MIN_TOKEN_TO_CONDENSE).length,
-    needsCondense
-  })
 
   return needsCondense
 }
@@ -80,31 +69,16 @@ export async function shouldCondense(chatsAfterClear: Chat[]): Promise<boolean> 
  * @returns 每条消息的摘要结果数组
  */
 export async function condenseChats(chatsAfterClear: Chat[]): Promise<Array<{ chatId: number, summary: string | null }>> {
-  console.log('[Condense] 开始为消息生成摘要...')
-
   // 获取需要压缩的消息
   const toCondense = getCondensableChats(chatsAfterClear)
 
-  console.log('[Condense] 将为以下 AI 消息生成摘要:', {
-    总消息数: chatsAfterClear.length,
-    将摘要: toCondense.length,
-    消息ID: toCondense.map(c => c.id)
-  })
-
   if (toCondense.length === 0) {
-    console.log('[Condense] 没有需要生成摘要的消息')
     return []
   }
 
   // 获取用户配置的摘要模型
-  const { condenseModel, primaryModel } = useSettingStore.getState()
+  const { condenseModel } = useSettingStore.getState()
   const hasCondenseModel = !!condenseModel
-
-  console.log('[Condense] 使用摘要模型:', {
-    hasCondenseModel,
-    配置的模型: condenseModel || '未配置',
-    primaryModel
-  })
 
   // 如果配置了 condenseModel，使用 'condenseModel' store key，否则使用 'primaryModel'
   const storeKey = hasCondenseModel ? 'condenseModel' : 'primaryModel'
@@ -118,22 +92,17 @@ export async function condenseChats(chatsAfterClear: Chat[]): Promise<Array<{ ch
 
     // 只压缩超过阈值的消息
     if (originalTokenCount <= MIN_TOKEN_TO_CONDENSE) {
-      console.log('[Condense] 消息', chat.id, 'token 数不足，跳过')
       results.push({ chatId: chat.id, summary: null })
       continue
     }
 
     try {
       const prompt = CONDENSE_PROMPT.replace('{content}', content)
-      console.log('[Condense] 为消息', chat.id, '生成摘要，原始 token 数:', originalTokenCount, 'store key:', storeKey)
-
       const summary = await fetchAi(prompt, storeKey)
 
       if (summary) {
-        console.log('[Condense] 消息', chat.id, '摘要生成成功，摘要长度:', summary.length, '字符')
         results.push({ chatId: chat.id, summary })
       } else {
-        console.log('[Condense] 消息', chat.id, '摘要生成失败：AI 返回空结果')
         results.push({ chatId: chat.id, summary: null })
       }
     } catch (error) {
@@ -142,7 +111,6 @@ export async function condenseChats(chatsAfterClear: Chat[]): Promise<Array<{ ch
     }
   }
 
-  console.log('[Condense] 所有摘要生成完成，成功:', results.filter(r => r.summary).length, '/', results.length)
   return results
 }
 
@@ -161,21 +129,83 @@ export function getChatsAfterLastClear(chats: Chat[]): Chat[] {
  * 2. AI 消息：如果有 condensedContent，使用摘要；否则使用原文
  *
  * @param chats 原始聊天记录数组
- * @returns 用于 AI 的消息历史字符串
+ * @param systemPrompt 系统提示词（可选）
+ * @returns 用于 AI 的 messages 数组
  */
-export function buildChatHistoryForAI(chats: Chat[]): string {
+export function buildChatHistoryForAI(chats: Chat[], systemPrompt?: string): OpenAI.Chat.ChatCompletionMessageParam[] {
   // 获取最后一次清除后的消息
   const chatsAfterClear = getChatsAfterLastClear(chats)
 
-  console.log('[buildChatHistoryForAI] 开始构建 AI 消息历史，总消息数:', chatsAfterClear.length)
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
-  // 构建消息历史
-  const historyParts: string[] = []
+  // 添加系统提示词（如果有）
+  if (systemPrompt) {
+    messages.push({
+      role: 'system',
+      content: systemPrompt
+    })
+  }
 
-  // 计算原始内容（假设全部使用原文）
-  let originalTotalLength = 0
-  // 计算实际内容（使用摘要替代部分消息）
-  let actualTotalLength = 0
+  // 遍历聊天记录，构建 messages 数组
+  for (const chat of chatsAfterClear) {
+    // 只包含 chat 和 note 类型的消息
+    if (chat.type !== 'chat' && chat.type !== 'note') {
+      continue
+    }
+
+    // 确定角色
+    const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
+
+    // 确定内容
+    let content: string
+    if (chat.role === 'user') {
+      // 用户消息：始终使用原文
+      content = chat.content || ''
+    } else {
+      // AI 消息：使用摘要（如果有），否则使用原文
+      content = chat.condensedContent || chat.content || ''
+    }
+
+    // 如果有内容才添加消息
+    if (content) {
+      messages.push({
+        role,
+        content
+      })
+    }
+  }
+
+  return messages
+}
+
+/**
+ * 构建包含对话历史的完整 messages 数组
+ * 用于替代旧的 context 字符串拼接方式
+ *
+ * @param chats 原始聊天记录数组
+ * @param systemPrompt 系统提示词（可选）
+ * @param additionalContext 额外的上下文信息（可选）
+ * @param currentUserInput 当前用户输入（可选）
+ * @returns 完整的 messages 数组
+ */
+export function buildMessagesWithHistory(
+  chats: Chat[],
+  systemPrompt?: string,
+  additionalContext?: string,
+  currentUserInput?: string
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const messages: OpenAI.ChatCompletionMessageParam[] = []
+
+  // 1. 添加系统提示词（如果有）
+  if (systemPrompt) {
+    messages.push({
+      role: 'system',
+      content: systemPrompt
+    })
+  }
+
+  // 2. 添加对话历史
+  const chatsAfterClear = getChatsAfterLastClear(chats)
 
   for (const chat of chatsAfterClear) {
     // 只包含 chat 和 note 类型的消息
@@ -183,57 +213,43 @@ export function buildChatHistoryForAI(chats: Chat[]): string {
       continue
     }
 
-    const roleLabel = chat.role === 'user' ? '用户' : 'AI'
-    let content: string
-    let hasCondensed = false
-    let originalLength = 0
-    let condensedLength = 0
+    const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
 
+    // 确定内容
+    let content: string
     if (chat.role === 'user') {
       // 用户消息：始终使用原文
       content = chat.content || ''
-      originalLength = content.length
-      condensedLength = 0
-      hasCondensed = false
     } else {
       // AI 消息：使用摘要（如果有），否则使用原文
-      hasCondensed = !!chat.condensedContent
       content = chat.condensedContent || chat.content || ''
-      originalLength = (chat.content || '').length
-      condensedLength = (chat.condensedContent || '').length
     }
 
-    // 累计原始长度
-    originalTotalLength += originalLength
-    // 累计实际长度
-    actualTotalLength += content.length
+    // 如果有内容才添加消息
+    if (content) {
+      messages.push({
+        role,
+        content
+      })
+    }
+  }
 
-    const part = `${roleLabel}: ${content}`
-    historyParts.push(part)
-
-    console.log('[buildChatHistoryForAI] 消息', chat.id, ':', {
-      角色: roleLabel,
-      使用摘要: hasCondensed,
-      原文长度: originalLength,
-      摘要长度: condensedLength,
-      压缩率: hasCondensed && originalLength > 0 ? Math.round((1 - condensedLength / originalLength) * 100) + '%' : 'N/A'
+  // 3. 添加额外上下文（如果有）
+  if (additionalContext) {
+    // 将上下文作为一条 system 消息添加
+    messages.push({
+      role: 'system',
+      content: additionalContext
     })
   }
 
-  const result = historyParts.join('\n\n---\n\n')
+  // 4. 添加当前用户输入（如果有）
+  if (currentUserInput) {
+    messages.push({
+      role: 'user',
+      content: currentUserInput
+    })
+  }
 
-  // 计算节省的内容
-  const savedLength = originalTotalLength - actualTotalLength
-  const savedPercentage = originalTotalLength > 0 ? Math.round((savedLength / originalTotalLength) * 100) : 0
-
-  console.log('[buildChatHistoryForAI] 最终输出:', {
-    消息条数: historyParts.length,
-    原始总字符数: originalTotalLength,
-    实际总字符数: actualTotalLength,
-    节省字符数: savedLength,
-    节省比例: savedPercentage + '%',
-    内容预览: result.substring(0, 200) + (result.length > 200 ? '...' : '')
-  })
-
-  return result
+  return messages
 }

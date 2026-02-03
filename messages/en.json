@@ -1425,6 +1425,7 @@
       },
       "messageControl": {
         "words": "words",
+        "summary": "Summary",
         "readAloud": "Read Aloud",
         "playing": "Playing",
         "loading": "Loading",

@@ -4,6 +4,7 @@ import useChatStore from '@/stores/chat'
 import { skillManager } from '@/lib/skills'
 import { useSkillsStore } from '@/stores/skills'
 import { reloadMcpTools } from './tools'
+import OpenAI from 'openai'
 
 export interface AgentHandlerConfig {
   onThought?: (thought: string) => void
@@ -22,7 +23,11 @@ export class AgentHandler {
     this.config = config
   }
 
-  async execute(userInput: string, context?: string, imageUrls?: string[]): Promise<string> {
+  async execute(
+    userInput: string,
+    contextOrMessages?: string | OpenAI.Chat.ChatCompletionMessageParam[],
+    imageUrls?: string[]
+  ): Promise<string> {
     const store = useChatStore.getState()
 
     store.resetAgentState()
@@ -162,7 +167,7 @@ export class AgentHandler {
     this.agent = new ReActAgent(reactConfig)
 
     try {
-      const result = await this.agent.run(userInput, context, imageUrls)
+      const result = await this.agent.run(userInput, contextOrMessages, imageUrls)
       store.setAgentState({ isRunning: false })
 
       // 获取完整的 ReAct 步骤

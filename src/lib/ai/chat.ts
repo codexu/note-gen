@@ -3,38 +3,37 @@ import { getAISettings, validateAIService, prepareMessages, createOpenAIClient, 
 
 /**
  * 非流式方式获取AI结果
+ * @param text 请求文本
+ * @param modelType 模型类型（可选）
+ * @param messages 消息数组（可选，如果提供则忽略 text 参数）
  */
-export async function fetchAi(text: string, modelType?: string): Promise<string> {
+export async function fetchAi(
+  text: string,
+  modelType?: string,
+  messages?: OpenAI.Chat.ChatCompletionMessageParam[]
+): Promise<string> {
   try {
     // 获取AI设置
     const aiConfig = await getAISettings(modelType)
-
-    console.log('[fetchAi] 模型配置:', {
-      modelType,
-      hasConfig: !!aiConfig,
-      baseURL: aiConfig?.baseURL,
-      model: aiConfig?.model,
-      hasApiKey: !!aiConfig?.apiKey
-    })
 
     // 验证AI服务
     if (validateAIService(aiConfig?.baseURL) === null) return ''
 
     // 准备消息
-    const { messages } = await prepareMessages(text)
+    const prepared = await prepareMessages(text, false, messages)
+    const finalMessages = prepared.messages
 
     const openai = await createOpenAIClient(aiConfig)
 
     const completion = await openai.chat.completions.create({
       model: aiConfig?.model || '',
-      messages: messages,
+      messages: finalMessages,
       temperature: aiConfig?.temperature || 1,
       top_p: aiConfig?.topP || 1,
     })
 
     return completion.choices[0].message.content || ''
   } catch (error) {
-    console.error('[fetchAi] 请求失败:', error)
     return handleAIError(error) || ''
   }
 }
@@ -49,35 +48,45 @@ export async function fetchAi(text: string, modelType?: string): Promise<string>
  * @param chatId 当前chat ID，用于关联MCP工具调用记录（可选）
  * @param imageUrls 图片URL数组（可选）
  * @param onThinkingUpdate 每次收到思考内容时的回调函数（可选）
+ * @param messages 消息数组（可选，如果提供则忽略 text 参数）
  */
 export async function fetchAiStream(
-  text: string, 
-  onUpdate: (content: string) => void, 
+  text: string,
+  onUpdate: (content: string) => void,
   abortSignal?: AbortSignal,
   mcpTools?: any[],
   t?: (key: string, params?: Record<string, any>) => string,
   chatId?: number,
   imageUrls?: string[],
-  onThinkingUpdate?: (thinking: string) => void
+  onThinkingUpdate?: (thinking: string) => void,
+  messages?: OpenAI.Chat.ChatCompletionMessageParam[]
 ): Promise<string> {
   try {
 
-    
+
     // 获取AI设置
     const aiConfig = await getAISettings()
-    
+
     // 验证AI服务
     if (await validateAIService(aiConfig?.baseURL) === null) return ''
-    
-    // 准备消息
-    const { messages } = await prepareMessages(text, true)
-    
+
+    // 准备消息 - 如果提供了 messages 数组，使用它；否则用 prepareMessages
+    let preparedMessages: OpenAI.Chat.ChatCompletionMessageParam[]
+    if (messages && messages.length > 0) {
+      // 使用提供的消息数组，但需要添加语言设置
+      const prepared = await prepareMessages('', true, messages)
+      preparedMessages = prepared.messages
+    } else {
+      const prepared = await prepareMessages(text, true)
+      preparedMessages = prepared.messages
+    }
+
     // 如果有图片，将最后一条用户消息转换为多模态格式
     if (imageUrls && imageUrls.length > 0) {
-      const lastMessage = messages[messages.length - 1]
+      const lastMessage = preparedMessages[preparedMessages.length - 1]
       if (lastMessage && lastMessage.role === 'user') {
         const content: any[] = []
-        
+
         // 添加所有图片（转换为 base64）
         for (const imageUrl of imageUrls) {
           try {
@@ -95,15 +104,15 @@ export async function fetchAiStream(
             console.error('Failed to convert image to base64:', error)
           }
         }
-        
+
         // 添加文本内容
         content.push({
           type: 'text',
           text: typeof lastMessage.content === 'string' ? lastMessage.content : ''
         })
-        
+
         // 替换最后一条消息
-        messages[messages.length - 1] = {
+        preparedMessages[preparedMessages.length - 1] = {
           role: 'user',
           content: content
         }
@@ -111,27 +120,26 @@ export async function fetchAiStream(
     }
 
     const openai = await createOpenAIClient(aiConfig)
-    
+
     // 构建请求参数
     const requestParams: any = {
       model: aiConfig?.model || '',
-      messages: messages,
+      messages: preparedMessages,
       temperature: aiConfig?.temperature,
       top_p: aiConfig?.topP,
       stream: true,
     }
-    
+
     // 如果有 MCP 工具，添加到请求中
     if (mcpTools && mcpTools.length > 0) {
       requestParams.tools = mcpTools
       requestParams.tool_choice = 'auto'
     }
-    
+
     const stream = await openai.chat.completions.create(requestParams, {
       signal: abortSignal
     }) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
-    
-    
+
     let thinking = ''
     let fullContent = ''
     const toolCalls: any[] = []
@@ -200,17 +208,17 @@ export async function fetchAiStream(
       if (content) {
         fullContent += content
       }
-      
+
       onUpdate(fullContent)
     }
-    
+
     // 如果有工具调用，执行工具并继续对话（支持多轮工具调用）
     if (toolCalls.length > 0) {
       // 动态导入 callTool 函数（避免循环依赖）
       const { callTool } = await import('../mcp/tools')
-      
+
       // 初始化消息历史
-      let conversationMessages = [...messages]
+      let conversationMessages = [...preparedMessages]
       let currentToolCalls = toolCalls
       const maxIterations = 10 // 防止无限循环
       let iteration = 0

@@ -140,7 +140,7 @@ const useChatStore = create<ChatState>((set, get) => ({
             set({
               chats: get().chats.map(c =>
                 c.id === result.chatId
-                  ? { ...c, condensedContent: result.summary, condensedAt: Date.now() }
+                  ? { ...c, condensedContent: result.summary || undefined, condensedAt: Date.now() }
                   : c
               )
             })

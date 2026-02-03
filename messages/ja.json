@@ -1211,6 +1211,7 @@
       },
       "messageControl": {
         "words": "字",
+        "summary": "要約",
         "readAloud": "音声読み上げ",
         "playing": "再生中",
         "loading": "準備中",

@@ -49,7 +49,6 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
   useEffect(() => {
     if (wasLoadingRef.current && !loading) {
       // loading 从 true 变为 false，AI 响应完成
-      console.log('[ChatSend] AI 响应完成，触发压缩检查')
       // 异步触发，不等待完成
       maybeCondense()
     }
@@ -295,17 +294,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         }
       }
 
-      // 4. 添加对话历史（使用压缩摘要替代已压缩的消息）
-      const { chats } = useChatStore.getState()
-      if (chats.length > 0) {
-        const { buildChatHistoryForAI } = await import('@/lib/ai/condense')
-        const chatHistory = buildChatHistoryForAI(chats)
-        if (chatHistory) {
-          context += `\n## 对话历史\n\n${chatHistory}\n\n`
-        }
-      }
-
-      // 5. 如果有引用内容，添加引用上下文
+      // 4. 如果有引用内容，添加引用上下文（在构建消息之前）
       if (quoteData) {
         const { fileName, startLine, endLine, fullContent } = quoteData
         let lineInfo = ''
@@ -320,7 +309,21 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         context += `\n## 引用内容\n\n用户引用了笔记 "${fileName}" ${lineInfo}的以下内容：\n${fullContent}\n\n请基于这段引用内容回答用户的问题。\n`
       }
 
-      await agentHandler.execute(inputValue, context, imageUrls)
+      // 5. 构建消息数组，包含对话历史（使用压缩摘要替代已压缩的消息）
+      const { chats } = useChatStore.getState()
+      const { buildMessagesWithHistory } = await import('@/lib/ai/condense')
+
+      // 使用 buildMessagesWithHistory 构建完整的消息数组
+      // 注意：Agent 模式下，不传入 systemPrompt（Agent 会自己构建）
+      // 将所有上下文（文章、RAG、关联文件、引用）作为 additionalContext
+      const messages = buildMessagesWithHistory(
+        chats,
+        undefined, // systemPrompt - Agent 会自己构建
+        context,   // additionalContext - 包含文章、RAG、关联文件、引用等
+        inputValue // currentUserInput - 当前用户输入
+      )
+
+      await agentHandler.execute(inputValue, messages, imageUrls)
     } catch (error) {
       console.error('Agent execution error:', error)
     } finally {

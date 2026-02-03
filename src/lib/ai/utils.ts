@@ -33,18 +33,7 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
   const aiConfigs = await store.get<AiConfig[]>('aiModelList')
   const modelId = await store.get(modelType || 'primaryModel')
 
-  console.log('[getAISettings] 查询模型配置:', {
-    modelType,
-    storeKey: modelType || 'primaryModel',
-    modelId,
-    aiConfigsCount: aiConfigs?.length || 0
-  })
-
   if (!modelId || !aiConfigs) {
-    console.log('[getAISettings] 未找到模型配置:', {
-      hasModelId: !!modelId,
-      hasAiConfigs: !!aiConfigs
-    })
     return undefined
   }
 
@@ -74,27 +63,16 @@ export async function getAISettings(modelType?: string): Promise<AiConfig | unde
           voice: targetModel.voice,
           enableStream: targetModel.enableStream
         }
-        console.log('[getAISettings] 找到模型配置:', {
-          key: config.key,
-          modelId: targetModel.id,
-          model: targetModel.model,
-          baseURL: config.baseURL
-        })
         return result
       }
     } else {
       // 向后兼容：处理旧的单模型结构
       if (config.key === modelId) {
-        console.log('[getAISettings] 使用旧格式模型配置:', {
-          key: config.key,
-          baseURL: config.baseURL
-        })
         return config
       }
     }
   }
 
-  console.log('[getAISettings] 未找到匹配的模型配置, modelId:', modelId)
   return undefined
 }
 
@@ -187,36 +165,79 @@ export function handleAIError(error: any, showToast = true): string | null {
 
 /**
  * 为不同AI类型准备消息
+ * @param text 用户输入文本（如果提供了 baseMessages，此参数将作为最后一条用户消息）
+ * @param includeLanguage 是否包含语言设置
+ * @param baseMessages 基础消息数组（如对话历史），如果提供，将合并到返回结果中
  */
-export async function prepareMessages(text: string, includeLanguage = false): Promise<{
+export async function prepareMessages(
+  text: string,
+  includeLanguage = false,
+  baseMessages?: OpenAI.Chat.ChatCompletionMessageParam[]
+): Promise<{
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   geminiText?: string
 }> {
   // 获取prompt内容
   let promptContent = await getPromptContent()
-  
+
   if (includeLanguage) {
     const store = await Store.load('store.json')
     const chatLanguage = await store.get<string>('chatLanguage') || 'English'
     promptContent += '\n\n' + `IMPORTANT: You MUST respond in ${chatLanguage} language. Do NOT use any other language under any circumstances.`
   }
-  
-  // 定义消息数组
+
+  // 如果提供了基础消息数组，直接使用它
+  if (baseMessages && baseMessages.length > 0) {
+    // 检查是否已经有 system 消息
+    const hasSystemMessage = baseMessages.some(msg => msg.role === 'system')
+
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+
+    // 如果需要添加 system prompt 且当前没有 system 消息
+    if (promptContent && !hasSystemMessage) {
+      messages.push({
+        role: 'system',
+        content: promptContent
+      })
+    }
+
+    // 添加所有基础消息
+    messages.push(...baseMessages)
+
+    // 添加系统提示词（如果有且原消息中没有）
+    if (promptContent && hasSystemMessage) {
+      // 如果已有 system 消息，合并内容
+      const firstSystemIndex = messages.findIndex(msg => msg.role === 'system')
+      if (firstSystemIndex !== -1) {
+        const existingContent = typeof messages[firstSystemIndex].content === 'string'
+          ? messages[firstSystemIndex].content
+          : ''
+        messages[firstSystemIndex] = {
+          role: 'system',
+          content: existingContent + '\n\n' + promptContent
+        }
+      }
+    }
+
+    return { messages, geminiText: undefined }
+  }
+
+  // 定义消息数组（旧逻辑，保持向后兼容）
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
   let geminiText: string | undefined
-  
+
   if (promptContent) {
     messages.push({
       role: 'system',
       content: promptContent
     })
   }
-  
+
   messages.push({
     role: 'user',
     content: text
   })
-  
+
   return { messages, geminiText }
 }
 
@@ -235,14 +256,6 @@ export async function createOpenAIClient(AiConfig?: AiConfig) {
     apiKey = await store.get<string>('apiKey')
   }
   const proxyUrl = await store.get<string>('proxy')
-
-  console.log('[createOpenAIClient] 创建客户端:', {
-    hasAiConfig: !!AiConfig,
-    baseURL,
-    hasApiKey: !!apiKey,
-    apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'none',
-    hasProxy: !!proxyUrl
-  })
 
   // 创建OpenAI客户端
   return new OpenAI({

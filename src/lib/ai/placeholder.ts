@@ -65,16 +65,15 @@ export async function fetchAiPlaceholder(text: string): Promise<string | false> 
 
 /**
  * 获取灵感模型配置
- * @returns 灵感模型配置，如果未配置则返回默认配置
+ * @returns 灵感模型配置，如果未配置则返回 null
  */
 async function getInspirationModelConfig() {
   const settingStore = useSettingStore.getState()
   const inspirationModelId = settingStore.inspirationModel
 
-  // 如果没有配置灵感模型，使用默认模型
+  // 如果没有配置灵感模型，返回 null
   if (!inspirationModelId) {
-    const { noteGenDefaultModels } = await import('@/app/model-config')
-    return noteGenDefaultModels[0]
+    return null
   }
 
   // 从 AI 模型列表中查找配置的灵感模型
@@ -88,9 +87,8 @@ async function getInspirationModelConfig() {
     }
   }
 
-  // 如果没找到，使用默认模型
-  const { noteGenDefaultModels } = await import('@/app/model-config')
-  return noteGenDefaultModels[0]
+  // 如果没找到，返回 null
+  return null
 }
 
 /**
@@ -101,7 +99,7 @@ async function getInspirationModelConfig() {
 export async function fetchAiQuickPrompts(text: string): Promise<QuickPrompt[]> {
   try {
     const config = await getInspirationModelConfig()
-    const chatModel = config.models?.find(m => m.modelType === 'chat')
+    const chatModel = config?.models?.find(m => m.modelType === 'chat')
 
     if (!config || !chatModel) {
       console.error('No valid chat model found for inspiration')
@@ -192,7 +190,7 @@ ${text || 'No content provided, generate general note-taking prompts'}`
 export async function fetchAiSinglePrompt(text: string): Promise<string> {
   try {
     const config = await getInspirationModelConfig()
-    const chatModel = config.models?.find(m => m.modelType === 'chat')
+    const chatModel = config?.models?.find(m => m.modelType === 'chat')
 
     if (!config || !chatModel) {
       console.error('No valid chat model found for inspiration')

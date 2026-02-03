@@ -842,6 +842,9 @@
             "title": "Monitorar Área de Transferência",
             "desc": "Monitorar automaticamente alterações no conteúdo da área de transferência"
           },
+          "newChat": {
+            "desc": "Iniciar nova conversa"
+          },
           "clearContext": {
             "desc": "Limpar contexto da conversa, manter histórico"
           },

@@ -917,6 +917,9 @@
             "title": "Clipboard Monitor",
             "desc": "Automatically monitor clipboard content changes"
           },
+          "newChat": {
+            "desc": "Start a new conversation"
+          },
           "clearContext": {
             "desc": "Clear conversation context, keep chat history"
           },

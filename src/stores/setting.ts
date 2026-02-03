@@ -78,9 +78,6 @@ interface SettingState {
   condenseModel: string
   setCondenseModel: (condenseModel: string) => Promise<void>
 
-  conversationTitleModel: string
-  setConversationTitleModel: (conversationTitleModel: string) => Promise<void>
-
   inspirationModel: string
   setInspirationModel: (inspirationModel: string) => Promise<void>
 
@@ -383,7 +380,6 @@ const useSettingStore = create<SettingState>((set, get) => ({
       { storeKey: 'markDescModel', modelType: 'chat' },
       { storeKey: 'commitModel', modelType: 'chat' },
       { storeKey: 'condenseModel', modelType: 'chat' },
-      { storeKey: 'conversationTitleModel', modelType: 'chat' },
       { storeKey: 'inspirationModel', modelType: 'chat' }
     ]
 
@@ -394,7 +390,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
         const noteGenFreeConfig = finalAiModelList.find(config => config.key === 'note-gen-free')
         if (noteGenFreeConfig?.models?.some(model => model.id === 'note-gen-chat' && model.modelType === modelType)) {
           await store.set(storeKey, 'note-gen-chat')
-          set({ [storeKey.replace('Model', '')]: 'note-gen-chat' })
+          set({ [storeKey]: 'note-gen-chat' })
         } else {
           // 查找其他可用的聊天模型
           for (const config of finalAiModelList) {
@@ -402,12 +398,12 @@ const useSettingStore = create<SettingState>((set, get) => ({
               const chatModel = config.models.find(model => model.modelType === modelType)
               if (chatModel) {
                 await store.set(storeKey, `${config.key}-${chatModel.id}`)
-                set({ [storeKey.replace('Model', '')]: `${config.key}-${chatModel.id}` })
+                set({ [storeKey]: `${config.key}-${chatModel.id}` })
                 break
               }
             } else if (config.modelType === modelType || !config.modelType) {
               await store.set(storeKey, config.key)
-              set({ [storeKey.replace('Model', '')]: config.key })
+              set({ [storeKey]: config.key })
               break
             }
           }
@@ -633,13 +629,6 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('condenseModel', condenseModel)
     set({ condenseModel })
-  },
-
-  conversationTitleModel: '',
-  setConversationTitleModel: async (conversationTitleModel) => {
-    const store = await Store.load('store.json');
-    await store.set('conversationTitleModel', conversationTitleModel)
-    set({ conversationTitleModel })
   },
 
   inspirationModel: '',

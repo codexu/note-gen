@@ -77,7 +77,7 @@ const TOOL_CONFIGS = {
   newChat: {
     icon: <SquareCode className="size-4" />,
     titleKey: 'record.chat.input.newChat',
-    descKey: 'Start a new conversation',
+    descKey: 'settings.chat.toolbar.chatToolbar.newChat.desc',
   },
 }
 

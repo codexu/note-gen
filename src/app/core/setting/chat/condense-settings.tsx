@@ -16,7 +16,7 @@ import { FileText, Shield, AlignLeft, MessageSquare } from 'lucide-react'
 import useSettingStore from '@/stores/setting'
 
 export function CondenseSettings() {
-  const t = useTranslations('settings.conversation.condense')
+  const t = useTranslations('settings.chat.condense')
   const {
     enableCondense,
     setEnableCondense,

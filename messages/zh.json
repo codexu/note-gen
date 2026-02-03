@@ -356,8 +356,8 @@
       "skillDeleted": "Skill 删除成功"
     },
     "editor": {
-      "title": "Markdown 编辑器",
-      "desc": "在这里，你可以对 Markdown 编辑器进行自定义配置，打造更适合你的写作方式。",
+      "title": "编辑器设置",
+      "desc": "在这里，你可以对编辑器进行自定义配置，打造更适合你的写作方式。",
       "typewriterMode": "打字机模式",
       "typewriterModeDesc": "打字机模式下，编辑器会模拟打字机效果，帮助你更好地沉浸在写作中。",
       "outlineEnable": "默认启用大纲",
@@ -375,7 +375,40 @@
         "panoramaView": "全景视图"
       },
       "enableLineNumber": "代码块行号",
-      "enableLineNumberDesc": "启用后，代码块将显示行号。"
+      "enableLineNumberDesc": "启用后，代码块将显示行号。",
+      "completion": {
+        "title": "快速补全",
+        "model": {
+          "title": "快速补全模型",
+          "desc": "选择用于编辑器 AI 内联补全的模型"
+        }
+      },
+      "commit": {
+        "title": "自动生成 Commit",
+        "model": {
+          "title": "提交模型",
+          "desc": "用于自动生成 Git 提交信息，基于文件内容变化智能生成描述性提交信息"
+        }
+      }
+    },
+    "record": {
+      "title": "记录设置",
+      "desc": "在这里，你可以配置记录相关的设置，包括记录描述和工具栏配置。",
+      "model": {
+        "title": "模型设置",
+        "markDesc": {
+          "title": "记录描述",
+          "desc": "用于处理 OCR 识别后的记录，生成记录描述"
+        }
+      },
+      "toolbar": {
+        "title": "工具栏设置",
+        "recordToolbar": {
+          "title": "记录工具栏",
+          "desc": "自定义记录工具栏按钮的显示顺序和可见性",
+          "button": "设置"
+        }
+      }
     },
     "uploadStore": {
       "uploadConfirm": "上传配置请确保同步仓库为私有，否则数据将会泄露！",
@@ -809,9 +842,24 @@
       "importButton": "导入",
       "exportButton": "导出"
     },
-    "conversation": {
+    "chat": {
       "title": "对话设置",
       "desc": "在这里，你可以配置对话相关的设置，包括摘要生成等功能。",
+      "primaryModel": {
+        "title": "主要模型",
+        "model": {
+          "title": "主要聊天模型",
+          "desc": "选择用于日常对话的主要 AI 模型"
+        }
+      },
+      "toolbar": {
+        "title": "工具栏配置",
+        "chatToolbar": {
+          "title": "对话工具栏",
+          "desc": "自定义对话工具栏按钮的显示顺序和可见性",
+          "button": "设置"
+        }
+      },
       "condense": {
         "title": "对话摘要",
         "enable": {

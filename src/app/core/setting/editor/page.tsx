@@ -6,10 +6,14 @@ import TypewriterMode from './typewriter-mode';
 import Outline from './outline';
 import PageView from './page-view';
 import LineNumber from './lineNumber';
+import Completion from './completion';
+import Commit from './commit';
 
 export default function EditorSettingPage() {
   const t = useTranslations('settings.editor');
   return <SettingType id="editorSetting" icon={<UserRoundCog />} title={t('title')} desc={t('desc')}>
+    <Completion />
+    <Commit />
     <PageView />
     <TypewriterMode />
     <Outline />

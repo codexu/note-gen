@@ -344,8 +344,8 @@
       "skillDeleted": "Skill deleted successfully"
     },
     "editor": {
-      "title": "Markdown Editor",
-      "desc": "Here, you can customize the Markdown editor, creating a writing experience tailored to your needs.",
+      "title": "Editor Settings",
+      "desc": "Here, you can customize the editor, creating a writing experience tailored to your needs.",
       "typewriterMode": "Typewriter Mode",
       "typewriterModeDesc": "In typewriter mode, the editor will simulate a typewriter effect, helping you better immerse in writing.",
       "outlineEnable": "Default outline enabled",
@@ -363,7 +363,40 @@
         "panoramaView": "Panorama view"
       },
       "enableLineNumber": "Enable line number",
-      "enableLineNumberDesc": "Enabling it will make the line number visible in code blocks."
+      "enableLineNumberDesc": "Enabling it will make the line number visible in code blocks.",
+      "completion": {
+        "title": "Auto Completion",
+        "model": {
+          "title": "Quick Completion Model",
+          "desc": "Select the model for AI inline completion in editor"
+        }
+      },
+      "commit": {
+        "title": "Auto Commit Message",
+        "model": {
+          "title": "Commit Model",
+          "desc": "For automatically generating Git commit messages based on file changes"
+        }
+      }
+    },
+    "record": {
+      "title": "Record Settings",
+      "desc": "Configure record-related settings here, including record description and toolbar configuration.",
+      "model": {
+        "title": "Model Settings",
+        "markDesc": {
+          "title": "Record Description",
+          "desc": "For processing OCR-recognized records and generating record descriptions"
+        }
+      },
+      "toolbar": {
+        "title": "Toolbar Settings",
+        "recordToolbar": {
+          "title": "Record Toolbar",
+          "desc": "Customize the visibility and order of record toolbar buttons",
+          "button": "Configure"
+        }
+      }
     },
     "uploadStore": {
       "uploadConfirm": "Upload configuration please ensure the sync repository is private, otherwise the data will be leaked!",
@@ -815,9 +848,24 @@
       "importButton": "Import",
       "exportButton": "Export"
     },
-    "conversation": {
-      "title": "Conversation Settings",
-      "desc": "Configure conversation-related settings here, including summary generation.",
+    "chat": {
+      "title": "Chat Settings",
+      "desc": "Configure chat-related settings here, including summary generation.",
+      "primaryModel": {
+        "title": "Primary Model",
+        "model": {
+          "title": "Primary Chat Model",
+          "desc": "Select the main AI model for daily conversations"
+        }
+      },
+      "toolbar": {
+        "title": "Toolbar Configuration",
+        "chatToolbar": {
+          "title": "Chat Toolbar",
+          "desc": "Customize the visibility and order of chat toolbar buttons",
+          "button": "Configure"
+        }
+      },
       "condense": {
         "title": "Conversation Summary",
         "enable": {

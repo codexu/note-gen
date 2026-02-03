@@ -194,8 +194,8 @@
       "import": "インポート"
     },
     "editor": {
-      "title": "Markdown エディタ",
-      "desc": "ここでは、Markdown エディタをカスタマイズして、より適した書き込み体験を提供できます。",
+      "title": "エディター設定",
+      "desc": "ここでは、エディターをカスタマイズして、より適した書き込み体験を提供できます。",
       "typewriterMode": "打字機モード",
       "typewriterModeDesc": "打字機モード下、エディタは打字機の効果を模倣し、より深く浸かる書き込み体験を提供します。",
       "outlineEnable": "アウトラインを有効にする",
@@ -213,7 +213,40 @@
         "panoramaView": "全景視图"
       },
       "enableLineNumber": "コードブロック行番号",
-      "enableLineNumberDesc": "コードブロックに行番号を表示します。"
+      "enableLineNumberDesc": "コードブロックに行番号を表示します。",
+      "completion": {
+        "title": "自動補完",
+        "model": {
+          "title": "自動補完モデル",
+          "desc": "エディターの AI インライン補完に使用するモデルを選択"
+        }
+      },
+      "commit": {
+        "title": "自動コミットメッセージ",
+        "model": {
+          "title": "コミットモデル",
+          "desc": "ファイルの変更に基づいて Git コミットメッセージを自動生成するためのモデル"
+        }
+      }
+    },
+    "record": {
+      "title": "記録設定",
+      "desc": "ここでは、記録関連の設定を構成できます。記録の説明やツールバーの設定などが含まれます。",
+      "model": {
+        "title": "モデル設定",
+        "markDesc": {
+          "title": "記録説明",
+          "desc": "OCR で認識された記録を処理し、記録の説明を生成するためのモデル"
+        }
+      },
+      "toolbar": {
+        "title": "ツールバー設定",
+        "recordToolbar": {
+          "title": "記録ツールバー",
+          "desc": "記録ツールバーボタンの表示順序と可視性をカスタマイズ",
+          "button": "設定"
+        }
+      }
     },
     "uploadStore": {
       "uploadConfirm": "同期リポジトリをプライベートに設定してください。",
@@ -620,9 +653,24 @@
       "codeTheme": "コードブロックのハイライトテーマ",
       "selectTheme": "テーマを選択"
     },
-    "conversation": {
+    "chat": {
       "title": "会話設定",
       "desc": "ここでは、要約生成など会話関連の設定を構成できます。",
+      "primaryModel": {
+        "title": "メインモデル",
+        "model": {
+          "title": "メインチャットモデル",
+          "desc": "日常会話に使用するメインの AI モデルを選択"
+        }
+      },
+      "toolbar": {
+        "title": "ツールバー設定",
+        "chatToolbar": {
+          "title": "チャットツールバー",
+          "desc": "チャットツールバーボタンの表示順序と可視性をカスタマイズ",
+          "button": "設定"
+        }
+      },
       "condense": {
         "title": "会話の要約",
         "enable": {

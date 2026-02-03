@@ -188,8 +188,8 @@
       "import": "導入"
     },
     "editor": {
-      "title": "Markdown 編輯器",
-      "desc": "在這裡，你可以對 Markdown 編輯器進行自訂配置，打造更適合你的寫作方式。",
+      "title": "編輯器設置",
+      "desc": "在這裡，你可以對編輯器進行自定義配置，打造更適合你的寫作方式。",
       "typewriterMode": "打字機模式",
       "typewriterModeDesc": "打字機模式下，編輯器會模擬打字機效果，幫助你更好地沉浸在寫作中。",
       "outlineEnable": "預設啟用大綱",
@@ -207,7 +207,40 @@
         "panoramaView": "全景視圖"
       },
       "enableLineNumber": "代碼塊行號",
-      "enableLineNumberDesc": "啟用後，代碼塊將顯示行號。"
+      "enableLineNumberDesc": "啟用後，代碼塊將顯示行號。",
+      "completion": {
+        "title": "快速補全",
+        "model": {
+          "title": "快速補全模型",
+          "desc": "選擇用於編輯器 AI 內聯補全的模型"
+        }
+      },
+      "commit": {
+        "title": "自動生成 Commit",
+        "model": {
+          "title": "提交模型",
+          "desc": "用於自動生成 Git 提交信息，基於文件內容變化智能生成描述性提交信息"
+        }
+      }
+    },
+    "record": {
+      "title": "記錄設置",
+      "desc": "在這裡，你可以配置記錄相關的設置，包括記錄描述和工具欄配置。",
+      "model": {
+        "title": "模型設置",
+        "markDesc": {
+          "title": "記錄描述",
+          "desc": "用於處理 OCR 識別後的記錄，生成記錄描述"
+        }
+      },
+      "toolbar": {
+        "title": "工具欄設置",
+        "recordToolbar": {
+          "title": "記錄工具欄",
+          "desc": "自定義記錄工具欄按鈕的顯示順序和可見性",
+          "button": "設置"
+        }
+      }
     },
     "uploadStore": {
       "uploadConfirm": "上傳配置請確保同步倉庫為私有，否則數據將會洩露！",
@@ -596,9 +629,24 @@
       "codeTheme": "代碼塊高亮主題",
       "selectTheme": "選擇主題"
     },
-    "conversation": {
+    "chat": {
       "title": "對話設置",
       "desc": "在這裡，你可以配置對話相關的設置，包括摘要生成等功能。",
+      "primaryModel": {
+        "title": "主要模型",
+        "model": {
+          "title": "主要聊天模型",
+          "desc": "選擇用於日常對話的主要 AI 模型"
+        }
+      },
+      "toolbar": {
+        "title": "工具欄配置",
+        "chatToolbar": {
+          "title": "對話工具欄",
+          "desc": "自定義對話工具欄按鈕的顯示順序和可見性",
+          "button": "設置"
+        }
+      },
       "condense": {
         "title": "對話摘要",
         "enable": {

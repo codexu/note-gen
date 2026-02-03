@@ -283,18 +283,15 @@ const useChatStore = create<ChatState>((set, get) => ({
     // 先初始化会话列表
     await get().initConversations()
 
-    const { currentConversationId } = get()
+    const { currentConversationId, conversations } = get()
 
-    // 如果没有当前会话，切换到第一个会话
+    // 如果没有当前会话
     if (!currentConversationId) {
-      const { conversations } = get()
       if (conversations.length > 0) {
+        // 有历史会话，切换到第一个
         await get().switchConversation(conversations[0].id)
-      } else {
-        // 如果没有会话，创建一个新会话
-        const newId = await get().createConversation('新对话')
-        await get().switchConversation(newId)
       }
+      // 如果没有历史会话，保持空状态，不创建新会话
     } else {
       // 加载当前会话的聊天记录
       const data = await getChatsByConversation(currentConversationId)
@@ -603,10 +600,6 @@ const useChatStore = create<ChatState>((set, get) => ({
   initConversations: async () => {
     const { getAllConversations } = await import('@/db/conversations')
     const conversations = await getAllConversations()
-    console.log('[ChatStore] initConversations: loaded', conversations.length, 'conversations')
-    conversations.forEach(c => {
-      console.log('[ChatStore]   - id:', c.id, 'title:', c.title, 'messageCount:', c.messageCount, 'isPinned:', c.isPinned)
-    })
     set({ conversations })
   },
 
@@ -641,27 +634,25 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteConversation: async (id: number) => {
-    console.log('[ChatStore] deleteConversation called with id:', id)
     const { deleteConversation: deleteConv } = await import('@/db/conversations')
     await deleteConv(id)
 
-    const { currentConversationId, conversations, createConversation, switchConversation } = get()
+    const { currentConversationId, conversations, switchConversation } = get()
 
     // 如果删除的是当前会话，切换到另一个会话
     if (id === currentConversationId) {
       const remainingConversations = conversations.filter(c => c.id !== id)
-      console.log('[ChatStore] Deleted current conversation, remaining:', remainingConversations.length)
       if (remainingConversations.length > 0) {
         await switchConversation(remainingConversations[0].id)
       } else {
-        // 创建新会话
-        const newId = await createConversation('新对话')
-        await switchConversation(newId)
+        // 没有其他会话了，清空状态，不创建新会话
+        set({ currentConversationId: null, chats: [] })
+        get().resetAgentState()
+        get().clearMcpToolCalls()
       }
     }
 
     // 刷新会话列表
-    console.log('[ChatStore] Refreshing conversations after delete')
     await get().initConversations()
   },
 
@@ -674,23 +665,27 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   startNewConversation: async () => {
-    const { currentConversationId, conversations, createConversation, switchConversation } = get()
+    const { currentConversationId } = get()
 
-    // 如果当前会话有消息，保留到历史（标题已在用户首次输入时生成）
-    // 如果当前会话无消息，删除它
+    // 如果当前会话无消息，删除它（从数据库查询最新状态）
     if (currentConversationId) {
-      const currentConv = conversations.find(c => c.id === currentConversationId)
+      const { getConversation } = await import('@/db/conversations')
+      const currentConv = await getConversation(currentConversationId)
       if (currentConv && currentConv.messageCount === 0) {
         // 空会话，直接删除
-        await get().deleteConversation(currentConversationId)
+        const { deleteConversation: deleteConv } = await import('@/db/conversations')
+        await deleteConv(currentConversationId)
       }
+      // 刷新会话列表
+      await get().initConversations()
     }
 
-    // 创建新会话
-    const newId = await createConversation('新对话')
-
-    // 切换到新会话
-    await switchConversation(newId)
+    // 清空聊天，不立即创建新会话
+    // 等到用户发送第一条消息时才创建会话
+    set({ currentConversationId: null, chats: [] })
+    // 清空 Agent 状态
+    get().resetAgentState()
+    get().clearMcpToolCalls()
   },
 }))
 

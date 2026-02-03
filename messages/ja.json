@@ -1106,7 +1106,14 @@
             "messages": "件のメッセージ",
             "searchPlaceholder": "会話を検索...",
             "noMatchingConversations": "一致する会話が見つかりませんでした",
-            "noConversationHistory": "会話履歴はありません"
+            "noConversationHistory": "会話履歴はありません",
+            "quickPrompts": {
+              "title": "クイックスタート",
+              "writeNote": "ノートを書くのを手伝って",
+              "summarize": "この内容を要約して",
+              "brainstorm": "アイデアを出し合って",
+              "explain": "この概念を説明して"
+            }
           },
           "content": {
             "organize": "あなたの記録を文章に整理："

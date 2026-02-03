@@ -1340,7 +1340,14 @@
             "messages": "mensagens",
             "searchPlaceholder": "Pesquisar conversas...",
             "noMatchingConversations": "Nenhuma conversa correspondente encontrada",
-            "noConversationHistory": "Sem histórico de conversa"
+            "noConversationHistory": "Sem histórico de conversa",
+            "quickPrompts": {
+              "title": "Início Rápido",
+              "writeNote": "Ajude-me a escrever uma nota",
+              "summarize": "Ajude-me a resumir este conteúdo",
+              "brainstorm": "Ajude-me a brainstormar ideias",
+              "explain": "Ajude-me a explicar este conceito"
+            }
           },
           "content": {
             "organize": "Organize seus registros em um artigo:"

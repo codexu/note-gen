@@ -1108,7 +1108,14 @@
             "messages": "條消息",
             "searchPlaceholder": "搜索對話...",
             "noMatchingConversations": "沒有找到匹配的對話",
-            "noConversationHistory": "暫無歷史對話"
+            "noConversationHistory": "暫無歷史對話",
+            "quickPrompts": {
+              "title": "快速開始",
+              "writeNote": "幫我寫一篇筆記",
+              "summarize": "幫我總結這段內容",
+              "brainstorm": "幫我頭腦風暴一些想法",
+              "explain": "幫我解釋這個概念"
+            }
           },
           "content": {
             "organize": "將你的紀錄整理為文章："

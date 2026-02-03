@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronDown, Search, Pin, Trash2 } from 'lucide-react'
+import { ChevronDown, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,33 +17,17 @@ import { useTranslations } from 'next-intl'
 interface HistoryDropdownProps {
   conversations: Conversation[]
   currentConversationId: number | null
+  excludeConversationIds?: number[]
   onSwitch: (id: number) => void
   onDelete: (id: number) => void
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-// 格式化相对时间
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now()
-  const diff = now - timestamp
-
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-
-  const date = new Date(timestamp)
-  return `${date.getMonth() + 1}/${date.getDate()}`
-}
-
 export function HistoryDropdown({
   conversations,
   currentConversationId,
+  excludeConversationIds = [],
   onSwitch,
   onDelete,
   open,
@@ -52,10 +36,10 @@ export function HistoryDropdown({
   const t = useTranslations('record.chat.empty')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // 过滤并排序会话（排除当前会话）
+  // 过滤并排序会话（排除当前会话、已显示会话和空会话）
   const filteredConversations = useMemo(() => {
     return conversations
-      .filter(c => c.id !== currentConversationId)
+      .filter(c => c.id !== currentConversationId && !excludeConversationIds.includes(c.id) && c.messageCount > 0)
       .filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => {
         // 置顶的排在前面
@@ -64,14 +48,14 @@ export function HistoryDropdown({
         // 然后按更新时间排序
         return b.updatedAt - a.updatedAt
       })
-  }, [conversations, currentConversationId, searchQuery])
+  }, [conversations, currentConversationId, excludeConversationIds, searchQuery])
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="w-full px-4 py-3 rounded-lg border bg-background hover:border-primary/50 transition-colors justify-between"
+          className="w-full px-4 py-3 rounded-lg border border-transparent hover:border-primary/50 transition-colors justify-between"
         >
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{t('viewMore')}</span>
@@ -119,36 +103,24 @@ export function HistoryDropdown({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {conv.isPinned && (
-                        <Pin className="w-3 h-3 text-muted-foreground shrink-0" />
-                      )}
                       <span className="text-sm truncate group-hover:text-primary transition-colors">
                         {conv.title}
                       </span>
                     </div>
-                    <div className="shrink-0 ml-2 flex items-center">
-                      {/* 时间戳 - 悬停时隐藏 */}
-                      <span className="text-xs text-muted-foreground group-hover:hidden">
-                        {formatRelativeTime(conv.updatedAt)}
-                      </span>
+                    <div className="shrink-0 ml-auto flex items-center gap-2">
                       {/* 删除按钮 - 悬停时显示 */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           onDelete(conv.id)
                         }}
-                        className="hidden group-hover:flex items-center justify-center w-6 h-6 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        className="flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 transition-all duration-200 ease-out hover:text-destructive hover:bg-destructive/10 active:scale-95"
                         title={t('deleteConversation')}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5 transition-transform duration-150 group-hover/button:scale-110" />
                       </button>
                     </div>
                   </div>
-                  {conv.messageCount > 0 && (
-                    <div className="text-xs text-muted-foreground mt-0.5 ml-5">
-                      {conv.messageCount} {t('messages')}
-                    </div>
-                  )}
                 </div>
               </DropdownMenuItem>
             ))}

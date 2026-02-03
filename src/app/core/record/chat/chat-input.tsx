@@ -421,11 +421,16 @@ export const ChatInput = React.memo(function ChatInput() {
       // 触发防抖的 placeholder 重新生成
       debouncedGenPlaceholder()
     })
+    emitter.on('quick-prompt-insert', (prompt: string) => {
+      setText(prompt)
+      textareaRef.current?.focus()
+    })
     return () => {
       emitter.off('revertChat')
       emitter.off('fileSelected')
       emitter.off('folderSelected')
       emitter.off('insert-quote')
+      emitter.off('quick-prompt-insert')
     }
   }, [debouncedGenPlaceholder])
 

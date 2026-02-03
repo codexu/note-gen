@@ -63,6 +63,8 @@ interface Events {
   'window-pin-register': unknown;
   'link-shortcut-register': unknown;
   'refresh-marks': unknown;
+  'quick-prompt-insert': string;
+  'quick-prompt-send': string;
   [key: string]: unknown; // 添加索引签名以支持动态事件名
   [key: symbol]: unknown; // 添加 symbol 索引签名以满足 Record 约束
 }

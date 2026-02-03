@@ -1,6 +1,6 @@
 "use client"
 import * as React from "react"
-import { SquareCode } from "lucide-react"
+import { MessageSquarePlus } from "lucide-react"
 import { TooltipButton } from "@/components/tooltip-button"
 import useChatStore from "@/stores/chat"
 import { useTranslations } from 'next-intl'
@@ -18,7 +18,7 @@ export function NewChat() {
 
   return (
     <div>
-      <TooltipButton icon={<SquareCode />} tooltipText={t('record.chat.input.newChat')} side="bottom" onClick={newChatHandler} disabled={isDisabled}/>
+      <TooltipButton icon={<MessageSquarePlus />} tooltipText={t('record.chat.input.newChat')} side="bottom" onClick={newChatHandler} disabled={isDisabled}/>
     </div>
   )
 }

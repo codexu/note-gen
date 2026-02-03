@@ -1447,7 +1447,14 @@
         "messages": "条消息",
         "searchPlaceholder": "搜索对话...",
         "noMatchingConversations": "没有找到匹配的对话",
-        "noConversationHistory": "暂无历史对话"
+        "noConversationHistory": "暂无历史对话",
+        "quickPrompts": {
+          "title": "快速开始",
+          "writeNote": "帮我写一篇笔记",
+          "summarize": "帮我总结这段内容",
+          "brainstorm": "帮我头脑风暴一些想法",
+          "explain": "帮我解释这个概念"
+        }
       },
       "newChat": "使用新标签开始对话",
       "removeChat": "删除当前标签对话",

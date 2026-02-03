@@ -1311,7 +1311,14 @@
             "messages": "messages",
             "searchPlaceholder": "Search conversations...",
             "noMatchingConversations": "No matching conversations found",
-            "noConversationHistory": "No conversation history"
+            "noConversationHistory": "No conversation history",
+            "quickPrompts": {
+              "title": "Quick Start",
+              "writeNote": "Help me write a note",
+              "summarize": "Help me summarize this content",
+              "brainstorm": "Help me brainstorm ideas",
+              "explain": "Help me explain this concept"
+            }
           },
           "content": {
             "organize": "Organize your records into an article:"

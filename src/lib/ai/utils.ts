@@ -180,6 +180,31 @@ export async function prepareMessages(
   // 获取prompt内容
   let promptContent = await getPromptContent()
 
+  // 加载记忆上下文
+  try {
+    const { contextLoader } = await import('@/lib/context/loader')
+    // 确定用于检索记忆的查询文本
+    let queryText = text || ''
+    if (baseMessages && baseMessages.length > 0) {
+      // 如果提供了消息数组，使用最后一条用户消息作为查询
+      const lastUserMessage = [...baseMessages].reverse().find(m => m.role === 'user')
+      if (lastUserMessage) {
+        queryText = typeof lastUserMessage.content === 'string' ? lastUserMessage.content : queryText
+      }
+    }
+
+    if (queryText) {
+      const memoryContext = await contextLoader.getContextForQuery(queryText)
+      if (memoryContext.preferences.length > 0 || memoryContext.knowledge.length > 0) {
+        const memoryPrompt = contextLoader.formatMemoriesForPrompt(memoryContext)
+        promptContent += '\n\n' + memoryPrompt
+      }
+    }
+  } catch (error) {
+    // 如果记忆加载失败，不影响正常对话
+    console.error('Failed to load memory context:', error)
+  }
+
   if (includeLanguage) {
     const store = await Store.load('store.json')
     const chatLanguage = await store.get<string>('chatLanguage') || 'English'

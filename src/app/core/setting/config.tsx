@@ -18,6 +18,7 @@ import {
   Sparkles,
   MessageSquare,
   PenTool,
+  Brain,
 } from "lucide-react"
 
 const baseConfig = [
@@ -74,6 +75,10 @@ const baseConfig = [
   {
     icon: <Drama className="size-4 md:size-6" />,
     anchor: 'prompt',
+  },
+  {
+    icon: <Brain className="size-4 md:size-6" />,
+    anchor: 'memories',
   },
   {
     icon: <LayoutTemplate className="size-4 md:size-6" />,

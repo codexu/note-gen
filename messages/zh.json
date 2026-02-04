@@ -462,6 +462,49 @@
       "optimizeFailed": "提示词优化失败，请稍后重试",
       "noContentToOptimize": "请先输入提示词内容"
     },
+    "memories": {
+      "title": "记忆管理",
+      "desc": "AI 长期记忆功能，让 AI 记住你的写作偏好、知识体系和笔记习惯。",
+      "stats": {
+        "total": "总记忆数",
+        "preferences": "偏好",
+        "knowledge": "知识"
+      },
+      "form": {
+        "title": "添加新记忆",
+        "contentLabel": "记忆内容",
+        "contentPlaceholder": "例如：我喜欢用中文回答、我是React专家...",
+        "categoryLabel": "类型",
+        "preferenceDesc": "偏好（语言、格式、风格等）",
+        "knowledgeDesc": "知识（事实、经验、专长等）",
+        "save": "保存记忆",
+        "saving": "保存中..."
+      },
+      "listTitle": "我的记忆",
+      "empty": "暂无记忆，添加第一条记忆吧！",
+      "preference": "偏好",
+      "knowledge": "知识",
+      "replaced": "已替换",
+      "accessCount": "访问 {count} 次",
+      "tabs": {
+        "all": "全部",
+        "preference": "偏好",
+        "knowledge": "知识"
+      },
+      "success": "成功",
+      "saved": "记忆已保存",
+      "updated": "记忆已更新（已替换相似记忆）",
+      "deleted": "记忆已删除",
+      "cleared": "所有记忆已清空",
+      "found": "找到 {count} 条记忆",
+      "error": "错误",
+      "errorEmpty": "请输入记忆内容",
+      "errorSave": "保存失败",
+      "errorDelete": "删除记忆失败",
+      "errorList": "获取记忆列表失败",
+      "errorEmbedding": "无法生成向量嵌入，请检查嵌入模型配置",
+      "errorClear": "清空记忆失败"
+    },
     "defaultModel": {
       "title": "默认模型",
       "desc": "在这里，你可以针对不同的场景使用不同的模型，提高效率降低成本。",

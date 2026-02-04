@@ -278,6 +278,49 @@
       "optimizeFailed": "プロンプトの最適化に失敗しました。後でもう一度お試しください",
       "noContentToOptimize": "まずプロンプト内容を入力してください"
     },
+    "memories": {
+      "title": "記憶管理",
+      "desc": "AI長期記憶機能で、AIがあなたの執筆設定、知識ベース、メモ習慣を記憶します。",
+      "stats": {
+        "total": "総記憶数",
+        "preferences": "設定",
+        "knowledge": "知識"
+      },
+      "form": {
+        "title": "新しい記憶を追加",
+        "contentLabel": "記憶の内容",
+        "contentPlaceholder": "例：中国語で回答してほしい、Reactエキスパートです...",
+        "categoryLabel": "タイプ",
+        "preferenceDesc": "設定（言語、形式、スタイルなど）",
+        "knowledgeDesc": "知識（事実、経験、専門分野など）",
+        "save": "記憶を保存",
+        "saving": "保存中..."
+      },
+      "listTitle": "マイ記憶",
+      "empty": "まだ記憶がありません。最初の記憶を追加しましょう！",
+      "preference": "設定",
+      "knowledge": "知識",
+      "replaced": "置換済み",
+      "accessCount": "{count} 回アクセス",
+      "tabs": {
+        "all": "すべて",
+        "preference": "設定",
+        "knowledge": "知識"
+      },
+      "success": "成功",
+      "saved": "記憶を保存しました",
+      "updated": "記憶を更新しました（類似の記憶を置換）",
+      "deleted": "記憶を削除しました",
+      "cleared": "すべての記憶をクリアしました",
+      "found": "{count} 件の記憶が見つかりました",
+      "error": "エラー",
+      "errorEmpty": "記憶の内容を入力してください",
+      "errorSave": "保存に失敗しました",
+      "errorDelete": "削除に失敗しました",
+      "errorList": "記憶リストの取得に失敗しました",
+      "errorEmbedding": "埋め込みの生成に失敗しました。埋め込みモデルの設定を確認してください",
+      "errorClear": "クリアに失敗しました"
+    },
     "defaultModel": {
       "title": "デフォルトモデル",
       "desc": "ここでは、異なるシーンに応じて異なるモデルを使用し、効率を高めコストを削減できます。",

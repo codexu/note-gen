@@ -272,6 +272,49 @@
       "optimizeFailed": "提示詞最佳化失敗，請稍後重試",
       "noContentToOptimize": "請先輸入提示詞內容"
     },
+    "memories": {
+      "title": "記憶管理",
+      "desc": "AI 長期記憶功能，讓 AI 記住你的寫作偏好、知識體系和筆記習慣。",
+      "stats": {
+        "total": "總記憶數",
+        "preferences": "偏好",
+        "knowledge": "知識"
+      },
+      "form": {
+        "title": "新增記憶",
+        "contentLabel": "記憶內容",
+        "contentPlaceholder": "例如：我喜歡用中文回答、我是React專家...",
+        "categoryLabel": "類型",
+        "preferenceDesc": "偏好（語言、格式、風格等）",
+        "knowledgeDesc": "知識（事實、經驗、專長等）",
+        "save": "儲存記憶",
+        "saving": "儲存中..."
+      },
+      "listTitle": "我的記憶",
+      "empty": "暫無記憶，新增第一條記憶吧！",
+      "preference": "偏好",
+      "knowledge": "知識",
+      "replaced": "已替換",
+      "accessCount": "存取 {count} 次",
+      "tabs": {
+        "all": "全部",
+        "preference": "偏好",
+        "knowledge": "知識"
+      },
+      "success": "成功",
+      "saved": "記憶已儲存",
+      "updated": "記憶已更新（已替換相似記憶）",
+      "deleted": "記憶已刪除",
+      "cleared": "所有記憶已清空",
+      "found": "找到 {count} 條記憶",
+      "error": "錯誤",
+      "errorEmpty": "請輸入記憶內容",
+      "errorSave": "儲存失敗",
+      "errorDelete": "刪除失敗",
+      "errorList": "取得記憶列表失敗",
+      "errorEmbedding": "無法生成向量嵌入，請檢查嵌入模型設定",
+      "errorClear": "清空失敗"
+    },
     "defaultModel": {
       "title": "默認模型",
       "desc": "在這裡，你可以針對不同的場景使用不同的模型，提高效率降低成本。",

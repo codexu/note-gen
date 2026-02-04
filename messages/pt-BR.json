@@ -421,6 +421,49 @@
         }
       }
     },
+    "memories": {
+      "title": "Gerenciamento de Memória",
+      "desc": "Recurso de memória de longo prazo da IA que permite que a IA lembre de suas preferências de escrita, base de conhecimento e hábitos de anotações.",
+      "stats": {
+        "total": "Total de Memórias",
+        "preferences": "Preferências",
+        "knowledge": "Conhecimento"
+      },
+      "form": {
+        "title": "Adicionar Nova Memória",
+        "contentLabel": "Conteúdo da Memória",
+        "contentPlaceholder": "ex: Prefiro respostas em chinês, sou um especialista em React...",
+        "categoryLabel": "Tipo",
+        "preferenceDesc": "Preferência (idioma, formato, estilo, etc.)",
+        "knowledgeDesc": "Conhecimento (fatos, experiência, especialização, etc.)",
+        "save": "Salvar Memória",
+        "saving": "Salvando..."
+      },
+      "listTitle": "Minhas Memórias",
+      "empty": "Nenhuma memória ainda, adicione sua primeira memória!",
+      "preference": "Preferência",
+      "knowledge": "Conhecimento",
+      "replaced": "Substituído",
+      "accessCount": "Acessado {count} vezes",
+      "tabs": {
+        "all": "Todas",
+        "preference": "Preferências",
+        "knowledge": "Conhecimento"
+      },
+      "success": "Sucesso",
+      "saved": "Memória salva",
+      "updated": "Memória atualizada (memória similar substituída)",
+      "deleted": "Memória excluída",
+      "cleared": "Todas as memórias limpas",
+      "found": "Encontrado {count} memórias",
+      "error": "Erro",
+      "errorEmpty": "Por favor, insira o conteúdo da memória",
+      "errorSave": "Falha ao salvar",
+      "errorDelete": "Falha ao excluir",
+      "errorList": "Falha ao obter lista de memórias",
+      "errorEmbedding": "Falha ao gerar embedding, verifique a configuração do modelo de embedding",
+      "errorClear": "Falha ao limpar"
+    },
     "defaultModel": {
       "title": "Modelo Padrão",
       "desc": "Aqui, você pode usar diferentes modelos para diferentes cenários, para melhorar a eficiência e reduzir custos.",

@@ -479,6 +479,49 @@
         }
       }
     },
+    "memories": {
+      "title": "Memory Management",
+      "desc": "AI long-term memory feature that lets AI remember your writing preferences, knowledge base, and note-taking habits.",
+      "stats": {
+        "total": "Total Memories",
+        "preferences": "Preferences",
+        "knowledge": "Knowledge"
+      },
+      "form": {
+        "title": "Add New Memory",
+        "contentLabel": "Memory Content",
+        "contentPlaceholder": "e.g., I prefer Chinese responses, I'm a React expert...",
+        "categoryLabel": "Type",
+        "preferenceDesc": "Preference (language, format, style, etc.)",
+        "knowledgeDesc": "Knowledge (facts, experience, expertise, etc.)",
+        "save": "Save Memory",
+        "saving": "Saving..."
+      },
+      "listTitle": "My Memories",
+      "empty": "No memories yet, add your first memory!",
+      "preference": "Preference",
+      "knowledge": "Knowledge",
+      "replaced": "Replaced",
+      "accessCount": "Accessed {count} times",
+      "tabs": {
+        "all": "All",
+        "preference": "Preferences",
+        "knowledge": "Knowledge"
+      },
+      "success": "Success",
+      "saved": "Memory saved",
+      "updated": "Memory updated (similar memory replaced)",
+      "deleted": "Memory deleted",
+      "cleared": "All memories cleared",
+      "found": "Found {count} memories",
+      "error": "Error",
+      "errorEmpty": "Please enter memory content",
+      "errorSave": "Failed to save",
+      "errorDelete": "Failed to delete",
+      "errorList": "Failed to get memory list",
+      "errorEmbedding": "Failed to generate embedding, please check embedding model configuration",
+      "errorClear": "Failed to clear"
+    },
     "defaultModel": {
       "title": "Default Model",
       "desc": "Here, you can use different models for different scenes, to improve efficiency and reduce costs.",

@@ -5,6 +5,7 @@ import { tagTools } from './tag-tools'
 import { markTools } from './mark-tools'
 import { folderTools } from './folder-tools'
 import { systemTools } from './system-tools'
+import { memoryTools } from './memory-tools'
 
 export const allTools: Tool[] = [
   ...noteTools,
@@ -13,6 +14,7 @@ export const allTools: Tool[] = [
   ...markTools,
   ...folderTools,
   ...systemTools,
+  ...memoryTools,
 ]
 
 /**
@@ -183,3 +185,4 @@ export * from './tag-tools'
 export * from './mark-tools'
 export * from './folder-tools'
 export * from './system-tools'
+export * from './memory-tools'

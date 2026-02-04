@@ -128,7 +128,24 @@ export class ReActAgent {
 
       const action = this.parseAction(thought)
       if (!action) {
-        finalAnswer = '抱歉，我无法理解如何执行这个任务。'
+        // 无法解析 Action，尝试从 thought 中提取答案
+        // 检查是否 AI 想直接回答但忘记使用 Final Answer 格式
+        const thoughtContent = thought.replace(/Thought:\s*/i, '').trim()
+        if (thoughtContent && thoughtContent.length > 10 && !thoughtContent.includes('Action:')) {
+          // 看起来 AI 想直接回答，提取内容作为答案
+          finalAnswer = thoughtContent
+          break
+        }
+
+        // 如果是第一次迭代，可能是 AI 没理解用户意图
+        // 尝试让 AI 直接回答而不是调用工具
+        if (this.currentIteration === 1) {
+          finalAnswer = thoughtContent || '抱歉，我不太理解您的需求。您能详细说明一下吗？'
+          break
+        }
+
+        // 多次迭代后仍然失败，给出提示
+        finalAnswer = thoughtContent || '抱歉，我遇到了一些问题。您能换种方式说明一下您的需求吗？'
         break
       }
 
@@ -239,9 +256,15 @@ ${memoryPrompt ? `## User Memories\n\n${memoryPrompt}\n` : ''}
 
 ## Core Principles
 
-**Efficiency First**: Complete tasks with minimum steps, avoid unnecessary thinking and operations.
-**Direct Action**: If task is clear, execute directly without over-analysis.
-**Quick Finish**: Give Final Answer immediately after completing core task, don't repeat operations.
+**Intent First**: Before using any tool, carefully analyze user's intent:
+- **Is the user asking a question?** → Give direct answer with Final Answer
+- **Is the user requesting information?** → Search/read relevant notes, then answer
+- **Is the user explicitly requesting an action?** (create, modify, delete) → Then use tools
+- **Are you unsure about user's intent?** → Ask clarifying question, don't assume
+
+**Efficiency**: Complete tasks with minimum steps, avoid unnecessary tool calls.
+**Direct Action**: If intent is clear and action is needed, execute without over-analysis.
+**Quick Finish**: Give Final Answer immediately after completing task, don't repeat operations.
 
 ## Knowledge Base Search Guide
 
@@ -306,12 +329,20 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 
 ## ⚠️ Important Rules (Must Follow)
 
+**🎯 Intent Judgment (CRITICAL)**:
+- If user is **asking a question** (What is...? How do I...? Tell me about...?) → Give Final Answer directly
+- If user is **requesting information** (Find..., Show me..., List...) → Use search/read tools, then answer
+- If user is **requesting an action** (Create..., Modify..., Delete..., Make...) → Use action tools
+- If **uncertain about intent** → Ask clarifying question in Final Answer format
+- **NEVER assume** user wants creation/modification when they're just asking or discussing
+
+**Technical Rules**:
 1. **Strict Format**: Thought → Action + Action Input or Final Answer
 2. **JSON Format**: Action Input must be valid JSON with double quotes
 3. **One Tool at a Time**: Only call one tool per iteration
-4. **Finish Immediately**: **MUST** give Final Answer after completing core task, no extra operations
-5. **Don't Repeat**: Carefully observe Observation, if operation succeeded, immediately give Final Answer, don't repeat
-6. **Use Available Tools Only**: Don't make up tools or parameters, **NEVER call Skill names as tools**
+4. **Finish Immediately**: **MUST** give Final Answer after completing task, no extra operations
+5. **Don't Repeat**: If operation succeeded, immediately give Final Answer
+6. **Use Available Tools Only**: Don't make up tools or parameters
 7. **Concise Thinking**: Keep Thought brief, directly state what to do
 8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
 
@@ -331,11 +362,23 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 
 ## Example
 
+**Example 1: User asking a question (NO TOOL NEEDED)**
+
+**User**: "What is React?"
+
+**Iteration 1:**
+\`\`\`
+Thought: User is asking for information about React. This is a question, not a request to create content. I should answer directly.
+Final Answer: React is a JavaScript library for building user interfaces, developed by Facebook. It uses a component-based architecture and virtual DOM for efficient rendering.
+\`\`\`
+
+**Example 2: User requesting creation (USE TOOL)**
+
 **User**: "Create a note introducing NoteGen"
 
 **Iteration 1:**
 \`\`\`
-Thought: Create note directly
+Thought: User explicitly requested to create a note. I will use the create_markdown_file tool.
 Action: create_markdown_file
 Action Input: {"fileName": "NoteGen-Intro.md", "content": "# NoteGen\\n\\nAn intelligent note-taking software..."}
 \`\`\`
@@ -345,6 +388,24 @@ Observation: File created successfully
 \`\`\`
 Thought: Task completed
 Final Answer: Created note "NoteGen-Intro.md"
+\`\`\`
+
+**Example 3: User requesting information (USE SEARCH TOOL)**
+
+**User**: "Find notes about React hooks"
+
+**Iteration 1:**
+\`\`\`
+Thought: User wants to find information about React hooks from existing notes. I should search for relevant notes.
+Action: search_markdown_files
+Action Input: {"query": "React hooks"}
+\`\`\`
+Observation: Found 3 notes about React hooks...
+
+**Iteration 2:**
+\`\`\`
+Thought: I found relevant information. Now I can answer the user's question.
+Final Answer: I found 3 notes about React hooks: [summary of findings]
 \`\`\`
 
 Now start executing the task!`

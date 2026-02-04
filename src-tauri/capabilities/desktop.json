@@ -30,6 +30,30 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "core:window:allow-unminimize",
-    "os:default"
+    "os:default",
+    "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "bash",
+          "cmd": "bash",
+          "sidecar": false,
+          "args": true
+        },
+        {
+          "name": "python",
+          "cmd": "python",
+          "sidecar": false,
+          "args": true
+        },
+        {
+          "name": "python3",
+          "cmd": "python3",
+          "sidecar": false,
+          "args": true
+        }
+      ]
+    }
   ]
 }

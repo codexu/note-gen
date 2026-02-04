@@ -203,36 +203,77 @@ export class SkillExecutor {
     scriptName: string,
     args?: string[]
   ): Promise<ScriptExecutionResult> {
+    const startTime = Date.now()
+
+    console.log('[SkillExecutor] Starting script execution', {
+      skill_id: skill.metadata.id,
+      skill_name: skill.metadata.name,
+      script_name: scriptName,
+      script_type: skill.scripts.find(s => s.name === scriptName)?.type,
+      args,
+      timestamp: new Date().toISOString(),
+    })
+
     // 查找脚本
     const script = skill.scripts.find(s => s.name === scriptName)
     if (!script) {
+      console.error('[SkillExecutor] Script not found', {
+        skill_id: skill.metadata.id,
+        skill_name: skill.metadata.name,
+        script_name: scriptName,
+        available_scripts: skill.scripts.map(s => s.name),
+      })
       return {
         success: false,
         scriptName,
         error: `Script "${scriptName}" not found in skill "${skill.metadata.name}"`,
-        executionTime: 0,
+        executionTime: Date.now() - startTime,
       }
     }
 
-    const startTime = Date.now()
+    console.log('[SkillExecutor] Script found', {
+      script_name: script.name,
+      script_path: script.path,
+      script_type: script.type,
+    })
 
     try {
       // 根据脚本类型执行
-      const result = await this.executeScriptByType(script, args)
+      const result = await this.executeScriptByType(script, args, skill)
+
+      const executionTime = Date.now() - startTime
+
+      console.log('[SkillExecutor] Script execution completed', {
+        script_name: scriptName,
+        success: true,
+        exit_code: result.exitCode,
+        execution_time_ms: executionTime,
+        output_length: result.output?.length || 0,
+      })
 
       return {
         success: true,
         scriptName,
         output: result.output,
         exitCode: result.exitCode,
-        executionTime: Date.now() - startTime,
+        executionTime,
       }
     } catch (error) {
+      const executionTime = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      console.error('[SkillExecutor] Script execution failed', {
+        script_name: scriptName,
+        error: errorMessage,
+        error_stack: error instanceof Error ? error.stack : undefined,
+        execution_time_ms: executionTime,
+      })
+
       return {
         success: false,
         scriptName,
-        error: error instanceof Error ? error.message : String(error),
-        executionTime: Date.now() - startTime,
+        error: errorMessage,
+        executionTime,
       }
     }
   }
@@ -242,15 +283,22 @@ export class SkillExecutor {
    */
   private async executeScriptByType(
     script: SkillScript,
-    args?: string[]
+    args?: string[],
+    skill?: SkillContent
   ): Promise<{ output: string; exitCode: number }> {
     // 注意：在 Tauri 环境中，脚本执行需要通过 Command API
     // 这里提供基本的接口，实际实现需要根据具体环境调整
 
     const { Command } = await import('@tauri-apps/plugin-shell')
+    const { getFilePathOptions } = await import('@/lib/workspace')
 
     let command: string
     let commandArgs: string[] = []
+
+    console.log('[SkillExecutor] Determining command type', {
+      script_type: script.type,
+      script_path: script.path,
+    })
 
     switch (script.type) {
       case 'python':
@@ -271,8 +319,72 @@ export class SkillExecutor {
         throw new Error(`Unsupported script type: ${script.type}`)
     }
 
-    // 执行命令
+    console.log('[SkillExecutor] Command prepared', {
+      command,
+      command_args: commandArgs,
+    })
+
+    // Resolve working directory if skill is provided
+    let workingDirectory = ''
+    if (skill) {
+      const fileInfo = await import('@/lib/skills').then(m => m.skillManager.getSkillFileInfo(skill.metadata.id))
+      if (fileInfo) {
+        // Import appDataDir for resolving BaseDirectory enum to actual path
+        const { appDataDir } = await import('@tauri-apps/api/path')
+
+        if (skill.metadata.scope === 'global') {
+          // For global skills, fileInfo.directory is a relative path under AppData
+          const appDataPath = await appDataDir()
+          workingDirectory = `${appDataPath}/${fileInfo.directory}`
+        } else {
+          const options = await getFilePathOptions(fileInfo.directory)
+          if (options.baseDir) {
+            // Resolve BaseDirectory enum to actual path
+            const appDataPath = await appDataDir()
+            workingDirectory = `${appDataPath}/${options.path}`
+          } else {
+            workingDirectory = options.path
+          }
+        }
+
+        console.log('[SkillExecutor] Working directory resolved', {
+          skill_id: skill.metadata.id,
+          skill_scope: skill.metadata.scope,
+          working_directory: workingDirectory,
+        })
+
+        // Use shell command to change directory before executing
+        const shellCommand = `cd "${workingDirectory}" && ${command} ${commandArgs.map(a => `"${a}"`).join(' ')}`
+
+        console.log('[SkillExecutor] Shell command prepared', {
+          shell_command: shellCommand,
+        })
+
+        const result = await Command.create('bash', ['-c', shellCommand]).execute()
+
+        console.log('[SkillExecutor] Command execution result', {
+          exit_code: result.code,
+          stdout_length: result.stdout?.length || 0,
+          stderr_length: result.stderr?.length || 0,
+        })
+
+        return {
+          output: result.stdout || result.stderr,
+          exitCode: result.code ?? 0,
+        }
+      }
+    }
+
+    // Fallback: execute without working directory
+    console.log('[SkillExecutor] No working directory, executing directly')
+
     const result = await Command.create(command, commandArgs).execute()
+
+    console.log('[SkillExecutor] Direct execution result', {
+      exit_code: result.code,
+      stdout_length: result.stdout?.length || 0,
+      stderr_length: result.stderr?.length || 0,
+    })
 
     return {
       output: result.stdout || result.stderr,

@@ -243,8 +243,225 @@ export const loadSkillContentTool: Tool = {
   },
 }
 
+/**
+ * 执行 Skill 脚本工具
+ * 用于 AI 在 Skill 目录上下文中执行 Python/Shell 脚本
+ */
+export const executeSkillScriptTool: Tool = {
+  name: 'execute_skill_script',
+  description: 'Execute a Python or Shell script within a Skill directory context. Use this when a Skill requires running scripts (e.g., python -m markitdown file.pptx). The script will be executed with the Skill directory as the working directory.',
+  category: 'system',
+  requiresConfirmation: false,
+  parameters: [
+    {
+      name: 'skill_id',
+      type: 'string',
+      description: 'The ID of the Skill (e.g., "pptx", "pdf")',
+      required: true,
+    },
+    {
+      name: 'command',
+      type: 'string',
+      description: 'The command to execute. For Python modules, use "python" followed by "-m" and arguments (e.g., "python -m markitdown file.pptx"). For direct scripts, use the script name (e.g., "python scripts/thumbnail.py file.pptx").',
+      required: true,
+    },
+    {
+      name: 'args',
+      type: 'array',
+      description: 'Additional arguments to pass to the command (optional). Use this for file paths and options that need proper escaping.',
+      required: false,
+    },
+  ],
+  execute: async (params: Record<string, any>): Promise<ToolResult> => {
+    const startTime = Date.now()
+    const { skill_id, command, args } = params
+
+    // Debug log: Start execution
+    console.log('[execute_skill_script] Starting execution', {
+      skill_id,
+      command,
+      args,
+      timestamp: new Date().toISOString(),
+    })
+
+    try {
+      // Validate skill_id
+      if (!skill_id || typeof skill_id !== 'string') {
+        console.error('[execute_skill_script] Invalid skill_id', { skill_id })
+        return {
+          success: false,
+          error: `Invalid skill_id: must be a non-empty string`,
+        }
+      }
+
+      // Validate command
+      if (!command || typeof command !== 'string') {
+        console.error('[execute_skill_script] Invalid command', { command })
+        return {
+          success: false,
+          error: `Invalid command: must be a non-empty string`,
+        }
+      }
+
+      // Get Skill information
+      const skill = skillManager.getSkill(skill_id)
+      if (!skill) {
+        console.error('[execute_skill_script] Skill not found', { skill_id })
+        return {
+          success: false,
+          error: `Skill not found: ${skill_id}`,
+        }
+      }
+
+      // Get Skill file info to find the directory
+      const fileInfo = skillManager.getSkillFileInfo(skill_id)
+      if (!fileInfo) {
+        console.error('[execute_skill_script] Skill file info not found', { skill_id })
+        return {
+          success: false,
+          error: `Cannot determine Skill directory for: ${skill_id}`,
+        }
+      }
+
+      // Debug log: Skill info
+      console.log('[execute_skill_script] Skill info retrieved', {
+        skill_id: skill.metadata.id,
+        skill_name: skill.metadata.name,
+        directory: fileInfo.directory,
+        scope: skill.metadata.scope,
+      })
+
+      // Import Tauri APIs
+      const { Command } = await import('@tauri-apps/plugin-shell')
+      const { appDataDir } = await import('@tauri-apps/api/path')
+      const { getFilePathOptions } = await import('@/lib/workspace')
+
+      // Resolve the working directory path
+      // For global skills, fileInfo.directory contains the relative path under AppData
+      // For project skills, fileInfo.directory may contain BaseDirectory enum
+      let workingDirectory: string
+
+      if (skill.metadata.scope === 'global') {
+        // For global skills, resolve the relative path under AppData
+        const appDataPath = await appDataDir()
+        workingDirectory = `${appDataPath}/${fileInfo.directory}`
+      } else {
+        // For project skills, use the resolved path
+        const options = await getFilePathOptions(fileInfo.directory)
+
+        // If baseDir is provided (BaseDirectory.AppData), resolve to actual path
+        if (options.baseDir) {
+          // Get the actual AppData path and construct full path
+          const appDataPath = await appDataDir()
+          workingDirectory = `${appDataPath}/${options.path}`
+        } else {
+          workingDirectory = options.path
+        }
+      }
+
+      // Debug log: Working directory
+      console.log('[execute_skill_script] Working directory resolved', {
+        working_directory: workingDirectory,
+      })
+
+      // Parse command and build command array
+      const commandParts = command.trim().split(/\s+/)
+      const cmd = commandParts[0]
+      const cmdArgs = [...commandParts.slice(1), ...(args || [])]
+
+      // Debug log: Command execution
+      console.log('[execute_skill_script] Executing command', {
+        cmd,
+        cmd_args: cmdArgs,
+        working_directory: workingDirectory,
+      })
+
+      // On macOS/Linux, use shell to change directory and execute command
+      // We use bash -c to run the command in the specified directory
+      const shellCommand = `cd "${workingDirectory}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
+
+      // Debug log: Shell command
+      console.log('[execute_skill_script] Shell command', {
+        shell_command: shellCommand,
+      })
+
+      // Create and execute the command using bash
+      // With shell:allow-execute, we can execute any program
+      let result = await Command.create('bash', ['-c', shellCommand]).execute()
+
+      // Fallback for common commands: try with '3' suffix if command not found (exit code 127)
+      // This handles the case where 'python' doesn't exist but 'python3' does
+      if (result.code === 127 && result.stderr?.includes('command not found')) {
+        const commonCommands = ['python', 'node', 'npm', 'pip']
+        if (commonCommands.includes(cmd)) {
+          const fallbackCmd = `${cmd}3`
+          console.log('[execute_skill_script] Command not found, trying fallback', {
+            original_command: cmd,
+            fallback_command: fallbackCmd,
+          })
+
+          const fallbackShellCommand = `cd "${workingDirectory}" && ${fallbackCmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
+          result = await Command.create('bash', ['-c', fallbackShellCommand]).execute()
+
+          console.log('[execute_skill_script] Fallback execution result', {
+            exit_code: result.code,
+            success: result.code === 0,
+          })
+        }
+      }
+
+      const executionTime = Date.now() - startTime
+
+      // Debug log: Execution result
+      console.log('[execute_skill_script] Execution completed', {
+        exit_code: result.code,
+        execution_time_ms: executionTime,
+        stdout_length: result.stdout?.length || 0,
+        stderr_length: result.stderr?.length || 0,
+        success: result.code === 0,
+      })
+
+      if (result.code !== 0) {
+        console.error('[execute_skill_script] Command failed', {
+          exit_code: result.code,
+          stderr: result.stderr,
+        })
+      }
+
+      // Combine stdout and stderr for the output
+      const output = [result.stdout, result.stderr].filter(Boolean).join('\n')
+
+      return {
+        success: result.code === 0,
+        data: {
+          exit_code: result.code,
+          execution_time_ms: executionTime,
+          working_directory: workingDirectory,
+        },
+        message: result.code === 0
+          ? `Command executed successfully (exit code: ${result.code}, time: ${executionTime}ms).\n\nOutput:\n${output}`
+          : `Command failed with exit code ${result.code} (time: ${executionTime}ms).\n\nOutput:\n${output}`,
+      }
+    } catch (error) {
+      const executionTime = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      console.error('[execute_skill_script] Execution error', {
+        error: errorMessage,
+        execution_time_ms: executionTime,
+      })
+
+      return {
+        success: false,
+        error: `Script execution error: ${errorMessage}`,
+      }
+    }
+  },
+}
+
 export const systemTools: Tool[] = [
   getCurrentTimeTool,
   selectSkillTool,
   loadSkillContentTool,
+  executeSkillScriptTool,
 ]

@@ -291,7 +291,9 @@
         "saving": "儲存中..."
       },
       "listTitle": "我的記憶",
+      "addMemory": "新增記憶",
       "empty": "暫無記憶，新增第一條記憶吧！",
+      "emptyHint": "你可以手動新增記憶，或在對話中使用「請記住」「記住這個」等話術讓 AI 自動記憶。",
       "preference": "偏好",
       "knowledge": "知識",
       "replaced": "已替換",

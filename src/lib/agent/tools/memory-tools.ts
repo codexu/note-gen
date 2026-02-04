@@ -40,13 +40,12 @@ Returns memory ID, content, and type (preference/knowledge).`,
 
       return {
         success: true,
-        data: memories,
         message: `找到 ${memories.length} 条记忆：\n${formatted}`,
       }
     } catch (error) {
       return {
         success: false,
-        error: `获取记忆列表失败: ${error}`,
+        error: `获取记忆列表失败`,
       }
     }
   },
@@ -153,14 +152,12 @@ Examples:
       if (result.replaced) {
         return {
           success: true,
-          data: { id: result.id, replaced: true },
           message: `记忆已更新（已替换相似记忆）`,
         }
       }
 
       return {
         success: true,
-        data: { id: result.id, replaced: false },
         message: `记忆已保存`,
       }
     } catch (error) {

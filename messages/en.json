@@ -498,7 +498,9 @@
         "saving": "Saving..."
       },
       "listTitle": "My Memories",
+      "addMemory": "Add Memory",
       "empty": "No memories yet, add your first memory!",
+      "emptyHint": "You can add memories manually, or use phrases like \"please remember\" or \"remember this\" in conversations to let AI automatically create memories.",
       "preference": "Preference",
       "knowledge": "Knowledge",
       "replaced": "Replaced",

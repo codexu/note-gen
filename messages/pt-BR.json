@@ -440,7 +440,9 @@
         "saving": "Salvando..."
       },
       "listTitle": "Minhas Memórias",
+      "addMemory": "Adicionar Memória",
       "empty": "Nenhuma memória ainda, adicione sua primeira memória!",
+      "emptyHint": "Você pode adicionar memórias manualmente ou usar frases como \"por favor, lembre-se\" ou \"lembre-se disso\" nas conversas para que a IA crie memórias automaticamente.",
       "preference": "Preferência",
       "knowledge": "Conhecimento",
       "replaced": "Substituído",

@@ -1,15 +1,30 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { MemoryItem } from './memory-item'
+import { MemoryForm } from './memory-form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Plus } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import useMemoriesStore from '@/stores/memories'
 import { Skeleton } from '@/components/ui/skeleton'
+
+type TabValue = 'all' | 'preference' | 'knowledge'
 
 export function MemoryList() {
   const t = useTranslations('settings.memories')
   const { memories, loading, deleteMemory, loadMemories } = useMemoriesStore()
+  const [activeTab, setActiveTab] = useState<TabValue>('all')
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     loadMemories()
@@ -20,64 +35,89 @@ export function MemoryList() {
 
   if (loading) {
     return (
-      <div className="space-y-2">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
+      <div className="space-y-1">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
       </div>
     )
   }
 
   if (memories.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        {t('empty')}
+      <div className="text-center py-12">
+        <p className="text-muted-foreground mb-2">{t('empty')}</p>
+        <p className="text-sm text-muted-foreground/70">{t('emptyHint')}</p>
       </div>
     )
   }
 
   return (
-    <Tabs defaultValue="all">
-      <TabsList>
-        <TabsTrigger value="all">
-          {t('tabs.all')} ({memories.length})
-        </TabsTrigger>
-        <TabsTrigger value="preference">
-          {t('tabs.preference')} ({preferences.length})
-        </TabsTrigger>
-        <TabsTrigger value="knowledge">
-          {t('tabs.knowledge')} ({knowledge.length})
-        </TabsTrigger>
-      </TabsList>
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
+      <div className="flex items-center justify-between gap-4">
+        <TabsList>
+          <TabsTrigger value="all">
+            {t('tabs.all')} ({memories.length})
+          </TabsTrigger>
+          <TabsTrigger value="preference">
+            {t('tabs.preference')} ({preferences.length})
+          </TabsTrigger>
+          <TabsTrigger value="knowledge">
+            {t('tabs.knowledge')} ({knowledge.length})
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="all" className="space-y-2 mt-4">
-        {memories.map(memory => (
-          <MemoryItem
-            key={memory.id}
-            memory={memory}
-            onDelete={() => deleteMemory(memory.id)}
-          />
-        ))}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button variant="default" size="sm">
+              <Plus className="size-4 mr-2" />
+              {t('addMemory')}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('form.title')}</DialogTitle>
+              <DialogDescription>{t('form.contentPlaceholder')}</DialogDescription>
+            </DialogHeader>
+            <MemoryForm onSuccess={() => setOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <TabsContent value="all" className="mt-4">
+        <div className="space-y-0.5">
+          {memories.map(memory => (
+            <MemoryItem
+              key={memory.id}
+              memory={memory}
+              onDelete={() => deleteMemory(memory.id)}
+            />
+          ))}
+        </div>
       </TabsContent>
 
-      <TabsContent value="preference" className="space-y-2 mt-4">
-        {preferences.map(memory => (
-          <MemoryItem
-            key={memory.id}
-            memory={memory}
-            onDelete={() => deleteMemory(memory.id)}
-          />
-        ))}
+      <TabsContent value="preference" className="mt-4">
+        <div className="space-y-0.5">
+          {preferences.map(memory => (
+            <MemoryItem
+              key={memory.id}
+              memory={memory}
+              onDelete={() => deleteMemory(memory.id)}
+            />
+          ))}
+        </div>
       </TabsContent>
 
-      <TabsContent value="knowledge" className="space-y-2 mt-4">
-        {knowledge.map(memory => (
-          <MemoryItem
-            key={memory.id}
-            memory={memory}
-            onDelete={() => deleteMemory(memory.id)}
-          />
-        ))}
+      <TabsContent value="knowledge" className="mt-4">
+        <div className="space-y-0.5">
+          {knowledge.map(memory => (
+            <MemoryItem
+              key={memory.id}
+              memory={memory}
+              onDelete={() => deleteMemory(memory.id)}
+            />
+          ))}
+        </div>
       </TabsContent>
     </Tabs>
   )

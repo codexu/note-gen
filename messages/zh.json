@@ -481,7 +481,9 @@
         "saving": "保存中..."
       },
       "listTitle": "我的记忆",
+      "addMemory": "添加记忆",
       "empty": "暂无记忆，添加第一条记忆吧！",
+      "emptyHint": "你可以手动添加记忆，或在对话中使用「请记住」「记住这个」等话术让 AI 自动记忆。",
       "preference": "偏好",
       "knowledge": "知识",
       "replaced": "已替换",

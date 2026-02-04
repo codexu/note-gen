@@ -9,7 +9,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import useMemoriesStore from '@/stores/memories'
 import { toast } from '@/hooks/use-toast'
 
-export function MemoryForm() {
+interface MemoryFormProps {
+  onSuccess?: () => void
+}
+
+export function MemoryForm({ onSuccess }: MemoryFormProps) {
   const t = useTranslations('settings.memories')
   const [content, setContent] = useState('')
   const [category, setCategory] = useState<'preference' | 'knowledge'>('preference')
@@ -34,6 +38,7 @@ export function MemoryForm() {
         title: t('success'),
         description: t('saved'),
       })
+      onSuccess?.()
     } catch (error) {
       toast({
         title: t('error'),

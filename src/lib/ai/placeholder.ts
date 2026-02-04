@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import { prepareMessages } from './utils';
 import useSettingStore from '@/stores/setting';
 
 export interface QuickPrompt {
@@ -37,9 +36,11 @@ export async function fetchAiPlaceholder(text: string): Promise<string | false> 
       Generate a very short question based on the following content:
       ${text}`
 
-    // 准备消息
-    const { messages } = await prepareMessages(placeholderPrompt, true)
-    
+    // 准备消息 - 不加载记忆，直接使用简单消息
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'user', content: placeholderPrompt }
+    ]
+
     const openai = new OpenAI({
       baseURL: defaultConfig.baseURL,
       apiKey: defaultConfig.apiKey,
@@ -122,7 +123,10 @@ Your response must be exactly this format (nothing else):
 
 Content: ${text || 'General note-taking'}`
 
-    const { messages } = await prepareMessages(prompt, true)
+    // 准备消息 - 不加载记忆，直接使用简单消息
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'user', content: prompt }
+    ]
 
     const openai = new OpenAI({
       baseURL: config.baseURL,
@@ -216,7 +220,10 @@ Do not include any special characters or punctuation.
 
 Content: ${text || 'No content provided'}`
 
-    const { messages } = await prepareMessages(prompt, true)
+    // 准备消息 - 不加载记忆，直接使用简单消息
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'user', content: prompt }
+    ]
 
     const openai = new OpenAI({
       baseURL: config.baseURL,

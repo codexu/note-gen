@@ -1070,15 +1070,14 @@ const useSettingStore = create<SettingState>((set, get) => ({
     // 底部工具栏
     { id: 'modelSelect', enabled: true, order: 0 },
     { id: 'promptSelect', enabled: true, order: 1 },
-    { id: 'chatLanguage', enabled: true, order: 2 },
     // 顶部工具栏 - 左侧
-    { id: 'chatLink', enabled: true, order: 3 },
-    { id: 'fileLink', enabled: true, order: 4 },
-    { id: 'mcpButton', enabled: true, order: 5 },
-    { id: 'ragSwitch', enabled: true, order: 6 },
-    { id: 'clipboardMonitor', enabled: true, order: 7 },
+    { id: 'chatLink', enabled: true, order: 2 },
+    { id: 'fileLink', enabled: true, order: 3 },
+    { id: 'mcpButton', enabled: true, order: 4 },
+    { id: 'ragSwitch', enabled: true, order: 5 },
+    { id: 'clipboardMonitor', enabled: true, order: 6 },
     // 顶部工具栏 - 右侧
-    { id: 'newChat', enabled: true, order: 8 },
+    { id: 'newChat', enabled: true, order: 7 },
   ],
   setChatToolbarConfigPc: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigPc: config })
@@ -1091,13 +1090,12 @@ const useSettingStore = create<SettingState>((set, get) => ({
   chatToolbarConfigMobile: [
     { id: 'modelSelect', enabled: true, order: 0 },
     { id: 'promptSelect', enabled: true, order: 1 },
-    { id: 'chatLanguage', enabled: true, order: 2 },
-    { id: 'chatLink', enabled: true, order: 3 },
-    { id: 'fileLink', enabled: true, order: 4 },
-    { id: 'mcpButton', enabled: true, order: 5 },
-    { id: 'ragSwitch', enabled: true, order: 6 },
-    { id: 'clipboardMonitor', enabled: true, order: 7 },
-    { id: 'newChat', enabled: true, order: 8 },
+    { id: 'chatLink', enabled: true, order: 2 },
+    { id: 'fileLink', enabled: true, order: 3 },
+    { id: 'mcpButton', enabled: true, order: 4 },
+    { id: 'ragSwitch', enabled: true, order: 5 },
+    { id: 'clipboardMonitor', enabled: true, order: 6 },
+    { id: 'newChat', enabled: true, order: 7 },
   ],
   setChatToolbarConfigMobile: async (config: ChatToolbarItem[]) => {
     set({ chatToolbarConfigMobile: config })

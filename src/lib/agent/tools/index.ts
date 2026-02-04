@@ -18,13 +18,13 @@ export const allTools: Tool[] = [
 ]
 
 /**
- * 将 MCP 工具转换为 Agent 工具格式
- * @param serverId MCP 服务器 ID
- * @param tool MCP 工具定义
- * @returns Agent 工具
+ * Convert MCP tools to Agent tool format
+ * @param serverId MCP server ID
+ * @param tool MCP tool definition
+ * @returns Agent tool
  */
 function convertMcpToolToAgentTool(serverId: string, tool: any): Tool {
-  // 解析参数
+  // Parse parameters
   const parameters = Object.entries(tool.inputSchema?.properties || {}).map(([name, schema]: [string, any]) => ({
     name,
     type: mapJsonSchemaTypeToToolType(schema.type),
@@ -32,7 +32,7 @@ function convertMcpToolToAgentTool(serverId: string, tool: any): Tool {
     required: tool.inputSchema?.required?.includes(name) || false,
   }))
 
-  // 增强工具描述，让 AI 更容易理解工具的用途
+  // Enhance tool description to help AI better understand the tool's purpose
   const enhancedDescription = tool.description || tool.name
 
   return {
@@ -69,7 +69,7 @@ function convertMcpToolToAgentTool(serverId: string, tool: any): Tool {
 }
 
 /**
- * 映射 JSON Schema 类型到工具参数类型
+ * Map JSON Schema types to tool parameter types
  */
 function mapJsonSchemaTypeToToolType(jsonType: string): Tool['parameters'][0]['type'] {
   const typeMap: Record<string, Tool['parameters'][0]['type']> = {
@@ -84,30 +84,30 @@ function mapJsonSchemaTypeToToolType(jsonType: string): Tool['parameters'][0]['t
 }
 
 /**
- * 获取所有工具，包括 MCP 工具（如果有选中的服务器）
+ * Get all tools, including MCP tools (if there are selected servers)
  */
 export function getAllTools(): Tool[] {
   const tools = [...allTools]
 
-  // 动态添加 MCP 工具
-  // 注意：由于循环依赖问题，这里无法直接使用 import
-  // MCP 工具将在运行时通过动态加载方式添加
-  // 这里返回基础工具列表
+  // Dynamically add MCP tools
+  // Note: due to circular dependency issues, cannot use import directly here
+  // MCP tools will be added at runtime through dynamic loading
+  // Return base tool list here
   return tools
 }
 
-// MCP 工具缓存
+// MCP tools cache
 let mcpToolsCache: Tool[] = []
 let mcpToolsLoaded = false
 
 /**
- * 获取所有工具，包括 MCP 工具（异步版本）
- * 此函数用于需要加载 MCP 工具的场景
+ * Get all tools, including MCP tools (async version)
+ * This function is used for scenarios that need to load MCP tools
  */
 export async function getAllToolsAsync(): Promise<Tool[]> {
   const tools = [...allTools]
 
-  // 动态添加 MCP 工具
+  // Dynamically add MCP tools
   try {
     const { useMcpStore } = await import('@/stores/mcp')
     const { mcpServerManager } = await import('@/lib/mcp/server-manager')
@@ -137,7 +137,7 @@ export async function getAllToolsAsync(): Promise<Tool[]> {
 }
 
 /**
- * 获取工具（包括已加载的 MCP 工具）
+ * Get tools (including loaded MCP tools)
  */
 export function getAllToolsSync(): Tool[] {
   if (mcpToolsLoaded) {
@@ -147,7 +147,7 @@ export function getAllToolsSync(): Tool[] {
 }
 
 /**
- * 重新加载 MCP 工具
+ * Reload MCP tools
  */
 export async function reloadMcpTools(): Promise<void> {
   mcpToolsCache = []

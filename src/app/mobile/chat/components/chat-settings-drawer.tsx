@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/drawer"
 import { ModelSelector } from "./model-selector"
 import { PromptSelector } from "./prompt-selector"
-import { LanguageSelector } from "./language-selector"
 import { ClipboardToggle } from "./clipboard-toggle"
 import { useTranslations } from "next-intl"
 
@@ -40,9 +39,6 @@ export function ChatSettingsDrawer() {
             </div>
             <div className="h-16 flex items-center w-full">
               <PromptSelector />
-            </div>
-            <div className="h-16 flex items-center w-full">
-              <LanguageSelector />
             </div>
             <div className="h-16 flex items-center w-full">
               <ClipboardToggle />

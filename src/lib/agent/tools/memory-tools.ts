@@ -35,17 +35,17 @@ Returns memory ID, content, and type (preference/knowledge).`,
       }
 
       const formatted = memories.map(m =>
-        `ID: ${m.id} [${m.category === 'preference' ? '偏好' : '知识'}] ${m.content}`
+        `ID: ${m.id} [${m.category === 'preference' ? 'Preference' : 'Knowledge'}] ${m.content}`
       ).join('\n')
 
       return {
         success: true,
-        message: `找到 ${memories.length} 条记忆：\n${formatted}`,
+        message: `Found ${memories.length} memories:\n${formatted}`,
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: `获取记忆列表失败`,
+        error: `Failed to get memory list`,
       }
     }
   },
@@ -81,12 +81,12 @@ Parameters:
       await deleteMemory(params.id)
       return {
         success: true,
-        message: `记忆已删除`,
+        message: `Memory deleted`,
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: `删除记忆失败: ${error}`,
+        error: `Failed to delete memory`,
       }
     }
   },
@@ -97,7 +97,7 @@ Parameters:
  */
 export const saveMemoryTool: Tool = {
   name: 'save_memory',
-  description: `Save or update a memory. MUST call this tool when user says "remember...", "in English", "请记住...", etc.
+  description: `Save or update a memory. MUST call this tool when user says "remember...", "in English", etc.
 
 IMPORTANT WORKFLOW:
 1. When user wants to remember something, first use list_memories to check existing memories
@@ -111,10 +111,10 @@ Supports two types:
 - knowledge: User's knowledge, facts, experience - matched intelligently via context
 
 Examples:
-- "请记住我喜欢用中文回答" -> save as preference
-- "记住我是React专家" -> save as knowledge
+- "Please answer in English" -> save as preference
+- "Remember I'm a React expert" -> save as knowledge
 - "I prefer English" -> save as preference
-- "用日语" -> save as preference`,
+- "Use Japanese" -> save as preference`,
   category: 'system',
   requiresConfirmation: false,
   parameters: [
@@ -138,7 +138,7 @@ Examples:
       if (!embedding) {
         return {
           success: false,
-          error: '无法生成向量嵌入，请检查嵌入模型配置',
+          error: 'Cannot generate vector embedding, please check embedding model configuration',
         }
       }
 
@@ -152,18 +152,18 @@ Examples:
       if (result.replaced) {
         return {
           success: true,
-          message: `记忆已更新（已替换相似记忆）`,
+          message: `Memory updated (similar memory replaced)`,
         }
       }
 
       return {
         success: true,
-        message: `记忆已保存`,
+        message: `Memory saved`,
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: `保存记忆失败: ${error}`,
+        error: `Failed to save memory`,
       }
     }
   },
@@ -189,12 +189,12 @@ WARNING: This operation is irreversible, use with caution`,
       await clearAllMemories()
       return {
         success: true,
-        message: `所有记忆已清空`,
+        message: `All memories cleared`,
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: `清空记忆失败: ${error}`,
+        error: `Failed to clear memories`,
       }
     }
   },

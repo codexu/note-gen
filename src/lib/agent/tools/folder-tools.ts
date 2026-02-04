@@ -6,14 +6,14 @@ import useArticleStore from '@/stores/article'
 
 export const checkFolderExistsTool: Tool = {
   name: 'check_folder_exists',
-  description: '检查指定的文件夹是否存在',
+  description: 'Check if the specified folder exists',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'folderPath',
       type: 'string',
-      description: '要检查的文件夹路径（相对于笔记根目录，例如："前端/React" 或 "学习笔记"）',
+      description: 'Folder path to check (relative to notes root directory, e.g., "frontend/React" or "study-notes")',
       required: true,
     },
   ],
@@ -60,14 +60,14 @@ export const checkFolderExistsTool: Tool = {
 
 export const createFolderTool: Tool = {
   name: 'create_folder',
-  description: '创建一个新的文件夹用于组织笔记',
+  description: 'Create a new folder for organizing notes',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'folderPath',
       type: 'string',
-      description: '文件夹路径（相对于笔记根目录，例如："前端/React" 或 "学习笔记"）',
+      description: 'Folder path (relative to notes root directory, e.g., "frontend/React" or "study-notes")',
       required: true,
     },
   ],
@@ -139,14 +139,14 @@ export const createFolderTool: Tool = {
 
 export const deleteFolderTool: Tool = {
   name: 'delete_folder',
-  description: '删除指定的文件夹（会删除文件夹内的所有内容）',
+  description: 'Delete the specified folder (will delete all contents within the folder)',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'folderPath',
       type: 'string',
-      description: '要删除的文件夹路径',
+      description: 'Path of the folder to delete',
       required: true,
     },
   ],
@@ -213,14 +213,14 @@ export const deleteFolderTool: Tool = {
 
 export const listFoldersTool: Tool = {
   name: 'list_folders',
-  description: '列出指定路径下的所有文件夹',
+  description: 'List all folders under the specified path',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'folderPath',
       type: 'string',
-      description: '要列出的文件夹路径，留空表示根目录',
+      description: 'Folder path to list, leave empty for root directory',
       required: false,
     },
   ],
@@ -306,14 +306,14 @@ export const listFoldersTool: Tool = {
 
 export const createFoldersBatchTool: Tool = {
   name: 'create_folders_batch',
-  description: '批量创建多个文件夹，避免循环调用。适用于需要一次性创建多个文件夹的场景。',
+  description: 'Batch create multiple folders to avoid loop calls. Use for scenarios requiring multiple folders to be created at once.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'folderPaths',
       type: 'array',
-      description: '要创建的文件夹路径数组',
+      description: 'Array of folder paths to create',
       required: true,
     },
   ],
@@ -385,14 +385,14 @@ export const createFoldersBatchTool: Tool = {
 
 export const deleteFoldersBatchTool: Tool = {
   name: 'delete_folders_batch',
-  description: '批量删除多个文件夹（会删除文件夹内的所有内容），避免循环调用。',
+  description: 'Batch delete multiple folders (will delete all contents within the folders) to avoid loop calls.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'folderPaths',
       type: 'array',
-      description: '要删除的文件夹路径数组',
+      description: 'Array of folder paths to delete',
       required: true,
     },
   ],

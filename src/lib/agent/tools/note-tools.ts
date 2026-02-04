@@ -8,7 +8,7 @@ import { isLinkedFolder } from '@/lib/files'
 
 export const listMarkdownFilesTool: Tool = {
   name: 'list_markdown_files',
-  description: '列出所有 Markdown 笔记文件',
+  description: 'List all Markdown note files',
   category: 'note',
   requiresConfirmation: false,
   parameters: [],
@@ -37,14 +37,14 @@ export const listMarkdownFilesTool: Tool = {
 
 export const readMarkdownFileTool: Tool = {
   name: 'read_markdown_file',
-  description: '读取指定 Markdown 笔记文件的内容。注意：如果当前已关联了某篇笔记到对话中，该文件的内容已在上下文中，无需再次读取。',
+  description: 'Read the content of the specified Markdown note file. Note: if a note is currently linked to the conversation, its content is already in context and does not need to be read again.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: 'Markdown 文件的路径（相对路径或绝对路径）',
+      description: 'Path of the Markdown file (relative or absolute path)',
       required: true,
     },
   ],
@@ -106,26 +106,26 @@ export const readMarkdownFileTool: Tool = {
 
 export const createMarkdownFileTool: Tool = {
   name: 'create_markdown_file',
-  description: '创建一个新的 Markdown 笔记文件',
+  description: 'Create a new Markdown note file',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'fileName',
       type: 'string',
-      description: '文件名（包含 .md 扩展名）',
+      description: 'Filename (including .md extension)',
       required: true,
     },
     {
       name: 'content',
       type: 'string',
-      description: '笔记的内容（Markdown 格式）',
+      description: 'Note content (Markdown format)',
       required: true,
     },
     {
       name: 'folderPath',
       type: 'string',
-      description: '可选：子文件夹路径，默认为根目录',
+      description: 'Optional: subfolder path, defaults to root directory',
       required: false,
     },
   ],
@@ -207,20 +207,20 @@ export const createMarkdownFileTool: Tool = {
 
 export const updateMarkdownFileTool: Tool = {
   name: 'update_markdown_file',
-  description: '更新 Markdown 笔记文件的内容',
+  description: 'Update the content of a Markdown note file',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: 'Markdown 文件的路径',
+      description: 'Path of the Markdown file',
       required: true,
     },
     {
       name: 'content',
       type: 'string',
-      description: '新的内容（Markdown 格式）',
+      description: 'New content (Markdown format)',
       required: true,
     },
   ],
@@ -259,14 +259,14 @@ export const updateMarkdownFileTool: Tool = {
 
 export const deleteMarkdownFileTool: Tool = {
   name: 'delete_markdown_file',
-  description: '删除指定的 Markdown 笔记文件',
+  description: 'Delete the specified Markdown note file',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: '要删除的 Markdown 文件路径',
+      description: 'Path of the Markdown file to delete',
       required: true,
     },
   ],
@@ -319,37 +319,37 @@ export const deleteMarkdownFileTool: Tool = {
 
 export const searchMarkdownFilesTool: Tool = {
   name: 'search_markdown_files',
-  description: `在 Markdown 笔记中搜索内容。支持两种模式：
+  description: `Search content in Markdown notes. Supports two modes:
 
-1. **关键词搜索（默认）**：快速精确匹配，适合查找特定术语、函数名、代码片段
-   - 示例：搜索 "useState"、"React"、"API"
+1. **Keyword Search (default)**: Fast exact matching, suitable for finding specific terms, function names, code snippets
+   - Example: search "useState", "React", "API"
 
-2. **语义搜索（mode=rag）**：智能理解含义，适合探索性查询
-   - 示例：搜索 "如何优化 React 性能"、"笔记同步问题解决方法"
+2. **Semantic Search (mode=rag)**: Intelligent understanding of meaning, suitable for exploratory queries
+   - Example: search "how to optimize React performance", "note sync problem solutions"
 
-选择建议：
-- 查找精确词汇 → 使用默认模式
-- 探索性问题 → 使用 mode=rag
-- 需要限定范围 → 添加 folderPath 参数`,
+Selection suggestions:
+- Find exact vocabulary → use default mode
+- Exploratory questions → use mode=rag
+- Need to limit scope → add folderPath parameter`,
   category: 'search',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'query',
       type: 'string',
-      description: '搜索关键词或自然语言查询',
+      description: 'Search keyword or natural language query',
       required: true,
     },
     {
       name: 'mode',
       type: 'string',
-      description: '搜索模式：keyword（默认，关键词匹配）或 rag（语义搜索）',
+      description: 'Search mode: keyword (default, keyword matching) or rag (semantic search)',
       required: false,
     },
     {
       name: 'folderPath',
       type: 'string',
-      description: '可选：限定在指定文件夹内搜索（相对路径）',
+      description: 'Optional: limit search to specified folder (relative path)',
       required: false,
     },
   ],
@@ -501,20 +501,20 @@ function replaceLinesInRange(
 
 export const modifyCurrentNoteTool: Tool = {
   name: 'modify_current_note',
-  description: '修改当前打开的笔记内容。使用前提：必须先用 read_markdown_file 读取当前笔记的内容，了解现有内容后再调用此工具进行修改。此工具会自动获取当前打开的笔记路径，无需指定文件名。推荐使用按行修改模式（lineEdits），速度更快且更精确。',
+  description: 'Modify the content of the currently open note. Prerequisite: must first use read_markdown_file to read the current note content, understand the existing content before calling this tool to make changes. This tool automatically gets the path of the currently open note, no need to specify the filename. Recommended to use line edit mode (lineEdits), which is faster and more precise.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'lineEdits',
       type: 'array',
-      description: '按行修改的编辑操作数组。每个编辑操作包含：startLine（起始行号，从1开始）、endLine（结束行号，包含该行）、newLines（新的行内容数组）。这种方式比输出完整内容更快更精确。示例：[{ "startLine": 5, "endLine": 5, "newLines": ["新的第5行内容"] }]',
+      description: 'Array of edit operations for line-by-line modification. Each edit operation contains: startLine (starting line number, starts from 1), endLine (ending line number, inclusive), newLines (array of new line content). This method is faster and more precise than outputting complete content. Example: [{ "startLine": 5, "endLine": 5, "newLines": ["new line 5 content"] }]',
       required: false,
     },
     {
       name: 'content',
       type: 'string',
-      description: '修改后的完整笔记内容（Markdown 格式）。仅在不使用 lineEdits 时使用。必须基于已读取的原内容进行修改，不能凭空生成。',
+      description: 'Complete modified note content (Markdown format). Only used when not using lineEdits. Must be based on the originally read content, cannot be generated from scratch.',
       required: false,
     },
   ],
@@ -620,14 +620,14 @@ export const modifyCurrentNoteTool: Tool = {
 
 export const readMarkdownFilesBatchTool: Tool = {
   name: 'read_markdown_files_batch',
-  description: '批量读取多个 Markdown 笔记文件的内容，避免循环调用。适用于需要一次性读取多个文件的场景。',
+  description: 'Batch read multiple Markdown note file contents to avoid loop calls. Use for scenarios requiring multiple files to be read at once.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'filePaths',
       type: 'array',
-      description: 'Markdown 文件路径数组',
+      description: 'Array of Markdown file paths',
       required: true,
     },
   ],
@@ -690,14 +690,14 @@ export const readMarkdownFilesBatchTool: Tool = {
 
 export const deleteMarkdownFilesBatchTool: Tool = {
   name: 'delete_markdown_files_batch',
-  description: '批量删除多个 Markdown 笔记文件，避免循环调用。',
+  description: 'Batch delete multiple Markdown note files to avoid loop calls.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePaths',
       type: 'array',
-      description: '要删除的 Markdown 文件路径数组',
+      description: 'Array of Markdown file paths to delete',
       required: true,
     },
   ],
@@ -782,32 +782,32 @@ export const deleteMarkdownFilesBatchTool: Tool = {
 
 export const listMarkdownFilesByDateTool: Tool = {
   name: 'list_markdown_files_by_date',
-  description: '列出指定时间范围内更新的 Markdown 笔记文件。支持按相对时间（如近 N 天、N 天之前）或绝对时间范围过滤。',
+  description: 'List Markdown note files updated within a specified time range. Supports filtering by relative time (e.g., last N days, N days ago) or absolute time range.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'lastNDays',
       type: 'number',
-      description: '可选：获取最近 N 天内修改的文件。与 olderThanDays/startDate/endDate 互斥，优先级最高。',
+      description: 'Optional: get files modified within the last N days. Mutually exclusive with olderThanDays/startDate/endDate, has highest priority.',
       required: false,
     },
     {
       name: 'olderThanDays',
       type: 'number',
-      description: '可选：获取 N 天之前修改的文件（不含最近 N 天）。与 lastNDays/startDate/endDate 互斥。',
+      description: 'Optional: get files modified more than N days ago (excluding recent N days). Mutually exclusive with lastNDays/startDate/endDate.',
       required: false,
     },
     {
       name: 'startDate',
       type: 'string',
-      description: '可选：开始日期（ISO 8601 格式，如 2024-01-01 或 2024-01-01T00:00:00Z）',
+      description: 'Optional: start date (ISO 8601 format, e.g., 2024-01-01 or 2024-01-01T00:00:00Z)',
       required: false,
     },
     {
       name: 'endDate',
       type: 'string',
-      description: '可选：结束日期（ISO 8601 格式，如 2024-12-31 或 2024-12-31T23:59:59Z），默认为当前时间',
+      description: 'Optional: end date (ISO 8601 format, e.g., 2024-12-31 or 2024-12-31T23:59:59Z), defaults to current time',
       required: false,
     },
   ],
@@ -911,20 +911,20 @@ export const listMarkdownFilesByDateTool: Tool = {
 
 export const renameFileTool: Tool = {
   name: 'rename_file',
-  description: '重命名指定的 Markdown 文件。只改变文件名，不改变文件所在的文件夹。',
+  description: 'Rename the specified Markdown file. Only changes the filename, not the folder containing the file.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: '要重命名的 Markdown 文件路径',
+      description: 'Path of the Markdown file to rename',
       required: true,
     },
     {
       name: 'newName',
       type: 'string',
-      description: '新文件名（包含 .md 扩展名，如 "新笔记.md"）',
+      description: 'New filename (including .md extension, e.g., "new-note.md")',
       required: true,
     },
   ],
@@ -1006,20 +1006,20 @@ export const renameFileTool: Tool = {
 
 export const moveFileTool: Tool = {
   name: 'move_file',
-  description: '将指定的 Markdown 文件移动到另一个文件夹。文件名保持不变。',
+  description: 'Move the specified Markdown file to another folder. The filename remains unchanged.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: '要移动的 Markdown 文件路径',
+      description: 'Path of the Markdown file to move',
       required: true,
     },
     {
       name: 'targetFolderPath',
       type: 'string',
-      description: '目标文件夹路径（相对于笔记根目录，如 "前端/React" 或 "学习笔记"）',
+      description: 'Target folder path (relative to notes root directory, e.g., "frontend/React" or "study-notes")',
       required: true,
     },
   ],
@@ -1110,26 +1110,26 @@ export const moveFileTool: Tool = {
 
 export const copyFileTool: Tool = {
   name: 'copy_file',
-  description: '复制指定的 Markdown 文件到另一个文件夹。原文件保持不变。',
+  description: 'Copy the specified Markdown file to another folder. The original file remains unchanged.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: '要复制的 Markdown 文件路径',
+      description: 'Path of the Markdown file to copy',
       required: true,
     },
     {
       name: 'targetFolderPath',
       type: 'string',
-      description: '目标文件夹路径（相对于笔记根目录，如 "前端/React" 或 "学习笔记"）。留空表示复制到当前文件夹',
+      description: 'Target folder path (relative to notes root directory, e.g., "frontend/React" or "study-notes"). Leave empty to copy to current folder',
       required: false,
     },
     {
       name: 'newName',
       type: 'string',
-      description: '可选：新文件名（包含 .md 扩展名）。如果不指定，则使用原文件名，如果存在同名文件会自动添加序号',
+      description: 'Optional: new filename (including .md extension). If not specified, uses the original filename, and automatically adds a number if a file with the same name exists',
       required: false,
     },
   ],

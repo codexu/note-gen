@@ -166,12 +166,10 @@ export function handleAIError(error: any, showToast = true): string | null {
 /**
  * 为不同AI类型准备消息
  * @param text 用户输入文本（如果提供了 baseMessages，此参数将作为最后一条用户消息）
- * @param includeLanguage 是否包含语言设置
  * @param baseMessages 基础消息数组（如对话历史），如果提供，将合并到返回结果中
  */
 export async function prepareMessages(
   text: string,
-  includeLanguage = false,
   baseMessages?: OpenAI.Chat.ChatCompletionMessageParam[]
 ): Promise<{
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
@@ -203,12 +201,6 @@ export async function prepareMessages(
   } catch (error) {
     // 如果记忆加载失败，不影响正常对话
     console.error('Failed to load memory context:', error)
-  }
-
-  if (includeLanguage) {
-    const store = await Store.load('store.json')
-    const chatLanguage = await store.get<string>('chatLanguage') || 'English'
-    promptContent += '\n\n' + `IMPORTANT: You MUST respond in ${chatLanguage} language. Do NOT use any other language under any circumstances.`
   }
 
   // 如果提供了基础消息数组，直接使用它
@@ -262,6 +254,9 @@ export async function prepareMessages(
     role: 'user',
     content: text
   })
+
+  // 打印最终的消息（调试记忆加载）
+  console.log('[prepareMessages] Final messages:', JSON.stringify(messages, null, 2))
 
   return { messages, geminiText }
 }

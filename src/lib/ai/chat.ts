@@ -20,7 +20,7 @@ export async function fetchAi(
     if (validateAIService(aiConfig?.baseURL) === null) return ''
 
     // 准备消息
-    const prepared = await prepareMessages(text, false, messages)
+    const prepared = await prepareMessages(text, messages)
     const finalMessages = prepared.messages
 
     const openai = await createOpenAIClient(aiConfig)
@@ -73,11 +73,11 @@ export async function fetchAiStream(
     // 准备消息 - 如果提供了 messages 数组，使用它；否则用 prepareMessages
     let preparedMessages: OpenAI.Chat.ChatCompletionMessageParam[]
     if (messages && messages.length > 0) {
-      // 使用提供的消息数组，但需要添加语言设置
-      const prepared = await prepareMessages('', true, messages)
+      // 使用提供的消息数组
+      const prepared = await prepareMessages('', messages)
       preparedMessages = prepared.messages
     } else {
-      const prepared = await prepareMessages(text, true)
+      const prepared = await prepareMessages(text)
       preparedMessages = prepared.messages
     }
 
@@ -430,7 +430,7 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
     if (await validateAIService(aiConfig?.baseURL) === null) return ''
     
     // 准备消息
-    const { messages } = await prepareMessages(text, true)
+    const { messages } = await prepareMessages(text)
   
     const openai = await createOpenAIClient(aiConfig)
 

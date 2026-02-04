@@ -15,7 +15,7 @@ export async function fetchAiTranslate(text: string, targetLanguage: string): Pr
     const translationPrompt = `Translate the following text to ${targetLanguage}. Maintain the original formatting, markdown syntax, and structure:`
     
     // 准备消息
-    const { messages } = await prepareMessages(`${translationPrompt}\n\n${text}`, false)
+    const { messages } = await prepareMessages(`${translationPrompt}\n\n${text}`)
     const openai = await createOpenAIClient(aiConfig)
     
     const completion = await openai.chat.completions.create({

@@ -79,7 +79,7 @@ export class ReActAgent {
       }
 
       // 每次迭代都重新构建系统提示词，因为 Skills 指令依赖于当前迭代次数
-      const systemPrompt = this.buildSystemPrompt()
+      const systemPrompt = await this.buildSystemPrompt()
 
       const thought = await this.think(userInput, contextString, messagesArray, systemPrompt, imageUrls)
 
@@ -203,135 +203,151 @@ export class ReActAgent {
     return finalAnswer || '任务执行完成。'
   }
 
-  private buildSystemPrompt(): string {
+  private async buildSystemPrompt(): Promise<string> {
     const toolDescriptions = getToolDescriptions()
     const skillsInstructions = this.formatSkillsInstructions()
 
-    let prompt = `你是一个高效的智能助手 Agent，使用工具帮助用户完成任务。遵循 ReAct 框架：Thought（思考）→ Action（行动）→ Observation（观察）。
+    // Load user memories (preferences and knowledge)
+    let memoryPrompt = ''
+    try {
+      const { contextLoader } = await import('@/lib/context/loader')
+      // Get all memories (preferences are always included, knowledge is matched by similarity)
+      const memoryContext = await contextLoader.getContextForQuery('')  // Empty query gets all preferences
+      if (memoryContext.preferences.length > 0 || memoryContext.knowledge.length > 0) {
+        memoryPrompt = contextLoader.formatMemoriesForPrompt(memoryContext)
+        console.log('[Agent] Loaded memories:', memoryContext)
+      }
+    } catch (error) {
+      console.error('[Agent] Failed to load memories:', error)
+    }
 
-## 🚨 重要警告：Skills 不是工具
+    let prompt = `You are an efficient AI agent that uses tools to help users complete tasks. Follow the ReAct framework: Thought → Action → Observation.
 
-**绝对不能使用以下格式**：
+${memoryPrompt ? `## User Memories\n\n${memoryPrompt}\n` : ''}
+
+## 🚨 Important Warning: Skills Are Not Tools
+
+**You must NEVER use these formats:**
 - ❌ Action: style-detector
 - ❌ Action: skill_detector
 - ❌ Action: any_skill_name
 
-**Skills 只是指导文档，不是可调用的工具！**
-- Skills 告诉你应该如何完成任务
-- 你需要理解 Skill 的要求，然后使用**实际的工具**（如 create_markdown_file）来执行
-- 例如：如果 style-detector 说要写网文，你应该 Action: create_markdown_file，在内容里写网文风格
+**Skills are guidance documents, NOT callable tools!**
+- Skills tell you HOW to complete tasks
+- You need to understand Skill requirements, then use **actual tools** (like create_markdown_file) to execute
+- Example: if style-detector says to write web fiction, you should Action: create_markdown_file and write in web fiction style in the content
 
-## 核心原则
+## Core Principles
 
-**效率优先**：尽量用最少的步骤完成任务，避免不必要的思考和操作。
-**直接行动**：如果任务明确，直接执行，不要过度分析。
-**快速结束**：完成核心任务后立即给出 Final Answer，不要重复执行相同的操作。
+**Efficiency First**: Complete tasks with minimum steps, avoid unnecessary thinking and operations.
+**Direct Action**: If task is clear, execute directly without over-analysis.
+**Quick Finish**: Give Final Answer immediately after completing core task, don't repeat operations.
 
-## 知识库检索说明
+## Knowledge Base Search Guide
 
-在"上下文信息"中，你可能看到"知识库检索结果"部分。这是**自动 RAG 检索**的结果。
+In the "context information", you may see "Knowledge Base Search Results" section. This is from **automatic RAG search**.
 
-**如果自动检索结果不够**，你可以主动调用搜索工具进行更精确的检索：
+**If automatic search results are insufficient**, you can actively call search tools for more precise retrieval:
 
-搜索工具选择指南：
-- search_markdown_files（默认模式）：精确关键词查找，如 "useState"、"React Hooks"、"API 配置"
-- search_markdown_files + mode=rag：语义搜索、探索性查询，如 "如何优化性能"、"同步问题解决方法"
-- 添加 folderPath 参数：限定搜索范围到特定文件夹，如只在 "技术/React" 文件夹内搜索
+Search tool selection guide:
+- search_markdown_files (default mode): Exact keyword search, like "useState", "React Hooks", "API config"
+- search_markdown_files + mode=rag: Semantic search for exploratory queries, like "how to optimize performance", "sync problem solutions"
+- Add folderPath parameter: Limit search scope to specific folder, like only search in "Tech/React" folder
 
-重要提示：
-- 自动 RAG 结果有限时，用 mode=rag 主动进行更深入的语义搜索
-- 查找精确术语时，使用默认模式（关键词搜索）更快更准确
-- 检索结果不足时，可以尝试不同的查询表述或限定文件夹范围
+Important tips:
+- When automatic RAG results are limited, use mode=rag for deeper semantic search
+- For exact terms, default mode (keyword search) is faster and more accurate
+- If results are insufficient, try different query formulations or limit folder scope
 
-## 可用工具
+## Available Tools
 
 ${toolDescriptions}`
 
-    // 添加 Skills 指令
+    // Add Skills instructions
     if (skillsInstructions) {
       prompt += `
 
-## 可用的 Skills
+## Available Skills
 
 ${skillsInstructions}`
     }
 
     prompt += `
 
-## 输出格式要求
+## Output Format Requirements
 
-你的每次回复**必须严格遵循**以下格式之一：
+Your every response **MUST strictly follow** one of these formats:
 
-### 格式 1：思考并执行工具
+### Format 1: Think and Execute Tool
 \`\`\`
-Thought: [详细的思考过程，说明为什么要执行这个操作]
+Thought: [Detailed thinking process explaining why to execute this operation]
 Action: tool_name
 Action Input: {"param1": "value1", "param2": "value2"}
 \`\`\`
 
-**示例：**
+**Example:**
 \`\`\`
-Thought: 用户想要整理 React 笔记，我需要先搜索所有包含 React 关键词的笔记
+Thought: User wants to organize React notes, I need to search for all notes containing React keyword
 Action: search_notes
 Action Input: {"query": "React"}
 \`\`\`
 
-### 格式 2：给出最终答案（重要：任务完成后必须使用此格式）
+### Format 2: Give Final Answer (IMPORTANT: Must use this format after task completion)
 \`\`\`
-Thought: 我已经完成了所有必要的操作，可以给出最终答案了
-Final Answer: [完整的、对用户友好的最终答案]
-\`\`\`
-
-**示例：**
-\`\`\`
-Thought: 我已经成功创建了 React 知识总结笔记，任务完成
-Final Answer: 已为您整理完成！我创建了一个名为"React 知识总结"的笔记，包含了 5 条相关笔记的内容整理。
+Thought: I have completed all necessary operations, ready to give final answer
+Final Answer: [Complete, user-friendly final answer]
 \`\`\`
 
-## ⚠️ 重要规则（必须遵守）
+**Example:**
+\`\`\`
+Thought: I have successfully created React knowledge summary note, task completed
+Final Answer: Done! I created a note called "React Knowledge Summary" which includes organized content from 5 related notes.
+\`\`\`
 
-1. **严格格式**：Thought → Action + Action Input 或 Final Answer
-2. **JSON 格式**：Action Input 必须是有效 JSON，使用双引号
-3. **一次一个工具**：每次只调用一个工具
-4. **立即结束**：完成核心任务后**必须**给出 Final Answer，不要做额外操作
-5. **不要重复**：仔细观察 Observation，如果操作已经成功完成，立即给出 Final Answer，不要重复执行
-6. **只用可用工具**：不要编造工具或参数，**绝对不要调用 Skill 名称作为工具**
-7. **简洁思考**：Thought 保持简短，直接说明要做什么
-8. **🚨 Skills 不是工具**：永远不要使用 Action: skill_xxx，Skills 只是指导文档
+## ⚠️ Important Rules (Must Follow)
 
-## 🚫 常见错误（避免）
+1. **Strict Format**: Thought → Action + Action Input or Final Answer
+2. **JSON Format**: Action Input must be valid JSON with double quotes
+3. **One Tool at a Time**: Only call one tool per iteration
+4. **Finish Immediately**: **MUST** give Final Answer after completing core task, no extra operations
+5. **Don't Repeat**: Carefully observe Observation, if operation succeeded, immediately give Final Answer, don't repeat
+6. **Use Available Tools Only**: Don't make up tools or parameters, **NEVER call Skill names as tools**
+7. **Concise Thinking**: Keep Thought brief, directly state what to do
+8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
 
-❌ **错误1**：修改笔记后，又继续搜索或修改同一个笔记
-✅ **正确**：修改笔记后直接给出 Final Answer
+## 🚫 Common Errors (Avoid)
 
-❌ **错误2**：搜索到结果后，又用相同条件搜索
-✅ **正确**：搜索到结果后，根据结果执行操作，然后给出 Final Answer
+❌ **Error 1**: After modifying a note, continue searching or modifying the same note
+✅ **Correct**: After modifying note, directly give Final Answer
 
-❌ **错误3**：创建文件后，又继续创建相同或相似的文件
-✅ **正确**：创建文件后，确认成功，立即给出 Final Answer
+❌ **Error 2**: After getting search results, search again with same conditions
+✅ **Correct**: After getting search results, execute operations based on results, then give Final Answer
 
-❌ **错误4**：试图调用 Skill 作为工具（如 Action: style-detector）
-✅ **正确**：理解 Skill 的指导，使用实际工具（如 Action: create_markdown_file）并在内容中按 Skill 要求执行
+❌ **Error 3**: After creating a file, continue creating same or similar files
+✅ **Correct**: After creating file, confirm success and immediately give Final Answer
 
-## 示例
+❌ **Error 4**: Try to call Skill as a tool (like Action: style-detector)
+✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_markdown_file) and follow Skill requirements in content
 
-**用户**："创建一个笔记介绍 NoteGen"
+## Example
+
+**User**: "Create a note introducing NoteGen"
 
 **Iteration 1:**
 \`\`\`
-Thought: 直接创建笔记
+Thought: Create note directly
 Action: create_markdown_file
-Action Input: {"fileName": "NoteGen介绍.md", "content": "# NoteGen\\n\\n智能笔记软件..."}
+Action Input: {"fileName": "NoteGen-Intro.md", "content": "# NoteGen\\n\\nAn intelligent note-taking software..."}
 \`\`\`
-Observation: 成功创建文件
+Observation: File created successfully
 
 **Iteration 2:**
 \`\`\`
-Thought: 任务完成
-Final Answer: 已创建笔记"NoteGen介绍.md"
+Thought: Task completed
+Final Answer: Created note "NoteGen-Intro.md"
 \`\`\`
 
-现在开始执行任务！`
+Now start executing the task!`
 
     return prompt
   }
@@ -352,12 +368,12 @@ Observation: ${step.observation}
 `
     ).join('\n')
 
-    // 如果提供了 messages 数组，使用它；否则使用旧的字符串拼接方式
+    // If messages array is provided, use it; otherwise use old string concatenation
     if (messages && messages.length > 0) {
-      // 使用消息数组模式 - 构建 messages 并添加用户请求
+      // Use messages array mode - build messages and add user request
       const messagesForAI: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
-      // 添加系统提示词（如果有）
+      // Add system prompt (if any)
       if (systemPrompt) {
         messagesForAI.push({
           role: 'system',
@@ -365,21 +381,21 @@ Observation: ${step.observation}
         })
       }
 
-      // 添加对话历史
+      // Add conversation history
       messagesForAI.push(...messages)
 
-      // 添加当前迭代的上下文（ReAct 步骤历史）
+      // Add current iteration context (ReAct step history)
       if (historyContext) {
         messagesForAI.push({
           role: 'system',
-          content: `## 之前的迭代\n${historyContext}`
+          content: `## Previous Iterations\n${historyContext}`
         })
       }
 
-      // 添加用户请求
+      // Add user request
       messagesForAI.push({
         role: 'user',
-        content: `现在是第 ${this.currentIteration} 次迭代，请给出你的 Thought 和 Action（或 Final Answer）：\n\n用户请求：${userInput}`
+        content: `This is iteration ${this.currentIteration}, please give your Thought and Action (or Final Answer):\n\nUser Request: ${userInput}`
       })
 
       // 调用实际的 LLM API
@@ -407,8 +423,8 @@ Observation: ${step.observation}
 
         // 检查是否已终止
         if (this.stopped) {
-          return `Thought: 用户终止了任务
-Final Answer: 任务已被用户终止`
+          return `Thought: User terminated the task
+Final Answer: Task was terminated by user`
         }
 
         // 确保最终内容被更新
@@ -448,14 +464,14 @@ Final Answer: 任务已被用户终止`
       } catch (error) {
         // 检查是否是因为终止导致的错误
         if (this.stopped || (error instanceof Error && error.name === 'AbortError')) {
-          return `Thought: 用户终止了任务
-Final Answer: 任务已被用户终止`
+          return `Thought: User terminated the task
+Final Answer: Task was terminated by user`
         }
 
         console.error('LLM API call failed:', error)
         // 如果 API 调用失败，返回错误提示
-        return `Thought: 抱歉，AI 服务暂时不可用
-Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
+        return `Thought: Sorry, AI service is temporarily unavailable
+Final Answer: Unable to complete task, please retry later or check AI configuration`
       }
     }
 
@@ -467,10 +483,10 @@ ${context ? `## 上下文信息\n${context}\n` : ''}
 ## 对话历史
 ${historyContext}
 
-## 用户请求
+## User Request
 ${userInput}
 
-现在是第 ${this.currentIteration} 次迭代，请给出你的 Thought 和 Action（或 Final Answer）：`
+This is iteration ${this.currentIteration}, please give your Thought and Action (or Final Answer):`
 
     // 调用实际的 LLM API
     try {
@@ -839,7 +855,7 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       return ''
     }
 
-    // 第一次迭代：只发送 Skills 的简要信息（名称和描述），让 AI 选择
+    // First iteration: only send brief info (name and description), let AI choose
     if (this.currentIteration === 1) {
       const skillsList: string[] = []
       const skillsDebugInfo: any[] = []
@@ -850,10 +866,10 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
           continue
         }
 
-        // 只发送简要信息
+        // Only send brief information
         let skillText = `### ${skill.metadata.name}\n\n`
-        skillText += `- 描述：${skill.metadata.description}\n`
-        skillText += `- ID：${skill.metadata.id}\n\n`
+        skillText += `- Description: ${skill.metadata.description}\n`
+        skillText += `- ID: ${skill.metadata.id}\n\n`
 
         skillsList.push(skillText)
         skillsDebugInfo.push({
@@ -867,36 +883,36 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         return ''
       }
 
-      const result = `## 可用的 Skills
+      const result = `## Available Skills
 
-**第一步：使用 select_skill 工具选择合适的 Skill**
+**Step 1: Use select_skill tool to choose appropriate Skill**
 
-请根据用户任务，从以下 Skills 中选择最相关的一个或多个：
+Please select the most relevant skill(s) from the following based on user task:
 
 ${skillsList.join('\n---\n\n')}
 
-**🚨 必须使用工具来选择 Skill！**
+**🚨 You MUST use tool to select Skill!**
 
-正确的选择 Skill 方式：
+Correct way to select Skill:
 \`\`\`
-Thought: 用户要求写网文，我需要选择 style-detector Skill 来指导写作风格。
+Thought: User wants to write web fiction, I need to select style-detector Skill to guide writing style.
 Action: select_skill
 Action Input: {"skill_ids": ["style-detector"]}
 \`\`\`
 
-选择 Skill 后，你将在下一个迭代中收到该 Skill 的完整指令。然后你可以使用实际的工具（如 create_markdown_file）来完成任务。
+After selecting Skill, you will receive complete Skill instructions in next iteration. Then you can use actual tools (like create_markdown_file) to complete the task.
 
-**重要说明**：
-- 仔细阅读每个 Skill 的描述
-- 使用 \`select_skill\` 工具来选择 Skill
-- 在 Action Input 中传入 Skill ID 数组（例如：["style-detector", "weekly"]）
-- 选择后等待下一个迭代，Skill 的完整指令会提供给你
-- 永远不要直接使用 Skill 名称作为 Action`
+**Important Notes**:
+- Carefully read each Skill's description
+- Use \`select_skill\` tool to select Skill
+- Pass Skill ID array in Action Input (e.g.: ["style-detector", "weekly"])
+- After selection, wait for next iteration, complete Skill instructions will be provided
+- NEVER use Skill name directly as Action`
 
       return result
     }
 
-    // 后续迭代：只发送已选择的 Skills 的完整内容
+    // Subsequent iterations: only send complete content of selected Skills
     if (this.selectedSkills.size === 0) {
       return ''
     }
@@ -910,27 +926,27 @@ Action Input: {"skill_ids": ["style-detector"]}
         continue
       }
 
-      // 发送完整的 Skill 信息
+      // Send complete Skill information
       let skillText = `### ${skill.metadata.name}\n\n`
 
-      // YAML 元数据部分
-      skillText += `**元数据**：\n`
-      skillText += `- 描述：${skill.metadata.description}\n`
-      skillText += `- 版本：${skill.metadata.version}\n`
+      // YAML metadata section
+      skillText += `**Metadata**:\n`
+      skillText += `- Description: ${skill.metadata.description}\n`
+      skillText += `- Version: ${skill.metadata.version}\n`
       if (skill.metadata.author) {
-        skillText += `- 作者：${skill.metadata.author}\n`
+        skillText += `- Author: ${skill.metadata.author}\n`
       }
       if (skill.metadata.allowedTools && skill.metadata.allowedTools.length > 0) {
-        skillText += `- 授权工具：${skill.metadata.allowedTools.join(', ')}\n`
+        skillText += `- Authorized Tools: ${skill.metadata.allowedTools.join(', ')}\n`
       }
       skillText += `\n`
 
-      // 完整指令部分（Markdown 内容）
-      skillText += `**执行指令**：\n${skill.instructions}\n\n`
+      // Complete instructions section (Markdown content)
+      skillText += `**Instructions**:\n${skill.instructions}\n\n`
 
       skillsList.push(skillText)
 
-      // 收集调试信息
+      // Collect debug info
       skillsDebugInfo.push({
         id: skill.metadata.id,
         name: skill.metadata.name,
@@ -943,25 +959,25 @@ Action Input: {"skill_ids": ["style-detector"]}
       return ''
     }
 
-    const result = `## 已选择的 Skills
+    const result = `## Selected Skills
 
-你选择了以下 Skills 来指导当前任务：
+You selected the following Skills to guide current task:
 
 ${skillsList.join('\n---\n\n')}
 
-**📋 如何使用这些 Skills**：
+**📋 How to use these Skills**:
 
-1. **仔细阅读上述 Skills 的完整指令**
-2. **理解 Skills 的要求后，直接应用到你的工作中**
-3. **不要询问用户确认** - 直接按照 Skills 的指导执行任务
-4. **不要尝试读取额外的文件** - Skills 已包含所有必要信息
-5. **使用实际工具完成任务** - 如 create_markdown_file, modify_current_note 等
+1. **Carefully read complete instructions of above Skills**
+2. **Understand Skill requirements, then apply directly to your work**
+3. **Don't ask user for confirmation** - Execute tasks directly following Skill guidance
+4. **Don't try to read additional files** - Skills already contain all necessary information
+5. **Use actual tools to complete tasks** - Like create_markdown_file, modify_current_note, etc.
 
-**⚠️ 重要提醒**：
-- 严格按照上述 Skills 的要求执行任务
-- 不要尝试调用 Skill 作为工具
-- 不要询问用户风格选择 - 直接应用最相关的风格
-- 如果是 style-detector Skill，直接应用对应风格（如网文风格）到你的内容中`
+**⚠️ Important Reminders**:
+- Strictly follow above Skill requirements to execute tasks
+- Don't try to call Skill as a tool
+- Don't ask user for style selection - directly apply most relevant style
+- If it's style-detector Skill, directly apply corresponding style (like web fiction style) to your content`
 
     return result
   }

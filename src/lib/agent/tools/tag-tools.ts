@@ -3,7 +3,7 @@ import { getTags, insertTag, updateTag, delTag, Tag, insertTags } from '@/db/tag
 
 export const listTagsTool: Tool = {
   name: 'list_tags',
-  description: '列出所有标签',
+  description: 'List all tags',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [],
@@ -26,14 +26,14 @@ export const listTagsTool: Tool = {
 
 export const createTagTool: Tool = {
   name: 'create_tag',
-  description: '创建一个新的标签',
+  description: 'Create a new tag',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'name',
       type: 'string',
-      description: '标签名称',
+      description: 'Tag name',
       required: true,
     },
   ],
@@ -56,26 +56,26 @@ export const createTagTool: Tool = {
 
 export const updateTagTool: Tool = {
   name: 'update_tag',
-  description: '更新标签信息',
+  description: 'Update tag information',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'id',
       type: 'number',
-      description: '标签ID',
+      description: 'Tag ID',
       required: true,
     },
     {
       name: 'name',
       type: 'string',
-      description: '新的标签名称',
+      description: 'New tag name',
       required: false,
     },
     {
       name: 'isPin',
       type: 'boolean',
-      description: '是否置顶',
+      description: 'Whether to pin the tag',
       required: false,
     },
   ],
@@ -113,14 +113,14 @@ export const updateTagTool: Tool = {
 
 export const deleteTagTool: Tool = {
   name: 'delete_tag',
-  description: '删除指定的标签（注意：会同时删除该标签下的所有内容）',
+  description: 'Delete the specified tag (Warning: will also delete all content under this tag)',
   category: 'tag',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'id',
       type: 'number',
-      description: '要删除的标签ID',
+      description: 'ID of the tag to delete',
       required: true,
     },
   ],
@@ -159,14 +159,14 @@ export const deleteTagTool: Tool = {
 
 export const createTagsBatchTool: Tool = {
   name: 'create_tags_batch',
-  description: '批量创建多个标签，避免循环调用。适用于需要一次性创建多个标签的场景。',
+  description: 'Batch create multiple tags to avoid loop calls. Use for scenarios requiring multiple tags to be created at once.',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'tags',
       type: 'array',
-      description: '要创建的标签数组，每个标签包含 name 等字段',
+      description: 'Array of tags to create, each tag contains name and other fields',
       required: true,
     },
   ],
@@ -201,14 +201,14 @@ export const createTagsBatchTool: Tool = {
 
 export const updateTagsBatchTool: Tool = {
   name: 'update_tags_batch',
-  description: '批量更新多个标签，避免循环调用。每个标签必须包含 id 字段。',
+  description: 'Batch update multiple tags to avoid loop calls. Each tag must include the id field.',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'tags',
       type: 'array',
-      description: '要更新的标签数组，每个标签必须包含 id 以及要更新的字段',
+      description: 'Array of tags to update, each tag must include id and fields to update',
       required: true,
     },
   ],

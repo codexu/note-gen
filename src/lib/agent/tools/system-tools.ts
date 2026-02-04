@@ -3,7 +3,7 @@ import { skillManager } from '@/lib/skills'
 
 export const getCurrentTimeTool: Tool = {
   name: 'get_current_time',
-  description: '获取当前的日期和时间。返回格式：YYYY-MM-DD（例如：2026-01-18），这个格式适合直接用作文件名的一部分。',
+  description: 'Get the current date and time. Returns format: YYYY-MM-DD (e.g., 2026-01-18), which is suitable for direct use as part of a filename.',
   category: 'system',
   requiresConfirmation: false,
   parameters: [],
@@ -42,14 +42,14 @@ export const getCurrentTimeTool: Tool = {
  */
 export const selectSkillTool: Tool = {
   name: 'select_skill',
-  description: '选择一个或多个 Skill 来指导任务执行。在第一次迭代时，根据用户任务选择最相关的 Skill。选择后，Skill 的完整指令将在后续迭代中提供。',
+  description: 'Select one or more Skills to guide task execution. On the first iteration, select the most relevant Skills based on the user task. After selection, complete Skill instructions will be provided in subsequent iterations.',
   category: 'system',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'skill_ids',
       type: 'array',
-      description: '要选择的 Skill ID 列表。从可用的 Skills 中选择与任务最相关的。可以查看 Skills 列表中的 ID 字段。',
+      description: 'List of Skill IDs to select. Choose the most relevant Skills from the available Skills. You can check the ID field in the Skills list.',
       required: true,
     },
   ],
@@ -118,20 +118,20 @@ export const selectSkillTool: Tool = {
  */
 export const loadSkillContentTool: Tool = {
   name: 'load_skill_content',
-  description: '获取指定 Skill 的支持文件内容（如 KEYWORDS.md、EXAMPLES.md）。这些文件包含详细的风格指南、关键词列表和使用示例，可以帮助更好地应用 Skill。',
+  description: 'Get the support file content for the specified Skill (such as KEYWORDS.md, EXAMPLES.md). These files contain detailed style guides, keyword lists, and usage examples to help better apply the Skill.',
   category: 'system',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'skill_id',
       type: 'string',
-      description: 'Skill ID，如 "style-detector"',
+      description: 'Skill ID, e.g., "style-detector"',
       required: true,
     },
     {
       name: 'file_type',
       type: 'string',
-      description: '要加载的文件类型：支持 "keywords" (KEYWORDS.md)、"examples" (EXAMPLES.md)、"reference" (REFERENCE.md)。如果不指定，则返回所有可用的支持文件内容。',
+      description: 'File type to load: supports "keywords" (KEYWORDS.md), "examples" (EXAMPLES.md), "reference" (REFERENCE.md). If not specified, returns all available support file content.',
       required: false,
     },
   ],

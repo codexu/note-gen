@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl'
 import { Memory } from '@/db/memories'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Trash2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 interface MemoryItemProps {
   memory: Memory

@@ -6,7 +6,6 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import {
   BotMessageSquare,
   Drama,
-  Globe,
   Link,
   AtSign,
   ServerCrash,
@@ -44,11 +43,6 @@ const TOOL_CONFIGS = {
     titleKey: 'record.chat.input.promptSelect.tooltip',
     descKey: 'settings.chat.toolbar.chatToolbar.promptSelect.desc',
   },
-  chatLanguage: {
-    icon: <Globe className="size-4" />,
-    titleKey: 'record.chat.input.chatLanguage.tooltip',
-    descKey: 'settings.chat.toolbar.chatToolbar.chatLanguage.desc',
-  },
   chatLink: {
     icon: <Link className="size-4" />,
     titleKey: 'settings.chat.toolbar.chatToolbar.chatLink.title',
@@ -83,7 +77,7 @@ const TOOL_CONFIGS = {
 
 // 工具栏分组定义
 const TOOLBAR_GROUPS = {
-  bottom: ['modelSelect', 'promptSelect', 'chatLanguage'],
+  bottom: ['modelSelect', 'promptSelect'],
   topLeft: ['chatLink', 'fileLink', 'mcpButton', 'ragSwitch', 'clipboardMonitor'],
   topRight: ['newChat'],
 }

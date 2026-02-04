@@ -12,7 +12,6 @@ import { useLocalStorage } from 'react-use';
 import { ModelSelect } from "./model-select"
 import { getWorkspacePath } from "@/lib/workspace"
 import { PromptSelect } from "./prompt-select"
-import { ChatLanguage } from "./chat-language"
 import { ChatSend } from "./chat-send"
 import { LinkedFileDisplay } from "./file-link"
 import { FileSelector } from "./file-selector"
@@ -360,7 +359,7 @@ export const ChatInput = React.memo(function ChatInput() {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      const bottomTools = ['modelSelect', 'promptSelect', 'chatLanguage']
+      const bottomTools = ['modelSelect', 'promptSelect']
       const bottomItems = chatToolbarConfigPc.filter(item => bottomTools.includes(item.id))
       const oldIndex = bottomItems.findIndex((item) => item.id === active.id)
       const newIndex = bottomItems.findIndex((item) => item.id === over.id)
@@ -382,7 +381,7 @@ export const ChatInput = React.memo(function ChatInput() {
   // 使用 useMemo 优化工具栏项过滤
   const bottomToolbarItems = useMemo(() => {
     return chatToolbarConfigPc
-      .filter(item => ['modelSelect', 'promptSelect', 'chatLanguage'].includes(item.id) && item.enabled)
+      .filter(item => ['modelSelect', 'promptSelect'].includes(item.id) && item.enabled)
       .sort((a, b) => a.order - b.order)
   }, [chatToolbarConfigPc])
 
@@ -716,8 +715,6 @@ const SortableToolbarItem = React.memo(function SortableToolbarItem({ id }: Sort
         return <ModelSelect />
       case 'promptSelect':
         return <PromptSelect />
-      case 'chatLanguage':
-        return <ChatLanguage />
       default:
         return null
     }

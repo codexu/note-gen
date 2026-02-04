@@ -464,19 +464,24 @@
     },
     "memories": {
       "title": "记忆管理",
-      "desc": "AI 长期记忆功能，让 AI 记住你的写作偏好、知识体系和笔记习惯。",
+      "desc": "AI 长期记忆功能，让 AI 记住你的写作偏好、经验知识和笔记习惯。",
       "stats": {
         "total": "总记忆数",
         "preferences": "偏好",
-        "knowledge": "知识"
+        "memories": "记忆"
       },
       "form": {
         "title": "添加新记忆",
+        "categoryDescription": "记忆分为两种类型：",
+        "preferenceDescription": "偏好：语言、格式、风格等设置，每次对话都会自动加载",
+        "memoryDescription": "记忆：事实、经验、专长等信息，根据对话内容智能匹配",
         "contentLabel": "记忆内容",
         "contentPlaceholder": "例如：我喜欢用中文回答、我是React专家...",
         "categoryLabel": "类型",
-        "preferenceDesc": "偏好（语言、格式、风格等）",
-        "knowledgeDesc": "知识（事实、经验、专长等）",
+        "preferenceLabel": "偏好",
+        "memoryLabel": "记忆",
+        "preferenceDesc": "语言、格式、风格等",
+        "memoryDesc": "事实、经验、专长等",
         "save": "保存记忆",
         "saving": "保存中..."
       },
@@ -485,13 +490,13 @@
       "empty": "暂无记忆，添加第一条记忆吧！",
       "emptyHint": "你可以手动添加记忆，或在对话中使用「请记住」「记住这个」等话术让 AI 自动记忆。",
       "preference": "偏好",
-      "knowledge": "知识",
+      "memory": "记忆",
       "replaced": "已替换",
       "accessCount": "访问 {count} 次",
       "tabs": {
         "all": "全部",
         "preference": "偏好",
-        "knowledge": "知识"
+        "memory": "记忆"
       },
       "success": "成功",
       "saved": "记忆已保存",

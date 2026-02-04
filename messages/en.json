@@ -481,19 +481,24 @@
     },
     "memories": {
       "title": "Memory Management",
-      "desc": "AI long-term memory feature that lets AI remember your writing preferences, knowledge base, and note-taking habits.",
+      "desc": "AI long-term memory feature that lets AI remember your writing preferences, experiences, and note-taking habits.",
       "stats": {
         "total": "Total Memories",
         "preferences": "Preferences",
-        "knowledge": "Knowledge"
+        "memories": "Memories"
       },
       "form": {
         "title": "Add New Memory",
+        "categoryDescription": "Memories are divided into two types:",
+        "preferenceDescription": "Preferences: Settings like language, format, style - always loaded in conversations",
+        "memoryDescription": "Memories: Facts, experiences, expertise - intelligently matched based on conversation context",
         "contentLabel": "Memory Content",
         "contentPlaceholder": "e.g., I prefer Chinese responses, I'm a React expert...",
         "categoryLabel": "Type",
-        "preferenceDesc": "Preference (language, format, style, etc.)",
-        "knowledgeDesc": "Knowledge (facts, experience, expertise, etc.)",
+        "preferenceLabel": "Preference",
+        "memoryLabel": "Memory",
+        "preferenceDesc": "Language, format, style, etc.",
+        "memoryDesc": "Facts, experience, expertise, etc.",
         "save": "Save Memory",
         "saving": "Saving..."
       },
@@ -502,13 +507,13 @@
       "empty": "No memories yet, add your first memory!",
       "emptyHint": "You can add memories manually, or use phrases like \"please remember\" or \"remember this\" in conversations to let AI automatically create memories.",
       "preference": "Preference",
-      "knowledge": "Knowledge",
+      "memory": "Memory",
       "replaced": "Replaced",
       "accessCount": "Accessed {count} times",
       "tabs": {
         "all": "All",
         "preference": "Preferences",
-        "knowledge": "Knowledge"
+        "memory": "Memories"
       },
       "success": "Success",
       "saved": "Memory saved",

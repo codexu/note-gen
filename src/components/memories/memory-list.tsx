@@ -18,7 +18,7 @@ import {
 import useMemoriesStore from '@/stores/memories'
 import { Skeleton } from '@/components/ui/skeleton'
 
-type TabValue = 'all' | 'preference' | 'knowledge'
+type TabValue = 'all' | 'preference' | 'memory'
 
 export function MemoryList() {
   const t = useTranslations('settings.memories')
@@ -31,7 +31,7 @@ export function MemoryList() {
   }, [loadMemories])
 
   const preferences = memories.filter(m => m.category === 'preference')
-  const knowledge = memories.filter(m => m.category === 'knowledge')
+  const memoryList = memories.filter(m => m.category === 'memory')
 
   if (loading) {
     return (
@@ -62,8 +62,8 @@ export function MemoryList() {
           <TabsTrigger value="preference">
             {t('tabs.preference')} ({preferences.length})
           </TabsTrigger>
-          <TabsTrigger value="knowledge">
-            {t('tabs.knowledge')} ({knowledge.length})
+          <TabsTrigger value="memory">
+            {t('tabs.memory')} ({memoryList.length})
           </TabsTrigger>
         </TabsList>
 
@@ -108,9 +108,9 @@ export function MemoryList() {
         </div>
       </TabsContent>
 
-      <TabsContent value="knowledge" className="mt-4">
+      <TabsContent value="memory" className="mt-4">
         <div className="space-y-0.5">
-          {knowledge.map(memory => (
+          {memoryList.map(memory => (
             <MemoryItem
               key={memory.id}
               memory={memory}

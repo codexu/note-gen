@@ -8,14 +8,14 @@ interface MemoriesState {
   stats: {
     total: number
     preferences: number
-    knowledge: number
+    memories: number
     totalAccessCount: number
   } | null
 
   // Actions
   loadMemories: () => Promise<void>
   loadStats: () => Promise<void>
-  addMemory: (content: string, category?: 'preference' | 'knowledge') => Promise<{ id: string; replaced: boolean }>
+  addMemory: (content: string, category?: 'preference' | 'memory') => Promise<{ id: string; replaced: boolean }>
   deleteMemory: (id: string) => Promise<void>
   clearAllMemories: () => Promise<void>
 }

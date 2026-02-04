@@ -6,7 +6,7 @@ import { fetchEmbedding } from '@/lib/ai/embedding'
  */
 export interface ContextResult {
   preferences: string[]
-  knowledge: Array<{ content: string; similarity: number; id: string }>
+  memory: Array<{ content: string; similarity: number; id: string }>
 }
 
 /**
@@ -42,7 +42,7 @@ class ContextLoader {
   /**
    * 获取查询的相关记忆
    * - 偏好类记忆：始终包含
-   * - 知识类记忆：通过嵌入相似度匹配（阈值 0.7）
+   * - 记忆类：通过嵌入相似度匹配（阈值 0.7）
    */
   async getContextForQuery(query: string): Promise<ContextResult> {
     // 检查缓存
@@ -55,38 +55,38 @@ class ContextLoader {
     // 获取所有记忆
     const allMemories = await getAllMemories()
 
-    // 分类：偏好和知识
+    // 分类：偏好和记忆
     const preferences = allMemories.filter(m => m.category === 'preference')
-    const knowledge = allMemories.filter(m => m.category === 'knowledge')
+    const memoryList = allMemories.filter(m => m.category === 'memory')
 
     // 偏好始终包含
     const preferenceContents = preferences.map(m => m.content)
 
-    // 知识需要语义匹配
-    const relevantKnowledge: Array<{ content: string; similarity: number; id: string }> = []
+    // 记忆需要语义匹配
+    const relevantMemory: Array<{ content: string; similarity: number; id: string }> = []
 
-    if (query && knowledge.length > 0) {
+    if (query && memoryList.length > 0) {
       const queryEmbedding = await fetchEmbedding(query)
 
       if (queryEmbedding) {
-        const KNOWLEDGE_THRESHOLD = 0.7
+        const MEMORY_THRESHOLD = 0.7
 
-        for (const memory of knowledge) {
-          if (!memory.embedding) continue
+        for (const m of memoryList) {
+          if (!m.embedding) continue
 
           try {
-            const memoryEmbedding = JSON.parse(memory.embedding) as number[]
+            const memoryEmbedding = JSON.parse(m.embedding) as number[]
             const similarity = this.cosineSimilarity(queryEmbedding, memoryEmbedding)
 
-            if (similarity >= KNOWLEDGE_THRESHOLD) {
-              relevantKnowledge.push({
-                content: memory.content,
+            if (similarity >= MEMORY_THRESHOLD) {
+              relevantMemory.push({
+                content: m.content,
                 similarity,
-                id: memory.id
+                id: m.id
               })
 
               // 更新访问统计
-              await updateMemoryAccess(memory.id)
+              await updateMemoryAccess(m.id)
             }
           } catch {
             continue
@@ -94,13 +94,13 @@ class ContextLoader {
         }
 
         // 按相似度降序排序
-        relevantKnowledge.sort((a, b) => b.similarity - a.similarity)
+        relevantMemory.sort((a, b) => b.similarity - a.similarity)
       }
     }
 
     const result: ContextResult = {
       preferences: preferenceContents,
-      knowledge: relevantKnowledge
+      memory: relevantMemory
     }
 
     // 缓存结果
@@ -120,10 +120,10 @@ class ContextLoader {
       parts.push(context.preferences.map((p, i) => `${i + 1}. ${p}`).join('\n'))
     }
 
-    if (context.knowledge.length > 0) {
+    if (context.memory.length > 0) {
       if (parts.length > 0) parts.push('\n')
-      parts.push('## 相关知识\n')
-      parts.push(context.knowledge.map((k, i) =>
+      parts.push('## 相关记忆\n')
+      parts.push(context.memory.map((k, i) =>
         `${i + 1}. ${k.content}`
       ).join('\n'))
     }

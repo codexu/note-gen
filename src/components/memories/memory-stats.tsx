@@ -39,10 +39,10 @@ export function MemoryStats() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">{t('stats.knowledge')}</CardTitle>
+          <CardTitle className="text-sm font-medium">{t('stats.memories')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.knowledge}</div>
+          <div className="text-2xl font-bold">{stats.memories}</div>
         </CardContent>
       </Card>
     </div>

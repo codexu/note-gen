@@ -7,21 +7,21 @@ import { fetchEmbedding } from '@/lib/ai/embedding'
  */
 export const listMemoriesTool: Tool = {
   name: 'list_memories',
-  description: `Query all saved memories (preferences and knowledge).
+  description: `Query all saved memories (preferences and memory).
 
 Use cases:
 - Before adding a new memory, use this tool to check existing memories
 - Check for conflicting memories (e.g., existing "answer in Chinese" vs new "answer in English")
 - Get memory IDs for delete operations
 
-Returns memory ID, content, and type (preference/knowledge).`,
+Returns memory ID, content, and type (preference/memory).`,
   category: 'system',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'category',
       type: 'string',
-      description: 'Optional: Filter memory type (preference or knowledge)',
+      description: 'Optional: Filter memory type (preference or memory)',
       required: false,
     },
   ],
@@ -29,13 +29,13 @@ Returns memory ID, content, and type (preference/knowledge).`,
     try {
       let memories: Memory[]
       if (params.category) {
-        memories = await getMemoriesByCategory(params.category as 'preference' | 'knowledge')
+        memories = await getMemoriesByCategory(params.category as 'preference' | 'memory')
       } else {
         memories = await getAllMemories()
       }
 
       const formatted = memories.map(m =>
-        `ID: ${m.id} [${m.category === 'preference' ? 'Preference' : 'Knowledge'}] ${m.content}`
+        `ID: ${m.id} [${m.category === 'preference' ? 'Preference' : 'Memory'}] ${m.content}`
       ).join('\n')
 
       return {
@@ -108,11 +108,11 @@ IMPORTANT WORKFLOW:
 
 Supports two types:
 - preference: User preferences like language, format, style - always included in conversations
-- knowledge: User's knowledge, facts, experience - matched intelligently via context
+- memory: User's facts, experience, expertise - matched intelligently via context
 
 Examples:
 - "Please answer in English" -> save as preference
-- "Remember I'm a React expert" -> save as knowledge
+- "Remember I'm a React expert" -> save as memory
 - "I prefer English" -> save as preference
 - "Use Japanese" -> save as preference`,
   category: 'system',
@@ -127,7 +127,7 @@ Examples:
     {
       name: 'category',
       type: 'string',
-      description: 'Memory type: preference (user settings) or knowledge (facts/expertise). Auto-detected if not specified',
+      description: 'Memory type: preference (user settings) or memory (facts/expertise). Auto-detected if not specified',
       required: false,
     },
   ],
@@ -146,7 +146,7 @@ Examples:
       const result = await upsertMemory({
         content: params.content,
         embedding: JSON.stringify(embedding),
-        category: params.category as 'preference' | 'knowledge' || undefined,
+        category: params.category as 'preference' | 'memory' || undefined,
       })
 
       if (result.replaced) {

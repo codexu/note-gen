@@ -1,7 +1,7 @@
 import { getDb } from './index'
 import { fetchEmbedding } from '@/lib/ai/embedding'
 
-export type MemoryCategory = 'preference' | 'knowledge'
+export type MemoryCategory = 'preference' | 'memory'
 
 export interface Memory {
   id: string
@@ -29,7 +29,7 @@ function categorizeMemory(content: string): MemoryCategory {
   const hasPreferenceKeyword = PREFERENCE_KEYWORDS.some(keyword =>
     lowerContent.includes(keyword.toLowerCase())
   )
-  return hasPreferenceKeyword ? 'preference' : 'knowledge'
+  return hasPreferenceKeyword ? 'preference' : 'memory'
 }
 
 /**
@@ -76,7 +76,7 @@ export async function initMemoriesDb() {
       id text primary key,
       content text not null,
       embedding text,
-      category text not null check(category IN ('preference', 'knowledge')),
+      category text not null check(category IN ('preference', 'memory')),
       replaced_id text,
       access_count integer default 0,
       last_accessed_at integer,
@@ -328,18 +328,18 @@ export async function clearAllMemories(): Promise<void> {
 export async function getMemoryStats(): Promise<{
   total: number
   preferences: number
-  knowledge: number
+  memories: number
   totalAccessCount: number
 }> {
   const allMemories = await getAllMemories()
   const preferences = allMemories.filter(m => m.category === 'preference').length
-  const knowledge = allMemories.filter(m => m.category === 'knowledge').length
+  const memories = allMemories.filter(m => m.category === 'memory').length
   const totalAccessCount = allMemories.reduce((sum, m) => sum + m.accessCount, 0)
 
   return {
     total: allMemories.length,
     preferences,
-    knowledge,
+    memories,
     totalAccessCount
   }
 }

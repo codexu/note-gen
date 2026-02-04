@@ -23,7 +23,22 @@
     "success": "成功",
     "error": "失敗",
     "defaultFileName": "無題のドキュメント",
-    "restartToApply": "、設定を有効にするにはアプリケーションを再起動してください"
+    "restartToApply": "、設定を有効にするにはアプリケーションを再起動してください",
+    "close": "閉じる",
+    "open": "開く",
+    "add": "追加",
+    "remove": "削除",
+    "search": "検索",
+    "filter": "フィルター",
+    "sort": "並べ替え",
+    "export": "エクスポート",
+    "import": "インポート",
+    "refresh": "更新",
+    "loading": "読み込み中...",
+    "warning": "警告",
+    "info": "情報",
+    "unsaved": "未保存",
+    "saving": "保存中..."
   },
   "settings": {
     "defaultModels": {
@@ -80,6 +95,96 @@
             "title": "トレイを有効にする",
             "desc": "ウィンドウを閉じる時にトレイに最小化するかアプリを終了するか選択"
           }
+        },
+        "customTheme": {
+          "title": "自定义主题颜色",
+          "desc": "自定义应用的主题颜色，包括背景色、前景色、边框色等",
+          "button": "编辑颜色",
+          "dialogTitle": "自定义主题颜色",
+          "dialogDesc": "配置自定义主题颜色。颜色更改会实时保存并生效，同时覆盖亮色和暗色主题。",
+          "close": "閉じる",
+          "reset": "重置全部",
+          "tabs": {
+            "custom": "自定义",
+            "presets": "预设方案",
+            "importExport": "导入导出"
+          },
+          "export": {
+            "title": "导出配色方案",
+            "button": "生成导出代码",
+            "placeholder": "点击生成按钮将当前配色导出为代码"
+          },
+          "import": {
+            "title": "导入配色方案",
+            "button": "导入配色",
+            "placeholder": "粘贴配色方案的 JSON 代码"
+          },
+          "colors": {
+            "background": "背景色",
+            "foreground": "前景色",
+            "card": "卡片背景色",
+            "cardForeground": "卡片前景色",
+            "primary": "主色调",
+            "primaryForeground": "主色调前景色",
+            "secondary": "次要色调",
+            "secondaryForeground": "次要色调前景色",
+            "third": "第三色调",
+            "thirdForeground": "第三色调前景色",
+            "muted": "柔和色",
+            "mutedForeground": "柔和色前景色",
+            "accent": "强调色",
+            "accentForeground": "强调色前景色",
+            "border": "边框色",
+            "shadow": "阴影色"
+          },
+          "presets": {
+            "apply": "应用",
+            "reset": {
+              "name": "恢复默认"
+            },
+            "default": {
+              "name": "默认白色"
+            },
+            "ocean": {
+              "name": "海洋蓝"
+            },
+            "forest": {
+              "name": "森林绿"
+            },
+            "sunset": {
+              "name": "日落红"
+            },
+            "lavender": {
+              "name": "薰衣草紫"
+            },
+            "midnight": {
+              "name": "午夜暗"
+            },
+            "deepSea": {
+              "name": "深海蓝"
+            },
+            "darkForest": {
+              "name": "暗夜绿"
+            },
+            "darkViolet": {
+              "name": "紫罗兰暗"
+            },
+            "coralWarm": {
+              "name": "珊瑚暖"
+            },
+            "slateGray": {
+              "name": "石板灰"
+            },
+            "darkGold": {
+              "name": "暗夜金"
+            },
+            "beigeWarm": {
+              "name": "米黄暖"
+            },
+            "beigeDark": {
+              "name": "米黄暗"
+            }
+          }
         }
       },
       "tools": {
@@ -104,7 +209,8 @@
           "button": "設定",
           "dialogTitle": "記録ツールバーを構成",
           "dialogDesc": "ツールをドラッグして順序を調整し、スイッチを使用して表示または非表示を制御"
-        }
+        },
+        "desc": "配置各种工具栏按钮的显示和排序"
       }
     },
     "rag": {
@@ -125,7 +231,8 @@
       "similarityThreshold": "類似度閾値",
       "similarityThresholdDesc": "ドキュメントとクエリの最小類似度閾値。この閾値を超えるドキュメントのみが返されます。値の範囲は 0.0-1.0、高いほど厳格です。",
       "resetToDefaults": "デフォルト値に戻す",
-      "deleteVector": "知識庫を空にする"
+      "deleteVector": "知識庫を空にする",
+      "topPDesc": "Top P パラメータはモデルが生成するテキストの多様性を制御します。値が小さいほど出力は決定论的になり、値が大きいほど多様になります。"
     },
     "mcp": {
       "title": "MCP",
@@ -194,7 +301,9 @@
       "jsonImportSuccess": "{count} 個のサーバーを正常にインポートしました",
       "jsonImportSkipped": "{count} 個の既存サーバーをスキップしました",
       "jsonImportNoServers": "サーバーがインポートされませんでした",
-      "import": "インポート"
+      "import": "インポート",
+      "enableTitle": "启用 MCP 功能",
+      "enableDesc": "启用后，AI 可以调用配置的 MCP 服务器提供的工具。"
     },
     "editor": {
       "title": "エディター設定",
@@ -248,7 +357,28 @@
         "recordToolbar": {
           "title": "記録ツールバー",
           "desc": "記録ツールバーボタンの表示順序と可視性をカスタマイズ",
-          "button": "設定"
+          "button": "設定",
+          "text": {
+            "desc": "记录文本内容"
+          },
+          "recording": {
+            "desc": "录音记录功能"
+          },
+          "scan": {
+            "desc": "扫描识别图片中的文字"
+          },
+          "image": {
+            "desc": "上传图片到笔记"
+          },
+          "link": {
+            "desc": "记录网页链接"
+          },
+          "file": {
+            "desc": "上传文件到笔记"
+          },
+          "todo": {
+            "desc": "创建待办事项"
+          }
         }
       }
     },
@@ -284,7 +414,8 @@
       "stats": {
         "total": "総記憶数",
         "preferences": "設定",
-        "knowledge": "知識"
+        "knowledge": "知識",
+        "memories": "记忆"
       },
       "form": {
         "title": "新しい記憶を追加",
@@ -294,7 +425,13 @@
         "preferenceDesc": "設定（言語、形式、スタイルなど）",
         "knowledgeDesc": "知識（事実、経験、専門分野など）",
         "save": "記憶を保存",
-        "saving": "保存中..."
+        "saving": "保存中...",
+        "categoryDescription": "记忆分为两种类型：",
+        "preferenceDescription": "偏好：语言、格式、风格等设置，每次对话都会自动加载",
+        "memoryDescription": "记忆：事实、经验、专长等信息，根据对话内容智能匹配",
+        "preferenceLabel": "偏好",
+        "memoryLabel": "记忆",
+        "memoryDesc": "事实、经验、专长等"
       },
       "listTitle": "マイ記憶",
       "addMemory": "記憶を追加",
@@ -307,7 +444,8 @@
       "tabs": {
         "all": "すべて",
         "preference": "設定",
-        "knowledge": "知識"
+        "knowledge": "知識",
+        "memory": "记忆"
       },
       "success": "成功",
       "saved": "記憶を保存しました",
@@ -321,7 +459,8 @@
       "errorDelete": "削除に失敗しました",
       "errorList": "記憶リストの取得に失敗しました",
       "errorEmbedding": "埋め込みの生成に失敗しました。埋め込みモデルの設定を確認してください",
-      "errorClear": "クリアに失敗しました"
+      "errorClear": "クリアに失敗しました",
+      "memory": "记忆"
     },
     "defaultModel": {
       "title": "デフォルトモデル",
@@ -330,7 +469,7 @@
       "noModel": "使用しない",
       "placeholder": "モデルを選択または検索してください",
       "main": "メインモデル",
-      "options" : {
+      "options": {
         "primaryModel": {
           "title": "メインモデル",
           "desc": "すべてのシーンのメインモデルとして、他の会話モデルがデフォルトモデルを選択していない場合、このモデルを使用します。"
@@ -358,8 +497,13 @@
         "reranking": {
           "title": "再ランキングモデル",
           "desc": "検索結果の並べ替えと最適化に使用されます。"
+        },
+        "condense": {
+          "title": "摘要模型",
+          "desc": "用于压缩历史对话内容，节省 token 使用量"
         }
-      }
+      },
+      "mainModel": "メインモデル"
     },
     "readAloud": {
       "title": "音声読み上げ",
@@ -465,7 +609,6 @@
         "selfHostedDesc": "自建 GitLab インスタンスの URL を入力してください（例：https://gitlab.example.com）"
       },
       "gitlabAccessTokenDesc": "{instanceDisplayName}でパーソナルアクセストークンを作成するには、api権限が必要です",
-      "autoSync": "自動同期",
       "autoSyncOptions": {
         "placeholder": "自動同期時間",
         "disabled": "無効",
@@ -492,7 +635,16 @@
         "downloadSuccess": "設定のダウンロードに成功しました",
         "downloadFailed": "設定のダウンロードに失敗しました",
         "autoSync": "アップロード/ダウンロード時に設定が自動的に同期されます（ワークスペースパスなどのデバイス固有の設定を除く）"
-      }
+      },
+      "defaultRepoName": "默认: {name}",
+      "giteaInstanceType": "Gitea 实例类型",
+      "giteaInstanceTypeDesc": "选择要连接的 Gitea 实例类型",
+      "giteaInstanceTypePlaceholder": "选择 Gitea 实例类型",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "自建实例",
+        "selfHostedDesc": "输入您的自建 Gitea 服务器地址（如：https://gitea.example.com）"
+      },
+      "giteaAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要完整的 repository 权限"
     },
     "imageHosting": {
       "title": "画像ホスティング",
@@ -799,6 +951,13 @@
           "title": "クイックプロンプト生成",
           "desc": "会話を開始するためのクイックプロンプト候補を生成します"
         }
+      },
+      "conversationTitle": {
+        "title": "会话标题",
+        "model": {
+          "title": "标题生成模型",
+          "desc": "选择用于生成会话标题的 AI 模型"
+        }
       }
     },
     "dev": {
@@ -854,7 +1013,9 @@
         "video": "動画",
         "audio": "音声",
         "embedding": "埋め込み",
-        "rerank": "再ランキング"
+        "rerank": "再ランキング",
+        "tts": "文本转语音",
+        "stt": "语音转文本"
       },
       "modelList": {
         "error": {
@@ -902,7 +1063,17 @@
           "desc": "Markdownエディタ用のAIインライン補完、GitHub Copilotに類似、素早く続きの内容を生成"
         },
         "poweredBy": "SiliconFlowによる技術サポート"
-      }
+      },
+      "connectionFailed": "接続に失敗しました",
+      "enableStream": "ストリーミングレスポンス",
+      "enableStreamDesc": "ストリーミングレスポンスを有効にすると、生成中のコンテンツをリアルタイムで表示できますが、一部のモデルではこの機能がサポートされていない場合があります。",
+      "selectConfig": "設定を選択してください",
+      "models": "モデルリスト",
+      "modelsDesc": "現在の設定のすべてのモデルをここで管理します。各モデルは異なるタイプとパラメータを持つことができます。",
+      "addModel": "モデルを追加",
+      "newModel": "新しいモデル",
+      "checkConnection": "接続をテスト",
+      "model": "モデル"
     },
     "ocr": {
       "title": "OCR",
@@ -930,7 +1101,7 @@
         "noResults": "結果が見つかりません"
       },
       "info": {
-        "title": "ワークスペースの説明", 
+        "title": "ワークスペースの説明",
         "desc": "ワークスペースを変更した後、完全に反映させるにはアプリケーションを再起動する必要があります。新しいワークスペース内のファイルは再起動後に表示されます。"
       },
       "toast": {
@@ -963,6 +1134,90 @@
         "quickRecordText": {
           "title": "テキストを素早く記録します",
           "desc": "主ウィンドウを開き、テキスト記録を表示します。"
+        }
+      }
+    },
+    "skills": {
+      "title": "Skills",
+      "desc": "Skills 是可重用的 AI 能力包，让 AI 助手能够根据任务自动应用特定的行为模式。",
+      "enable": "启用 Skills 功能",
+      "enableDesc": "启用后，AI 可以使用已配置的 Skills",
+      "autoMatch": "自动匹配 Skills",
+      "autoMatchDesc": "根据用户输入自动选择合适的 Skills",
+      "project": "工作区 Skills",
+      "global": "全局 Skills",
+      "globalPath": "全局 Skills 存储位置",
+      "openInFileManager": "在文件管理器中打开",
+      "createSkill": "创建 Skill",
+      "editSkill": "编辑 Skill",
+      "deleteSkill": "删除 Skill",
+      "exportSkill": "导出 Skill",
+      "importSkill": "导入 Skill",
+      "selectSkillZip": "选择 Skill zip 文件",
+      "importSuccess": "导入成功",
+      "importError": "导入失败",
+      "imported": "已导入",
+      "importing": "导入中...",
+      "skillName": "Skill 名称",
+      "skillDescription": "描述",
+      "skillVersion": "版本",
+      "skillAuthor": "作者",
+      "allowedTools": "允许使用的工具",
+      "userInvocable": "在斜杠菜单显示",
+      "instructions": "指令内容",
+      "instructionsPlaceholder": "输入给 AI 的详细指令...",
+      "importHelp": "支持导入 zip 格式的 Skill，zip 文件需包含 SKILL.md 文件。",
+      "metadata": "元数据",
+      "content": "指令内容",
+      "noSkills": "还没有 Skills",
+      "noSkillsDesc": "创建或导入 Skills 以开始使用",
+      "noSkillsGlobal": "还没有全局 Skills",
+      "noSkillsGlobalDesc": "创建或导入 Skills 以在所有项目中使用",
+      "emptyWorkspace": "工作区中没有 Skills",
+      "emptyWorkspaceDesc": "在 skills 文件夹中创建 SKILL.md 文件来添加 Skill",
+      "basicSettings": "基础设置",
+      "installedGlobalSkills": "已安装的全局 Skills",
+      "nameRequired": "请输入 Skill 名称",
+      "descriptionRequired": "请输入描述",
+      "namePlaceholder": "note-organizer",
+      "versionPlaceholder": "1.0.0",
+      "descriptionPlaceholder": "自动整理和优化笔记结构...",
+      "authorPlaceholder": "Your Name",
+      "descriptionHelp": "用于 AI 匹配，描述此 Skill 的功能和适用场景",
+      "allowedToolsHelp": "这些工具使用时不需要用户确认",
+      "userInvocableHelp": "用户可以通过 /skill-name 手动触发",
+      "instructionsHelp": "给 AI 的详细指令，支持 Markdown 格式",
+      "deleteSkillTitle": "删除 Skill",
+      "deleteSkillDesc": "确定要删除这个 Skill 吗？此操作无法撤销。",
+      "skillDeleted": "Skill 删除成功"
+    },
+    "audio": {
+      "title": "语音设置",
+      "desc": "在这里，你可以配置语音相关设置，包括文本转语音（朗读）和语音转文本（录音识别）功能。",
+      "tts": {
+        "title": "文本转语音（TTS）",
+        "desc": "配置朗读功能，为聊天内容提供语音播放。",
+        "model": {
+          "title": "朗读模型",
+          "desc": "选择用于文本转语音的AI模型，支持多种语音类型和参数配置。"
+        },
+        "speed": {
+          "title": "语速",
+          "desc": "调整语音播放的速度，范围从0.5倍到2倍速度，默认为1倍正常速度。"
+        }
+      },
+      "stt": {
+        "title": "语音转文本（STT）",
+        "desc": "配置录音识别功能，将语音转换为文字记录。",
+        "mode": {
+          "title": "识别方式",
+          "desc": "选择使用浏览器内置识别或大模型识别",
+          "builtin": "内置",
+          "model": "大模型"
+        },
+        "model": {
+          "title": "识别模型",
+          "desc": "选择用于语音识别的AI模型，支持实时语音转文字。"
         }
       }
     }
@@ -1001,7 +1256,8 @@
         "upload": "アップロード",
         "download": "ダウンロード",
         "uploadTo": "ローカルから {provider} へ同期",
-        "downloadFrom": "{provider} からローカルへ同期"
+        "downloadFrom": "{provider} からローカルへ同期",
+        "recording": "录音"
       },
       "uploadSuccess": "記録アップロード成功",
       "downloadSuccess": "記録ダウンロード成功",
@@ -1109,7 +1365,9 @@
           },
           "placeholder": {
             "default": "質問したり記録を文章に整理したりできます...",
-            "noApiKey": "API Keyが設定されていないため、AI対話機能を使用できません..."
+            "noApiKey": "API Keyが設定されていないため、AI対話機能を使用できません...",
+            "on": "AI提案オン",
+            "off": "AI提案オフ"
           },
           "header": {
             "configApiKey": "API KEYを設定",
@@ -1168,7 +1426,9 @@
               "summarize": "この内容を要約して",
               "brainstorm": "アイデアを出し合って",
               "explain": "この概念を説明して"
-            }
+            },
+            "modeHint": "入力ボックスの左側の",
+            "modeHintSuffix": "ボタンをクリックして会話モードを切り替え"
           },
           "content": {
             "organize": "あなたの記録を文章に整理："
@@ -1256,10 +1516,20 @@
         "image": "画像アップロード",
         "link": "リンク記録",
         "file": "ファイルアップロード",
-        "todo": "Todo記録"
+        "todo": "Todo記録",
+        "closeTrash": "ゴミ箱を閉じる"
       },
       "list": {
         "title": "記録"
+      },
+      "note": {
+        "organizeAs": "整理先",
+        "template": "テンプレート",
+        "setting": "設定",
+        "confirm": "确认",
+        "cancel": "取消",
+        "removeThinking": "移除思考过程",
+        "stop": "停止"
       }
     },
     "chat": {
@@ -1277,7 +1547,29 @@
           {
             "organize": "あなたの記録をノートに整理します"
           }
-        ]
+        ],
+        "title": "AIとの会話を開始",
+        "subtitle": "チャットまたはエージェントモードでAIと対話",
+        "currentModel": "現在のモデル",
+        "currentPrompt": "現在のプロンプト",
+        "currentMode": "会話モード",
+        "noModel": "モデルが設定されていません",
+        "noPrompt": "プロンプトが設定されていません",
+        "configureModel": "モデルを設定",
+        "recentConversations": "最近の会話",
+        "deleteConversation": "会話を削除",
+        "viewMore": "もっと見る",
+        "messages": "件のメッセージ",
+        "searchPlaceholder": "会話を検索...",
+        "noMatchingConversations": "一致する会話が見つかりませんでした",
+        "noConversationHistory": "まだ会話履歴がありません",
+        "quickPrompts": {
+          "title": "快速开始",
+          "writeNote": "帮我写一篇笔记",
+          "summarize": "帮我总结这段内容",
+          "brainstorm": "帮我头脑风暴一些想法",
+          "explain": "帮我解释这个概念"
+        }
       },
       "newChat": "新しいタグで対話を開始",
       "removeChat": "現在のタグの対話を削除",
@@ -1363,7 +1655,9 @@
             "tool": "ツール",
             "parameters": "パラメータ",
             "cancel": "キャンセル",
-            "confirm": "確認"
+            "confirm": "確認",
+            "confirmed": "確認済み",
+            "cancelled": "キャンセル済み"
           }
         },
         "imageSelector": {
@@ -1382,7 +1676,9 @@
           "searchPlaceholder": "ファイルを検索...",
           "noFiles": "ファイルが見つかりません",
           "loading": "読み込み中..."
-        }
+        },
+        "stopped": "对话已终止",
+        "newChat": "开始新对话"
       },
       "header": {
         "configApiKey": "API KEY の設定",
@@ -1455,11 +1751,16 @@
         "filterThinkingContent": "思考の記録を削除します",
         "startOrganize": "開始整理",
         "manageTemplate": "管理テンプレート",
-        "cancel": "キャンセル"
+        "cancel": "キャンセル",
+        "stop": "停止"
       },
       "mark": {
         "recorded": "記録済み",
         "record": "記録"
+      },
+      "condensing": "正在压缩上下文...",
+      "condensed": {
+        "message": "已压缩 {count} 条历史消息"
       }
     },
     "tag": {
@@ -1497,7 +1798,9 @@
     "showLeftSidebar": "左サイドバーを表示",
     "hideRightSidebar": "右サイドバーを非表示",
     "showRightSidebar": "右サイドバーを表示",
-    "searchPlaceholder": "ノートまたは記録を検索..."
+    "searchPlaceholder": "ノートまたは記録を検索...",
+    "showCenterPanel": "显示编辑器",
+    "hideCenterPanel": "隐藏编辑器"
   },
   "chat": {
     "placeholder": {
@@ -1889,6 +2192,15 @@
           "selectContent": "まず内容を選択してください",
           "promptTemplate": "このテキスト：\n{content}\nを{language}に翻訳してください。翻訳結果のみを返してください。"
         }
+      },
+      "saveDialog": {
+        "title": "保存文件",
+        "emptyContent": "内容为空",
+        "emptyContentDesc": "请先输入内容后再保存",
+        "success": "保存成功",
+        "successDesc": "文件已保存",
+        "error": "保存失败",
+        "errorDesc": "文件保存失败，请重试"
       }
     },
     "footer": {
@@ -1948,7 +2260,9 @@
           "clearContextDesc": "会話のコンテキストをクリアし、チャット履歴を保持",
           "clearChat": "チャットをクリア",
           "clearChatDesc": "すべてのチャット記録を削除",
-          "clear": "クリア"
+          "clear": "クリア",
+          "newChat": "开始新对话",
+          "start": "开始"
         },
         "attachments": {
           "title": "添付ファイル",

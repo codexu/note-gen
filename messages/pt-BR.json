@@ -215,7 +215,8 @@
           "button": "Configurar",
           "dialogTitle": "Configurar Barra de Ferramentas de Registro",
           "dialogDesc": "Arraste as ferramentas para ajustar a ordem, use as chaves para mostrar ou ocultar"
-        }
+        },
+        "desc": "配置各种工具栏按钮的显示和排序"
       }
     },
     "rag": {
@@ -362,7 +363,28 @@
         "recordToolbar": {
           "title": "Barra de Ferramentas de Registro",
           "desc": "Personalize a visibilidade e a ordem dos botões da barra de ferramentas de registro",
-          "button": "Configurar"
+          "button": "Configurar",
+          "text": {
+            "desc": "记录文本内容"
+          },
+          "recording": {
+            "desc": "录音记录功能"
+          },
+          "scan": {
+            "desc": "扫描识别图片中的文字"
+          },
+          "image": {
+            "desc": "上传图片到笔记"
+          },
+          "link": {
+            "desc": "记录网页链接"
+          },
+          "file": {
+            "desc": "上传文件到笔记"
+          },
+          "todo": {
+            "desc": "创建待办事项"
+          }
         }
       }
     },
@@ -427,7 +449,8 @@
       "stats": {
         "total": "Total de Memórias",
         "preferences": "Preferências",
-        "knowledge": "Conhecimento"
+        "knowledge": "Conhecimento",
+        "memories": "记忆"
       },
       "form": {
         "title": "Adicionar Nova Memória",
@@ -437,7 +460,13 @@
         "preferenceDesc": "Preferência (idioma, formato, estilo, etc.)",
         "knowledgeDesc": "Conhecimento (fatos, experiência, especialização, etc.)",
         "save": "Salvar Memória",
-        "saving": "Salvando..."
+        "saving": "Salvando...",
+        "categoryDescription": "记忆分为两种类型：",
+        "preferenceDescription": "偏好：语言、格式、风格等设置，每次对话都会自动加载",
+        "memoryDescription": "记忆：事实、经验、专长等信息，根据对话内容智能匹配",
+        "preferenceLabel": "偏好",
+        "memoryLabel": "记忆",
+        "memoryDesc": "事实、经验、专长等"
       },
       "listTitle": "Minhas Memórias",
       "addMemory": "Adicionar Memória",
@@ -450,7 +479,8 @@
       "tabs": {
         "all": "Todas",
         "preference": "Preferências",
-        "knowledge": "Conhecimento"
+        "knowledge": "Conhecimento",
+        "memory": "记忆"
       },
       "success": "Sucesso",
       "saved": "Memória salva",
@@ -464,7 +494,8 @@
       "errorDelete": "Falha ao excluir",
       "errorList": "Falha ao obter lista de memórias",
       "errorEmbedding": "Falha ao gerar embedding, verifique a configuração do modelo de embedding",
-      "errorClear": "Falha ao limpar"
+      "errorClear": "Falha ao limpar",
+      "memory": "记忆"
     },
     "defaultModel": {
       "title": "Modelo Padrão",
@@ -505,6 +536,10 @@
         "reranking": {
           "title": "Modelo de Reordenação",
           "desc": "Usado para reordenar e otimizar resultados de busca."
+        },
+        "condense": {
+          "title": "摘要模型",
+          "desc": "用于压缩历史对话内容，节省 token 使用量"
         }
       },
       "mainModel": "Modelo principal"
@@ -940,6 +975,13 @@
         "model": {
           "title": "Gerador de Sugestões Rápidas",
           "desc": "Gere sugestões de prompt rápidas para ajudar os usuários a iniciar conversas"
+        }
+      },
+      "conversationTitle": {
+        "title": "会话标题",
+        "model": {
+          "title": "标题生成模型",
+          "desc": "选择用于生成会话标题的 AI 模型"
         }
       }
     },
@@ -1551,7 +1593,21 @@
           {
             "organize": "Organiza seus registros em notas"
           }
-        ]
+        ],
+        "recentConversations": "Conversas Recentes",
+        "deleteConversation": "Excluir Conversa",
+        "viewMore": "Ver Mais",
+        "messages": "mensagens",
+        "searchPlaceholder": "Pesquisar conversas...",
+        "noMatchingConversations": "Nenhuma conversa correspondente encontrada",
+        "noConversationHistory": "Ainda não há histórico de conversas",
+        "quickPrompts": {
+          "title": "快速开始",
+          "writeNote": "帮我写一篇笔记",
+          "summarize": "帮我总结这段内容",
+          "brainstorm": "帮我头脑风暴一些想法",
+          "explain": "帮我解释这个概念"
+        }
       },
       "newChat": "Novo Chat com Nova Tag",
       "removeChat": "Remover Chat com Tag Atual",
@@ -1686,7 +1742,8 @@
           "noFiles": "Nenhum arquivo encontrado",
           "loading": "Carregando..."
         },
-        "stopped": "A conversa foi encerrada"
+        "stopped": "A conversa foi encerrada",
+        "newChat": "开始新对话"
       },
       "header": {
         "configApiKey": "Configurar CHAVE DE API",
@@ -1733,6 +1790,15 @@
         "cancel": "Cancelar",
         "delete": "Excluir",
         "deleteConfirm": "Tem certeza de que deseja excluir esta mensagem?"
+      },
+      "condensing": "正在压缩上下文...",
+      "condensed": {
+        "message": "已压缩 {count} 条历史消息"
+      },
+      "quote": {
+        "lineSingle": "引用自 {fileName} 第 {line} 行",
+        "lineRange": "引用自 {fileName} 第 {startLine}-{endLine} 行",
+        "noLine": "引用自 {fileName}"
       }
     },
     "tag": {
@@ -2144,7 +2210,9 @@
           "clearContextDesc": "Limpar contexto da conversa, manter histórico",
           "clearChat": "Limpar Chat",
           "clearChatDesc": "Excluir todos os registros de chat",
-          "clear": "Limpar"
+          "clear": "Limpar",
+          "newChat": "开始新对话",
+          "start": "开始"
         },
         "attachments": {
           "title": "Anexos",

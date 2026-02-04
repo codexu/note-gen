@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { getAISettings, prepareMessages, createOpenAIClient, handleAIError, getPromptContent } from './utils';
+import { getAISettings, prepareMessages, createOpenAIClient, handleAIError } from './utils';
 
 /**
  * 生成文本描述
@@ -43,44 +43,47 @@ export async function fetchAiDescByImage(base64: string) {
 
     const descContent = `Based on the screenshot content, return a description.`
 
-    // 获取prompt内容
-    const promptContent = await getPromptContent()
+    // 使用 prepareMessages 获取包含记忆上下文的消息
+    const { messages: preparedMessages } = await prepareMessages(descContent)
 
     const openai = await createOpenAIClient(aiConfig)
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
-    // 如果有系统提示，先添加
-    if (promptContent) {
-      messages.push({
-        role: 'system',
-        content: promptContent
-      })
+    // 将最后一条用户消息转换为多模态格式（包含图片）
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+    for (let i = 0; i < preparedMessages.length; i++) {
+      const msg = preparedMessages[i]
+
+      if (i === preparedMessages.length - 1 && msg.role === 'user') {
+        // 最后一条消息：转换为多模态格式（图片 + 文本）
+        const textContent = typeof msg.content === 'string' ? msg.content : descContent
+        messages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: base64
+              }
+            },
+            {
+              type: 'text',
+              text: textContent
+            }
+          ]
+        })
+      } else {
+        // 其他消息：保持原样
+        messages.push(msg)
+      }
     }
-    
-    // 添加用户消息（包含图片）
-    messages.push({
-      role: 'user' as const,
-      content: [
-        {
-          type: 'image_url',
-          image_url: {
-            url: base64
-          }
-        },
-        {
-          type: 'text',
-          text: descContent
-        }
-      ]
-    })
-    
+
     const completion = await openai.chat.completions.create({
       model: aiConfig?.model || '',
       messages: messages,
       temperature: aiConfig?.temperature || 1,
       top_p: aiConfig?.topP || 1,
     })
-    
+
     return completion.choices[0].message.content || ''
   } catch (error) {
     handleAIError(error, false)

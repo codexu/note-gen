@@ -230,7 +230,7 @@ export class ReActAgent {
       const { contextLoader } = await import('@/lib/context/loader')
       // Get all memories (preferences are always included, knowledge is matched by similarity)
       const memoryContext = await contextLoader.getContextForQuery('')  // Empty query gets all preferences
-      if (memoryContext.preferences.length > 0 || memoryContext.knowledge.length > 0) {
+      if (memoryContext.preferences.length > 0 || memoryContext.memory.length > 0) {
         memoryPrompt = contextLoader.formatMemoriesForPrompt(memoryContext)
         console.log('[Agent] Loaded memories:', memoryContext)
       }

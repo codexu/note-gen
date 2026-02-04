@@ -193,7 +193,7 @@ export async function prepareMessages(
 
     if (queryText) {
       const memoryContext = await contextLoader.getContextForQuery(queryText)
-      if (memoryContext.preferences.length > 0 || memoryContext.knowledge.length > 0) {
+      if (memoryContext.preferences.length > 0 || memoryContext.memory.length > 0) {
         const memoryPrompt = contextLoader.formatMemoriesForPrompt(memoryContext)
         promptContent += '\n\n' + memoryPrompt
       }

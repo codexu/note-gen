@@ -1,5 +1,6 @@
 import { Tool, ToolResult } from '../types'
 import { skillManager } from '@/lib/skills'
+import { handleDependencyError } from '@/lib/skills/dependency-installer'
 
 export const getCurrentTimeTool: Tool = {
   name: 'get_current_time',
@@ -376,37 +377,98 @@ export const executeSkillScriptTool: Tool = {
         working_directory: workingDirectory,
       })
 
-      // On macOS/Linux, use shell to change directory and execute command
-      // We use bash -c to run the command in the specified directory
-      const shellCommand = `cd "${workingDirectory}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
+      // Execute command with auto-retry on dependency failure
+      const result = await executeWithRetry(cmd, cmdArgs, workingDirectory)
 
-      // Debug log: Shell command
-      console.log('[execute_skill_script] Shell command', {
-        shell_command: shellCommand,
-      })
+      /**
+       * Execute command with automatic dependency installation and retry
+       * Uses streaming output for real-time feedback
+       */
+      async function executeWithRetry(
+        cmd: string,
+        cmdArgs: string[],
+        workingDirectory: string,
+        isRetry: boolean = false
+      ): Promise<{ code: number | null; stdout?: string; stderr?: string }> {
+        // On macOS/Linux, use shell to change directory and execute command
+        const shellCommand = `cd "${workingDirectory}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
 
-      // Create and execute the command using bash
-      // With shell:allow-execute, we can execute any program
-      let result = await Command.create('bash', ['-c', shellCommand]).execute()
+        // Debug log: Shell command
+        console.log('[execute_skill_script] Shell command', {
+          shell_command: shellCommand,
+          retry: isRetry,
+        })
 
-      // Fallback for common commands: try with '3' suffix if command not found (exit code 127)
-      // This handles the case where 'python' doesn't exist but 'python3' does
-      if (result.code === 127 && result.stderr?.includes('command not found')) {
-        const commonCommands = ['python', 'node', 'npm', 'pip']
-        if (commonCommands.includes(cmd)) {
-          const fallbackCmd = `${cmd}3`
-          console.log('[execute_skill_script] Command not found, trying fallback', {
-            original_command: cmd,
-            fallback_command: fallbackCmd,
+        // Collect output for streaming
+        const stdoutChunks: string[] = []
+        const stderrChunks: string[] = []
+
+        const command = Command.create('bash', ['-c', shellCommand])
+
+        // Set up event listeners for streaming output
+        // Note: Command.stdout and Command.stderr are EventEmitter<OutputEvents<O>>
+        // which emit 'data' events with string payload
+        command.stdout.on('data', (line: string) => {
+          stdoutChunks.push(line)
+          // Real-time log to console (visible in dev tools)
+          console.log('[execute_skill_script] stdout:', line)
+        })
+
+        command.stderr.on('data', (line: string) => {
+          stderrChunks.push(line)
+          // Real-time log to console (visible in dev tools)
+          console.error('[execute_skill_script] stderr:', line)
+        })
+
+        // Execute the command (waits for completion)
+        const r = await command.execute()
+
+        // Combine streamed output with final result
+        const stdout = stdoutChunks.join('') || r.stdout || ''
+        const stderr = stderrChunks.join('') || r.stderr || ''
+
+        // Fallback for common commands: try with '3' suffix if command not found (exit code 127)
+        if (r.code === 127 && stderr?.includes('command not found')) {
+          const commonCommands = ['python', 'node', 'npm', 'pip']
+          if (commonCommands.includes(cmd)) {
+            const fallbackCmd = `${cmd}3`
+            console.log('[execute_skill_script] Command not found, trying fallback', {
+              original_command: cmd,
+              fallback_command: fallbackCmd,
+            })
+
+            return await executeWithRetry(fallbackCmd, cmdArgs, workingDirectory, true)
+          }
+        }
+
+        // If command failed and this is the first attempt, try to install missing dependencies
+        if (r.code !== 0 && !isRetry && stderr) {
+          console.log('[execute_skill_script] Command failed, checking for missing dependencies...', {
+            exit_code: r.code,
           })
 
-          const fallbackShellCommand = `cd "${workingDirectory}" && ${fallbackCmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
-          result = await Command.create('bash', ['-c', fallbackShellCommand]).execute()
+          const installResult = await handleDependencyError(stderr)
 
-          console.log('[execute_skill_script] Fallback execution result', {
-            exit_code: result.code,
-            success: result.code === 0,
-          })
+          if (installResult?.success) {
+            console.log('[execute_skill_script] Dependency installed, retrying command...', {
+              installed: installResult.installed,
+            })
+
+            // Retry the original command after installing dependency
+            return await executeWithRetry(cmd, cmdArgs, workingDirectory, true)
+          }
+
+          if (installResult) {
+            console.log('[execute_skill_script] Dependency installation failed', {
+              message: installResult.message,
+            })
+          }
+        }
+
+        return {
+          code: r.code,
+          stdout,
+          stderr,
         }
       }
 
@@ -418,29 +480,33 @@ export const executeSkillScriptTool: Tool = {
         execution_time_ms: executionTime,
         stdout_length: result.stdout?.length || 0,
         stderr_length: result.stderr?.length || 0,
-        success: result.code === 0,
+        success: (result.code ?? 0) === 0,
       })
 
-      if (result.code !== 0) {
+      if ((result.code ?? 0) !== 0) {
         console.error('[execute_skill_script] Command failed', {
           exit_code: result.code,
           stderr: result.stderr,
         })
       }
 
-      // Combine stdout and stderr for the output
-      const output = [result.stdout, result.stderr].filter(Boolean).join('\n')
+      // Prepare output for AI - include both stdout and stderr separately for clarity
+      const stdout = result.stdout || ''
+      const stderr = result.stderr || ''
+      const exitCode = result.code ?? -1
 
       return {
-        success: result.code === 0,
+        success: exitCode === 0,
         data: {
-          exit_code: result.code,
+          exit_code: exitCode,
           execution_time_ms: executionTime,
           working_directory: workingDirectory,
+          stdout: stdout,
+          stderr: stderr,
         },
-        message: result.code === 0
-          ? `Command executed successfully (exit code: ${result.code}, time: ${executionTime}ms).\n\nOutput:\n${output}`
-          : `Command failed with exit code ${result.code} (time: ${executionTime}ms).\n\nOutput:\n${output}`,
+        message: exitCode === 0
+          ? `Command executed successfully (exit code: ${exitCode}, time: ${executionTime}ms).\n\nOutput:\n${stdout || '(no output)'}`
+          : `Command failed with exit code ${exitCode} (time: ${executionTime}ms).\n\n${stderr ? `Error:\n${stderr}` : 'No error message'}${stdout ? `\n\nOutput:\n${stdout}` : ''}`,
       }
     } catch (error) {
       const executionTime = Date.now() - startTime

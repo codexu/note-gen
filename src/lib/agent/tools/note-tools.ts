@@ -104,22 +104,22 @@ export const readMarkdownFileTool: Tool = {
   },
 }
 
-export const createMarkdownFileTool: Tool = {
-  name: 'create_markdown_file',
-  description: 'Create a new Markdown note file',
+export const createFileTool: Tool = {
+  name: 'create_file',
+  description: 'Create a new file. Supports Markdown (.md), JSON (.json), JavaScript (.js), TypeScript (.ts), Python (.py), HTML (.html), CSS (.css), YAML (.yaml/.yml), and other plain text formats.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
     {
       name: 'fileName',
       type: 'string',
-      description: 'Filename (including .md extension)',
+      description: 'Filename (including extension, e.g., "note.md", "config.json", "script.js")',
       required: true,
     },
     {
       name: 'content',
       type: 'string',
-      description: 'Note content (Markdown format)',
+      description: 'File content (plain text)',
       required: true,
     },
     {
@@ -138,12 +138,12 @@ export const createMarkdownFileTool: Tool = {
           error: '缺少必需参数 content 或参数类型错误',
         }
       }
-      
+
       // 如果没有提供 fileName，生成默认文件名
       let fileName = params.fileName
       if (!fileName || typeof fileName !== 'string' || fileName.trim() === '') {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-        fileName = `note-${timestamp}.md`
+        fileName = `file-${timestamp}.txt`
       }
 
       let filePath = fileName
@@ -151,11 +151,6 @@ export const createMarkdownFileTool: Tool = {
       // 如果指定了文件夹路径，拼接路径
       if (params.folderPath) {
         filePath = `${params.folderPath}/${fileName}`
-      }
-
-      // 确保文件名以 .md 结尾
-      if (!filePath.endsWith('.md')) {
-        filePath += '.md'
       }
 
       // 统一使用 getFilePathOptions 来处理路径
@@ -180,17 +175,17 @@ export const createMarkdownFileTool: Tool = {
       } else {
         await writeTextFile(path, params.content)
       }
-      
+
       // 刷新文件列表
       const articleStore = useArticleStore.getState()
       await articleStore.loadFileTree()
-      
-      // 选中新创建的文件
-      await articleStore.setActiveFilePath(filePath)
-      
-      // 读取文件内容到编辑器
-      await articleStore.readArticle(filePath)
-      
+
+      // 如果是 Markdown 文件，选中并读取
+      if (filePath.endsWith('.md')) {
+        await articleStore.setActiveFilePath(filePath)
+        await articleStore.readArticle(filePath)
+      }
+
       return {
         success: true,
         data: { filePath },
@@ -1834,7 +1829,7 @@ export const renameFilesBatchTool: Tool = {
 export const noteTools: Tool[] = [
   listMarkdownFilesTool,
   readMarkdownFileTool,
-  createMarkdownFileTool,
+  createFileTool,
   deleteMarkdownFileTool,
   searchMarkdownFilesTool,
   modifyCurrentNoteTool,

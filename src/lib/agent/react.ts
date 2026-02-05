@@ -254,8 +254,8 @@ ${memoryPrompt ? `## User Memories\n\n${memoryPrompt}\n` : ''}
 
 **Skills are guidance documents, NOT callable tools!**
 - Skills tell you HOW to complete tasks
-- You need to understand Skill requirements, then use **actual tools** (like create_markdown_file) to execute
-- Example: if style-detector says to write web fiction, you should Action: create_markdown_file and write in web fiction style in the content
+- You need to understand Skill requirements, then use **actual tools** (like create_file) to execute
+- Example: if style-detector says to write web fiction, you should Action: create_file and write in web fiction style in the content
 
 ## Core Principles
 
@@ -362,7 +362,7 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ✅ **Correct**: After creating file, confirm success and immediately give Final Answer
 
 ❌ **Error 4**: Try to call Skill as a tool (like Action: style-detector)
-✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_markdown_file) and follow Skill requirements in content
+✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_file) and follow Skill requirements in content
 
 ❌ **Error 5**: User quoted specific lines (e.g., line 19) but you use different line numbers (e.g., startLine: 1, endLine: 1000)
 ✅ **Correct**: ALWAYS use the exact line numbers from the user's quote. If user quoted line 19, use startLine: 19, endLine: 19
@@ -385,8 +385,8 @@ Final Answer: React is a JavaScript library for building user interfaces, develo
 
 **Iteration 1:**
 \`\`\`
-Thought: User explicitly requested to create a note. I will use the create_markdown_file tool.
-Action: create_markdown_file
+Thought: User explicitly requested to create a note. I will use the create_file tool.
+Action: create_file
 Action Input: {"fileName": "NoteGen-Intro.md", "content": "# NoteGen\\n\\nAn intelligent note-taking software..."}
 \`\`\`
 Observation: File created successfully
@@ -1132,7 +1132,7 @@ Action: select_skill
 Action Input: {"skill_ids": ["style-detector"]}
 \`\`\`
 
-After selecting Skill, you will receive complete Skill instructions in next iteration. Then you can use actual tools (like create_markdown_file) to complete the task.
+After selecting Skill, you will receive complete Skill instructions in next iteration. Then you can use actual tools (like create_file) to complete the task.
 
 **Important Notes**:
 - Carefully read each Skill's description
@@ -1203,7 +1203,7 @@ ${skillsList.join('\n---\n\n')}
 2. **Understand Skill requirements, then apply directly to your work**
 3. **Don't ask user for confirmation** - Execute tasks directly following Skill guidance
 4. **Don't try to read additional files** - Skills already contain all necessary information
-5. **Use actual tools to complete tasks** - Like create_markdown_file, modify_current_note, etc.
+5. **Use actual tools to complete tasks** - Like create_file, modify_current_note, etc.
 
 **⚠️ Important Reminders**:
 - Strictly follow above Skill requirements to execute tasks

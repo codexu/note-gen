@@ -299,6 +299,10 @@ export const executeSkillScriptTool: Tool = {
   name: 'execute_skill_script',
   description: `Execute a Python or Shell script within a Skill directory context.
 
+**When to create a script file vs passing args:**
+- Use args for simple commands: \`{"command": "python", "args": ["-m", "markitdown", "file.pptx"]}\`
+- Create a script file for complex/long scripts, then execute it
+
 **Supported calling patterns:**
 1. Module execution: \`{"command": "python", "args": ["-m", "markitdown", "file.pptx"]}\`
 2. Script execution: \`{"command": "python", "args": ["scripts/thumbnail.py", "file.pptx"]}\`
@@ -307,7 +311,11 @@ export const executeSkillScriptTool: Tool = {
 
 **Key notes:**
 - Working directory is automatically set to the Skill's root directory
-- Script paths are relative to the Skill directory
+- Script paths can be either:
+  - Relative to Skill directory (e.g., "scripts/my-script.py")
+  - Full path with skills prefix (e.g., "skills/run-script/scripts/my-script.py")
+- If you need to pass complex or long script content, create a script file first using create_file, then execute it
+- If you create a new script file using create_file, use the full path (skills/{skill_id}/scripts/xxx.py)
 - The skill_id must match the Skill's ID (e.g., "pptx", "pdf")`,
   category: 'system',
   requiresConfirmation: false,
@@ -327,7 +335,7 @@ export const executeSkillScriptTool: Tool = {
     {
       name: 'args',
       type: 'array',
-      description: 'Arguments to pass to the command. For scripts, include the script path relative to Skill directory (e.g., "scripts/office/unpack.py").',
+      description: 'Arguments to pass to the command. Max 10 items. For scripts, include the script path relative to Skill directory (e.g., "scripts/office/unpack.py"). If you need to pass complex script content, create a script file first.',
       required: false,
     },
   ],
@@ -390,7 +398,7 @@ export const executeSkillScriptTool: Tool = {
 
       // Import Tauri APIs
       const { Command } = await import('@tauri-apps/plugin-shell')
-      const { appDataDir, basename } = await import('@tauri-apps/api/path')
+      const { appDataDir } = await import('@tauri-apps/api/path')
       const { getFilePathOptions } = await import('@/lib/workspace')
 
       // Resolve the skill directory path (this is where we execute scripts from)
@@ -433,8 +441,32 @@ export const executeSkillScriptTool: Tool = {
         cmd_args: cmdArgs,
       })
 
-      // Build shell command - execute directly from skill directory
-      const shellCommand = `cd "${skillDir}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
+      // Process args - convert full paths to relative paths if needed
+      const processedCmdArgs = cmdArgs.map((arg: string) => {
+        // If arg starts with "skills/{skill_id}/", extract the relative path
+        const skillPrefix = `skills/${skill_id}/`
+        if (arg.startsWith(skillPrefix)) {
+          const relativePath = arg.substring(skillPrefix.length)
+          console.log('[execute_skill_script] Converting path', {
+            original: arg,
+            relative: relativePath,
+          })
+          return relativePath
+        }
+        return arg
+      })
+
+      // Build shell command - handle bash -c specially
+      let shellCommand: string
+      if (cmd === 'bash' && processedCmdArgs[0] === '-c') {
+        // Handle bash -c case: args = ["-c", "node script.js"]
+        // Shell command should be: cd "dir" && node script.js
+        const cmdPart = processedCmdArgs.slice(1).join(' ')
+        shellCommand = `cd "${skillDir}" && ${cmdPart}`
+      } else {
+        // Normal case: cd "dir" && cmd arg1 arg2 ...
+        shellCommand = `cd "${skillDir}" && ${cmd} ${processedCmdArgs.map((a: string) => `"${a}"`).join(' ')}`
+      }
 
       console.log('[execute_skill_script] Shell command', {
         shell_command: shellCommand,

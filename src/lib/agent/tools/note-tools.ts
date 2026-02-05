@@ -1,5 +1,6 @@
 import { Tool, ToolResult } from '../types'
 import { readTextFile, writeTextFile, remove, rename, copyFile } from '@tauri-apps/plugin-fs'
+import { appDataDir } from '@tauri-apps/api/path'
 import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
 import { getFilePathOptions } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
@@ -106,7 +107,15 @@ export const readMarkdownFileTool: Tool = {
 
 export const createFileTool: Tool = {
   name: 'create_file',
-  description: 'Create a new file. Supports Markdown (.md), JSON (.json), JavaScript (.js), TypeScript (.ts), Python (.py), HTML (.html), CSS (.css), YAML (.yaml/.yml), and other plain text formats.',
+  description: `Create a new file. Supports Markdown (.md), JSON (.json), JavaScript (.js), TypeScript (.ts), Python (.py), HTML (.html), CSS (.css), YAML (.yaml/.yml), and other plain text formats.
+
+**Returns:**
+- \`filePath\`: Relative path from workspace root
+- \`fullPath\`: Full absolute path (use this with execute_skill_script for executing scripts)
+
+**Example for script execution:**
+1. Create script: create_file with folderPath="skills/pptx/scripts"
+2. Execute: Use fullPath from result with execute_skill_script`,
   category: 'note',
   requiresConfirmation: true,
   parameters: [
@@ -125,7 +134,7 @@ export const createFileTool: Tool = {
     {
       name: 'folderPath',
       type: 'string',
-      description: 'Optional: subfolder path, defaults to root directory',
+      description: 'Optional: subfolder path, defaults to root directory. For scripts to be executed by execute_skill_script, use path like "skills/pptx/scripts"',
       required: false,
     },
   ],
@@ -176,6 +185,16 @@ export const createFileTool: Tool = {
         await writeTextFile(path, params.content)
       }
 
+      // 获取完整路径用于返回
+      const { getWorkspacePath } = await import('@/lib/workspace')
+      const workspace = await getWorkspacePath()
+      const workspacePath = workspace.isCustom
+        ? workspace.path
+        : `${await appDataDir()}/article`
+
+      // 构建工作区完整路径
+      const fullPath = `${workspacePath}/${filePath}`
+
       // 刷新文件列表
       const articleStore = useArticleStore.getState()
       await articleStore.loadFileTree()
@@ -188,8 +207,11 @@ export const createFileTool: Tool = {
 
       return {
         success: true,
-        data: { filePath },
-        message: `成功创建文件: ${filePath}`,
+        data: {
+          filePath,
+          fullPath,
+        },
+        message: `成功创建文件: ${fullPath}`,
       }
     } catch (error) {
       return {

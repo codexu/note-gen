@@ -36,7 +36,7 @@ const MODULE_TO_PACKAGE: Record<string, { python?: string; node?: string }> = {
   'PIL': { python: 'Pillow' },
   'PIL.Image': { python: 'Pillow' },
   'markitdown': { python: 'markitdown[pptx]' },
-  'openai': { python: 'openai' },
+  'openai': { python: 'openai', node: 'openai' },
   'anthropic': { python: 'anthropic' },
   'numpy': { python: 'numpy' },
   'pandas': { python: 'pandas' },
@@ -45,7 +45,6 @@ const MODULE_TO_PACKAGE: Record<string, { python?: string; node?: string }> = {
 
   // Node modules
   'pptxgenjs': { node: 'pptxgenjs' },
-  'openai': { node: 'openai' },
   '@anthropic-ai/sdk': { node: '@anthropic-ai/sdk' },
 }
 
@@ -86,7 +85,18 @@ export function parseDependencyError(stderr: string): DependencyInfo | null {
                    errorLine.match(/Cannot find package ['"]([^'"]+)['"]/)
 
   if (nodeMatch) {
-    const moduleName = nodeMatch[1]
+    let moduleName = nodeMatch[1]
+
+    // 如果匹配到的是路径而非模块名（如包含 / 或 .js 后缀），跳过
+    if (moduleName.includes('/') || moduleName.includes('\\') || moduleName.endsWith('.js')) {
+      return null
+    }
+
+    // 过滤有效的模块名（只能包含字母、数字、@、-、_）
+    if (!/^[a-zA-Z0-9@_-]+$/.test(moduleName)) {
+      return null
+    }
+
     const packageName = MODULE_TO_PACKAGE[moduleName]?.node || moduleName
 
     return {

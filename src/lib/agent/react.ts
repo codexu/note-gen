@@ -1173,6 +1173,15 @@ After selecting Skill, you will receive complete Skill instructions in next iter
       }
       skillText += `\n`
 
+      // 添加可用脚本列表
+      if (skill.scripts && skill.scripts.length > 0) {
+        skillText += `**Available Scripts**:\n`
+        for (const script of skill.scripts) {
+          skillText += `  - \`${script.name}\` (${script.type})\n`
+        }
+        skillText += `\n`
+      }
+
       // Complete instructions section (Markdown content)
       skillText += `**Instructions**:\n${skill.instructions}\n\n`
 

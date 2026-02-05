@@ -1,6 +1,5 @@
 import { Tool, ToolResult } from '../types'
 import { skillManager } from '@/lib/skills'
-import { handleDependencyError } from '@/lib/skills/dependency-installer'
 
 export const getCurrentTimeTool: Tool = {
   name: 'get_current_time',
@@ -116,10 +115,11 @@ export const selectSkillTool: Tool = {
 /**
  * 加载 Skill 支持文件内容工具
  * 用于 AI 获取 Skill 的补充资料（如 KEYWORDS.md、EXAMPLES.md 等文件的内容）
+ * 也支持加载根目录的自定义 .md 文件（如 editing.md, pptxgenjs.md）
  */
 export const loadSkillContentTool: Tool = {
   name: 'load_skill_content',
-  description: 'Get the support file content for the specified Skill (such as KEYWORDS.md, EXAMPLES.md). These files contain detailed style guides, keyword lists, and usage examples to help better apply the Skill.',
+  description: 'Get the support file content for the specified Skill. Supports standard files (KEYWORDS.md, EXAMPLES.md, REFERENCE.md) and custom root-level .md files (e.g., editing.md, pptxgenjs.md). These files contain detailed style guides, keyword lists, and usage examples to help better apply the Skill.',
   category: 'system',
   requiresConfirmation: false,
   parameters: [
@@ -132,7 +132,7 @@ export const loadSkillContentTool: Tool = {
     {
       name: 'file_type',
       type: 'string',
-      description: 'File type to load: supports "keywords" (KEYWORDS.md), "examples" (EXAMPLES.md), "reference" (REFERENCE.md). If not specified, returns all available support file content.',
+      description: 'File type or filename to load: supports "keywords" (KEYWORDS.md), "examples" (EXAMPLES.md), "reference" (REFERENCE.md), or a specific filename like "editing.md", "pptxgenjs.md". If not specified, returns all available support file content.',
       required: false,
     },
   ],
@@ -159,49 +159,85 @@ export const loadSkillContentTool: Tool = {
 
       const results: Record<string, string> = {}
 
-      // 根据 file_type 或加载所有可用的文件
-      const fileTypes = file_type ? [file_type] : ['keywords', 'examples', 'reference']
-      const typeMapping: Record<string, string> = {
+      // 标准文件类型映射
+      const standardTypeMapping: Record<string, string> = {
         keywords: 'KEYWORDS.md',
         examples: 'EXAMPLES.md',
         reference: 'REFERENCE.md',
       }
 
       // 读取文件内容
-      const { readTextFile, BaseDirectory, exists } = await import('@tauri-apps/plugin-fs')
+      const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
       const { getFilePathOptions } = await import('@/lib/workspace')
+      const { exists } = await import('@tauri-apps/plugin-fs')
 
-      for (const type of fileTypes) {
-        const fileName = typeMapping[type]
-        const filePath = `${fileInfo.directory}/${fileName}`
-
-        // 检查文件是否存在
+      // 辅助函数：读取文件
+      const readFile = async (fileName: string, filePath: string): Promise<boolean> => {
         let fileExists = false
         if (skill.metadata.scope === 'global') {
           fileExists = await exists(filePath, { baseDir: BaseDirectory.AppData })
+          if (fileExists) {
+            try {
+              results[fileName] = await readTextFile(filePath, { baseDir: BaseDirectory.AppData })
+              return true
+            } catch (error) {
+              console.error(`[load_skill_content] 读取文件失败: ${filePath}`, error)
+            }
+          }
         } else {
           const options = await getFilePathOptions(filePath)
           fileExists = options.baseDir
             ? await exists(options.path, { baseDir: options.baseDir })
             : await exists(options.path)
+          if (fileExists) {
+            try {
+              if (options.baseDir) {
+                results[fileName] = await readTextFile(options.path, { baseDir: options.baseDir })
+              } else {
+                results[fileName] = await readTextFile(options.path)
+              }
+              return true
+            } catch (error) {
+              console.error(`[load_skill_content] 读取文件失败: ${filePath}`, error)
+            }
+          }
+        }
+        return false
+      }
+
+      if (file_type) {
+        // 指定了 file_type，尝试加载特定文件
+        const fileName = file_type
+
+        // 先检查是否是标准类型
+        const standardFile = standardTypeMapping[file_type]
+        if (standardFile) {
+          const filePath = `${fileInfo.directory}/${standardFile}`
+          await readFile(file_type, filePath)
+        } else {
+          // 可能是根目录的自定义 .md 文件（如 editing.md, pptxgenjs.md）
+          const filePath = `${fileInfo.directory}/${fileName}`
+          await readFile(fileName, filePath)
+        }
+      } else {
+        // 未指定 file_type，加载所有可用的支持文件
+        // 1. 加载标准文件
+        for (const [type, fileName] of Object.entries(standardTypeMapping)) {
+          const filePath = `${fileInfo.directory}/${fileName}`
+          await readFile(type, filePath)
         }
 
-        if (fileExists) {
-          try {
-            let content: string
-            if (skill.metadata.scope === 'global') {
-              content = await readTextFile(filePath, { baseDir: BaseDirectory.AppData })
-            } else {
-              const options = await getFilePathOptions(filePath)
-              if (options.baseDir) {
-                content = await readTextFile(options.path, { baseDir: options.baseDir })
-              } else {
-                content = await readTextFile(options.path)
-              }
+        // 2. 加载 Skill.references 中的根目录 .md 文件
+        // references 数组中的 rootMdFiles 有 path 属性（文件名而非完整路径）
+        for (const ref of skill.references) {
+          // 检查是否是根目录的 .md 文件（path 不包含目录分隔符）
+          if (!ref.path.includes('/') && ref.path.endsWith('.md') && ref.path !== 'SKILL.md') {
+            // 检查是否已经通过标准文件加载过了
+            const alreadyLoaded = Object.values(standardTypeMapping).includes(ref.path)
+            if (!alreadyLoaded) {
+              const filePath = `${fileInfo.directory}/${ref.path}`
+              await readFile(ref.name, filePath)
             }
-            results[type] = content
-          } catch (error) {
-            console.error(`[load_skill_content] 读取 ${type} 文件失败:`, error)
           }
         }
       }
@@ -211,10 +247,10 @@ export const loadSkillContentTool: Tool = {
           success: true,
           data: {
             skill_id,
-            available_files: [],
+            available_files: skill.references.map(r => r.name),
             message: '该 Skill 没有额外的支持文件，所有内容已包含在主 Skill 文件中。',
           },
-          message: `Skill "${skill_id}" 没有找到额外的支持文件（KEYWORDS.md、EXAMPLES.md、REFERENCE.md）。所有必要信息已包含在主 Skill 指令中。`,
+          message: `Skill "${skill_id}" 没有找到额外的支持文件。所有必要信息已包含在主 Skill 指令中。`,
         }
       }
 
@@ -247,29 +283,51 @@ export const loadSkillContentTool: Tool = {
 /**
  * 执行 Skill 脚本工具
  * 用于 AI 在 Skill 目录上下文中执行 Python/Shell 脚本
+ *
+ * 支持的调用方式：
+ * 1. 模块执行: command="python", args=["-m", "markitdown", "file.pptx"]
+ * 2. 脚本执行: command="python", args=["scripts/thumbnail.py", "file.pptx"]
+ * 3. 子目录脚本: command="python", args=["scripts/office/unpack.py", "file.pptx"]
+ * 4. 整体命令: command="python -m markitdown file.pptx", args=[]
+ *
+ * 重要说明：
+ * - 工作目录会自动切换到 Skill 的根目录
+ * - 脚本路径相对于 Skill 目录（如 "scripts/office/unpack.py"）
+ * - 文件参数会自动从工作目录读取
  */
 export const executeSkillScriptTool: Tool = {
   name: 'execute_skill_script',
-  description: 'Execute a Python or Shell script within a Skill directory context. Use this when a Skill requires running scripts (e.g., python -m markitdown file.pptx). The script will be executed with the Skill directory as the working directory.',
+  description: `Execute a Python or Shell script within a Skill directory context.
+
+**Supported calling patterns:**
+1. Module execution: \`{"command": "python", "args": ["-m", "markitdown", "file.pptx"]}\`
+2. Script execution: \`{"command": "python", "args": ["scripts/thumbnail.py", "file.pptx"]}\`
+3. Nested script: \`{"command": "python", "args": ["scripts/office/unpack.py", "file.pptx"]}\`
+4. Full command: \`{"command": "python -m markitdown file.pptx", "args": []}\`
+
+**Key notes:**
+- Working directory is automatically set to the Skill's root directory
+- Script paths are relative to the Skill directory
+- The skill_id must match the Skill's ID (e.g., "pptx", "pdf")`,
   category: 'system',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'skill_id',
       type: 'string',
-      description: 'The ID of the Skill (e.g., "pptx", "pdf")',
+      description: 'The ID of the Skill (e.g., "pptx", "pdf", "weekly")',
       required: true,
     },
     {
       name: 'command',
       type: 'string',
-      description: 'The command to execute. For Python modules, use "python" followed by "-m" and arguments (e.g., "python -m markitdown file.pptx"). For direct scripts, use the script name (e.g., "python scripts/thumbnail.py file.pptx").',
+      description: 'The command to execute. Use "python" for Python modules/scripts, or a full command string (e.g., "python -m markitdown").',
       required: true,
     },
     {
       name: 'args',
       type: 'array',
-      description: 'Additional arguments to pass to the command (optional). Use this for file paths and options that need proper escaping.',
+      description: 'Arguments to pass to the command. For scripts, include the script path relative to Skill directory (e.g., "scripts/office/unpack.py").',
       required: false,
     },
   ],
@@ -277,7 +335,6 @@ export const executeSkillScriptTool: Tool = {
     const startTime = Date.now()
     const { skill_id, command, args } = params
 
-    // Debug log: Start execution
     console.log('[execute_skill_script] Starting execution', {
       skill_id,
       command,
@@ -314,7 +371,7 @@ export const executeSkillScriptTool: Tool = {
         }
       }
 
-      // Get Skill file info to find the directory
+      // Get Skill file info
       const fileInfo = skillManager.getSkillFileInfo(skill_id)
       if (!fileInfo) {
         console.error('[execute_skill_script] Skill file info not found', { skill_id })
@@ -324,7 +381,6 @@ export const executeSkillScriptTool: Tool = {
         }
       }
 
-      // Debug log: Skill info
       console.log('[execute_skill_script] Skill info retrieved', {
         skill_id: skill.metadata.id,
         skill_name: skill.metadata.name,
@@ -334,175 +390,94 @@ export const executeSkillScriptTool: Tool = {
 
       // Import Tauri APIs
       const { Command } = await import('@tauri-apps/plugin-shell')
-      const { appDataDir } = await import('@tauri-apps/api/path')
+      const { appDataDir, basename } = await import('@tauri-apps/api/path')
       const { getFilePathOptions } = await import('@/lib/workspace')
 
-      // Resolve the working directory path
-      // For global skills, fileInfo.directory contains the relative path under AppData
-      // For project skills, fileInfo.directory may contain BaseDirectory enum
-      let workingDirectory: string
-
+      // Resolve the skill directory path (this is where we execute scripts from)
+      let skillDir: string
       if (skill.metadata.scope === 'global') {
-        // For global skills, resolve the relative path under AppData
         const appDataPath = await appDataDir()
-        workingDirectory = `${appDataPath}/${fileInfo.directory}`
+        skillDir = `${appDataPath}/${fileInfo.directory}`
       } else {
-        // For project skills, use the resolved path
         const options = await getFilePathOptions(fileInfo.directory)
-
-        // If baseDir is provided (BaseDirectory.AppData), resolve to actual path
         if (options.baseDir) {
-          // Get the actual AppData path and construct full path
           const appDataPath = await appDataDir()
-          workingDirectory = `${appDataPath}/${options.path}`
+          skillDir = `${appDataPath}/${options.path}`
         } else {
-          workingDirectory = options.path
+          skillDir = options.path
         }
       }
 
-      // Debug log: Working directory
-      console.log('[execute_skill_script] Working directory resolved', {
-        working_directory: workingDirectory,
+      console.log('[execute_skill_script] Skill directory resolved', {
+        skill_id,
+        skill_dir: skillDir,
       })
 
-      // Parse command and build command array
-      const commandParts = command.trim().split(/\s+/)
-      const cmd = commandParts[0]
-      const cmdArgs = [...commandParts.slice(1), ...(args || [])]
+      // Parse command and args
+      let cmd: string
+      let cmdArgs: string[]
 
-      // Debug log: Command execution
-      console.log('[execute_skill_script] Executing command', {
+      if (command.includes(' ')) {
+        // Full command string like "python -m markitdown file.pxt"
+        const commandParts = command.trim().split(/\s+/)
+        cmd = commandParts[0]
+        cmdArgs = [...commandParts.slice(1), ...(args || [])]
+      } else {
+        // Simple command like "python"
+        cmd = command
+        cmdArgs = [...(args || [])]
+      }
+
+      console.log('[execute_skill_script] Parsed command', {
         cmd,
         cmd_args: cmdArgs,
-        working_directory: workingDirectory,
       })
 
-      // Execute command with auto-retry on dependency failure
-      const result = await executeWithRetry(cmd, cmdArgs, workingDirectory)
+      // Build shell command - execute directly from skill directory
+      const shellCommand = `cd "${skillDir}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
 
-      /**
-       * Execute command with automatic dependency installation and retry
-       * Uses streaming output for real-time feedback
-       */
-      async function executeWithRetry(
-        cmd: string,
-        cmdArgs: string[],
-        workingDirectory: string,
-        isRetry: boolean = false
-      ): Promise<{ code: number | null; stdout?: string; stderr?: string }> {
-        // On macOS/Linux, use shell to change directory and execute command
-        const shellCommand = `cd "${workingDirectory}" && ${cmd} ${cmdArgs.map(a => `"${a}"`).join(' ')}`
+      console.log('[execute_skill_script] Shell command', {
+        shell_command: shellCommand,
+      })
 
-        // Debug log: Shell command
-        console.log('[execute_skill_script] Shell command', {
-          shell_command: shellCommand,
-          retry: isRetry,
-        })
+      // Execute command
+      const stdoutChunks: string[] = []
+      const stderrChunks: string[] = []
 
-        // Collect output for streaming
-        const stdoutChunks: string[] = []
-        const stderrChunks: string[] = []
+      const cmdProcess = Command.create('bash', ['-c', shellCommand])
 
-        const command = Command.create('bash', ['-c', shellCommand])
+      cmdProcess.stdout.on('data', (line: string) => {
+        stdoutChunks.push(line)
+        console.log('[execute_skill_script] stdout:', line)
+      })
 
-        // Set up event listeners for streaming output
-        // Note: Command.stdout and Command.stderr are EventEmitter<OutputEvents<O>>
-        // which emit 'data' events with string payload
-        command.stdout.on('data', (line: string) => {
-          stdoutChunks.push(line)
-          // Real-time log to console (visible in dev tools)
-          console.log('[execute_skill_script] stdout:', line)
-        })
+      cmdProcess.stderr.on('data', (line: string) => {
+        stderrChunks.push(line)
+        console.error('[execute_skill_script] stderr:', line)
+      })
 
-        command.stderr.on('data', (line: string) => {
-          stderrChunks.push(line)
-          // Real-time log to console (visible in dev tools)
-          console.error('[execute_skill_script] stderr:', line)
-        })
+      const r = await cmdProcess.execute()
 
-        // Execute the command (waits for completion)
-        const r = await command.execute()
-
-        // Combine streamed output with final result
-        const stdout = stdoutChunks.join('') || r.stdout || ''
-        const stderr = stderrChunks.join('') || r.stderr || ''
-
-        // Fallback for common commands: try with '3' suffix if command not found (exit code 127)
-        if (r.code === 127 && stderr?.includes('command not found')) {
-          const commonCommands = ['python', 'node', 'npm', 'pip']
-          if (commonCommands.includes(cmd)) {
-            const fallbackCmd = `${cmd}3`
-            console.log('[execute_skill_script] Command not found, trying fallback', {
-              original_command: cmd,
-              fallback_command: fallbackCmd,
-            })
-
-            return await executeWithRetry(fallbackCmd, cmdArgs, workingDirectory, true)
-          }
-        }
-
-        // If command failed and this is the first attempt, try to install missing dependencies
-        if (r.code !== 0 && !isRetry && stderr) {
-          console.log('[execute_skill_script] Command failed, checking for missing dependencies...', {
-            exit_code: r.code,
-          })
-
-          const installResult = await handleDependencyError(stderr)
-
-          if (installResult?.success) {
-            console.log('[execute_skill_script] Dependency installed, retrying command...', {
-              installed: installResult.installed,
-            })
-
-            // Retry the original command after installing dependency
-            return await executeWithRetry(cmd, cmdArgs, workingDirectory, true)
-          }
-
-          if (installResult) {
-            console.log('[execute_skill_script] Dependency installation failed', {
-              message: installResult.message,
-            })
-          }
-        }
-
-        return {
-          code: r.code,
-          stdout,
-          stderr,
-        }
-      }
-
+      const stdout = stdoutChunks.join('') || r.stdout || ''
+      const stderr = stderrChunks.join('') || r.stderr || ''
+      const exitCode = r.code ?? -1
       const executionTime = Date.now() - startTime
 
-      // Debug log: Execution result
       console.log('[execute_skill_script] Execution completed', {
-        exit_code: result.code,
+        exit_code: exitCode,
         execution_time_ms: executionTime,
-        stdout_length: result.stdout?.length || 0,
-        stderr_length: result.stderr?.length || 0,
-        success: (result.code ?? 0) === 0,
+        stdout_length: stdout.length,
+        stderr_length: stderr.length,
       })
-
-      if ((result.code ?? 0) !== 0) {
-        console.error('[execute_skill_script] Command failed', {
-          exit_code: result.code,
-          stderr: result.stderr,
-        })
-      }
-
-      // Prepare output for AI - include both stdout and stderr separately for clarity
-      const stdout = result.stdout || ''
-      const stderr = result.stderr || ''
-      const exitCode = result.code ?? -1
 
       return {
         success: exitCode === 0,
         data: {
           exit_code: exitCode,
           execution_time_ms: executionTime,
-          working_directory: workingDirectory,
-          stdout: stdout,
-          stderr: stderr,
+          working_directory: skillDir,
+          stdout,
+          stderr,
         },
         message: exitCode === 0
           ? `Command executed successfully (exit code: ${exitCode}, time: ${executionTime}ms).\n\nOutput:\n${stdout || '(no output)'}`

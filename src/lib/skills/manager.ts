@@ -271,6 +271,10 @@ class SkillManager {
       parsed.content += '\n\n---\n\n## 关键词 (Legacy)\n\n' + keywordsContent
     }
 
+    // 加载根目录下的所有 .md 文件（排除 SKILL.md 自身）
+    const rootMdFiles = await this.loadRootMdFiles(skillDirPath, scope)
+    references.push(...rootMdFiles)
+
     // 构建 Skill 内容
     const now = Date.now()
     const skill: SkillContent = {
@@ -323,13 +327,19 @@ class SkillManager {
   }
 
   /**
-   * 从 scripts/ 目录加载脚本
+   * 从 scripts/ 目录加载脚本（支持第一层子目录递归）
+   * 限制递归深度为 1，避免扫描过深
    */
   private async loadScriptsFromDirectory(
     scriptsDir: string,
-    scope: SkillScope
+    scope: SkillScope,
+    basePath: string = '',
+    depth: number = 0
   ): Promise<SkillScript[]> {
     const scripts: SkillScript[] = []
+
+    // 限制递归深度为 1（只扫描 scripts 下的直接子目录）
+    const maxDepth = 1
 
     try {
       let entries: DirEntry[]
@@ -351,26 +361,34 @@ class SkillManager {
           continue
         }
 
-        // 只处理文件
-        if (entry.isFile) {
-          const scriptPath = `${scriptsDir}/${entry.name}`
+        const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name
 
+        if (entry.isFile) {
           // 检测脚本类型
           const scriptType = detectScriptType(entry.name)
           if (!scriptType) {
-            console.warn(`无法识别脚本类型: ${entry.name}`)
+            // 非脚本文件，静默跳过（减少日志噪音）
             continue
           }
 
           scripts.push({
-            name: entry.name,
-            path: scriptPath,
+            name: relativePath, // 使用相对路径作为脚本名称（如 "office/unpack.py"）
+            path: `${scriptsDir}/${relativePath}`,
             type: scriptType,
           })
+        } else if (entry.isDirectory && depth < maxDepth) {
+          // 递归加载子目录中的脚本（深度限制为 1）
+          const subScripts = await this.loadScriptsFromDirectory(
+            `${scriptsDir}/${entry.name}`,
+            scope,
+            relativePath,
+            depth + 1
+          )
+          scripts.push(...subScripts)
         }
       }
     } catch (error) {
-      console.error(`读取脚本目录失败: ${scriptsDir}`, error)
+      console.error(`[SkillManager] 读取脚本目录失败: ${scriptsDir}`, error)
     }
 
     return scripts
@@ -480,6 +498,51 @@ class SkillManager {
     }
 
     return assets
+  }
+
+  /**
+   * 从 skill 根目录加载额外的 .md 文件（如 editing.md, pptxgenjs.md）
+   * 支持加载 skill 根目录下的所有 .md 文件（排除 SKILL.md 自身）
+   */
+  private async loadRootMdFiles(
+    skillDirPath: string,
+    scope: SkillScope
+  ): Promise<SkillReference[]> {
+    const references: SkillReference[] = []
+
+    try {
+      let entries: DirEntry[]
+
+      if (scope === 'global') {
+        entries = await readDir(skillDirPath, { baseDir: BaseDirectory.AppData })
+      } else {
+        const options = await getFilePathOptions(skillDirPath)
+        if (options.baseDir) {
+          entries = await readDir(options.path, { baseDir: options.baseDir })
+        } else {
+          entries = await readDir(options.path)
+        }
+      }
+
+      for (const entry of entries) {
+        // 只处理 .md 文件，排除 SKILL.md
+        if (
+          entry.isFile &&
+          entry.name.endsWith('.md') &&
+          entry.name !== SKILL_FILE_NAME
+        ) {
+          references.push({
+            name: entry.name, // 如 "pptxgenjs.md", "editing.md"
+            path: entry.name,
+            description: `Additional reference file: ${entry.name}`,
+          })
+        }
+      }
+    } catch (error) {
+      console.error(`[SkillManager] 读取根目录 .md 文件失败: ${skillDirPath}`, error)
+    }
+
+    return references
   }
 
   // ========================================================================

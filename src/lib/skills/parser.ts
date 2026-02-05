@@ -86,28 +86,62 @@ function parseYamlMetadata(yamlContent: string): SkillYamlMetadata {
 
     // 如果在 metadata 部分中，处理缩进的键值对
     if (inMetadataSection) {
-      if (trimmed.startsWith('- ') || trimmed.startsWith('[')) {
-        // 列表项，跳过或特殊处理
-        continue
+      if (trimmed.startsWith('- ')) {
+        // 列表项，跳过（由下面的逻辑处理）
+      } else if (trimmed.startsWith('[')) {
+        // 数组格式，跳过
+      } else {
+        const metadataIndent = line.match(/^(\s+)/)?.[1]?.length || 0
+        if (metadataIndent > 0) {
+          // metadata 下的子项
+          const colonIndex = trimmed.indexOf(':')
+          if (colonIndex > 0) {
+            const key = trimmed.slice(0, colonIndex).trim()
+            const value = trimmed.slice(colonIndex + 1).trim()
+
+            if (!metadata.metadata) {
+              metadata.metadata = {}
+            }
+            metadata.metadata[key] = parseValue(value)
+            continue
+          }
+        } else {
+          // 退出 metadata 部分
+          inMetadataSection = false
+        }
+      }
+    }
+
+    // 检测 allowedTools 的 YAML 列表格式: allowedTools: 后跟 - item 行
+    if ((trimmed.startsWith('allowedTools:') || trimmed.startsWith('allowed-tools:')) &&
+        !trimmed.includes(': ') && !trimmed.includes(':[')) {
+      // 这是列表格式的开始，收集后续的 - item 行
+      const tools: string[] = []
+      const currentLineIndex = lines.indexOf(line)
+      const currentIndent = line.match(/^(\s+)/)?.[1]?.length || 0
+
+      // 收集后续行
+      for (let i = currentLineIndex + 1; i < lines.length; i++) {
+        const nextLine = lines[i]
+        const nextTrimmed = nextLine.trim()
+
+        // 检查是否退出（无缩进或非列表项）
+        const nextIndent = nextLine.match(/^(\s+)/)?.[1]?.length || 0
+        if (nextTrimmed && nextIndent <= currentIndent && !nextTrimmed.startsWith('-')) {
+          break
+        }
+
+        if (nextTrimmed.startsWith('- ')) {
+          const tool = nextTrimmed.replace(/^- /, '').trim().replace(/['"]/g, '')
+          if (tool) {
+            tools.push(tool)
+          }
+        }
       }
 
-      const metadataIndent = line.match(/^(\s+)/)?.[1]?.length || 0
-      if (metadataIndent > 0) {
-        // metadata 下的子项
-        const colonIndex = trimmed.indexOf(':')
-        if (colonIndex > 0) {
-          const key = trimmed.slice(0, colonIndex).trim()
-          const value = trimmed.slice(colonIndex + 1).trim()
-
-          if (!metadata.metadata) {
-            metadata.metadata = {}
-          }
-          metadata.metadata[key] = parseValue(value)
-          continue
-        }
-      } else {
-        // 退出 metadata 部分
-        inMetadataSection = false
+      if (tools.length > 0) {
+        metadata.allowedTools = tools
+        continue
       }
     }
 

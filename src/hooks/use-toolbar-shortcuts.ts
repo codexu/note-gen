@@ -32,7 +32,8 @@ export function useToolbarShortcuts() {
     if (currentPlatform === 'unknown') return
 
     const modifierKey = currentPlatform === 'macos' ? 'Command' : 'Alt'
-    
+    let isCleanup = false
+
     const registerShortcuts = async () => {
       // 先注销之前注册的快捷键
       for (const shortcut of registeredShortcutsRef.current) {
@@ -53,7 +54,10 @@ export function useToolbarShortcuts() {
       for (let i = 0; i < enabledItems.length && i < 9; i++) {
         const item = enabledItems[i]
         const shortcutKey = `${modifierKey}+${i + 1}`
-        
+
+        // 检查是否正在清理，避免重复注册
+        if (isCleanup) break
+
         try {
           await register(shortcutKey, (event) => {
             if (event.state === 'Pressed') {
@@ -72,6 +76,7 @@ export function useToolbarShortcuts() {
 
     return () => {
       // 组件卸载时清理快捷键
+      isCleanup = true
       const cleanup = async () => {
         for (const shortcut of registeredShortcutsRef.current) {
           try {
@@ -80,6 +85,7 @@ export function useToolbarShortcuts() {
             // 忽略注销错误
           }
         }
+        registeredShortcutsRef.current = []
       }
       cleanup()
     }

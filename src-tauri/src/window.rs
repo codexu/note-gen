@@ -12,24 +12,24 @@ pub fn setup_window_events(app: &AppHandle) -> tauri::Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-fn handle_window_event(event: &WindowEvent, _window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
+fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
     match event {
         WindowEvent::CloseRequested { api, .. } => {
-            // 无托盘：直接退出应用
+            // 有托盘：隐藏到托盘
             api.prevent_close();
-            std::process::exit(0);
+            let _ = window.hide();
         }
         _ => {}
     }
 }
 
 #[cfg(not(target_os = "macos"))]
-fn handle_window_event(event: &WindowEvent, _window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
+fn handle_window_event(event: &WindowEvent, window: &tauri::WebviewWindow, _app_handle: &AppHandle) {
     match event {
         WindowEvent::CloseRequested { api, .. } => {
-            // 无托盘：直接退出应用
+            // 有托盘：隐藏到托盘
             api.prevent_close();
-            std::process::exit(0);
+            let _ = window.hide();
         }
         _ => {}
     }

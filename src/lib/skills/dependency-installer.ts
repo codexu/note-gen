@@ -85,7 +85,7 @@ export function parseDependencyError(stderr: string): DependencyInfo | null {
                    errorLine.match(/Cannot find package ['"]([^'"]+)['"]/)
 
   if (nodeMatch) {
-    let moduleName = nodeMatch[1]
+    const moduleName = nodeMatch[1]
 
     // 如果匹配到的是路径而非模块名（如包含 / 或 .js 后缀），跳过
     if (moduleName.includes('/') || moduleName.includes('\\') || moduleName.endsWith('.js')) {

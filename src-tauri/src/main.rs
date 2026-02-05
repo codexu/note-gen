@@ -11,6 +11,7 @@ mod backup;
 mod mcp;
 mod device;
 mod skills;
+mod tray;
 
 use screenshot::{screenshot};
 use webdav::{webdav_backup, webdav_sync, webdav_test, webdav_create_dir};
@@ -28,26 +29,26 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_single_instance::init(window::handle_single_instance))
-        
+
         // MCP 服务器管理器
         .manage(McpServerManager::new())
-        
+
         // 系统级插件
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
-        
+
         // UI 相关插件
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        
+
         // 功能插件
         .plugin(tauri_plugin_updater::Builder::new().build())
-        
+
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
             screenshot,
@@ -66,10 +67,10 @@ fn main() {
             send_mcp_message,
             get_device_id,
         ])
-        
+
         // 应用设置 - 在所有插件和命令注册后
         .setup(app_setup::setup_app)
-        
+
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|_app_handle, event| match event {

@@ -9,6 +9,10 @@ import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState, useRef } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { ImperativePanelHandle } from 'react-resizable-panels'
+import { invoke } from "@tauri-apps/api/core"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import emitter from '@/lib/emitter'
+import { useRouter } from 'next/navigation'
 
 function getDefaultLayout(layoutKey: string) {
   const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
@@ -231,6 +235,8 @@ function ResizableWrapper() {
 }
 
 function Page() {
+  const router = useRouter()
+
   useEffect(() => {
     // 保存当前页面路径
     async function saveCurrentPage() {
@@ -239,8 +245,40 @@ function Page() {
       await store.save()
     }
     saveCurrentPage()
-  }, [])
-  
+
+    // 监听托盘事件
+    const window = getCurrentWindow()
+    const unlistenTrayAction = window.listen<string>('tray-action', async (event) => {
+      const action = event.payload
+      switch (action) {
+        case 'screenshot':
+          await invoke('screenshot')
+          emitter.emit('screenshot-shortcut-register', undefined)
+          break
+        case 'text':
+          emitter.emit('text-shortcut-register', undefined)
+          break
+        case 'pin':
+          emitter.emit('window-pin-register', undefined)
+          break
+        case 'link':
+          emitter.emit('link-shortcut-register', undefined)
+          break
+      }
+    })
+
+    // 监听打开设置事件
+    const unlistenOpenSettings = window.listen<void>('open-settings', () => {
+      // 导航到设置页面
+      router.push('/core/setting')
+    })
+
+    return () => {
+      unlistenTrayAction.then(fn => fn())
+      unlistenOpenSettings.then(fn => fn())
+    }
+  }, [router])
+
   return <ResizableWrapper />
 }
 

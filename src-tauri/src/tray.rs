@@ -55,6 +55,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
         ID_SETTINGS => {
             if let Some(webview) = app.get_webview_window("main") {
                 let _ = webview.show();
+                let _ = webview.set_focus();
                 let _ = webview.emit("open-settings", "");
             }
         }

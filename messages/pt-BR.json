@@ -1529,7 +1529,6 @@
         "sort": "Ordenar",
         "processingVectors": "Processando Dados Vetoriais",
         "calculateVectors": "Calcular Vetores de Documento",
-        "enableVectorDb": "Habilitar Banco de Dados Vetorial",
         "multiSelect": "Seleção Múltipla",
         "exitMultiSelect": "Sair da Seleção Múltipla",
         "selectAll": "Selecionar Tudo",
@@ -1938,7 +1937,6 @@
         "showCloudFiles": "Mostrar Arquivos da Nuvem",
         "processingVectors": "Processando Dados Vetoriais",
         "calculateVectors": "Cálculo da Base de Conhecimento (Completo)",
-        "enableVectorDb": "Habilitar Banco de Dados Vetorial",
         "importMarkdown": "Importar",
         "importing": "Importando...",
         "importSuccess": "Importação Bem-sucedida",
@@ -2000,6 +1998,7 @@
       },
       "folderView": {
         "vectorDbNotEnabled": "Banco de dados vetorial não está habilitado",
+        "calculateVectors": "Calcular Vetores",
         "indexed": "Indexado",
         "vectorCount": "Contagem de Vetores",
         "databaseSize": "Tamanho do Banco de Dados",

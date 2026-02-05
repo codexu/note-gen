@@ -460,10 +460,19 @@ export async function processMarkdownFile(
       const { path, baseDir } = await getFilePathOptions(filePath)
       content = fileContent || await readTextFile(path, { baseDir })
     }
+    // 如果内容为空或只有空白字符，跳过处理
+    if (!content || content.trim().length === 0) {
+      return false;
+    }
+
     const store = await Store.load('store.json')
     const chunkSize = await store.get<number>('ragChunkSize');
     const chunkOverlap = await store.get<number>('ragChunkOverlap');
-    const chunks = chunkText(content, chunkSize, chunkOverlap);
+    const chunks = chunkText(content, chunkSize, chunkOverlap).filter(chunk => chunk.trim().length > 0);
+    // 如果没有有效的文本块，跳过处理
+    if (chunks.length === 0) {
+      return false;
+    }
     // 文件名（不含路径）
     const filename = filePath.split('/').pop() || filePath;
 

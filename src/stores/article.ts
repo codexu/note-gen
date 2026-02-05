@@ -1448,16 +1448,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
       
       const { path, content } = state.pendingVectorContent
       const vectorStore = useVectorStore.getState()
-      
-      // 如果向量数据库已启用，执行向量计算
-      if (vectorStore.isVectorDbEnabled) {
-        await vectorStore.processDocument(path, content)
-        // 更新向量索引状态
-        const filename = path.split('/').pop() || path
-        const newMap = new Map(get().vectorIndexedFiles)
-        newMap.set(filename, Date.now())
-        set({ vectorIndexedFiles: newMap })
-      }
+
+      // 执行向量计算
+      await vectorStore.processDocument(path, content)
+      // 更新向量索引状态
+      const filename = path.split('/').pop() || path
+      const newMap = new Map(get().vectorIndexedFiles)
+      newMap.set(filename, Date.now())
+      set({ vectorIndexedFiles: newMap })
 
       // 清除待处理内容和定时器
       if (state.vectorCalcTimer) {

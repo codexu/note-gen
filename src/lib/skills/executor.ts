@@ -205,24 +205,9 @@ export class SkillExecutor {
   ): Promise<ScriptExecutionResult> {
     const startTime = Date.now()
 
-    console.log('[SkillExecutor] Starting script execution', {
-      skill_id: skill.metadata.id,
-      skill_name: skill.metadata.name,
-      script_name: scriptName,
-      script_type: skill.scripts.find(s => s.name === scriptName)?.type,
-      args,
-      timestamp: new Date().toISOString(),
-    })
-
     // 查找脚本
     const script = skill.scripts.find(s => s.name === scriptName)
     if (!script) {
-      console.error('[SkillExecutor] Script not found', {
-        skill_id: skill.metadata.id,
-        skill_name: skill.metadata.name,
-        script_name: scriptName,
-        available_scripts: skill.scripts.map(s => s.name),
-      })
       return {
         success: false,
         scriptName,
@@ -231,25 +216,11 @@ export class SkillExecutor {
       }
     }
 
-    console.log('[SkillExecutor] Script found', {
-      script_name: script.name,
-      script_path: script.path,
-      script_type: script.type,
-    })
-
     try {
       // 根据脚本类型执行
       const result = await this.executeScriptByType(script, args, skill)
 
       const executionTime = Date.now() - startTime
-
-      console.log('[SkillExecutor] Script execution completed', {
-        script_name: scriptName,
-        success: true,
-        exit_code: result.exitCode,
-        execution_time_ms: executionTime,
-        output_length: result.output?.length || 0,
-      })
 
       return {
         success: true,
@@ -261,13 +232,6 @@ export class SkillExecutor {
     } catch (error) {
       const executionTime = Date.now() - startTime
       const errorMessage = error instanceof Error ? error.message : String(error)
-
-      console.error('[SkillExecutor] Script execution failed', {
-        script_name: scriptName,
-        error: errorMessage,
-        error_stack: error instanceof Error ? error.stack : undefined,
-        execution_time_ms: executionTime,
-      })
 
       return {
         success: false,
@@ -294,12 +258,6 @@ export class SkillExecutor {
     const { basename } = await import('@tauri-apps/api/path')
 
     let command: string
-    let commandArgs: string[] = []
-
-    console.log('[SkillExecutor] Determining command type', {
-      script_type: script.type,
-      script_path: script.path,
-    })
 
     // 根据脚本类型确定解释器命令
     // 优先使用 'python3'，如果不存在则回退到 'python'
@@ -307,26 +265,18 @@ export class SkillExecutor {
       case 'python':
         // 优先使用 python3，添加回退逻辑
         command = 'python3'
-        commandArgs = [script.path, ...(args || [])]
         break
       case 'bash':
       case 'shell':
         command = 'bash'
-        commandArgs = [script.path, ...(args || [])]
         break
       case 'node':
       case 'javascript':
         command = 'node'
-        commandArgs = [script.path, ...(args || [])]
         break
       default:
         throw new Error(`Unsupported script type: ${script.type}`)
     }
-
-    console.log('[SkillExecutor] Command prepared', {
-      command,
-      command_args: commandArgs,
-    })
 
     // Resolve working directory if skill is provided
     let workingDirectory = ''
@@ -351,12 +301,6 @@ export class SkillExecutor {
           }
         }
 
-        console.log('[SkillExecutor] Working directory resolved', {
-          skill_id: skill.metadata.id,
-          skill_scope: skill.metadata.scope,
-          working_directory: workingDirectory,
-        })
-
         // 计算相对于 skill 目录的脚本路径
         // script.path 格式: "skills/example/scripts/example.js"
         // fileInfo.directory 格式: "skills/example"
@@ -368,17 +312,7 @@ export class SkillExecutor {
         // 使用 shell 命令切换到工作目录并执行
         const shellCommand = `cd "${workingDirectory}" && ${command} "${relativeScriptPath}" ${(args || []).map(a => `"${a}"`).join(' ')}`
 
-        console.log('[SkillExecutor] Shell command prepared', {
-          shell_command: shellCommand,
-        })
-
         const result = await Command.create('bash', ['-c', shellCommand]).execute()
-
-        console.log('[SkillExecutor] Command execution result', {
-          exit_code: result.code,
-          stdout_length: result.stdout?.length || 0,
-          stderr_length: result.stderr?.length || 0,
-        })
 
         return {
           output: result.stdout || result.stderr,
@@ -388,7 +322,6 @@ export class SkillExecutor {
     }
 
     // Fallback: execute without working directory (使用绝对路径)
-    console.log('[SkillExecutor] No working directory, executing with script path')
 
     // 如果没有 skill 信息，使用绝对路径
     const absolutePath = script.path.startsWith('/')
@@ -396,12 +329,6 @@ export class SkillExecutor {
       : script.path
 
     const result = await Command.create(command, [absolutePath, ...(args || [])]).execute()
-
-    console.log('[SkillExecutor] Direct execution result', {
-      exit_code: result.code,
-      stdout_length: result.stdout?.length || 0,
-      stderr_length: result.stderr?.length || 0,
-    })
 
     return {
       output: result.stdout || result.stderr,

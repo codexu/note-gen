@@ -5,23 +5,20 @@ import { Store } from "@tauri-apps/plugin-store";
 import { toast } from '@/hooks/use-toast';
 
 interface VectorState {
-  // 向量数据库状态
-  isVectorDbEnabled: boolean;      // 是否启用向量数据库
   isRagEnabled: boolean;           // 是否启用RAG检索功能
   isProcessing: boolean;           // 是否正在处理向量
   lastProcessTime: number | null;  // 最后一次处理向量的时间
   hasRerankModel: boolean;         // 是否有可用的重排序模型
-  
+
   // 统计数据
   documentCount: number;           // 文档数量
-  
+
   // 初始化函数
   initVectorDb: () => Promise<void>;
-  
-  // 向量数据库启用/禁用
-  setVectorDbEnabled: (enabled: boolean) => Promise<void>;
+
+  // RAG启用/禁用
   setRagEnabled: (enabled: boolean) => Promise<void>;
-  
+
   // 处理向量
   processAllDocuments: () => Promise<void>;
   processDocument: (filename: string, content: string) => Promise<void>;
@@ -30,13 +27,12 @@ interface VectorState {
 }
 
 const useVectorStore = create<VectorState>((set, get) => ({
-  isVectorDbEnabled: false,
   isRagEnabled: false,
   isProcessing: false,
   lastProcessTime: null,
   hasRerankModel: false,
   documentCount: 0,
-  
+
   // 初始化向量数据库
   initVectorDb: async () => {
     try {
@@ -47,26 +43,24 @@ const useVectorStore = create<VectorState>((set, get) => ({
 
       // 读取用户设置
       const store = await Store.load('store.json');
-      const isVectorDbEnabled = await store.get<boolean>('isVectorDbEnabled') || false;
       const isRagEnabled = await store.get<boolean>('isRagEnabled') || false;
       const lastProcessTime = await store.get<number>('lastVectorProcessTime') || null;
-      
-      set({ 
-        isVectorDbEnabled, 
+
+      set({
         isRagEnabled,
         lastProcessTime
       });
-      
-      // 如果已启用向量数据库且有嵌入模型，检查模型可用性
-      if (isVectorDbEnabled) {
-        const modelAvailable = await get().checkEmbeddingModel();
-        if (!modelAvailable) {
-          // 如果模型不可用，禁用向量数据库和RAG
-          await get().setVectorDbEnabled(false);
-          await get().setRagEnabled(false);
-        }
+
+      // 检查嵌入模型可用性
+      const modelAvailable = await get().checkEmbeddingModel();
+      if (!modelAvailable) {
+        toast({
+          title: '向量数据库',
+          description: '未配置嵌入模型或模型不可用，请在AI设置中配置嵌入模型',
+          variant: 'destructive',
+        });
       }
-      
+
       // 检查重排序模型是否可用
       const hasRerankModel = await get().checkRerankModel();
       set({ hasRerankModel });
@@ -74,52 +68,19 @@ const useVectorStore = create<VectorState>((set, get) => ({
       console.error('初始化向量数据库失败:', error);
     }
   },
-  
-  // 设置向量数据库启用状态
-  setVectorDbEnabled: async (enabled: boolean) => {
-    try {
-      const store = await Store.load('store.json');
-      await store.set('isVectorDbEnabled', enabled);
-      
-      set({ isVectorDbEnabled: enabled });
-      
-      // 如果启用向量数据库，检查嵌入模型是否可用
-      if (enabled) {
-        const modelAvailable = await get().checkEmbeddingModel();
-        if (!modelAvailable) {
-          toast({
-            title: '向量数据库',
-            description: '未配置嵌入模型或模型不可用，请在AI设置中配置嵌入模型',
-            variant: 'destructive',
-          });
-          
-          // 自动禁用
-          await store.set('isVectorDbEnabled', false);
-          set({ isVectorDbEnabled: false });
-        }
-      }
-    } catch (error) {
-      console.error('设置向量数据库状态失败:', error);
-    }
-  },
-  
+
   // 设置RAG启用状态
   setRagEnabled: async (enabled: boolean) => {
     try {
       const store = await Store.load('store.json');
       await store.set('isRagEnabled', enabled);
-      
+
       set({ isRagEnabled: enabled });
-      
-      // 如果启用RAG但向量数据库未启用，自动启用向量数据库
-      if (enabled && !get().isVectorDbEnabled) {
-        await get().setVectorDbEnabled(true);
-      }
     } catch (error) {
       console.error('设置RAG状态失败:', error);
     }
   },
-  
+
   // 处理所有文档向量
   processAllDocuments: async () => {
     // 如果已经在处理中，直接返回
@@ -198,19 +159,16 @@ const useVectorStore = create<VectorState>((set, get) => ({
       });
     }
   },
-  
+
   // 处理单个文档向量
   processDocument: async (filename: string, content: string) => {
-    // 如果向量数据库未启用，直接返回
-    if (!get().isVectorDbEnabled) return;
-    
     try {
       await processMarkdownFile(filename, content);
     } catch (error) {
       console.error(`处理文档 ${filename} 向量失败:`, error);
     }
   },
-  
+
   // 检查嵌入模型可用性
   checkEmbeddingModel: async () => {
     try {
@@ -221,7 +179,7 @@ const useVectorStore = create<VectorState>((set, get) => ({
       return false;
     }
   },
-  
+
   // 检查重排序模型可用性
   checkRerankModel: async () => {
     try {

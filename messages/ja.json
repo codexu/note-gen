@@ -2027,7 +2027,6 @@
         "showCloudFiles": "クラウドファイルを表示",
         "processingVectors": "ベクトルデータ処理中",
         "calculateVectors": "知識庫計算（全量）",
-        "enableVectorDb": "ベクトルデータベースを有効化",
         "importMarkdown": "インポート",
         "importing": "インポート中...",
         "importSuccess": "インポート成功",
@@ -2089,6 +2088,7 @@
       },
       "folderView": {
         "vectorDbNotEnabled": "ベクターデッサースが有効ではありません",
+        "calculateVectors": "ベクトルを計算",
         "indexed": "インデックス済み",
         "vectorCount": "ベクター数",
         "databaseSize": "データベースサイズ",

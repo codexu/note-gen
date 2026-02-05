@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import useArticleStore from "@/stores/article";
-import useVectorStore from "@/stores/vector";
 import {
   Cylinder,
   Database,
@@ -17,7 +16,6 @@ export default function VectorCalc() {
     vectorIndexedFiles,
     lastEditTime,
   } = useArticleStore();
-  const { isVectorDbEnabled } = useVectorStore();
   const t = useTranslations("article.footer.vectorCalc");
   const [progressPercentage, setProgressPercentage] = useState(0);
 
@@ -121,11 +119,6 @@ export default function VectorCalc() {
   };
 
   const displayText = getDisplayText();
-
-  // 如果向量数据库未启用，不显示按钮
-  if (!isVectorDbEnabled) {
-    return null;
-  }
 
   return (
     <Button

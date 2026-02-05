@@ -1491,7 +1491,6 @@
         "sort": "Sort",
         "processingVectors": "Processing Vector Data",
         "calculateVectors": "Calculate Document Vectors",
-        "enableVectorDb": "Enable Vector Database",
         "multiSelect": "Multi Select",
         "exitMultiSelect": "Exit Multi Select",
         "organizeNotes": "Organize Notes",
@@ -1890,7 +1889,6 @@
         "showCloudFiles": "Show Cloud Files",
         "processingVectors": "Processing Vector Data",
         "calculateVectors": "Knowledge Base Calculation (Full)",
-        "enableVectorDb": "Enable Vector Database",
         "importMarkdown": "Import",
         "importing": "Importing...",
         "importSuccess": "Import Successful",
@@ -1952,6 +1950,7 @@
       },
       "folderView": {
         "vectorDbNotEnabled": "Vector database not enabled",
+        "calculateVectors": "Calculate Vectors",
         "indexed": "Indexed",
         "vectorCount": "Vector Count",
         "databaseSize": "Database Size",

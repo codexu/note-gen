@@ -1833,7 +1833,6 @@
         "showCloudFiles": "显示云端文件",
         "processingVectors": "正在处理向量数据",
         "calculateVectors": "知识库计算（全量）",
-        "enableVectorDb": "启用向量数据库",
         "importMarkdown": "导入",
         "importing": "正在导入...",
         "importSuccess": "导入成功",
@@ -1895,6 +1894,7 @@
       },
       "folderView": {
         "vectorDbNotEnabled": "向量数据库未启用",
+        "calculateVectors": "计算向量",
         "indexed": "已计算",
         "vectorCount": "向量数",
         "databaseSize": "数据库大小",

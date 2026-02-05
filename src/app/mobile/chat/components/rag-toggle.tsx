@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
 export function RagToggle() {
-  const { isRagEnabled, setRagEnabled, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
+  const { isRagEnabled, setRagEnabled } = useVectorStore()
   const t = useTranslations('record.chat.input')
   const [loading, setLoading] = useState(false)
 
@@ -28,12 +28,7 @@ export function RagToggle() {
         })
         return
       }
-      if (isVectorDbEnabled) {
-        await setRagEnabled(true)
-      } else {
-        await setVectorDbEnabled(true)
-        await setRagEnabled(true)
-      }
+      await setRagEnabled(true)
     }
   }
 

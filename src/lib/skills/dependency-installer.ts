@@ -128,13 +128,6 @@ async function commandExists(cmd: string): Promise<boolean> {
 export async function installDependency(dep: DependencyInfo): Promise<InstallResult> {
   const { installCommand, installArgs, moduleName, type } = dep
 
-  console.log('[dependency-installer] Installing dependency', {
-    type,
-    moduleName,
-    command: installCommand,
-    args: installArgs,
-  })
-
   try {
     // Try with fallback commands (e.g., pip -> pip3, python -> python3)
     const fallbacks = {
@@ -154,29 +147,14 @@ export async function installDependency(dep: DependencyInfo): Promise<InstallRes
       const args = installArgs.map(a => a.replace(installCommand, cmd))
       const shellCommand = `${cmd} ${args.join(' ')}`
 
-      console.log('[dependency-installer] Executing install command', {
-        command: shellCommand,
-      })
-
       const result = await Command.create('bash', ['-c', shellCommand]).execute()
 
       if (result.code === 0) {
-        console.log('[dependency-installer] Installation succeeded', {
-          command: shellCommand,
-          moduleName,
-        })
-
         return {
           success: true,
           message: `Successfully installed ${type} module '${moduleName}' using ${shellCommand}`,
           installed: moduleName,
         }
-      } else {
-        console.warn('[dependency-installer] Installation failed', {
-          command: shellCommand,
-          exit_code: result.code,
-          stderr: result.stderr,
-        })
       }
     }
 
@@ -186,10 +164,6 @@ export async function installDependency(dep: DependencyInfo): Promise<InstallRes
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('[dependency-installer] Installation error', {
-      moduleName,
-      error: errorMessage,
-    })
 
     return {
       success: false,
@@ -208,11 +182,6 @@ export async function handleDependencyError(stderr: string): Promise<InstallResu
   if (!dep) {
     return null
   }
-
-  console.log('[dependency-installer] Detected missing dependency', {
-    type: dep.type,
-    moduleName: dep.moduleName,
-  })
 
   return await installDependency(dep)
 }

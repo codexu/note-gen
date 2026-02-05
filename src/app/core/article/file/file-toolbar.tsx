@@ -29,7 +29,7 @@ export function FileToolbar() {
     giteaInstanceType,
     giteaCustomUrl
   } = useSettingStore()
-  const { processAllDocuments, isProcessing, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
+  const { processAllDocuments, isProcessing } = useVectorStore()
   const t = useTranslations('article.file.toolbar')
 
   const username = useUsername()
@@ -90,11 +90,11 @@ export function FileToolbar() {
   return (
     <div className="flex items-center h-12 border-b px-2">
       {/* 向量数据库 */}
-      <TooltipButton 
-        icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className={isVectorDbEnabled ? "text-primary" : ""} />} 
-        tooltipText={isProcessing ? t('processingVectors') : (isVectorDbEnabled ? t('calculateVectors') : t('enableVectorDb'))} 
-        onClick={isVectorDbEnabled ? processAllDocuments : () => setVectorDbEnabled(true)}
-        disabled={isProcessing} 
+      <TooltipButton
+        icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className="text-primary" />}
+        tooltipText={isProcessing ? t('processingVectors') : t('calculateVectors')}
+        onClick={processAllDocuments}
+        disabled={isProcessing}
       />
       {/* 同步 */}
       {

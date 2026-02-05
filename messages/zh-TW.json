@@ -1895,7 +1895,6 @@
         "showCloudFiles": "顯示雲端檔案",
         "processingVectors": "正在處理向量數據",
         "calculateVectors": "知識庫計算（全量）",
-        "enableVectorDb": "啟用向量資料庫",
         "importMarkdown": "匯入",
         "importing": "正在匯入...",
         "importSuccess": "匯入成功",
@@ -1957,6 +1956,7 @@
       },
       "folderView": {
         "vectorDbNotEnabled": "向量資料庫未啟用",
+        "calculateVectors": "計算向量",
         "indexed": "已計算",
         "vectorCount": "向量數",
         "databaseSize": "資料庫大小",

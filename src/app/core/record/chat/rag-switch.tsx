@@ -9,7 +9,7 @@ import { checkEmbeddingModelAvailable } from '@/lib/rag'
 import { toast } from '@/hooks/use-toast'
 
 export function RagSwitch() {
-  const { isRagEnabled, setRagEnabled, isVectorDbEnabled, setVectorDbEnabled } = useVectorStore()
+  const { isRagEnabled, setRagEnabled } = useVectorStore()
   const t = useTranslations('record.chat.input')
   const [loading, setLoading] = useState(false)
 
@@ -27,12 +27,7 @@ export function RagSwitch() {
         })
         return
       }
-      if (isVectorDbEnabled) {
-        await setRagEnabled(true)
-      } else {
-        await setVectorDbEnabled(true)
-        await setRagEnabled(true)
-      }
+      await setRagEnabled(true)
     }
   }
 

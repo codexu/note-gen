@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useTranslations } from 'next-intl'
 import useArticleStore from '@/stores/article'
-import useVectorStore from '@/stores/vector'
 import { useSkillsStore } from '@/stores/skills'
 import { isSkillsFolder, extractSkillIdFromPath } from '@/lib/skills/utils'
 import { computedParentPath } from '@/lib/path'
@@ -61,39 +60,41 @@ function SkillsListView({
   }
 
   return (
-    <div className="flex-1 h-full flex flex-col items-center justify-center bg-background gap-6 p-8">
+    <div className="flex-1 h-full flex flex-col items-center bg-background gap-6 p-8 overflow-y-auto">
       {/* Skills Icon and Name */}
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-3 shrink-0">
         <Sparkles className="w-20 h-20 text-primary" />
         <h2 className="text-2xl font-semibold tracking-tight">{t('skills')} ({skills.length})</h2>
       </div>
 
       {/* Skills 列表 */}
       {skills.length === 0 ? null : (
-        <div className="flex flex-col gap-4 w-full max-w-2xl">
+        <div className="flex flex-col gap-4 w-full max-w-2xl shrink-0">
           {/* 全局 Skills */}
           {globalSkills.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground px-1">{t('globalSkills')}</h3>
-              {globalSkills.map((skill) => (
-                <div
-                  key={skill.id}
-                  className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer"
-                  onClick={() => toggleExpanded(skill.id)}
-                >
-                  <div className="flex items-start gap-4">
-                    <Sparkles className="size-5 text-primary mt-1" />
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">{skill.name}</h3>
-                      <p className="text-sm text-muted-foreground cursor-pointer">
-                        {expandedSkills.has(skill.id) ? skill.description : (
-                          <span className="line-clamp-1">{skill.description}</span>
-                        )}
-                      </p>
+              <div className="space-y-2">
+                {globalSkills.map((skill) => (
+                  <div
+                    key={skill.id}
+                    className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer"
+                    onClick={() => toggleExpanded(skill.id)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <Sparkles className="size-5 text-primary mt-1" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">{skill.name}</h3>
+                        <p className="text-sm text-muted-foreground cursor-pointer">
+                          {expandedSkills.has(skill.id) ? skill.description : (
+                            <span className="line-clamp-1">{skill.description}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
@@ -101,25 +102,27 @@ function SkillsListView({
           {projectSkills.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground px-1">{t('workspaceSkills')}</h3>
-              {projectSkills.map((skill) => (
-                <div
-                  key={skill.id}
-                  className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-purple-50/50 dark:bg-purple-950/20 cursor-pointer"
-                  onClick={() => toggleExpanded(skill.id)}
-                >
-                  <div className="flex items-start gap-4">
-                    <Sparkles className="size-5 text-primary mt-1" />
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">{skill.name}</h3>
-                      <p className="text-sm text-muted-foreground cursor-pointer">
-                        {expandedSkills.has(skill.id) ? skill.description : (
-                          <span className="line-clamp-1">{skill.description}</span>
-                        )}
-                      </p>
+              <div className="space-y-2">
+                {projectSkills.map((skill) => (
+                  <div
+                    key={skill.id}
+                    className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-purple-50/50 dark:bg-purple-950/20 cursor-pointer"
+                    onClick={() => toggleExpanded(skill.id)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <Sparkles className="size-5 text-primary mt-1" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">{skill.name}</h3>
+                        <p className="text-sm text-muted-foreground cursor-pointer">
+                          {expandedSkills.has(skill.id) ? skill.description : (
+                            <span className="line-clamp-1">{skill.description}</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -221,7 +224,6 @@ export function FolderView({ folderPath }: FolderViewProps) {
   } | null>(null)
 
   const { fileTree, vectorIndexedFiles, initVectorIndexedFiles } = useArticleStore()
-  const { isVectorDbEnabled } = useVectorStore()
   const { getSkillsByScope, initSkills, initialized: skillsStoreInitialized } = useSkillsStore()
 
   const folderName = folderPath.split('/').pop() || folderPath
@@ -468,27 +470,6 @@ export function FolderView({ folderPath }: FolderViewProps) {
     }
 
     return <SkillDetailView skillContent={skillContent} t={t} />
-  }
-
-  // Check if there's any computed vector data
-  const hasVectorData = folderFiles.some(file => {
-    const filename = file.split('/').pop() || file
-    return vectorIndexedFiles.has(filename)
-  })
-
-  // If no vector data and vector database is not enabled
-  if (!hasVectorData && !isVectorDbEnabled) {
-    return (
-      <div className="flex-1 h-full flex flex-col items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Folder className="w-16 h-16 text-muted-foreground" />
-          <h2 className="text-2xl font-semibold tracking-tight">{folderName}</h2>
-          <p className="text-muted-foreground text-sm">
-            {t('vectorDbNotEnabled')}
-          </p>
-        </div>
-      </div>
-    )
   }
 
   if (loadingStats && !stats) {

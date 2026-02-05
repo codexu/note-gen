@@ -343,17 +343,9 @@ export const executeSkillScriptTool: Tool = {
     const startTime = Date.now()
     const { skill_id, command, args } = params
 
-    console.log('[execute_skill_script] Starting execution', {
-      skill_id,
-      command,
-      args,
-      timestamp: new Date().toISOString(),
-    })
-
     try {
       // Validate skill_id
       if (!skill_id || typeof skill_id !== 'string') {
-        console.error('[execute_skill_script] Invalid skill_id', { skill_id })
         return {
           success: false,
           error: `Invalid skill_id: must be a non-empty string`,
@@ -362,7 +354,6 @@ export const executeSkillScriptTool: Tool = {
 
       // Validate command
       if (!command || typeof command !== 'string') {
-        console.error('[execute_skill_script] Invalid command', { command })
         return {
           success: false,
           error: `Invalid command: must be a non-empty string`,
@@ -372,7 +363,6 @@ export const executeSkillScriptTool: Tool = {
       // Get Skill information
       const skill = skillManager.getSkill(skill_id)
       if (!skill) {
-        console.error('[execute_skill_script] Skill not found', { skill_id })
         return {
           success: false,
           error: `Skill not found: ${skill_id}`,
@@ -382,19 +372,11 @@ export const executeSkillScriptTool: Tool = {
       // Get Skill file info
       const fileInfo = skillManager.getSkillFileInfo(skill_id)
       if (!fileInfo) {
-        console.error('[execute_skill_script] Skill file info not found', { skill_id })
         return {
           success: false,
           error: `Cannot determine Skill directory for: ${skill_id}`,
         }
       }
-
-      console.log('[execute_skill_script] Skill info retrieved', {
-        skill_id: skill.metadata.id,
-        skill_name: skill.metadata.name,
-        directory: fileInfo.directory,
-        scope: skill.metadata.scope,
-      })
 
       // Import Tauri APIs
       const { Command } = await import('@tauri-apps/plugin-shell')
@@ -416,11 +398,6 @@ export const executeSkillScriptTool: Tool = {
         }
       }
 
-      console.log('[execute_skill_script] Skill directory resolved', {
-        skill_id,
-        skill_dir: skillDir,
-      })
-
       // Parse command and args
       let cmd: string
       let cmdArgs: string[]
@@ -436,21 +413,12 @@ export const executeSkillScriptTool: Tool = {
         cmdArgs = [...(args || [])]
       }
 
-      console.log('[execute_skill_script] Parsed command', {
-        cmd,
-        cmd_args: cmdArgs,
-      })
-
       // Process args - convert full paths to relative paths if needed
       const processedCmdArgs = cmdArgs.map((arg: string) => {
         // If arg starts with "skills/{skill_id}/", extract the relative path
         const skillPrefix = `skills/${skill_id}/`
         if (arg.startsWith(skillPrefix)) {
           const relativePath = arg.substring(skillPrefix.length)
-          console.log('[execute_skill_script] Converting path', {
-            original: arg,
-            relative: relativePath,
-          })
           return relativePath
         }
         return arg
@@ -468,10 +436,6 @@ export const executeSkillScriptTool: Tool = {
         shellCommand = `cd "${skillDir}" && ${cmd} ${processedCmdArgs.map((a: string) => `"${a}"`).join(' ')}`
       }
 
-      console.log('[execute_skill_script] Shell command', {
-        shell_command: shellCommand,
-      })
-
       // Execute command
       const stdoutChunks: string[] = []
       const stderrChunks: string[] = []
@@ -480,12 +444,10 @@ export const executeSkillScriptTool: Tool = {
 
       cmdProcess.stdout.on('data', (line: string) => {
         stdoutChunks.push(line)
-        console.log('[execute_skill_script] stdout:', line)
       })
 
       cmdProcess.stderr.on('data', (line: string) => {
         stderrChunks.push(line)
-        console.error('[execute_skill_script] stderr:', line)
       })
 
       const r = await cmdProcess.execute()
@@ -494,13 +456,6 @@ export const executeSkillScriptTool: Tool = {
       const stderr = stderrChunks.join('') || r.stderr || ''
       const exitCode = r.code ?? -1
       const executionTime = Date.now() - startTime
-
-      console.log('[execute_skill_script] Execution completed', {
-        exit_code: exitCode,
-        execution_time_ms: executionTime,
-        stdout_length: stdout.length,
-        stderr_length: stderr.length,
-      })
 
       return {
         success: exitCode === 0,

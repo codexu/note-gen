@@ -229,10 +229,6 @@ interface SettingState {
   recordToolbarConfig: RecordToolbarItem[]
   setRecordToolbarConfig: (config: RecordToolbarItem[]) => Promise<void>
 
-  // 托盘设置
-  trayEnabled: boolean
-  setTrayEnabled: (enabled: boolean) => Promise<void>
-
   // 摘要设置
   enableCondense: boolean
   setEnableCondense: (enabled: boolean) => Promise<void>
@@ -1118,15 +1114,6 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ recordToolbarConfig: config })
     const store = await Store.load('store.json');
     await store.set('recordToolbarConfig', config)
-    await store.save()
-  },
-
-  // 托盘设置
-  trayEnabled: true,
-  setTrayEnabled: async (enabled: boolean) => {
-    set({ trayEnabled: enabled })
-    const store = await Store.load('store.json');
-    await store.set('trayEnabled', enabled)
     await store.save()
   },
 

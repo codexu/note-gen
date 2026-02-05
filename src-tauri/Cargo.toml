@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [ "macos-private-api", "tray-icon", "protocol-asset", "image-png", "devtools"] }
+tauri = { version = "2", features = [ "macos-private-api", "protocol-asset", "image-png", "devtools"] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "=1"
@@ -65,4 +65,4 @@ core-graphics = "0.23"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies.tauri]
 version = "2"
-features = ["tray-icon"]
+features = []

@@ -7,7 +7,7 @@ interface Events {
   'ai-completion-loading': boolean;
   'auto-completion-enabled-changed': boolean;
   'editor-input': unknown;
-  'vditor:ready': unknown;
+  'editor:ready': unknown;
   'editor-mode-changed': string;
   'external-content-update': string;
   'toolbar-text-number': number;

@@ -99,12 +99,7 @@ export function OutlineSidebar() {
 
       // 获取标题文本
       let text = ''
-      const clone = element.cloneNode(true) as HTMLElement
-      const marker = clone.querySelector('.vditor-ir__marker--heading')
-      if (marker) {
-        marker.remove()
-      }
-      text = clone.textContent?.trim() || element.textContent?.replace(/^#+\s*/, '').trim() || ''
+      text = element.textContent?.replace(/^#+\s*/, '').trim() || ''
 
       const id = element.id
       const node: HeadingNode = { id, level, text, children: [] }
@@ -129,30 +124,14 @@ export function OutlineSidebar() {
   // 渲染大纲
   const renderOutline = () => {
     // 直接从 DOM 获取编辑器元素
-    const editorElement = document.getElementById('aritcle-md-editor')
+    const editorElement = document.querySelector('.tiptap-editor')
     if (!editorElement) {
       setTree([])
       return
     }
 
-    let container: HTMLElement | null = null
-
-    // 尝试从不同模式获取内容容器
-    const irElement = editorElement.querySelector('.vditor-ir')
-    const svPreview = editorElement.querySelector('.vditor-sv__preview')
-    const wysiwygElement = editorElement.querySelector('.vditor-wysiwyg')
-    const previewElement = editorElement.querySelector('.vditor-preview')
-
-    if (irElement) {
-      container = irElement as HTMLElement
-    } else if (svPreview) {
-      container = svPreview as HTMLElement
-    } else if (wysiwygElement) {
-      container = wysiwygElement as HTMLElement
-    } else if (previewElement) {
-      container = previewElement as HTMLElement
-    }
-
+    // Tiptap uses .ProseMirror class for content
+    const container = editorElement.querySelector('.ProseMirror') as HTMLElement
     if (!container) {
       setTree([])
       return
@@ -194,16 +173,10 @@ export function OutlineSidebar() {
 
   // 监听编辑器模式切换和初始化完成
   useEffect(() => {
-    const handleEditorReady = () => {
-      setTimeout(renderOutline, 100)
-    }
-
-    emitter.on('vditor:ready', handleEditorReady)
-    emitter.on('editor-mode-changed', handleEditorReady)
-
+    // Tiptap doesn't emit ready events, so we rely on editor-input
+    // and content changes instead
     return () => {
-      emitter.off('vditor:ready', handleEditorReady)
-      emitter.off('editor-mode-changed', handleEditorReady)
+      // Cleanup
     }
   }, [])
 

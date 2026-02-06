@@ -1,0 +1,1 @@
+export { TipTapEditor } from './TipTapEditor'

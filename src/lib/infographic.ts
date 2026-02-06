@@ -134,8 +134,9 @@ const getInfographicNodes = (element: HTMLElement) => {
 
 export const infographicRenderer = {
   language: INFOGRAPHIC_LANGUAGE,
-  render: (element: HTMLElement, vditor: { options?: { theme?: string } }) => {
-    const themeMode = vditor?.options?.theme === 'dark' ? 'dark' : 'light';
+  render: (element: HTMLElement) => {
+    // Tiptap doesn't use this renderer, but keep for compatibility
+    const themeMode = 'light';
     renderInfographicElements(element, { themeMode });
   },
 };
@@ -150,20 +151,6 @@ export const renderInfographicElements = (
   const nodes = getInfographicNodes(element);
 
   nodes.forEach((node) => {
-    const parent = node.parentElement;
-    if (
-      parent?.classList.contains('vditor-wysiwyg__pre') ||
-      parent?.classList.contains('vditor-ir__marker--pre')
-    ) {
-      return;
-    }
-
-    const copyElement = node.previousElementSibling;
-    if (copyElement?.classList.contains('vditor-copy')) {
-      copyElement.remove();
-    }
-    node.style.maxHeight = 'none';
-
     const code = getInfographicCode(node).trim();
     if (!code) return;
 

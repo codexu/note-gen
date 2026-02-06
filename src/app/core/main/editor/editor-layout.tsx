@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
-import { MdEditor } from './markdown/md-editor'
+import { MdEditor } from './markdown/MdEditorWrapper'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'

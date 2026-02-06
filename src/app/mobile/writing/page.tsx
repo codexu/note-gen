@@ -1,6 +1,6 @@
 'use client'
 
-import { MdEditor } from '@/app/core/main/editor/markdown/md-editor'
+import { MdEditor } from '@/app/core/main/editor/markdown/MdEditorWrapper'
 import { WritingHeader } from './custom-header'
 import useArticleStore from '@/stores/article'
 import { useEffect } from 'react'

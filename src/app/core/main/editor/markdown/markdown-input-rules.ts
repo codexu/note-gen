@@ -14,6 +14,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Heading 1: # → H1
         find: /^#\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 1 }))
@@ -22,6 +23,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Heading 2: ## → H2
         find: /^##\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 2 }))
@@ -30,6 +32,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Heading 3: ### → H3
         find: /^###\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 3 }))
@@ -38,6 +41,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Blockquote: > → Blockquote
         find: /^>\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.blockquote.create())
@@ -46,6 +50,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Bullet list: - or * → Bullet list
         find: /^[-*]\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.bullet_list.create())
@@ -54,6 +59,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Ordered list: 1. → Ordered list
         find: /^1\.\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.ordered_list.create())
@@ -62,6 +68,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Task list unchecked: - [ ] → Task list
         find: /^- \[\]\s$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           const taskItem = state.schema.nodes.taskItem.create({ checked: false })
@@ -71,6 +78,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Task list checked: - [x] → Task list
         find: /^- \[x\]\s$/i,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           const taskItem = state.schema.nodes.taskItem.create({ checked: true })
@@ -80,6 +88,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Code block: ```
         find: /^```$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.codeBlock.create())
@@ -88,6 +97,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Horizontal rule: --- or ***
         find: /^(?:---|\*\*\*)$/,
+        undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
           tr.replaceWith(range.from, range.to, state.schema.nodes.horizontalRule.create())
@@ -96,6 +106,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Bold: **text** or __text__
         find: /(\*\*|__)([^*]+)\1$/,
+        undoable: true,
         handler: ({ state, range, match }) => {
           const { tr } = state
           const start = range.from
@@ -107,6 +118,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Strike: ~~text~~
         find: /~~([^~]+)~~$/,
+        undoable: true,
         handler: ({ state, range, match }) => {
           const { tr } = state
           const text = match[1]
@@ -116,6 +128,7 @@ export const MarkdownInputRules = Extension.create({
       {
         // Inline code: `text`
         find: /`([^`]+)`$/,
+        undoable: true,
         handler: ({ state, range, match }) => {
           const { tr } = state
           const text = match[1]

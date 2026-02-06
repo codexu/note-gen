@@ -3,7 +3,6 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
@@ -13,12 +12,24 @@ import Highlight from '@tiptap/extension-highlight'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Typography from '@tiptap/extension-typography'
+import Dropcursor from '@tiptap/extension-dropcursor'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
 import { common, createLowlight } from 'lowlight'
+import { List, Sparkles } from 'lucide-react'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './BubbleMenu'
+import { TableToolbar } from './TableToolbar'
+import { ImageToolbar } from './ImageToolbar'
+import { ExportMenu } from './ExportMenu'
+import { ImageExtension } from './ImageExtension'
 import { MarkdownInputRules } from './markdown-input-rules'
+import { Outline } from './Outline'
+import { MathInline, MathBlock } from './MathExtension'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -28,6 +39,7 @@ interface TipTapEditorProps {
   onChange?: (content: string) => void
   placeholder?: string
   editable?: boolean
+  aiEnabled?: boolean
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
@@ -39,11 +51,14 @@ export function TipTapEditor({
   onChange,
   placeholder = '开始写作...',
   editable = true,
+  aiEnabled = false,
   onAIPolish,
   onAIConcise,
   onAIExpand,
   onQuoteToChat,
 }: TipTapEditorProps) {
+  const [showOutline, setShowOutline] = useState(false)
+  const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
   const lastContentRef = useRef(content)
 
   // Memoize callbacks before the editor check to avoid hooks rule violations
@@ -78,10 +93,6 @@ export function TipTapEditor({
       Placeholder.configure({
         placeholder,
       }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-      }),
       Link.configure({
         openOnClick: false,
       }),
@@ -102,10 +113,22 @@ export function TipTapEditor({
       }),
       Typography,
       SearchAndReplace,
+      Dropcursor,
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      // Image upload extension
+      ImageExtension,
       // Markdown input rules
       MarkdownInputRules,
       // Markdown extension for import/export
       Markdown,
+      // Math formulas
+      MathInline,
+      MathBlock,
     ],
     content,
     editable,
@@ -146,8 +169,44 @@ export function TipTapEditor({
         onQuoteToChat={handleQuoteToChat}
       />
 
+      {/* Table Toolbar */}
+      <TableToolbar editor={editor} />
+
+      {/* Image Toolbar */}
+      <ImageToolbar editor={editor} />
+
+      {/* Outline Toggle */}
+      <div className="flex items-center px-2 py-1 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))] gap-1">
+        <button
+          onClick={() => setShowOutline(!showOutline)}
+          className={`p-1.5 rounded hover:bg-[hsl(var(--accent))] ${showOutline ? 'bg-[hsl(var(--accent))]' : ''}`}
+          title="大纲"
+        >
+          <List size={16} />
+        </button>
+
+        {/* AI Completion Toggle */}
+        <button
+          onClick={() => setAICompletionEnabled(!aiCompletionEnabled)}
+          className={`p-1.5 rounded hover:bg-[hsl(var(--accent))] ${aiCompletionEnabled ? 'bg-[hsl(var(--accent))]' : ''}`}
+          title={`AI 补全 ${aiCompletionEnabled ? '已开启' : '已关闭'}`}
+        >
+          <Sparkles size={16} className={aiCompletionEnabled ? 'text-[hsl(var(--primary))]' : ''} />
+        </button>
+      </div>
+
+      {/* Outline Panel */}
+      <Outline
+        editor={editor}
+        isOpen={showOutline}
+        onClose={() => setShowOutline(false)}
+      />
+
       {/* Editor content */}
       <EditorContent editor={editor} className="flex-1 overflow-auto" />
+
+      {/* Export Menu - Bottom Toolbar */}
+      <ExportMenu editor={editor} />
     </div>
   )
 }

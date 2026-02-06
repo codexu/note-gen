@@ -178,7 +178,230 @@
   margin: 1em 0;
 }
 
-/* 表格 */
+/* ========================
+   图片上传样式
+   ======================== */
+
+/* 上传中的图片 */
+.tiptap-editor .ProseMirror img[data-upload-status="uploading"] {
+  opacity: 0.6;
+  filter: blur(2px);
+}
+
+/* 上传失败的图片 */
+.tiptap-editor .ProseMirror img[data-upload-status="error"] {
+  border: 2px solid hsl(var(--destructive));
+  opacity: 0.8;
+}
+
+/* 上传占位符 */
+.tiptap-editor .ProseMirror .image-upload-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background-color: hsl(var(--muted) / 0.5);
+  border: 2px dashed hsl(var(--border));
+  border-radius: 8px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.tiptap-editor .ProseMirror .image-upload-placeholder::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid hsl(var(--muted-foreground) / 0.5);
+  border-top-color: hsl(var(--primary));
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 图片工具栏 */
+.image-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+}
+
+.image-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: all 0.15s ease;
+}
+
+.image-toolbar button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.image-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 拖拽上传提示 */
+.tiptap-editor .ProseMirror .drag-over {
+  outline: 3px dashed hsl(var(--primary));
+  outline-offset: 4px;
+}
+
+/* ========================
+   表格样式
+   ======================== */
+
+/* 表格容器 */
+.tiptap-editor .ProseMirror .tableWrapper {
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.tiptap-editor .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+  table-layout: fixed;
+}
+
+.tiptap-editor .ProseMirror table th,
+.tiptap-editor .ProseMirror table td {
+  border: 1px solid hsl(var(--border));
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  min-width: 100px;
+}
+
+.tiptap-editor .ProseMirror table th {
+  background-color: hsl(var(--muted) / 0.3);
+  font-weight: 600;
+}
+
+.tiptap-editor .ProseMirror table tr:nth-child(2n) {
+  background-color: hsl(var(--muted) / 0.15);
+}
+
+/* 选中单元格 */
+.tiptap-editor .ProseMirror .selectedCell {
+  background-color: hsl(var(--primary) / 0.15) !important;
+}
+
+/* 表格头部样式 */
+.tiptap-editor .ProseMirror table thead tr:first-child th {
+  background-color: hsl(var(--muted) / 0.4);
+}
+
+/* 列对齐样式 */
+.tiptap-editor .ProseMirror table td[data-align="center"],
+.tiptap-editor .ProseMirror table th[data-align="center"] {
+  text-align: center;
+}
+
+.tiptap-editor .ProseMirror table td[data-align="right"],
+.tiptap-editor .ProseMirror table th[data-align="right"] {
+  text-align: right;
+}
+
+.tiptap-editor .ProseMirror table td[data-align="left"],
+.tiptap-editor .ProseMirror table th[data-align="left"] {
+  text-align: left;
+}
+
+/* 表格调整大小手柄 */
+.tiptap-editor .ProseMirror .tableResizeHandle {
+  position: absolute;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  background-color: transparent;
+}
+
+.tiptap-editor .ProseMirror .tableResizeHandle:hover {
+  background-color: hsl(var(--primary) / 0.5);
+}
+
+.tiptap-editor .ProseMirror .tableResizeHandle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 20px;
+  background-color: hsl(var(--primary) / 0.3);
+  border-radius: 2px;
+}
+
+/* 表格工具栏样式 */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: hsl(var(--muted) / 0.3);
+  border-bottom: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+}
+
+.table-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: all 0.15s ease;
+}
+
+.table-toolbar button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.table-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 暗色模式下的表格样式 */
+.dark .tiptap-editor .ProseMirror table th {
+  background-color: hsl(var(--muted) / 0.2);
+}
+
+.dark .tiptap-editor .ProseMirror table thead tr:first-child th {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.dark .tiptap-editor .ProseMirror table tr:nth-child(2n) {
+  background-color: hsl(var(--muted) / 0.1);
+}
+
+.dark .tiptap-editor .ProseMirror .selectedCell {
+  background-color: hsl(var(--primary) / 0.25) !important;
+}
+
+/* 任务列表 */
 .tiptap-editor .ProseMirror table {
   border-collapse: collapse;
   width: 100%;
@@ -351,6 +574,121 @@
 /* 确保面板折叠时的平滑过渡 */
 [data-resizable-panel] {
   transition: flex 0.2s ease-in-out;
+}
+
+/* ========================
+   TabBar 标签页样式
+   ======================== */
+
+/* 隐藏滚动条的 TabBar 容器 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* 标签页容器 */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: hsl(var(--muted) / 0.5);
+  border-bottom: 1px solid hsl(var(--border));
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+/* 单个标签页 */
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  max-width: 160px;
+  flex-shrink: 0;
+}
+
+.tab:hover {
+  background-color: hsl(var(--accent));
+}
+
+.tab.active {
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-bottom: none;
+}
+
+.tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 标签页关闭按钮 */
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.tab:hover .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background-color: hsl(var(--muted-foreground) / 0.2);
+}
+
+/* 修改指示器 */
+.tab-modified {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: hsl(var(--primary));
+}
+
+/* 新建标签页按钮 */
+.new-tab-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  color: hsl(var(--muted-foreground));
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.new-tab-button:hover {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--accent));
+}
+
+/* 暗色模式适配 */
+.dark .tab-bar {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.dark .tab:hover {
+  background-color: hsl(var(--accent) / 0.5);
+}
+
+.dark .tab.active {
+  background-color: hsl(var(--background));
 }
 
 /* 移动端工具栏支持左右滑动 */

@@ -3,12 +3,12 @@
 import useArticleStore from '@/stores/article'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { TipTapEditor } from './TipTapEditor'
+import { TabBar } from './TabBar'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
 export function MdEditor() {
   const {
-    currentArticle,
     saveCurrentArticle,
     loading,
     isPulling,
@@ -19,6 +19,7 @@ export function MdEditor() {
 
   const t = useTranslations('article.file.sync')
   const [localContent, setLocalContent] = useState('')
+  const tabContentsRef = useRef<Record<string, string>>({})
   const isCreatingFileRef = useRef(false)
   const activeFilePathRef = useRef(activeFilePath)
 
@@ -27,15 +28,22 @@ export function MdEditor() {
     activeFilePathRef.current = activeFilePath
   }, [activeFilePath])
 
-  // Initialize content from store
+  // Initialize content from store (for initial load)
   useEffect(() => {
-    if (currentArticle !== localContent) {
-      setLocalContent(currentArticle)
+    if (activeFilePath && !tabContentsRef.current[activeFilePath]) {
+      // Will be loaded via readArticle in the file switch effect
     }
-  }, [currentArticle])
+  }, [activeFilePath])
 
   // Handle content changes
   const handleContentChange = useCallback((content: string) => {
+    setLocalContent(content)
+
+    // Also update cache
+    if (activeFilePathRef.current) {
+      tabContentsRef.current[activeFilePathRef.current] = content
+    }
+
     // Content is now stored as Markdown
     if (activeFilePathRef.current) {
       saveCurrentArticle(content)
@@ -98,9 +106,44 @@ export function MdEditor() {
       setLocalContent('')
       setCurrentArticle('')
     } else {
-      readArticle(activeFilePath)
+      // Check cache first
+      if (tabContentsRef.current[activeFilePath] !== undefined) {
+        setLocalContent(tabContentsRef.current[activeFilePath])
+      } else {
+        readArticle(activeFilePath)
+      }
     }
-  }, [activeFilePath])
+  }, [activeFilePath, readArticle, setCurrentArticle])
+
+  // Tab switching handler
+  const handleTabSwitch = useCallback((path: string) => {
+    // Cache current content before switching
+    if (activeFilePathRef.current && localContent) {
+      tabContentsRef.current[activeFilePathRef.current] = localContent
+    }
+
+    // Switch to new file
+    if (path) {
+      useArticleStore.getState().setActiveFilePath(path)
+    }
+  }, [localContent])
+
+  // New tab handler
+  const handleNewTab = useCallback(() => {
+    // Cache current content
+    if (activeFilePathRef.current && localContent) {
+      tabContentsRef.current[activeFilePathRef.current] = localContent
+    }
+
+    // Create new untitled file
+    createUntitledFile('')
+  }, [localContent])
+
+  // Close tab handler
+  const handleCloseTab = useCallback((path: string) => {
+    // Remove from cache
+    delete tabContentsRef.current[path]
+  }, [])
 
   // Loading state
   if (loading) {
@@ -128,6 +171,13 @@ export function MdEditor() {
           </div>
         </div>
       )}
+
+      {/* Tab Bar */}
+      <TabBar
+        onTabSwitch={handleTabSwitch}
+        onNewTab={handleNewTab}
+        onCloseTab={handleCloseTab}
+      />
 
       {/* Editor */}
       <TipTapEditor

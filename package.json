@@ -63,6 +63,7 @@
     "@tiptap/extension-character-count": "^3.19.0",
     "@tiptap/extension-code-block-lowlight": "^3.19.0",
     "@tiptap/extension-color": "^3.19.0",
+    "@tiptap/extension-dropcursor": "^3.19.0",
     "@tiptap/extension-floating-menu": "^3.19.0",
     "@tiptap/extension-highlight": "^3.19.0",
     "@tiptap/extension-horizontal-rule": "^3.19.0",

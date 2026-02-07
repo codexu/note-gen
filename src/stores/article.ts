@@ -1357,8 +1357,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   
   saveCurrentArticle: async (content: string) => {
-    if (content) {
-      const path = get().activeFilePath
+    const path = get().activeFilePath
+    if (path && content !== undefined && content !== null) {
       const workspace = await getWorkspacePath()
       
       // 检查文件是否存在（根据是否是自定义工作区）

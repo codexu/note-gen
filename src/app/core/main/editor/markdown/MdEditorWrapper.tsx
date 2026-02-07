@@ -14,14 +14,14 @@ interface MdEditorProps {
 export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const {
     saveCurrentArticle,
-    loading,
     isPulling,
     setCurrentArticle,
-    readArticle
+    activeFilePath
   } = useArticleStore()
 
   const t = useTranslations('article.file.sync')
-  const [initialContent, setInitialContent] = useState('')
+  const [initialContent, setInitialContent] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const isCreatingFileRef = useRef(false)
   // Track loaded state per file path
   const loadedPathsRef = useRef<Set<string>>(new Set())
@@ -34,31 +34,62 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
       setInitialContent(tabContentsRef.current[filePath])
       loadedPathsRef.current.add(filePath)
+      setIsLoading(false)
       return
     }
 
-    // Load from disk via store (handles AI context, sync, etc.)
-    readArticle(filePath)
+    // Load from disk directly (avoid using global currentArticle)
+    const loadContent = async () => {
+      setIsLoading(true)
+      try {
+        const { readTextFile } = await import('@tauri-apps/plugin-fs')
+        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(filePath)
+
+        let content = ''
+        if (workspace.isCustom) {
+          content = await readTextFile(pathOptions.path)
+        } else {
+          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
+
+        setInitialContent(content)
+        // Update cache
+        if (tabContentsRef.current) {
+          tabContentsRef.current[filePath] = content
+        }
+      } catch (error) {
+        // File doesn't exist, start with empty content
+        console.warn(`Failed to read file ${filePath}:`, error)
+        setInitialContent('')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadContent()
     loadedPathsRef.current.add(filePath)
   }, [filePath, tabContentsRef])
 
-  // Handle content changes
+  // Handle content changes - only save if this is the active file
   const handleContentChange = useCallback((content: string) => {
     // Update cache
     if (filePath && tabContentsRef.current) {
       tabContentsRef.current[filePath] = content
     }
 
-    // Save to disk
-    if (filePath) {
+    // Save to disk - only if this is the active file
+    if (filePath && filePath === activeFilePath) {
       saveCurrentArticle(content)
-    } else if (!isCreatingFileRef.current) {
+    } else if (!filePath && !isCreatingFileRef.current) {
       // Auto-create untitled file
       isCreatingFileRef.current = true
       createUntitledFile(content)
       isCreatingFileRef.current = false
     }
-  }, [saveCurrentArticle, filePath, tabContentsRef])
+  }, [saveCurrentArticle, filePath, tabContentsRef, activeFilePath])
 
   // Auto-create untitled.md file
   async function createUntitledFile(content: string) {
@@ -100,8 +131,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     }
   }
 
-  // Loading state
-  if (loading) {
+  // Loading state - wait for content to be loaded
+  if (isLoading || initialContent === null) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />

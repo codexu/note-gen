@@ -306,6 +306,45 @@ ol {
   display: none;
 }
 
+/* Tab scrollbar - absolute positioned, doesn't take height */
+.tab-scrollbar {
+  position: relative;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tab-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar using pseudo element */
+.tab-scrollbar-wrapper {
+  position: relative;
+}
+
+.tab-scrollbar-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.tab-scrollbar-wrapper:hover .tab-scrollbar-track {
+  opacity: 1;
+}
+
+.tab-scrollbar-thumb {
+  position: absolute;
+  height: 100%;
+  background: hsl(var(--muted-foreground) / 0.4);
+  border-radius: 2px;
+  min-width: 20px;
+}
+
 @layer base {
   * {
     @apply border-border;

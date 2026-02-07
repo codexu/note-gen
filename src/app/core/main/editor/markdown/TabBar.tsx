@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { X, FileText, Folder, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -67,39 +67,47 @@ function SortableTab({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group flex items-center gap-1.5 px-3 h-9 text-sm rounded-md cursor-pointer transition-colors min-w-0 max-w-36',
-        'hover:bg-accent',
+        'group relative flex items-center gap-1.5 px-3 h-9 text-sm cursor-pointer transition-all shrink-0',
         isActive
-          ? 'bg-background border-x border-t text-foreground'
-          : 'text-muted-foreground bg-muted/30'
+          ? 'text-foreground font-medium'
+          : 'text-muted-foreground hover:text-foreground'
       )}
       title={tab.path}
       onClick={onClick}
-      // Drag handle is the entire tab
       {...attributes}
       {...listeners}
     >
       {tab.isFolder ? (
-        <Folder className="w-4 h-4 shrink-0 text-yellow-500" />
+        <Folder className="w-4 h-4 shrink-0 text-amber-500" />
       ) : (
-        <FileText className="w-4 h-4 shrink-0" />
+        <FileText className={cn('w-4 h-4 shrink-0', isActive ? 'text-primary' : '')} />
       )}
-      <span className="truncate flex-1">{tab.name}</span>
+      <span className="truncate max-w-40">{tab.name}</span>
 
       {/* Close button */}
       <button
         onClick={onClose}
         className={cn(
-          'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted transition-all'
+          'p-1 rounded transition-all shrink-0 ml-1',
+          'opacity-0 group-hover:opacity-100',
+          'hover:bg-muted'
         )}
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-3 h-3" />
       </button>
+
+      {/* Active indicator line */}
+      {isActive && (
+        <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary" />
+      )}
     </div>
   )
 }
 
 export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }: TabBarProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
+
   // Dnd sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -111,6 +119,28 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  // Update scroll state
+  const updateScrollState = useCallback(() => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current
+      setScrollState({ left: scrollLeft, width: clientWidth, scrollWidth })
+    }
+  }, [])
+
+  useEffect(() => {
+    updateScrollState()
+    const container = scrollContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', updateScrollState)
+      const resizeObserver = new ResizeObserver(updateScrollState)
+      resizeObserver.observe(container)
+      return () => {
+        container.removeEventListener('scroll', updateScrollState)
+        resizeObserver.disconnect()
+      }
+    }
+  }, [updateScrollState, tabs])
 
   const handleTabClick = useCallback((tabId: string) => {
     const tab = tabs.find(t => t.id === tabId)
@@ -131,7 +161,14 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
     const { active, over } = event
     if (over && active.id !== over.id) {
       // Let parent handle reordering via callback
-      // For now, we'll emit a custom event or parent can listen to dnd
+    }
+  }, [])
+
+  // Handle wheel scroll to horizontal scroll
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (scrollContainerRef.current) {
+      e.preventDefault()
+      scrollContainerRef.current.scrollLeft += e.deltaY
     }
   }, [])
 
@@ -139,37 +176,65 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
     return null
   }
 
+  // Calculate scrollbar thumb position and width
+  const showScrollbar = scrollState.scrollWidth > scrollState.width
+  const thumbWidth = showScrollbar
+    ? Math.max(20, (scrollState.width / scrollState.scrollWidth) * 100)
+    : 0
+  const thumbLeft = showScrollbar
+    ? (scrollState.left / (scrollState.scrollWidth - scrollState.width)) * (100 - thumbWidth)
+    : 0
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex items-center h-12 px-2 border-b gap-1 overflow-x-auto scrollbar-hide">
-        {/* Tabs */}
-        <SortableContext
-          items={tabs.map(t => t.id)}
-          strategy={horizontalListSortingStrategy}
+      <div className="relative tab-scrollbar-wrapper">
+        <div
+          ref={scrollContainerRef}
+          className="flex items-center h-12 px-1 bg-background border-b overflow-x-auto tab-scrollbar gap-1"
+          onWheel={handleWheel}
         >
-          {tabs.map(tab => (
-            <SortableTab
-              key={tab.id}
-              tab={tab}
-              isActive={activeTabId === tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              onClose={(e) => handleCloseTab(e, tab.id)}
-            />
-          ))}
-        </SortableContext>
+          {/* Tabs */}
+          <SortableContext
+            items={tabs.map(t => t.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {tabs.map(tab => (
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                isActive={activeTabId === tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                onClose={(e) => handleCloseTab(e, tab.id)}
+              />
+            ))}
+          </SortableContext>
 
-        {/* New tab button */}
-        <button
-          onClick={onNewTab}
-          className="flex items-center gap-1 px-2 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-          title="新建标签页"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+          {/* New tab button */}
+          <button
+            onClick={onNewTab}
+            className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
+            title="新建标签页"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Custom absolute scrollbar */}
+        {showScrollbar && (
+          <div className="tab-scrollbar-track">
+            <div
+              className="tab-scrollbar-thumb"
+              style={{
+                width: `${thumbWidth}%`,
+                left: `${thumbLeft}%`,
+              }}
+            />
+          </div>
+        )}
       </div>
     </DndContext>
   )

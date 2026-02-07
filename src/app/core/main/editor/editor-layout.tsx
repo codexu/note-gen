@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
-import { MdEditor } from './markdown/MdEditorWrapper'
-import { TabBar, TabInfo } from './markdown/TabBar'
+import { MdEditor } from './markdown/md-editor-wrapper'
+import { TabBar, TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'

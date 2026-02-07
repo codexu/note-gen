@@ -2,7 +2,7 @@
 
 import useArticleStore from '@/stores/article'
 import { useEffect, useState, useCallback, useRef, RefObject } from 'react'
-import { TipTapEditor } from './TipTapEditor'
+import { TipTapEditor } from './tiptap-editor'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 

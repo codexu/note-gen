@@ -2003,7 +2003,17 @@
           "tooltip": "翻译",
           "description": "将选中的文本进行翻译",
           "selectContent": "请先选择一段内容",
-          "promptTemplate": "将这段文字：\n{content}\n翻译为{language}语言，直接返回翻译后的结果。"
+          "promptTemplate": "将这段文字：\n{content}\n翻译为{language}语言，直接返回翻译后的结果。",
+          "fail": "翻译失败",
+          "failNoSelection": "请先选择要翻译的文本",
+          "translating": "翻译中",
+          "translatingTo": "正在翻译为 {language}...",
+          "success": "翻译完成",
+          "successTo": "已翻译为 {language}",
+          "customLanguage": "自定义语言...",
+          "customLanguagePlaceholder": "输入目标语言，如：英语、日语等",
+          "customLanguageEmpty": "请输入目标语言",
+          "customLanguageExample": "例如：英语、日语、法语等"
         }
       }
     },
@@ -2114,5 +2124,17 @@
   },
   "quickRecord": {
     "description": "点击选择记录工具，快速创建记录"
+  },
+  "editor": {
+    "translation": {
+      "fail": "翻译失败",
+      "failNoSelection": "请先选择要翻译的文本",
+      "translating": "翻译中",
+      "translatingTo": "正在翻译为 {language}...",
+      "success": "翻译完成",
+      "successTo": "已翻译为 {language}",
+      "customLanguageEmpty": "请输入目标语言",
+      "customLanguageExample": "例如：英语、日语、法语等"
+    }
   }
 }

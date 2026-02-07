@@ -44,7 +44,6 @@ interface TipTapEditorProps {
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
-  onAITranslate?: () => void
   onQuoteToChat?: () => void
 }
 
@@ -57,7 +56,6 @@ export function TipTapEditor({
   onAIPolish,
   onAIConcise,
   onAIExpand,
-  onAITranslate,
   onQuoteToChat,
 }: TipTapEditorProps) {
   const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
@@ -80,10 +78,6 @@ export function TipTapEditor({
   const handleAIExpand = useCallback(() => {
     onAIExpand?.()
   }, [onAIExpand])
-
-  const handleAITranslate = useCallback(() => {
-    onAITranslate?.()
-  }, [onAITranslate])
 
   const handleQuoteToChat = useCallback(() => {
     onQuoteToChat?.()
@@ -267,7 +261,6 @@ export function TipTapEditor({
         onAIPolish={handleAIPolish}
         onAIConcise={handleAIConcise}
         onAIExpand={handleAIExpand}
-        onAITranslate={handleAITranslate}
         onQuoteToChat={handleQuoteToChat}
       />
 

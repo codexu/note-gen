@@ -2192,7 +2192,17 @@
           "tooltip": "翻訳",
           "description": "選択したテキストを翻訳します",
           "selectContent": "まず内容を選択してください",
-          "promptTemplate": "このテキスト：\n{content}\nを{language}に翻訳してください。翻訳結果のみを返してください。"
+          "promptTemplate": "このテキスト：\n{content}\nを{language}に翻訳してください。翻訳結果のみを返してください。",
+          "fail": "翻訳に失敗しました",
+          "failNoSelection": "翻訳するテキストを選択してください",
+          "translating": "翻訳中",
+          "translatingTo": "{language}に翻訳中...",
+          "success": "翻訳完了",
+          "successTo": "{language}に翻訳されました",
+          "customLanguage": "カスタム言語...",
+          "customLanguagePlaceholder": "目標言語を入力、例：英語、日本語など",
+          "customLanguageEmpty": "目標言語を入力してください",
+          "customLanguageExample": "例：英語、日本語、フランス語など"
         }
       },
       "saveDialog": {
@@ -2317,5 +2327,17 @@
   },
   "quickRecord": {
     "description": "記録ツールを選択して、素早く記録を作成"
+  },
+  "editor": {
+    "translation": {
+      "fail": "翻訳に失敗しました",
+      "failNoSelection": "翻訳するテキストを選択してください",
+      "translating": "翻訳中...",
+      "translatingTo": "{language}に翻訳中...",
+      "success": "翻訳完了",
+      "successTo": "{language}に翻訳されました",
+      "customLanguageEmpty": "目標言語を入力してください",
+      "customLanguageExample": "例：英語、日本語、フランス語など"
+    }
   }
 }

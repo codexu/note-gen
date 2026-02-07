@@ -2060,7 +2060,17 @@
           "tooltip": "翻譯",
           "description": "將選中的文本進行翻譯",
           "selectContent": "請先選擇一段內容",
-          "promptTemplate": "將這段文字：\n{content}\n翻譯為{language}語言，直接返回翻譯後的結果。"
+          "promptTemplate": "將這段文字：\n{content}\n翻譯為{language}語言，直接返回翻譯後的結果。",
+          "fail": "翻譯失敗",
+          "failNoSelection": "請先選擇要翻譯的文本",
+          "translating": "翻譯中",
+          "translatingTo": "正在翻譯為 {language}...",
+          "success": "翻譯完成",
+          "successTo": "已翻譯為 {language}",
+          "customLanguage": "自定義語言...",
+          "customLanguagePlaceholder": "輸入目標語言，如：英語、日語等",
+          "customLanguageEmpty": "請輸入目標語言",
+          "customLanguageExample": "例如：英語、日語、法語等"
         }
       },
       "saveDialog": {
@@ -2184,6 +2194,18 @@
       "builtinDesc": "免费，实时识别",
       "model": "大模型识别",
       "modelDesc": "需配置STT模型，更准确"
+    }
+  },
+  "editor": {
+    "translation": {
+      "fail": "翻譯失敗",
+      "failNoSelection": "請先選擇要翻譯的文本",
+      "translating": "翻譯中...",
+      "translatingTo": "正在翻譯為 {language}...",
+      "success": "翻譯完成",
+      "successTo": "已翻譯為 {language}",
+      "customLanguageEmpty": "請輸入目標語言",
+      "customLanguageExample": "例如：英語、日語、法語等"
     }
   }
 }

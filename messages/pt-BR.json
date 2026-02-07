@@ -2134,7 +2134,17 @@
           "tooltip": "Traduzir",
           "description": "Traduzir o texto selecionado",
           "selectContent": "Por favor, selecione o conteúdo primeiro",
-          "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido."
+          "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido.",
+          "fail": "Falha na tradução",
+          "failNoSelection": "Por favor, selecione o texto para traduzir",
+          "translating": "Traduzindo",
+          "translatingTo": "Traduzindo para {language}...",
+          "success": "Tradução concluída",
+          "successTo": "Traduzido para {language}",
+          "customLanguage": "Idioma personalizado...",
+          "customLanguagePlaceholder": "Digite o idioma de destino, ex.: Inglês, Japonês, etc.",
+          "customLanguageEmpty": "Por favor, digite o idioma de destino",
+          "customLanguageExample": "ex.: Inglês, Japonês, Francês, etc."
         }
       },
       "upload": {
@@ -2319,7 +2329,15 @@
         "tooltip": "Traduzir",
         "description": "Traduzir o texto selecionado",
         "selectContent": "Por favor, selecione o conteúdo primeiro",
-        "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido."
+        "promptTemplate": "Traduzir este texto: \n{content}\n, para {language}, retorne diretamente o resultado traduzido.",
+        "fail": "Falha na tradução",
+        "failNoSelection": "Por favor, selecione o texto para traduzir",
+        "translating": "Traduzindo...",
+        "translatingTo": "Traduzindo para {language}...",
+        "success": "Tradução concluída",
+        "successTo": "Traduzido para {language}",
+        "customLanguageEmpty": "Por favor, digite o idioma de destino",
+        "customLanguageExample": "ex.: Inglês, Japonês, Francês, etc."
       }
     },
     "upload": {

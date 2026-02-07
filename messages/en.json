@@ -2086,7 +2086,17 @@
           "tooltip": "Translate",
           "description": "Translate the selected text",
           "selectContent": "Please select content first",
-          "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result."
+          "promptTemplate": "Translate this text: \n{content}\n, into {language}, directly return the translated result.",
+          "fail": "Translation failed",
+          "failNoSelection": "Please select text to translate",
+          "translating": "Translating",
+          "translatingTo": "Translating to {language}...",
+          "success": "Translation complete",
+          "successTo": "Translated to {language}",
+          "customLanguage": "Custom language...",
+          "customLanguagePlaceholder": "Enter target language, e.g., English, Japanese, etc.",
+          "customLanguageEmpty": "Please enter target language",
+          "customLanguageExample": "e.g., English, Japanese, French, etc."
         }
       },
       "upload": {
@@ -2239,5 +2249,17 @@
   },
   "quickRecord": {
     "description": "Click to select a recording tool and quickly create records"
+  },
+  "editor": {
+    "translation": {
+      "fail": "Translation failed",
+      "failNoSelection": "Please select text to translate",
+      "translating": "Translating...",
+      "translatingTo": "Translating to {language}...",
+      "success": "Translation complete",
+      "successTo": "Translated to {language}",
+      "customLanguageEmpty": "Please enter target language",
+      "customLanguageExample": "e.g., English, Japanese, French, etc."
+    }
   }
 }

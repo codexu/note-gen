@@ -8,14 +8,14 @@ import { Store } from '@tauri-apps/plugin-store'
 export function ClipboardMonitor() {
   const t = useTranslations('record.chat.input.clipboardMonitor')
   const [isEnabled, setIsEnabled] = useState(true)
-  
+
   // Sync with store.json on mount
   useEffect(() => {
     const syncWithStore = async () => {
       try {
         const store = await Store.load('store.json')
         const storedValue = await store.get<boolean>('clipboardMonitor')
-        
+
         // Only update if the stored value exists and is different from the current state
         if (storedValue !== undefined && storedValue !== isEnabled) {
           setIsEnabled(storedValue)
@@ -24,10 +24,9 @@ export function ClipboardMonitor() {
         console.error('Failed to load clipboard monitor state from store:', error)
       }
     }
-    
+
     syncWithStore()
   }, [])
-  
 
   const toggleClipboardMonitor = async () => {
     const newState = !isEnabled

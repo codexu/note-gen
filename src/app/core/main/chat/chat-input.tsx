@@ -48,6 +48,59 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// 可排序的工具栏项组件 - 定义在外部以避免每次 ChatInput re-render 时重新创建
+interface SortableToolbarItemProps {
+  id: string
+}
+
+const SortableToolbarItem = React.memo(function SortableToolbarItem({ id }: SortableToolbarItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  // 渲染对应的工具栏组件
+  const renderToolbarItem = () => {
+    switch (id) {
+      case 'modelSelect':
+        return <ModelSelect />
+      case 'promptSelect':
+        return <PromptSelect />
+      case 'mcpButton':
+        return <McpButton />
+      case 'ragSwitch':
+        return <RagSwitch />
+      case 'clipboardMonitor':
+        return <ClipboardMonitor />
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing"
+    >
+      {renderToolbarItem()}
+    </div>
+  )
+})
+SortableToolbarItem.displayName = 'SortableToolbarItem'
+
 
 export const ChatInput = React.memo(function ChatInput() {
   const [text, setText] = useState("")
@@ -514,59 +567,6 @@ export const ChatInput = React.memo(function ChatInput() {
       debouncedGenPlaceholder()
     }
   }, [linkedResource, debouncedGenPlaceholder])
-
-  // 可排序的工具栏项组件
-  interface SortableToolbarItemProps {
-    id: string
-  }
-
-  const SortableToolbarItem = React.memo(function SortableToolbarItem({ id }: SortableToolbarItemProps) {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id })
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    }
-
-    // 渲染对应的工具栏组件
-    const renderToolbarItem = () => {
-      switch (id) {
-        case 'modelSelect':
-          return <ModelSelect />
-        case 'promptSelect':
-          return <PromptSelect />
-        case 'mcpButton':
-          return <McpButton />
-        case 'ragSwitch':
-          return <RagSwitch />
-        case 'clipboardMonitor':
-          return <ClipboardMonitor />
-        default:
-          return null
-      }
-    }
-
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing"
-      >
-        {renderToolbarItem()}
-      </div>
-    )
-  })
-  SortableToolbarItem.displayName = 'SortableToolbarItem'
 
   return (
     <footer className="flex flex-col w-full p-1 justify-between items-center">

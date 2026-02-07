@@ -537,7 +537,7 @@ export const ChatInput = React.memo(function ChatInput() {
     }
 
     // 渲染对应的工具栏组件
-    const renderToolbarItem = useMemo(() => {
+    const renderToolbarItem = () => {
       switch (id) {
         case 'modelSelect':
           return <ModelSelect />
@@ -552,7 +552,7 @@ export const ChatInput = React.memo(function ChatInput() {
         default:
           return null
       }
-    }, [id, primaryModel, loading])
+    }
 
     return (
       <div
@@ -562,7 +562,7 @@ export const ChatInput = React.memo(function ChatInput() {
         {...listeners}
         className="cursor-grab active:cursor-grabbing"
       >
-        {renderToolbarItem}
+        {renderToolbarItem()}
       </div>
     )
   })

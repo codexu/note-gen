@@ -32,7 +32,7 @@ interface GroupedModel {
 
 export function ModelSelect() {
   const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
-  const { primaryModel, setPrimaryModel, aiModelList, initSettingData } = useSettingStore()
+  const { primaryModel, setPrimaryModel, aiModelList } = useSettingStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
 
@@ -45,7 +45,6 @@ export function ModelSelect() {
 
   function handleSetOpen(isOpen: boolean) {
     setOpen(isOpen)
-    initSettingData()
   }
 
   // 监听 aiModelList 变化，处理新的模型配置结构

@@ -17,7 +17,7 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 1 }))
+          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 1 }, state.schema.text()))
         },
       },
       {
@@ -26,7 +26,7 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 2 }))
+          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 2 }, state.schema.text()))
         },
       },
       {
@@ -35,7 +35,7 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 3 }))
+          tr.replaceWith(range.from, range.to, state.schema.nodes.heading.create({ level: 3 }, state.schema.text()))
         },
       },
       {
@@ -44,7 +44,7 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.blockquote.create())
+          tr.replaceWith(range.from, range.to, state.schema.nodes.blockquote.create({}, state.schema.text()))
         },
       },
       {
@@ -53,7 +53,8 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.bullet_list.create())
+          const listItem = state.schema.nodes.list_item.create({}, state.schema.text())
+          tr.replaceWith(range.from, range.to, state.schema.nodes.bullet_list.create({}, listItem))
         },
       },
       {
@@ -62,7 +63,8 @@ export const MarkdownInputRules = Extension.create({
         undoable: true,
         handler: ({ state, range }) => {
           const { tr } = state
-          tr.replaceWith(range.from, range.to, state.schema.nodes.ordered_list.create())
+          const listItem = state.schema.nodes.list_item.create({}, state.schema.text())
+          tr.replaceWith(range.from, range.to, state.schema.nodes.ordered_list.create({}, listItem))
         },
       },
       {

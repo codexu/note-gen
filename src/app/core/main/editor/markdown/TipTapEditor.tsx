@@ -23,6 +23,7 @@ import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './BubbleMenu'
+import { toast } from '@/hooks/use-toast'
 import { TableToolbar } from './TableToolbar'
 import { ImageToolbar } from './ImageToolbar'
 import { ExportMenu } from './ExportMenu'
@@ -43,6 +44,7 @@ interface TipTapEditorProps {
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
+  onAITranslate?: () => void
   onQuoteToChat?: () => void
 }
 
@@ -55,6 +57,7 @@ export function TipTapEditor({
   onAIPolish,
   onAIConcise,
   onAIExpand,
+  onAITranslate,
   onQuoteToChat,
 }: TipTapEditorProps) {
   const [showOutline, setShowOutline] = useState(false)
@@ -74,6 +77,10 @@ export function TipTapEditor({
     onAIExpand?.()
   }, [onAIExpand])
 
+  const handleAITranslate = useCallback(() => {
+    onAITranslate?.()
+  }, [onAITranslate])
+
   const handleQuoteToChat = useCallback(() => {
     onQuoteToChat?.()
   }, [onQuoteToChat])
@@ -83,7 +90,7 @@ export function TipTapEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [1, 2, 3],
+          levels: [1, 2, 3, 4, 5, 6],
         },
         codeBlock: false,
         // Exclude duplicate extensions that we're adding separately
@@ -122,8 +129,6 @@ export function TipTapEditor({
       TableCell,
       // Image upload extension
       ImageExtension,
-      // Markdown input rules
-      MarkdownInputRules,
       // Markdown extension for import/export
       Markdown,
       // Math formulas
@@ -154,6 +159,29 @@ export function TipTapEditor({
     editor?.setEditable(editable)
   }, [editable, editor])
 
+  // Handle drag and drop from marks
+  const handleEditorDrop = useCallback((e: React.DragEvent) => {
+    const markData = e.dataTransfer.getData('application/json')
+    if (markData) {
+      try {
+        const mark = JSON.parse(markData)
+        if (mark && mark.id !== undefined) {
+          // Import markToMarkdown dynamically to avoid circular deps
+          import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
+            const markdown = markToMarkdown(mark)
+            editor?.commands.insertContent(markdown)
+            toast({
+              title: '已插入记录',
+              description: mark.desc || mark.content?.slice(0, 50) || '记录内容'
+            })
+          })
+        }
+      } catch (error) {
+        console.error('Failed to parse dropped mark:', error)
+      }
+    }
+  }, [editor])
+
   if (!editor) {
     return null
   }
@@ -166,6 +194,7 @@ export function TipTapEditor({
         onAIPolish={handleAIPolish}
         onAIConcise={handleAIConcise}
         onAIExpand={handleAIExpand}
+        onAITranslate={handleAITranslate}
         onQuoteToChat={handleQuoteToChat}
       />
 
@@ -203,7 +232,13 @@ export function TipTapEditor({
       />
 
       {/* Editor content */}
-      <EditorContent editor={editor} className="flex-1 overflow-auto" />
+      <div
+        className="flex-1 overflow-auto"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleEditorDrop}
+      >
+        <EditorContent editor={editor} className="h-full" />
+      </div>
 
       {/* Export Menu - Bottom Toolbar */}
       <ExportMenu editor={editor} />

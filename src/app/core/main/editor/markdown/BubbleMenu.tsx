@@ -12,6 +12,9 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
   Quote,
   List,
   ListOrdered,
@@ -19,7 +22,8 @@ import {
   Sparkles,
   MessageCircle,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Languages
 } from 'lucide-react'
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
@@ -29,6 +33,7 @@ interface BubbleMenuProps {
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
+  onAITranslate?: () => void
   onQuoteToChat?: () => void
 }
 
@@ -37,6 +42,7 @@ export function BubbleMenu({
   onAIPolish,
   onAIConcise,
   onAIExpand,
+  onAITranslate,
   onQuoteToChat
 }: BubbleMenuProps) {
   const [show, setShow] = useState(false)
@@ -176,6 +182,36 @@ export function BubbleMenu({
             title="标题3"
           >
             <Heading3 className="w-4 h-4" />
+          </button>
+          <button
+            className={cn(
+              'p-1.5 rounded hover:bg-muted transition-colors',
+              isActive('heading', { level: 4 }) && 'bg-muted text-primary'
+            )}
+            onClick={() => toggleHeading(4)}
+            title="标题4"
+          >
+            <Heading4 className="w-4 h-4" />
+          </button>
+          <button
+            className={cn(
+              'p-1.5 rounded hover:bg-muted transition-colors',
+              isActive('heading', { level: 5 }) && 'bg-muted text-primary'
+            )}
+            onClick={() => toggleHeading(5)}
+            title="标题5"
+          >
+            <Heading5 className="w-4 h-4" />
+          </button>
+          <button
+            className={cn(
+              'p-1.5 rounded hover:bg-muted transition-colors',
+              isActive('heading', { level: 6 }) && 'bg-muted text-primary'
+            )}
+            onClick={() => toggleHeading(6)}
+            title="标题6"
+          >
+            <Heading6 className="w-4 h-4" />
           </button>
         </div>
 
@@ -395,6 +431,16 @@ export function BubbleMenu({
               >
                 <Maximize2 className="w-3.5 h-3.5" />
                 <span>扩展</span>
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  setShowAISubmenu(false)
+                  onAITranslate?.()
+                }}
+              >
+                <Languages className="w-3.5 h-3.5" />
+                <span>翻译</span>
               </button>
               <button
                 className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2"

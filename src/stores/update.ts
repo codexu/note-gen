@@ -62,7 +62,7 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
         })
       }
     } catch (error) {
-      console.error('Failed to check for updates:', error)
+      console.log('[Update] 检查更新失败:', (error as Error).message)
     }
   },
   

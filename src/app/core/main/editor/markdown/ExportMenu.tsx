@@ -7,7 +7,10 @@ import {
   FileJson,
   Download,
   ChevronDown,
+  FileType,
 } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
@@ -132,6 +135,78 @@ ${content}
     setIsOpen(false)
   }, [getText, downloadFile])
 
+  const exportPdf = useCallback(async () => {
+    const activeFilePath = useArticleStore.getState().activeFilePath
+    const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
+
+    // Get editor content element
+    const editorElement = document.querySelector('.tiptap') || document.querySelector('.ProseMirror')
+    if (!editorElement) {
+      console.error('Editor element not found')
+      setIsOpen(false)
+      return
+    }
+
+    try {
+      // Create a temporary container for PDF rendering
+      const container = document.createElement('div')
+      container.innerHTML = editorElement.innerHTML
+      container.style.width = '595px' // A4 width in points
+      container.style.padding = '40px'
+      container.style.background = 'white'
+      container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      container.style.fontSize = '12px'
+      container.style.lineHeight = '1.6'
+      container.style.color = '#333'
+
+      // Add basic styles for PDF
+      const styles = container.querySelectorAll('style, link[rel="stylesheet"]')
+      styles.forEach(s => s.remove())
+
+      document.body.appendChild(container)
+
+      const canvas = await html2canvas(container as HTMLElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+
+      document.body.removeChild(container)
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4',
+      })
+
+      const imgWidth = 595 // A4 width in points
+      const pageHeight = 842 // A4 height in points
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      let position = 0
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+
+      pdf.save(`${fileName}.pdf`)
+    } catch (error) {
+      console.error('PDF export failed:', error)
+    }
+
+    setIsOpen(false)
+  }, [downloadFile])
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -188,6 +263,13 @@ ${content}
           >
             <FileText size={14} />
             <span>纯文本 (.txt)</span>
+          </button>
+          <button
+            onClick={exportPdf}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--muted))] transition-colors"
+          >
+            <FileType size={14} />
+            <span>PDF (.pdf)</span>
           </button>
         </div>
       )}

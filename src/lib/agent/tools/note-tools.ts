@@ -6,6 +6,7 @@ import { getFilePathOptions } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
+import emitter from '@/lib/emitter'
 
 export const listMarkdownFilesTool: Tool = {
   name: 'list_markdown_files',
@@ -259,7 +260,6 @@ export const updateMarkdownFileTool: Tool = {
       const articleStore = useArticleStore.getState()
       if (articleStore.activeFilePath === params.filePath) {
         // 使用 emitter 通知编辑器内容已从外部更新
-        const emitter = (await import('@/lib/emitter')).default
         emitter.emit('external-content-update', params.content)
       }
 
@@ -848,7 +848,6 @@ If the context includes "quoted content" with specific line numbers, you should 
       }
 
       // 通知编辑器内容已从外部更新
-      const emitter = (await import('@/lib/emitter')).default
       emitter.emit('external-content-update', modifiedContent)
 
       return {

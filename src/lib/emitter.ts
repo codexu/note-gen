@@ -1,6 +1,14 @@
 import mitt from 'mitt'
 import type { QuickPrompt } from '@/lib/ai/placeholder'
 
+// 定义编辑器事件类型
+interface EditorEvents {
+  'editor-get-selection': { resolve: (data: { text: string; from: number; to: number; html?: string }) => void }
+  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number }) => void }
+  'editor-insert': { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void }
+  'editor-replace': { content: string; range?: { from: number; to: number }; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void }
+}
+
 // 定义事件类型
 interface Events {
   'searchAndScroll': string;
@@ -68,6 +76,11 @@ interface Events {
   'quick-prompt-send': string;
   'ai-placeholder-generated': string;
   'ai-prompts-generated': QuickPrompt[];
+  // Agent 编辑器工具事件
+  'editor-get-selection': EditorEvents['editor-get-selection'];
+  'editor-get-content': EditorEvents['editor-get-content'];
+  'editor-insert': EditorEvents['editor-insert'];
+  'editor-replace': EditorEvents['editor-replace'];
   [key: string]: unknown; // 添加索引签名以支持动态事件名
   [key: symbol]: unknown; // 添加 symbol 索引签名以满足 Record 约束
 }

@@ -13,7 +13,7 @@ export interface Tool {
   description: string
   parameters: ToolParameter[]
   requiresConfirmation: boolean
-  category: 'note' | 'chat' | 'tag' | 'mark' | 'search' | 'mcp' | 'system'
+  category: 'note' | 'chat' | 'tag' | 'mark' | 'search' | 'mcp' | 'system' | 'editor'
   execute: (params: Record<string, any>) => Promise<ToolResult>
 }
 

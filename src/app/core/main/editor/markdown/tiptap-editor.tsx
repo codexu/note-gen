@@ -31,6 +31,7 @@ import { FixedToolbar } from './fixed-toolbar'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
 import { fetchCompletionStream } from '@/lib/ai/completion'
+import emitter from '@/lib/emitter'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -135,9 +136,11 @@ export function TipTapEditor({
     content: initialContent,
     editable,
     onUpdate: ({ editor }) => {
-      const markdown = editor.getMarkdown()
-      isExternalUpdateRef.current = true
-      onChange?.(markdown)
+      // Only trigger onChange if this is NOT an external update
+      if (!isExternalUpdateRef.current) {
+        const markdown = editor.getMarkdown()
+        onChange?.(markdown)
+      }
     },
   })
 
@@ -247,6 +250,149 @@ export function TipTapEditor({
       } catch (error) {
         console.error('Failed to parse dropped mark:', error)
       }
+    }
+  }, [editor])
+
+  // Handle external content updates (e.g., from Agent tools)
+  useEffect(() => {
+    const handleExternalUpdate = (newContent: string) => {
+      if (editor && !isExternalUpdateRef.current) {
+        // Set flag first to prevent circular updates
+        isExternalUpdateRef.current = true
+        // Set content in editor
+        editor.commands.setContent(newContent, { contentType: 'markdown' })
+        // Directly call onChange with the new content (bypassing onUpdate to avoid timing issues)
+        onChange?.(newContent)
+      }
+      // Reset the flag after a short delay to handle rapid updates
+      setTimeout(() => {
+        isExternalUpdateRef.current = false
+      }, 100)
+    }
+
+    emitter.on('external-content-update', handleExternalUpdate)
+    return () => {
+      emitter.off('external-content-update', handleExternalUpdate)
+    }
+  }, [editor, onChange])
+
+  // Editor tools event handlers for Agent integration
+  useEffect(() => {
+    // Get editor selection
+    const handleGetSelection = ({ resolve }: { resolve: (data: { text: string; from: number; to: number; html?: string }) => void }) => {
+      if (!editor) {
+        resolve({ text: '', from: 0, to: 0 })
+        return
+      }
+
+      const { from, to } = editor.state.selection
+      const text = editor.state.doc.textBetween(from, to)
+
+      resolve({
+        text,
+        from,
+        to,
+        html: editor.getHTML(),
+      })
+    }
+
+    // Get editor content
+    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number }) => void }) => {
+      if (!editor) {
+        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0 })
+        return
+      }
+
+      const markdown = editor.getMarkdown()
+      const text = editor.getText()
+      const html = editor.getHTML()
+
+      resolve({
+        markdown,
+        html,
+        text,
+        wordCount: text.split(/\s+/).filter(w => w).length,
+        charCount: text.length,
+      })
+    }
+
+    // Insert content at cursor
+    const handleInsert = ({ content, resolve }: { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void }) => {
+      if (!editor) {
+        resolve({ success: false, insertedLength: 0 })
+        return
+      }
+
+      try {
+        const { from } = editor.state.selection
+
+        // Insert content
+        editor.chain().focus().insertContent(content).run()
+
+        // Calculate new cursor position
+        const newPosition = from + content.length
+
+        resolve({
+          success: true,
+          insertedLength: content.length,
+          newCursorPosition: newPosition,
+        })
+      } catch (error) {
+        resolve({ success: false, insertedLength: 0 })
+      }
+    }
+
+    // Replace content in range
+    const handleReplace = ({
+      content,
+      range,
+      resolve,
+    }: {
+      content: string
+      range?: { from: number; to: number }
+      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void
+    }) => {
+      if (!editor) {
+        resolve({ success: false, insertedLength: 0 })
+        return
+      }
+
+      try {
+        let { from, to } = editor.state.selection
+
+        // Use specified range if provided
+        if (range) {
+          from = range.from
+          to = range.to
+        }
+
+        // Delete old content and insert new content
+        editor.chain()
+          .focus()
+          .deleteRange({ from, to })
+          .insertContent(content)
+          .run()
+
+        resolve({
+          success: true,
+          insertedLength: content.length,
+          newCursorPosition: from + content.length,
+        })
+      } catch (error) {
+        resolve({ success: false, insertedLength: 0 })
+      }
+    }
+
+    emitter.on('editor-get-selection', handleGetSelection)
+    emitter.on('editor-get-content', handleGetContent)
+    emitter.on('editor-insert', handleInsert)
+    emitter.on('editor-replace', handleReplace)
+
+    return () => {
+      emitter.off('editor-get-selection', handleGetSelection)
+      emitter.off('editor-get-content', handleGetContent)
+      emitter.off('editor-insert', handleInsert)
+      emitter.off('editor-replace', handleReplace)
     }
   }, [editor])
 

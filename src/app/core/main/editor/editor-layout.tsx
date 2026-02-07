@@ -1,66 +1,316 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
 import { MdEditor } from './markdown/MdEditorWrapper'
+import { TabBar, TabInfo } from './markdown/TabBar'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
 
 export function EditorLayout() {
-  const { activeFilePath, fileTree } = useArticleStore()
-  const [itemType, setItemType] = useState<'markdown' | 'image' | 'folder' | 'unknown'>('unknown')
+  const {
+    activeFilePath,
+    fileTree,
+    setActiveFilePath,
+    openTabs,
+    activeTabId,
+    setOpenTabs,
+    setActiveTabId,
+    addTab,
+    removeTab,
+    initOpenTabs,
+    initShowCloudFiles
+  } = useArticleStore()
+
+  const tabContentsRef = useRef<Record<string, string>>({})
+  const [tabs, setLocalTabs] = useState<TabInfo[]>([])
+  const [localActiveTabId, setLocalActiveTabId] = useState<string>('')
+  const tabsRef = useRef<TabInfo[]>([])
+  const isInitializedRef = useRef(false)
+
+  // Initialize tabs from store on mount
+  useEffect(() => {
+    if (!isInitializedRef.current) {
+      isInitializedRef.current = true
+      initOpenTabs()
+      initShowCloudFiles()
+    }
+  }, [initOpenTabs, initShowCloudFiles])
+
+  // Sync with store
+  useEffect(() => {
+    setLocalTabs(openTabs)
+    tabsRef.current = openTabs
+  }, [openTabs])
 
   useEffect(() => {
-    if (!activeFilePath) {
-      setItemType('unknown')
-      return
-    }
+    setLocalActiveTabId(activeTabId)
+  }, [activeTabId])
 
-    // 首先检查是否是文件夹
-    const folder = findFolderInTree(activeFilePath, fileTree)
-    if (folder) {
-      setItemType('folder')
-      return
-    }
+  // Helper to check if path is a folder
+  const isFolderPath = useCallback((path: string): boolean => {
+    const fileName = path.split('/').pop() || ''
+    return !fileName.includes('.')
+  }, [])
 
-    // 检查文件扩展名
-    const extension = activeFilePath.split('.').pop()?.toLowerCase()
+  // Get item type based on path
+  const getItemType = useCallback((path: string): 'markdown' | 'image' | 'folder' | 'unknown' => {
+    if (!path) return 'unknown'
 
-    if (!extension) {
-      setItemType('unknown')
-      return
-    }
+    // First check if it's a folder
+    const folder = findFolderInTree(path, fileTree)
+    if (folder) return 'folder'
+
+    // Check file extension
+    const extension = path.split('.').pop()?.toLowerCase()
+    if (!extension) return 'unknown'
 
     if (['md', 'txt', 'markdown', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'html', 'xml', 'json', 'yaml', 'yml', 'sh', 'bash', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'sql', 'rb', 'php', 'vue', 'svelte', 'astro', 'toml', 'ini', 'conf', 'cfg', 'gitignore', 'env', 'example', 'template'].includes(extension)) {
-      setItemType('markdown')
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) {
-      setItemType('image')
-    } else {
-      setItemType('unknown')
+      return 'markdown'
     }
-  }, [activeFilePath, fileTree])
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) {
+      return 'image'
+    }
+    return 'unknown'
+  }, [fileTree])
 
-  // 没有文件时显示空白状态页面
-  if (!activeFilePath) {
-    return <EmptyState />
+  // Check if file/folder exists
+  const checkPathExists = useCallback(async (path: string): Promise<boolean> => {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+    const workspace = await getWorkspacePath()
+    const pathOptions = await getFilePathOptions(path)
+
+    try {
+      if (workspace.isCustom) {
+        return await exists(pathOptions.path)
+      } else {
+        return await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+      }
+    } catch {
+      return false
+    }
+  }, [])
+
+  // Check if path is a folder in fileTree
+  const isFolderInTree = useCallback((path: string): boolean => {
+    return !!findFolderInTree(path, fileTree)
+  }, [fileTree])
+
+  // Check if path is a file in fileTree
+  const isFileInTree = useCallback((path: string): boolean => {
+    const extension = path.split('.').pop()?.toLowerCase()
+    if (!extension) return false
+
+    const validExtensions = ['md', 'txt', 'markdown', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'html', 'xml', 'json', 'yaml', 'yml', 'sh', 'bash', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'sql', 'rb', 'php', 'vue', 'svelte', 'astro', 'toml', 'ini', 'conf', 'cfg', 'gitignore', 'env', 'example', 'template', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
+
+    if (!validExtensions.includes(extension)) return false
+
+    // Check if file exists in fileTree
+    const checkInTree = (items: typeof fileTree): boolean => {
+      for (const item of items) {
+        if (item.isFile && path.includes(item.name)) return true
+        if (item.children) {
+          if (checkInTree(item.children)) return true
+        }
+      }
+      return false
+    }
+    return checkInTree(fileTree)
+  }, [fileTree])
+
+  // Clean up tabs that no longer exist
+  useEffect(() => {
+    const cleanupTabs = async () => {
+      if (tabs.length === 0) return
+
+      const validTabs: TabInfo[] = []
+      let hasInvalid = false
+
+      for (const tab of tabs) {
+        if (tab.isFolder) {
+          // Check if folder exists in fileTree
+          if (isFolderInTree(tab.path)) {
+            validTabs.push(tab)
+          } else {
+            hasInvalid = true
+          }
+        } else {
+          // Check if file exists in fileTree or on disk
+          if (isFileInTree(tab.path) || await checkPathExists(tab.path)) {
+            validTabs.push(tab)
+          } else {
+            hasInvalid = true
+            // Clean up content cache
+            delete tabContentsRef.current[tab.path]
+          }
+        }
+      }
+
+      if (hasInvalid) {
+        setOpenTabs(validTabs)
+      }
+    }
+
+    cleanupTabs()
+  }, [fileTree, tabs.length, isFolderInTree, isFileInTree, checkPathExists, setOpenTabs])
+
+  // Initialize and update tabs when active path changes
+  useEffect(() => {
+    if (!activeFilePath) return
+
+    const name = activeFilePath.split('/').pop() || activeFilePath
+    const isFolder = isFolderPath(activeFilePath)
+
+    // Check if tab already exists
+    const existingTab = tabsRef.current.find(tab => tab.path === activeFilePath)
+
+    if (existingTab) {
+      // Set as active
+      if (activeTabId !== existingTab.id) {
+        setActiveTabId(existingTab.id)
+      }
+    } else {
+      // Add new tab
+      const newTab: TabInfo = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        path: activeFilePath,
+        name: name,
+        isFolder: isFolder
+      }
+      addTab(newTab)
+    }
+  }, [activeFilePath, activeTabId, isFolderPath, addTab, setActiveTabId])
+
+  // Handle tab switch
+  const handleTabSwitch = useCallback((path: string) => {
+    if (path) {
+      setActiveFilePath(path)
+    }
+  }, [setActiveFilePath])
+
+  // Handle new tab (create untitled file)
+  const handleNewTab = useCallback(async () => {
+    try {
+      const { exists, writeTextFile } = await import('@tauri-apps/plugin-fs')
+      const workspace = await import('@/lib/workspace').then(m => m.getWorkspacePath())
+      const { getFilePathOptions } = await import('@/lib/workspace')
+
+      let fileName = 'untitled.md'
+      let counter = 1
+      let filePath = fileName
+
+      while (true) {
+        const pathOptions = await getFilePathOptions(fileName)
+        let fileExists = false
+        if (workspace.isCustom) {
+          fileExists = await exists(pathOptions.path)
+        } else {
+          fileExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
+        if (!fileExists) break
+        fileName = `untitled-${counter}.md`
+        filePath = fileName
+        counter++
+      }
+
+      const pathOptions = await getFilePathOptions(filePath)
+      if (workspace.isCustom) {
+        await writeTextFile(pathOptions.path, '')
+      } else {
+        await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
+      }
+
+      setActiveFilePath(filePath)
+      useArticleStore.getState().loadFileTree()
+    } catch (error) {
+      console.error('Create untitled file error:', error)
+    }
+  }, [setActiveFilePath])
+
+  // Handle close tab
+  const handleCloseTab = useCallback((closedPath: string) => {
+    delete tabContentsRef.current[closedPath]
+
+    const closedTab = tabsRef.current.find(t => t.path === closedPath)
+    if (closedTab) {
+      removeTab(closedTab.id)
+    }
+
+    // If closing the active tab, switch to another tab
+    if (localActiveTabId === closedTab?.id) {
+      if (tabsRef.current.length > 1) {
+        const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
+        const targetTab = tabsRef.current[Math.max(0, currentIndex - 1)] || tabsRef.current[tabsRef.current.length - 1]
+        setActiveTabId(targetTab.id)
+        setActiveFilePath(targetTab.path)
+      } else {
+        setActiveTabId('')
+        setActiveFilePath('')
+      }
+    }
+  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+
+  // Render content panel for a tab
+  const renderContentPanel = useCallback((tab: TabInfo, isActive: boolean) => {
+    const itemType = getItemType(tab.path)
+
+    return (
+      <div
+        key={tab.id}
+        className="w-full h-full"
+        style={{ display: isActive ? 'flex' : 'none' }}
+      >
+        {itemType === 'folder' && (
+          <FolderView folderPath={tab.path} />
+        )}
+        {itemType === 'image' && (
+          <ImageEditor filePath={tab.path} />
+        )}
+        {itemType === 'markdown' && (
+          <MdEditor
+            key={tab.id}
+            tabContentsRef={tabContentsRef}
+            filePath={tab.path}
+          />
+        )}
+        {itemType === 'unknown' && (
+          <EmptyState />
+        )}
+      </div>
+    )
+  }, [getItemType])
+
+  // No tabs - show empty state
+  if (tabs.length === 0) {
+    return (
+      <div className="flex-1 relative w-full h-full flex flex-col overflow-hidden">
+        <TabBar
+          tabs={tabs}
+          activeTabId=""
+          onTabSwitch={handleTabSwitch}
+          onNewTab={handleNewTab}
+          onCloseTab={handleCloseTab}
+        />
+        <EmptyState />
+      </div>
+    )
   }
 
-  // 文件夹
-  if (itemType === 'folder') {
-    return <FolderView folderPath={activeFilePath} />
-  }
+  return (
+    <div className="flex-1 relative w-full h-full flex flex-col overflow-hidden">
+      {/* Tab Bar */}
+      <TabBar
+        tabs={tabs}
+        activeTabId={localActiveTabId}
+        onTabSwitch={handleTabSwitch}
+        onNewTab={handleNewTab}
+        onCloseTab={handleCloseTab}
+      />
 
-  // 图片文件
-  if (itemType === 'image') {
-    return <ImageEditor filePath={activeFilePath} />
-  }
-
-  // Markdown/文本文件
-  if (itemType === 'markdown') {
-    return <MdEditor />
-  }
-
-  // 其他未知类型文件也显示空白状态页面
-  return <EmptyState />
+      {/* Content panels - all rendered, only active one visible */}
+      {tabs.map(tab => renderContentPanel(tab, tab.id === localActiveTabId))}
+    </div>
+  )
 }

@@ -154,45 +154,12 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     const currentPath = computedParentPath(item)
 
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
-      // 图片文件：设置 activeFilePath，让 EditorWrapper 显示图片编辑器
-      if (activeFilePath === currentPath) {
-        setActiveFilePath('')
-        setCurrentArticle('')
-      } else {
-        setActiveFilePath(currentPath)
-        setCurrentArticle('') // 清空文本内容
-      }
+      // 图片文件：设置 activeFilePath，让 EditorLayout 显示图片编辑器
+      setActiveFilePath(currentPath)
     } else if (item.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template)$/i)) {
-      // Markdown/文本文件：设置 activeFilePath 并读取内容
-      if (activeFilePath === currentPath) {
-        setActiveFilePath('')
-        setCurrentArticle('')
-      } else {
-        setActiveFilePath(currentPath)
-        // 如果是 skills 文件夹下的文件，不使用 readArticle（避免自动关联到 AI 对话）
-        if (isInSkillsFolder(currentPath)) {
-          // 读取内容但不调用 readArticle，避免触发向量计算等关联逻辑
-          const { readTextFile } = await import('@tauri-apps/plugin-fs')
-          const { getFilePathOptions } = await import('@/lib/workspace')
-          const pathOptions = await getFilePathOptions(currentPath)
-
-          try {
-            let content = ''
-            const workspace = await (await import('@/lib/workspace')).getWorkspacePath()
-            if (workspace.isCustom) {
-              content = await readTextFile(pathOptions.path)
-            } else {
-              content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-            }
-            setCurrentArticle(content)
-          } catch (error) {
-            console.error('Failed to read file:', error)
-          }
-        } else {
-          // 普通文件，正常读取并关联到 AI 对话
-          readArticle(currentPath, item.sha, item.isLocale)
-        }
-      }
+      // Markdown/文本文件：设置 activeFilePath
+      setActiveFilePath(currentPath)
+      // 读取内容的逻辑移到 EditorLayout 中处理，避免重复渲染
     } else {
       // 其他文件类型：清空编辑器
       setActiveFilePath('')

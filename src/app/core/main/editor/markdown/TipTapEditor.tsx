@@ -36,7 +36,7 @@ import './style.css'
 const lowlight = createLowlight(common)
 
 interface TipTapEditorProps {
-  content: string
+  initialContent: string
   onChange?: (content: string) => void
   placeholder?: string
   editable?: boolean
@@ -49,7 +49,7 @@ interface TipTapEditorProps {
 }
 
 export function TipTapEditor({
-  content,
+  initialContent,
   onChange,
   placeholder = '开始写作...',
   editable = true,
@@ -62,7 +62,8 @@ export function TipTapEditor({
 }: TipTapEditorProps) {
   const [showOutline, setShowOutline] = useState(false)
   const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
-  const lastContentRef = useRef(content)
+  const isInitializedRef = useRef(false)
+  const isExternalUpdateRef = useRef(false)
 
   // Memoize callbacks before the editor check to avoid hooks rule violations
   const handleAIPolish = useCallback(() => {
@@ -93,7 +94,6 @@ export function TipTapEditor({
           levels: [1, 2, 3, 4, 5, 6],
         },
         codeBlock: false,
-        // Exclude duplicate extensions that we're adding separately
         link: false,
         underline: false,
       }),
@@ -127,32 +127,30 @@ export function TipTapEditor({
       TableRow,
       TableHeader,
       TableCell,
-      // Image upload extension
       ImageExtension,
-      // Markdown extension for import/export
       Markdown,
-      // Math formulas
       MathInline,
       MathBlock,
     ],
-    content,
+    content: initialContent,
     editable,
     onUpdate: ({ editor }) => {
       const markdown = editor.getMarkdown()
+      isExternalUpdateRef.current = true
       onChange?.(markdown)
     },
   })
 
-  // Update content when prop changes (only if different from last known)
+  // Initialize content only once - preserves undo/redo history when switching tabs
   useEffect(() => {
-    if (editor && content !== lastContentRef.current) {
-      const currentEditorContent = editor.getMarkdown()
-      if (content !== currentEditorContent) {
-        editor.commands.setContent(content, { contentType: 'markdown' })
+    if (editor && !isInitializedRef.current && initialContent) {
+      const currentContent = editor.getMarkdown()
+      if (initialContent !== currentContent) {
+        editor.commands.setContent(initialContent, { contentType: 'markdown' })
       }
-      lastContentRef.current = content
+      isInitializedRef.current = true
     }
-  }, [content, editor])
+  }, [editor, initialContent])
 
   // Set editable state
   useEffect(() => {
@@ -166,7 +164,6 @@ export function TipTapEditor({
       try {
         const mark = JSON.parse(markData)
         if (mark && mark.id !== undefined) {
-          // Import markToMarkdown dynamically to avoid circular deps
           import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
             const markdown = markToMarkdown(mark)
             editor?.commands.insertContent(markdown)
@@ -188,7 +185,6 @@ export function TipTapEditor({
 
   return (
     <div className="tiptap-editor flex flex-col h-full">
-      {/* Bubble Menu */}
       <BubbleMenuComponent
         editor={editor}
         onAIPolish={handleAIPolish}
@@ -198,13 +194,9 @@ export function TipTapEditor({
         onQuoteToChat={handleQuoteToChat}
       />
 
-      {/* Table Toolbar */}
       <TableToolbar editor={editor} />
-
-      {/* Image Toolbar */}
       <ImageToolbar editor={editor} />
 
-      {/* Outline Toggle */}
       <div className="flex items-center px-2 py-1 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))] gap-1">
         <button
           onClick={() => setShowOutline(!showOutline)}
@@ -214,7 +206,6 @@ export function TipTapEditor({
           <List size={16} />
         </button>
 
-        {/* AI Completion Toggle */}
         <button
           onClick={() => setAICompletionEnabled(!aiCompletionEnabled)}
           className={`p-1.5 rounded hover:bg-[hsl(var(--accent))] ${aiCompletionEnabled ? 'bg-[hsl(var(--accent))]' : ''}`}
@@ -224,14 +215,12 @@ export function TipTapEditor({
         </button>
       </div>
 
-      {/* Outline Panel */}
       <Outline
         editor={editor}
         isOpen={showOutline}
         onClose={() => setShowOutline(false)}
       />
 
-      {/* Editor content */}
       <div
         className="flex-1 overflow-auto"
         onDragOver={(e) => e.preventDefault()}
@@ -240,7 +229,6 @@ export function TipTapEditor({
         <EditorContent editor={editor} className="h-full" />
       </div>
 
-      {/* Export Menu - Bottom Toolbar */}
       <ExportMenu editor={editor} />
     </div>
   )

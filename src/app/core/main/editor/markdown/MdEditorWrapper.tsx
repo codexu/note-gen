@@ -1,51 +1,56 @@
 'use client'
 
 import useArticleStore from '@/stores/article'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, RefObject } from 'react'
 import { TipTapEditor } from './TipTapEditor'
-import { TabBar } from './TabBar'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
-export function MdEditor() {
+interface MdEditorProps {
+  tabContentsRef: RefObject<Record<string, string>>
+  filePath: string
+}
+
+export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const {
     saveCurrentArticle,
     loading,
     isPulling,
-    activeFilePath,
     setCurrentArticle,
     readArticle
   } = useArticleStore()
 
   const t = useTranslations('article.file.sync')
-  const [localContent, setLocalContent] = useState('')
-  const tabContentsRef = useRef<Record<string, string>>({})
+  const [initialContent, setInitialContent] = useState('')
   const isCreatingFileRef = useRef(false)
-  const activeFilePathRef = useRef(activeFilePath)
+  // Track loaded state per file path
+  const loadedPathsRef = useRef<Set<string>>(new Set())
 
-  // Sync activeFilePath to ref
+  // Load content from cache or disk - only on first mount per file
   useEffect(() => {
-    activeFilePathRef.current = activeFilePath
-  }, [activeFilePath])
+    if (!filePath || loadedPathsRef.current.has(filePath)) return
 
-  // Initialize content from store (for initial load)
-  useEffect(() => {
-    if (activeFilePath && !tabContentsRef.current[activeFilePath]) {
-      // Will be loaded via readArticle in the file switch effect
+    // Check cache first
+    if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
+      setInitialContent(tabContentsRef.current[filePath])
+      loadedPathsRef.current.add(filePath)
+      return
     }
-  }, [activeFilePath])
+
+    // Load from disk via store (handles AI context, sync, etc.)
+    readArticle(filePath)
+    loadedPathsRef.current.add(filePath)
+  }, [filePath, tabContentsRef])
 
   // Handle content changes
   const handleContentChange = useCallback((content: string) => {
-    setLocalContent(content)
-
-    // Also update cache
-    if (activeFilePathRef.current) {
-      tabContentsRef.current[activeFilePathRef.current] = content
+    // Update cache
+    if (filePath && tabContentsRef.current) {
+      tabContentsRef.current[filePath] = content
     }
 
-    // Content is now stored as Markdown
-    if (activeFilePathRef.current) {
+    // Save to disk
+    if (filePath) {
       saveCurrentArticle(content)
     } else if (!isCreatingFileRef.current) {
       // Auto-create untitled file
@@ -53,7 +58,7 @@ export function MdEditor() {
       createUntitledFile(content)
       isCreatingFileRef.current = false
     }
-  }, [saveCurrentArticle])
+  }, [saveCurrentArticle, filePath, tabContentsRef])
 
   // Auto-create untitled.md file
   async function createUntitledFile(content: string) {
@@ -64,28 +69,23 @@ export function MdEditor() {
 
       let fileName = 'untitled.md'
       let counter = 1
-      let filePath = fileName
+      let path = fileName
 
-      // Check if file exists
       while (true) {
-        const pathOptions = await getFilePathOptions(filePath)
+        const pathOptions = await getFilePathOptions(fileName)
         let fileExists = false
-
         if (workspace.isCustom) {
           fileExists = await exists(pathOptions.path)
         } else {
           fileExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
-
         if (!fileExists) break
-
         fileName = `untitled-${counter}.md`
-        filePath = fileName
+        path = fileName
         counter++
       }
 
-      // Create file
-      const pathOptions = await getFilePathOptions(filePath)
+      const pathOptions = await getFilePathOptions(path)
       if (workspace.isCustom) {
         await writeTextFile(pathOptions.path, content)
       } else {
@@ -93,57 +93,12 @@ export function MdEditor() {
       }
 
       setCurrentArticle(content)
-      useArticleStore.getState().setActiveFilePath(filePath)
+      useArticleStore.getState().setActiveFilePath(path)
       useArticleStore.getState().loadFileTree()
     } catch (error) {
       console.error('Create untitled file error:', error)
     }
   }
-
-  // Handle file switch
-  useEffect(() => {
-    if (!activeFilePath) {
-      setLocalContent('')
-      setCurrentArticle('')
-    } else {
-      // Check cache first
-      if (tabContentsRef.current[activeFilePath] !== undefined) {
-        setLocalContent(tabContentsRef.current[activeFilePath])
-      } else {
-        readArticle(activeFilePath)
-      }
-    }
-  }, [activeFilePath, readArticle, setCurrentArticle])
-
-  // Tab switching handler
-  const handleTabSwitch = useCallback((path: string) => {
-    // Cache current content before switching
-    if (activeFilePathRef.current && localContent) {
-      tabContentsRef.current[activeFilePathRef.current] = localContent
-    }
-
-    // Switch to new file
-    if (path) {
-      useArticleStore.getState().setActiveFilePath(path)
-    }
-  }, [localContent])
-
-  // New tab handler
-  const handleNewTab = useCallback(() => {
-    // Cache current content
-    if (activeFilePathRef.current && localContent) {
-      tabContentsRef.current[activeFilePathRef.current] = localContent
-    }
-
-    // Create new untitled file
-    createUntitledFile('')
-  }, [localContent])
-
-  // Close tab handler
-  const handleCloseTab = useCallback((path: string) => {
-    // Remove from cache
-    delete tabContentsRef.current[path]
-  }, [])
 
   // Loading state
   if (loading) {
@@ -172,16 +127,9 @@ export function MdEditor() {
         </div>
       )}
 
-      {/* Tab Bar */}
-      <TabBar
-        onTabSwitch={handleTabSwitch}
-        onNewTab={handleNewTab}
-        onCloseTab={handleCloseTab}
-      />
-
-      {/* Editor */}
+      {/* Editor - initialContent only set once on mount */}
       <TipTapEditor
-        content={localContent}
+        initialContent={initialContent}
         onChange={handleContentChange}
         placeholder="开始写作..."
       />

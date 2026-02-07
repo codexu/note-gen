@@ -61,6 +61,15 @@ interface NoteState {
   activeFilePath: string
   setActiveFilePath: (name: string) => void
 
+  // Tabs for multi-file editing
+  openTabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>
+  setOpenTabs: (tabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>) => void
+  activeTabId: string
+  setActiveTabId: (id: string) => void
+  addTab: (tab: { id: string; path: string; name: string; isFolder: boolean }) => void
+  removeTab: (id: string) => void
+  clearTabs: () => void
+
   matchPosition: number | null
   setMatchPosition: (position: number | null) => void
 
@@ -71,6 +80,9 @@ interface NoteState {
   showCloudFiles: boolean
   initShowCloudFiles: () => Promise<void>
   setShowCloudFiles: (show: boolean) => Promise<void>
+
+  // Initialize tabs from store
+  initOpenTabs: () => Promise<void>
 
   sortType: SortType
   sortDirection: SortDirection
@@ -254,6 +266,47 @@ const useArticleStore = create<NoteState>((set, get) => ({
     await store.set('activeFilePath', path)
   },
 
+  // Tabs initialization - load from store
+  openTabs: [],
+  activeTabId: '',
+  openTabs: [],
+  activeTabId: '',
+  setOpenTabs: async (tabs) => {
+    set({ openTabs: tabs })
+    const store = await Store.load('store.json');
+    await store.set('openTabs', tabs)
+  },
+  setActiveTabId: async (id) => {
+    set({ activeTabId: id })
+    const store = await Store.load('store.json');
+    await store.set('activeTabId', id)
+  },
+  addTab: async (tab) => {
+    const currentTabs = get().openTabs
+    // Check if tab already exists
+    if (currentTabs.find(t => t.path === tab.path)) {
+      return
+    }
+    const newTabs = [...currentTabs, tab].slice(-10) // Limit to 10 tabs
+    set({ openTabs: newTabs, activeTabId: tab.id })
+    const store = await Store.load('store.json');
+    await store.set('openTabs', newTabs)
+    await store.set('activeTabId', tab.id)
+  },
+  removeTab: async (id) => {
+    const currentTabs = get().openTabs
+    const newTabs = currentTabs.filter(t => t.id !== id)
+    set({ openTabs: newTabs })
+    const store = await Store.load('store.json');
+    await store.set('openTabs', newTabs)
+  },
+  clearTabs: async () => {
+    set({ openTabs: [], activeTabId: '' })
+    const store = await Store.load('store.json');
+    await store.set('openTabs', [])
+    await store.set('activeTabId', '')
+  },
+
   matchPosition: null,
   setMatchPosition: (position: number | null) => {
     set({ matchPosition: position })
@@ -276,6 +329,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const store = await Store.load('store.json');
     const res = await store.get<boolean>('showCloudFiles')
     set({ showCloudFiles: res ?? true })
+  },
+
+  // Initialize open tabs from store
+  initOpenTabs: async () => {
+    const store = await Store.load('store.json');
+    const tabs = await store.get<Array<{ id: string; path: string; name: string; isFolder: boolean }>>('openTabs')
+    const activeTabId = await store.get<string>('activeTabId')
+    set({ openTabs: tabs || [], activeTabId: activeTabId || '' })
   },
   setShowCloudFiles: async (show: boolean) => {
     set({ showCloudFiles: show })

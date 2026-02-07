@@ -2,7 +2,7 @@
 
 import { Node, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Decoration } from '@tiptap/pm/view'
 import { uploadImage } from '@/lib/imageHosting'
 
 export interface ImageOptions {
@@ -73,11 +73,60 @@ export const ImageExtension = Node.create<ImageOptions>({
   },
 
   addProseMirrorPlugins() {
+    // Upload image helper
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const uploadImageHelper = (view: any, file: File, pos: number) => {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string
+
+        // Insert temporary image with pending status
+        const { schema } = view.state
+        const node = schema.nodes.image.create({
+          src: base64,
+          'data-upload-status': 'uploading',
+        })
+        const tr = view.state.tr.insert(pos, node)
+        const imagePos = pos + 1
+        view.dispatch(tr)
+
+        try {
+          // Upload to configured image hosting
+          const url = await uploadImage(file)
+
+          if (url) {
+            // Update with uploaded URL
+            const updateTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
+              src: url,
+              'data-upload-status': 'uploaded',
+            })
+            view.dispatch(updateTr)
+          } else {
+            // If no image hosting configured, keep the base64
+            const updateTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
+              src: base64,
+              'data-upload-status': 'pending',
+            })
+            view.dispatch(updateTr)
+          }
+        } catch (error) {
+          console.error('Image upload failed:', error)
+          // Mark as failed
+          const errorTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
+            src: base64,
+            'data-upload-status': 'error',
+          })
+          view.dispatch(errorTr)
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+
     return [
       new Plugin({
         key: new PluginKey('imageUpload'),
         props: {
-          handlePaste: (view, event, slice) => {
+          handlePaste: (_view, event: ClipboardEvent) => {
             const items = event.clipboardData?.items
             if (!items) return false
 
@@ -86,9 +135,13 @@ export const ImageExtension = Node.create<ImageOptions>({
                 const file = item.getAsFile()
                 if (file) {
                   event.preventDefault()
-                  const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY })
+                  const rect = _view.dom.getBoundingClientRect()
+                  const coordinates = _view.posAtCoords({
+                    left: rect.left + rect.width / 2,
+                    top: rect.top + rect.height / 2,
+                  })
                   if (coordinates) {
-                    this.uploadImage(view, file, coordinates.pos)
+                    uploadImageHelper(_view, file, coordinates.pos)
                   }
                   return true
                 }
@@ -97,7 +150,7 @@ export const ImageExtension = Node.create<ImageOptions>({
             return false
           },
 
-          handleDrop: (view, event, slice, moved) => {
+          handleDrop: (view, event: DragEvent, _slice, moved) => {
             if (!moved) {
               const files = event.dataTransfer?.files
               if (files && files.length > 0) {
@@ -115,15 +168,14 @@ export const ImageExtension = Node.create<ImageOptions>({
                     placeholder.innerHTML = '上传中...'
                     placeholder.setAttribute('contenteditable', 'false')
 
-                    const decoration = Decoration.widget(coordinates.pos, {
-                      node: placeholder,
-                      side: -1,
-                    })
+                    // Create decoration - type issues with ProseMirror, ignoring
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    ;(Decoration as any).widget(coordinates.pos, placeholder, { side: -1 })
 
                     const tr = view.state.tr.setMeta('image-upload', true)
                     view.dispatch(tr)
 
-                    this.uploadImage(view, file, coordinates.pos)
+                    uploadImageHelper(view, file, coordinates.pos)
                   }
                   return true
                 }
@@ -134,52 +186,5 @@ export const ImageExtension = Node.create<ImageOptions>({
         },
       }),
     ]
-  },
-
-  uploadImage(view: any, file: File, pos: number) {
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      const base64 = e.target?.result as string
-
-      // Insert temporary image with pending status
-      const { schema } = view.state
-      const node = schema.nodes.image.create({
-        src: base64,
-        'data-upload-status': 'uploading',
-      })
-      const tr = view.state.tr.insert(pos, node)
-      const imagePos = pos + 1
-      view.dispatch(tr)
-
-      try {
-        // Upload to configured image hosting
-        const url = await uploadImage(file)
-
-        if (url) {
-          // Update with uploaded URL
-          const updateTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
-            src: url,
-            'data-upload-status': 'uploaded',
-          })
-          view.dispatch(updateTr)
-        } else {
-          // If no image hosting configured, keep the base64
-          const updateTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
-            src: base64,
-            'data-upload-status': 'pending',
-          })
-          view.dispatch(updateTr)
-        }
-      } catch (error) {
-        console.error('Image upload failed:', error)
-        // Mark as failed
-        const errorTr = view.state.tr.setNodeMarkup(imagePos, undefined, {
-          src: base64,
-          'data-upload-status': 'error',
-        })
-        view.dispatch(errorTr)
-      }
-    }
-    reader.readAsDataURL(file)
   },
 })

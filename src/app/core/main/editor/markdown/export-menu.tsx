@@ -6,7 +6,6 @@ import {
   FileCode,
   FileJson,
   Download,
-  ChevronDown,
   FileType,
 } from 'lucide-react'
 import html2canvas from 'html2canvas'
@@ -223,15 +222,13 @@ ${content}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
+          'flex items-center justify-center w-5 h-4 rounded transition-colors',
           'hover:bg-[hsl(var(--accent))]',
           isOpen && 'bg-[hsl(var(--accent))]'
         )}
         title="导出"
       >
-        <Download size={14} />
-        <span>导出</span>
-        <ChevronDown size={12} className={cn('transition-transform', isOpen && 'rotate-180')} />
+        <Download size={10} />
       </button>
 
       {isOpen && (

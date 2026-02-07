@@ -160,6 +160,7 @@ export const MathInline = Node.create<MathOptions>({
     return [
       {
         find: /\$([^\$]+)\$/g,
+        undoable: true,
         handler: ({ state, range, match }) => {
           const start = range.from
           const formula = match[1].trim()
@@ -219,6 +220,7 @@ export const MathBlock = Node.create<MathOptions>({
     return [
       {
         find: /\$\$\n([^\$]+)\n\$\$/g,
+        undoable: true,
         handler: ({ state, range, match }) => {
           const formula = match[1].trim()
           state.tr.replaceWith(

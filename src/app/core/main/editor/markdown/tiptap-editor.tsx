@@ -18,16 +18,16 @@ import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { common, createLowlight } from 'lowlight'
-import { Sparkles } from 'lucide-react'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
-import { ExportMenu } from './export-menu'
+import { FloatingTableMenu } from './floating-table-menu'
+import { FloatingImageMenu } from './floating-image-menu'
 import { ImageExtension } from './image-extension'
-import { MarkdownInputRules } from './markdown-input-rules'
 import { MathInline, MathBlock } from './math-extension'
+import { FixedToolbar } from './fixed-toolbar'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -60,6 +60,10 @@ export function TipTapEditor({
   const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
   const isInitializedRef = useRef(false)
   const isExternalUpdateRef = useRef(false)
+
+  const handleToggleAICompletion = useCallback((enabled: boolean) => {
+    setAICompletionEnabled(enabled)
+  }, [])
 
   // Memoize callbacks before the editor check to avoid hooks rule violations
   const handleAIPolish = useCallback(() => {
@@ -190,6 +194,9 @@ export function TipTapEditor({
         onQuoteToChat={handleQuoteToChat}
       />
 
+      <FloatingTableMenu editor={editor} />
+      <FloatingImageMenu editor={editor} />
+
       <div
         className="flex-1 overflow-auto"
         onDragOver={(e) => e.preventDefault()}
@@ -198,7 +205,11 @@ export function TipTapEditor({
         <EditorContent editor={editor} className="h-full" />
       </div>
 
-      <ExportMenu editor={editor} />
+      <FixedToolbar
+        editor={editor}
+        aiCompletionEnabled={aiCompletionEnabled}
+        onToggleAICompletion={handleToggleAICompletion}
+      />
     </div>
   )
 }

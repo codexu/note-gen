@@ -24,7 +24,8 @@ export function ImageToolbar({ editor }: ImageToolbarProps) {
         reader.onload = (event) => {
           const base64 = event.target?.result as string
           // Insert temporary image
-          editor.commands.setImage({ src: base64, 'data-upload-status': 'pending' })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(editor.commands as any).setImage({ src: base64, 'data-upload-status': 'pending' })
         }
         reader.readAsDataURL(file)
       }

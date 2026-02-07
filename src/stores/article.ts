@@ -269,8 +269,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
   // Tabs initialization - load from store
   openTabs: [],
   activeTabId: '',
-  openTabs: [],
-  activeTabId: '',
   setOpenTabs: async (tabs) => {
     set({ openTabs: tabs })
     const store = await Store.load('store.json');

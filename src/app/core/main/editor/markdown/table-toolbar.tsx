@@ -10,20 +10,17 @@ import {
   AlignCenter,
   AlignRight,
 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 
 interface TableToolbarProps {
   editor: Editor
 }
 
 export function TableToolbar({ editor }: TableToolbarProps) {
-  const [showTableMenu, setShowTableMenu] = useState(false)
-
   const canInsertTable = editor.can().insertTable({ rows: 3, cols: 3, withHeaderRow: true })
 
   const insertTable = useCallback(() => {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-    setShowTableMenu(false)
   }, [editor])
 
   const addColumnBefore = useCallback(() => {
@@ -67,8 +64,6 @@ export function TableToolbar({ editor }: TableToolbarProps) {
   }, [editor])
 
   const isTableActive = editor.isActive('table')
-  const selectedCells = editor.state.selection
-    .from === editor.state.selection.to
 
   return (
     <div className="table-toolbar relative">

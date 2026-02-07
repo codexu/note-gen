@@ -113,7 +113,7 @@ export function BubbleMenu({
     }
   }, [editor, linkUrl, showLinkInput])
 
-  const toggleHeading = (level: 1 | 2 | 3) => {
+  const toggleHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
     editor.chain().focus().toggleHeading({ level }).run()
   }
 

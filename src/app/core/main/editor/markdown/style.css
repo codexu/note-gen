@@ -699,3 +699,124 @@
     overscroll-behavior-x: contain !important;
   }
 }
+
+/* ========================
+   Tippy.js 样式
+   ======================== */
+
+.tippy-box {
+  position: relative;
+  display: inline-block;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: normal;
+  outline: 0;
+  z-index: 100;
+}
+
+.tippy-content {
+  position: relative;
+  padding: 8px 12px;
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px hsl(var(--foreground) / 0.1), 0 4px 6px -4px hsl(var(--foreground) / 0.1);
+  color: hsl(var(--foreground));
+}
+
+.tippy-arrow {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  color: hsl(var(--border));
+}
+
+.tippy-box[data-placement^='top'] > .tippy-arrow {
+  bottom: -8px;
+}
+
+.tippy-box[data-placement^='top'] > .tippy-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background-color: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border));
+  border-top: 1px solid hsl(var(--border));
+}
+
+.tippy-box[data-placement^='bottom'] > .tippy-arrow {
+  top: -8px;
+}
+
+.tippy-box[data-placement^='bottom'] > .tippy-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: rotate(-135deg);
+  width: 8px;
+  height: 8px;
+  background-color: hsl(var(--background));
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.tippy-box[data-placement^='left'] > .tippy-arrow {
+  right: -8px;
+}
+
+.tippy-box[data-placement^='left'] > .tippy-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: rotate(135deg);
+  width: 8px;
+  height: 8px;
+  background-color: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border));
+  border-top: 1px solid hsl(var(--border));
+}
+
+.tippy-box[data-placement^='right'] > .tippy-arrow {
+  left: -8px;
+}
+
+.tippy-box[data-placement^='right'] > .tippy-arrow::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: rotate(-45deg);
+  width: 8px;
+  height: 8px;
+  background-color: hsl(var(--background));
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* 动画 */
+.tippy-box[data-state='hidden'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tippy-box[data-state='visible'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 暗色模式 */
+.dark .tippy-content {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.dark .tippy-arrow {
+  color: hsl(var(--border));
+}

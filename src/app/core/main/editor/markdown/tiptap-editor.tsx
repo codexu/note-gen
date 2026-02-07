@@ -28,6 +28,9 @@ import { FloatingImageMenu } from './floating-image-menu'
 import { ImageExtension } from './image-extension'
 import { MathInline, MathBlock } from './math-extension'
 import { FixedToolbar } from './fixed-toolbar'
+import { SlashCommand, suggestionOptions } from './slash-command'
+import { SlashCommandPortal } from './slash-command/slash-command-portal'
+import { fetchCompletionStream } from '@/lib/ai/completion'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -131,6 +134,9 @@ export function TipTapEditor({
       Markdown,
       MathInline,
       MathBlock,
+      SlashCommand.configure({
+        suggestion: suggestionOptions,
+      }),
     ],
     content: initialContent,
     editable,
@@ -156,6 +162,77 @@ export function TipTapEditor({
   useEffect(() => {
     editor?.setEditable(editable)
   }, [editable, editor])
+
+  // Handle AI continue writing
+  useEffect(() => {
+    let abortController: AbortController | null = null
+
+    const handleAIContinue = async () => {
+      if (!editor) return
+
+      // Get content before cursor as context
+      const { from } = editor.state.selection
+      const textBefore = editor.state.doc.textBetween(0, from, '\n')
+
+      // Get last 500 characters as context
+      const context = textBefore.slice(-500)
+
+      if (!context.trim()) {
+        toast({
+          title: '续写失败',
+          description: '请先输入一些内容',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      // Create new AbortController for this request
+      abortController = new AbortController()
+
+      // Insert loading indicator at cursor position
+      const loadingMark = editor.state.schema.marks.strong
+      if (!loadingMark) {
+        // If no strong mark available, insert simple text
+        editor.chain().focus().insertContent('...').run()
+      } else {
+        editor.chain().focus().insertContent('···').run()
+      }
+
+      try {
+        await fetchCompletionStream(
+          context,
+          (chunk, isFirst) => {
+            if (isFirst) {
+              // Delete the loading indicator before inserting first chunk
+              const { to } = editor.state.selection
+              editor.chain().focus().deleteRange({ from: to - 3, to }).run()
+            }
+            editor.chain().focus().insertContent(chunk).run()
+          },
+          abortController.signal
+        )
+      } catch (error) {
+        // Delete loading indicator on error
+        const { to } = editor.state.selection
+        editor.chain().focus().deleteRange({ from: to - 3, to }).run()
+
+        // Show error toast (but not for aborted requests)
+        if (error instanceof Error && error.message !== 'Request was aborted.') {
+          toast({
+            title: '续写失败',
+            description: error.message || '网络错误',
+            variant: 'destructive',
+          })
+        }
+      }
+    }
+
+    document.addEventListener('tiptap-ai-continue', handleAIContinue)
+    return () => {
+      document.removeEventListener('tiptap-ai-continue', handleAIContinue)
+      abortController?.abort()
+    }
+  }, [editor])
 
   // Handle drag and drop from marks
   const handleEditorDrop = useCallback((e: React.DragEvent) => {
@@ -210,6 +287,8 @@ export function TipTapEditor({
         aiCompletionEnabled={aiCompletionEnabled}
         onToggleAICompletion={handleToggleAICompletion}
       />
+
+      <SlashCommandPortal />
     </div>
   )
 }

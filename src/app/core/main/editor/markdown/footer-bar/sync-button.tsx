@@ -1,27 +1,17 @@
 'use client'
 
-import { Editor } from '@tiptap/react'
 import { ArrowUpCircle, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { Store } from '@tauri-apps/plugin-store'
-import { compareFileVersions, saveLocalFile } from '@/lib/sync/auto-sync'
+import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
-import { getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
-import { getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
-import { getFileCommits as getGiteaFileCommits } from '@/lib/sync/gitea'
 import { toast } from '@/hooks/use-toast'
-import { diffWordsWithSpace } from 'diff'
-
-interface SyncButtonProps {
-  editor: Editor
-}
 
 type SyncStatus = 'synced' | 'pull_needed' | 'push_needed' | 'unknown' | 'error'
 
-export function SyncButton({ editor }: SyncButtonProps) {
+export function SyncButton() {
   const { activeFilePath, currentArticle } = useArticleStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)

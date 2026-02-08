@@ -1,6 +1,5 @@
 'use client'
 
-import { Editor } from '@tiptap/react'
 import { History } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -27,13 +26,9 @@ interface CommitInfo {
   date: Date
 }
 
-interface HistorySheetProps {
-  editor: Editor
-}
-
 type SyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
-export function HistorySheet({ editor }: HistorySheetProps) {
+export function HistorySheet() {
   const { activeFilePath } = useArticleStore()
   const [isOpen, setIsOpen] = useState(false)
   const [history, setHistory] = useState<CommitInfo[]>([])

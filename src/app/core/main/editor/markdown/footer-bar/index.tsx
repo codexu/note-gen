@@ -119,12 +119,11 @@ export function FooterBar({
       {/* Center: Sync status, Pull, Vector DB, AI Toggle */}
       <div className="flex items-center gap-1">
         <PrimarySyncBadge />
-        <SyncButton editor={editor} />
+        <SyncButton />
         <PullButton editor={editor} />
-        <HistorySheet editor={editor} />
+        <HistorySheet />
         <div className="w-px h-3 bg-border mx-1" />
         <VectorCalc
-          editor={editor}
           aiCompletionEnabled={aiCompletionEnabled}
           onToggleAICompletion={onToggleAICompletion}
         />

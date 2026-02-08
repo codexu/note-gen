@@ -1,19 +1,16 @@
 'use client'
 
-import { Editor } from '@tiptap/react'
 import { Database, Sparkles } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useVectorStore from '@/stores/vector'
 
 interface VectorCalcProps {
-  editor: Editor
   aiCompletionEnabled: boolean
   onToggleAICompletion: (enabled: boolean) => void
 }
 
 export function VectorCalc({
-  editor,
   aiCompletionEnabled,
   onToggleAICompletion
 }: VectorCalcProps) {

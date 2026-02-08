@@ -2418,6 +2418,12 @@
         "Arabic": "Árabe"
       },
       "customLanguagePlaceholder": "Idioma personalizado..."
+    },
+    "aiSuggestion": {
+      "accept": "Aceitar",
+      "reject": "Rejeitar",
+      "generating": "Gerando...",
+      "abort": "Abortar"
     }
   }
 }

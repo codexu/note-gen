@@ -2301,6 +2301,12 @@
         "Arabic": "Arabic"
       },
       "customLanguagePlaceholder": "Custom language..."
+    },
+    "aiSuggestion": {
+      "accept": "Accept",
+      "reject": "Reject",
+      "generating": "Generating...",
+      "abort": "Abort"
     }
   }
 }

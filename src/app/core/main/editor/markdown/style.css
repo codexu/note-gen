@@ -829,3 +829,37 @@
 .dark .tippy-arrow {
   color: hsl(var(--border));
 }
+
+/* ========================
+   AI 建议样式
+   ======================== */
+
+/* AI 建议标记 - 选中时显示 */
+.tiptap-editor .ProseMirror .ai-suggestion {
+  background-color: hsl(var(--primary) / 0.2);
+  border-bottom: 2px solid hsl(var(--primary));
+  padding: 0 2px;
+  border-radius: 2px;
+  position: relative;
+}
+
+/* AI 建议标记 - 鼠标悬停时显示虚线框 */
+.tiptap-editor .ProseMirror .ai-suggestion:hover {
+  background-color: hsl(var(--primary) / 0.3);
+}
+
+/* AI 建议标记 - 选中状态 */
+.tiptap-editor .ProseMirror .ai-suggestion.is-selected {
+  background-color: hsl(var(--primary) / 0.4);
+  border-bottom-color: hsl(var(--primary));
+}
+
+/* 暗色模式下的 AI 建议样式 */
+.dark .tiptap-editor .ProseMirror .ai-suggestion {
+  background-color: hsl(var(--primary) / 0.3);
+  border-bottom-color: hsl(var(--primary) / 0.8);
+}
+
+.dark .tiptap-editor .ProseMirror .ai-suggestion:hover {
+  background-color: hsl(var(--primary) / 0.4);
+}

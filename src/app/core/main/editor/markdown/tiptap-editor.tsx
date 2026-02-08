@@ -31,6 +31,9 @@ import { FixedToolbar } from './fixed-toolbar'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
 import { fetchCompletionStream } from '@/lib/ai/completion'
+import { fetchAiPolishStream, fetchAiConciseStream, fetchAiExpandStream } from '@/lib/ai/rewrite'
+import { AISuggestion } from './ai-suggestion'
+import { AISuggestionFloating } from './ai-suggestion-floating'
 import emitter from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
 import './style.css'
@@ -44,9 +47,6 @@ interface TipTapEditorProps {
   editable?: boolean
   aiEnabled?: boolean
   activeFilePath?: string
-  onAIPolish?: () => void
-  onAIConcise?: () => void
-  onAIExpand?: () => void
   onQuoteToChat?: () => void
 }
 
@@ -57,9 +57,6 @@ export function TipTapEditor({
   editable = true,
   aiEnabled = false,
   activeFilePath = '',
-  onAIPolish,
-  onAIConcise,
-  onAIExpand,
   onQuoteToChat,
 }: TipTapEditorProps) {
   const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
@@ -69,19 +66,6 @@ export function TipTapEditor({
   const handleToggleAICompletion = useCallback((enabled: boolean) => {
     setAICompletionEnabled(enabled)
   }, [])
-
-  // Memoize callbacks before the editor check to avoid hooks rule violations
-  const handleAIPolish = useCallback(() => {
-    onAIPolish?.()
-  }, [onAIPolish])
-
-  const handleAIConcise = useCallback(() => {
-    onAIConcise?.()
-  }, [onAIConcise])
-
-  const handleAIExpand = useCallback(() => {
-    onAIExpand?.()
-  }, [onAIExpand])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -132,6 +116,7 @@ export function TipTapEditor({
         suggestion: suggestionOptions,
       }),
       QuoteMark,
+      AISuggestion,
     ],
     content: initialContent,
     editable,
@@ -143,6 +128,243 @@ export function TipTapEditor({
       }
     },
   })
+
+  // Handle AI Polish - improve selected text (with streaming and suggestion mode)
+  const handleAIPolish = useCallback(async () => {
+    if (!editor) return
+
+    const { from, to } = editor.state.selection
+    const selectedText = editor.state.doc.textBetween(from, to)
+
+    if (!selectedText.trim()) {
+      return
+    }
+
+    // Create abort controller for this request
+    const controller = new AbortController()
+
+    // Delete original text and start streaming
+    editor.chain()
+      .focus()
+      .deleteSelection()
+      .run()
+
+    // Get initial position and start streaming immediately
+    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
+    emitter.emit('start-ai-streaming', {
+      originalText: selectedText,
+      type: 'polish',
+      position: initialCoords,
+      controller,
+    })
+
+    // Track accumulated result
+    let accumulatedResult = ''
+    const startPosition = editor.state.selection.from
+    let insertPosition = startPosition
+
+    try {
+      await fetchAiPolishStream(
+        selectedText,
+        (chunk) => {
+          // Insert chunk at current position
+          editor.chain()
+            .insertContentAt(insertPosition, chunk)
+            .run()
+
+          // Update tracking
+          accumulatedResult += chunk
+          insertPosition += chunk.length
+
+          // Update floating menu with streaming content and position
+          const coords = editor.view.coordsAtPos(insertPosition)
+          emitter.emit('update-ai-streaming-content', {
+            suggestedText: accumulatedResult,
+            position: coords,
+          })
+        },
+        controller.signal
+      )
+
+      // Streaming complete - send final position and content
+      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      emitter.emit('ai-streaming-complete', {
+        originalText: selectedText,
+        suggestedText: accumulatedResult,
+        type: 'polish',
+        position: finalCoords,
+        generatedRange: { from: startPosition, to: insertPosition },
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      // Restore original text on error
+      editor.chain()
+        .focus()
+        .insertContent(selectedText)
+        .run()
+      emitter.emit('ai-streaming-complete')
+    }
+  }, [editor])
+
+  // Handle AI Concise - simplify selected text (with streaming and suggestion mode)
+  const handleAIConcise = useCallback(async () => {
+    if (!editor) return
+
+    const { from, to } = editor.state.selection
+    const selectedText = editor.state.doc.textBetween(from, to)
+
+    if (!selectedText.trim()) {
+      return
+    }
+
+    // Create abort controller for this request
+    const controller = new AbortController()
+
+    // Delete original text and start streaming
+    editor.chain()
+      .focus()
+      .deleteSelection()
+      .run()
+
+    // Get initial position and start streaming immediately
+    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
+    emitter.emit('start-ai-streaming', {
+      originalText: selectedText,
+      type: 'concise',
+      position: initialCoords,
+      controller,
+    })
+
+    // Track accumulated result
+    let accumulatedResult = ''
+    const startPosition = editor.state.selection.from
+    let insertPosition = startPosition
+
+    try {
+      await fetchAiConciseStream(
+        selectedText,
+        (chunk) => {
+          // Insert chunk at current position
+          editor.chain()
+            .insertContentAt(insertPosition, chunk)
+            .run()
+
+          // Update tracking
+          accumulatedResult += chunk
+          insertPosition += chunk.length
+
+          // Update floating menu with streaming content and position
+          const coords = editor.view.coordsAtPos(insertPosition)
+          emitter.emit('update-ai-streaming-content', {
+            suggestedText: accumulatedResult,
+            position: coords,
+          })
+        },
+        controller.signal
+      )
+
+      // Streaming complete - send final position and content
+      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      emitter.emit('ai-streaming-complete', {
+        originalText: selectedText,
+        suggestedText: accumulatedResult,
+        type: 'concise',
+        position: finalCoords,
+        generatedRange: { from: startPosition, to: insertPosition },
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      // Restore original text on error
+      editor.chain()
+        .focus()
+        .insertContent(selectedText)
+        .run()
+      emitter.emit('ai-streaming-complete')
+    }
+  }, [editor])
+
+  // Handle AI Expand - expand selected text (with streaming and suggestion mode)
+  const handleAIExpand = useCallback(async () => {
+    if (!editor) return
+
+    const { from, to } = editor.state.selection
+    const selectedText = editor.state.doc.textBetween(from, to)
+
+    if (!selectedText.trim()) {
+      return
+    }
+
+    // Create abort controller for this request
+    const controller = new AbortController()
+
+    // Delete original text and start streaming
+    editor.chain()
+      .focus()
+      .deleteSelection()
+      .run()
+
+    // Get initial position and start streaming immediately
+    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
+    emitter.emit('start-ai-streaming', {
+      originalText: selectedText,
+      type: 'expand',
+      position: initialCoords,
+      controller,
+    })
+
+    // Track accumulated result
+    let accumulatedResult = ''
+    const startPosition = editor.state.selection.from
+    let insertPosition = startPosition
+
+    try {
+      await fetchAiExpandStream(
+        selectedText,
+        (chunk) => {
+          // Insert chunk at current position
+          editor.chain()
+            .insertContentAt(insertPosition, chunk)
+            .run()
+
+          // Update tracking
+          accumulatedResult += chunk
+          insertPosition += chunk.length
+
+          // Update floating menu with streaming content and position
+          const coords = editor.view.coordsAtPos(insertPosition)
+          emitter.emit('update-ai-streaming-content', {
+            suggestedText: accumulatedResult,
+            position: coords,
+          })
+        },
+        controller.signal
+      )
+
+      // Streaming complete - send final position and content
+      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      emitter.emit('ai-streaming-complete', {
+        originalText: selectedText,
+        suggestedText: accumulatedResult,
+        type: 'expand',
+        position: finalCoords,
+        generatedRange: { from: startPosition, to: insertPosition },
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      // Restore original text on error
+      editor.chain()
+        .focus()
+        .insertContent(selectedText)
+        .run()
+      emitter.emit('ai-streaming-complete')
+    }
+  }, [editor])
 
   // Initialize content only once - preserves undo/redo history when switching tabs
   useEffect(() => {
@@ -444,6 +666,8 @@ export function TipTapEditor({
         onAIExpand={handleAIExpand}
         onQuoteToChat={onQuoteToChat}
       />
+
+      <AISuggestionFloating editor={editor} />
 
       <FloatingTableMenu editor={editor} />
       <FloatingImageMenu editor={editor} />

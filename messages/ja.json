@@ -2379,6 +2379,12 @@
         "Arabic": "アラビア語"
       },
       "customLanguagePlaceholder": "カスタム言語..."
+    },
+    "aiSuggestion": {
+      "accept": "受け入れ",
+      "reject": "拒否",
+      "generating": "生成中...",
+      "abort": "中止"
     }
   }
 }

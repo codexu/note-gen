@@ -33,24 +33,22 @@ export function FloatingImageMenu({ editor }: FloatingImageMenuProps) {
       return
     }
 
-    // Get editor bounds
+    // Get editor bounds and scroll container
     const editorElement = document.querySelector('.ProseMirror')
-    if (!editorElement) return
+    const scrollContainer = editorElement?.parentElement
+    if (!editorElement || !scrollContainer) return
 
     const editorBounds = editorElement.getBoundingClientRect()
+    const scrollRect = scrollContainer.getBoundingClientRect()
 
     // Get the coordinates
     const coords = editor.view.coordsAtPos(from)
 
     // Horizontal: fixed at editor center
-    const left = editorBounds.left + (editorBounds.right - editorBounds.left) / 2
+    const left = editorBounds.width / 2
 
-    // Vertical: above the image with boundary check
-    let top = coords.top - 10
-    const menuHeight = 40
-    if (top - menuHeight < editorBounds.top) {
-      top = coords.bottom + 8
-    }
+    // Vertical: relative to scroll container
+    const top = coords.top - scrollRect.top - 10
 
     setPosition({ top, left })
     setShow(true)
@@ -80,6 +78,21 @@ export function FloatingImageMenu({ editor }: FloatingImageMenuProps) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Update position on scroll
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      if (show) {
+        updatePosition()
+      }
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [show, updatePosition])
 
   const isImageSelected = editor.isActive('image')
 
@@ -129,7 +142,7 @@ export function FloatingImageMenu({ editor }: FloatingImageMenuProps) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50"
+      className="absolute z-50"
       style={{
         top: position.top,
         left: position.left,

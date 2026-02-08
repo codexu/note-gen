@@ -104,29 +104,20 @@ export function BubbleMenu({
       return
     }
 
-    // 直接获取最新的编辑器边界
+    // 获取编辑器边界和滚动容器
     const editorElement = document.querySelector('.ProseMirror')
-    if (!editorElement) return
+    const scrollContainer = editorElement?.parentElement
+    if (!editorElement || !scrollContainer) return
 
     const editorBounds = editorElement.getBoundingClientRect()
-    const padding = 8
+    const scrollRect = scrollContainer.getBoundingClientRect()
 
-    // 左右：固定在编辑器水平中心
-    const left = editorBounds.left + (editorBounds.right - editorBounds.left) / 2
+    // 左右：固定在编辑器水平中心（相对于滚动容器）
+    const left = editorBounds.width / 2
 
-    // 垂直：跟随选中文本位置
+    // 垂直：相对于滚动容器计算位置
     const coords = editor.view.coordsAtPos(from)
-    let top = coords.top - 8
-
-    // 垂直边界检测
-    const menuHeight = 40
-    if (top - menuHeight < editorBounds.top) {
-      top = coords.bottom + 8
-    }
-    // 确保菜单在编辑器底部范围内
-    if (top > editorBounds.bottom - menuHeight) {
-      top = editorBounds.top + padding
-    }
+    const top = coords.top - scrollRect.top - 10
 
     setPosition({ top, left })
     setShow(true)
@@ -214,6 +205,21 @@ export function BubbleMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Update position on scroll
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      if (show) {
+        updatePosition()
+      }
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [show, updatePosition])
+
   const setLink = useCallback(() => {
     if (showLinkInput) {
       if (linkUrl === '') {
@@ -256,7 +262,7 @@ export function BubbleMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 transition-[top,left] duration-150 ease-out"
+      className="absolute z-50 transition-[top,left] duration-150 ease-out"
       style={{
         top: position.top,
         left: position.left,

@@ -34,24 +34,22 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
       return
     }
 
-    // Get editor bounds
+    // Get editor bounds and scroll container
     const editorElement = document.querySelector('.ProseMirror')
-    if (!editorElement) return
+    const scrollContainer = editorElement?.parentElement
+    if (!editorElement || !scrollContainer) return
 
     const editorBounds = editorElement.getBoundingClientRect()
+    const scrollRect = scrollContainer.getBoundingClientRect()
 
     // Get the coordinates of the selection
     const coords = editor.view.coordsAtPos(from)
 
     // Horizontal: fixed at editor center
-    const left = editorBounds.left + (editorBounds.right - editorBounds.left) / 2
+    const left = editorBounds.width / 2
 
-    // Vertical: follow selection with boundary check
-    let top = coords.bottom + 10
-    const menuHeight = 40
-    if (top > editorBounds.bottom - menuHeight) {
-      top = editorBounds.top + 8
-    }
+    // Vertical: relative to scroll container
+    const top = coords.bottom - scrollRect.top + 10
 
     setPosition({ top, left })
     setShow(true)
@@ -81,6 +79,21 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Update position on scroll
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      if (show) {
+        updatePosition()
+      }
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
+  }, [show, updatePosition])
 
   const canInsertTable = editor.can().insertTable({ rows: 3, cols: 3, withHeaderRow: true })
 
@@ -136,7 +149,7 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50"
+      className="absolute z-50"
       style={{
         top: position.top,
         left: position.left,

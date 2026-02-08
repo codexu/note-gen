@@ -68,22 +68,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         type: data.type,
       })
 
-      // Initial position below cursor, horizontal fixed at editor center
-      // Add vertical boundary check
-      let top = data.position.bottom + 8
+      // Calculate position relative to scroll container
       const editorElement = document.querySelector('.ProseMirror')
-      if (editorElement) {
-        const editorBounds = editorElement.getBoundingClientRect()
-        const menuHeight = 36
-        if (top > editorBounds.bottom - menuHeight) {
-          top = editorBounds.top + 8
-        }
+      const scrollContainer = editorElement?.parentElement
+
+      let top = data.position.bottom - 10
+      let left = 0
+
+      if (scrollContainer) {
+        const scrollRect = scrollContainer.getBoundingClientRect()
+        top = data.position.bottom - scrollRect.top
+        left = scrollRect.width / 2
       }
 
-      setPosition({
-        top,
-        left: editorCenterLeft,
-      })
+      setPosition({ top, left })
       setIsVisible(true)
       setIsStreaming(true)
 
@@ -102,22 +100,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         suggestedText: data.suggestedText,
       } : null)
 
-      // Update top position, keep left fixed at editor center
-      // Add vertical boundary check
-      let top = data.position.bottom + 8
+      // Calculate position relative to scroll container
       const editorElement = document.querySelector('.ProseMirror')
-      if (editorElement) {
-        const editorBounds = editorElement.getBoundingClientRect()
-        const menuHeight = 36
-        if (top > editorBounds.bottom - menuHeight) {
-          top = editorBounds.top + 8
-        }
+      const scrollContainer = editorElement?.parentElement
+
+      let top = data.position.bottom - 10
+      let left = 0
+
+      if (scrollContainer) {
+        const scrollRect = scrollContainer.getBoundingClientRect()
+        top = data.position.bottom - scrollRect.top
+        left = scrollRect.width / 2
       }
 
-      setPosition(() => ({
-        top,
-        left: fixedLeftRef.current,
-      }))
+      setPosition({ top, left })
     }
 
     // Streaming completed, show accept/reject buttons
@@ -130,21 +126,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
           generatedRange: data.generatedRange,
         })
 
-        // Add vertical boundary check
-        let top = data.position.bottom + 8
+        // Calculate position relative to scroll container
         const editorElement = document.querySelector('.ProseMirror')
-        if (editorElement) {
-          const editorBounds = editorElement.getBoundingClientRect()
-          const menuHeight = 36
-          if (top > editorBounds.bottom - menuHeight) {
-            top = editorBounds.top + 8
-          }
+        const scrollContainer = editorElement?.parentElement
+
+        let top = data.position.bottom - 10
+        let left = 0
+
+        if (scrollContainer) {
+          const scrollRect = scrollContainer.getBoundingClientRect()
+          top = data.position.bottom - scrollRect.top
+          left = scrollRect.width / 2
         }
 
-        setPosition({
-          top,
-          left: editorCenterLeft,
-        })
+        setPosition({ top, left })
         setIsVisible(true)
       }
       setIsStreaming(false)
@@ -182,21 +177,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         generatedRange: data.generatedRange,
       })
 
-      // Add vertical boundary check
-      let top = data.position.bottom + 8
+      // Calculate position relative to scroll container
       const editorElement = document.querySelector('.ProseMirror')
-      if (editorElement) {
-        const editorBounds = editorElement.getBoundingClientRect()
-        const menuHeight = 36
-        if (top > editorBounds.bottom - menuHeight) {
-          top = editorBounds.top + 8
-        }
+      const scrollContainer = editorElement?.parentElement
+
+      let top = data.position.bottom - 10
+      let left = 0
+
+      if (scrollContainer) {
+        const scrollRect = scrollContainer.getBoundingClientRect()
+        top = data.position.bottom - scrollRect.top
+        left = scrollRect.width / 2
       }
 
-      setPosition({
-        top,
-        left: editorCenterLeft,
-      })
+      setPosition({ top, left })
       setIsVisible(true)
       setIsStreaming(false)
     }
@@ -263,7 +257,7 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
   return (
     <div
       ref={buttonRef}
-      className="fixed z-50 flex items-center gap-1 px-2 py-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-150"
+      className="absolute z-50 flex items-center gap-1 px-2 py-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-150"
       style={{
         top: position.top,
         left: position.left,

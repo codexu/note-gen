@@ -663,26 +663,26 @@ export function TipTapEditor({
   }
 
   return (
-    <div className="tiptap-editor flex flex-col h-full">
-      <BubbleMenuComponent
-        editor={editor}
-        onAIPolish={handleAIPolish}
-        onAIConcise={handleAIConcise}
-        onAIExpand={handleAIExpand}
-        onQuoteToChat={onQuoteToChat}
-      />
-
-      <AISuggestionFloating editor={editor} />
-
-      <FloatingTableMenu editor={editor} />
-      <FloatingImageMenu editor={editor} />
-
+    <div className="tiptap-editor relative flex flex-col h-full">
       {/* Editor content - scrollable area */}
       <div
-        className="flex-1 overflow-auto"
+        className="flex-1 overflow-auto relative"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleEditorDrop}
       >
+        <BubbleMenuComponent
+          editor={editor}
+          onAIPolish={handleAIPolish}
+          onAIConcise={handleAIConcise}
+          onAIExpand={handleAIExpand}
+          onQuoteToChat={onQuoteToChat}
+        />
+
+        <AISuggestionFloating editor={editor} />
+
+        <FloatingTableMenu editor={editor} />
+        <FloatingImageMenu editor={editor} />
+
         <EditorContent editor={editor} className="h-full" />
       </div>
 

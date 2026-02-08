@@ -21,7 +21,7 @@ import { common, createLowlight } from 'lowlight'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
@@ -46,7 +46,6 @@ interface TipTapEditorProps {
   onChange?: (content: string) => void
   placeholder?: string
   editable?: boolean
-  aiEnabled?: boolean
   activeFilePath?: string
   onQuoteToChat?: () => void
 }
@@ -56,17 +55,11 @@ export function TipTapEditor({
   onChange,
   placeholder = '开始写作...',
   editable = true,
-  aiEnabled = false,
   activeFilePath = '',
   onQuoteToChat,
 }: TipTapEditorProps) {
-  const [aiCompletionEnabled, setAICompletionEnabled] = useState(aiEnabled)
   const isInitializedRef = useRef(false)
   const isExternalUpdateRef = useRef(false)
-
-  const handleToggleAICompletion = useCallback((enabled: boolean) => {
-    setAICompletionEnabled(enabled)
-  }, [])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -713,11 +706,7 @@ export function TipTapEditor({
       </div>
 
       {/* Bottom toolbar - always visible */}
-      <FooterBar
-        editor={editor}
-        aiCompletionEnabled={aiCompletionEnabled}
-        onToggleAICompletion={handleToggleAICompletion}
-      />
+      <FooterBar editor={editor} />
 
       <SlashCommandPortal />
     </div>

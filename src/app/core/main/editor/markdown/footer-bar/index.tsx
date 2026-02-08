@@ -4,26 +4,21 @@ import { Editor } from '@tiptap/react'
 import { Download } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { VectorCalc } from './vector-calc'
+import { WordCount } from './word-count'
 import { CopyButton } from './copy-button'
 import { SyncButton } from './sync-button'
 import { PullButton } from './pull-button'
 import { PrimarySyncBadge } from './primary-sync-badge'
-import { HistorySheet } from './history-sheet'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import useArticleStore from '@/stores/article'
 
 interface FooterBarProps {
   editor: Editor
-  aiCompletionEnabled: boolean
-  onToggleAICompletion: (enabled: boolean) => void
 }
 
 export function FooterBar({
   editor,
-  aiCompletionEnabled,
-  onToggleAICompletion
 }: FooterBarProps) {
   const [isExportOpen, setIsExportOpen] = useState(false)
 
@@ -110,23 +105,9 @@ export function FooterBar({
 
   return (
     <div className="h-6 flex items-center justify-between px-3 border-t border-border bg-background text-xs text-muted-foreground">
-      {/* Left side: empty */}
-
-      {/* Center: Sync status, Pull, Vector DB, AI Toggle */}
+      {/* Left side: Word count, Copy, Export */}
       <div className="flex items-center gap-1">
-        <PrimarySyncBadge />
-        <SyncButton />
-        <PullButton editor={editor} />
-        <HistorySheet />
-        <div className="w-px h-3 bg-border mx-1" />
-        <VectorCalc
-          aiCompletionEnabled={aiCompletionEnabled}
-          onToggleAICompletion={onToggleAICompletion}
-        />
-      </div>
-
-      {/* Right side: Copy, Export */}
-      <div className="flex items-center gap-1">
+        <WordCount editor={editor} />
         <CopyButton editor={editor} />
 
         {/* Export dropdown */}
@@ -190,6 +171,13 @@ export function FooterBar({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Right side: Knowledge base, Sync tools */}
+      <div className="flex items-center gap-1">
+        <PrimarySyncBadge />
+        <SyncButton />
+        <PullButton editor={editor} />
       </div>
     </div>
   )

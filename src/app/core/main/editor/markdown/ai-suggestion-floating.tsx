@@ -92,7 +92,7 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
       } : null)
 
       // Update top position only, keep left fixed at editor center
-      setPosition(prev => ({
+      setPosition(() => ({
         top: data.position.bottom + 8,
         left: fixedLeftRef.current,
       }))

@@ -8,17 +8,17 @@ import { SyncStatus } from './sync-status'
 import useVectorStore from '@/stores/vector'
 import { cn } from '@/lib/utils'
 
-interface FixedToolbarProps {
+interface FooterBarProps {
   editor: Editor
   aiCompletionEnabled: boolean
   onToggleAICompletion: (enabled: boolean) => void
 }
 
-export function FixedToolbar({
+export function FooterBar({
   editor,
   aiCompletionEnabled,
   onToggleAICompletion
-}: FixedToolbarProps) {
+}: FooterBarProps) {
   const [characterCount, setCharacterCount] = useState({ characters: 0, words: 0 })
   const { isProcessing, lastProcessTime, processAllDocuments } = useVectorStore()
   const [isHoveringVector, setIsHoveringVector] = useState(false)
@@ -134,4 +134,4 @@ export function FixedToolbar({
   )
 }
 
-export default FixedToolbar
+export default FooterBar

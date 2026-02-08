@@ -79,7 +79,7 @@ export const AISuggestion = Mark.create<AISuggestionOptions>({
         },
       rejectAISuggestion:
         () =>
-        ({ commands }) => {
+        () => {
           // Get original text from the mark and restore it
           // This is handled by the UI layer which has access to the editor state
           return true

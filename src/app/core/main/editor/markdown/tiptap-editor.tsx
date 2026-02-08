@@ -28,7 +28,7 @@ import { FloatingTableMenu } from './floating-table-menu'
 import { FloatingImageMenu } from './floating-image-menu'
 import { ImageExtension } from './image-extension'
 import { MathInline, MathBlock } from './math-extension'
-import { FixedToolbar } from './fixed-toolbar'
+import { FooterBar } from './footer-bar'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
 import { fetchCompletionStream } from '@/lib/ai/completion'
@@ -677,6 +677,7 @@ export function TipTapEditor({
       <FloatingTableMenu editor={editor} />
       <FloatingImageMenu editor={editor} />
 
+      {/* Editor content - scrollable area */}
       <div
         className="flex-1 overflow-auto"
         onDragOver={(e) => e.preventDefault()}
@@ -685,7 +686,8 @@ export function TipTapEditor({
         <EditorContent editor={editor} className="h-full" />
       </div>
 
-      <FixedToolbar
+      {/* Bottom toolbar - always visible */}
+      <FooterBar
         editor={editor}
         aiCompletionEnabled={aiCompletionEnabled}
         onToggleAICompletion={handleToggleAICompletion}

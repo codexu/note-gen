@@ -76,6 +76,31 @@ interface Events {
   'quick-prompt-send': string;
   'ai-placeholder-generated': string;
   'ai-prompts-generated': QuickPrompt[];
+  'start-ai-streaming': {
+    originalText: string;
+    type: string;
+    position: { top: number; left: number; right: number; bottom: number };
+    controller?: AbortController;
+  };
+  'update-ai-streaming-content': {
+    suggestedText: string;
+    position: { top: number; left: number; right: number; bottom: number };
+  };
+  'ai-streaming-complete': {
+    originalText: string;
+    suggestedText: string;
+    type: string;
+    position: { top: number; left: number; right: number; bottom: number };
+    generatedRange?: { from: number; to: number };
+  } | undefined;
+  'show-ai-suggestion': {
+    originalText: string;
+    suggestedText: string;
+    type: string;
+    position: { top: number; left: number; right: number; bottom: number };
+    generatedRange?: { from: number; to: number };
+  };
+  'abort-ai-streaming': void;
   // Agent 编辑器工具事件
   'editor-get-selection': EditorEvents['editor-get-selection'];
   'editor-get-content': EditorEvents['editor-get-content'];

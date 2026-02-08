@@ -4,7 +4,6 @@ import { Editor } from '@tiptap/react'
 import { Download } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { TextNumber } from './text-number'
 import { VectorCalc } from './vector-calc'
 import { CopyButton } from './copy-button'
 import { SyncButton } from './sync-button'
@@ -111,10 +110,7 @@ export function FooterBar({
 
   return (
     <div className="h-6 flex items-center justify-between px-3 border-t border-border bg-background text-xs text-muted-foreground">
-      {/* Left side: Character/Word count */}
-      <div className="flex items-center gap-2">
-        <TextNumber editor={editor} />
-      </div>
+      {/* Left side: empty */}
 
       {/* Center: Sync status, Pull, Vector DB, AI Toggle */}
       <div className="flex items-center gap-1">

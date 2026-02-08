@@ -143,7 +143,7 @@ export function useAIAutocomplete({ editor, isEnabled, onComplete }: AICompletio
   }, [])
 
   const insertCompletion = useCallback((text: string) => {
-    editor.commands.insertContent(text)
+    editor.commands.insertContent(text, { contentType: 'markdown' })
   }, [editor])
 
   // Trigger AI completion manually (e.g., via keyboard shortcut)

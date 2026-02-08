@@ -378,14 +378,15 @@ export function TipTapEditor({
 
   // Initialize content only once - preserves undo/redo history when switching tabs
   useEffect(() => {
-    if (editor && !isInitializedRef.current && initialContent) {
-      const currentContent = editor.getMarkdown()
-      if (initialContent !== currentContent) {
-        editor.commands.setContent(initialContent, { contentType: 'markdown' })
-      }
+    if (!editor) return
+
+    // Only initialize on first mount - subsequent content changes should not overwrite
+    // user edits (e.g., when switching back to a previously edited tab)
+    if (!isInitializedRef.current) {
+      editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
       isInitializedRef.current = true
     }
-  }, [editor, initialContent])
+  }, [editor]) // intentionally not depending on initialContent
 
   // Set editable state
   useEffect(() => {
@@ -486,7 +487,7 @@ export function TipTapEditor({
         if (mark && mark.id !== undefined) {
           import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
             const markdown = markToMarkdown(mark)
-            editor?.commands.insertContent(markdown)
+            editor?.commands.insertContent(markdown, { contentType: 'markdown' })
             toast({
               title: '已插入记录',
               description: mark.desc || mark.content?.slice(0, 50) || '记录内容'
@@ -572,8 +573,8 @@ export function TipTapEditor({
       try {
         const { from } = editor.state.selection
 
-        // Insert content
-        editor.chain().focus().insertContent(content).run()
+        // Insert content with markdown parsing
+        editor.chain().focus().insertContent(content, { contentType: 'markdown' }).run()
 
         // Calculate new cursor position
         const newPosition = from + content.length
@@ -613,11 +614,11 @@ export function TipTapEditor({
           to = range.to
         }
 
-        // Delete old content and insert new content
+        // Delete old content and insert new content with markdown parsing
         editor.chain()
           .focus()
           .deleteRange({ from, to })
-          .insertContent(content)
+          .insertContent(content, { contentType: 'markdown' })
           .run()
 
         resolve({

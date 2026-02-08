@@ -166,23 +166,21 @@ export function TipTapEditor({
     // Track accumulated result
     let accumulatedResult = ''
     const startPosition = editor.state.selection.from
-    let insertPosition = startPosition
 
     try {
       await fetchAiPolishStream(
         selectedText,
         (chunk) => {
-          // Insert chunk at current position
+          // Insert chunk as plain text during streaming
           editor.chain()
-            .insertContentAt(insertPosition, chunk)
+            .insertContentAt(startPosition + accumulatedResult.length, chunk)
             .run()
 
           // Update tracking
           accumulatedResult += chunk
-          insertPosition += chunk.length
 
           // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(insertPosition)
+          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
           emitter.emit('update-ai-streaming-content', {
             suggestedText: accumulatedResult,
             position: coords,
@@ -191,14 +189,20 @@ export function TipTapEditor({
         controller.signal
       )
 
-      // Streaming complete - send final position and content
-      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      // Streaming complete - replace all content with proper Markdown parsing
+      editor.chain()
+        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .run()
+
+      // Send completion event
+      const finalCoords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
       emitter.emit('ai-streaming-complete', {
         originalText: selectedText,
         suggestedText: accumulatedResult,
         type: 'polish',
         position: finalCoords,
-        generatedRange: { from: startPosition, to: insertPosition },
+        generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -245,23 +249,21 @@ export function TipTapEditor({
     // Track accumulated result
     let accumulatedResult = ''
     const startPosition = editor.state.selection.from
-    let insertPosition = startPosition
 
     try {
       await fetchAiConciseStream(
         selectedText,
         (chunk) => {
-          // Insert chunk at current position
+          // Insert chunk as plain text during streaming
           editor.chain()
-            .insertContentAt(insertPosition, chunk)
+            .insertContentAt(startPosition + accumulatedResult.length, chunk)
             .run()
 
           // Update tracking
           accumulatedResult += chunk
-          insertPosition += chunk.length
 
           // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(insertPosition)
+          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
           emitter.emit('update-ai-streaming-content', {
             suggestedText: accumulatedResult,
             position: coords,
@@ -270,14 +272,20 @@ export function TipTapEditor({
         controller.signal
       )
 
-      // Streaming complete - send final position and content
-      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      // Streaming complete - replace all content with proper Markdown parsing
+      editor.chain()
+        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .run()
+
+      // Send completion event
+      const finalCoords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
       emitter.emit('ai-streaming-complete', {
         originalText: selectedText,
         suggestedText: accumulatedResult,
         type: 'concise',
         position: finalCoords,
-        generatedRange: { from: startPosition, to: insertPosition },
+        generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -324,23 +332,21 @@ export function TipTapEditor({
     // Track accumulated result
     let accumulatedResult = ''
     const startPosition = editor.state.selection.from
-    let insertPosition = startPosition
 
     try {
       await fetchAiExpandStream(
         selectedText,
         (chunk) => {
-          // Insert chunk at current position
+          // Insert chunk as plain text during streaming
           editor.chain()
-            .insertContentAt(insertPosition, chunk)
+            .insertContentAt(startPosition + accumulatedResult.length, chunk)
             .run()
 
           // Update tracking
           accumulatedResult += chunk
-          insertPosition += chunk.length
 
           // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(insertPosition)
+          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
           emitter.emit('update-ai-streaming-content', {
             suggestedText: accumulatedResult,
             position: coords,
@@ -349,14 +355,20 @@ export function TipTapEditor({
         controller.signal
       )
 
-      // Streaming complete - send final position and content
-      const finalCoords = editor.view.coordsAtPos(insertPosition)
+      // Streaming complete - replace all content with proper Markdown parsing
+      editor.chain()
+        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .run()
+
+      // Send completion event
+      const finalCoords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
       emitter.emit('ai-streaming-complete', {
         originalText: selectedText,
         suggestedText: accumulatedResult,
         type: 'expand',
         position: finalCoords,
-        generatedRange: { from: startPosition, to: insertPosition },
+        generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -422,6 +434,10 @@ export function TipTapEditor({
         editor.chain().focus().insertContent('···').run()
       }
 
+      // Track accumulated result for streaming
+      let accumulatedResult = ''
+      const startPosition = from
+
       try {
         await fetchCompletionStream(
           context,
@@ -431,10 +447,20 @@ export function TipTapEditor({
               const { to } = editor.state.selection
               editor.chain().focus().deleteRange({ from: to - 3, to }).run()
             }
+            // Insert chunk as plain text during streaming
             editor.chain().focus().insertContent(chunk).run()
+            accumulatedResult += chunk
           },
           abortController.signal
         )
+
+        // Streaming complete - replace content with proper Markdown parsing
+        if (accumulatedResult) {
+          editor.chain()
+            .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
+            .insertContent(accumulatedResult, { contentType: 'markdown' })
+            .run()
+        }
       } catch (error) {
         // Delete loading indicator on error
         const { to } = editor.state.selection

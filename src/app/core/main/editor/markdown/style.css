@@ -451,24 +451,97 @@
 
 .tiptap-editor .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+  line-height: 1.7;
 }
 
 .tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
   display: flex;
   align-items: center;
-  margin-right: 8px;
+  justify-content: center;
   user-select: none;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
 }
 
-.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input {
-  margin: 0;
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"],
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > span {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 3px !important;
+  background-color: transparent !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s ease !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > span {
+  display: none !important;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:hover,
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > span:hover {
+  border-color: hsl(var(--primary)) !important;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked,
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > label > span {
+  background-color: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]::before,
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > span::before {
+  content: '';
+  display: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  background-color: transparent;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked::before,
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > span::before {
+  display: block;
+  /* 绘制勾选标记 */
+  width: 6px;
+  height: 10px;
+  background-color: transparent;
+  border: solid hsl(var(--primary-foreground));
+  border-width: 0 2px 2px 0;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  margin-top: -2px;
 }
 
 .tiptap-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
   text-decoration: line-through;
   color: hsl(var(--muted-foreground));
+}
+
+/* 任务列表内容区域 */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+/* 嵌套任务列表 */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-left: 0;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] li {
+  margin-left: 24px;
 }
 
 /* 高亮 */

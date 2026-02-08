@@ -68,9 +68,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         type: data.type,
       })
 
-      // Initial position below cursor
+      // Initial position below cursor, horizontal fixed at editor center
+      // Add vertical boundary check
+      let top = data.position.bottom + 8
+      const editorElement = document.querySelector('.ProseMirror')
+      if (editorElement) {
+        const editorBounds = editorElement.getBoundingClientRect()
+        const menuHeight = 36
+        if (top > editorBounds.bottom - menuHeight) {
+          top = editorBounds.top + 8
+        }
+      }
+
       setPosition({
-        top: data.position.bottom + 8,
+        top,
         left: editorCenterLeft,
       })
       setIsVisible(true)
@@ -91,9 +102,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         suggestedText: data.suggestedText,
       } : null)
 
-      // Update top position only, keep left fixed at editor center
+      // Update top position, keep left fixed at editor center
+      // Add vertical boundary check
+      let top = data.position.bottom + 8
+      const editorElement = document.querySelector('.ProseMirror')
+      if (editorElement) {
+        const editorBounds = editorElement.getBoundingClientRect()
+        const menuHeight = 36
+        if (top > editorBounds.bottom - menuHeight) {
+          top = editorBounds.top + 8
+        }
+      }
+
       setPosition(() => ({
-        top: data.position.bottom + 8,
+        top,
         left: fixedLeftRef.current,
       }))
     }
@@ -107,8 +129,20 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
           type: data.type,
           generatedRange: data.generatedRange,
         })
+
+        // Add vertical boundary check
+        let top = data.position.bottom + 8
+        const editorElement = document.querySelector('.ProseMirror')
+        if (editorElement) {
+          const editorBounds = editorElement.getBoundingClientRect()
+          const menuHeight = 36
+          if (top > editorBounds.bottom - menuHeight) {
+            top = editorBounds.top + 8
+          }
+        }
+
         setPosition({
-          top: data.position.bottom + 8,
+          top,
           left: editorCenterLeft,
         })
         setIsVisible(true)
@@ -148,8 +182,19 @@ export function AISuggestionFloating({ editor }: AISuggestionFloatingProps) {
         generatedRange: data.generatedRange,
       })
 
+      // Add vertical boundary check
+      let top = data.position.bottom + 8
+      const editorElement = document.querySelector('.ProseMirror')
+      if (editorElement) {
+        const editorBounds = editorElement.getBoundingClientRect()
+        const menuHeight = 36
+        if (top > editorBounds.bottom - menuHeight) {
+          top = editorBounds.top + 8
+        }
+      }
+
       setPosition({
-        top: data.position.bottom + 8,
+        top,
         left: editorCenterLeft,
       })
       setIsVisible(true)

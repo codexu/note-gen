@@ -33,28 +33,26 @@ export function FloatingImageMenu({ editor }: FloatingImageMenuProps) {
       return
     }
 
-    // Get the image node and its position
-    let imagePos = -1
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === 'image' && isImageSelected) {
-        imagePos = pos
-        return false
-      }
-    })
+    // Get editor bounds
+    const editorElement = document.querySelector('.ProseMirror')
+    if (!editorElement) return
 
-    if (imagePos < 0) {
-      setShow(false)
-      return
-    }
+    const editorBounds = editorElement.getBoundingClientRect()
 
     // Get the coordinates
     const coords = editor.view.coordsAtPos(from)
 
-    setPosition({
-      top: coords.top - 10,
-      left: coords.left + (coords.right - coords.left) / 2
-    })
+    // Horizontal: fixed at editor center
+    const left = editorBounds.left + (editorBounds.right - editorBounds.left) / 2
 
+    // Vertical: above the image with boundary check
+    let top = coords.top - 10
+    const menuHeight = 40
+    if (top - menuHeight < editorBounds.top) {
+      top = coords.bottom + 8
+    }
+
+    setPosition({ top, left })
     setShow(true)
   }, [editor])
 

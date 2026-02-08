@@ -24,29 +24,36 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
 
   // Calculate menu position based on table selection
   const updatePosition = useCallback(() => {
-    const { from, to } = editor.state.selection
+    const { from } = editor.state.selection
 
-    // Check if we're inside a table
-    let isInsideTable = false
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === 'table') {
-        isInsideTable = pos <= from && pos + node.nodeSize >= to
-        return false
-      }
-    })
+    // Check if we're inside a table using TipTap's isActive method
+    const isInsideTable = editor.isActive('table')
 
     if (!isInsideTable) {
       setShow(false)
       return
     }
 
+    // Get editor bounds
+    const editorElement = document.querySelector('.ProseMirror')
+    if (!editorElement) return
+
+    const editorBounds = editorElement.getBoundingClientRect()
+
     // Get the coordinates of the selection
     const coords = editor.view.coordsAtPos(from)
 
-    setPosition({
-      top: coords.bottom + 10,
-      left: coords.left + (coords.right - coords.left) / 2
-    })
+    // Horizontal: fixed at editor center
+    const left = editorBounds.left + (editorBounds.right - editorBounds.left) / 2
+
+    // Vertical: follow selection with boundary check
+    let top = coords.bottom + 10
+    const menuHeight = 40
+    if (top > editorBounds.bottom - menuHeight) {
+      top = editorBounds.top + 8
+    }
+
+    setPosition({ top, left })
     setShow(true)
   }, [editor])
 

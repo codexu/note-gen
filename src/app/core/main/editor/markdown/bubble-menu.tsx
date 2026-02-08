@@ -66,8 +66,8 @@ export function BubbleMenu({
   const aiSubmenuRef = useRef<HTMLDivElement>(null)
   const translateSubmenuRef = useRef<HTMLDivElement>(null)
 
-  // 估算工具栏宽度
-  const estimatedWidth = 280
+  // 存储编辑器边界用于边界检测
+  const editorBoundsRef = useRef<{ left: number; right: number; top: number; bottom: number } | null>(null)
 
   // 处理翻译
   const handleTranslate = useCallback(async (targetLanguage: string) => {
@@ -108,28 +108,50 @@ export function BubbleMenu({
       return
     }
 
+    // 获取编辑器边界
+    const editorElement = document.querySelector('.ProseMirror')
+    let editorBounds = editorBoundsRef.current
+    if (!editorBounds && editorElement) {
+      const rect = editorElement.getBoundingClientRect()
+      editorBounds = {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom
+      }
+      editorBoundsRef.current = editorBounds
+    }
+
+    if (!editorBounds) return
+
     const coords = editor.view.coordsAtPos(from)
     const centerX = coords.left + (coords.right - coords.left) / 2
-    const viewportWidth = window.innerWidth
 
     // 初始位置（居中显示）
     let left = centerX
     let top = coords.top - 8
 
-    // 边界检测
+    // 估算工具栏宽度（用于初始定位）
+    const estimatedWidth = 280
     const padding = 8
     const halfWidth = estimatedWidth / 2
 
-    if (left - halfWidth < padding) {
-      left = halfWidth + padding
-    } else if (left + halfWidth > viewportWidth - padding) {
-      left = viewportWidth - halfWidth - padding
+    // 边界检测 - 基于编辑器边缘
+    if (left - halfWidth < editorBounds.left + padding) {
+      left = editorBounds.left + halfWidth + padding
+    } else if (left + halfWidth > editorBounds.right - padding) {
+      left = editorBounds.right - halfWidth - padding
     }
 
     // 垂直边界检测
     const menuHeight = 40
-    if (top - menuHeight < 0) {
+    if (top - menuHeight < editorBounds.top) {
       top = coords.bottom + 8
+    }
+
+    // 确保菜单在编辑器底部范围内
+    if (top > editorBounds.bottom - menuHeight) {
+      top = editorBounds.top + padding
     }
 
     setPosition({ top, left })
@@ -143,22 +165,37 @@ export function BubbleMenu({
     const adjustPosition = () => {
       const rect = toolbarRef.current!.getBoundingClientRect()
       const actualWidth = rect.width
-      const viewportWidth = window.innerWidth
+
+      // 获取编辑器边界
+      const editorElement = document.querySelector('.ProseMirror')
+      let editorBounds = editorBoundsRef.current
+      if (!editorBounds && editorElement) {
+        const eRect = editorElement.getBoundingClientRect()
+        editorBounds = {
+          left: eRect.left,
+          right: eRect.right,
+          top: eRect.top,
+          bottom: eRect.bottom
+        }
+        editorBoundsRef.current = editorBounds
+      }
+
+      if (!editorBounds) return
 
       const padding = 8
       const halfWidth = actualWidth / 2
 
-      // 重新计算 left
+      // 重新计算 left - 基于编辑器边缘
       let left = position.left
-      if (left - halfWidth < padding) {
-        left = halfWidth + padding
-      } else if (left + halfWidth > viewportWidth - padding) {
-        left = viewportWidth - halfWidth - padding
+      if (left - halfWidth < editorBounds.left + padding) {
+        left = editorBounds.left + halfWidth + padding
+      } else if (left + halfWidth > editorBounds.right - padding) {
+        left = editorBounds.right - halfWidth - padding
       }
 
       // 重新计算 top
       let top = position.top
-      if (top < 0) {
+      if (top < editorBounds.top) {
         const coords = editor.view.coordsAtPos(editor.state.selection.from)
         top = coords.bottom + 8
       }
@@ -177,19 +214,34 @@ export function BubbleMenu({
 
     const checkSubmenuBounds = () => {
       const rect = aiSubmenuRef.current!.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
+
+      // 获取编辑器边界
+      const editorElement = document.querySelector('.ProseMirror')
+      let editorBounds = editorBoundsRef.current
+      if (!editorBounds && editorElement) {
+        const eRect = editorElement.getBoundingClientRect()
+        editorBounds = {
+          left: eRect.left,
+          right: eRect.right,
+          top: eRect.top,
+          bottom: eRect.bottom
+        }
+        editorBoundsRef.current = editorBounds
+      }
+
+      if (!editorBounds) return
+
       const padding = 8
 
-      // 检测右边界
-      if (rect.right > viewportWidth - padding) {
+      // 检测右边界 - 基于编辑器边缘
+      if (rect.right > editorBounds.right - padding) {
         aiSubmenuRef.current!.setAttribute('data-right-edge', 'true')
       } else {
         aiSubmenuRef.current!.removeAttribute('data-right-edge')
       }
 
-      // 检测下边界
-      if (rect.bottom > viewportHeight - padding) {
+      // 检测下边界 - 基于编辑器边缘
+      if (rect.bottom > editorBounds.bottom - padding) {
         aiSubmenuRef.current!.setAttribute('data-bottom-edge', 'true')
       } else {
         aiSubmenuRef.current!.removeAttribute('data-bottom-edge')
@@ -206,11 +258,27 @@ export function BubbleMenu({
 
     const checkTranslateBounds = () => {
       const rect = translateSubmenuRef.current!.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
+
+      // 获取编辑器边界
+      const editorElement = document.querySelector('.ProseMirror')
+      let editorBounds = editorBoundsRef.current
+      if (!editorBounds && editorElement) {
+        const eRect = editorElement.getBoundingClientRect()
+        editorBounds = {
+          left: eRect.left,
+          right: eRect.right,
+          top: eRect.top,
+          bottom: eRect.bottom
+        }
+        editorBoundsRef.current = editorBounds
+      }
+
+      if (!editorBounds) return
+
       const padding = 8
 
-      // 检测右边界
-      if (rect.right > viewportWidth - padding) {
+      // 检测右边界 - 基于编辑器边缘
+      if (rect.right > editorBounds.right - padding) {
         translateSubmenuRef.current!.setAttribute('data-translate-submenu-right', 'true')
       } else {
         translateSubmenuRef.current!.removeAttribute('data-translate-submenu-right')
@@ -222,9 +290,30 @@ export function BubbleMenu({
   }, [showTranslateSubmenu, show])
 
   useEffect(() => {
-    const updateHandler = () => updatePosition()
+    // 更新编辑器边界
+    const updateBounds = () => {
+      const editorElement = document.querySelector('.ProseMirror')
+      if (editorElement) {
+        const rect = editorElement.getBoundingClientRect()
+        editorBoundsRef.current = {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom
+        }
+      }
+    }
+
+    const updateHandler = () => {
+      updateBounds()
+      updatePosition()
+    }
     editor.on('selectionUpdate', updateHandler)
     editor.on('transaction', updatePosition)
+
+    // 初始化时获取一次边界
+    updateBounds()
+
     return () => {
       editor.off('selectionUpdate', updateHandler)
       editor.off('transaction', updatePosition)

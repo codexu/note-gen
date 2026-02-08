@@ -20,6 +20,7 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import { common, createLowlight } from 'lowlight'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
+import UniqueId from '@tiptap/extension-unique-id'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
@@ -117,6 +118,10 @@ export function TipTapEditor({
       }),
       QuoteMark,
       AISuggestion,
+      UniqueId.configure({
+        attributeName: 'data-id',
+        types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'bulletList', 'orderedList', 'taskItem', 'table', 'tableRow', 'tableCell', 'tableHeader'],
+      }),
     ],
     content: initialContent,
     editable,

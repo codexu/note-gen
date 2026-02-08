@@ -81,6 +81,7 @@
     "@tiptap/extension-text-style": "^3.19.0",
     "@tiptap/extension-typography": "^3.19.0",
     "@tiptap/extension-underline": "^3.19.0",
+    "@tiptap/extension-unique-id": "^3.19.0",
     "@tiptap/extension-youtube": "^3.19.0",
     "@tiptap/markdown": "^3.19.0",
     "@tiptap/pm": "^3.19.0",

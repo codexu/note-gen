@@ -259,7 +259,7 @@ export function EditorLayout() {
     return (
       <div
         key={tab.id}
-        className="w-full h-full"
+        className="w-full h-[calc(100%-48px)]"
         style={{ display: isActive ? 'flex' : 'none' }}
       >
         {itemType === 'folder' && (

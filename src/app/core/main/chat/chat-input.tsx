@@ -461,8 +461,10 @@ export const ChatInput = React.memo(function ChatInput() {
       }
       // 设置引用数据
       setQuoteData(data)
-      // 聚焦到输入框
-      textareaRef.current?.focus()
+      // 延迟聚焦到输入框
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 50)
       // 触发防抖的 placeholder 重新生成
       debouncedGenPlaceholder()
     })

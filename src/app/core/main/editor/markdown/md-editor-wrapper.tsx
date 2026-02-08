@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useRef, RefObject } from 'react'
 import { TipTapEditor } from './tiptap-editor'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import emitter from '@/lib/emitter'
 
 interface MdEditorProps {
   tabContentsRef: RefObject<Record<string, string>>
@@ -91,6 +92,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     }
   }, [saveCurrentArticle, filePath, tabContentsRef, activeFilePath])
 
+  // Handle quote to chat - get selected text and emit event
+  const handleQuoteToChat = useCallback(() => {
+    // Get the selected text from the active editor
+    emitter.emit('get-quote-from-editor')
+  }, [])
+
   // Auto-create untitled.md file
   async function createUntitledFile(content: string) {
     try {
@@ -163,6 +170,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         initialContent={initialContent}
         onChange={handleContentChange}
         placeholder="开始写作..."
+        activeFilePath={activeFilePath}
+        onQuoteToChat={handleQuoteToChat}
       />
     </div>
   )

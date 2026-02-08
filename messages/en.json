@@ -2260,6 +2260,47 @@
       "successTo": "Translated to {language}",
       "customLanguageEmpty": "Please enter target language",
       "customLanguageExample": "e.g., English, Japanese, French, etc."
+    },
+    "quoteDisplay": {
+      "fromFile": "Quoted from {fileName}",
+      "line": "Quoted from {fileName} line {line}",
+      "lines": "Quoted from {fileName} lines {start}-{end}"
+    },
+    "bubbleMenu": {
+      "ai": "AI",
+      "polish": "Polish",
+      "concise": "Concise",
+      "expand": "Expand",
+      "translate": "Translate",
+      "translateSubtitle": "Translate to",
+      "quoteToChat": "Quote to Chat",
+      "link": "Link",
+      "linkPlaceholder": "Enter link URL",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "bold": "Bold",
+      "italic": "Italic",
+      "strike": "Strikethrough",
+      "underline": "Underline",
+      "inlineCode": "Inline Code",
+      "highlight": "Highlight",
+      "blockquote": "Quote",
+      "bulletList": "Bullet List",
+      "orderedList": "Numbered List",
+      "taskList": "Task List",
+      "codeBlock": "Code Block",
+      "languages": {
+        "English": "English",
+        "Japanese": "Japanese",
+        "Korean": "Korean",
+        "French": "French",
+        "German": "German",
+        "Spanish": "Spanish",
+        "Portuguese": "Portuguese",
+        "Russian": "Russian",
+        "Arabic": "Arabic"
+      },
+      "customLanguagePlaceholder": "Custom language..."
     }
   }
 }

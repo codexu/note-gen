@@ -2338,6 +2338,47 @@
       "successTo": "{language}に翻訳されました",
       "customLanguageEmpty": "目標言語を入力してください",
       "customLanguageExample": "例：英語、日本語、フランス語など"
+    },
+    "quoteDisplay": {
+      "fromFile": "{fileName}から引用",
+      "line": "{fileName}の{line}行目から引用",
+      "lines": "{fileName}の{start}-{end}行目から引用"
+    },
+    "bubbleMenu": {
+      "ai": "AI",
+      "polish": "添削",
+      "concise": "簡潔に",
+      "expand": "拡張",
+      "translate": "翻訳",
+      "translateSubtitle": "翻訳先",
+      "quoteToChat": "チャットに引用",
+      "link": "リンク",
+      "linkPlaceholder": "リンクURLを入力",
+      "confirm": "確認",
+      "cancel": "キャンセル",
+      "bold": "太字",
+      "italic": "斜体",
+      "strike": "取り消し線",
+      "underline": "下線",
+      "inlineCode": "インラインコード",
+      "highlight": "ハイライト",
+      "blockquote": "引用",
+      "bulletList": "箇条書き",
+      "orderedList": "番号付きリスト",
+      "taskList": "タスクリスト",
+      "codeBlock": "コードブロック",
+      "languages": {
+        "English": "英語",
+        "Japanese": "日本語",
+        "Korean": "韓国語",
+        "French": "フランス語",
+        "German": "ドイツ語",
+        "Spanish": "スペイン語",
+        "Portuguese": "ポルトガル語",
+        "Russian": "ロシア語",
+        "Arabic": "アラビア語"
+      },
+      "customLanguagePlaceholder": "カスタム言語..."
     }
   }
 }

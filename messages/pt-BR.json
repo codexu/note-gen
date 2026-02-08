@@ -2338,6 +2338,11 @@
         "successTo": "Traduzido para {language}",
         "customLanguageEmpty": "Por favor, digite o idioma de destino",
         "customLanguageExample": "ex.: Inglês, Japonês, Francês, etc."
+      },
+      "quoteDisplay": {
+        "fromFile": "Citado de {fileName}",
+        "line": "Citado de {fileName} linha {line}",
+        "lines": "Citado de {fileName} linhas {start}-{end}"
       }
     },
     "upload": {
@@ -2376,5 +2381,43 @@
   },
   "quickRecord": {
     "description": "Clique para selecionar uma ferramenta de registro e criar registros rapidamente"
+  },
+  "editor": {
+    "bubbleMenu": {
+      "ai": "IA",
+      "polish": "Polir",
+      "concise": "Conciso",
+      "expand": "Expandir",
+      "translate": "Traduzir",
+      "translateSubtitle": "Traduzir para",
+      "quoteToChat": "Citar no Chat",
+      "link": "Link",
+      "linkPlaceholder": "Digite a URL do link",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar",
+      "bold": "Negrito",
+      "italic": "Itálico",
+      "strike": "Tachado",
+      "underline": "Sublinhado",
+      "inlineCode": "Código na linha",
+      "highlight": "Destacar",
+      "blockquote": "Citação",
+      "bulletList": "Lista com marcadores",
+      "orderedList": "Lista numerada",
+      "taskList": "Lista de tarefas",
+      "codeBlock": "Bloco de código",
+      "languages": {
+        "English": "Inglês",
+        "Japanese": "Japonês",
+        "Korean": "Coreano",
+        "French": "Francês",
+        "German": "Alemão",
+        "Spanish": "Espanhol",
+        "Portuguese": "Português",
+        "Russian": "Russo",
+        "Arabic": "Árabe"
+      },
+      "customLanguagePlaceholder": "Idioma personalizado..."
+    }
   }
 }

@@ -27,15 +27,15 @@ import { fetchAiTranslate } from '@/lib/ai/translate'
 import { toast } from '@/hooks/use-toast'
 
 const POPULAR_LANGUAGES = [
-  { name: 'English', code: 'English' },
-  { name: '日本語', code: 'Japanese' },
-  { name: '한국어', code: 'Korean' },
-  { name: 'Français', code: 'French' },
-  { name: 'Deutsch', code: 'German' },
-  { name: 'Español', code: 'Spanish' },
-  { name: 'Português', code: 'Portuguese' },
-  { name: 'Русский', code: 'Russian' },
-  { name: 'العربية', code: 'Arabic' },
+  { name: 'English', code: 'English', i18nKey: 'languages.English' },
+  { name: '日本語', code: 'Japanese', i18nKey: 'languages.Japanese' },
+  { name: '한국어', code: 'Korean', i18nKey: 'languages.Korean' },
+  { name: 'Français', code: 'French', i18nKey: 'languages.French' },
+  { name: 'Deutsch', code: 'German', i18nKey: 'languages.German' },
+  { name: 'Español', code: 'Spanish', i18nKey: 'languages.Spanish' },
+  { name: 'Português', code: 'Portuguese', i18nKey: 'languages.Portuguese' },
+  { name: 'Русский', code: 'Russian', i18nKey: 'languages.Russian' },
+  { name: 'العربية', code: 'Arabic', i18nKey: 'languages.Arabic' },
 ]
 
 interface BubbleMenuProps {
@@ -51,7 +51,7 @@ export function BubbleMenu({
   onAIPolish,
   onAIConcise,
   onAIExpand,
-  onQuoteToChat
+  onQuoteToChat,
 }: BubbleMenuProps) {
   const t = useTranslations('editor')
   const [show, setShow] = useState(false)
@@ -271,6 +271,12 @@ export function BubbleMenu({
   const toggleTaskList = () => editor.chain().focus().toggleTaskList().run()
   const toggleCodeBlock = () => editor.chain().focus().toggleCodeBlock().run()
 
+  const handleQuoteToChat = useCallback(() => {
+    onQuoteToChat?.()
+    setShow(false)
+    setShowAISubmenu(false)
+  }, [onQuoteToChat])
+
   const isActive = (name: string, attrs?: Record<string, unknown>) =>
     editor.isActive(name, attrs)
 
@@ -296,7 +302,7 @@ export function BubbleMenu({
           <button
             className={cn('p-1.5 rounded hover:bg-muted transition-colors text-primary', showAISubmenu && 'bg-muted')}
             onClick={() => setShowAISubmenu(!showAISubmenu)}
-            title="AI"
+            title={t('bubbleMenu.ai')}
           >
             <Sparkles className="w-4 h-4" />
           </button>
@@ -307,19 +313,19 @@ export function BubbleMenu({
               className="absolute top-full left-1/2 -translate-x-1/2 mt-1 py-1 bg-background border border-border rounded-lg shadow-lg min-w-32 z-50 data-right-edge:left-auto data-right-edge:right-0 data-right-edge:translate-x-0 data-bottom-edge:top-full data-bottom-edge:mt-1 data-bottom-edge:translate-y-0"
             >
               <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIPolish?.() }}>
-                <Sparkles className="w-3.5 h-3.5" /><span>润色</span>
+                <Sparkles className="w-3.5 h-3.5" /><span>{t('bubbleMenu.polish')}</span>
               </button>
               <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIConcise?.() }}>
-                <Minimize2 className="w-3.5 h-3.5" /><span>精简</span>
+                <Minimize2 className="w-3.5 h-3.5" /><span>{t('bubbleMenu.concise')}</span>
               </button>
               <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIExpand?.() }}>
-                <Maximize2 className="w-3.5 h-3.5" /><span>扩展</span>
+                <Maximize2 className="w-3.5 h-3.5" /><span>{t('bubbleMenu.expand')}</span>
               </button>
 
               <div className="border-t border-border my-1" />
 
               <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => setShowTranslateSubmenu(!showTranslateSubmenu)}>
-                <Languages className="w-3.5 h-3.5" /><span>翻译</span><ChevronRight className={cn('w-3.5 h-3.5 ml-auto transition-transform', showTranslateSubmenu && 'rotate-90')} />
+                <Languages className="w-3.5 h-3.5" /><span>{t('bubbleMenu.translate')}</span><ChevronRight className={cn('w-3.5 h-3.5 ml-auto transition-transform', showTranslateSubmenu && 'rotate-90')} />
               </button>
 
               {showTranslateSubmenu && (
@@ -330,18 +336,18 @@ export function BubbleMenu({
                 >
                   {POPULAR_LANGUAGES.map((lang) => (
                     <button key={lang.code} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); setShowTranslateSubmenu(false); handleTranslate(lang.code) }}>
-                      <span>{lang.name}</span>
+                      <span>{t(`bubbleMenu.${lang.i18nKey}`)}</span>
                     </button>
                   ))}
                   <div className="border-t border-border my-1" />
                   <div className="px-3 py-1 flex items-center gap-1">
-                    <input type="text" placeholder="自定义语言..." value={customTranslateLang} onChange={(e) => setCustomTranslateLang(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { handleCustomTranslate() } else if (e.key === 'Escape') { setShowTranslateSubmenu(false); setCustomTranslateLang('') } }} className="w-full px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
+                    <input type="text" placeholder={t('bubbleMenu.customLanguagePlaceholder')} value={customTranslateLang} onChange={(e) => setCustomTranslateLang(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { handleCustomTranslate() } else if (e.key === 'Escape') { setShowTranslateSubmenu(false); setCustomTranslateLang('') } }} className="w-full px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
                   </div>
                 </div>
               )}
 
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onQuoteToChat?.() }}>
-                <MessageCircle className="w-3.5 h-3.5" /><span>引用到聊天</span>
+              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); handleQuoteToChat() }}>
+                <MessageCircle className="w-3.5 h-3.5" /><span>{t('bubbleMenu.quoteToChat')}</span>
               </button>
             </div>
           )}
@@ -351,12 +357,12 @@ export function BubbleMenu({
 
         {/* 文本格式化 */}
         <div className="flex gap-0.5">
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bold') && 'bg-muted text-primary')} onClick={toggleBold} title="粗体"><Bold className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('italic') && 'bg-muted text-primary')} onClick={toggleItalic} title="斜体"><Italic className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('strike') && 'bg-muted text-primary')} onClick={toggleStrike} title="删除线"><Strikethrough className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('underline') && 'bg-muted text-primary')} onClick={toggleUnderline} title="下划线"><Underline className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('code') && 'bg-muted text-primary')} onClick={toggleCode} title="行内代码"><Code className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('highlight') && 'bg-muted text-primary')} onClick={toggleHighlight} title="高亮"><Highlighter className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bold') && 'bg-muted text-primary')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('italic') && 'bg-muted text-primary')} onClick={toggleItalic} title={t('bubbleMenu.italic')}><Italic className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('strike') && 'bg-muted text-primary')} onClick={toggleStrike} title={t('bubbleMenu.strike')}><Strikethrough className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('underline') && 'bg-muted text-primary')} onClick={toggleUnderline} title={t('bubbleMenu.underline')}><Underline className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('code') && 'bg-muted text-primary')} onClick={toggleCode} title={t('bubbleMenu.inlineCode')}><Code className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('highlight') && 'bg-muted text-primary')} onClick={toggleHighlight} title={t('bubbleMenu.highlight')}><Highlighter className="w-4 h-4" /></button>
         </div>
 
         <div className="w-px h-5 bg-border mx-1" />
@@ -365,12 +371,12 @@ export function BubbleMenu({
         <div className="relative">
           {showLinkInput ? (
             <div className="flex items-center gap-1 px-1">
-              <input type="url" placeholder="链接地址" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setLink() } else if (e.key === 'Escape') { setShowLinkInput(false); setLinkUrl('') } }} className="w-32 px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
-              <button className="p-1 rounded hover:bg-muted text-xs" onClick={setLink}>确认</button>
-              <button className="p-1 rounded hover:bg-muted text-xs" onClick={() => { setShowLinkInput(false); setLinkUrl('') }}>取消</button>
+              <input type="url" placeholder={t('bubbleMenu.linkPlaceholder')} value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setLink() } else if (e.key === 'Escape') { setShowLinkInput(false); setLinkUrl('') } }} className="w-32 px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
+              <button className="p-1 rounded hover:bg-muted text-xs" onClick={setLink}>{t('bubbleMenu.confirm')}</button>
+              <button className="p-1 rounded hover:bg-muted text-xs" onClick={() => { setShowLinkInput(false); setLinkUrl('') }}>{t('bubbleMenu.cancel')}</button>
             </div>
           ) : (
-            <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('link') && 'bg-muted text-primary')} onClick={setLink} title="链接"><Link className="w-4 h-4" /></button>
+            <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('link') && 'bg-muted text-primary')} onClick={setLink} title={t('bubbleMenu.link')}><Link className="w-4 h-4" /></button>
           )}
         </div>
 
@@ -378,11 +384,11 @@ export function BubbleMenu({
 
         {/* 块级元素 */}
         <div className="flex gap-0.5">
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('blockquote') && 'bg-muted text-primary')} onClick={toggleBlockquote} title="引用"><Quote className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bulletList') && 'bg-muted text-primary')} onClick={toggleBulletList} title="无序列表"><List className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('orderedList') && 'bg-muted text-primary')} onClick={toggleOrderedList} title="有序列表"><ListOrdered className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('taskList') && 'bg-muted text-primary')} onClick={toggleTaskList} title="任务列表"><CheckSquare className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('codeBlock') && 'bg-muted text-primary')} onClick={toggleCodeBlock} title="代码块"><Code className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('blockquote') && 'bg-muted text-primary')} onClick={toggleBlockquote} title={t('bubbleMenu.blockquote')}><Quote className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bulletList') && 'bg-muted text-primary')} onClick={toggleBulletList} title={t('bubbleMenu.bulletList')}><List className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('orderedList') && 'bg-muted text-primary')} onClick={toggleOrderedList} title={t('bubbleMenu.orderedList')}><ListOrdered className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('taskList') && 'bg-muted text-primary')} onClick={toggleTaskList} title={t('bubbleMenu.taskList')}><CheckSquare className="w-4 h-4" /></button>
+          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('codeBlock') && 'bg-muted text-primary')} onClick={toggleCodeBlock} title={t('bubbleMenu.codeBlock')}><Code className="w-4 h-4" /></button>
         </div>
       </div>
     </div>

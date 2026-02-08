@@ -488,6 +488,15 @@
   text-decoration: line-through;
 }
 
+/* 引用标记 */
+.tiptap-editor .ProseMirror .tiptap-quote-mark,
+.tiptap-quote-mark {
+  border: 2px solid currentColor !important;
+  border-radius: 4px !important;
+  padding: 1px 4px;
+  transition: border-color 0.2s ease;
+}
+
 /* 浮动工具栏 */
 .tiptap-bubble-menu {
   z-index: 50;

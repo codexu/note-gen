@@ -1,5 +1,6 @@
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useTranslations } from "next-intl"
 
 interface QuoteData {
   quote: string
@@ -16,21 +17,22 @@ interface QuoteDisplayProps {
 }
 
 export function QuoteDisplay({ quoteData, onRemove }: QuoteDisplayProps) {
+  const t = useTranslations('editor.quoteDisplay')
   const { fileName, startLine, endLine, fullContent } = quoteData
-  
-  // 生成显示文本
+
+  // Generate display text
   const getDisplayText = () => {
     if (startLine !== -1 && endLine !== -1) {
       if (startLine === endLine) {
-        return `引用自 ${fileName} 第 ${startLine} 行`
+        return t('line', { fileName, line: startLine })
       } else {
-        return `引用自 ${fileName} 第 ${startLine}-${endLine} 行`
+        return t('lines', { fileName, start: startLine, end: endLine })
       }
     }
-    return `引用自 ${fileName}`
+    return t('fromFile', { fileName })
   }
 
-  // 生成预览内容
+  // Generate preview content
   const getPreviewContent = () => {
     if (fullContent.length > 100) {
       return fullContent.substring(0, 100) + '...'

@@ -2135,6 +2135,47 @@
       "successTo": "已翻译为 {language}",
       "customLanguageEmpty": "请输入目标语言",
       "customLanguageExample": "例如：英语、日语、法语等"
+    },
+    "quoteDisplay": {
+      "fromFile": "引用自 {fileName}",
+      "line": "引用自 {fileName} 第 {line} 行",
+      "lines": "引用自 {fileName} 第 {start}-{end} 行"
+    },
+    "bubbleMenu": {
+      "ai": "AI",
+      "polish": "润色",
+      "concise": "精简",
+      "expand": "扩展",
+      "translate": "翻译",
+      "translateSubtitle": "翻译为",
+      "quoteToChat": "引用到对话",
+      "link": "链接",
+      "linkPlaceholder": "输入链接地址",
+      "confirm": "确认",
+      "cancel": "取消",
+      "bold": "粗体",
+      "italic": "斜体",
+      "strike": "删除线",
+      "underline": "下划线",
+      "inlineCode": "行内代码",
+      "highlight": "高亮",
+      "blockquote": "引用",
+      "bulletList": "无序列表",
+      "orderedList": "有序列表",
+      "taskList": "任务列表",
+      "codeBlock": "代码块",
+      "languages": {
+        "English": "英语",
+        "Japanese": "日语",
+        "Korean": "韩语",
+        "French": "法语",
+        "German": "德语",
+        "Spanish": "西班牙语",
+        "Portuguese": "葡萄牙语",
+        "Russian": "俄语",
+        "Arabic": "阿拉伯语"
+      },
+      "customLanguagePlaceholder": "自定义语言..."
     }
   }
 }

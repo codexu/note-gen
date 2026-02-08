@@ -32,6 +32,7 @@ import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
 import { fetchCompletionStream } from '@/lib/ai/completion'
 import emitter from '@/lib/emitter'
+import { QuoteMark } from './quote-mark'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -42,6 +43,7 @@ interface TipTapEditorProps {
   placeholder?: string
   editable?: boolean
   aiEnabled?: boolean
+  activeFilePath?: string
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
@@ -54,6 +56,7 @@ export function TipTapEditor({
   placeholder = '开始写作...',
   editable = true,
   aiEnabled = false,
+  activeFilePath = '',
   onAIPolish,
   onAIConcise,
   onAIExpand,
@@ -79,10 +82,6 @@ export function TipTapEditor({
   const handleAIExpand = useCallback(() => {
     onAIExpand?.()
   }, [onAIExpand])
-
-  const handleQuoteToChat = useCallback(() => {
-    onQuoteToChat?.()
-  }, [onQuoteToChat])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -132,6 +131,7 @@ export function TipTapEditor({
       SlashCommand.configure({
         suggestion: suggestionOptions,
       }),
+      QuoteMark,
     ],
     content: initialContent,
     editable,
@@ -337,6 +337,7 @@ export function TipTapEditor({
           insertedLength: content.length,
           newCursorPosition: newPosition,
         })
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         resolve({ success: false, insertedLength: 0 })
       }
@@ -378,8 +379,40 @@ export function TipTapEditor({
           insertedLength: content.length,
           newCursorPosition: from + content.length,
         })
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         resolve({ success: false, insertedLength: 0 })
+      }
+    }
+
+    // Get quote from editor for chat
+    const handleGetQuote = () => {
+      if (!editor) return
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        const quote = editor.state.doc.textBetween(from, to)
+        const fileName = activeFilePath?.split('/').pop() || ''
+        emitter.emit('insert-quote', {
+          quote,
+          fullContent: quote,
+          fileName,
+          startLine: -1,
+          endLine: -1,
+          articlePath: activeFilePath || '',
+        })
+        // Mark the selected text as quoted
+        editor.commands.setMark('quote')
+        // Add click handler to remove mark when clicking back on editor
+        const removeQuoteOnClick = (e: MouseEvent) => {
+          const target = e.target as HTMLElement
+          if (target.closest('.ProseMirror')) {
+            editor.commands.unsetMark('quote')
+            document.removeEventListener('mousedown', removeQuoteOnClick)
+          }
+        }
+        setTimeout(() => {
+          document.addEventListener('mousedown', removeQuoteOnClick)
+        }, 100)
       }
     }
 
@@ -387,14 +420,16 @@ export function TipTapEditor({
     emitter.on('editor-get-content', handleGetContent)
     emitter.on('editor-insert', handleInsert)
     emitter.on('editor-replace', handleReplace)
+    emitter.on('get-quote-from-editor', handleGetQuote)
 
     return () => {
       emitter.off('editor-get-selection', handleGetSelection)
       emitter.off('editor-get-content', handleGetContent)
       emitter.off('editor-insert', handleInsert)
       emitter.off('editor-replace', handleReplace)
+      emitter.off('get-quote-from-editor', handleGetQuote)
     }
-  }, [editor])
+  }, [editor, activeFilePath])
 
   if (!editor) {
     return null
@@ -407,7 +442,7 @@ export function TipTapEditor({
         onAIPolish={handleAIPolish}
         onAIConcise={handleAIConcise}
         onAIExpand={handleAIExpand}
-        onQuoteToChat={handleQuoteToChat}
+        onQuoteToChat={onQuoteToChat}
       />
 
       <FloatingTableMenu editor={editor} />

@@ -12,6 +12,7 @@ import { PrimarySyncBadge } from './primary-sync-badge'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import useArticleStore from '@/stores/article'
+import { serializeMathMarkdown } from '../math-serialize'
 
 interface FooterBarProps {
   editor: Editor
@@ -128,7 +129,7 @@ export function FooterBar({
             <div className="absolute bottom-full right-0 mb-1 min-w-[120px] bg-background border border-border rounded-lg shadow-lg overflow-hidden z-50">
               <button
                 onClick={() => {
-                  const content = editor.getMarkdown()
+                  const content = serializeMathMarkdown(editor.getHTML())
                   const activeFilePath = useArticleStore.getState().activeFilePath
                   const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
                   downloadFile(content, `${fileName}.md`, 'text/markdown')

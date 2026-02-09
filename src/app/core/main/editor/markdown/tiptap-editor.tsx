@@ -24,6 +24,7 @@ import UniqueId from '@tiptap/extension-unique-id'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MathEditorDialog } from './math-editor-dialog'
+import { serializeMathMarkdown, preprocessMathMarkdown } from './math-serialize'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
@@ -127,7 +128,7 @@ export function TipTapEditor({
     onUpdate: ({ editor }) => {
       // Only trigger onChange if this is NOT an external update
       if (!isExternalUpdateRef.current) {
-        const markdown = editor.getMarkdown()
+        const markdown = serializeMathMarkdown(editor.getHTML())
         onChange?.(markdown)
       }
     },
@@ -389,7 +390,9 @@ export function TipTapEditor({
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
     if (!isInitializedRef.current) {
-      editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
+      // Pre-process math syntax before loading
+      const processedContent = preprocessMathMarkdown(initialContent || '')
+      editor.commands.setContent(processedContent, { contentType: 'html' })
       isInitializedRef.current = true
     }
   }, [editor]) // intentionally not depending on initialContent
@@ -596,7 +599,7 @@ export function TipTapEditor({
         return
       }
 
-      const markdown = editor.getMarkdown()
+      const markdown = serializeMathMarkdown(editor.getHTML())
       const text = editor.getText()
       const html = editor.getHTML()
 

@@ -5,6 +5,7 @@ import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
+import { serializeMathMarkdown } from '../math-serialize'
 
 interface CopyButtonProps {
   editor: Editor
@@ -37,7 +38,7 @@ export function CopyButton({ editor }: CopyButtonProps) {
   }, [])
 
   const handleCopyMarkdown = useCallback(() => {
-    copyToClipboard(editor.getMarkdown(), 'markdown')
+    copyToClipboard(serializeMathMarkdown(editor.getHTML()), 'markdown')
   }, [editor, copyToClipboard])
 
   const handleCopyHtml = useCallback(() => {

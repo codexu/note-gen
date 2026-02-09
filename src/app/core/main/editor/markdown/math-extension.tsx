@@ -1,4 +1,6 @@
-import { Node, mergeAttributes } from '@tiptap/core'
+'use client'
+
+import { Node, mergeAttributes, type InputRule } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper, ReactNodeViewProps } from '@tiptap/react'
 import { useMemo, useState } from 'react'
 import katex from 'katex'
@@ -152,18 +154,53 @@ export const InlineMath = Node.create({
 
   parseHTML() {
     return [
-      {
-        tag: 'inline-math',
-      },
+      { tag: 'span[data-type="inline-math"]', getAttrs: (node: HTMLElement | string) => {
+        if (typeof node === 'string') return false
+        return { latex: node.getAttribute('data-latex') || '' }
+      }},
+      { tag: 'span[data-latex]', getAttrs: (node: HTMLElement | string) => {
+        if (typeof node === 'string') return false
+        return { latex: node.getAttribute('data-latex') || '' }
+      }},
     ]
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['inline-math', mergeAttributes(HTMLAttributes)]
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'inline-math' })]
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(InlineMathView)
+  },
+
+  addInputRules(): InputRule[] {
+    return [
+      {
+        find: /\$([^\$]+?)\$/,
+        handler: ({ state, range, match }) => {
+          const latex = match[1] || ''
+          if (!latex) return
+
+          const tr = state.tr.replaceRangeWith(range.from, range.to, this.type.create({ latex }))
+          this.editor.view.dispatch(tr)
+        },
+        undoable: true,
+      },
+    ]
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize: (state: any, node: any) => {
+          console.log('Serializing inline math:', node.attrs.latex)
+          state.write(`$${node.attrs.latex}$`)
+        },
+        parse: {
+          node: 'inline-math',
+        },
+      },
+    }
   },
 })
 
@@ -183,17 +220,53 @@ export const BlockMath = Node.create({
 
   parseHTML() {
     return [
-      {
-        tag: 'block-math',
-      },
+      { tag: 'div[data-type="block-math"]', getAttrs: (node: HTMLElement | string) => {
+        if (typeof node === 'string') return false
+        return { latex: node.getAttribute('data-latex') || '' }
+      }},
+      { tag: 'div[data-latex]', getAttrs: (node: HTMLElement | string) => {
+        if (typeof node === 'string') return false
+        return { latex: node.getAttribute('data-latex') || '' }
+      }},
     ]
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['block-math', mergeAttributes(HTMLAttributes)]
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'block-math' })]
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(BlockMathView)
+  },
+
+  addInputRules(): InputRule[] {
+    return [
+      {
+        find: /\$\$([^\$]+?)\$\$/,
+        handler: ({ state, range, match }) => {
+          const latex = match[1] || ''
+          if (!latex) return
+
+          const tr = state.tr.replaceRangeWith(range.from, range.to, this.type.create({ latex }))
+          this.editor.view.dispatch(tr)
+        },
+        undoable: true,
+      },
+    ]
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize: (state: any, node: any) => {
+          console.log('Serializing block math:', node.attrs.latex)
+          state.write(`\n$$${node.attrs.latex}$$\n`)
+          state.closeBlock(node)
+        },
+        parse: {
+          node: 'block-math',
+        },
+      },
+    }
   },
 })

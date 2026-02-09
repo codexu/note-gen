@@ -148,7 +148,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   return (
-    <div className="flex-1 relative w-full h-full flex flex-col overflow-hidden">
+    <div className="flex-1 relative w-full h-full flex flex-col">
       {/* Pull loading overlay */}
       {isPulling && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">

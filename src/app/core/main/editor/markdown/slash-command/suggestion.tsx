@@ -15,6 +15,7 @@ import {
   AlignRight,
   AlignJustify,
   Sparkles,
+  Sigma,
 } from 'lucide-react'
 import { SuggestionProps } from '@tiptap/suggestion'
 import { type Editor } from '@tiptap/core'
@@ -201,6 +202,32 @@ export const suggestionItems = () => {
       searchTerms: ['table', 'grid', 'matrix'],
       command: ({ editor, range }: { editor: Editor; range: any }) => {
         editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      },
+    },
+
+    // 数学公式
+    {
+      title: '行内公式',
+      description: '插入行内 LaTeX 公式',
+      icon: <Sigma className="w-4 h-4" />,
+      group: '数学',
+      searchTerms: ['math', 'inline', 'latex', 'formula', 'inline-math'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-inline-math')
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '块级公式',
+      description: '插入块级 LaTeX 公式',
+      icon: <Sigma className="w-4 h-4" />,
+      group: '数学',
+      searchTerms: ['math', 'block', 'latex', 'formula', 'block-math', 'display'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-block-math')
+        document.dispatchEvent(event)
       },
     },
   ]

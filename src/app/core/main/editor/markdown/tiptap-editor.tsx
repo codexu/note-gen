@@ -21,13 +21,15 @@ import { common, createLowlight } from 'lowlight'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
-import { useEffect, useRef, useCallback } from 'react'
+import 'katex/dist/katex.min.css'
+import { InlineMath, BlockMath } from './math-extension'
+import { MathEditorDialog } from './math-editor-dialog'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
 import { FloatingImageMenu } from './floating-image-menu'
 import { ImageExtension } from './image-extension'
-import { MathInline, MathBlock } from './math-extension'
 import { FooterBar } from './footer-bar/index'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
@@ -60,6 +62,10 @@ export function TipTapEditor({
 }: TipTapEditorProps) {
   const isInitializedRef = useRef(false)
   const isExternalUpdateRef = useRef(false)
+
+  // Math dialog state
+  const [mathDialogOpen, setMathDialogOpen] = useState(false)
+  const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -104,8 +110,6 @@ export function TipTapEditor({
       TableCell,
       ImageExtension,
       Markdown,
-      MathInline,
-      MathBlock,
       SlashCommand.configure({
         suggestion: suggestionOptions,
       }),
@@ -115,6 +119,8 @@ export function TipTapEditor({
         attributeName: 'data-id',
         types: ['paragraph', 'heading', 'blockquote', 'codeBlock', 'listItem', 'bulletList', 'orderedList', 'taskItem', 'table', 'tableRow', 'tableCell', 'tableHeader'],
       }),
+      InlineMath,
+      BlockMath,
     ],
     content: initialContent,
     editable,
@@ -523,6 +529,46 @@ export function TipTapEditor({
     }
   }, [editor, onChange])
 
+  // Handle math formula insertion from slash menu
+  useEffect(() => {
+    if (!editor) return
+
+    const handleInsertInlineMath = () => {
+      setMathType('inline')
+      setMathDialogOpen(true)
+    }
+
+    const handleInsertBlockMath = () => {
+      setMathType('block')
+      setMathDialogOpen(true)
+    }
+
+    document.addEventListener('tiptap-insert-inline-math', handleInsertInlineMath)
+    document.addEventListener('tiptap-insert-block-math', handleInsertBlockMath)
+
+    return () => {
+      document.removeEventListener('tiptap-insert-inline-math', handleInsertInlineMath)
+      document.removeEventListener('tiptap-insert-block-math', handleInsertBlockMath)
+    }
+  }, [editor])
+
+  // Handle math dialog insert
+  const handleMathInsert = useCallback((latex: string, type: 'inline' | 'block') => {
+    if (!editor) return
+
+    if (type === 'inline') {
+      editor.chain().focus().insertContent({
+        type: 'inlineMath',
+        attrs: { latex },
+      }).run()
+    } else {
+      editor.chain().focus().insertContent({
+        type: 'blockMath',
+        attrs: { latex },
+      }).run()
+    }
+  }, [editor])
+
   // Editor tools event handlers for Agent integration
   useEffect(() => {
     // Get editor selection
@@ -710,6 +756,14 @@ export function TipTapEditor({
       <FooterBar editor={editor} />
 
       <SlashCommandPortal />
+
+      <MathEditorDialog
+        open={mathDialogOpen}
+        onOpenChange={setMathDialogOpen}
+        onInsert={handleMathInsert}
+        type={mathType}
+        title={mathType === 'inline' ? '插入行内公式' : '插入块级公式'}
+      />
     </div>
   )
 }

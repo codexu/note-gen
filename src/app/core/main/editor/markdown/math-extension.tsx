@@ -1,129 +1,150 @@
-'use client'
-
-import { Node, mergeAttributes, InputRule } from '@tiptap/core'
-import { ReactNodeViewRenderer } from '@tiptap/react'
-import { useEffect, useRef, useState } from 'react'
-
-interface MathOptions {
-  HTMLAttributes: Record<string, string>
-}
-
-declare module '@tiptap/core' {
-  interface Commands<ReturnType> {
-    mathInline: {
-      setMathInline: (options: { formula: string }) => ReturnType
-    }
-    mathBlock: {
-      setMathBlock: (options: { formula: string }) => ReturnType
-    }
-  }
-}
+import { Node, mergeAttributes } from '@tiptap/core'
+import { ReactNodeViewRenderer, NodeViewWrapper, ReactNodeViewProps } from '@tiptap/react'
+import { useMemo, useState } from 'react'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 // Inline Math Component
-function MathInlineComponent({ node, updateAttributes }: any) {
-  const [formula, setFormula] = useState(node.attrs.formula)
+function InlineMathView({ node, updateAttributes }: ReactNodeViewProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [latex, setLatex] = useState(node.attrs.latex || '')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus()
+  const renderedHtml = useMemo(() => {
+    try {
+      setError(null)
+      return katex.renderToString(node.attrs.latex || '', {
+        throwOnError: false,
+        displayMode: false,
+      })
+    } catch (e) {
+      setError((e as Error).message)
+      return `<span class="text-red-500">Invalid LaTeX</span>`
     }
-  }, [isEditing])
+  }, [node.attrs.latex])
 
-  const handleBlur = () => {
+  const handleUpdate = () => {
+    updateAttributes({ latex })
     setIsEditing(false)
-    updateAttributes({ formula })
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleUpdate()
+    }
+    if (e.key === 'Escape') {
+      setLatex(node.attrs.latex || '')
+      setIsEditing(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <NodeViewWrapper className="inline-math-wrapper inline">
+        <input
+          type="text"
+          value={latex}
+          onChange={(e) => setLatex(e.target.value)}
+          onBlur={handleUpdate}
+          onKeyDown={handleKeyDown}
+          className="inline-math-input px-2 py-1 border rounded bg-background text-foreground min-w-25 focus:outline-none focus:ring-2 focus:ring-primary"
+          autoFocus
+        />
+        {error && <span className="text-red-500 text-xs ml-2">{error}</span>}
+      </NodeViewWrapper>
+    )
   }
 
   return (
-    <span
-      className="math-inline px-1 rounded bg-[hsl(var(--muted))] cursor-pointer"
+    <NodeViewWrapper
+      className="inline-math-wrapper inline mx-1 px-1 py-0.5 rounded bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
       onClick={() => setIsEditing(true)}
-      data-type="math-inline"
     >
-      {isEditing ? (
-        <input
-          ref={inputRef}
-          value={formula}
-          onChange={(e) => setFormula(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleBlur()
-            }
-            if (e.key === 'Escape') {
-              setFormula(node.attrs.formula)
-              setIsEditing(false)
-            }
-          }}
-          className="bg-transparent border-none outline-none min-w-[60px] font-mono text-sm"
-        />
-      ) : (
-        <code className="font-mono text-sm">${formula}$</code>
-      )}
-    </span>
+      <span
+        className="tiptap-mathematics-render tiptap-mathematics-render--editable"
+        data-type="inline-math"
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
+      />
+    </NodeViewWrapper>
   )
 }
 
 // Block Math Component
-function MathBlockComponent({ node, updateAttributes }: any) {
-  const [formula, setFormula] = useState(node.attrs.formula)
+function BlockMathView({ node, updateAttributes }: ReactNodeViewProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [latex, setLatex] = useState(node.attrs.latex || '')
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus()
+  const renderedHtml = useMemo(() => {
+    try {
+      setError(null)
+      return katex.renderToString(node.attrs.latex || '', {
+        throwOnError: false,
+        displayMode: true,
+      })
+    } catch (e) {
+      setError((e as Error).message)
+      return `<span class="text-red-500">Invalid LaTeX</span>`
     }
-  }, [isEditing])
+  }, [node.attrs.latex])
 
-  const handleBlur = () => {
+  const handleUpdate = () => {
+    updateAttributes({ latex })
     setIsEditing(false)
-    updateAttributes({ formula })
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleUpdate()
+    }
+    if (e.key === 'Escape') {
+      setLatex(node.attrs.latex || '')
+      setIsEditing(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <NodeViewWrapper className="block-math-wrapper my-4">
+        <textarea
+          value={latex}
+          onChange={(e) => setLatex(e.target.value)}
+          onBlur={handleUpdate}
+          onKeyDown={handleKeyDown}
+          className="block-math-input w-full px-3 py-2 border rounded bg-background text-foreground min-h-15 focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+          autoFocus
+        />
+        {error && <span className="text-red-500 text-xs mt-1">{error}</span>}
+      </NodeViewWrapper>
+    )
   }
 
   return (
-    <div
-      className="math-block my-2 p-3 rounded bg-[hsl(var(--muted))] cursor-pointer"
+    <NodeViewWrapper
+      className="block-math-wrapper my-4 p-4 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={() => setIsEditing(true)}
-      data-type="math-block"
     >
-      {isEditing ? (
-        <textarea
-          ref={inputRef}
-          value={formula}
-          onChange={(e) => setFormula(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleBlur()
-            }
-            if (e.key === 'Escape') {
-              setFormula(node.attrs.formula)
-              setIsEditing(false)
-            }
-          }}
-          className="w-full bg-transparent border-none outline-none font-mono text-sm resize-none"
-          rows={Math.max(2, formula.split('\n').length)}
-        />
-      ) : (
-        <pre className="font-mono text-sm overflow-x-auto">$${formula}$$</pre>
-      )}
-    </div>
+      <div
+        className="tiptap-mathematics-render tiptap-mathematics-render--editable overflow-x-auto"
+        data-type="block-math"
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
+      />
+    </NodeViewWrapper>
   )
 }
 
-export const MathInline = Node.create<MathOptions>({
-  name: 'mathInline',
+// Inline Math Extension
+export const InlineMath = Node.create({
+  name: 'inlineMath',
   group: 'inline',
   inline: true,
   atom: true,
 
   addAttributes() {
     return {
-      formula: {
+      latex: {
         default: '',
       },
     }
@@ -131,59 +152,30 @@ export const MathInline = Node.create<MathOptions>({
 
   parseHTML() {
     return [
-      { tag: 'span[data-type="math-inline"]' },
+      {
+        tag: 'inline-math',
+      },
     ]
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { 'data-type': 'math-inline', class: 'math-inline' })]
+    return ['inline-math', mergeAttributes(HTMLAttributes)]
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(MathInlineComponent)
-  },
-
-  addCommands() {
-    return {
-      setMathInline:
-        (options) =>
-        ({ commands }) => {
-          return commands.insertContent({
-            type: this.name,
-            attrs: options,
-          })
-        },
-    }
-  },
-
-  addInputRules(): InputRule[] {
-    return [
-      {
-        find: /\$([^\$]+)\$/g,
-        undoable: true,
-        handler: ({ state, range, match }) => {
-          const start = range.from
-          const formula = match[1].trim()
-
-          state.tr.replaceWith(
-            start,
-            range.to,
-            this.type.create({ formula })
-          )
-        },
-      },
-    ]
+    return ReactNodeViewRenderer(InlineMathView)
   },
 })
 
-export const MathBlock = Node.create<MathOptions>({
-  name: 'mathBlock',
+// Block Math Extension
+export const BlockMath = Node.create({
+  name: 'blockMath',
   group: 'block',
   atom: true,
 
   addAttributes() {
     return {
-      formula: {
+      latex: {
         default: '',
       },
     }
@@ -191,45 +183,17 @@ export const MathBlock = Node.create<MathOptions>({
 
   parseHTML() {
     return [
-      { tag: 'div[data-type="math-block"]' },
+      {
+        tag: 'block-math',
+      },
     ]
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'math-block', class: 'math-block' })]
+    return ['block-math', mergeAttributes(HTMLAttributes)]
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(MathBlockComponent)
-  },
-
-  addCommands() {
-    return {
-      setMathBlock:
-        (options) =>
-        ({ commands }) => {
-          return commands.insertContent({
-            type: this.name,
-            attrs: options,
-          })
-        },
-    }
-  },
-
-  addInputRules(): InputRule[] {
-    return [
-      {
-        find: /\$\$\n([^\$]+)\n\$\$/g,
-        undoable: true,
-        handler: ({ state, range, match }) => {
-          const formula = match[1].trim()
-          state.tr.replaceWith(
-            range.from,
-            range.to,
-            this.type.create({ formula })
-          )
-        },
-      },
-    ]
+    return ReactNodeViewRenderer(BlockMathView)
   },
 })

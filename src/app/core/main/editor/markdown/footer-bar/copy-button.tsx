@@ -3,9 +3,9 @@
 import { Editor } from '@tiptap/react'
 import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { serializeMathMarkdown } from '../math-serialize'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface CopyButtonProps {
   editor: Editor
@@ -54,21 +54,19 @@ export function CopyButton({ editor }: CopyButtonProps) {
   }, [editor, copyToClipboard])
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          'flex items-center gap-0.5 px-1.5 rounded transition-colors',
-          'hover:bg-[hsl(var(--muted))]',
-          isOpen && 'bg-[hsl(var(--muted))]'
-        )}
-        title="复制"
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button title="复制">
+          <Copy className="size-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="top"
+        sideOffset={4}
+        className="min-w-30 p-0"
       >
-        <Copy size={10} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute bottom-full right-0 mb-1 min-w-[120px] bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-lg shadow-lg overflow-hidden">
+        <div className="flex flex-col py-1 bg-background border-border rounded-lg shadow-lg">
           <button
             onClick={handleCopyMarkdown}
             disabled={copying !== null}
@@ -102,8 +100,8 @@ export function CopyButton({ editor }: CopyButtonProps) {
             <span>纯文本</span>
           </button>
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

@@ -107,7 +107,7 @@ export function FooterBar({
   return (
     <div className="h-6 flex items-center justify-between px-3 border-t border-border bg-background text-xs text-muted-foreground">
       {/* Left side: Word count, Copy, Export */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <WordCount editor={editor} />
         <CopyButton editor={editor} />
 

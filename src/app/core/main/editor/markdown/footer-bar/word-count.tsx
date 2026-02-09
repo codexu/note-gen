@@ -8,18 +8,14 @@ interface WordCountProps {
 }
 
 export function WordCount({ editor }: WordCountProps) {
-  const { characters, words } = useMemo(() => {
+  const { characters } = useMemo(() => {
     if (!editor) return { characters: 0, words: 0 }
     return {
       characters: editor.storage.characterCount?.characters?.() ?? 0,
-      words: editor.storage.characterCount?.words?.() ?? 0,
     }
   }, [editor])
 
   return (
-    <span className="flex items-center gap-1 text-muted-foreground">
-      <span>{words} 字</span>
-      <span className="text-[10px] opacity-60">{characters} 字符</span>
-    </span>
+    <span className="text-xs">{characters} 字符</span>
   )
 }

@@ -485,10 +485,10 @@ export async function autoSyncIfNeeded(path: string, options: {
       if (showConfirm) {
         // 获取 commit 信息
         const commitInfo = await getRemoteCommitInfo(path)
-        
-        // 使用新的确认对话框
+
+        // 使用新的拉取确认对话框
         return new Promise<string | null>((resolve) => {
-          useSyncConfirmStore.getState().showConfirmDialog({
+          useSyncConfirmStore.getState().showPullDialog({
             fileName: path || '',
             commitInfo: commitInfo || undefined,
             onConfirm: async () => {

@@ -6,7 +6,8 @@ import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { autoSyncIfNeeded, hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
+import { hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
+import { syncOnSave, syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
@@ -1319,17 +1320,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
     
-    // 异步检查远程更新（不阻塞界面）
+    // 异步检查远程更新（使用新的 SyncManager）
     if (autoSync && await hasNetworkConnection()) {
       try {
-        const syncedContent = await autoSyncIfNeeded(actualPath, {
-          autoPull: false, // 不自动拉取，只检查更新
-          showConfirm: false // 不显示确认对话框
-        })
-        
-        if (syncedContent !== null && syncedContent !== localContent) {
-          // 远程内容不同，但这里不自动更新，让用户通过 Pull 按钮手动处理
-        }
+        await syncOnOpen(actualPath)
       } catch (error) {
         console.warn('Async sync check failed:', error)
       }
@@ -1454,6 +1448,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       if (path.endsWith('.md')) {
         get().scheduleVectorCalculation(path, content)
       }
+
+      // 触发同步（带节流）
+      await syncOnSave(path, content)
     }
   },
 

@@ -56,6 +56,7 @@ export function BubbleMenu({
   const t = useTranslations('editor')
   const [show, setShow] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
+  const [isAtTop, setIsAtTop] = useState(false)
   const [showAISubmenu, setShowAISubmenu] = useState(false)
   const [showTranslateSubmenu, setShowTranslateSubmenu] = useState(false)
   const [customTranslateLang, setCustomTranslateLang] = useState('')
@@ -104,20 +105,28 @@ export function BubbleMenu({
       return
     }
 
-    // 获取编辑器边界和滚动容器
+    // 获取编辑器元素
     const editorElement = document.querySelector('.ProseMirror')
-    const scrollContainer = editorElement?.parentElement
-    if (!editorElement || !scrollContainer) return
+    if (!editorElement) return
 
     const editorBounds = editorElement.getBoundingClientRect()
-    const scrollRect = scrollContainer.getBoundingClientRect()
 
-    // 左右：固定在编辑器水平中心（相对于滚动容器）
+    // 左右：固定在编辑器水平中心
     const left = editorBounds.width / 2
 
-    // 垂直：相对于滚动容器计算位置
+    // 垂直：使用视口坐标
     const coords = editor.view.coordsAtPos(from)
-    const top = coords.top - scrollRect.top - 10
+    // 初始位置：选中文本上方 10px（负值，向上偏移）
+    let top = coords.top - 10
+
+    // 上边界检测：如果上方空间不够，改为在光标下方显示
+    if (top < 0) {
+      // 光标下方 20px
+      top = coords.top + 20
+      setIsAtTop(true)
+    } else {
+      setIsAtTop(false)
+    }
 
     setPosition({ top, left })
     setShow(true)
@@ -266,7 +275,7 @@ export function BubbleMenu({
       style={{
         top: position.top,
         left: position.left,
-        transform: 'translate(-50%, -100%)'
+        transform: isAtTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
       }}
     >
       {/* 工具栏 */}

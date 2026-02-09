@@ -105,6 +105,13 @@ export function BubbleMenu({
       return
     }
 
+    // 检查是否是数学公式节点，如果是则不显示 bubble menu
+    const node = editor.state.doc.nodeAt(from)
+    if (node?.type.name === 'inlineMath' || node?.type.name === 'blockMath') {
+      setShow(false)
+      return
+    }
+
     // 获取编辑器元素
     const editorElement = document.querySelector('.ProseMirror')
     if (!editorElement) return

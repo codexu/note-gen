@@ -40,7 +40,8 @@
     "refresh": "Refresh",
     "loading": "Loading...",
     "warning": "Warning",
-    "info": "Info"
+    "info": "Info",
+    "configureSync": "Configure Sync"
   },
   "settings": {
     "defaultModels": {

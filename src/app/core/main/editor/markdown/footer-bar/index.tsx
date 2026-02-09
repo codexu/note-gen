@@ -4,9 +4,7 @@ import { Editor } from '@tiptap/react'
 import { WordCount } from './word-count'
 import { CopyButton } from './copy-button'
 import { ExportButton } from './export-button'
-import { SyncButton } from './sync-button'
-import { PullButton } from './pull-button'
-import { PrimarySyncBadge } from './primary-sync-badge'
+import { SyncTools } from './sync-tools'
 
 interface FooterBarProps {
   editor: Editor
@@ -24,12 +22,8 @@ export function FooterBar({
         <ExportButton editor={editor} />
       </div>
 
-      {/* Right side: Knowledge base, Sync tools */}
-      <div className="flex items-center gap-1">
-        <PrimarySyncBadge />
-        <SyncButton />
-        <PullButton editor={editor} />
-      </div>
+      {/* Right side: Sync tools */}
+      <SyncTools editor={editor} />
     </div>
   )
 }

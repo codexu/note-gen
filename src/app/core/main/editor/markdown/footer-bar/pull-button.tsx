@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { toast } from '@/hooks/use-toast'
+import { isSyncConfigured } from '@/lib/sync/sync-manager'
 
 interface PullButtonProps {
   editor: Editor
@@ -16,6 +17,12 @@ export function PullButton({ editor }: PullButtonProps) {
   const { activeFilePath } = useArticleStore()
   const [hasUpdate, setHasUpdate] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isConfigured, setIsConfigured] = useState(false)
+
+  // Check if sync is configured
+  useEffect(() => {
+    isSyncConfigured().then(setIsConfigured)
+  }, [])
 
   // Check for updates
   const checkForUpdates = useCallback(async () => {
@@ -69,7 +76,8 @@ export function PullButton({ editor }: PullButtonProps) {
     }
   }, [activeFilePath, checkForUpdates])
 
-  if (!activeFilePath) return null
+  // 如果没有配置同步，不显示
+  if (!isConfigured || !activeFilePath) return null
 
   return (
     <button

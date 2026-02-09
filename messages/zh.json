@@ -38,7 +38,8 @@
     "info": "信息",
     "restartToApply": "，请重启应用使配置生效",
     "unsaved": "未保存",
-    "saving": "保存中..."
+    "saving": "保存中...",
+    "configureSync": "配置同步"
   },
   "settings": {
     "defaultModels": {

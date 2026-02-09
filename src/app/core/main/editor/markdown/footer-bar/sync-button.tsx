@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUpCircle, RefreshCw } from 'lucide-react'
+import { ArrowUpCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
@@ -8,6 +8,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
+import { isSyncConfigured } from '@/lib/sync/sync-manager'
 
 type SyncStatus = 'synced' | 'pull_needed' | 'push_needed' | 'unknown' | 'error'
 
@@ -15,6 +16,12 @@ export function SyncButton() {
   const { activeFilePath, currentArticle } = useArticleStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)
+  const [isConfigured, setIsConfigured] = useState(false)
+
+  // Check if sync is configured
+  useEffect(() => {
+    isSyncConfigured().then(setIsConfigured)
+  }, [])
 
   // Check sync status
   const checkSyncStatus = useCallback(async () => {
@@ -79,20 +86,34 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       switch (provider) {
         case 'github': {
           const githubModule = await import('@/lib/sync/github') as any
-          const sha = await githubModule.getFileSha({ path: activeFilePath, repo })
-          if (sha) {
-            await githubModule.updateFile({ path: activeFilePath, repo, content, message: commitMessage, sha })
-            success = true
-          }
+          const fileInfo = await githubModule.getFiles({ path: activeFilePath, repo })
+          // uploadFile 同时支持创建和更新（有 sha 则更新，无则创建）
+          await githubModule.uploadFile({
+            ext: activeFilePath.split('.').pop() || 'md',
+            file: content,
+            filename: activeFilePath.split('/').pop() || activeFilePath,
+            sha: fileInfo?.sha,
+            message: commitMessage,
+            repo,
+            path: activeFilePath
+          })
+          success = true
           break
         }
         case 'gitee': {
           const giteeModule = await import('@/lib/sync/gitee') as any
-          const sha = await giteeModule.getFileSha({ path: activeFilePath, repo })
-          if (sha) {
-            await giteeModule.updateFile({ path: activeFilePath, repo, content, message: commitMessage, sha })
-            success = true
-          }
+          const fileInfo = await giteeModule.getFiles({ path: activeFilePath, repo })
+          // uploadFile 同时支持创建和更新
+          await giteeModule.uploadFile({
+            ext: activeFilePath.split('.').pop() || 'md',
+            file: content,
+            filename: activeFilePath.split('/').pop() || activeFilePath,
+            sha: fileInfo?.sha,
+            message: commitMessage,
+            repo,
+            path: activeFilePath
+          })
+          success = true
           break
         }
         case 'gitlab': {
@@ -122,23 +143,13 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       console.error('Push failed:', error)
       toast({
         title: '推送失败',
-        description: '无法推送到远程仓库，文件可能不存在于远程',
+        description: '无法推送到远程仓库',
         variant: 'destructive'
       })
     } finally {
       setIsLoading(false)
     }
   }, [activeFilePath, currentArticle, isLoading, checkSyncStatus, generateCommitMessage])
-
-  const getStatusColor = () => {
-    switch (syncStatus) {
-      case 'synced': return 'text-green-500'
-      case 'pull_needed': return 'text-amber-500'
-      case 'push_needed': return 'text-blue-500'
-      case 'error': return 'text-red-500'
-      default: return 'text-muted-foreground'
-    }
-  }
 
   const getStatusText = () => {
     switch (syncStatus) {
@@ -150,41 +161,25 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     }
   }
 
-  if (!activeFilePath) return null
+  // 如果没有配置同步，不显示同步按钮
+  if (!isConfigured || !activeFilePath) return null
+
+  const canPush = syncStatus === 'push_needed' && !isLoading
 
   return (
-    <div className="relative flex items-center gap-0.5">
-      {/* Status indicator / Sync button */}
-      <button
-        onClick={handlePush}
-        disabled={isLoading || syncStatus !== 'push_needed'}
-        className={cn(
-          'flex items-center gap-0.5 px-1.5 rounded transition-colors',
-          syncStatus === 'push_needed'
-            ? 'hover:bg-blue-500/10 text-blue-500'
-            : 'opacity-50 cursor-not-allowed'
-        )}
-        title={syncStatus === 'push_needed' ? '点击推送到远程' : getStatusText()}
-      >
-        <RefreshCw size={10} className={cn(isLoading && 'animate-spin', getStatusColor())} />
-        <span className="text-[10px]">{getStatusText()}</span>
-      </button>
-
-      {/* Push arrow button */}
-      <button
-        onClick={handlePush}
-        disabled={isLoading || syncStatus !== 'push_needed'}
-        className={cn(
-          'p-0.5 rounded transition-colors',
-          syncStatus === 'push_needed'
-            ? 'hover:bg-blue-500/10 text-blue-500'
-            : 'opacity-30 cursor-not-allowed'
-        )}
-        title="推送到远程"
-      >
-        <ArrowUpCircle size={12} />
-      </button>
-    </div>
+    <button
+      onClick={handlePush}
+      disabled={!canPush}
+      className={cn(
+        'p-0.5 rounded transition-colors relative',
+        canPush
+          ? 'hover:bg-blue-500/10 text-blue-500'
+          : 'opacity-40 cursor-not-allowed'
+      )}
+      title={canPush ? '推送到远程' : getStatusText()}
+    >
+      <ArrowUpCircle size={14} className={cn(isLoading && 'animate-spin')} />
+    </button>
   )
 }
 

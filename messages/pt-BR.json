@@ -40,7 +40,8 @@
     "warning": "Aviso",
     "info": "Informação",
     "unsaved": "Não salvo",
-    "saving": "Salvando"
+    "saving": "Salvando",
+    "configureSync": "Configurar Sincronização"
   },
   "settings": {
     "defaultModels": {

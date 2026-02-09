@@ -628,3 +628,42 @@ export async function syncSingleFile(path: string, onConflict?: (local: string, 
   const manager = getSyncManager()
   return await manager.syncFile(path, { onConflict })
 }
+
+/**
+ * 检查同步是否已配置
+ * 检查是否有选择同步平台并配置了对应的访问令牌
+ */
+export async function isSyncConfigured(): Promise<boolean> {
+  try {
+    const store = await Store.load('store.json')
+    const platform = await store.get<string>('primaryBackupMethod')
+
+    // 如果没有选择平台，返回 false
+    if (!platform) {
+      return false
+    }
+
+    // 检查对应平台的访问令牌（确保不是空字符串）
+    const token = await store.get<string>('accessToken')
+    switch (platform) {
+      case 'github':
+        return !!(token && token.trim().length > 0)
+      case 'gitee': {
+        const giteeToken = await store.get<string>('giteeAccessToken')
+        return !!(giteeToken && giteeToken.trim().length > 0)
+      }
+      case 'gitlab': {
+        const gitlabToken = await store.get<string>('gitlabAccessToken')
+        return !!(gitlabToken && gitlabToken.trim().length > 0)
+      }
+      case 'gitea': {
+        const giteaToken = await store.get<string>('giteaAccessToken')
+        return !!(giteaToken && giteaToken.trim().length > 0)
+      }
+      default:
+        return false
+    }
+  } catch {
+    return false
+  }
+}

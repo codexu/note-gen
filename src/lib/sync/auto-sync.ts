@@ -195,13 +195,16 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
     return { shouldUpdate: false, action: 'none' }
   }
   
-  // 如果远程文件不存在
+  // 如果远程文件不存在，但本地文件存在
   if (!remoteInfo.sha) {
-    return {
-      shouldUpdate: false,
-      action: 'none',
-      reason: '远程文件不存在'
+    if (localMeta.localSha) {
+      return {
+        shouldUpdate: true,
+        action: 'push',
+        reason: '远程文件不存在，需要推送到远程'
+      }
     }
+    return { shouldUpdate: false, action: 'none' }
   }
   
   // 比较 SHA

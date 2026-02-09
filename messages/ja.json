@@ -38,7 +38,8 @@
     "warning": "警告",
     "info": "情報",
     "unsaved": "未保存",
-    "saving": "保存中..."
+    "saving": "保存中...",
+    "configureSync": "同期を構成"
   },
   "settings": {
     "defaultModels": {

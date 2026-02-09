@@ -38,6 +38,7 @@ export function MdEditor() {
   const { currentArticle, saveCurrentArticle, loading, isPulling, activeFilePath, matchPosition, setMatchPosition, setActiveFilePath, loadFileTree, setCurrentArticle, readArticle } = useArticleStore()
   const { assetsPath, contentTextScale } = useSettingStore()
   const { fetchMarks } = useMarkStore()
+  const { fetchTags, getCurrentTag } = useTagStore()
   const [floatBarPosition, setFloatBarPosition] = useState<{left: number, top: number} | null>(null)
   const [selectedText, setSelectedText] = useState<string>('')
   const { theme } = useTheme()
@@ -1113,6 +1114,9 @@ export function MdEditor() {
               await delMark(mark.id)
               // 刷新记录列表
               await fetchMarks()
+              // 刷新标签统计
+               await fetchTags()
+              getCurrentTag()
             }
           } catch (error) {
             console.error('Failed to delete mark:', error)

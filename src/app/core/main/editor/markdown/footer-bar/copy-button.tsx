@@ -5,7 +5,12 @@ import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { toast } from '@/hooks/use-toast'
 import { serializeMathMarkdown } from '../math-serialize'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface CopyButtonProps {
   editor: Editor
@@ -54,54 +59,38 @@ export function CopyButton({ editor }: CopyButtonProps) {
   }, [editor, copyToClipboard])
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button title="复制">
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          title="复制"
+          className="p-1 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
+        >
           <Copy className="size-3" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
         align="start"
         side="top"
         sideOffset={4}
-        className="min-w-30 p-0"
       >
-        <div className="flex flex-col py-1 bg-background border-border rounded-lg shadow-lg">
-          <button
-            onClick={handleCopyMarkdown}
-            disabled={copying !== null}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[hsl(var(--muted))] transition-colors"
-          >
-            <FileText size={12} />
-            <span>Markdown</span>
-          </button>
-          <button
-            onClick={handleCopyHtml}
-            disabled={copying !== null}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[hsl(var(--muted))] transition-colors"
-          >
-            <FileCode size={12} />
-            <span>HTML</span>
-          </button>
-          <button
-            onClick={handleCopyJson}
-            disabled={copying !== null}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[hsl(var(--muted))] transition-colors"
-          >
-            <FileJson size={12} />
-            <span>JSON</span>
-          </button>
-          <button
-            onClick={handleCopyText}
-            disabled={copying !== null}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[hsl(var(--muted))] transition-colors"
-          >
-            <FileText size={12} />
-            <span>纯文本</span>
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+        <DropdownMenuItem onClick={handleCopyMarkdown} disabled={copying !== null}>
+          <FileText size={12} />
+          <span>Markdown</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyHtml} disabled={copying !== null}>
+          <FileCode size={12} />
+          <span>HTML</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyJson} disabled={copying !== null}>
+          <FileJson size={12} />
+          <span>JSON</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleCopyText} disabled={copying !== null}>
+          <FileText size={12} />
+          <span>纯文本</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

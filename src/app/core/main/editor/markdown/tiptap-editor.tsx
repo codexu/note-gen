@@ -190,9 +190,10 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
+      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .insertContent(processedResult, { contentType: 'html' })
         .run()
 
       // Send completion event
@@ -273,9 +274,10 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
+      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .insertContent(processedResult, { contentType: 'html' })
         .run()
 
       // Send completion event
@@ -356,9 +358,10 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
+      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(accumulatedResult, { contentType: 'markdown' })
+        .insertContent(processedResult, { contentType: 'html' })
         .run()
 
       // Send completion event
@@ -459,9 +462,10 @@ export function TipTapEditor({
 
         // Streaming complete - replace content with proper Markdown parsing
         if (accumulatedResult) {
+          const processedResult = preprocessMathMarkdown(accumulatedResult)
           editor.chain()
             .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-            .insertContent(accumulatedResult, { contentType: 'markdown' })
+            .insertContent(processedResult, { contentType: 'html' })
             .run()
         }
       } catch (error) {
@@ -496,7 +500,8 @@ export function TipTapEditor({
         if (mark && mark.id !== undefined) {
           import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
             const markdown = markToMarkdown(mark)
-            editor?.commands.insertContent(markdown, { contentType: 'markdown' })
+            const processedContent = preprocessMathMarkdown(markdown)
+            editor?.commands.insertContent(processedContent, { contentType: 'html' })
             toast({
               title: '已插入记录',
               description: mark.desc || mark.content?.slice(0, 50) || '记录内容'
@@ -515,8 +520,10 @@ export function TipTapEditor({
       if (editor && !isExternalUpdateRef.current) {
         // Set flag first to prevent circular updates
         isExternalUpdateRef.current = true
+        // Pre-process math syntax before setting content
+        const processedContent = preprocessMathMarkdown(newContent)
         // Set content in editor
-        editor.commands.setContent(newContent, { contentType: 'markdown' })
+        editor.commands.setContent(processedContent, { contentType: 'html' })
         // Directly call onChange with the new content (bypassing onUpdate to avoid timing issues)
         onChange?.(newContent)
       }
@@ -622,8 +629,11 @@ export function TipTapEditor({
       try {
         const { from } = editor.state.selection
 
+        // Pre-process math syntax before inserting
+        const processedContent = preprocessMathMarkdown(content)
+
         // Insert content with markdown parsing
-        editor.chain().focus().insertContent(content, { contentType: 'markdown' }).run()
+        editor.chain().focus().insertContent(processedContent, { contentType: 'html' }).run()
 
         // Calculate new cursor position
         const newPosition = from + content.length
@@ -663,11 +673,14 @@ export function TipTapEditor({
           to = range.to
         }
 
+        // Pre-process math syntax before inserting
+        const processedContent = preprocessMathMarkdown(content)
+
         // Delete old content and insert new content with markdown parsing
         editor.chain()
           .focus()
           .deleteRange({ from, to })
-          .insertContent(content, { contentType: 'markdown' })
+          .insertContent(processedContent, { contentType: 'html' })
           .run()
 
         resolve({

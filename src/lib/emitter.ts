@@ -50,6 +50,7 @@ interface Events {
   };
   'sync-success': unknown;
   'sync-content-updated': { path: string; content: string };
+  'sync-push-completed': { path: string; success: boolean; sha?: string };
   'revertChat': unknown;
   'fileSelected': {
     name: string;

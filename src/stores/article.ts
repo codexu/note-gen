@@ -94,6 +94,7 @@ interface NoteState {
   sortType: SortType
   sortDirection: SortDirection
   initSortSettings: () => Promise<void>
+  initEventListeners: () => void
   setSortType: (sortType: SortType) => Promise<void>
   setSortDirection: (direction: SortDirection) => Promise<void>
   sortFileTree: (tree: DirTree[]) => DirTree[]
@@ -130,6 +131,8 @@ interface NoteState {
   setIsPulling: (pulling: boolean) => void
   setJustPulledFile: (justPulled: boolean) => void
   saveCurrentArticle: (content: string) => Promise<void>
+  // 更新文件 sha 状态（推送成功后调用）
+  updateFileSha: (path: string, sha: string) => void
 
   // 向量计算相关
   vectorCalcTimer: NodeJS.Timeout | null
@@ -171,6 +174,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (sortType === 'created' || sortType === 'modified') {
       await get().loadFileStatsIfNeeded()
     }
+
+    // 初始化事件监听器
+    get().initEventListeners()
+  },
+
+  // 初始化事件监听器
+  initEventListeners: () => {
+    // 监听同步推送完成事件，更新文件树的 sha 状态
+    emitter.on('sync-push-completed', ((event: { path: string; success: boolean; sha?: string }) => {
+      const { path, success, sha } = event
+      if (success && sha) {
+        get().updateFileSha(path, sha)
+      }
+    }) as any)
   },
   setSortType: async (sortType: SortType) => {
     set({ sortType })
@@ -1440,6 +1457,38 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   setJustPulledFile: (justPulled: boolean) => {
     set({ justPulledFile: justPulled })
+  },
+
+  // 更新文件 sha 状态（推送成功后调用）
+  updateFileSha: (path: string, sha: string) => {
+    console.log(`[ArticleStore] updateFileSha 被调用: path=${path}, sha=${sha}`)
+    const cacheTree = cloneDeep(get().fileTree)
+    console.log(`[ArticleStore] 当前 fileTree 共有 ${cacheTree.length} 个顶层项目`)
+
+    // 递归查找并更新文件的 sha
+    const updateShaInTree = (items: DirTree[], depth: number = 0): boolean => {
+      for (const item of items) {
+        const itemPath = computedParentPath(item)
+        console.log(`[ArticleStore] 检查文件: ${itemPath}, isFile: ${item.isFile}, 当前 sha: ${item.sha?.substring(0, 8) || 'empty'}...`)
+        if (itemPath === path && item.isFile) {
+          console.log(`[ArticleStore] 找到匹配文件，更新 sha`)
+          item.sha = sha
+          return true
+        }
+        if (item.children && updateShaInTree(item.children, depth + 1)) {
+          return true
+        }
+      }
+      return false
+    }
+
+    if (updateShaInTree(cacheTree)) {
+      console.log(`[ArticleStore] 文件树已更新`)
+      const sortedTree = get().sortFileTree(cacheTree)
+      set({ fileTree: sortedTree })
+    } else {
+      console.log(`[ArticleStore] 未找到匹配的文件: ${path}`)
+    }
   },
 
   saveCurrentArticle: async (content: string) => {

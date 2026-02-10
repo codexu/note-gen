@@ -274,32 +274,71 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
       kind: 'warning',
     });
     if (answer) {
+      const currentPath = computedParentPath(item)
+      console.log(`[DEBUG handleDeleteSyncFile] 删除远程文件: path=${currentPath}, sha=${item.sha}`)
+
       try {
         // 获取当前主要备份方式
         const store = await Store.load('store.json');
-        const backupMethod = await store.get<'github' | 'gitee' | 'gitlab'>('primaryBackupMethod') || 'github';
-        
-        switch (backupMethod) {
-          case 'github':
-            await deleteFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
-            break;
-          case 'gitee':
-            await deleteGiteeFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
-            break;
-          case 'gitlab':
-            await deleteGitlabFile({ path: activeFilePath, sha: item.sha as string, repo: RepoNames.sync });
-            break;
-        }
-        
-        // 更新文件树
-        await loadFileTree()
+        const backupMethod = await store.get<'github' | 'gitee' | 'gitlab' | 'gitea'>('primaryBackupMethod') || 'github';
 
-        toast({
-          title: t('context.delete'),
-          description: t('context.deleteSyncFileSuccess'),
-        });
+        let success = false
+        switch (backupMethod) {
+          case 'github': {
+            const result = await deleteFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            success = !!result
+            break;
+          }
+          case 'gitee': {
+            const result = await deleteGiteeFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            success = result !== false
+            break;
+          }
+          case 'gitlab': {
+            const result = await deleteGitlabFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            success = !!result
+            break;
+          }
+          case 'gitea': {
+            const { deleteFile: deleteGiteaFile } = await import('@/lib/sync/gitea')
+            const result = await deleteGiteaFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            success = !!result
+            break;
+          }
+        }
+
+        if (success) {
+          // 只更新当前文件的状态，不刷新整个文件树
+          const cacheTree = cloneDeep(fileTree)
+
+          // 递归查找并更新文件状态
+          const updateFileStatus = (items: typeof cacheTree): boolean => {
+            for (const entry of items) {
+              const entryPath = computedParentPath(entry)
+              if (entryPath === currentPath && entry.isFile) {
+                entry.sha = undefined // 清除远程 SHA
+                return true
+              }
+              if (entry.children && updateFileStatus(entry.children)) {
+                return true
+              }
+            }
+            return false
+          }
+
+          if (updateFileStatus(cacheTree)) {
+            setFileTree(cacheTree)
+          }
+
+          toast({
+            title: t('context.delete'),
+            description: t('context.deleteSyncFileSuccess'),
+          });
+        } else {
+          throw new Error('删除操作返回失败')
+        }
       } catch (error) {
-        console.error(error);
+        console.error('[handleDeleteSyncFile] 删除远程文件失败:', error);
         toast({
           title: t('context.delete'),
           description: t('context.deleteSyncFileError'),

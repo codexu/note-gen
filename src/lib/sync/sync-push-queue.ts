@@ -6,6 +6,7 @@ import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
 import { pullRemoteFile } from './auto-sync'
+import { getRemoteFileInfo } from './auto-sync'
 
 interface PushTask {
   path: string
@@ -102,7 +103,7 @@ class SyncPushQueue {
   /**
    * 推送到远程仓库
    */
-  private async pushToRemote(path: string): Promise<boolean> {
+  private async pushToRemote(path: string): Promise<{ success: boolean; sha?: string }> {
     const maxRetries = 3
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -123,7 +124,9 @@ class SyncPushQueue {
           const remoteContent = await pullRemoteFile(path)
           if (remoteContent === content) {
             console.log(`[SyncPushQueue] 本地内容与远程相同，跳过推送: ${path}`)
-            return true
+            // 获取远程 SHA 用于更新文件树
+            const remoteSha = await this.getRemoteSha(path)
+            return { success: true, sha: remoteSha }
           }
         } catch {
           // 远程文件不存在或获取失败，继续推送
@@ -133,12 +136,13 @@ class SyncPushQueue {
         const commitMessage = await this.generateCommitMessage(path, content)
 
         let success = false
+        let uploadedSha: string | undefined
 
         switch (provider) {
           case 'github': {
             const githubModule = await import('@/lib/sync/github') as any
             const fileInfo = await githubModule.getFiles({ path, repo })
-            await githubModule.uploadFile({
+            const result = await githubModule.uploadFile({
               ext: path.split('.').pop() || 'md',
               file: content,
               filename: path.split('/').pop() || path,
@@ -148,12 +152,13 @@ class SyncPushQueue {
               path
             })
             success = true
+            uploadedSha = result?.data?.content?.sha || fileInfo?.sha
             break
           }
           case 'gitee': {
             const giteeModule = await import('@/lib/sync/gitee') as any
             const fileInfo = await giteeModule.getFiles({ path, repo })
-            await giteeModule.uploadFile({
+            const result = await giteeModule.uploadFile({
               ext: path.split('.').pop() || 'md',
               file: content,
               filename: path.split('/').pop() || path,
@@ -163,6 +168,7 @@ class SyncPushQueue {
               path
             })
             success = true
+            uploadedSha = result?.data?.sha || fileInfo?.sha
             break
           }
           case 'gitlab': {
@@ -176,6 +182,8 @@ class SyncPushQueue {
               path
             })
             success = true
+            // GitLab 上传成功后获取最新 SHA
+            uploadedSha = await this.getRemoteSha(path)
             break
           }
           case 'gitea': {
@@ -189,14 +197,16 @@ class SyncPushQueue {
               path
             })
             success = true
+            // Gitea 上传成功后获取最新 SHA
+            uploadedSha = await this.getRemoteSha(path)
             break
           }
         }
 
         if (success) {
-          console.log(`[SyncPushQueue] 推送成功: ${path}`)
-          emitter.emit('sync-push-completed', { path, success: true })
-          return true
+          console.log(`[SyncPushQueue] 推送成功: ${path}, sha: ${uploadedSha || '未获取到'}`)
+          emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
+          return { success: true, sha: uploadedSha }
         }
       } catch (error: any) {
         // 检查是否是 SHA 不匹配错误
@@ -230,12 +240,24 @@ class SyncPushQueue {
         if (attempt === maxRetries || !isShaMismatch) {
           console.error('[SyncPushQueue] 推送失败:', error)
           emitter.emit('sync-push-completed', { path, success: false, error })
-          return false
+          return { success: false }
         }
       }
     }
 
-    return false
+    return { success: false }
+  }
+
+  /**
+   * 获取远程文件的 SHA
+   */
+  private async getRemoteSha(path: string): Promise<string | undefined> {
+    try {
+      const info = await getRemoteFileInfo(path)
+      return info.sha
+    } catch {
+      return undefined
+    }
   }
 
   /**

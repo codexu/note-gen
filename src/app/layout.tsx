@@ -2,23 +2,28 @@
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css";
 import 'react-photo-view/dist/react-photo-view.css';
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { NextIntlProvider } from "@/components/providers/NextIntlProvider";
 import Script from "next/script";
+import { getSyncPushQueue } from "@/lib/sync/sync-push-queue";
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 初始化同步推送队列
+  useEffect(() => {
+    getSyncPushQueue()
+  }, [])
 
   return (
     <>
       <html lang="en" suppressHydrationWarning>
         <head>
           {/* 移动端视口设置 */}
-          <meta 
-            name="viewport" 
+          <meta
+            name="viewport"
             content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, height=device-height"
           />
           <meta name="mobile-web-app-capable" content="yes" />

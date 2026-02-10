@@ -1,9 +1,10 @@
 'use client'
 
-import { ArrowUpCircle } from 'lucide-react'
+import { ArrowUpCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
+import useSettingStore from '@/stores/setting'
 import { Store } from '@tauri-apps/plugin-store'
 import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
@@ -11,12 +12,14 @@ import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
+import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
 import emitter from '@/lib/emitter'
 
-type SyncStatus = 'synced' | 'pull_needed' | 'push_needed' | 'unknown' | 'error'
+type SyncStatus = 'synced' | 'push_needed' | 'unknown' | 'error' | 'syncing'
 
 export function SyncButton() {
-  const { activeFilePath } = useArticleStore()
+  const { activeFilePath, currentArticle } = useArticleStore()
+  const { autoSync, setAutoSync } = useSettingStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
@@ -36,7 +39,8 @@ export function SyncButton() {
     try {
       const result = await compareFileVersions(activeFilePath)
       if (result.action === 'pull') {
-        setSyncStatus('pull_needed')
+        // 有远程更新时不显示图标，避免干扰
+        setSyncStatus('unknown')
       } else if (result.action === 'push') {
         setSyncStatus('push_needed')
       } else {
@@ -54,7 +58,7 @@ export function SyncButton() {
     }
   }, [activeFilePath, checkSyncStatus])
 
-  // 监听同步内容更新事件，拉取后重新检查状态
+  // 监听同步内容更新事件
   useEffect(() => {
     const handleSyncContentUpdated = () => {
       if (activeFilePath) {
@@ -67,9 +71,9 @@ export function SyncButton() {
     }
   }, [activeFilePath, checkSyncStatus])
 
-  // 监听文章保存事件，保存后重新检查同步状态
+  // 监听文章保存事件
   useEffect(() => {
-    const handleArticleSaved = (event: { path: string; content: string }) => {
+    const handleArticleSaved = (event: { path: string }) => {
       if (activeFilePath && event.path === activeFilePath) {
         checkSyncStatus()
       }
@@ -77,6 +81,23 @@ export function SyncButton() {
     emitter.on('article-saved', handleArticleSaved as any)
     return () => {
       emitter.off('article-saved', handleArticleSaved as any)
+    }
+  }, [activeFilePath, checkSyncStatus])
+
+  // 监听推送完成事件
+  useEffect(() => {
+    const handlePushCompleted = (event: { path: string; success: boolean }) => {
+      if (activeFilePath && event.path === activeFilePath) {
+        checkSyncStatus()
+        setIsLoading(false)
+        if (event.success) {
+          toast({ title: '已推送' })
+        }
+      }
+    }
+    emitter.on('sync-push-completed', handlePushCompleted as any)
+    return () => {
+      emitter.off('sync-push-completed', handlePushCompleted as any)
     }
   }, [activeFilePath, checkSyncStatus])
 
@@ -106,14 +127,13 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
       const repo = await getSyncRepoName(provider)
 
-      // 始终从磁盘读取最新内容，确保上传的是本地最新内容
+      // 始终从磁盘读取最新内容
       const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(activeFilePath)
       const content = workspace.isCustom
         ? await readTextFile(pathOptions.path)
         : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
 
-      // Generate commit message using AI
       const commitMessage = await generateCommitMessage(content)
 
       let success = false
@@ -122,7 +142,6 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
         case 'github': {
           const githubModule = await import('@/lib/sync/github') as any
           const fileInfo = await githubModule.getFiles({ path: activeFilePath, repo })
-          // uploadFile 同时支持创建和更新（有 sha 则更新，无则创建）
           await githubModule.uploadFile({
             ext: activeFilePath.split('.').pop() || 'md',
             file: content,
@@ -138,7 +157,6 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
         case 'gitee': {
           const giteeModule = await import('@/lib/sync/gitee') as any
           const fileInfo = await giteeModule.getFiles({ path: activeFilePath, repo })
-          // uploadFile 同时支持创建和更新
           await giteeModule.uploadFile({
             ext: activeFilePath.split('.').pop() || 'md',
             file: content,
@@ -166,55 +184,86 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       }
 
       if (success) {
-        toast({
-          title: '推送成功',
-          description: `提交信息: ${commitMessage}`
-        })
-        checkSyncStatus()
+        emitter.emit('sync-push-completed', { path: activeFilePath, success: true })
       } else {
         throw new Error('File may not exist on remote')
       }
     } catch (error) {
       console.error('Push failed:', error)
+      setIsLoading(false)
       toast({
         title: '推送失败',
         description: '无法推送到远程仓库',
         variant: 'destructive'
       })
-    } finally {
-      setIsLoading(false)
     }
-  }, [activeFilePath, isLoading, checkSyncStatus, generateCommitMessage])
+  }, [activeFilePath, isLoading, generateCommitMessage])
 
-  const getStatusText = () => {
-    switch (syncStatus) {
-      case 'synced': return '已同步'
-      case 'pull_needed': return '有更新'
-      case 'push_needed': return '待推送'
-      case 'error': return '同步错误'
-      default: return '未同步'
+  // Toggle auto-sync
+  const handleToggleAutoSync = async () => {
+    const newValue = autoSync === 'enabled' ? 'disabled' : 'enabled'
+    await setAutoSync(newValue)
+
+    toast({
+      title: newValue === 'enabled' ? '自动推送已开启' : '自动推送已关闭',
+      description: newValue === 'enabled' ? '停止输入 2 秒后自动推送' : '需手动点击推送'
+    })
+
+    if (newValue === 'enabled' && currentArticle?.path) {
+      getSyncPushQueue().addTask(currentArticle.path)
     }
   }
 
-  // 如果没有配置同步，不显示同步按钮
+  // 如果没有配置同步，不显示按钮
   if (!isConfigured || !activeFilePath) return null
 
-  const canPush = syncStatus === 'push_needed' && !isLoading
-
   return (
-    <button
-      onClick={handlePush}
-      disabled={!canPush}
-      className={cn(
-        'p-0.5 rounded transition-colors relative',
-        canPush
-          ? 'hover:bg-blue-500/10 text-blue-500'
-          : 'opacity-40 cursor-not-allowed'
+    <div className="flex items-center gap-1.5">
+      {/* 上传中显示文字 */}
+      {isLoading && (
+        <span className="text-xs text-blue-500 flex items-center gap-1">
+          <Loader2 size={12} className="animate-spin" />
+          上传中
+        </span>
       )}
-      title={canPush ? '推送到远程' : getStatusText()}
-    >
-      <ArrowUpCircle size={14} className={cn(isLoading && 'animate-spin')} />
-    </button>
+
+      {/* 同步按钮 */}
+      <button
+        onClick={handlePush}
+        disabled={isLoading}
+        className={cn(
+          'p-0.5 rounded transition-colors flex items-center gap-1',
+          isLoading
+            ? 'opacity-50 cursor-wait'
+            : syncStatus === 'synced'
+              ? 'text-green-500 hover:bg-green-500/10'
+              : 'text-blue-500 hover:bg-blue-500/10'
+        )}
+        title={isLoading ? '上传中...' : syncStatus === 'synced' ? '已同步' : '点击推送'}
+      >
+        {isLoading ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : syncStatus === 'synced' ? (
+          <CheckCircle size={14} />
+        ) : (
+          <ArrowUpCircle size={14} />
+        )}
+      </button>
+
+      {/* 自动推送开关 */}
+      <button
+        onClick={handleToggleAutoSync}
+        className={cn(
+          'p-0.5 rounded transition-colors text-xs',
+          autoSync === 'enabled'
+            ? 'text-green-500 hover:bg-green-500/10'
+            : 'text-gray-400 hover:bg-gray-500/10'
+        )}
+        title={autoSync === 'enabled' ? '自动推送已开启' : '自动推送已关闭'}
+      >
+        {autoSync === 'enabled' ? '自动' : '手动'}
+      </button>
+    </div>
   )
 }
 

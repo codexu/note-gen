@@ -33,7 +33,7 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   const [name, setName] = useState(item.name)
   const [isComposing, setIsComposing] = useState(false) // 追踪输入法合成状态
   const inputRef = useRef<HTMLInputElement>(null)
-  const { activeFilePath, setActiveFilePath, readArticle, setCurrentArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed } = useArticleStore()
+  const { activeFilePath, setActiveFilePath, readArticle, setCurrentArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed, cleanTabsByDeletedFile } = useArticleStore()
   const setArticleState = useArticleStore.setState
   const { setClipboardItem, clipboardItem, clipboardOperation } = useClipboardStore()
   const { fileManagerTextSize } = useSettingStore()
@@ -254,11 +254,9 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
         } catch (error) {
           console.error(`删除文件 ${item.name} 的向量数据失败:`, error)
         }
-        // 只有删除的是当前选中的文件时，才清空选中状态
-        if (activeFilePath === currentPath) {
-          setActiveFilePath('')
-          setCurrentArticle('')
-        }
+
+        // 清理已被删除的文件对应的 tabs（包括自动选择其他 tab）
+        await cleanTabsByDeletedFile(currentPath)
       } catch (error) {
         console.error('Delete file failed:', error)
         toast({
@@ -604,6 +602,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           } else {
             await remove(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir, recursive: true })
           }
+          // 清理已被删除的原文件夹对应的 tabs
+          await cleanTabsByDeletedFolder(clipboardItem?.path || '')
           setClipboardItem(null, 'none')
         }
       } else {
@@ -631,6 +631,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           } else {
             await remove(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir })
           }
+          // 清理已被删除的原文件对应的 tabs
+          await cleanTabsByDeletedFile(clipboardItem?.path || '')
           // Clear clipboard after cut & paste operation
           setClipboardItem(null, 'none')
         }

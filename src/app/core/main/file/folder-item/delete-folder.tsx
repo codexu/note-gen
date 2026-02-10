@@ -17,11 +17,12 @@ interface DeleteFolderProps {
 
 export function DeleteFolder({ item, shortcut }: DeleteFolderProps) {
   const t = useTranslations('article.file');
-  const { 
+  const {
     activeFilePath,
     setActiveFilePath,
     fileTree,
-    setFileTree
+    setFileTree,
+    cleanTabsByDeletedFolder
   } = useArticleStore();
   const { primaryBackupMethod } = useSettingStore();
 
@@ -52,10 +53,8 @@ export function DeleteFolder({ item, shortcut }: DeleteFolderProps) {
         await remove(pathOptions.path, { baseDir: pathOptions.baseDir, recursive: true });
       }
 
-      // 如果删除的文件夹包含当前活动文件，清除活动文件路径
-      if (activeFilePath && activeFilePath.startsWith(path)) {
-        setActiveFilePath('');
-      }
+      // 清理已被删除的文件夹对应的 tabs（包括自动选择其他 tab）
+      await cleanTabsByDeletedFolder(path)
 
       // 从文件树中移除该文件夹
       const cacheTree = cloneDeep(fileTree);

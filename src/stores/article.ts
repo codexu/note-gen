@@ -73,6 +73,8 @@ interface NoteState {
   setActiveTabId: (id: string) => void
   addTab: (tab: { id: string; path: string; name: string; isFolder: boolean }) => void
   removeTab: (id: string) => void
+  cleanTabsByDeletedFile: (deletedPath: string) => Promise<void>
+  cleanTabsByDeletedFolder: (deletedFolderPath: string) => Promise<void>
   clearTabs: () => void
 
   matchPosition: number | null
@@ -304,6 +306,62 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('openTabs', newTabs)
   },
+
+  // 清理已被删除的文件对应的 tabs（根据路径匹配）
+  cleanTabsByDeletedFile: async (deletedPath: string) => {
+    const currentTabs = get().openTabs
+    const currentActiveTabId = get().activeTabId
+    const newTabs = currentTabs.filter(t => t.path !== deletedPath)
+
+    // 如果有标签页被移除，更新状态
+    if (newTabs.length !== currentTabs.length) {
+      // 如果删除的是当前活动的 tab，自动选择另一个 tab
+      const deletedTab = currentTabs.find(t => t.path === deletedPath)
+      let newActiveTabId = currentActiveTabId
+
+      if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
+        // 选择最后一个 tab
+        newActiveTabId = newTabs[newTabs.length - 1].id
+      } else if (deletedTab && currentActiveTabId === deletedTab.id) {
+        // 没有其他 tab 了
+        newActiveTabId = ''
+      }
+
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, currentArticle: '' })
+      const store = await Store.load('store.json');
+      await store.set('openTabs', newTabs)
+      await store.set('activeTabId', newActiveTabId)
+    }
+  },
+
+  // 清理已被删除的文件夹对应的 tabs（清理该文件夹下所有文件的 tabs）
+  cleanTabsByDeletedFolder: async (deletedFolderPath: string) => {
+    const currentTabs = get().openTabs
+    const currentActiveTabId = get().activeTabId
+    const folderPrefix = deletedFolderPath.endsWith('/') ? deletedFolderPath : deletedFolderPath + '/'
+    const newTabs = currentTabs.filter(t => !t.path.startsWith(folderPrefix))
+
+    // 如果有标签页被移除，更新状态
+    if (newTabs.length !== currentTabs.length) {
+      // 如果删除的是当前活动的 tab，自动选择另一个 tab
+      const deletedTab = currentTabs.find(t => t.path.startsWith(folderPrefix))
+      let newActiveTabId = currentActiveTabId
+
+      if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
+        // 选择最后一个 tab
+        newActiveTabId = newTabs[newTabs.length - 1].id
+      } else if (deletedTab && currentActiveTabId === deletedTab.id) {
+        // 没有其他 tab 了
+        newActiveTabId = ''
+      }
+
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, currentArticle: '' })
+      const store = await Store.load('store.json');
+      await store.set('openTabs', newTabs)
+      await store.set('activeTabId', newActiveTabId)
+    }
+  },
+
   clearTabs: async () => {
     set({ openTabs: [], activeTabId: '' })
     const store = await Store.load('store.json');
@@ -1227,6 +1285,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
           const remoteContent = await pullRemoteFile(actualPath)
           await saveLocalFile(actualPath, remoteContent)
           set({ currentArticle: remoteContent })
+
+          // 拉取成功后，更新文件树的 isLocale 状态为本地文件
+          const cacheTree = cloneDeep(get().fileTree)
+          const fileNode = findFileInTree(cacheTree, actualPath)
+          if (fileNode) {
+            fileNode.isLocale = true
+            set({ fileTree: cacheTree })
+          }
         } catch {
           set({ currentArticle: '' })
         } finally {
@@ -1262,6 +1328,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
           const remoteContent = await pullRemoteFile(actualPath)
           await saveLocalFile(actualPath, remoteContent)
           set({ currentArticle: remoteContent })
+
+          // 拉取成功后，更新文件树的 isLocale 状态为本地文件
+          const cacheTree = cloneDeep(get().fileTree)
+          const fileNode = findFileInTree(cacheTree, actualPath)
+          if (fileNode) {
+            fileNode.isLocale = true
+            set({ fileTree: cacheTree })
+          }
         } catch {
           set({ currentArticle: '' })
         } finally {

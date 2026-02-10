@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { SyncButton } from './sync-button'
 import { PullButton } from './pull-button'
 import { PrimarySyncBadge } from './primary-sync-badge'
+import { HistorySheet } from './history-sheet'
 import { useRouter } from 'next/navigation'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import { useEffect, useState } from 'react'
@@ -29,6 +30,7 @@ export function SyncTools({ editor }: SyncToolsProps) {
     return (
       <>
         <PrimarySyncBadge />
+        <HistorySheet />
         <SyncButton />
         <PullButton editor={editor} />
       </>

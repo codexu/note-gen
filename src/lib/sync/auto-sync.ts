@@ -108,7 +108,7 @@ export async function getLocalFileMetadata(path: string): Promise<FileMetadata> 
 export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; lastModified?: number }> {
   const store = await Store.load('store.json')
   const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
-  
+
   try {
     let file
     switch (primaryBackupMethod) {
@@ -124,9 +124,11 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits[0].commit.committer.date).getTime()
             }
           }
+          // 即使没有 commits，也要返回 sha
+          return { sha: file.sha }
         }
         break
-        
+
       case 'gitee':
         const giteeRepo = await getSyncRepoName('gitee')
         file = await getGiteeFiles({ path, repo: giteeRepo })
@@ -138,9 +140,11 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits[0].commit.committer.date).getTime()
             }
           }
+          // 即使没有 commits，也要返回 sha
+          return { sha: file.sha }
         }
         break
-        
+
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         file = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo })
@@ -152,9 +156,11 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits.data[0].committed_date).getTime()
             }
           }
+          // 即使没有 commits，也要返回 sha
+          return { sha: file.sha }
         }
         break
-        
+
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         file = await getGiteaFileContent({ path, ref: 'main', repo: giteaRepo })
@@ -166,14 +172,16 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits.data[0].commit.committer.date).getTime()
             }
           }
+          // 即使没有 commits，也要返回 sha
+          return { sha: file.sha }
         }
         break
     }
   } catch (error) {
     console.warn(`Failed to get remote info for ${path}:`, error)
   }
-  
-  return {}
+
+  return { sha: undefined, lastModified: undefined }
 }
 
 /**
@@ -215,11 +223,31 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
       reason: '文件已同步'
     }
   }
-  
+
   // 比较修改时间
   const localTime = localMeta.lastModified || 0
   const remoteTime = remoteInfo.lastModified || 0
-  
+
+  // 如果远程时间未知（获取失败），但远程 SHA 存在，说明远程文件存在
+  // 此时应该拉取远程版本以确保数据一致
+  if (remoteTime === 0 && remoteInfo.sha) {
+    return {
+      shouldUpdate: true,
+      action: 'pull',
+      reason: '无法确定远程文件更新时间，拉取远程版本'
+    }
+  }
+
+  // 如果本地时间未知（获取失败），但本地 SHA 存在
+  // 此时应该推送本地版本
+  if (localTime === 0 && localMeta.localSha) {
+    return {
+      shouldUpdate: true,
+      action: 'push',
+      reason: '无法确定本地文件更新时间，推送本地版本'
+    }
+  }
+
   if (remoteTime > localTime) {
     return {
       shouldUpdate: true,
@@ -233,7 +261,7 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
       reason: '本地文件较新，需要推送更新'
     }
   }
-  
+
   // 如果时间相同但 SHA 不同，可能是冲突
   return {
     shouldUpdate: true,

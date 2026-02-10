@@ -477,6 +477,12 @@ export class SyncManager {
       return await this.pullFile(path)
     }
 
+    // 处理冲突情况：远程文件较新但 SHA 不同（可能是同步过的）
+    if (syncResult.action === 'conflict') {
+      // 冲突时默认拉取远程版本
+      return await this.pullFile(path)
+    }
+
     return null
   }
 

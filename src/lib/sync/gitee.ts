@@ -194,30 +194,28 @@ export async function uploadFile(
   }
 }
 
-export async function getFiles({ path, repo }: { path: string, repo: string }) {
+export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) return;
-  
+
   const giteeUsername = await store.get<string>('giteeUsername')
   path = path.replace(/\s/g, '_')
-  
+
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? {
     all: proxyUrl
   } : undefined
-  
-  try {
-    let access_token_param = ``
 
-    if (path.includes('?ref=')) {
-      access_token_param = `&access_token=${accessToken}`
-    } else {
-      access_token_param = `?access_token=${accessToken}`
+  try {
+    // 构建 URL 参数
+    let urlParams = `access_token=${accessToken}`
+    if (ref) {
+      urlParams += `&ref=${ref}`
     }
-    
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${path}${access_token_param}`;
+
+    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${path}?${urlParams}`;
     
     const requestOptions = {
       method: 'GET',

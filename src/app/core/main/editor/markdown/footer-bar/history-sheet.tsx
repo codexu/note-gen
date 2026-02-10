@@ -1,16 +1,20 @@
 'use client'
 
-import { History, ExternalLink } from 'lucide-react'
+import { History, ExternalLink, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
+import { Editor } from '@tiptap/react'
 import { Store } from '@tauri-apps/plugin-store'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
-import { getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
-import { getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
-import { getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
+import { getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, decodeBase64ToString } from '@/lib/sync/github'
+import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, decodeBase64ToString as decodeGiteeBase64 } from '@/lib/sync/gitee'
+import { getFileCommits as getGitlabFileCommits, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
+import { getFileCommits as getGiteaFileCommits, getFileContent as getGiteaFileContent, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
+import { saveLocalFile } from '@/lib/sync/auto-sync'
+import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
+import { preprocessMathMarkdown } from '../math-serialize'
 import {
   Sheet,
   SheetContent,
@@ -29,11 +33,16 @@ interface CommitInfo {
 
 type SyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
-export function HistorySheet() {
+interface HistorySheetProps {
+  editor: Editor
+}
+
+export function HistorySheet({ editor }: HistorySheetProps) {
   const { activeFilePath } = useArticleStore()
   const [isOpen, setIsOpen] = useState(false)
   const [history, setHistory] = useState<CommitInfo[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [restoringSha, setRestoringSha] = useState<string | null>(null)
 
   // Get the sync provider
   const getProvider = useCallback(async (): Promise<SyncProvider | null> => {
@@ -143,6 +152,82 @@ export function HistorySheet() {
     }
   }, [activeFilePath, getProvider])
 
+  // Restore file from specific commit
+  const restoreVersion = useCallback(async (commitSha: string) => {
+    if (!activeFilePath || restoringSha) return
+
+    setRestoringSha(commitSha)
+    try {
+      const provider = await getProvider()
+      if (!provider) return
+
+      const repo = await getSyncRepoName(provider)
+      let content = ''
+
+      switch (provider) {
+        case 'github': {
+          const fileInfo = await getGithubFiles({ path: activeFilePath, repo, ref: commitSha })
+          if (fileInfo?.content) {
+            content = decodeBase64ToString(fileInfo.content)
+          }
+          break
+        }
+        case 'gitee': {
+          const fileInfo = await getGiteeFiles({ path: activeFilePath, repo, ref: commitSha })
+          if (fileInfo?.content) {
+            // Gitee 也是 base64 编码
+            content = decodeGiteeBase64(fileInfo.content)
+          }
+          break
+        }
+        case 'gitlab': {
+          const fileInfo = await getGitlabFileContent({ path: activeFilePath, ref: commitSha, repo })
+          if (fileInfo) {
+            content = fileInfo
+          }
+          break
+        }
+        case 'gitea': {
+          const fileInfo = await getGiteaFileContent({ path: activeFilePath, ref: commitSha, repo })
+          if (fileInfo) {
+            content = fileInfo
+          }
+          break
+        }
+      }
+
+      if (content) {
+        // 保存到本地文件
+        await saveLocalFile(activeFilePath, content)
+
+        // 更新编辑器内容
+        const processedContent = preprocessMathMarkdown(content)
+        editor.commands.clearContent()
+        editor.commands.setContent(processedContent)
+
+        // 更新同步时间和恢复时间
+        await updateFileSyncTime(activeFilePath)
+        await updateFileRestoreTime(activeFilePath)
+
+        toast({
+          title: '已恢复',
+          description: '已从历史版本恢复文件'
+        })
+
+        setIsOpen(false)
+      }
+    } catch (error) {
+      console.error('Failed to restore version:', error)
+      toast({
+        title: '恢复失败',
+        description: '无法从历史版本恢复文件',
+        variant: 'destructive'
+      })
+    } finally {
+      setRestoringSha(null)
+    }
+  }, [activeFilePath, editor, getProvider, restoringSha])
+
   // Load history when sheet opens
   useEffect(() => {
     if (isOpen && activeFilePath) {
@@ -202,9 +287,23 @@ export function HistorySheet() {
                   <p className="text-sm truncate" title={commit.message}>
                     {commit.message}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {commit.author}
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {commit.author}
+                    </p>
+                    <button
+                      onClick={() => restoreVersion(commit.sha)}
+                      disabled={restoringSha === commit.sha}
+                      className={cn(
+                        'text-xs text-blue-500 hover:text-blue-600 inline-flex items-center gap-1',
+                        restoringSha === commit.sha && 'opacity-50'
+                      )}
+                      title="恢复此版本"
+                    >
+                      <RotateCcw size={12} />
+                      {restoringSha === commit.sha ? '恢复中...' : '恢复'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

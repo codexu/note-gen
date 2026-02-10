@@ -30,7 +30,7 @@ export function SyncTools({ editor }: SyncToolsProps) {
     return (
       <div className="flex items-center gap-1">
         <PrimarySyncBadge />
-        <HistorySheet />
+        <HistorySheet editor={editor} />
         <SyncButton />
         <PullButton editor={editor} />
       </div>

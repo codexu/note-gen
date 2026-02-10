@@ -300,8 +300,29 @@ export async function getFileSyncStatus(filePath: string): Promise<{
 export async function updateFileSyncTime(filePath: string): Promise<void> {
   const store = await Store.load('store.json')
   const syncTimes = await store.get<Record<string, number>>('lastSyncTimes') || {}
-  
+
   syncTimes[filePath] = Date.now()
   await store.set('lastSyncTimes', syncTimes)
+  await store.save()
+}
+
+/**
+ * 获取文件的恢复时间
+ */
+export async function getFileRestoreTime(filePath: string): Promise<number | undefined> {
+  const store = await Store.load('store.json')
+  const restoreTimes = await store.get<Record<string, number>>('lastRestoreTimes') || {}
+  return restoreTimes[filePath]
+}
+
+/**
+ * 更新文件的恢复时间
+ */
+export async function updateFileRestoreTime(filePath: string): Promise<void> {
+  const store = await Store.load('store.json')
+  const restoreTimes = await store.get<Record<string, number>>('lastRestoreTimes') || {}
+
+  restoreTimes[filePath] = Date.now()
+  await store.set('lastRestoreTimes', restoreTimes)
   await store.save()
 }

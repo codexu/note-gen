@@ -69,9 +69,9 @@ export function PullButton({ editor }: PullButtonProps) {
             description: '冲突已解决，使用远程版本覆盖本地'
           })
 
-          // Update editor content
+          // Update editor content - 使用 contentType: 'markdown' 让扩展解析
           const processedContent = preprocessMathMarkdown(content)
-          editor.commands.setContent(processedContent, { contentType: 'html' })
+          editor.commands.setContent(processedContent, { contentType: 'markdown' })
         }
         return
       }
@@ -87,9 +87,9 @@ export function PullButton({ editor }: PullButtonProps) {
           description: '已从远程仓库拉取最新内容'
         })
 
-        // Update editor content
+        // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析 Markdown
         const processedContent = preprocessMathMarkdown(content)
-        editor.commands.setContent(processedContent, { contentType: 'html' })
+        editor.commands.setContent(processedContent, { contentType: 'markdown' })
 
         // 更新同步时间，避免重复检测
         await updateFileSyncTime(activeFilePath)
@@ -142,9 +142,9 @@ export function PullButton({ editor }: PullButtonProps) {
         description: '已从远程仓库拉取最新内容'
       })
 
-      // Update editor content - use HTML content type for TipTap
+      // Update editor content - 使用 contentType: 'markdown' 让扩展解析
       const processedContent = preprocessMathMarkdown(content)
-      editor.commands.setContent(processedContent, { contentType: 'html' })
+      editor.commands.setContent(processedContent, { contentType: 'markdown' })
 
       setHasUpdate(false)
     } catch (error) {

@@ -426,7 +426,8 @@ export function TipTapEditor({
         newLength: newContent.length
       })
       isExternalUpdateRef.current = true
-      editor.commands.setContent(newContent, { contentType: 'html' })
+      // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
+      editor.commands.setContent(newContent, { contentType: 'markdown' })
       // Reset the flag after a short delay
       setTimeout(() => {
         isExternalUpdateRef.current = false
@@ -443,7 +444,8 @@ export function TipTapEditor({
       console.log('[DEBUG TipTapEditor] 收到同步内容更新:', { path: event.path })
       const processedContent = preprocessMathMarkdown(event.content)
       isExternalUpdateRef.current = true
-      editor.commands.setContent(processedContent, { contentType: 'html' })
+      // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
+      editor.commands.setContent(processedContent, { contentType: 'markdown' })
       // Reset the flag after a short delay
       setTimeout(() => {
         isExternalUpdateRef.current = false

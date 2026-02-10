@@ -454,8 +454,9 @@ export class SyncManager {
 
   /**
    * 打开时触发拉取
+   * 返回 { updated: true, content: string } 如果拉取了新内容
    */
-  async onOpen(path: string): Promise<SyncResult | null> {
+  async onOpen(path: string): Promise<{ updated: boolean; content?: string } | null> {
     if (!this.config.autoSync || !this.config.autoPullOnOpen) {
       return null
     }
@@ -469,13 +470,33 @@ export class SyncManager {
     const syncResult = await compareFileVersions(path)
 
     if (syncResult.action === 'pull') {
-      return await this.pullFile(path)
+      const result = await this.pullFile(path)
+      if (result.success && result.action === 'pull') {
+        // 读取拉取的内容并返回
+        try {
+          const { pullRemoteFile } = await import('./auto-sync')
+          const content = await pullRemoteFile(path)
+          return { updated: true, content }
+        } catch {
+          return { updated: true }
+        }
+      }
+      return { updated: result.success }
     }
 
     // 处理冲突情况：远程文件较新但 SHA 不同（可能是同步过的）
     if (syncResult.action === 'conflict') {
-      // 冲突时默认拉取远程版本
-      return await this.pullFile(path)
+      const result = await this.pullFile(path)
+      if (result.success && result.action === 'pull') {
+        try {
+          const { pullRemoteFile } = await import('./auto-sync')
+          const content = await pullRemoteFile(path)
+          return { updated: true, content }
+        } catch {
+          return { updated: true }
+        }
+      }
+      return { updated: result.success }
     }
 
     return null

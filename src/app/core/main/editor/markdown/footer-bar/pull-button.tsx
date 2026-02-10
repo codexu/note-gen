@@ -8,6 +8,7 @@ import useArticleStore from '@/stores/article'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
+import { preprocessMathMarkdown } from '../math-serialize'
 
 interface PullButtonProps {
   editor: Editor
@@ -53,8 +54,9 @@ export function PullButton({ editor }: PullButtonProps) {
         description: '已从远程仓库拉取最新内容'
       })
 
-      // Update editor content
-      editor.commands.setContent(content, { contentType: 'markdown' })
+      // Update editor content - use HTML content type for TipTap
+      const processedContent = preprocessMathMarkdown(content)
+      editor.commands.setContent(processedContent, { contentType: 'html' })
 
       setHasUpdate(false)
     } catch (error) {

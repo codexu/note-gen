@@ -27,8 +27,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const isCreatingFileRef = useRef(false)
   // Track loaded state per file path
   const loadedPathsRef = useRef<Set<string>>(new Set())
-  // Force re-render when content needs update
-  const contentVersionRef = useRef(0)
 
   // Load content from cache or disk - only on first mount per file
   useEffect(() => {
@@ -94,7 +92,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         tabContentsRef.current[filePath] = currentArticle
       }
       setIsLoading(false)
-      contentVersionRef.current++
     }
   }, [currentArticle, filePath, tabContentsRef, initialContent])
 

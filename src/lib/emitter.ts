@@ -49,6 +49,7 @@ interface Events {
     deletions?: number;
   };
   'sync-success': unknown;
+  'sync-content-updated': { path: string; content: string };
   'revertChat': unknown;
   'fileSelected': {
     name: string;

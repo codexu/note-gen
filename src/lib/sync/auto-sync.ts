@@ -16,6 +16,7 @@ import {
 } from './conflict-resolution'
 import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
+import emitter from '@/lib/emitter'
 
 export interface FileMetadata {
   path: string
@@ -612,13 +613,19 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       
       await saveLocalFile(actualPath, finalContent)
       await updateFileSyncTime(actualPath)
-      
+
+      // 通知编辑器内容已更新
+      emitter.emit('sync-content-updated', { path: actualPath, content: finalContent })
+
       return finalContent
     } else {
       // 无冲突，直接保存
       await saveLocalFile(actualPath, remoteContent)
       await updateFileSyncTime(actualPath)
-      
+
+      // 通知编辑器内容已更新
+      emitter.emit('sync-content-updated', { path: actualPath, content: remoteContent })
+
       return remoteContent
     }
   } catch {

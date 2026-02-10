@@ -39,6 +39,7 @@ import { fetchAiPolishStream, fetchAiConciseStream, fetchAiExpandStream } from '
 import { AISuggestion } from './ai-suggestion'
 import { AISuggestionFloating } from './ai-suggestion-floating'
 import emitter from '@/lib/emitter'
+import type { Events } from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
 import './style.css'
 
@@ -63,6 +64,15 @@ export function TipTapEditor({
 }: TipTapEditorProps) {
   const isInitializedRef = useRef(false)
   const isExternalUpdateRef = useRef(false)
+  const prevFilePathRef = useRef<string>(activeFilePath)
+
+  // 当文件路径变化时，重置初始化状态，避免旧文件内容覆盖新文件
+  useEffect(() => {
+    if (prevFilePathRef.current !== activeFilePath && activeFilePath) {
+      isInitializedRef.current = false
+      prevFilePathRef.current = activeFilePath
+    }
+  }, [activeFilePath])
 
   // Math dialog state
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
@@ -423,6 +433,28 @@ export function TipTapEditor({
       }, 100)
     }
   }, [initialContent, editor])
+
+  // Handle sync content updated from auto-sync
+  useEffect(() => {
+    const handleSyncContentUpdated = (event: Events['sync-content-updated']) => {
+      // Only update if this is the active file
+      if (!editor || !event || event.path !== activeFilePath) return
+
+      console.log('[DEBUG TipTapEditor] 收到同步内容更新:', { path: event.path })
+      const processedContent = preprocessMathMarkdown(event.content)
+      isExternalUpdateRef.current = true
+      editor.commands.setContent(processedContent, { contentType: 'html' })
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        isExternalUpdateRef.current = false
+      }, 100)
+    }
+
+    emitter.on('sync-content-updated', handleSyncContentUpdated)
+    return () => {
+      emitter.off('sync-content-updated', handleSyncContentUpdated)
+    }
+  }, [editor, activeFilePath])
 
   // Set editable state
   useEffect(() => {

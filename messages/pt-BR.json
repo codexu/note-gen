@@ -1883,7 +1883,8 @@
   "article": {
     "sync": {
       "syncingRemote": "Buscando arquivo remoto...",
-      "syncComplete": "Sincronização Concluída"
+      "syncComplete": "Sincronização Concluída",
+      "pullingRemote": "Obtendo conteúdo mais recente do servidor remoto..."
     },
     "syncConfirm": {
       "title": "Atualização de Arquivo Remoto Detectada",

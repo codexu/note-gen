@@ -62,6 +62,10 @@ interface NoteState {
   activeFilePath: string
   setActiveFilePath: (name: string) => void
 
+  // 当前正在读取的文件路径，用于避免竞态条件
+  readFilePath: string
+  setReadFilePath: (path: string) => void
+
   // Tabs for multi-file editing
   openTabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>
   setOpenTabs: (tabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>) => void
@@ -1161,9 +1165,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   currentArticle: '',
+  readFilePath: '',
   isPulling: false, // 新增：拉取状态
+
+  setReadFilePath: (path: string) => {
+    set({ readFilePath: path })
+  },
+
   readArticle: async (path: string, sha?: string, autoSync = true) => {
     get().setLoading(true)
+
+    // 设置当前正在读取的文件路径，用于避免竞态条件
+    set({ readFilePath: path })
 
     // 处理文件名兼容性问题
     let actualPath = path
@@ -1278,12 +1291,24 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     // 异步检查远程更新（使用新的 SyncManager）
+    // 只有当当前读取的文件路径仍然是 actualPath 时才执行同步
     if (autoSync && await hasNetworkConnection()) {
       try {
-        await syncOnOpen(actualPath)
+        // 在执行同步前检查路径是否仍然匹配
+        const currentReadPath = get().readFilePath
+        if (currentReadPath === actualPath) {
+          const result = await syncOnOpen(actualPath)
+          if (result?.updated && result.content) {
+            // 拉取了新内容，更新 currentArticle
+            set({ currentArticle: result.content })
+          }
+        }
       } catch {
       }
     }
+
+    // 读取完成后清除 readFilePath
+    set({ readFilePath: '' })
   },
 
   // 向量计算相关状态

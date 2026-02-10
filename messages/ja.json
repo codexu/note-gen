@@ -1973,7 +1973,8 @@
   "article": {
     "sync": {
       "syncingRemote": "リモートファイルをプル中...",
-      "syncComplete": "同期完了"
+      "syncComplete": "同期完了",
+      "pullingRemote": "リモートサーバーから最新コンテンツを取得中..."
     },
     "syncConfirm": {
       "title": "リモートファイルの更新を検出",

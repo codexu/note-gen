@@ -1835,7 +1835,8 @@
   "article": {
     "sync": {
       "syncingRemote": "Pulling remote file...",
-      "syncComplete": "Sync Complete"
+      "syncComplete": "Sync Complete",
+      "pullingRemote": "Fetching latest content from remote server..."
     },
     "syncConfirm": {
       "title": "Remote File Update Detected",

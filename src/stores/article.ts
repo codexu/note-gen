@@ -266,7 +266,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   activeFilePath: '',
   setActiveFilePath: async (path: string) => {
-    set({ activeFilePath: path })
+    // 切换文件时，先清空 currentArticle，避免内容覆盖
+    set({ currentArticle: '', activeFilePath: path })
     const store = await Store.load('store.json');
     await store.set('activeFilePath', path)
   },
@@ -1332,6 +1333,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
   saveCurrentArticle: async (content: string) => {
     const path = get().activeFilePath
     if (path && content !== undefined && content !== null) {
+      // 检查内容是否真的变化了（避免不必要的保存和同步）
+      const currentContent = get().currentArticle
+      if (currentContent === content) {
+        // 内容没有变化，不需要保存和同步
+        return
+      }
+
       const workspace = await getWorkspacePath()
       
       // 检查文件是否存在（根据是否是自定义工作区）

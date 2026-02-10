@@ -62,7 +62,7 @@ export class SyncManager {
     lastSyncSha: '',
     syncStatus: 'unknown'
   }
-  private syncQueue: Map<string, { content?: string; timestamp: number }> = new Map()
+  private syncQueue: Map<string, { timestamp: number }> = new Map()
   private throttleTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor() {
@@ -420,7 +420,7 @@ export class SyncManager {
   /**
    * 保存时触发推送（带节流）
    */
-  async onSave(path: string, content: string): Promise<void> {
+  async onSave(path: string, _content: string): Promise<void> {
     if (!this.config.autoSync || !this.config.autoPushOnSave) {
       return
     }
@@ -430,10 +430,12 @@ export class SyncManager {
       return
     }
 
+    // 标记该路径需要同步（内容从磁盘读取）
+    this.syncQueue.set(path, { timestamp: Date.now() })
+
     // 如果正在同步，标记待同步
     if (this.state.isSyncing) {
       this.state.pendingSync = true
-      this.syncQueue.set(path, { content, timestamp: Date.now() })
       return
     }
 
@@ -443,11 +445,6 @@ export class SyncManager {
     }
 
     this.throttleTimer = setTimeout(async () => {
-      // 更新队列中的内容
-      if (content) {
-        this.syncQueue.set(path, { content, timestamp: Date.now() })
-      }
-
       await this.processSyncQueue()
     }, 2000)
   }
@@ -510,16 +507,20 @@ export class SyncManager {
 
     try {
       for (const [path, data] of this.syncQueue) {
-        const currentSha = await this.getLocalSha(path)
-        const queuedSha = data.content ? await this.calculateSha(data.content) : null
+        // 始终从磁盘读取最新内容，确保上传的是本地最新内容
+        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+        const { readTextFile } = await import('@tauri-apps/plugin-fs')
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(path)
 
-        // 如果内容没变，跳过
-        if (currentSha === queuedSha) {
-          this.syncQueue.delete(path)
-          continue
+        let content: string
+        if (workspace.isCustom) {
+          content = await readTextFile(pathOptions.path)
+        } else {
+          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
 
-        const result = await this.pushFile(path, data.content || '')
+        const result = await this.pushFile(path, content)
         if (result.success) {
           this.syncQueue.delete(path)
         }

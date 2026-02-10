@@ -311,6 +311,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   cleanTabsByDeletedFile: async (deletedPath: string) => {
     const currentTabs = get().openTabs
     const currentActiveTabId = get().activeTabId
+    const currentActiveFilePath = get().activeFilePath
     const newTabs = currentTabs.filter(t => t.path !== deletedPath)
 
     // 如果有标签页被移除，更新状态
@@ -318,19 +319,24 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 如果删除的是当前活动的 tab，自动选择另一个 tab
       const deletedTab = currentTabs.find(t => t.path === deletedPath)
       let newActiveTabId = currentActiveTabId
+      let newActiveFilePath = currentActiveFilePath
 
       if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
         // 选择最后一个 tab
-        newActiveTabId = newTabs[newTabs.length - 1].id
+        const targetTab = newTabs[newTabs.length - 1]
+        newActiveTabId = targetTab.id
+        newActiveFilePath = targetTab.path
       } else if (deletedTab && currentActiveTabId === deletedTab.id) {
         // 没有其他 tab 了
         newActiveTabId = ''
+        newActiveFilePath = ''
       }
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, currentArticle: '' })
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
       const store = await Store.load('store.json');
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
+      await store.set('activeFilePath', newActiveFilePath)
     }
   },
 
@@ -338,6 +344,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   cleanTabsByDeletedFolder: async (deletedFolderPath: string) => {
     const currentTabs = get().openTabs
     const currentActiveTabId = get().activeTabId
+    const currentActiveFilePath = get().activeFilePath
     const folderPrefix = deletedFolderPath.endsWith('/') ? deletedFolderPath : deletedFolderPath + '/'
     const newTabs = currentTabs.filter(t => !t.path.startsWith(folderPrefix))
 
@@ -346,19 +353,24 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 如果删除的是当前活动的 tab，自动选择另一个 tab
       const deletedTab = currentTabs.find(t => t.path.startsWith(folderPrefix))
       let newActiveTabId = currentActiveTabId
+      let newActiveFilePath = currentActiveFilePath
 
       if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
         // 选择最后一个 tab
-        newActiveTabId = newTabs[newTabs.length - 1].id
+        const targetTab = newTabs[newTabs.length - 1]
+        newActiveTabId = targetTab.id
+        newActiveFilePath = targetTab.path
       } else if (deletedTab && currentActiveTabId === deletedTab.id) {
         // 没有其他 tab 了
         newActiveTabId = ''
+        newActiveFilePath = ''
       }
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, currentArticle: '' })
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
       const store = await Store.load('store.json');
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
+      await store.set('activeFilePath', newActiveFilePath)
     }
   },
 
@@ -1245,6 +1257,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       await get().setActiveFilePath(actualPath)
     }
 
+    // 获取当前活动文件路径（用于竞态检查）
+    const currentActivePath = get().activeFilePath
+
     // 优先加载本地内容（快速响应）
     let localContent = ''
 
@@ -1367,13 +1382,16 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
     // 异步检查远程更新（使用新的 SyncManager）
     // 只有当当前读取的文件路径仍然是 actualPath 时才执行同步
+    // 同时检查 activeFilePath 是否仍然匹配，防止竞态条件
     if (autoSync && await hasNetworkConnection()) {
       try {
         // 在执行同步前检查路径是否仍然匹配
         const currentReadPath = get().readFilePath
-        if (currentReadPath === actualPath) {
+        const currentActivePath = get().activeFilePath
+        if (currentReadPath === actualPath && currentActivePath === actualPath) {
           const result = await syncOnOpen(actualPath)
-          if (result?.updated && result.content) {
+          // 在设置 content 前再次确认路径没有变化
+          if (result?.updated && result.content && get().activeFilePath === actualPath) {
             // 拉取了新内容，更新 currentArticle
             set({ currentArticle: result.content })
           }
@@ -1382,8 +1400,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
 
-    // 读取完成后清除 readFilePath
-    set({ readFilePath: '' })
+    // 读取完成后清除 readFilePath（仅当没有其他 readArticle 在执行时）
+    // 通过检查 activeFilePath 是否变化来判断
+    if (get().activeFilePath === actualPath) {
+      set({ readFilePath: '' })
+    }
   },
 
   // 向量计算相关状态

@@ -16,7 +16,7 @@ import emitter from '@/lib/emitter'
 type SyncStatus = 'synced' | 'pull_needed' | 'push_needed' | 'unknown' | 'error'
 
 export function SyncButton() {
-  const { activeFilePath, currentArticle } = useArticleStore()
+  const { activeFilePath } = useArticleStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
@@ -106,20 +106,12 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
       const repo = await getSyncRepoName(provider)
 
-      // 优先使用 store 中的当前内容（如果存在且与文件不同步）
-      // 这样可以推送未保存到磁盘的最新内容
-      let content = currentArticle
-
-      // 如果 store 为空或太短，尝试从文件读取
-      if (!content || content.length < 10) {
-        const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(activeFilePath)
-        if (workspace.isCustom) {
-          content = await readTextFile(pathOptions.path)
-        } else {
-          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-      }
+      // 始终从磁盘读取最新内容，确保上传的是本地最新内容
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(activeFilePath)
+      const content = workspace.isCustom
+        ? await readTextFile(pathOptions.path)
+        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
 
       // Generate commit message using AI
       const commitMessage = await generateCommitMessage(content)
@@ -192,7 +184,7 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     } finally {
       setIsLoading(false)
     }
-  }, [activeFilePath, currentArticle, isLoading, checkSyncStatus, generateCommitMessage])
+  }, [activeFilePath, isLoading, checkSyncStatus, generateCommitMessage])
 
   const getStatusText = () => {
     switch (syncStatus) {

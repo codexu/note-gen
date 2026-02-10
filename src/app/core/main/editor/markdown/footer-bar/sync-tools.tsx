@@ -28,12 +28,12 @@ export function SyncTools({ editor }: SyncToolsProps) {
 
   if (configured) {
     return (
-      <>
+      <div className="flex items-center gap-1">
         <PrimarySyncBadge />
         <HistorySheet />
         <SyncButton />
         <PullButton editor={editor} />
-      </>
+      </div>
     )
   }
 

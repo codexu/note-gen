@@ -182,11 +182,13 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
 
 /**
  * 比较本地和远程文件版本
+ * 注意：由于本地使用 SHA-256 而远程使用 Git blob SHA（SHA-1），两种算法不同
+ * 因此不直接比较 SHA，而是依赖修改时间进行比较
  */
 export async function compareFileVersions(path: string): Promise<SyncResult> {
   const localMeta = await getLocalFileMetadata(path)
   const remoteInfo = await getRemoteFileInfo(path)
-  
+
   // 如果本地文件不存在
   if (!localMeta.localSha) {
     if (remoteInfo.sha) {
@@ -198,7 +200,7 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
     }
     return { shouldUpdate: false, action: 'none' }
   }
-  
+
   // 如果远程文件不存在，但本地文件存在
   if (!remoteInfo.sha) {
     if (localMeta.localSha) {
@@ -210,22 +212,21 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
     }
     return { shouldUpdate: false, action: 'none' }
   }
-  
-  // 比较 SHA
-  if (localMeta.localSha === remoteInfo.sha) {
-    return {
-      shouldUpdate: false,
-      action: 'none',
-      reason: '文件已同步'
-    }
-  }
 
-  // 比较修改时间
+  // 比较修改时间（不直接比较 SHA，因为算法不同）
   const localTime = localMeta.lastModified || 0
   const remoteTime = remoteInfo.lastModified || 0
 
-  // 如果远程时间未知（获取失败），但远程 SHA 存在，说明远程文件存在
-  // 此时应该拉取远程版本以确保数据一致
+  // 如果两个时间都未知，且两边都有内容，返回冲突（需要用户判断）
+  if (localTime === 0 && remoteTime === 0) {
+    return {
+      shouldUpdate: true,
+      action: 'conflict',
+      reason: '无法确定文件更新时间，需要手动处理'
+    }
+  }
+
+  // 如果远程时间未知（获取失败），但远程 SHA 存在
   if (remoteTime === 0 && remoteInfo.sha) {
     return {
       shouldUpdate: true,
@@ -235,7 +236,6 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
   }
 
   // 如果本地时间未知（获取失败），但本地 SHA 存在
-  // 此时应该推送本地版本
   if (localTime === 0 && localMeta.localSha) {
     return {
       shouldUpdate: true,
@@ -258,11 +258,11 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
     }
   }
 
-  // 如果时间相同但 SHA 不同，可能是冲突
+  // 如果时间相同，认为已同步（避免频繁冲突）
   return {
-    shouldUpdate: true,
-    action: 'conflict',
-    reason: '文件内容不同但修改时间相同，可能存在冲突'
+    shouldUpdate: false,
+    action: 'none',
+    reason: '文件修改时间相同，认为已同步'
   }
 }
 

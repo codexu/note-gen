@@ -525,9 +525,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
                 children: file.isDirectory ? [] : undefined
               })) as DirTree[]
           }
-        } catch (error) {
+        } catch {
           // 读取失败，使用空数组
-          console.warn(`Failed to read local directory during init: ${fullPath}`, error)
         }
       }
       
@@ -697,17 +696,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
           });
           set({ fileTree: dirs })
         }
-      } catch (error) {
-        console.error(`Failed to load remote files for path: ${path}`, error)
+      } catch {
       }
     });
-    
+
     // 等待所有远程文件加载完成
     await Promise.all(loadPromises)
-    } catch (error) {
-      console.error('Failed to load remote sync files:', error)
-    }
-  },
+  } catch {
+  }
+},
   // 加载文件夹内部的本地和远程文件（按需加载）
   loadCollapsibleFiles: async (fullpath: string) => {
     const cacheTree: DirTree[] = get().fileTree
@@ -806,12 +803,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
               children: file.isDirectory ? [] : undefined
             })) as DirTree[]
         }
-      } catch (error) {
+      } catch {
         // 读取失败，使用空数组
-        console.warn(`Failed to read local directory: ${fullFolderPath}`, error)
       }
     }
-    
+
     // 设置子节点（可能为空）
     currentFolder.children = children
     set({ fileTree: cacheTree })
@@ -906,9 +902,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
           set({ fileTree: cacheTree })
         }
       }
-    } catch (error) {
-      console.error(`Failed to load remote files for folder: ${fullpath}`, error)
-    } finally {
+    } catch {
       // 确保加载状态被移除
       const cacheTree = get().fileTree
       const currentFolder = getCurrentFolder(fullpath, cacheTree)
@@ -937,8 +931,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     try {
       cacheTree.unshift(node as DirTree)
       set({ fileTree: cacheTree })
-    } catch (error) {
-      console.error('newFolder error', error)
+    } catch {
     }
   },
   newFile: async () => {
@@ -1038,8 +1031,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       currentFolder?.children?.unshift(node as DirTree)
       set({ fileTree: cacheTree })
       get().setActiveFilePath(fullPath)
-    } catch (error) {
-      console.error('newFileOnFolder error', error)
+    } catch {
     }
   },
   newFolderInFolder: async (path: string) => {
@@ -1069,8 +1061,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     try {
       currentFolder?.children?.unshift(node as DirTree)
       set({ fileTree: cacheTree })
-    } catch (error) {
-      console.error('newFolderInFolder error', error)
+    } catch {
     }
   },
 
@@ -1172,14 +1163,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
   currentArticle: '',
   isPulling: false, // 新增：拉取状态
   readArticle: async (path: string, sha?: string, autoSync = true) => {
-    console.log('[DEBUG readArticle] 被调用:', { path, sha, autoSync })
     get().setLoading(true)
 
     // 处理文件名兼容性问题
     let actualPath = path
     if (hasInvalidFileNameChars(path)) {
       actualPath = sanitizeFilePath(path)
-      console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
       // 更新活动文件路径为清理后的路径
       await get().setActiveFilePath(actualPath)
     }
@@ -1211,35 +1200,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
 
-      console.log('[DEBUG readArticle] 本地文件读取成功:', {
-        path: actualPath,
-        contentLength: localContent.length
-      })
-
       // 检查是否是远程文件且本地内容为空
       const fileTree = get().fileTree
       const fileInfo = findFileInTree(fileTree, actualPath)
       const isRemoteFile = fileInfo && !fileInfo.isLocale
 
-      console.log('[DEBUG readArticle] 文件信息:', {
-        path: actualPath,
-        isRemoteFile,
-        isLocale: fileInfo?.isLocale,
-        hasSha: !!fileInfo?.sha
-      })
-
       // 如果是远程文件且本地内容为空，立即拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
-        console.log('[DEBUG readArticle] 远程文件本地为空，触发拉取')
         get().setIsPulling(true)
 
         try {
           const remoteContent = await pullRemoteFile(actualPath)
           await saveLocalFile(actualPath, remoteContent)
           set({ currentArticle: remoteContent })
-          console.log('[DEBUG readArticle] 远程文件拉取成功，长度:', remoteContent.length)
-        } catch (pullError) {
-          console.error('[DEBUG readArticle] 拉取远程文件失败:', pullError)
+        } catch {
           set({ currentArticle: '' })
         } finally {
           get().setIsPulling(false)
@@ -1257,16 +1231,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       get().checkFileVectorIndexed(filename)
     } catch (error) {
       // 本地文件不存在，检查是否是远程文件
-      console.log('[DEBUG readArticle] 本地文件不存在:', { path: actualPath, error: error instanceof Error ? error.message : error })
 
       // 先查找文件信息（可能 fileTree 还没加载完成）
       const fileInfo = findFileInTree(get().fileTree, actualPath)
-      console.log('[DEBUG readArticle] 文件信息:', {
-        path: actualPath,
-        fileInfoExists: !!fileInfo,
-        isLocale: fileInfo?.isLocale,
-        hasSha: !!fileInfo?.sha
-      })
 
       // 检查是否是"文件不存在"错误（兼容不同平台的大小写）
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -1274,27 +1241,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
                             errorMsg.toLowerCase().includes('not found') ||
                             errorMsg.toLowerCase().includes('系统找不到指定的路径')
 
-      console.log('[DEBUG readArticle] 错误检查:', {
-        errorMsg: errorMsg.substring(0, 100),
-        isFileNotFound,
-        errorType: error instanceof Error ? 'Error' : typeof error,
-        fileInfoExists: !!fileInfo,
-        isLocale: fileInfo?.isLocale,
-        shouldPull: isFileNotFound && fileInfo && !fileInfo.isLocale
-      })
-
       if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
-        // 远程文件且本地不存在，立即开始拉取
-        console.log('[DEBUG readArticle] 检测到远程文件，触发拉取')
         get().setIsPulling(true)
 
         try {
           const remoteContent = await pullRemoteFile(actualPath)
           await saveLocalFile(actualPath, remoteContent)
           set({ currentArticle: remoteContent })
-          console.log('[DEBUG readArticle] 远程文件拉取成功，长度:', remoteContent.length)
-        } catch (pullError) {
-          console.error('[DEBUG readArticle] 拉取远程文件失败:', pullError)
+        } catch {
           set({ currentArticle: '' })
         } finally {
           get().setIsPulling(false)
@@ -1302,7 +1256,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
       } else if (isFileNotFound) {
         // 本地文件，创建空白文件
-        console.log('[DEBUG readArticle] 本地文件不存在，创建空白文件')
         await ensureDirectoryExists(actualPath)
         const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(actualPath)
@@ -1315,24 +1268,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
           set({ currentArticle: '' })
           get().setLoading(false)
-        } catch (createError) {
-          console.error('Failed to create empty file:', createError)
-          set({ currentArticle: '' })
+        } catch {
           get().setLoading(false)
         }
       } else {
-        console.warn(`[DEBUG readArticle] Unexpected error reading local file ${actualPath}:`, error)
         set({ currentArticle: '' })
         get().setLoading(false)
       }
     }
-    
+
     // 异步检查远程更新（使用新的 SyncManager）
     if (autoSync && await hasNetworkConnection()) {
       try {
         await syncOnOpen(actualPath)
-      } catch (error) {
-        console.warn('Async sync check failed:', error)
+      } catch {
       }
     }
   },
@@ -1350,11 +1299,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
   setCurrentArticle: (content: string) => {
     set({ currentArticle: content })
   },
-  
+
   setIsPulling: (pulling: boolean) => {
     set({ isPulling: pulling })
   },
-  
+
   saveCurrentArticle: async (content: string) => {
     const path = get().activeFilePath
     if (path && content !== undefined && content !== null) {
@@ -1541,9 +1490,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         vectorCalcProgressInterval: null,
         vectorCalcProgress: 0
       })
-    } catch (error) {
-      console.error('执行向量计算失败:', error)
-    } finally {
+    } catch {
       set({ isVectorCalculating: false })
     }
   },
@@ -1614,8 +1561,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
 
       set({ vectorIndexedFiles: vectorIndexedMap })
-    } catch (error) {
-      console.error('初始化向量索引状态失败:', error)
+    } catch {
     }
   },
 

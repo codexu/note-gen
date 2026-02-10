@@ -128,7 +128,8 @@ export function TipTapEditor({
     onUpdate: ({ editor }) => {
       // Only trigger onChange if this is NOT an external update
       if (!isExternalUpdateRef.current) {
-        const markdown = serializeMathMarkdown(editor.getHTML())
+        // Use getMarkdown to get proper markdown output, fallback to serializeHTML
+        const markdown = editor.getMarkdown() || serializeMathMarkdown(editor.getHTML())
         onChange?.(markdown)
       }
     },

@@ -44,7 +44,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
     // Check store content as fallback (set by readArticle for remote files)
     if (currentArticle && currentArticle.length > 0) {
-      console.log('[DEBUG MdEditor] 从 store 读取内容，路径:', filePath)
       setInitialContent(currentArticle)
       loadedPathsRef.current.add(filePath)
       setIsLoading(false)
@@ -53,7 +52,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
     // Load from disk directly (avoid using global currentArticle)
     const loadContent = async () => {
-      console.log('[DEBUG MdEditor] 从磁盘读取文件:', filePath)
       setIsLoading(true)
       try {
         const { readTextFile } = await import('@tauri-apps/plugin-fs')
@@ -62,12 +60,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(filePath)
 
-        console.log('[DEBUG MdEditor] 文件路径信息:', {
-          filePath,
-          pathOptions,
-          workspace: workspace.isCustom ? 'custom' : 'default'
-        })
-
         let content = ''
         if (workspace.isCustom) {
           content = await readTextFile(pathOptions.path)
@@ -75,16 +67,13 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
 
-        console.log('[DEBUG MdEditor] 文件读取成功，长度:', content.length)
         setInitialContent(content)
         // Update cache
         if (tabContentsRef.current) {
           tabContentsRef.current[filePath] = content
         }
-      } catch (error) {
+      } catch {
         // File doesn't exist, start with empty content
-        console.warn(`[DEBUG MdEditor] Failed to read file ${filePath}:`, error)
-        console.log('[DEBUG MdEditor] 文件不存在或读取失败，设置空内容')
         setInitialContent('')
       } finally {
         setIsLoading(false)
@@ -97,15 +86,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
   // Subscribe to currentArticle changes (for remote file pull results)
   useEffect(() => {
-    console.log('[DEBUG MdEditor] currentArticle 变化检测:', {
-      filePath,
-      currentArticleLength: currentArticle?.length,
-      initialContentLength: initialContent?.length
-    })
-
     // 当 currentArticle 有内容且不是初始的空值时，更新编辑器
     if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent) {
-      console.log('[DEBUG MdEditor] 更新内容，长度:', currentArticle.length)
       setInitialContent(currentArticle)
       // Update cache
       if (tabContentsRef.current) {
@@ -175,8 +157,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       setCurrentArticle(content)
       useArticleStore.getState().setActiveFilePath(path)
       useArticleStore.getState().loadFileTree()
-    } catch (error) {
-      console.error('Create untitled file error:', error)
+    } catch {
     }
   }
 

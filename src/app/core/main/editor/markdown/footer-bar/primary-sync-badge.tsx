@@ -33,15 +33,15 @@ export function PrimarySyncBadge() {
   const getProviderIcon = () => {
     switch (provider) {
       case 'github':
-        return <Github size={10} />
+        return <Github size={14} />
       case 'gitee':
-        return <GitBranch size={10} />
+        return <GitBranch size={14} />
       case 'gitlab':
-        return <Gitlab size={10} />
+        return <Gitlab size={14} />
       case 'gitea':
-        return <GitPullRequest size={10} />
+        return <GitPullRequest size={14} />
       default:
-        return <Github size={10} />
+        return <Github size={14} />
     }
   }
 

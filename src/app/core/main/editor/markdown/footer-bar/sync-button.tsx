@@ -4,7 +4,6 @@ import { ArrowUpCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
-import useSettingStore from '@/stores/setting'
 import { Store } from '@tauri-apps/plugin-store'
 import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
@@ -12,14 +11,12 @@ import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
-import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
 import emitter from '@/lib/emitter'
 
 type SyncStatus = 'synced' | 'push_needed' | 'unknown' | 'error' | 'syncing'
 
 export function SyncButton() {
-  const { activeFilePath, currentArticle } = useArticleStore()
-  const { autoSync, setAutoSync } = useSettingStore()
+  const { activeFilePath } = useArticleStore()
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
@@ -199,21 +196,6 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     }
   }, [activeFilePath, isLoading, generateCommitMessage])
 
-  // Toggle auto-sync
-  const handleToggleAutoSync = async () => {
-    const newValue = autoSync === 'enabled' ? 'disabled' : 'enabled'
-    await setAutoSync(newValue)
-
-    toast({
-      title: newValue === 'enabled' ? '自动推送已开启' : '自动推送已关闭',
-      description: newValue === 'enabled' ? '停止输入 2 秒后自动推送' : '需手动点击推送'
-    })
-
-    if (newValue === 'enabled' && currentArticle?.path) {
-      getSyncPushQueue().addTask(currentArticle.path)
-    }
-  }
-
   // 如果没有配置同步，不显示按钮
   if (!isConfigured || !activeFilePath) return null
 
@@ -248,20 +230,6 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
         ) : (
           <ArrowUpCircle size={14} />
         )}
-      </button>
-
-      {/* 自动推送开关 */}
-      <button
-        onClick={handleToggleAutoSync}
-        className={cn(
-          'p-0.5 rounded transition-colors text-xs',
-          autoSync === 'enabled'
-            ? 'text-green-500 hover:bg-green-500/10'
-            : 'text-gray-400 hover:bg-gray-500/10'
-        )}
-        title={autoSync === 'enabled' ? '自动推送已开启' : '自动推送已关闭'}
-      >
-        {autoSync === 'enabled' ? '自动' : '手动'}
       </button>
     </div>
   )

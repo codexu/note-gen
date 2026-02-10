@@ -162,7 +162,7 @@ export function HistorySheet() {
           )}
           title="历史记录"
         >
-          <History size={12} />
+          <History size={14} />
         </button>
       </SheetTrigger>
       <SheetContent side="right" className="w-[400px]">

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
+import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import { preprocessMathMarkdown } from '../math-serialize'
@@ -89,6 +90,9 @@ export function PullButton({ editor }: PullButtonProps) {
         // Update editor content
         const processedContent = preprocessMathMarkdown(content)
         editor.commands.setContent(processedContent, { contentType: 'html' })
+
+        // 更新同步时间，避免重复检测
+        await updateFileSyncTime(activeFilePath)
       }
 
       // 同步后更新按钮状态

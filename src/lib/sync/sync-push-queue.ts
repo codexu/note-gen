@@ -141,6 +141,7 @@ class SyncPushQueue {
         switch (provider) {
           case 'github': {
             const githubModule = await import('@/lib/sync/github') as any
+            // 每次尝试都重新获取远程 SHA，因为远程可能在变化
             const fileInfo = await githubModule.getFiles({ path, repo })
             const result = await githubModule.uploadFile({
               ext: path.split('.').pop() || 'md',
@@ -157,6 +158,7 @@ class SyncPushQueue {
           }
           case 'gitee': {
             const giteeModule = await import('@/lib/sync/gitee') as any
+            // 每次尝试都重新获取远程 SHA
             const fileInfo = await giteeModule.getFiles({ path, repo })
             const result = await giteeModule.uploadFile({
               ext: path.split('.').pop() || 'md',

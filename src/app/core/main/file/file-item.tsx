@@ -33,7 +33,7 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   const [name, setName] = useState(item.name)
   const [isComposing, setIsComposing] = useState(false) // 追踪输入法合成状态
   const inputRef = useRef<HTMLInputElement>(null)
-  const { activeFilePath, setActiveFilePath, readArticle, setCurrentArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed, cleanTabsByDeletedFile } = useArticleStore()
+  const { activeFilePath, setActiveFilePath, readArticle, setCurrentArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed, cleanTabsByDeletedFile, cleanTabsByDeletedFolder } = useArticleStore()
   const setArticleState = useArticleStore.setState
   const { setClipboardItem, clipboardItem, clipboardOperation } = useClipboardStore()
   const { fileManagerTextSize } = useSettingStore()

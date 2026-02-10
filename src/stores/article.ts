@@ -131,6 +131,9 @@ interface NoteState {
   setIsPulling: (pulling: boolean) => void
   setJustPulledFile: (justPulled: boolean) => void
   saveCurrentArticle: (content: string) => Promise<void>
+  // 防抖保存相关
+  debounceSaveTimer: NodeJS.Timeout | null
+  pendingSaveContent: string | null
   // 更新文件 sha 状态（推送成功后调用）
   updateFileSha: (path: string, sha: string) => void
 
@@ -159,6 +162,11 @@ interface NoteState {
 
 const useArticleStore = create<NoteState>((set, get) => ({
   loading: false,
+
+  // 防抖保存相关状态
+  debounceSaveTimer: null,
+  pendingSaveContent: null,
+
   setLoading: (loading: boolean) => { set({ loading }) },
 
   sortType: 'none',
@@ -1279,9 +1287,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
       await get().setActiveFilePath(actualPath)
     }
 
-    // 获取当前活动文件路径（用于竞态检查）
-    const currentActivePath = get().activeFilePath
-
     // 优先加载本地内容（快速响应）
     let localContent = ''
 
@@ -1521,107 +1526,128 @@ const useArticleStore = create<NoteState>((set, get) => ({
         return
       }
 
-      const workspace = await getWorkspacePath()
-      
-      // 检查文件是否存在（根据是否是自定义工作区）
-      let isLocale = false
-      const pathOptions = await getFilePathOptions(path)
-      if (workspace.isCustom) {
-        isLocale = await exists(pathOptions.path)
-      } else {
-        isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
-      }
-      
-      // 确保目录结构存在
-      if (path.includes('/')) {
-        let dir = ''
-        const dirPath = path.split('/')
-        for (let index = 0; index < dirPath.length - 1; index += 1) {
-          dir += `${dirPath[index]}/`
-          const dirOptions = await getFilePathOptions(dir)
-          
-          let dirExists = false
-          if (workspace.isCustom) {
-            dirExists = await exists(dirOptions.path)
-          } else {
-            dirExists = await exists(dirOptions.path, { baseDir: dirOptions.baseDir })
-          }
-          
-          if (!dirExists) {
-            if (workspace.isCustom) {
-              await mkdir(dirOptions.path)
-            } else {
-              await mkdir(dirOptions.path, { baseDir: dirOptions.baseDir })
-            }
-          }
-        }
-      }
-      
-      // 保存文件内容
-      if (workspace.isCustom) {
-        await writeTextFile(pathOptions.path, content)
-      } else {
-        await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
-      }
-      
-      // 更新缓存树
-      if (!isLocale) {
-        const cacheTree = cloneDeep(get().fileTree)
-        const current = path.includes('/') ? getCurrentFolder(path, cacheTree) : cacheTree.find(item => item.name === path)
-        if (current) {
-          current.isLocale = true
-          
-          // 更新父文件夹链的 isLocale 状态
-          // 从当前文件向上遍历所有父文件夹
-          const updateParentFolders = async (node: DirTree | undefined) => {
-            let parent = node
-            const pathParts = path.split('/')
-            let currentDepth = pathParts.length - 1 // 从文件的父文件夹开始
-            
-            while (parent && currentDepth > 0) {
-              // 如果父文件夹已经是本地状态，停止检查
-              if (parent.isLocale) {
-                break
-              }
-              
-              // 构建父文件夹的路径
-              const parentPath = pathParts.slice(0, currentDepth).join('/')
-              const parentOptions = await getFilePathOptions(parentPath)
-              let parentExists = false
-              
-              try {
-                if (workspace.isCustom) {
-                  parentExists = await exists(parentOptions.path)
-                } else {
-                  parentExists = await exists(parentOptions.path, { baseDir: parentOptions.baseDir })
-                }
-              } catch {
-                parentExists = false
-              }
-              
-              if (parentExists) {
-                parent.isLocale = true
-                parent = parent.parent
-                currentDepth--
-              } else {
-                break
-              }
-            }
-          }
-          
-          await updateParentFolders(current.parent)
-        }
-        set({ fileTree: cacheTree })
-      }
-      
-      // 触发防抖向量计算（不再直接计算）
-      if (path.endsWith('.md')) {
-        get().scheduleVectorCalculation(path, content)
+      // 清除之前的防抖定时器
+      const existingTimer = get().debounceSaveTimer
+      if (existingTimer) {
+        clearTimeout(existingTimer)
       }
 
-      // 通知文件已保存，触发同步推送
-      // 注意：sync-push-queue.ts 会监听此事件并处理推送
-      emitter.emit('article-saved', { path, content })
+      // 设置新的防抖定时器，500ms 后执行保存
+      // 这样可以合并短时间内多次 content change
+      const timer = setTimeout(async () => {
+        const state = get()
+        const debouncedContent = state.pendingSaveContent || content
+
+        // 再次检查内容是否变化
+        if (state.currentArticle === debouncedContent) {
+          set({ debounceSaveTimer: null, pendingSaveContent: null })
+          return
+        }
+
+        set({ debounceSaveTimer: null, pendingSaveContent: null })
+
+        // 执行实际保存操作
+        const savePath = path
+        const saveContent = debouncedContent
+        const workspace = await getWorkspacePath()
+
+        // 检查文件是否存在
+        let isLocale = false
+        const pathOptions = await getFilePathOptions(savePath)
+        if (workspace.isCustom) {
+          isLocale = await exists(pathOptions.path)
+        } else {
+          isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
+
+        // 确保目录结构存在
+        if (savePath.includes('/')) {
+          let dir = ''
+          const dirPath = savePath.split('/')
+          for (let index = 0; index < dirPath.length - 1; index += 1) {
+            dir += `${dirPath[index]}/`
+            const dirOptions = await getFilePathOptions(dir)
+            let dirExists = false
+            if (workspace.isCustom) {
+              dirExists = await exists(dirOptions.path)
+            } else {
+              dirExists = await exists(dirOptions.path, { baseDir: dirOptions.baseDir })
+            }
+            if (!dirExists) {
+              if (workspace.isCustom) {
+                await mkdir(dirOptions.path)
+              } else {
+                await mkdir(dirOptions.path, { baseDir: dirOptions.baseDir })
+              }
+            }
+          }
+        }
+
+        // 保存文件内容
+        if (workspace.isCustom) {
+          await writeTextFile(pathOptions.path, saveContent)
+        } else {
+          await writeTextFile(pathOptions.path, saveContent, { baseDir: pathOptions.baseDir })
+        }
+
+        // 更新缓存树
+        if (!isLocale) {
+          const cacheTree = cloneDeep(get().fileTree)
+          const current = savePath.includes('/') ? getCurrentFolder(savePath, cacheTree) : cacheTree.find(item => item.name === savePath)
+          if (current) {
+            current.isLocale = true
+
+            // 更新父文件夹链的 isLocale 状态
+            const updateParentFolders = async (node: DirTree | undefined) => {
+              let parent = node
+              const pathParts = savePath.split('/')
+              let currentDepth = pathParts.length - 1
+
+              while (parent && currentDepth > 0) {
+                if (parent.isLocale) {
+                  break
+                }
+                const parentPath = pathParts.slice(0, currentDepth).join('/')
+                const parentOptions = await getFilePathOptions(parentPath)
+                let parentExists = false
+                try {
+                  if (workspace.isCustom) {
+                    parentExists = await exists(parentOptions.path)
+                  } else {
+                    parentExists = await exists(parentOptions.path, { baseDir: parentOptions.baseDir })
+                  }
+                } catch {
+                  parentExists = false
+                }
+                if (parentExists) {
+                  parent.isLocale = true
+                  parent = parent.parent
+                  currentDepth--
+                } else {
+                  break
+                }
+              }
+            }
+
+            await updateParentFolders(current.parent)
+          }
+          set({ fileTree: cacheTree })
+        }
+
+        // 触发防抖向量计算
+        if (savePath.endsWith('.md')) {
+          get().scheduleVectorCalculation(savePath, saveContent)
+        }
+
+        // 更新 currentArticle
+        set({ currentArticle: saveContent })
+
+        // 通知文件已保存，触发同步推送
+        emitter.emit('article-saved', { path: savePath, content: saveContent })
+      }, 500)
+
+      // 保存待处理的内容（最新的内容）
+      set({ debounceSaveTimer: timer as any, pendingSaveContent: content })
     }
   },
 

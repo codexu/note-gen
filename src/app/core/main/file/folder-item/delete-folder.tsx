@@ -18,8 +18,6 @@ interface DeleteFolderProps {
 export function DeleteFolder({ item, shortcut }: DeleteFolderProps) {
   const t = useTranslations('article.file');
   const {
-    activeFilePath,
-    setActiveFilePath,
     fileTree,
     setFileTree,
     cleanTabsByDeletedFolder

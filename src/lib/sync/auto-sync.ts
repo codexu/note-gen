@@ -541,7 +541,7 @@ export async function autoSyncIfNeeded(path: string, options: {
                 // 执行实际的同步逻辑
                 const result = await performSync(path || '', enableConflictResolution)
                 resolve(result)
-              } catch (error) {
+              } catch {
                 resolve(null)
               }
             },
@@ -557,7 +557,7 @@ export async function autoSyncIfNeeded(path: string, options: {
     }
     
     return null
-  } catch (error) {
+  } catch {
     return null
   }
 }

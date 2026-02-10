@@ -114,4 +114,5 @@ interface Events {
 
 const emitter = mitt<Events>()
 
+export type { Events }
 export default emitter;

@@ -182,15 +182,15 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         }
         case 'gitlab': {
           const fileInfo = await getGitlabFileContent({ path: activeFilePath, ref: commitSha, repo })
-          if (fileInfo) {
-            content = fileInfo
+          if (fileInfo?.content) {
+            content = fileInfo.content
           }
           break
         }
         case 'gitea': {
           const fileInfo = await getGiteaFileContent({ path: activeFilePath, ref: commitSha, repo })
           if (fileInfo) {
-            content = fileInfo
+            content = typeof fileInfo === 'string' ? fileInfo : fileInfo.content || ''
           }
           break
         }

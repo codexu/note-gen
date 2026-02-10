@@ -369,7 +369,7 @@ export async function getUserInfo() {
     await store.set('giteeUsername', data.login);
     
     return data;
-  } catch (error) {
+  } catch {
     // 不显示 toast，避免在检测过程中干扰用户
     throw {
       status: 0,

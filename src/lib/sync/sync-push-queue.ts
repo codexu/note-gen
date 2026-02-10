@@ -13,71 +13,106 @@ interface PushTask {
   timestamp: number
 }
 
+// 使用模块级变量来跟踪初始化状态，避免 HMR 重复注册
+let initialized = false
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let articleSavedListener: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let editorInputListener: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let syncPulledListener: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let articleOpenedListener: any = null
+
 class SyncPushQueue {
   private queue: PushTask[] = []
   private isProcessing = false
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private processingTaskTimestamp = 0
-  private initialized = false
   private lastInputTime: number = Date.now()
 
   private readonly IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后执行推送
   private readonly CHECK_INTERVAL = 1000 // 每秒检查一次
 
-  constructor() {
-    // 只初始化一次事件监听器
-  }
-
   /**
-   * 初始化监听器
+   * 初始化监听器 - 只执行一次
    */
   init() {
-    if (this.initialized) return
-    this.initialized = true
+    if (initialized) return
+    initialized = true
     this.initListeners()
   }
 
   private initListeners() {
-    // 监听文章保存事件（从编辑器底部栏的保存按钮触发）
-    emitter.on('article-saved', ((event: { path: string; content: string }) => {
+    // 移除旧的监听器（如果有）
+    this.removeListeners()
+
+    // 监听文章保存事件
+    articleSavedListener = ((event: { path: string; content: string }) => {
       this.addTask(event.path)
-    }) as any)
+    }) as any
+    emitter.on('article-saved', articleSavedListener)
 
     // 监听用户输入事件，重置计时器
-    emitter.on('editor-input', (() => {
+    editorInputListener = (() => {
       this.lastInputTime = Date.now()
-    }) as any)
+    }) as any
+    emitter.on('editor-input', editorInputListener)
 
     // 监听拉取完成事件，重置计时器
-    emitter.on('sync-pulled', (() => {
+    syncPulledListener = (() => {
       this.lastInputTime = Date.now()
-    }) as any)
+    }) as any
+    emitter.on('sync-pulled', syncPulledListener)
 
     // 监听文件切换事件，重置计时器
-    emitter.on('article-opened', (() => {
+    articleOpenedListener = (() => {
       this.lastInputTime = Date.now()
-    }) as any)
+    }) as any
+    emitter.on('article-opened', articleOpenedListener)
+  }
+
+  private removeListeners() {
+    if (articleSavedListener) {
+      emitter.off('article-saved', articleSavedListener)
+    }
+    if (editorInputListener) {
+      emitter.off('editor-input', editorInputListener)
+    }
+    if (syncPulledListener) {
+      emitter.off('sync-pulled', syncPulledListener)
+    }
+    if (articleOpenedListener) {
+      emitter.off('article-opened', articleOpenedListener)
+    }
+    articleSavedListener = null
+    editorInputListener = null
+    syncPulledListener = null
+    articleOpenedListener = null
   }
 
   /**
    * 添加任务到队列 - 只保留最新的任务
+   * 每次调用都会重新开始 10 秒计时
    */
   addTask(path: string) {
+    const now = Date.now()
     const task: PushTask = {
       path,
-      timestamp: Date.now()
+      timestamp: now
     }
 
-    // 如果当前有任务正在处理，比较时间戳
+    // 重置 lastInputTime，确保从现在开始计算 10 秒
+    this.lastInputTime = now
+
+    // 如果当前有任务正在处理
     if (this.isProcessing) {
-      // 如果新任务比正在处理的任务更新，取消正在处理的任务
+      // 如果新任务比正在处理的任务更新，将新任务加入队列
       if (task.timestamp > this.processingTaskTimestamp) {
-        console.log('[SyncPushQueue] 新任务更新，取消正在进行的推送')
-        this.isProcessing = false
-      } else {
-        // 新任务更旧，忽略
+        this.queue = [task]
         return
       }
+      return
     }
 
     // 清空队列，只保留最新任务
@@ -280,7 +315,7 @@ class SyncPushQueue {
         // 如果是最后一次尝试或不是 SHA 错误，打印错误日志
         if (attempt === maxRetries || !isShaMismatch) {
           console.error('[SyncPushQueue] 推送失败:', error)
-          emitter.emit('sync-push-completed', { path, success: false, error })
+          emitter.emit('sync-push-completed', { path, success: false })
           return { success: false }
         }
       }

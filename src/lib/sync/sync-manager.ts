@@ -420,7 +420,7 @@ export class SyncManager {
   /**
    * 保存时触发推送（带节流）
    */
-  async onSave(path: string, _content: string): Promise<void> {
+  async onSave(path: string): Promise<void> {
     if (!this.config.autoSync || !this.config.autoPushOnSave) {
       return
     }
@@ -506,7 +506,7 @@ export class SyncManager {
     this.state.isSyncing = true
 
     try {
-      for (const [path, data] of this.syncQueue) {
+      for (const [path] of this.syncQueue) {
         // 始终从磁盘读取最新内容，确保上传的是本地最新内容
         const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
         const { readTextFile } = await import('@tauri-apps/plugin-fs')
@@ -635,12 +635,12 @@ export function getSyncManager(): SyncManager {
 }
 
 // 便捷函数
-export async function syncOnSave(path: string, content: string): Promise<void> {
+export async function syncOnSave(path: string): Promise<void> {
   const manager = getSyncManager()
-  await manager.onSave(path, content)
+  await manager.onSave(path)
 }
 
-export async function syncOnOpen(path: string): Promise<SyncResult | null> {
+export async function syncOnOpen(path: string): Promise<{ updated: boolean; content?: string } | null> {
   const manager = getSyncManager()
   return await manager.onOpen(path)
 }

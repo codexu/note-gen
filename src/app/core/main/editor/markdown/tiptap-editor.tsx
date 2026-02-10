@@ -39,7 +39,6 @@ import { fetchAiPolishStream, fetchAiConciseStream, fetchAiExpandStream } from '
 import { AISuggestion } from './ai-suggestion'
 import { AISuggestionFloating } from './ai-suggestion-floating'
 import emitter from '@/lib/emitter'
-import type { Events } from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
 import './style.css'
 
@@ -437,7 +436,7 @@ export function TipTapEditor({
 
   // Handle sync content updated from auto-sync
   useEffect(() => {
-    const handleSyncContentUpdated = (event: Events['sync-content-updated']) => {
+    const handleSyncContentUpdated = (event: { path: string; content: string }) => {
       // Only update if this is the active file
       if (!editor || !event || event.path !== activeFilePath) return
 

@@ -19,6 +19,10 @@ class SyncPushQueue {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private processingTaskTimestamp = 0
   private initialized = false
+  private lastInputTime: number = Date.now()
+
+  private readonly IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后执行推送
+  private readonly CHECK_INTERVAL = 1000 // 每秒检查一次
 
   constructor() {
     // 只初始化一次事件监听器
@@ -38,10 +42,25 @@ class SyncPushQueue {
     emitter.on('article-saved', ((event: { path: string; content: string }) => {
       this.addTask(event.path)
     }) as any)
+
+    // 监听用户输入事件，重置计时器
+    emitter.on('editor-input', (() => {
+      this.lastInputTime = Date.now()
+    }) as any)
+
+    // 监听拉取完成事件，重置计时器
+    emitter.on('sync-pulled', (() => {
+      this.lastInputTime = Date.now()
+    }) as any)
+
+    // 监听文件切换事件，重置计时器
+    emitter.on('article-opened', (() => {
+      this.lastInputTime = Date.now()
+    }) as any)
   }
 
   /**
-   * 添加任务到队列
+   * 添加任务到队列 - 只保留最新的任务
    */
   addTask(path: string) {
     const task: PushTask = {
@@ -61,24 +80,35 @@ class SyncPushQueue {
       }
     }
 
-    // 添加到队列
-    this.queue.push(task)
+    // 清空队列，只保留最新任务
+    this.queue = [task]
 
     // 设置防抖定时器
     this.scheduleFlush()
   }
 
   /**
-   * 防抖调度
+   * 防抖调度 - 用户停止输入 10 秒后执行推送
    */
   private scheduleFlush() {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
     }
 
-    this.debounceTimer = setTimeout(() => {
-      this.flush()
-    }, 2000) // 2 秒防抖
+    const checkIdle = () => {
+      const now = Date.now()
+      const timeSinceInput = now - this.lastInputTime
+
+      if (timeSinceInput >= this.IDLE_THRESHOLD) {
+        // 用户停止输入超过 10 秒，执行推送
+        this.flush()
+      } else {
+        // 继续等待
+        this.debounceTimer = setTimeout(checkIdle, this.CHECK_INTERVAL)
+      }
+    }
+
+    this.debounceTimer = setTimeout(checkIdle, this.CHECK_INTERVAL)
   }
 
   /**

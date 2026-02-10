@@ -98,6 +98,9 @@ export function PullButton({ editor }: PullButtonProps) {
 
         // 更新同步时间，避免重复检测
         await updateFileSyncTime(activeFilePath)
+
+        // 触发事件，让推送队列重置计时器
+        emitter.emit('sync-pulled', { path: activeFilePath })
       }
 
       // 同步后更新按钮状态

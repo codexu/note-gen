@@ -1,11 +1,10 @@
 'use client'
 
 import { ArrowUpCircle, CheckCircle, Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { Store } from '@tauri-apps/plugin-store'
-import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
@@ -13,81 +12,35 @@ import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import emitter from '@/lib/emitter'
 
-type SyncStatus = 'synced' | 'push_needed' | 'unknown' | 'error' | 'syncing'
-
 export function SyncButton() {
   const { activeFilePath } = useArticleStore()
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('unknown')
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [lastPushTime, setLastPushTime] = useState<Date | null>(null)
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Check if sync is configured
   useEffect(() => {
     isSyncConfigured().then(setIsConfigured)
   }, [])
 
-  // Check sync status
-  const checkSyncStatus = useCallback(async () => {
-    if (!activeFilePath) {
-      setSyncStatus('unknown')
-      return
-    }
-
-    try {
-      const result = await compareFileVersions(activeFilePath)
-      if (result.action === 'pull') {
-        // 有远程更新时不显示图标，避免干扰
-        setSyncStatus('unknown')
-      } else if (result.action === 'push') {
-        setSyncStatus('push_needed')
-      } else {
-        setSyncStatus('synced')
-      }
-    } catch {
-      setSyncStatus('error')
-    }
-  }, [activeFilePath])
-
-  // Load status on mount and when active file changes
-  useEffect(() => {
-    if (activeFilePath) {
-      checkSyncStatus()
-    }
-  }, [activeFilePath, checkSyncStatus])
-
-  // 监听同步内容更新事件
-  useEffect(() => {
-    const handleSyncContentUpdated = () => {
-      if (activeFilePath) {
-        checkSyncStatus()
-      }
-    }
-    emitter.on('sync-content-updated', handleSyncContentUpdated)
-    return () => {
-      emitter.off('sync-content-updated', handleSyncContentUpdated)
-    }
-  }, [activeFilePath, checkSyncStatus])
-
-  // 监听文章保存事件
-  useEffect(() => {
-    const handleArticleSaved = (event: { path: string }) => {
-      if (activeFilePath && event.path === activeFilePath) {
-        checkSyncStatus()
-      }
-    }
-    emitter.on('article-saved', handleArticleSaved as any)
-    return () => {
-      emitter.off('article-saved', handleArticleSaved as any)
-    }
-  }, [activeFilePath, checkSyncStatus])
-
   // 监听推送完成事件
   useEffect(() => {
     const handlePushCompleted = (event: { path: string; success: boolean }) => {
       if (activeFilePath && event.path === activeFilePath) {
-        checkSyncStatus()
         setIsLoading(false)
         if (event.success) {
+          // 显示成功状态
+          setShowSuccess(true)
+          setLastPushTime(new Date())
+          // 5秒后恢复
+          if (successTimerRef.current) {
+            clearTimeout(successTimerRef.current)
+          }
+          successTimerRef.current = setTimeout(() => {
+            setShowSuccess(false)
+          }, 5000)
           toast({ title: '已推送' })
         }
       }
@@ -95,8 +48,11 @@ export function SyncButton() {
     emitter.on('sync-push-completed', handlePushCompleted as any)
     return () => {
       emitter.off('sync-push-completed', handlePushCompleted as any)
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current)
+      }
     }
-  }, [activeFilePath, checkSyncStatus])
+  }, [activeFilePath])
 
   // Generate AI commit message
   const generateCommitMessage = useCallback(async (content: string): Promise<string> => {
@@ -199,38 +155,42 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
   // 如果没有配置同步，不显示按钮
   if (!isConfigured || !activeFilePath) return null
 
+  // 格式化时间
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
   return (
     <div className="flex items-center gap-1.5">
       {/* 上传中显示文字 */}
       {isLoading && (
-        <span className="text-xs text-blue-500 flex items-center gap-1">
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
           <Loader2 size={12} className="animate-spin" />
           上传中
         </span>
       )}
 
+      {/* 成功推送状态 */}
+      {showSuccess && !isLoading && (
+        <span className="text-xs text-green-500 flex items-center gap-1 animate-pulse">
+          <CheckCircle size={12} />
+          {lastPushTime && formatTime(lastPushTime)}
+        </span>
+      )}
+
       {/* 同步按钮 */}
-      <button
-        onClick={handlePush}
-        disabled={isLoading}
-        className={cn(
-          'p-0.5 rounded transition-colors flex items-center gap-1',
-          isLoading
-            ? 'opacity-50 cursor-wait'
-            : syncStatus === 'synced'
-              ? 'text-green-500 hover:bg-green-500/10'
-              : 'text-blue-500 hover:bg-blue-500/10'
-        )}
-        title={isLoading ? '上传中...' : syncStatus === 'synced' ? '已同步' : '点击推送'}
-      >
-        {isLoading ? (
-          <Loader2 size={14} className="animate-spin" />
-        ) : syncStatus === 'synced' ? (
-          <CheckCircle size={14} />
-        ) : (
+      {!showSuccess && !isLoading && (
+        <button
+          onClick={handlePush}
+          disabled={isLoading}
+          className={cn(
+            'p-0.5 rounded transition-colors flex items-center gap-1 text-muted-foreground hover:text-foreground hover:bg-muted'
+          )}
+          title={isLoading ? '上传中...' : '点击推送'}
+        >
           <ArrowUpCircle size={14} />
-        )}
-      </button>
+        </button>
+      )}
     </div>
   )
 }

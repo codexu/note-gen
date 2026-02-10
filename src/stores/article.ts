@@ -291,6 +291,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ currentArticle: '', activeFilePath: path })
     const store = await Store.load('store.json');
     await store.set('activeFilePath', path)
+    // 触发事件，让推送队列重置计时器
+    emitter.emit('article-opened', { path })
   },
 
   // Tabs initialization - load from store

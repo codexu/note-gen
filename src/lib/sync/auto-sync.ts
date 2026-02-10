@@ -7,12 +7,13 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
 import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
-import { 
-  checkFileLock, 
-  detectAndHandleConflict, 
+import {
+  checkFileLock,
+  detectAndHandleConflict,
   mergeSimpleContent,
   updateFileSyncTime,
-  cleanupExpiredLocks
+  cleanupExpiredLocks,
+  getFileSyncStatus
 } from './conflict-resolution'
 import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
@@ -190,6 +191,10 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
   const localMeta = await getLocalFileMetadata(path)
   const remoteInfo = await getRemoteFileInfo(path)
 
+  // 获取最后同步时间
+  const syncStatus = await getFileSyncStatus(path)
+  const lastSyncTime = syncStatus.lastSyncTime
+
   // 如果本地文件不存在
   if (!localMeta.localSha) {
     if (remoteInfo.sha) {
@@ -242,6 +247,17 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
       shouldUpdate: true,
       action: 'push',
       reason: '无法确定本地文件更新时间，推送本地版本'
+    }
+  }
+
+  // 拉取后缓冲期（10秒）：如果本地时间 > 远程时间，但本地时间 ≈ 最后同步时间
+  // 说明这是刚拉取的内容，不是用户编辑的，不需要推送
+  const PULL_GRACE_PERIOD = 10 * 1000 // 10 秒
+  if (localTime > remoteTime && lastSyncTime && localTime - lastSyncTime < PULL_GRACE_PERIOD) {
+    return {
+      shouldUpdate: false,
+      action: 'none',
+      reason: '刚完成拉取，处于缓冲期内，不触发推送'
     }
   }
 

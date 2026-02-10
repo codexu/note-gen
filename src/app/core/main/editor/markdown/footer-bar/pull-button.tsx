@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import { preprocessMathMarkdown } from '../math-serialize'
 import { ask } from '@tauri-apps/plugin-dialog'
+import emitter from '@/lib/emitter'
 
 interface PullButtonProps {
   editor: Editor
@@ -22,6 +23,10 @@ export function PullButton({ editor }: PullButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastInputTimeRef = useRef<number>(Date.now())
+
+  const IDLE_PULL_INTERVAL = 30 * 1000 // 30 秒
+  const IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后开始计时
 
   // Check if sync is configured
   useEffect(() => {
@@ -111,14 +116,31 @@ export function PullButton({ editor }: PullButtonProps) {
     }
   }, [activeFilePath, checkForUpdates])
 
+  // 监听用户输入事件，重置计时器
+  useEffect(() => {
+    const handleInput = () => {
+      lastInputTimeRef.current = Date.now()
+    }
+    emitter.on('editor-input', handleInput)
+    return () => {
+      emitter.off('editor-input', handleInput)
+    }
+  }, [])
+
   // Set up auto-pull interval
   useEffect(() => {
     if (!isConfigured || !activeFilePath) return
 
-    // 每 60 秒检测一次
-    intervalRef.current = setInterval(() => {
-      autoPull()
-    }, 60000)
+    const checkAndPull = () => {
+      const now = Date.now()
+      const timeSinceInput = now - lastInputTimeRef.current
+      // 用户停止输入超过 10 秒才执行拉取
+      if (timeSinceInput >= IDLE_THRESHOLD) {
+        autoPull()
+      }
+    }
+
+    intervalRef.current = setInterval(checkAndPull, IDLE_PULL_INTERVAL)
 
     return () => {
       if (intervalRef.current) {

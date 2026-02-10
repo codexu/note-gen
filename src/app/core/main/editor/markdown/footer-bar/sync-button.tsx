@@ -7,8 +7,11 @@ import useArticleStore from '@/stores/article'
 import { Store } from '@tauri-apps/plugin-store'
 import { compareFileVersions } from '@/lib/sync/auto-sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
+import { readTextFile } from '@tauri-apps/plugin-fs'
 import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
+import emitter from '@/lib/emitter'
 
 type SyncStatus = 'synced' | 'pull_needed' | 'push_needed' | 'unknown' | 'error'
 
@@ -51,6 +54,32 @@ export function SyncButton() {
     }
   }, [activeFilePath, checkSyncStatus])
 
+  // 监听同步内容更新事件，拉取后重新检查状态
+  useEffect(() => {
+    const handleSyncContentUpdated = () => {
+      if (activeFilePath) {
+        checkSyncStatus()
+      }
+    }
+    emitter.on('sync-content-updated', handleSyncContentUpdated)
+    return () => {
+      emitter.off('sync-content-updated', handleSyncContentUpdated)
+    }
+  }, [activeFilePath, checkSyncStatus])
+
+  // 监听文章保存事件，保存后重新检查同步状态
+  useEffect(() => {
+    const handleArticleSaved = (event: { path: string; content: string }) => {
+      if (activeFilePath && event.path === activeFilePath) {
+        checkSyncStatus()
+      }
+    }
+    emitter.on('article-saved', handleArticleSaved as any)
+    return () => {
+      emitter.off('article-saved', handleArticleSaved as any)
+    }
+  }, [activeFilePath, checkSyncStatus])
+
   // Generate AI commit message
   const generateCommitMessage = useCallback(async (content: string): Promise<string> => {
     try {
@@ -76,7 +105,21 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       const store = await Store.load('store.json')
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
       const repo = await getSyncRepoName(provider)
-      const content = currentArticle
+
+      // 优先使用 store 中的当前内容（如果存在且与文件不同步）
+      // 这样可以推送未保存到磁盘的最新内容
+      let content = currentArticle
+
+      // 如果 store 为空或太短，尝试从文件读取
+      if (!content || content.length < 10) {
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(activeFilePath)
+        if (workspace.isCustom) {
+          content = await readTextFile(pathOptions.path)
+        } else {
+          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
+      }
 
       // Generate commit message using AI
       const commitMessage = await generateCommitMessage(content)

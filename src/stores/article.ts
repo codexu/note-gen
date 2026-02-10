@@ -1432,6 +1432,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
       // 触发同步（带节流）
       await syncOnSave(path, content)
+
+      // 通知文件已保存，需要重新检查同步状态
+      emitter.emit('article-saved', { path, content })
     }
   },
 

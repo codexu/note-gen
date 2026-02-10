@@ -18,9 +18,18 @@ class SyncPushQueue {
   private isProcessing = false
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private processingTaskTimestamp = 0
+  private initialized = false
 
   constructor() {
-    // 监听文章保存事件
+    // 只初始化一次事件监听器
+  }
+
+  /**
+   * 初始化监听器
+   */
+  init() {
+    if (this.initialized) return
+    this.initialized = true
     this.initListeners()
   }
 
@@ -298,6 +307,7 @@ let syncPushQueue: SyncPushQueue | null = null
 export function getSyncPushQueue(): SyncPushQueue {
   if (!syncPushQueue) {
     syncPushQueue = new SyncPushQueue()
+    syncPushQueue.init() // 确保只初始化一次事件监听器
   }
   return syncPushQueue
 }

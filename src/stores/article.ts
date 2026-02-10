@@ -7,7 +7,7 @@ import { GiteeFile } from '@/lib/sync/gitee'
 import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
-import { syncOnSave, syncOnOpen } from '@/lib/sync/sync-manager'
+import { syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
@@ -1617,10 +1617,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
         get().scheduleVectorCalculation(path, content)
       }
 
-      // 触发同步（带节流）
-      await syncOnSave(path, content)
-
-      // 通知文件已保存，需要重新检查同步状态
+      // 通知文件已保存，触发同步推送
+      // 注意：sync-push-queue.ts 会监听此事件并处理推送
       emitter.emit('article-saved', { path, content })
     }
   },

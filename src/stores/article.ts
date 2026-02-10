@@ -6,7 +6,7 @@ import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
+import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { syncOnSave, syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
@@ -1172,8 +1172,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
   currentArticle: '',
   isPulling: false, // 新增：拉取状态
   readArticle: async (path: string, sha?: string, autoSync = true) => {
+    console.log('[DEBUG readArticle] 被调用:', { path, sha, autoSync })
     get().setLoading(true)
-    
+
     // 处理文件名兼容性问题
     let actualPath = path
     if (hasInvalidFileNameChars(path)) {
@@ -1182,10 +1183,25 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 更新活动文件路径为清理后的路径
       await get().setActiveFilePath(actualPath)
     }
-    
+
     // 优先加载本地内容（快速响应）
     let localContent = ''
-    
+
+    // 辅助函数：查找文件信息
+    const findFileInTree = (tree: DirTree[], targetPath: string): DirTree | null => {
+      for (const item of tree) {
+        const itemPath = computedParentPath(item)
+        if (itemPath === targetPath && item.isFile) {
+          return item
+        }
+        if (item.children && item.children.length > 0) {
+          const found = findFileInTree(item.children, targetPath)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
     try {
       const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(actualPath)
@@ -1194,42 +1210,44 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } else {
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
-      
+
+      console.log('[DEBUG readArticle] 本地文件读取成功:', {
+        path: actualPath,
+        contentLength: localContent.length
+      })
+
       // 检查是否是远程文件且本地内容为空
       const fileTree = get().fileTree
-      const findFileInTree = (tree: DirTree[], targetPath: string): DirTree | null => {
-        for (const item of tree) {
-          const itemPath = computedParentPath(item)
-          if (itemPath === targetPath && item.isFile) {
-            return item
-          }
-          if (item.children && item.children.length > 0) {
-            const found = findFileInTree(item.children, targetPath)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      
       const fileInfo = findFileInTree(fileTree, actualPath)
       const isRemoteFile = fileInfo && !fileInfo.isLocale
-      
+
+      console.log('[DEBUG readArticle] 文件信息:', {
+        path: actualPath,
+        isRemoteFile,
+        isLocale: fileInfo?.isLocale,
+        hasSha: !!fileInfo?.sha
+      })
+
       // 如果是远程文件且本地内容为空，立即拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
+        console.log('[DEBUG readArticle] 远程文件本地为空，触发拉取')
         get().setIsPulling(true)
-        
-        // 立即触发拉取，不等待历史记录组件
-        emitter.emit('immediate-pull-needed', {
-          filePath: actualPath,
-          isRemoteFile: true
-        })
-        
-        // 设置空内容但不解除加载状态
-        set({ currentArticle: '' })
-        // 不调用 setLoading(false)，保持加载状态直到拉取完成
+
+        try {
+          const remoteContent = await pullRemoteFile(actualPath)
+          await saveLocalFile(actualPath, remoteContent)
+          set({ currentArticle: remoteContent })
+          console.log('[DEBUG readArticle] 远程文件拉取成功，长度:', remoteContent.length)
+        } catch (pullError) {
+          console.error('[DEBUG readArticle] 拉取远程文件失败:', pullError)
+          set({ currentArticle: '' })
+        } finally {
+          get().setIsPulling(false)
+          get().setLoading(false)
+        }
         return
       }
-      
+
       // 正常的本地文件，显示内容
       set({ currentArticle: localContent })
       // 本地内容加载完成，解除加载状态
@@ -1239,82 +1257,71 @@ const useArticleStore = create<NoteState>((set, get) => ({
       get().checkFileVectorIndexed(filename)
     } catch (error) {
       // 本地文件不存在，检查是否是远程文件
-      if (error instanceof Error && 
-          (error.message.includes('no such file') ||
-           error.message.includes('not found') ||
-           error.message.includes('系统找不到指定的路径'))) {
-        
-        // 检查是否是远程文件（通过文件管理器状态判断）
-        const fileTree = get().fileTree
-        const findFileInTree = (tree: DirTree[], targetPath: string): DirTree | null => {
-          for (const item of tree) {
-            const itemPath = computedParentPath(item)
-            if (itemPath === targetPath && item.isFile) {
-              return item
-            }
-            if (item.children && item.children.length > 0) {
-              const found = findFileInTree(item.children, targetPath)
-              if (found) return found
-            }
-          }
-          return null
+      console.log('[DEBUG readArticle] 本地文件不存在:', { path: actualPath, error: error instanceof Error ? error.message : error })
+
+      // 先查找文件信息（可能 fileTree 还没加载完成）
+      const fileInfo = findFileInTree(get().fileTree, actualPath)
+      console.log('[DEBUG readArticle] 文件信息:', {
+        path: actualPath,
+        fileInfoExists: !!fileInfo,
+        isLocale: fileInfo?.isLocale,
+        hasSha: !!fileInfo?.sha
+      })
+
+      // 检查是否是"文件不存在"错误（兼容不同平台的大小写）
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      const isFileNotFound = errorMsg.toLowerCase().includes('no such file') ||
+                            errorMsg.toLowerCase().includes('not found') ||
+                            errorMsg.toLowerCase().includes('系统找不到指定的路径')
+
+      console.log('[DEBUG readArticle] 错误检查:', {
+        errorMsg: errorMsg.substring(0, 100),
+        isFileNotFound,
+        errorType: error instanceof Error ? 'Error' : typeof error,
+        fileInfoExists: !!fileInfo,
+        isLocale: fileInfo?.isLocale,
+        shouldPull: isFileNotFound && fileInfo && !fileInfo.isLocale
+      })
+
+      if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
+        // 远程文件且本地不存在，立即开始拉取
+        console.log('[DEBUG readArticle] 检测到远程文件，触发拉取')
+        get().setIsPulling(true)
+
+        try {
+          const remoteContent = await pullRemoteFile(actualPath)
+          await saveLocalFile(actualPath, remoteContent)
+          set({ currentArticle: remoteContent })
+          console.log('[DEBUG readArticle] 远程文件拉取成功，长度:', remoteContent.length)
+        } catch (pullError) {
+          console.error('[DEBUG readArticle] 拉取远程文件失败:', pullError)
+          set({ currentArticle: '' })
+        } finally {
+          get().setIsPulling(false)
+          get().setLoading(false)
         }
-        
-        const fileInfo = findFileInTree(fileTree, actualPath)
-        const isRemoteFile = fileInfo && !fileInfo.isLocale
-        
-        if (isRemoteFile) {
-          // 远程文件且本地不存在，立即开始拉取
-          get().setIsPulling(true)
-          
-          // 立即触发拉取，不等待历史记录组件
-          emitter.emit('immediate-pull-needed', {
-            filePath: actualPath,
-            isRemoteFile: true
-          })
-          
-          // 创建空白文件但不设置到编辑器
-          await ensureDirectoryExists(actualPath)
-          const workspace = await getWorkspacePath()
-          const pathOptions = await getFilePathOptions(actualPath)
-          
-          try {
-            if (workspace.isCustom) {
-              await writeTextFile(pathOptions.path, '')
-            } else {
-              await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
-            }
-            // 不设置 currentArticle，保持空白直到拉取完成
-            set({ currentArticle: '' })
-            // 不调用 setLoading(false)，保持加载状态
-          } catch (createError) {
-            console.error('Failed to create empty file:', createError)
-            set({ currentArticle: '' })
-            get().setIsPulling(false)
-            get().setLoading(false)
+      } else if (isFileNotFound) {
+        // 本地文件，创建空白文件
+        console.log('[DEBUG readArticle] 本地文件不存在，创建空白文件')
+        await ensureDirectoryExists(actualPath)
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(actualPath)
+
+        try {
+          if (workspace.isCustom) {
+            await writeTextFile(pathOptions.path, '')
+          } else {
+            await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
           }
-        } else {
-          // 本地文件，创建空白文件
-          await ensureDirectoryExists(actualPath)
-          const workspace = await getWorkspacePath()
-          const pathOptions = await getFilePathOptions(actualPath)
-          
-          try {
-            if (workspace.isCustom) {
-              await writeTextFile(pathOptions.path, '')
-            } else {
-              await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
-            }
-            set({ currentArticle: '' })
-            get().setLoading(false)
-          } catch (createError) {
-            console.error('Failed to create empty file:', createError)
-            set({ currentArticle: '' })
-            get().setLoading(false)
-          }
+          set({ currentArticle: '' })
+          get().setLoading(false)
+        } catch (createError) {
+          console.error('Failed to create empty file:', createError)
+          set({ currentArticle: '' })
+          get().setLoading(false)
         }
       } else {
-        console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+        console.warn(`[DEBUG readArticle] Unexpected error reading local file ${actualPath}:`, error)
         set({ currentArticle: '' })
         get().setLoading(false)
       }

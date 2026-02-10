@@ -400,6 +400,29 @@ export function TipTapEditor({
     }
   }, [editor]) // intentionally not depending on initialContent
 
+  // Handle remote file pull updates - update content when initialContent changes
+  useEffect(() => {
+    if (!editor || !isInitializedRef.current) return
+
+    // Only update if content actually changed (from remote pull)
+    const currentContent = editor.getHTML()
+    const newContent = preprocessMathMarkdown(initialContent || '')
+
+    // Simple check - if content is different and new content is not empty
+    if (newContent && currentContent !== newContent) {
+      console.log('[DEBUG TipTapEditor] 更新编辑器内容:', {
+        currentLength: currentContent.length,
+        newLength: newContent.length
+      })
+      isExternalUpdateRef.current = true
+      editor.commands.setContent(newContent, { contentType: 'html' })
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        isExternalUpdateRef.current = false
+      }, 100)
+    }
+  }, [initialContent, editor])
+
   // Set editable state
   useEffect(() => {
     editor?.setEditable(editable)

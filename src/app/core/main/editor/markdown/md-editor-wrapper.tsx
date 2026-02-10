@@ -17,7 +17,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     saveCurrentArticle,
     isPulling,
     setCurrentArticle,
-    activeFilePath
+    activeFilePath,
+    currentArticle
   } = useArticleStore()
 
   const t = useTranslations('article.file.sync')
@@ -26,14 +27,31 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const isCreatingFileRef = useRef(false)
   // Track loaded state per file path
   const loadedPathsRef = useRef<Set<string>>(new Set())
+  // Force re-render when content needs update
+  const contentVersionRef = useRef(0)
 
   // Load content from cache or disk - only on first mount per file
   useEffect(() => {
     if (!filePath || loadedPathsRef.current.has(filePath)) return
 
+    console.log('[DEBUG MdEditor] 组件挂载，开始加载文件:', {
+      filePath,
+      hasCache: tabContentsRef.current?.[filePath] !== undefined
+    })
+
     // Check cache first
     if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
+      console.log('[DEBUG MdEditor] 从缓存读取内容，路径:', filePath)
       setInitialContent(tabContentsRef.current[filePath])
+      loadedPathsRef.current.add(filePath)
+      setIsLoading(false)
+      return
+    }
+
+    // Check store content as fallback (set by readArticle for remote files)
+    if (currentArticle && currentArticle.length > 0) {
+      console.log('[DEBUG MdEditor] 从 store 读取内容，路径:', filePath)
+      setInitialContent(currentArticle)
       loadedPathsRef.current.add(filePath)
       setIsLoading(false)
       return
@@ -41,6 +59,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
     // Load from disk directly (avoid using global currentArticle)
     const loadContent = async () => {
+      console.log('[DEBUG MdEditor] 从磁盘读取文件:', filePath)
       setIsLoading(true)
       try {
         const { readTextFile } = await import('@tauri-apps/plugin-fs')
@@ -49,6 +68,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(filePath)
 
+        console.log('[DEBUG MdEditor] 文件路径信息:', {
+          filePath,
+          pathOptions,
+          workspace: workspace.isCustom ? 'custom' : 'default'
+        })
+
         let content = ''
         if (workspace.isCustom) {
           content = await readTextFile(pathOptions.path)
@@ -56,6 +81,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
 
+        console.log('[DEBUG MdEditor] 文件读取成功，长度:', content.length)
         setInitialContent(content)
         // Update cache
         if (tabContentsRef.current) {
@@ -63,7 +89,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         }
       } catch (error) {
         // File doesn't exist, start with empty content
-        console.warn(`Failed to read file ${filePath}:`, error)
+        console.warn(`[DEBUG MdEditor] Failed to read file ${filePath}:`, error)
+        console.log('[DEBUG MdEditor] 文件不存在或读取失败，设置空内容')
         setInitialContent('')
       } finally {
         setIsLoading(false)
@@ -72,7 +99,28 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
     loadContent()
     loadedPathsRef.current.add(filePath)
-  }, [filePath, tabContentsRef])
+  }, [filePath, tabContentsRef, currentArticle])
+
+  // Subscribe to currentArticle changes (for remote file pull results)
+  useEffect(() => {
+    console.log('[DEBUG MdEditor] currentArticle 变化检测:', {
+      filePath,
+      currentArticleLength: currentArticle?.length,
+      initialContentLength: initialContent?.length
+    })
+
+    // 当 currentArticle 有内容且不是初始的空值时，更新编辑器
+    if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent) {
+      console.log('[DEBUG MdEditor] 更新内容，长度:', currentArticle.length)
+      setInitialContent(currentArticle)
+      // Update cache
+      if (tabContentsRef.current) {
+        tabContentsRef.current[filePath] = currentArticle
+      }
+      setIsLoading(false)
+      contentVersionRef.current++
+    }
+  }, [currentArticle, filePath, tabContentsRef, initialContent])
 
   // Handle content changes - only save if this is the active file
   const handleContentChange = useCallback((content: string) => {
@@ -139,7 +187,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   // Loading state - wait for content to be loaded
-  if (isLoading || initialContent === null) {
+  // 如果 currentArticle 已经有内容，直接显示（拉取完成）
+  const showContent = (currentArticle && currentArticle.length > 0) || initialContent !== null
+  if (isLoading && !showContent) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />

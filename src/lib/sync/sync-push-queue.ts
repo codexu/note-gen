@@ -5,6 +5,7 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
+import { pullRemoteFile } from './auto-sync'
 
 interface PushTask {
   path: string
@@ -102,79 +103,139 @@ class SyncPushQueue {
    * 推送到远程仓库
    */
   private async pushToRemote(path: string): Promise<boolean> {
-    try {
-      const store = await Store.load('store.json')
-      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
-      const repo = await getSyncRepoName(provider)
+    const maxRetries = 3
 
-      // 从磁盘读取最新内容，确保上传的是本地最新内容
-      const workspace = await getWorkspacePath()
-      const pathOptions = await getFilePathOptions(path)
-      const content = workspace.isCustom
-        ? await readTextFile(pathOptions.path)
-        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const store = await Store.load('store.json')
+        const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
+        const repo = await getSyncRepoName(provider)
 
-      // 生成提交信息
-      const commitMessage = await this.generateCommitMessage(path, content)
+        // 从磁盘读取最新内容，确保上传的是本地最新内容
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(path)
+        const content = workspace.isCustom
+          ? await readTextFile(pathOptions.path)
+          : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
 
-      let success = false
-
-      switch (provider) {
-        case 'github': {
-          const githubModule = await import('@/lib/sync/github') as any
-          const fileInfo = await githubModule.getFiles({ path, repo })
-          await githubModule.uploadFile({
-            ext: path.split('.').pop() || 'md',
-            file: content,
-            filename: path.split('/').pop() || path,
-            sha: fileInfo?.sha,
-            message: commitMessage,
-            repo,
-            path
-          })
-          success = true
-          break
+        // 检查本地内容是否与远程相同，如果相同则跳过推送
+        try {
+          const remoteContent = await pullRemoteFile(path)
+          if (remoteContent === content) {
+            console.log(`[SyncPushQueue] 本地内容与远程相同，跳过推送: ${path}`)
+            return true
+          }
+        } catch {
+          // 远程文件不存在或获取失败，继续推送
         }
-        case 'gitee': {
-          const giteeModule = await import('@/lib/sync/gitee') as any
-          const fileInfo = await giteeModule.getFiles({ path, repo })
-          await giteeModule.uploadFile({
-            ext: path.split('.').pop() || 'md',
-            file: content,
-            filename: path.split('/').pop() || path,
-            sha: fileInfo?.sha,
-            message: commitMessage,
-            repo,
-            path
-          })
-          success = true
-          break
+
+        // 生成提交信息
+        const commitMessage = await this.generateCommitMessage(path, content)
+
+        let success = false
+
+        switch (provider) {
+          case 'github': {
+            const githubModule = await import('@/lib/sync/github') as any
+            const fileInfo = await githubModule.getFiles({ path, repo })
+            await githubModule.uploadFile({
+              ext: path.split('.').pop() || 'md',
+              file: content,
+              filename: path.split('/').pop() || path,
+              sha: fileInfo?.sha,
+              message: commitMessage,
+              repo,
+              path
+            })
+            success = true
+            break
+          }
+          case 'gitee': {
+            const giteeModule = await import('@/lib/sync/gitee') as any
+            const fileInfo = await giteeModule.getFiles({ path, repo })
+            await giteeModule.uploadFile({
+              ext: path.split('.').pop() || 'md',
+              file: content,
+              filename: path.split('/').pop() || path,
+              sha: fileInfo?.sha,
+              message: commitMessage,
+              repo,
+              path
+            })
+            success = true
+            break
+          }
+          case 'gitlab': {
+            const gitlabModule = await import('@/lib/sync/gitlab') as any
+            await gitlabModule.uploadFile({
+              file: content,
+              filename: path.split('/').pop() || path,
+              sha: undefined, // GitLab 使用 last_commit_id，不使用 sha
+              message: commitMessage,
+              repo,
+              path
+            })
+            success = true
+            break
+          }
+          case 'gitea': {
+            const giteaModule = await import('@/lib/sync/gitea') as any
+            await giteaModule.uploadFile({
+              file: content,
+              filename: path.split('/').pop() || path,
+              sha: undefined, // Gitea API 处理方式
+              message: commitMessage,
+              repo,
+              path
+            })
+            success = true
+            break
+          }
         }
-        case 'gitlab': {
-          const gitlabModule = await import('@/lib/sync/gitlab') as any
-          await gitlabModule.updateFileContent({ path, ref: 'main', repo, content, message: commitMessage })
-          success = true
-          break
+
+        if (success) {
+          console.log(`[SyncPushQueue] 推送成功: ${path}`)
+          emitter.emit('sync-push-completed', { path, success: true })
+          return true
         }
-        case 'gitea': {
-          const giteaModule = await import('@/lib/sync/gitea') as any
-          await giteaModule.updateFileContent({ path, ref: 'main', repo, content, message: commitMessage })
-          success = true
-          break
+      } catch (error: any) {
+        // 检查是否是 SHA 不匹配错误
+        const errorMessage = error?.message || ''
+        const errorStatus = error?.status || 0
+
+        // SHA 不匹配错误的特征：
+        // 1. HTTP 状态码 422 (Unprocessable Entity) - GitHub/GitLab 常用
+        // 2. HTTP 状态码 409 (Conflict) - 文件冲突
+        // 3. 错误消息包含相关关键词
+        const isShaMismatch =
+          errorStatus === 422 ||
+          errorStatus === 409 ||
+          errorMessage.includes('does not match') ||
+          errorMessage.includes('sha') ||
+          errorMessage.includes('SHA') ||
+          errorMessage.includes('blob') ||
+          errorMessage.includes('conflict') ||
+          errorMessage.includes('out of date') ||
+          errorMessage.includes('已过时') ||
+          errorMessage.includes('冲突')
+
+        if (isShaMismatch && attempt < maxRetries) {
+          console.log(`[SyncPushQueue] SHA 不匹配，${attempt}/${maxRetries} 次重试，等待后重试...`)
+          // 等待一段时间后重试（指数退避）
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 500))
+          continue
+        }
+
+        // 如果是最后一次尝试或不是 SHA 错误，打印错误日志
+        if (attempt === maxRetries || !isShaMismatch) {
+          console.error('[SyncPushQueue] 推送失败:', error)
+          emitter.emit('sync-push-completed', { path, success: false, error })
+          return false
         }
       }
-
-      if (success) {
-        console.log(`[SyncPushQueue] 推送成功: ${path}`)
-        emitter.emit('sync-push-completed', { path, success: true })
-      }
-
-      return success
-    } catch (error) {
-      console.error('[SyncPushQueue] 推送失败:', error)
-      emitter.emit('sync-push-completed', { path, success: false, error })
-      return false
     }
+
+    return false
   }
 
   /**

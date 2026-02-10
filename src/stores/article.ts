@@ -124,9 +124,11 @@ interface NoteState {
 
   currentArticle: string
   isPulling: boolean // 新增：拉取状态
+  justPulledFile: boolean // 标记是否刚从远程拉取文件（用于避免立即推送）
   readArticle: (path: string, sha?: string, isLocale?: boolean, autoSync?: boolean) => Promise<void>
   setCurrentArticle: (content: string) => void
   setIsPulling: (pulling: boolean) => void
+  setJustPulledFile: (justPulled: boolean) => void
   saveCurrentArticle: (content: string) => Promise<void>
 
   // 向量计算相关
@@ -1238,6 +1240,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   currentArticle: '',
   readFilePath: '',
   isPulling: false, // 新增：拉取状态
+  justPulledFile: false, // 标记是否刚从远程拉取文件
 
   setReadFilePath: (path: string) => {
     set({ readFilePath: path })
@@ -1295,6 +1298,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 如果是远程文件且本地内容为空，立即拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
         get().setIsPulling(true)
+        get().setJustPulledFile(true) // 标记为刚从远程拉取
 
         try {
           const remoteContent = await pullRemoteFile(actualPath)
@@ -1313,6 +1317,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
         } finally {
           get().setIsPulling(false)
           get().setLoading(false)
+          // 延迟清除标志，让 saveCurrentArticle 有时间检查
+          setTimeout(() => {
+            get().setJustPulledFile(false)
+          }, 1000)
         }
         return
       }
@@ -1338,6 +1346,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
       if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
         get().setIsPulling(true)
+        get().setJustPulledFile(true) // 标记为刚从远程拉取
 
         try {
           const remoteContent = await pullRemoteFile(actualPath)
@@ -1356,6 +1365,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
         } finally {
           get().setIsPulling(false)
           get().setLoading(false)
+          // 延迟清除标志，让 saveCurrentArticle 有时间检查
+          setTimeout(() => {
+            get().setJustPulledFile(false)
+          }, 1000)
         }
       } else if (isFileNotFound) {
         // 本地文件，创建空白文件
@@ -1425,9 +1438,31 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ isPulling: pulling })
   },
 
+  setJustPulledFile: (justPulled: boolean) => {
+    set({ justPulledFile: justPulled })
+  },
+
   saveCurrentArticle: async (content: string) => {
     const path = get().activeFilePath
+    const justPulled = get().justPulledFile
+
     if (path && content !== undefined && content !== null) {
+      // 如果是从远程刚拉取的文件，不触发推送（避免 SHA 不匹配错误）
+      if (justPulled) {
+        // 清除标志
+        get().setJustPulledFile(false)
+        // 只保存本地文件，不触发同步推送
+        const workspace = await getWorkspacePath()
+        const pathOptions = await getFilePathOptions(path)
+        if (workspace.isCustom) {
+          await writeTextFile(pathOptions.path, content)
+        } else {
+          await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+        }
+        set({ currentArticle: content })
+        return
+      }
+
       // 检查内容是否真的变化了（避免不必要的保存和同步）
       const currentContent = get().currentArticle
       if (currentContent === content) {

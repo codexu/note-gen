@@ -49,8 +49,8 @@ interface Links {
 }
 
 export async function uploadFile(
-  { ext, file, filename, sha, message, repo, path }:
-  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string }) 
+  { file, filename, sha, message, repo, path }:
+  { file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
@@ -64,37 +64,36 @@ export async function uploadFile(
   } : undefined
   
   try {
-    let _filename = ''
-    if (filename) {
-      _filename = `${filename}`
-    } else {
-      _filename = `${id}.${ext}`
-    }
-    // 将空格转换成下划线
-    _filename = encodeURIComponent(_filename.replace(/\s/g, '_'))
-    const _path = path ? `/${path}`: ''
-    
+    // 构建路径，将空格转换成下划线
+    const _path = path ? `/${path.replace(/\s/g, '_')}` : ''
+
+    // 对 URL 路径进行编码（保留中文字符的 UTF-8 编码）
+    const urlPath = _path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+
+    // 将内容转换为 Base64（GitHub API 要求）
+    const base64Content = Buffer.from(file, 'utf-8').toString('base64')
+
     // 设置请求头
     const headers = new Headers();
     headers.append('Authorization', `Bearer ${accessToken}`);
     headers.append('Accept', 'application/vnd.github+json');
     headers.append('X-GitHub-Api-Version', '2022-11-28');
     headers.append('Content-Type', 'application/json');
-    
+
     const requestOptions = {
       method: 'PUT',
       headers,
       body: JSON.stringify({
         message: message || `Upload ${filename || id}`,
-        content: file,
+        content: base64Content,
         sha
       }),
       proxy
     };
-    
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${_path}/${_filename}`;
+
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${urlPath}`;
     const response = await fetch(url, requestOptions);
-    
+
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return { data } as OctokitResponse<any>;
@@ -103,7 +102,7 @@ export async function uploadFile(
     if (response.status === 400) {
       return null;
     }
-    
+
     const errorData = await response.json();
     throw {
       status: response.status,
@@ -122,16 +121,21 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
   if (!accessToken) return;
-  
+
   const githubUsername = await store.get('githubUsername')
-  path = encodeURIComponent(path.replace(/\s/g, '_'))
-  
+
+  // 只对空格进行转义，保留中文字符的原始 UTF-8 编码
+  const safePath = path.replace(/\s/g, '_')
+
+  // 对 URL 路径进行编码
+  const encodedPath = safePath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? {
     all: proxyUrl
   } : undefined
-  
+
   try {
     // 设置请求头
     const headers = new Headers();
@@ -139,16 +143,16 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
     headers.append('Accept', 'application/vnd.github+json');
     headers.append('X-GitHub-Api-Version', '2022-11-28');
     headers.append('If-None-Match', '');
-    
+
     const requestOptions = {
       method: 'GET',
       headers,
       proxy
     };
-    
+
     // 如果有 ref 参数，添加到 URL 查询参数中
     const refParam = ref ? `?ref=${ref}` : '';
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${path}${refParam}`;
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodedPath}${refParam}`;
     
     try {
       const response = await fetch(url, requestOptions);
@@ -220,19 +224,10 @@ export async function deleteFile(
       const data = await response.json();
       return data;
     }
-    
-    // 输出详细的错误信息
-    const errorText = await response.text();
-    console.error('GitHub delete file error:', {
-      status: response.status,
-      statusText: response.statusText,
-      url: url,
-      body: errorText
-    });
+
     throw new Error(`删除文件失败: ${response.status} ${response.statusText}`);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
-    console.error('GitHub delete file failed:', error);
     return false
   }
 }
@@ -242,16 +237,18 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
   if (!accessToken) return;
-  
+
   const githubUsername = await store.get('githubUsername')
-  path = encodeURIComponent(path.replace(/\s/g, '_'))
-  
+
+  // 只对空格进行转义，保留中文字符的原始 UTF-8 编码
+  const safePath = path.replace(/\s/g, '_')
+
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? {
     all: proxyUrl
   } : undefined
-  
+
   try {
     // 设置请求头
     const headers = new Headers();
@@ -259,19 +256,23 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
     headers.append('Accept', 'application/vnd.github+json');
     headers.append('X-GitHub-Api-Version', '2022-11-28');
     headers.append('If-None-Match', '');
-    
+
     const requestOptions = {
       method: 'GET',
       headers,
       proxy
     };
     
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/commits?path=${path}`;
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/commits?path=${encodeURIComponent(safePath)}&per_page=100`;
     const response = await fetch(url, requestOptions);
-    
+
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return data;
+    }
+
+    if (response.status === 404) {
+      return [];
     }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {

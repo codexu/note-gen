@@ -83,8 +83,6 @@ export function getSafeFileName(originalFileName: string): string {
   }
   
   const safeFileName = sanitizeFileName(originalFileName)
-  
-  console.warn(`文件名包含不安全字符，已自动转换: "${originalFileName}" -> "${safeFileName}"`)
-  
+
   return safeFileName
 }

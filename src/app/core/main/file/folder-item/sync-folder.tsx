@@ -113,7 +113,6 @@ export default function SyncFolder({ item }: { item: DirTree }) {
         switch (primaryBackupMethod) {
           case 'github':
             uploadResult = await uploadGithubFile({
-              ext: 'md',
               file: base64Content,
               filename: file.name,
               repo: RepoNames.sync,
@@ -124,7 +123,6 @@ export default function SyncFolder({ item }: { item: DirTree }) {
             break;
           case 'gitee':
             uploadResult = await uploadGiteeFile({
-              ext: 'md',
               file: base64Content,
               filename: file.name,
               repo: RepoNames.sync,
@@ -135,7 +133,6 @@ export default function SyncFolder({ item }: { item: DirTree }) {
             break;
           case 'gitlab':
             uploadResult = await uploadGitlabFile({
-              ext: 'md',
               file: base64Content,
               filename: file.name,
               repo: RepoNames.sync,

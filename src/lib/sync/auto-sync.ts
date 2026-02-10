@@ -53,9 +53,7 @@ export async function getLocalFileMetadata(path: string): Promise<FileMetadata> 
   
   // 检查并清理文件名
   if (hasInvalidFileNameChars(path)) {
-    const sanitizedPath = sanitizeFilePath(path)
-    console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${sanitizedPath}"`)
-    path = sanitizedPath
+    path = sanitizeFilePath(path)
   }
   
   const pathOptions = await getFilePathOptions(path)
@@ -87,14 +85,12 @@ export async function getLocalFileMetadata(path: string): Promise<FileMetadata> 
         (error.message.includes('no such file') || 
          error.message.includes('not found') ||
          error.message.includes('系统找不到指定的路径'))) {
-      console.warn(`Local file does not exist (this is normal for sync): ${path}`)
       return {
         path,
         syncStatus: 'unknown'
       }
     }
     
-    console.warn(`Failed to get local metadata for ${path}:`, error)
     return {
       path,
       syncStatus: 'unknown'
@@ -124,8 +120,8 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits[0].commit.committer.date).getTime()
             }
           }
-          // 即使没有 commits，也要返回 sha
-          return { sha: file.sha }
+          // 当前平台 API 不直接返回 SHA，返回 undefined
+          return { sha: undefined }
         }
         break
 
@@ -140,8 +136,8 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits[0].commit.committer.date).getTime()
             }
           }
-          // 即使没有 commits，也要返回 sha
-          return { sha: file.sha }
+          // 当前平台 API 不直接返回 SHA，返回 undefined
+          return { sha: undefined }
         }
         break
 
@@ -156,8 +152,8 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits.data[0].committed_date).getTime()
             }
           }
-          // 即使没有 commits，也要返回 sha
-          return { sha: file.sha }
+          // 当前平台 API 不直接返回 SHA，返回 undefined
+          return { sha: undefined }
         }
         break
 
@@ -172,13 +168,13 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
               lastModified: new Date(commits.data[0].commit.committer.date).getTime()
             }
           }
-          // 即使没有 commits，也要返回 sha
-          return { sha: file.sha }
+          // 当前平台 API 不直接返回 SHA，返回 undefined
+          return { sha: undefined }
         }
         break
     }
-  } catch (error) {
-    console.warn(`Failed to get remote info for ${path}:`, error)
+  } catch {
+    // 静默处理错误
   }
 
   return { sha: undefined, lastModified: undefined }
@@ -313,7 +309,6 @@ export async function pullRemoteFile(path: string): Promise<string> {
         break
     }
   } catch (error) {
-    console.error(`Failed to pull remote file ${path}:`, error)
     throw error
   }
   
@@ -357,7 +352,6 @@ export async function ensureDirectoryExists(filePath: string): Promise<void> {
       }
     }
   } catch (error) {
-    console.error(`Failed to create directory ${dirPath}:`, error)
     throw error
   }
 }
@@ -370,9 +364,7 @@ export async function saveLocalFile(path: string, content: string): Promise<void
   
   // 检查并清理文件名
   if (hasInvalidFileNameChars(path)) {
-    const sanitizedPath = sanitizeFilePath(path)
-    console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${sanitizedPath}"`)
-    path = sanitizedPath
+    path = sanitizeFilePath(path)
   }
   
   // 确保目录存在
@@ -387,7 +379,6 @@ export async function saveLocalFile(path: string, content: string): Promise<void
       await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
     }
   } catch (error) {
-    console.error(`Failed to save local file ${path}:`, error)
     throw error
   }
 }
@@ -473,8 +464,7 @@ export async function getRemoteCommitInfo(path: string): Promise<{
       additions,
       deletions
     }
-  } catch (error) {
-    console.warn('Failed to get remote commit info:', error)
+  } catch {
     return null
   }
 }
@@ -528,7 +518,6 @@ export async function autoSyncIfNeeded(path: string, options: {
                 const result = await performSync(path || '', enableConflictResolution)
                 resolve(result)
               } catch (error) {
-                console.error('Sync failed:', error)
                 resolve(null)
               }
             },
@@ -545,7 +534,6 @@ export async function autoSyncIfNeeded(path: string, options: {
     
     return null
   } catch (error) {
-    console.error('Auto sync failed:', error)
     return null
   }
 }
@@ -562,7 +550,6 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
     // 检查并清理文件名
     if (hasInvalidFileNameChars(path)) {
       actualPath = sanitizeFilePath(path)
-      console.warn(`文件路径包含不安全字符，已自动转换: "${path}" -> "${actualPath}"`)
     }
     
     try {
@@ -580,7 +567,7 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
            error.message.includes('not found') ||
            error.message.includes('系统找不到指定的路径'))) {
       } else {
-        console.warn(`Unexpected error reading local file ${actualPath}:`, error)
+        // 静默处理读取本地文件时的意外错误
       }
       // 继续处理，将直接拉取远程文件
     }
@@ -634,8 +621,7 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       
       return remoteContent
     }
-  } catch (error) {
-    console.error('Perform sync failed:', error)
+  } catch {
     return null
   }
   

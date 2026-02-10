@@ -434,7 +434,6 @@ const useChatStore = create<ChatState>((set, get) => ({
         const githubRepo = await getSyncRepoName('github')
         files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
         res = await uploadGithubFile({
-          ext: 'json',
           file: jsonToBase64(chats),
           repo: githubRepo,
           path,
@@ -446,7 +445,6 @@ const useChatStore = create<ChatState>((set, get) => ({
         const giteeRepo = await getSyncRepoName('gitee')
         files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
         res = await uploadGiteeFile({
-          ext: 'json',
           file: jsonToBase64(chats),
           repo: giteeRepo,
           path,
@@ -461,7 +459,6 @@ const useChatStore = create<ChatState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
-          ext: 'json',
           file: jsonToBase64(chats),
           repo: gitlabRepo,
           path,
@@ -476,7 +473,6 @@ const useChatStore = create<ChatState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
-          ext: 'json',
           file: jsonToBase64(chats),
           repo: giteaRepo,
           path,

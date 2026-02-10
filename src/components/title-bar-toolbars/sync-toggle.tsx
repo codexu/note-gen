@@ -88,7 +88,6 @@ export function SyncToggle() {
           const githubRepo = await getSyncRepoName('github')
           files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
           settingsRes = await uploadGithubFile({
-            ext: 'json',
             file: uint8ArrayToBase64(file),
             repo: githubRepo,
             path,
@@ -100,7 +99,6 @@ export function SyncToggle() {
           const giteeRepo = await getSyncRepoName('gitee')
           files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
           settingsRes = await uploadGiteeFile({
-            ext: 'json',
             file: uint8ArrayToBase64(file),
             repo: giteeRepo,
             path,
@@ -115,7 +113,6 @@ export function SyncToggle() {
             ? files.find(file => file.name === filename)
             : (files?.name === filename ? files : undefined)
           settingsRes = await uploadGitlabFile({
-            ext: 'json',
             file: uint8ArrayToBase64(file),
             repo: gitlabRepo,
             path,
@@ -126,11 +123,10 @@ export function SyncToggle() {
         case 'gitea':
           const giteaRepo = await getSyncRepoName('gitea')
           files = await giteaGetFiles({ path, repo: giteaRepo })
-          const giteaStoreFile = Array.isArray(files) 
+          const giteaStoreFile = Array.isArray(files)
             ? files.find(file => file.name === filename)
             : (files?.name === filename ? files : undefined)
           settingsRes = await uploadGiteaFile({
-            ext: 'json',
             file: uint8ArrayToBase64(file),
             repo: giteaRepo,
             path,

@@ -79,8 +79,8 @@ export class SyncManager {
       if (savedConfig) {
         this.config = { ...defaultSyncConfig, ...savedConfig }
       }
-    } catch (error) {
-      console.warn('Failed to load sync config:', error)
+    } catch {
+      // 静默处理配置加载错误
     }
   }
 
@@ -92,8 +92,8 @@ export class SyncManager {
       const store = await Store.load('sync_config.json')
       await store.set('config', this.config)
       await store.save()
-    } catch (error) {
-      console.error('Failed to save sync config:', error)
+    } catch {
+      // 静默处理配置保存错误
     }
   }
 
@@ -164,29 +164,28 @@ export class SyncManager {
       const repo = await getSyncRepoName(platform)
       const sha = await this.getRemoteSha(path) || undefined
       const message = `Sync: ${path} - ${new Date().toLocaleString('zh-CN')}`
-      const ext = path.split('.').pop() || 'md'
       const filename = path.split('/').pop() || path
 
       let uploadSuccess = false
 
       switch (platform) {
         case 'github': {
-          const result = await uploadToGithub({ ext, file: content, sha, message, repo, path, filename })
+          const result = await uploadToGithub({ file: content, sha, message, repo, path, filename })
           uploadSuccess = !!result
           break
         }
         case 'gitee': {
-          const result = await uploadToGitee({ ext, file: content, sha, message, repo, path, filename })
+          const result = await uploadToGitee({ file: content, sha, message, repo, path, filename })
           uploadSuccess = !!result
           break
         }
         case 'gitlab': {
-          const result = await uploadToGitlab({ ext, file: content, sha, message, repo, path, filename })
+          const result = await uploadToGitlab({ file: content, sha, message, repo, path, filename })
           uploadSuccess = !!result
           break
         }
         case 'gitea': {
-          const result = await uploadToGitea({ ext, file: content, sha, message, repo, path, filename })
+          const result = await uploadToGitea({ file: content, sha, message, repo, path, filename })
           uploadSuccess = !!result
           break
         }
@@ -200,7 +199,6 @@ export class SyncManager {
       await this.logSync(path, 'push', false, '推送失败')
       return { success: false, action: 'push', error: '推送失败' }
     } catch (error) {
-      console.error('Push file failed:', error)
       await this.logSync(path, 'push', false, String(error))
       return { success: false, action: 'push', error: String(error) }
     }
@@ -245,7 +243,6 @@ export class SyncManager {
       await this.logSync(path, 'pull', false, '文件不存在')
       return { success: false, action: 'pull', error: '远程文件不存在' }
     } catch (error) {
-      console.error('Pull file failed:', error)
       await this.logSync(path, 'pull', false, String(error))
       return { success: false, action: 'pull', error: String(error) }
     }
@@ -289,7 +286,6 @@ export class SyncManager {
       await this.logSync(path, 'delete', false, '删除失败')
       return { success: false, action: 'delete', error: '删除失败' }
     } catch (error) {
-      console.error('Delete remote file failed:', error)
       await this.logSync(path, 'delete', false, String(error))
       return { success: false, action: 'delete', error: String(error) }
     }
@@ -340,7 +336,6 @@ export class SyncManager {
 
       return { success: true, action: 'push', message: '冲突已解决' }
     } catch (error) {
-      console.error('Resolve conflict failed:', error)
       return { success: false, action: 'conflict', error: String(error) }
     }
   }
@@ -551,8 +546,7 @@ export class SyncManager {
 
       await store.set('logs', logs)
       await store.save()
-    } catch (error) {
-      console.error('Failed to log sync:', error)
+    } catch {
     }
   }
 
@@ -577,8 +571,7 @@ export class SyncManager {
       const store = await Store.load('sync_logs.json')
       await store.set('logs', [])
       await store.save()
-    } catch (error) {
-      console.error('Failed to clear logs:', error)
+    } catch {
     }
   }
 

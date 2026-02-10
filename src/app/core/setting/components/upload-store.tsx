@@ -49,7 +49,6 @@ export default function UploadStore() {
         const githubRepo = await getSyncRepoName('github')
         files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
         res = await uploadGithubFile({
-          ext: 'json',
           file: uint8ArrayToBase64(file),
           repo: githubRepo,
           path,
@@ -61,7 +60,6 @@ export default function UploadStore() {
         const giteeRepo = await getSyncRepoName('gitee')
         files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
         res = await uploadGiteeFile({
-          ext: 'json',
           file: uint8ArrayToBase64(file),
           repo: giteeRepo,
           path,
@@ -76,7 +74,6 @@ export default function UploadStore() {
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
-          ext: 'json',
           file: uint8ArrayToBase64(file),
           repo: gitlabRepo,
           path,
@@ -87,11 +84,10 @@ export default function UploadStore() {
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })
-        const giteaStoreFile = Array.isArray(files) 
+        const giteaStoreFile = Array.isArray(files)
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
-          ext: 'json',
           file: uint8ArrayToBase64(file),
           repo: giteaRepo,
           path,

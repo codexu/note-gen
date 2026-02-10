@@ -1,6 +1,6 @@
 'use client'
 
-import { History } from 'lucide-react'
+import { History, ExternalLink } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
@@ -9,7 +9,7 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
 import { getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
-import { getFileCommits as getGiteaFileCommits } from '@/lib/sync/gitea'
+import { getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { toast } from '@/hooks/use-toast'
 import {
   Sheet,
@@ -24,6 +24,7 @@ interface CommitInfo {
   message: string
   author: string
   date: Date
+  url: string
 }
 
 type SyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
@@ -80,12 +81,54 @@ export function HistorySheet() {
         }
       }
 
-      const historyData = commits.slice(0, 10).map((commit: any) => ({
-        sha: (commit.sha || commit.id || '').slice(0, 7),
-        message: commit.commit?.message || commit.message || 'No message',
-        author: commit.commit?.author?.name || commit.author?.name || commit.author_name || 'Unknown',
-        date: new Date(commit.commit?.author?.date || commit.created_at || commit.committed_date || Date.now())
-      }))
+      const store = await Store.load('store.json')
+      let githubUsername: string | undefined
+      let giteeUsername: string | undefined
+      let gitlabProjectId: string | undefined
+      let giteaUsername: string | undefined
+      let giteaBaseUrl: string | undefined
+
+      switch (provider) {
+        case 'github':
+          githubUsername = await store.get('githubUsername')
+          break
+        case 'gitee':
+          giteeUsername = await store.get('giteeUsername')
+          break
+        case 'gitlab':
+          gitlabProjectId = await store.get<string>(`gitlab_${repo}_project_id`)
+          break
+        case 'gitea':
+          giteaUsername = await store.get('giteaUsername')
+          giteaBaseUrl = await getGiteaApiBaseUrl()
+          break
+      }
+
+      const getCommitUrl = (sha: string): string => {
+        switch (provider) {
+          case 'github':
+            return `https://github.com/${githubUsername}/${repo}/commit/${sha}`
+          case 'gitee':
+            return `https://gitee.com/${giteeUsername}/${repo}/commit/${sha}`
+          case 'gitlab':
+            return `https://gitlab.com/${gitlabProjectId?.split('/').pop()}/-/commit/${sha}`
+          case 'gitea':
+            return `${giteaBaseUrl?.replace('/api/v1', '')}/${giteaUsername}/${repo}/commit/${sha}`
+          default:
+            return ''
+        }
+      }
+
+      const historyData = commits.slice(0, 10).map((commit: any) => {
+        const sha = commit.sha || commit.id || ''
+        return {
+          sha: sha.slice(0, 7),
+          message: commit.commit?.message || commit.message || 'No message',
+          author: commit.commit?.author?.name || commit.author?.name || commit.author_name || 'Unknown',
+          date: new Date(commit.commit?.author?.date || commit.created_at || commit.committed_date || Date.now()),
+          url: getCommitUrl(sha)
+        }
+      })
 
       setHistory(historyData)
     } catch (error) {
@@ -143,9 +186,15 @@ export function HistorySheet() {
                   className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-mono text-muted-foreground">
+                    <a
+                      href={commit.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                    >
                       {commit.sha}
-                    </span>
+                      <ExternalLink size={10} />
+                    </a>
                     <span className="text-xs text-muted-foreground">
                       {commit.date.toLocaleDateString()}
                     </span>

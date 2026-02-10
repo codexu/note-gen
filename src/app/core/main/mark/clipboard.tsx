@@ -101,7 +101,6 @@ export function Clipboard() {
     if (githubUsername) {
       setQueue(queueId, { progress: t('record.mark.progress.uploadImage') });
       const res = await uploadFile({
-        ext: 'png',
         file: uint8ArrayToBase64(file),
         filename: `${queueId}.png`,
         repo: RepoNames.image

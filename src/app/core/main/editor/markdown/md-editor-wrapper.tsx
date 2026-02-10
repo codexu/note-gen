@@ -34,14 +34,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   useEffect(() => {
     if (!filePath || loadedPathsRef.current.has(filePath)) return
 
-    console.log('[DEBUG MdEditor] 组件挂载，开始加载文件:', {
-      filePath,
-      hasCache: tabContentsRef.current?.[filePath] !== undefined
-    })
-
     // Check cache first
     if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
-      console.log('[DEBUG MdEditor] 从缓存读取内容，路径:', filePath)
       setInitialContent(tabContentsRef.current[filePath])
       loadedPathsRef.current.add(filePath)
       setIsLoading(false)
@@ -217,7 +211,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
 
       {/* Editor - initialContent only set once on mount */}
       <TipTapEditor
-        initialContent={initialContent}
+        initialContent={initialContent || ''}
         onChange={handleContentChange}
         placeholder="开始写作..."
         activeFilePath={activeFilePath}

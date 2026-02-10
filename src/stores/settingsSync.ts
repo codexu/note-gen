@@ -73,7 +73,6 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       
       // 上传到远程仓库
       const result = await uploadFile({
-        ext: 'json',
         file: base64Content,
         filename: 'settings.json',
         repo: repoName,

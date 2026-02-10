@@ -122,8 +122,8 @@ interface Links {
 }
 
 export async function uploadFile(
-  { ext, file, filename, sha, message, repo, path }:
-  { ext: string, file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string }) 
+  { file, filename, sha, message, repo, path }:
+  { file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
@@ -137,36 +137,38 @@ export async function uploadFile(
   } : undefined
   
   try {
-    let _filename = ''
-    if (filename) {
-      _filename = `${filename}`
-    } else {
-      _filename = `${id}.${ext}`
-    }
+    let _filename = filename || id;
     // 将空格转换成下划线
-    _filename = _filename.replace(/\s/g, '_')
+    _filename = encodeURIComponent(_filename.replace(/\s/g, '_'))
     const _path = path ? `/${path}`: ''
-    
+
+    // 对路径进行编码
+    const encodedPath = _path.split('/').slice(0, -1).map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/')
+    const finalPath = _path ? `${encodedPath}/${_filename}` : _filename
+
+    // 将内容转换为 Base64（Gitee API 要求）
+    const base64Content = Buffer.from(file, 'utf-8').toString('base64')
+
     // 设置请求头
     const headers = new Headers();
     headers.append('Content-Type', 'application/json');
-    
+
     // 根据是否有sha参数来决定是创建新文件（POST）还是更新文件（PUT）
     // Gitee API 与 GitHub 不同，更新文件需要使用 PUT 请求
     const requestOptions = {
-      method: sha ? 'PUT' : 'POST', // 如果有sha说明是更新现有文件，使用PUT方法
+      method: sha ? 'PUT' : 'POST',
       headers,
       body: JSON.stringify({
         access_token: accessToken,
-        content: file,
+        content: base64Content,
         message: message || `Upload ${filename || id}`,
-        branch: 'master', // 默认使用 master 分支，可以根据需要调整
+        branch: 'master',
         sha
       }),
       proxy
     };
-    
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${_path}/${_filename}`;
+
+    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${finalPath}`;
     const response = await fetch(url, requestOptions);
 
     if (response.status >= 200 && response.status < 300) {
@@ -314,6 +316,7 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
     const params = new URLSearchParams();
     params.append('access_token', accessToken);
     params.append('path', path);
+    params.append('per_page', '100');
     
     const requestOptions = {
       method: 'GET',
@@ -369,7 +372,6 @@ export async function getUserInfo() {
     
     return data;
   } catch (error) {
-    console.error('Get Gitee user info error:', error);
     // 不显示 toast，避免在检测过程中干扰用户
     throw {
       status: 0,
@@ -419,7 +421,6 @@ export async function checkSyncRepoState(name: string) {
       message: '仓库不存在'
     };
   } catch (error) {
-    console.error('Check Gitee repo state error:', error);
     if ((error as GiteeError).status === 404) {
       return null;
     }

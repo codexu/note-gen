@@ -54,7 +54,6 @@ async function getProxyConfig(): Promise<Proxy | undefined> {
  * @param params 上传参数
  */
 export async function uploadFile({
-  ext,
   file,
   filename,
   sha,
@@ -62,7 +61,6 @@ export async function uploadFile({
   repo,
   path
 }: {
-  ext: string;
   file: string;
   filename?: string;
   sha?: string;
@@ -80,15 +78,16 @@ export async function uploadFile({
     }
 
     const id = uuid();
-    let _filename = '';
-    if (filename) {
-      _filename = `${filename}`;
-    } else {
-      _filename = `${id}.${ext}`;
-    }
+    let _filename = filename || id;
     // 将空格转换成下划线
-    _filename = _filename.replace(/\s/g, '_');
+    _filename = encodeURIComponent(_filename.replace(/\s/g, '_'));
     const _path = path ? `${path}/${_filename}` : _filename;
+
+    // 对路径进行标准化处理
+    const normalizedPath = _path.split('/').map(p => encodeURIComponent(p)).join('/');
+
+    // 将内容转换为 Base64（GitLab API 要求）
+    const base64Content = Buffer.from(file, 'utf-8').toString('base64')
 
     const baseUrl = await getGitlabApiBaseUrl();
     const headers = await getCommonHeaders();
@@ -96,7 +95,7 @@ export async function uploadFile({
 
     const requestBody = {
       branch: 'main',
-      content: file,
+      content: base64Content,
       commit_message: message || `Upload ${filename || id}`,
       encoding: 'base64'
     };
@@ -104,13 +103,13 @@ export async function uploadFile({
     // 如果是更新文件，需要添加 last_commit_id
     if (sha) {
       // 获取文件的最新提交 ID
-      const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${_path}`;
+      const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${encodeURIComponent(path?.replace(/\s/g, '_') || '')}`;
       const commitsResponse = await fetch(commitsUrl, {
         method: 'GET',
         headers,
         proxy
       });
-      
+
       if (commitsResponse.ok) {
         const commits = await commitsResponse.json() as GitlabCommit[];
         if (commits.length > 0) {
@@ -119,7 +118,7 @@ export async function uploadFile({
       }
     }
 
-    const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(_path)}`;
+    const url = `${baseUrl}/projects/${projectId}/repository/files/${normalizedPath}`;
     const method = sha ? 'PUT' : 'POST';
 
     const response = await fetch(url, {
@@ -145,7 +144,6 @@ export async function uploadFile({
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 上传文件失败:', error);
     toast({
       title: '同步失败',
       description: (error as GitlabError).message || '上传文件时发生错误',
@@ -227,8 +225,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
       message: errorData.message || '获取文件列表失败'
     } as GitlabError;
 
-  } catch (error) {
-    console.error('Gitlab 获取文件列表失败:', error);
+  } catch {
     // 静默处理错误，不显示 toast，因为这可能只是文件不存在
     return null;
   }
@@ -291,7 +288,6 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 删除文件失败:', error);
     toast({
       title: '删除文件失败',
       description: (error as GitlabError).message || '删除文件时发生错误',
@@ -318,7 +314,7 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    const url = `${baseUrl}/projects/${projectId}/repository/commits?path=${path}`;
+    const url = `${baseUrl}/projects/${projectId}/repository/commits?path=${path}&per_page=100`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -391,7 +387,6 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 获取文件内容失败:', error);
     toast({
       title: '获取文件内容失败',
       description: (error as GitlabError).message || '获取文件内容时发生错误',
@@ -444,7 +439,6 @@ export async function getUserInfo(token?: string): Promise<GitlabUserInfo> {
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 获取用户信息失败:', error);
     toast({
       title: '获取用户信息失败',
       description: (error as GitlabError).message || '获取用户信息时发生错误',
@@ -502,7 +496,6 @@ export async function checkSyncProjectState(name: string): Promise<GitlabProject
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 检查项目状态失败:', error);
     throw error;
   }
 }
@@ -552,7 +545,6 @@ export async function createSyncProject(name: string, isPrivate: boolean = true)
     } as GitlabError;
 
   } catch (error) {
-    console.error('Gitlab 创建项目失败:', error);
     toast({
       title: '创建项目失败',
       description: (error as GitlabError).message || '创建项目时发生错误',

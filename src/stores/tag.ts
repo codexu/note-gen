@@ -94,7 +94,6 @@ const useTagStore = create<TagState>((set, get) => ({
         const githubRepo = await getSyncRepoName('github')
         files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
         res = await uploadGithubFile({
-          ext: 'json',
           file: jsonToBase64(tags),
           repo: githubRepo,
           path,
@@ -106,7 +105,6 @@ const useTagStore = create<TagState>((set, get) => ({
         const giteeRepo = await getSyncRepoName('gitee')
         files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
         res = await uploadGiteeFile({
-          ext: 'json',
           file: jsonToBase64(tags),
           repo: giteeRepo,
           path,
@@ -121,7 +119,6 @@ const useTagStore = create<TagState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
-          ext: 'json',
           file: jsonToBase64(tags),
           repo: gitlabRepo,
           path,
@@ -136,7 +133,6 @@ const useTagStore = create<TagState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
-          ext: 'json',
           file: jsonToBase64(tags),
           repo: giteaRepo,
           path,

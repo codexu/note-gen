@@ -120,6 +120,7 @@ function SortableTabWithMenu({
         <div
           ref={setNodeRef}
           style={style}
+          data-tab-id={tab.id}
           className={cn(
             'group relative flex items-center gap-1.5 px-3 h-9 text-sm cursor-pointer transition-all shrink-0',
             isActive
@@ -282,6 +283,32 @@ export function TabBar({
       }
     }
   }, [updateScrollState, tabs])
+
+  // Scroll active tab into view
+  useEffect(() => {
+    if (!activeTabId || !scrollContainerRef.current) return
+
+    const tabElement = document.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement
+    if (!tabElement) return
+
+    const container = scrollContainerRef.current
+    const tabRect = tabElement.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+
+    // Check if tab is outside the visible area
+    const isOutside =
+      tabRect.right > containerRect.right ||
+      tabRect.left < containerRect.left
+
+    if (isOutside) {
+      // Calculate scroll position to center the tab
+      const scrollLeft = tabRect.left - containerRect.left + container.scrollLeft
+      container.scrollTo({
+        left: scrollLeft,
+        behavior: 'smooth'
+      })
+    }
+  }, [activeTabId, tabs])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event

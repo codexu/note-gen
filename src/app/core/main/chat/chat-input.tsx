@@ -29,8 +29,7 @@ import { TooltipButton } from "@/components/tooltip-button"
 import { isMobileDevice } from '@/lib/check'
 import { QuoteDisplay } from "./quote-display"
 import { convertFileSrc } from "@tauri-apps/api/core"
-import { writeFile } from "@tauri-apps/plugin-fs"
-import { BaseDirectory } from "@tauri-apps/plugin-fs"
+import { readTextFile, writeFile, BaseDirectory, exists } from "@tauri-apps/plugin-fs"
 import { ShineBorder } from "@/components/ui/shine-border"
 import {
   DndContext,
@@ -105,7 +104,7 @@ SortableToolbarItem.displayName = 'SortableToolbarItem'
 export const ChatInput = React.memo(function ChatInput() {
   const [text, setText] = useState("")
   const { primaryModel, chatToolbarConfigPc, setChatToolbarConfigPc } = useSettingStore()
-  const { chats, loading, setLinkedResource: setChatLinkedResource } = useChatStore()
+  const { chats, loading, setLinkedResource: setChatLinkedResource, setLinkedResourcePreview } = useChatStore()
   const { marks, trashState } = useMarkStore()
   const { activeFilePath } = useArticleStore()
   const [isComposing, setIsComposing] = useState(false)
@@ -488,12 +487,61 @@ export const ChatInput = React.memo(function ChatInput() {
     }
   }, [debouncedGenPlaceholder])
 
+  // 生成文件的行号预览（用于 AI 对话）
+  async function generateFilePreview(filePath: string, isCustom: boolean): Promise<string> {
+    try {
+      // 检查文件是否存在
+      const fileExists = isCustom
+        ? await exists(filePath)
+        : await exists(filePath, { baseDir: BaseDirectory.AppData })
+
+      if (!fileExists) {
+        return `文件 ${filePath.split('/').pop() || filePath} 不存在或已被删除`
+      }
+
+      let content: string
+      if (isCustom) {
+        content = await readTextFile(filePath)
+      } else {
+        content = await readTextFile(filePath, { baseDir: BaseDirectory.AppData })
+      }
+
+      const lines = content.split('\n')
+      const previewLines = lines.slice(0, 100).map((line, index) => {
+        const lineNum = index + 1
+        const preview = line.length > 60 ? line.slice(0, 60) + '...' : line
+        return `${String(lineNum).padStart(4)} | ${preview}`
+      })
+
+      const totalLines = lines.length
+      const truncatedNote = totalLines > 100 ? `\n... (共 ${totalLines} 行，后 ${totalLines - 100} 行省略)` : ''
+
+      return `已关联文件：${filePath.split('/').pop() || filePath}
+你可以使用 replace_editor_content 工具通过行号修改内容。
+
+行号预览：
+\`\`\`
+${previewLines.join('\n')}
+\`\`\`${truncatedNote}
+
+使用示例：
+- 修改第 4-5 行：replace_editor_content({startLine: 4, endLine: 5, replaceContent: "新内容"})
+- 替换第 10 行的特定内容：replace_editor_content({startLine: 10, endLine: 10, replaceContent: "新内容"})
+`
+    } catch (error) {
+      console.error('生成文件预览失败:', error)
+      return `已关联文件：${filePath.split('/').pop() || filePath}
+（无法读取文件内容）`
+    }
+  }
+
   // 自动关联当前打开的 markdown 文件或文件夹
   useEffect(() => {
     async function linkCurrentResource() {
       if (!activeFilePath) {
         setLinkedResource(null)
         setChatLinkedResource(null)
+        setLinkedResourcePreview(null)
         return
       }
 
@@ -520,6 +568,10 @@ export const ChatInput = React.memo(function ChatInput() {
         }
         setLinkedResource(resource)
         setChatLinkedResource(resource)
+
+        // 生成并设置文件预览
+        const preview = await generateFilePreview(fullPath, workspace.isCustom)
+        setLinkedResourcePreview(preview)
       } else {
         // 文件夹关联逻辑 - 只有在有索引文件时才关联
         const folderName = activeFilePath.split('/').pop() || activeFilePath
@@ -552,10 +604,13 @@ export const ChatInput = React.memo(function ChatInput() {
           }
           setLinkedResource(resource)
           setChatLinkedResource(resource)
+          // 文件夹不生成行号预览
+          setLinkedResourcePreview(null)
         } else {
           // 没有索引文件，清除关联
           setLinkedResource(null)
           setChatLinkedResource(null)
+          setLinkedResourcePreview(null)
         }
       }
     }

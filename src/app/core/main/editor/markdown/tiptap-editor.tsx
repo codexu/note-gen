@@ -634,27 +634,33 @@ export function TipTapEditor({
   // Editor tools event handlers for Agent integration
   useEffect(() => {
     // Get editor selection
-    const handleGetSelection = ({ resolve }: { resolve: (data: { text: string; from: number; to: number; html?: string }) => void }) => {
+    const handleGetSelection = ({ resolve }: { resolve: (data: { text: string; from: number; to: number; html?: string; startLine?: number; endLine?: number }) => void }) => {
       if (!editor) {
-        resolve({ text: '', from: 0, to: 0 })
+        resolve({ text: '', from: 0, to: 0, startLine: 1, endLine: 1 })
         return
       }
 
       const { from, to } = editor.state.selection
       const text = editor.state.doc.textBetween(from, to)
 
+      // Calculate line numbers (1-indexed)
+      const startLine = editor.state.doc.lineAt(from).number
+      const endLine = editor.state.doc.lineAt(to).number
+
       resolve({
         text,
         from,
         to,
         html: editor.getHTML(),
+        startLine,
+        endLine,
       })
     }
 
     // Get editor content
-    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number }) => void }) => {
+    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number }) => void }) => {
       if (!editor) {
-        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0 })
+        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1 })
         return
       }
 
@@ -662,12 +668,16 @@ export function TipTapEditor({
       const text = editor.getText()
       const html = editor.getHTML()
 
+      // Calculate total lines
+      const totalLines = editor.state.doc.lineCount
+
       resolve({
         markdown,
         html,
         text,
         wordCount: text.split(/\s+/).filter(w => w).length,
         charCount: text.length,
+        totalLines,
       })
     }
 
@@ -682,16 +692,19 @@ export function TipTapEditor({
         const { from } = editor.state.selection
 
         // Insert content with markdown parsing
-        editor.chain().focus().insertContent(content, { contentType: 'markdown' }).run()
+        // Wrap in setTimeout to avoid React lifecycle flushSync conflict
+        setTimeout(() => {
+          editor.commands.insertContentAt(from, content)
 
-        // Calculate new cursor position
-        const newPosition = from + content.length
+          // Calculate new cursor position
+          const newPosition = from + content.length
 
-        resolve({
-          success: true,
-          insertedLength: content.length,
-          newCursorPosition: newPosition,
-        })
+          resolve({
+            success: true,
+            insertedLength: content.length,
+            newCursorPosition: newPosition,
+          })
+        }, 0)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         resolve({ success: false, insertedLength: 0 })
@@ -702,41 +715,127 @@ export function TipTapEditor({
     const handleReplace = ({
       content,
       range,
+      searchContent,
+      occurrence,
+      startLine,
+      endLine,
       resolve,
     }: {
-      content: string
+      content?: string
       range?: { from: number; to: number }
-      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void
+      searchContent?: string
+      occurrence?: number
+      startLine?: number
+      endLine?: number
+      resolve: (result: { success: boolean; insertedLength: number; message?: string; error?: string; newCursorPosition?: number }) => void
     }) => {
       if (!editor) {
-        resolve({ success: false, insertedLength: 0 })
+        resolve({ success: false, insertedLength: 0, error: 'Editor not initialized' })
         return
       }
 
       try {
         let { from, to } = editor.state.selection
 
-        // Use specified range if provided
+        // Mode 1: Position-based (use current selection if not specified)
         if (range) {
           from = range.from
           to = range.to
         }
+        // Mode 2: Text-based search
+        else if (searchContent) {
+          // Try to find searchContent in the document using a more robust method
+          const doc = editor.state.doc
+          const content = editor.getMarkdown() || editor.getText()
+          const searchLower = searchContent.toLowerCase()
+          const contentLower = content.toLowerCase()
+
+          // Count occurrences to find the target one
+          let currentOccurrence = 0
+          let searchFrom = 0
+          let foundIndex = -1
+
+          while (currentOccurrence < (occurrence || 1)) {
+            foundIndex = contentLower.indexOf(searchLower, searchFrom)
+            if (foundIndex === -1) {
+              resolve({ success: false, insertedLength: 0, error: `找不到文本 "${searchContent}"` })
+              return
+            }
+            currentOccurrence++
+            searchFrom = foundIndex + 1
+          }
+
+          // Now find the exact position in the ProseMirror doc
+          // Use ProseMirror's descendant traversal to find text position
+          let foundFrom = -1
+          let foundTo = -1
+
+          // Track position while traversing
+          let currentPos = 0
+          doc.descendants((node, pos) => {
+            if (foundFrom !== -1) return false // Already found, stop traversal
+
+            if (node.isText && node.text) {
+              const idxInNode = node.text.toLowerCase().indexOf(searchLower)
+              if (idxInNode !== -1) {
+                foundFrom = pos + idxInNode
+                foundTo = foundFrom + searchContent.length
+                return false // Stop traversal
+              }
+            }
+
+            // Move position forward (account for node size + any gap)
+            if (node.nodeSize) {
+              currentPos = pos + node.nodeSize
+            }
+          })
+
+          if (foundFrom === -1) {
+            // Fallback: use approximate position from markdown
+            foundFrom = foundIndex
+            foundTo = foundIndex + searchContent.length
+          }
+
+          from = foundFrom
+          to = foundTo
+        }
+        // Mode 3: Line-based
+        else if (startLine !== undefined && endLine !== undefined) {
+          const doc = editor.state.doc
+          // Convert 1-based line numbers to positions
+          const startPos = doc.resolve(startLine - 1)
+          const endPos = doc.resolve(endLine)
+          from = startPos.pos
+          to = endPos.pos
+        }
+        // Fallback: use current selection (only if content is provided)
+        else if (content) {
+          // Don't change from/to, use current selection
+        } else {
+          resolve({ success: false, insertedLength: 0, error: '请提供 content、range、searchContent 或 startLine/endLine 参数' })
+          return
+        }
+
+        const newContent = content || ''
 
         // Delete old content and insert new content with markdown parsing
-        editor.chain()
-          .focus()
-          .deleteRange({ from, to })
-          .insertContent(content, { contentType: 'markdown' })
-          .run()
+        // Wrap in setTimeout to avoid React lifecycle flushSync conflict
+        setTimeout(() => {
+          editor.chain()
+            .focus()
+            .deleteRange({ from, to })
+            .insertContentAt(from, newContent)
+            .run()
 
-        resolve({
-          success: true,
-          insertedLength: content.length,
-          newCursorPosition: from + content.length,
-        })
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          resolve({
+            success: true,
+            insertedLength: newContent.length,
+            message: `成功替换 ${to - from} 个字符为 ${newContent.length} 个字符`,
+            newCursorPosition: from + newContent.length,
+          })
+        }, 0)
       } catch (error) {
-        resolve({ success: false, insertedLength: 0 })
+        resolve({ success: false, insertedLength: 0, error: String(error) })
       }
     }
 
@@ -755,13 +854,17 @@ export function TipTapEditor({
           endLine: -1,
           articlePath: activeFilePath || '',
         })
-        // Mark the selected text as quoted
-        editor.commands.setMark('quote')
+        // Mark the selected text as quoted - use setTimeout to defer execution
+        setTimeout(() => {
+          editor.commands.setMark('quote')
+        }, 0)
         // Add click handler to remove mark when clicking back on editor
         const removeQuoteOnClick = (e: MouseEvent) => {
           const target = e.target as HTMLElement
           if (target.closest('.ProseMirror')) {
-            editor.commands.unsetMark('quote')
+            setTimeout(() => {
+              editor.commands.unsetMark('quote')
+            }, 0)
             document.removeEventListener('mousedown', removeQuoteOnClick)
           }
         }
@@ -771,11 +874,8 @@ export function TipTapEditor({
       }
     }
 
-    emitter.on('editor-get-selection', handleGetSelection)
-    emitter.on('editor-get-content', handleGetContent)
-    emitter.on('editor-insert', handleInsert)
-    emitter.on('editor-replace', handleReplace)
-    emitter.on('get-quote-from-editor', handleGetQuote)
+    // Track if listeners have been set up (for cleanup)
+    let listenersSetup = false
 
     // Handle Mermaid diagram insertion
     const handleInsertMermaid = (event: CustomEvent) => {
@@ -797,16 +897,34 @@ export function TipTapEditor({
       }).run()
     }
 
-    document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+    // Defer emitter and document listener registration to avoid flushSync conflict during React render
+    const setupListeners = () => {
+      emitter.on('editor-get-selection', handleGetSelection)
+      emitter.on('editor-get-content', handleGetContent)
+      emitter.on('editor-insert', handleInsert)
+      emitter.on('editor-replace', handleReplace)
+      emitter.on('get-quote-from-editor', handleGetQuote)
+      document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+      listenersSetup = true
+    }
 
-    return () => {
+    const cleanupListeners = () => {
       emitter.off('editor-get-selection', handleGetSelection)
       emitter.off('editor-get-content', handleGetContent)
       emitter.off('editor-insert', handleInsert)
       emitter.off('editor-replace', handleReplace)
       emitter.off('get-quote-from-editor', handleGetQuote)
-      document.removeEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+      // Only remove event listener if it was actually added
+      if (listenersSetup) {
+        document.removeEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+        listenersSetup = false
+      }
     }
+
+    // Use setTimeout to defer listener registration until after React render completes
+    const timer = setTimeout(setupListeners, 0)
+
+    return cleanupListeners
   }, [editor, activeFilePath])
 
   if (!editor) {

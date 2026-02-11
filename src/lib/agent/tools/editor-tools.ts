@@ -9,11 +9,14 @@ export const getEditorSelectionTool: Tool = {
 **Use Cases:**
 - Get selected text for AI processing (translate, polish, etc.)
 - Know selection range for precise replacement
+- Get line numbers for line-based editing
 
 **Returns:**
 - \`text\`: Selected text content
 - \`from\`: Start position (0-indexed)
-- \`to\`: End position (0-indexed)`,
+- \`to\`: End position (0-indexed)
+- \`startLine\`: Start line number (1-indexed)
+- \`endLine\`: End line number (1-indexed)`,
   category: 'editor',
   requiresConfirmation: false,
   parameters: [],
@@ -25,7 +28,7 @@ export const getEditorSelectionTool: Tool = {
             success: !!data.text,
             data,
             message: data.text
-              ? `选中内容：${data.text.slice(0, 50)}${data.text.length > 50 ? '...' : ''}`
+              ? `选中内容：${data.text.slice(0, 50)}${data.text.length > 50 ? '...' : ''} (行 ${data.startLine}-${data.endLine})`
               : '当前没有选中文本',
           })
         },
@@ -42,6 +45,13 @@ export const getEditorContentTool: Tool = {
 **Use Cases:**
 - Get current editor state for AI analysis
 - Read unsaved changes that haven't been saved to file
+- Get total line count for line-based editing
+
+**Returns:**
+- \`markdown\`: Full markdown content
+- \`wordCount\`: Number of words
+- \`charCount\`: Number of characters
+- \`totalLines\`: Total number of lines
 
 **Note:** Use read_markdown_file if you need the saved file content.`,
   category: 'editor',
@@ -54,7 +64,7 @@ export const getEditorContentTool: Tool = {
           resolve({
             success: true,
             data,
-            message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字)`,
+            message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字，${data.totalLines || '?'} 行)`,
           })
         },
       })
@@ -115,20 +125,35 @@ export const replaceEditorContentTool: Tool = {
 
 **Use Cases:**
 - AI wants to modify specific lines/paragraphs
-- Precise content replacement based on selection
+- Precise content replacement based on selection or text search
+- Replace specific text throughout the document
 
-**Parameters:**
+**Parameters (choose one of these modes):**
+
+**Mode 1: Position-based (use current selection if not specified)**
 - \`content\`: New content to replace with
-- \`from\`: Start position (optional, defaults to current selection start)
-- \`to\`: End position (optional, defaults to current selection end)`,
+- \`from\`: Start position (0-indexed, optional)
+- \`to\`: End position (0-indexed, optional)
+
+**Mode 2: Text-based search (recommended for AI)**
+- \`searchContent\`: Text to search for (must match exactly)
+- \`replaceContent\`: New content to replace with
+- \`occurrence\`: Which occurrence to replace (1-based, default: 1)
+
+**Mode 3: Line-based**
+- \`startLine\`: Start line number (1-based)
+- \`endLine\`: End line number (1-based)
+- \`replaceContent\`: New content to replace with
+
+**Note:** Use \`get_editor_content\` to read the current document content first.`,
   category: 'editor',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'content',
       type: 'string',
-      description: 'New content to replace with',
-      required: true,
+      description: 'New content to replace with (position-based mode)',
+      required: false,
     },
     {
       name: 'from',
@@ -142,25 +167,79 @@ export const replaceEditorContentTool: Tool = {
       description: 'End position (0-indexed, optional)',
       required: false,
     },
+    {
+      name: 'searchContent',
+      type: 'string',
+      description: 'Text to search for (text-based mode)',
+      required: false,
+    },
+    {
+      name: 'replaceContent',
+      type: 'string',
+      description: 'New content to replace with (text-based/line-based mode)',
+      required: false,
+    },
+    {
+      name: 'occurrence',
+      type: 'number',
+      description: 'Which occurrence to replace (1-based, default: 1)',
+      required: false,
+    },
+    {
+      name: 'startLine',
+      type: 'number',
+      description: 'Start line number (1-based, line-based mode)',
+      required: false,
+    },
+    {
+      name: 'endLine',
+      type: 'number',
+      description: 'End line number (1-based, line-based mode)',
+      required: false,
+    },
   ],
   execute: async (params): Promise<ToolResult> => {
     return new Promise((resolve) => {
+      // 确定使用哪种模式
+      const hasPositionParams = params.from !== undefined || params.to !== undefined;
+      const hasSearchParams = params.searchContent;
+      const hasLineParams = params.startLine !== undefined && params.endLine !== undefined;
+
+      if (!hasPositionParams && !hasSearchParams && !hasLineParams && !params.content) {
+        resolve({
+          success: false,
+          error: 'Missing required parameters',
+          message: '请提供 content 或 searchContent 或 startLine/endLine 参数',
+        });
+        return;
+      }
+
       emitter.emit('editor-replace', {
-        content: params.content,
-        range: params.from !== undefined && params.to !== undefined
+        content: params.content || params.replaceContent,
+        range: (params.from !== undefined && params.to !== undefined)
           ? { from: params.from, to: params.to }
           : undefined,
+        searchContent: params.searchContent,
+        occurrence: params.occurrence || 1,
+        startLine: params.startLine,
+        endLine: params.endLine,
         resolve: (result) => {
-          resolve({
-            success: result.success,
-            data: result,
-            message: result.success
-              ? `成功替换 ${result.insertedLength} 个字符`
-              : '替换失败',
-          })
+          if (result.success) {
+            resolve({
+              success: true,
+              data: result,
+              message: result.message || `成功替换 ${result.insertedLength} 个字符`,
+            });
+          } else {
+            resolve({
+              success: false,
+              error: result.error,
+              message: result.message || '替换失败',
+            });
+          }
         },
-      })
-    })
+      });
+    });
   },
 }
 

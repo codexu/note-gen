@@ -77,6 +77,10 @@ interface ChatState {
   linkedResource: LinkedResource | null
   setLinkedResource: (resource: LinkedResource | null) => void
 
+  // 关联文件的行号预览（用于 AI 对话时快速了解文件结构）
+  linkedResourcePreview: string | null
+  setLinkedResourcePreview: (preview: string | null) => void
+
   // === 新增：会话管理 ===
   // 当前会话
   currentConversationId: number | null
@@ -236,6 +240,11 @@ const useChatStore = create<ChatState>((set, get) => ({
   linkedResource: null,
   setLinkedResource: (resource: LinkedResource | null) => {
     set({ linkedResource: resource })
+  },
+
+  linkedResourcePreview: null,
+  setLinkedResourcePreview: (preview: string | null) => {
+    set({ linkedResourcePreview: preview })
   },
 
   chats: [],

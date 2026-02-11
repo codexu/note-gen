@@ -36,7 +36,7 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedResource, attachedImages = [], quoteData = null }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, setAgentState, maybeCondense } = useChatStore()
+  const { insert, loading, setLoading, saveChat, setAgentState, maybeCondense, linkedResourcePreview } = useChatStore()
   const { isRagEnabled } = useVectorStore()
   const abortControllerRef = useRef<AbortController | null>(null)
   const agentHandlerRef = useRef<AgentHandler | null>(null)
@@ -288,23 +288,29 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         }, true)
       }
 
-      // 3. 如果有关联文件（非文件夹），读取文件内容
+      // 3. 如果有关联文件（非文件夹），使用行号预览
       if (linkedResource && !isLinkedFolder(linkedResource)) {
-        try {
-          const workspace = await getWorkspacePath()
-          let linkedFileContent = ''
-          if (workspace.isCustom) {
-            linkedFileContent = await readTextFile(linkedResource.path)
-          } else {
-            const { path, baseDir } = await getFilePathOptions(linkedResource.path)
-            linkedFileContent = await readTextFile(path, { baseDir })
-          }
+        if (linkedResourcePreview) {
+          // 使用预生成的行号预览
+          context += `\n${linkedResourcePreview}\n`
+        } else {
+          // 回退：读取完整文件内容
+          try {
+            const workspace = await getWorkspacePath()
+            let linkedFileContent = ''
+            if (workspace.isCustom) {
+              linkedFileContent = await readTextFile(linkedResource.path)
+            } else {
+              const { path, baseDir } = await getFilePathOptions(linkedResource.path)
+              linkedFileContent = await readTextFile(path, { baseDir })
+            }
 
-          if (linkedFileContent) {
-            context += `\n## 关联文件内容\n\nThe following is the content of the linked file "${linkedResource.name}" (${linkedResource.relativePath}):\n${linkedFileContent}\n`
+            if (linkedFileContent) {
+              context += `\n## 关联文件内容\n\nThe following is the content of the linked file "${linkedResource.name}" (${linkedResource.relativePath}):\n${linkedFileContent}\n`
+            }
+          } catch (error) {
+            console.error('Failed to read linked file in Agent mode:', error)
           }
-        } catch (error) {
-          console.error('Failed to read linked file in Agent mode:', error)
         }
       }
 

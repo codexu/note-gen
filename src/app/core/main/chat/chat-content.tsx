@@ -20,7 +20,6 @@ import { McpToolCallCard } from './mcp-tool-call'
 import { AgentExecutionStatus } from './agent-execution-status'
 import { AgentPanelWithRag } from './agent-panel-with-rag'
 import { ChatImages } from "./chat-images"
-import Markdown from '@/components/markdown'
 
 const ChatContent = React.memo(function ChatContent() {
   const { chats, init, agentState, loading } = useChatStore()

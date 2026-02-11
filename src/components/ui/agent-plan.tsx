@@ -389,7 +389,17 @@ export function AgentPlan({
     if (mode === "live" && displaySteps.length > 0 && isRunning) {
       const currentStepId = displaySteps[displaySteps.length - 1]?.id;
       if (currentStepId && !expandedTasks.includes(currentStepId)) {
-        setExpandedTasks((prev) => [...prev, currentStepId]);
+        setExpandedTasks((prev) => {
+          const newState = [...prev, currentStepId];
+          // 自动展开后滚动到该步骤
+          setTimeout(() => {
+            const el = document.getElementById(`step-${currentStepId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+          }, 50);
+          return newState;
+        });
       }
     }
   }, [displaySteps.length, currentThought, currentObservation, isRunning, mode]);
@@ -414,11 +424,21 @@ export function AgentPlan({
         return;
       }
     }
-    setExpandedTasks((prev) =>
-      prev.includes(stepId)
+    setExpandedTasks((prev) => {
+      const isExpanding = !prev.includes(stepId);
+      if (isExpanding) {
+        // 展开时滚动到该步骤
+        setTimeout(() => {
+          const el = document.getElementById(`step-${stepId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          }
+        }, 50);
+      }
+      return prev.includes(stepId)
         ? prev.filter((id) => id !== stepId)
-        : [...prev, stepId]
-    );
+        : [...prev, stepId];
+    });
   };
 
   // Handle confirmation
@@ -581,6 +601,7 @@ export function AgentPlan({
         return (
           <li
             key={step.id}
+            id={`step-${step.id}`}
             className={`${index !== 0 ? "mt-1 pt-2" : ""}`}
           >
             {/* Step row */}
@@ -638,7 +659,7 @@ export function AgentPlan({
                         {t("thought")}
                       </span>
                     </div>
-                    <p className="whitespace-pre-wrap wrap-break-word py-1">
+                    <p className="whitespace-pre-wrap max-h-40 overflow-y-auto wrap-break-word py-1">
                       {step.thought}
                     </p>
                   </div>

@@ -8,7 +8,6 @@ import { Store } from '@tauri-apps/plugin-store'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
-import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import emitter from '@/lib/emitter'
 
@@ -41,7 +40,6 @@ export function SyncButton() {
           successTimerRef.current = setTimeout(() => {
             setShowSuccess(false)
           }, 5000)
-          toast({ title: '已推送' })
         }
       }
     }
@@ -144,11 +142,6 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     } catch (error) {
       console.error('Push failed:', error)
       setIsLoading(false)
-      toast({
-        title: '推送失败',
-        description: '无法推送到远程仓库',
-        variant: 'destructive'
-      })
     }
   }, [activeFilePath, isLoading, generateCommitMessage])
 

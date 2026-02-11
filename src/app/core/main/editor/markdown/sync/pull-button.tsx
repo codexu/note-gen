@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
-import { toast } from '@/hooks/use-toast'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import { preprocessMathMarkdown } from '../math-serialize'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -25,6 +24,10 @@ export function PullButton({ editor }: PullButtonProps) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastInputTimeRef = useRef<number>(Date.now())
 
+  // 用于防抖和竞态处理
+  const pendingFileRef = useRef<string | null>(null)
+  const pullTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const IDLE_PULL_INTERVAL = 30 * 1000 // 30 秒
   const IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后开始计时
 
@@ -32,23 +35,6 @@ export function PullButton({ editor }: PullButtonProps) {
   useEffect(() => {
     isSyncConfigured().then(setIsConfigured)
   }, [])
-
-  // Check for updates
-  const checkForUpdates = useCallback(async () => {
-    if (!activeFilePath) {
-      setHasUpdate(false)
-      return
-    }
-
-    try {
-      const result = await compareFileVersions(activeFilePath)
-      setHasUpdate(result.action === 'pull')
-      return result
-    } catch {
-      setHasUpdate(false)
-      return null
-    }
-  }, [activeFilePath])
 
   // Auto pull from remote (called by interval)
   const autoPull = useCallback(async () => {
@@ -69,11 +55,6 @@ export function PullButton({ editor }: PullButtonProps) {
           const content = await pullRemoteFile(activeFilePath)
           await saveLocalFile(activeFilePath, content)
 
-          toast({
-            title: '已使用远程版本',
-            description: '冲突已解决，使用远程版本覆盖本地'
-          })
-
           // Update editor content - 使用 contentType: 'markdown' 让扩展解析
           const processedContent = preprocessMathMarkdown(content)
           editor.commands.setContent(processedContent, { contentType: 'markdown' })
@@ -86,11 +67,6 @@ export function PullButton({ editor }: PullButtonProps) {
         setIsLoading(true)
         const content = await pullRemoteFile(activeFilePath)
         await saveLocalFile(activeFilePath, content)
-
-        toast({
-          title: '已自动拉取',
-          description: '已从远程仓库拉取最新内容'
-        })
 
         // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析 Markdown
         const processedContent = preprocessMathMarkdown(content)
@@ -112,12 +88,88 @@ export function PullButton({ editor }: PullButtonProps) {
     }
   }, [activeFilePath, editor, isLoading])
 
-  // Check for updates on mount and when active file changes
+  // Check for updates and auto pull when file changes
   useEffect(() => {
-    if (activeFilePath) {
-      checkForUpdates()
+    if (!activeFilePath || !isConfigured) return
+
+    // 清理之前的定时器
+    if (pullTimeoutRef.current) {
+      clearTimeout(pullTimeoutRef.current)
+      pullTimeoutRef.current = null
     }
-  }, [activeFilePath, checkForUpdates])
+
+    const checkAndPullOnSwitch = async () => {
+      // 竞态检查：如果当前正在处理的文件不是这个了，忽略
+      if (pendingFileRef.current !== null && pendingFileRef.current !== activeFilePath) {
+        return
+      }
+
+      pendingFileRef.current = activeFilePath
+
+      try {
+        const result = await compareFileVersions(activeFilePath)
+
+        // 再次检查是否还是当前文件（可能已经切换走了）
+        if (pendingFileRef.current !== activeFilePath) {
+          return
+        }
+
+        if (result.action === 'conflict') {
+          const shouldPull = await ask('远程文件与本地有冲突，是否使用远程版本覆盖本地？', {
+            title: '冲突检测',
+            kind: 'warning',
+          })
+
+          if (shouldPull && pendingFileRef.current === activeFilePath) {
+            setIsLoading(true)
+            const content = await pullRemoteFile(activeFilePath)
+            await saveLocalFile(activeFilePath, content)
+
+            const processedContent = preprocessMathMarkdown(content)
+            editor.commands.setContent(processedContent, { contentType: 'markdown' })
+            setIsLoading(false)
+          }
+        } else if (result.action === 'pull') {
+          // 切换文件时发现远程有更新，立即拉取
+          setIsLoading(true)
+          const content = await pullRemoteFile(activeFilePath)
+
+          // 拉取后再次检查是否还是当前文件
+          if (pendingFileRef.current !== activeFilePath) {
+            setIsLoading(false)
+            return
+          }
+
+          await saveLocalFile(activeFilePath, content)
+
+          const processedContent = preprocessMathMarkdown(content)
+          editor.commands.setContent(processedContent, { contentType: 'markdown' })
+          await updateFileSyncTime(activeFilePath)
+          emitter.emit('sync-pulled', { path: activeFilePath })
+          setIsLoading(false)
+        }
+
+        setHasUpdate(result.action === 'pull')
+      } catch {
+        setHasUpdate(false)
+      } finally {
+        // 只有当这是最后一个请求时才清除标记
+        if (pendingFileRef.current === activeFilePath) {
+          pendingFileRef.current = null
+        }
+      }
+    }
+
+    // 防抖：延迟 500ms 执行，等待用户停止切换
+    pullTimeoutRef.current = setTimeout(checkAndPullOnSwitch, 500)
+
+    return () => {
+      if (pullTimeoutRef.current) {
+        clearTimeout(pullTimeoutRef.current)
+        pullTimeoutRef.current = null
+      }
+    }
+  }, [activeFilePath, isConfigured, editor])
 
   // 监听用户输入事件，重置计时器
   useEffect(() => {
@@ -162,11 +214,6 @@ export function PullButton({ editor }: PullButtonProps) {
       const content = await pullRemoteFile(activeFilePath)
       await saveLocalFile(activeFilePath, content)
 
-      toast({
-        title: '拉取成功',
-        description: '已从远程仓库拉取最新内容'
-      })
-
       // Update editor content - 使用 contentType: 'markdown' 让扩展解析
       const processedContent = preprocessMathMarkdown(content)
       editor.commands.setContent(processedContent, { contentType: 'markdown' })
@@ -174,11 +221,6 @@ export function PullButton({ editor }: PullButtonProps) {
       setHasUpdate(false)
     } catch (error) {
       console.error('Pull failed:', error)
-      toast({
-        title: '拉取失败',
-        description: '无法从远程仓库拉取文件',
-        variant: 'destructive'
-      })
     } finally {
       setIsLoading(false)
     }

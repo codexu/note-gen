@@ -4,7 +4,7 @@ import { Editor } from '@tiptap/react'
 import { WordCount } from './word-count'
 import { CopyButton } from './copy-button'
 import { ExportButton } from './export-button'
-import { SyncTools } from './sync-tools'
+import { SyncTools } from '../sync/sync-tools'
 
 interface FooterBarProps {
   editor: Editor

@@ -14,13 +14,7 @@ import { getFileCommits as getGiteaFileCommits, getFileContent as getGiteaFileCo
 import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface CommitInfo {
   sha: string
@@ -42,6 +36,8 @@ export function HistorySheet({ editor }: HistorySheetProps) {
   const [history, setHistory] = useState<CommitInfo[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
+  const [provider, setProvider] = useState<SyncProvider | null>(null)
+  const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string }>({})
 
   // Get the sync provider
   const getProvider = useCallback(async (): Promise<SyncProvider | null> => {
@@ -139,6 +135,13 @@ export function HistorySheet({ editor }: HistorySheetProps) {
       })
 
       setHistory(historyData)
+      setProvider(provider)
+      setRepoInfo({
+        username: provider === 'github' ? githubUsername : provider === 'gitee' ? giteeUsername : provider === 'gitea' ? giteaUsername : undefined,
+        projectId: provider === 'gitlab' ? gitlabProjectId : undefined,
+        baseUrl: provider === 'gitea' ? giteaBaseUrl : undefined,
+        repo
+      })
     } catch (error) {
       console.error('Failed to load history:', error)
       toast({
@@ -236,8 +239,8 @@ export function HistorySheet({ editor }: HistorySheetProps) {
   if (!activeFilePath) return null
 
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
         <button
           className={cn(
             'p-0.5 rounded transition-colors hover:bg-[hsl(var(--muted))]',
@@ -247,12 +250,32 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         >
           <History size={14} />
         </button>
-      </SheetTrigger>
-      <SheetContent side="right" className="w-[400px]">
-        <SheetHeader>
-          <SheetTitle>提交历史</SheetTitle>
-        </SheetHeader>
-        <div className="mt-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+      </PopoverTrigger>
+      <PopoverContent align="end" side="top" className="w-90 max-h-100 overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-semibold text-sm">提交历史</div>
+          {activeFilePath && provider && repoInfo.repo && (
+            <a
+              href={(() => {
+                switch (provider) {
+                  case 'github': return `https://github.com/${repoInfo.username}/${repoInfo.repo}/blob/main/${activeFilePath}`
+                  case 'gitee': return `https://gitee.com/${repoInfo.username}/${repoInfo.repo}/blob/master/${activeFilePath}`
+                  case 'gitlab': return `https://gitlab.com/${repoInfo.projectId?.split('/').pop()}/-/blob/main/${activeFilePath}`
+                  case 'gitea': return `${repoInfo.baseUrl?.replace('/api/v1', '')}/${repoInfo.username}/${repoInfo.repo}/src/branch/main/${activeFilePath}`
+                  default: return '#'
+                }
+              })()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+              title="在仓库中打开"
+            >
+              <ExternalLink size={10} />
+              <span className="truncate max-w-30">{activeFilePath.split('/').pop()}</span>
+            </a>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto pr-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               加载中...
@@ -262,11 +285,11 @@ export function HistorySheet({ editor }: HistorySheetProps) {
               暂无提交记录
             </div>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               {history.map((commit, index) => (
                 <li
                   key={commit.sha + index}
-                  className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="p-2 border rounded hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <a
@@ -279,7 +302,7 @@ export function HistorySheet({ editor }: HistorySheetProps) {
                       <ExternalLink size={10} />
                     </a>
                     <span className="text-xs text-muted-foreground">
-                      {commit.date.toLocaleDateString()}
+                      {commit.date.toLocaleString()}
                     </span>
                   </div>
                   <p className="text-sm truncate" title={commit.message}>
@@ -307,8 +330,8 @@ export function HistorySheet({ editor }: HistorySheetProps) {
             </ul>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </PopoverContent>
+    </Popover>
   )
 }
 

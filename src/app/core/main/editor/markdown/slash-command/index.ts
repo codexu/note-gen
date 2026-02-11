@@ -22,7 +22,6 @@ export const SlashCommand = Extension.create({
         char: '/',
         pluginKey: SuggestionPluginKey,
         command: ({ editor, range, props }: { editor: Editor; range: any; props: any }) => {
-          console.log('[SlashCommand] command called')
           props.command({ editor, range })
         },
       },

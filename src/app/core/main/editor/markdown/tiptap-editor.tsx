@@ -425,10 +425,6 @@ export function TipTapEditor({
 
     // Simple check - if content is different and new content is not empty
     if (newContent && currentContent !== newContent) {
-      console.log('[DEBUG TipTapEditor] 更新编辑器内容:', {
-        currentLength: currentContent.length,
-        newLength: newContent.length
-      })
       isExternalUpdateRef.current = true
       // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
       editor.commands.setContent(newContent, { contentType: 'markdown' })
@@ -445,7 +441,6 @@ export function TipTapEditor({
       // Only update if this is the active file
       if (!editor || !event || event.path !== activeFilePath) return
 
-      console.log('[DEBUG TipTapEditor] 收到同步内容更新:', { path: event.path })
       isExternalUpdateRef.current = true
       // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
       editor.commands.setContent(event.content, { contentType: 'markdown' })

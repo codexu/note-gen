@@ -197,7 +197,6 @@ class SyncPushQueue {
         try {
           const remoteContent = await pullRemoteFile(path)
           if (remoteContent === content) {
-            console.log(`[SyncPushQueue] 本地内容与远程相同，跳过推送: ${path}`)
             // 获取远程 SHA 用于更新文件树
             const remoteSha = await this.getRemoteSha(path)
             return { success: true, sha: remoteSha }

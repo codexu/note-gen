@@ -1468,17 +1468,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // 更新文件 sha 状态（推送成功后调用）
   updateFileSha: (path: string, sha: string) => {
-    console.log(`[ArticleStore] updateFileSha 被调用: path=${path}, sha=${sha}`)
     const cacheTree = cloneDeep(get().fileTree)
-    console.log(`[ArticleStore] 当前 fileTree 共有 ${cacheTree.length} 个顶层项目`)
 
     // 递归查找并更新文件的 sha
     const updateShaInTree = (items: DirTree[], depth: number = 0): boolean => {
       for (const item of items) {
         const itemPath = computedParentPath(item)
-        console.log(`[ArticleStore] 检查文件: ${itemPath}, isFile: ${item.isFile}, 当前 sha: ${item.sha?.substring(0, 8) || 'empty'}...`)
         if (itemPath === path && item.isFile) {
-          console.log(`[ArticleStore] 找到匹配文件，更新 sha`)
           item.sha = sha
           return true
         }
@@ -1490,11 +1486,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     if (updateShaInTree(cacheTree)) {
-      console.log(`[ArticleStore] 文件树已更新`)
       const sortedTree = get().sortFileTree(cacheTree)
       set({ fileTree: sortedTree })
     } else {
-      console.log(`[ArticleStore] 未找到匹配的文件: ${path}`)
+      // 未找到匹配的文件
     }
   },
 

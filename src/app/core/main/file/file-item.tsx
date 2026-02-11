@@ -153,33 +153,14 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     focusSidebar?.()
     const currentPath = computedParentPath(item)
 
-    // DEBUG: Log cloud file info
-    console.log('[DEBUG handleSelectFile] 点击文件:', {
-      path: currentPath,
-      name: item.name,
-      isLocale: item.isLocale,
-      hasSha: !!item.sha,
-      sha: item.sha?.substring(0, 8) + '...'
-    })
-
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
       // 图片文件：设置 activeFilePath，让 EditorLayout 显示图片编辑器
       setActiveFilePath(currentPath)
     } else if (item.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template)$/i)) {
       // Markdown/文本文件：设置 activeFilePath
-      console.log('[DEBUG handleSelectFile] 设置 activeFilePath:', currentPath)
       setActiveFilePath(currentPath)
 
-      // DEBUG: 检查是否是远程文件
-      if (!item.isLocale) {
-        console.log('[DEBUG handleSelectFile] 检测到远程文件，isLocale=false，sha:', item.sha?.substring(0, 8) + '...')
-        // 远程文件：调用 readArticle 触发拉取
-        readArticle(currentPath, item.sha)
-      } else if (item.sha) {
-        console.log('[DEBUG handleSelectFile] 本地文件但有云端sha:', item.sha.substring(0, 8) + '...')
-      } else {
-        console.log('[DEBUG handleSelectFile] 纯本地文件，无sha')
-      }
+      // 检查是否是远程文件
       // 读取内容的逻辑移到 EditorLayout 中处理，避免重复渲染
     } else {
       // 其他文件类型：清空编辑器

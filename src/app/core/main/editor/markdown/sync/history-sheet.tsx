@@ -14,7 +14,6 @@ import { getFileCommits as getGiteaFileCommits, getFileContent as getGiteaFileCo
 import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
-import { preprocessMathMarkdown } from '../math-serialize'
 import {
   Sheet,
   SheetContent,
@@ -201,9 +200,8 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         await saveLocalFile(activeFilePath, content)
 
         // 更新编辑器内容
-        const processedContent = preprocessMathMarkdown(content)
         editor.commands.clearContent()
-        editor.commands.setContent(processedContent)
+        editor.commands.setContent(content, { contentType: 'markdown' })
 
         // 更新同步时间和恢复时间
         await updateFileSyncTime(activeFilePath)

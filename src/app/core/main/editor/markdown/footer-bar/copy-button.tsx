@@ -4,7 +4,6 @@ import { Editor } from '@tiptap/react'
 import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { toast } from '@/hooks/use-toast'
-import { serializeMathMarkdown } from '../math-serialize'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +42,7 @@ export function CopyButton({ editor }: CopyButtonProps) {
   }, [])
 
   const handleCopyMarkdown = useCallback(() => {
-    copyToClipboard(serializeMathMarkdown(editor.getHTML()), 'markdown')
+    copyToClipboard(editor.getMarkdown(), 'markdown')
   }, [editor, copyToClipboard])
 
   const handleCopyHtml = useCallback(() => {

@@ -3,12 +3,10 @@
 import { Editor } from '@tiptap/react'
 import { ArrowDownCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
-import { preprocessMathMarkdown } from '../math-serialize'
 import { ask } from '@tauri-apps/plugin-dialog'
 import emitter from '@/lib/emitter'
 
@@ -56,8 +54,7 @@ export function PullButton({ editor }: PullButtonProps) {
           await saveLocalFile(activeFilePath, content)
 
           // Update editor content - 使用 contentType: 'markdown' 让扩展解析
-          const processedContent = preprocessMathMarkdown(content)
-          editor.commands.setContent(processedContent, { contentType: 'markdown' })
+          editor.commands.setContent(content, { contentType: 'markdown' })
         }
         return
       }
@@ -69,8 +66,7 @@ export function PullButton({ editor }: PullButtonProps) {
         await saveLocalFile(activeFilePath, content)
 
         // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析 Markdown
-        const processedContent = preprocessMathMarkdown(content)
-        editor.commands.setContent(processedContent, { contentType: 'markdown' })
+        editor.commands.setContent(content, { contentType: 'markdown' })
 
         // 更新同步时间，避免重复检测
         await updateFileSyncTime(activeFilePath)
@@ -125,8 +121,7 @@ export function PullButton({ editor }: PullButtonProps) {
             const content = await pullRemoteFile(activeFilePath)
             await saveLocalFile(activeFilePath, content)
 
-            const processedContent = preprocessMathMarkdown(content)
-            editor.commands.setContent(processedContent, { contentType: 'markdown' })
+            editor.commands.setContent(content, { contentType: 'markdown' })
             setIsLoading(false)
           }
         } else if (result.action === 'pull') {
@@ -142,8 +137,7 @@ export function PullButton({ editor }: PullButtonProps) {
 
           await saveLocalFile(activeFilePath, content)
 
-          const processedContent = preprocessMathMarkdown(content)
-          editor.commands.setContent(processedContent, { contentType: 'markdown' })
+          editor.commands.setContent(content, { contentType: 'markdown' })
           await updateFileSyncTime(activeFilePath)
           emitter.emit('sync-pulled', { path: activeFilePath })
           setIsLoading(false)
@@ -215,8 +209,7 @@ export function PullButton({ editor }: PullButtonProps) {
       await saveLocalFile(activeFilePath, content)
 
       // Update editor content - 使用 contentType: 'markdown' 让扩展解析
-      const processedContent = preprocessMathMarkdown(content)
-      editor.commands.setContent(processedContent, { contentType: 'markdown' })
+      editor.commands.setContent(content, { contentType: 'markdown' })
 
       setHasUpdate(false)
     } catch (error) {

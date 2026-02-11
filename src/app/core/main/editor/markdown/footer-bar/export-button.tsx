@@ -9,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { serializeMathMarkdown } from '../math-serialize'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import useArticleStore from '@/stores/article'
@@ -103,7 +102,7 @@ export function ExportButton({ editor }: ExportButtonProps) {
   }, [])
 
   const handleExportMarkdown = useCallback(() => {
-    const content = serializeMathMarkdown(editor.getHTML())
+    const content = editor.getMarkdown()
     const activeFilePath = useArticleStore.getState().activeFilePath
     const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
     downloadFile(content, `${fileName}.md`, 'text/markdown')

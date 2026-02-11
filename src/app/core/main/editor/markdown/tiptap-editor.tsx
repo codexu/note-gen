@@ -24,7 +24,6 @@ import UniqueId from '@tiptap/extension-unique-id'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MathEditorDialog } from './math-editor-dialog'
-import { serializeMathMarkdown, preprocessMathMarkdown } from './math-serialize'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
@@ -119,7 +118,12 @@ export function TipTapEditor({
       TableHeader,
       TableCell,
       ImageExtension,
-      Markdown,
+      Markdown.configure({
+        indentation: {
+          style: 'space',
+          size: 2,
+        },
+      }),
       SlashCommand.configure({
         suggestion: suggestionOptions,
       }),
@@ -133,12 +137,12 @@ export function TipTapEditor({
       BlockMath,
     ],
     content: initialContent,
+    contentType: 'markdown',
     editable,
     onUpdate: ({ editor }) => {
       // Only trigger onChange if this is NOT an external update
       if (!isExternalUpdateRef.current) {
-        // Use getMarkdown to get proper markdown output, fallback to serializeHTML
-        const markdown = editor.getMarkdown() || serializeMathMarkdown(editor.getHTML())
+        const markdown = editor.getMarkdown()
         onChange?.(markdown)
       }
     },
@@ -200,10 +204,9 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
-      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(processedResult, { contentType: 'html' })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
         .run()
 
       // Send completion event
@@ -284,10 +287,9 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
-      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(processedResult, { contentType: 'html' })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
         .run()
 
       // Send completion event
@@ -368,10 +370,9 @@ export function TipTapEditor({
       )
 
       // Streaming complete - replace all content with proper Markdown parsing
-      const processedResult = preprocessMathMarkdown(accumulatedResult)
       editor.chain()
         .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .insertContent(processedResult, { contentType: 'html' })
+        .insertContent(accumulatedResult, { contentType: 'markdown' })
         .run()
 
       // Send completion event
@@ -403,9 +404,8 @@ export function TipTapEditor({
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
     if (!isInitializedRef.current) {
-      // Pre-process math syntax before loading
-      const processedContent = preprocessMathMarkdown(initialContent || '')
-      editor.commands.setContent(processedContent, { contentType: 'html' })
+      // Tiptap's Markdown extension will handle $...$ and $$...$$ parsing
+      editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
       isInitializedRef.current = true
     }
   }, [editor]) // intentionally not depending on initialContent
@@ -416,7 +416,7 @@ export function TipTapEditor({
 
     // Only update if content actually changed (from remote pull)
     const currentContent = editor.getHTML()
-    const newContent = preprocessMathMarkdown(initialContent || '')
+    const newContent = initialContent || ''
 
     // Simple check - if content is different and new content is not empty
     if (newContent && currentContent !== newContent) {
@@ -441,10 +441,9 @@ export function TipTapEditor({
       if (!editor || !event || event.path !== activeFilePath) return
 
       console.log('[DEBUG TipTapEditor] 收到同步内容更新:', { path: event.path })
-      const processedContent = preprocessMathMarkdown(event.content)
       isExternalUpdateRef.current = true
       // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
-      editor.commands.setContent(processedContent, { contentType: 'markdown' })
+      editor.commands.setContent(event.content, { contentType: 'markdown' })
       // Reset the flag after a short delay
       setTimeout(() => {
         isExternalUpdateRef.current = false
@@ -519,10 +518,9 @@ export function TipTapEditor({
 
         // Streaming complete - replace content with proper Markdown parsing
         if (accumulatedResult) {
-          const processedResult = preprocessMathMarkdown(accumulatedResult)
           editor.chain()
             .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-            .insertContent(processedResult, { contentType: 'html' })
+            .insertContent(accumulatedResult, { contentType: 'markdown' })
             .run()
         }
       } catch (error) {
@@ -557,8 +555,7 @@ export function TipTapEditor({
         if (mark && mark.id !== undefined) {
           import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
             const markdown = markToMarkdown(mark)
-            const processedContent = preprocessMathMarkdown(markdown)
-            editor?.commands.insertContent(processedContent, { contentType: 'html' })
+            editor?.commands.insertContent(markdown, { contentType: 'markdown' })
             toast({
               title: '已插入记录',
               description: mark.desc || mark.content?.slice(0, 50) || '记录内容'
@@ -577,10 +574,8 @@ export function TipTapEditor({
       if (editor && !isExternalUpdateRef.current) {
         // Set flag first to prevent circular updates
         isExternalUpdateRef.current = true
-        // Pre-process math syntax before setting content
-        const processedContent = preprocessMathMarkdown(newContent)
-        // Set content in editor
-        editor.commands.setContent(processedContent, { contentType: 'html' })
+        // Set content in editor with Markdown parsing
+        editor.commands.setContent(newContent, { contentType: 'markdown' })
         // Directly call onChange with the new content (bypassing onUpdate to avoid timing issues)
         onChange?.(newContent)
       }
@@ -663,7 +658,7 @@ export function TipTapEditor({
         return
       }
 
-      const markdown = serializeMathMarkdown(editor.getHTML())
+      const markdown = editor.getMarkdown()
       const text = editor.getText()
       const html = editor.getHTML()
 
@@ -686,11 +681,8 @@ export function TipTapEditor({
       try {
         const { from } = editor.state.selection
 
-        // Pre-process math syntax before inserting
-        const processedContent = preprocessMathMarkdown(content)
-
         // Insert content with markdown parsing
-        editor.chain().focus().insertContent(processedContent, { contentType: 'html' }).run()
+        editor.chain().focus().insertContent(content, { contentType: 'markdown' }).run()
 
         // Calculate new cursor position
         const newPosition = from + content.length
@@ -730,14 +722,11 @@ export function TipTapEditor({
           to = range.to
         }
 
-        // Pre-process math syntax before inserting
-        const processedContent = preprocessMathMarkdown(content)
-
         // Delete old content and insert new content with markdown parsing
         editor.chain()
           .focus()
           .deleteRange({ from, to })
-          .insertContent(processedContent, { contentType: 'html' })
+          .insertContent(content, { contentType: 'markdown' })
           .run()
 
         resolve({

@@ -1,5 +1,4 @@
 export { SyncTools } from './sync-tools'
 export { SyncButton } from './sync-button'
 export { PullButton } from './pull-button'
-export { PrimarySyncBadge } from './primary-sync-badge'
 export { HistorySheet } from './history-sheet'

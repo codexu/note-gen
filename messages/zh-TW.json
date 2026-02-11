@@ -341,6 +341,36 @@
           "title": "提交模型",
           "desc": "用於自動生成 Git 提交信息，基於文件內容變化智能生成描述性提交信息"
         }
+      },
+      "mermaid": {
+        "title": "圖表",
+        "rendering": "渲染中...",
+        "renderError": "渲染錯誤",
+        "clickToEdit": "點擊編輯源碼",
+        "clickToAdd": "點擊添加圖表",
+        "placeholder": "輸入 Mermaid 圖表代碼...",
+        "preview": "預覽",
+        "done": "完成",
+        "diagramTypes": {
+          "flowchart": "流程圖",
+          "sequence": "時序圖",
+          "classDiagram": "類圖",
+          "stateDiagram": "狀態圖",
+          "er": "ER圖",
+          "gantt": "甘特圖",
+          "pie": "餅圖",
+          "journey": "旅程圖"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[開始] --> B[處理]\n    B --> C[結束]",
+          "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: 你好\n    Bob-->>Alice: 回覆",
+          "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+          "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+          "gantt": "gantt\n    title 項目計劃\n    dateFormat YYYY-MM-DD\n    section 第一階段\n    任務1 :a1, 2024-01-01, 30d\n    section 第二階段\n    任務2 :after a1, 20d",
+          "pie": "pie title 資源分配\n    \"CPU\" : 45\n    \"記憶體\" : 30\n    \"儲存\" : 25",
+          "journey": "journey\n    title 我的日常工作\n    section 上午\n    通勤 : 7:00, 5\n    工作 : 9:00, 8"
+        }
       }
     },
     "record": {
@@ -2255,6 +2285,35 @@
       "reject": "拒絕",
       "generating": "生成中...",
       "abort": "終止"
+    },
+    "mermaid": {
+      "rendering": "渲染中...",
+      "renderError": "渲染錯誤",
+      "clickToEdit": "點擊編輯源碼",
+      "clickToAdd": "點擊添加圖表",
+      "placeholder": "輸入 Mermaid 圖表代碼...",
+      "preview": "預覽",
+      "done": "完成",
+      "diagramTypes": {
+        "flowchart": "流程圖",
+        "sequence": "時序圖",
+        "classDiagram": "類圖",
+        "stateDiagram": "狀態圖",
+        "er": "ER圖",
+        "gantt": "甘特圖",
+        "pie": "餅圖",
+        "journey": "旅程圖"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[開始] --> B[處理]\n    B --> C[結束]",
+        "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: 你好\n    Bob-->>Alice: 回覆",
+        "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+        "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+        "gantt": "gantt\n    title 項目計劃\n    dateFormat YYYY-MM-DD\n    section 第一階段\n    任務1 :a1, 2024-01-01, 30d\n    section 第二階段\n    任務2 :after a1, 20d",
+        "pie": "pie title 資源分配\n    \"CPU\" : 45\n    \"記憶體\" : 30\n    \"儲存\" : 25",
+        "journey": "journey\n    title 我的日常工作\n    section 上午\n    通勤 : 7:00, 5\n    工作 : 9:00, 8"
+      }
     }
   }
 }

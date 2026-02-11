@@ -347,6 +347,36 @@
           "title": "Modelo de Commit",
           "desc": "Para gerar automaticamente mensagens de commit do Git com base nas alterações do arquivo"
         }
+      },
+      "mermaid": {
+        "title": "Diagrama",
+        "rendering": "Renderizando...",
+        "renderError": "Erro de renderização",
+        "clickToEdit": "Clique para editar código",
+        "clickToAdd": "Clique para adicionar diagrama",
+        "placeholder": "Digite o código do diagrama Mermaid...",
+        "preview": "Visualizar",
+        "done": "Concluído",
+        "diagramTypes": {
+          "flowchart": "Fluxograma",
+          "sequence": "Sequência",
+          "classDiagram": "Diagrama de Classes",
+          "stateDiagram": "Diagrama de Estados",
+          "er": "Diagrama ER",
+          "gantt": "Gantt",
+          "pie": "Gráfico de Pizza",
+          "journey": "Jornada"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[Início] --> B[Processo]\n    B --> C[Fim]",
+          "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Olá\n    Bob-->>Alice: Resposta",
+          "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+          "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+          "gantt": "gantt\n    title Plano de Projeto\n    dateFormat YYYY-MM-DD\n    section Fase 1\n    Tarefa1 :a1, 2024-01-01, 30d\n    section Fase 2\n    Tarefa2 :after a1, 20d",
+          "pie": "pie title Alocação de Recursos\n    \"CPU\" : 45\n    \"Memória\" : 30\n    \"Armazenamento\" : 25",
+          "journey": "journey\n    title Meu Trabalho Diário\n    section Manhã\n    Deslocamento : 7:00, 5\n    Trabalho : 9:00, 8"
+        }
       }
     },
     "record": {
@@ -2426,6 +2456,35 @@
       "reject": "Rejeitar",
       "generating": "Gerando...",
       "abort": "Abortar"
+    },
+    "mermaid": {
+      "rendering": "Renderizando...",
+      "renderError": "Erro de renderização",
+      "clickToEdit": "Clique para editar código",
+      "clickToAdd": "Clique para adicionar diagrama",
+      "placeholder": "Digite o código do diagrama Mermaid...",
+      "preview": "Visualizar",
+      "done": "Concluído",
+      "diagramTypes": {
+        "flowchart": "Fluxograma",
+        "sequence": "Sequência",
+        "classDiagram": "Diagrama de Classes",
+        "stateDiagram": "Diagrama de Estados",
+        "er": "Diagrama ER",
+        "gantt": "Gantt",
+        "pie": "Gráfico de Pizza",
+        "journey": "Jornada"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[Início] --> B[Processo]\n    B --> C[Fim]",
+        "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Olá\n    Bob-->>Alice: Resposta",
+        "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+        "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+        "gantt": "gantt\n    title Plano de Projeto\n    dateFormat YYYY-MM-DD\n    section Fase 1\n    Tarefa1 :a1, 2024-01-01, 30d\n    section Fase 2\n    Tarefa2 :after a1, 20d",
+        "pie": "pie title Alocação de Recursos\n    \"CPU\" : 45\n    \"Memória\" : 30\n    \"Armazenamento\" : 25",
+        "journey": "journey\n    title Meu Trabalho Diário\n    section Manhã\n    Deslocamento : 7:00, 5\n    Trabalho : 9:00, 8"
+      }
     }
   }
 }

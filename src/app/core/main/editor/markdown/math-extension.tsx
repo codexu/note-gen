@@ -200,14 +200,14 @@ export const InlineMath = Node.create({
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {
-    return `$${node.attrs.latex}$`
+    return `$${node.attrs?.latex ?? ''}$`
   },
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   parseMarkdown(token, _helpers) {
     return {
       type: 'inlineMath',
-      attrs: { latex: token.content || token.raw.slice(1, -1) },
+      attrs: { latex: token.content ?? (token.raw?.slice(1, -1) ?? '') },
     }
   },
 })
@@ -274,14 +274,14 @@ export const BlockMath = Node.create({
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {
-    return `\n$$${node.attrs.latex}$$\n`
+    return `\n$$${node.attrs?.latex ?? ''}$$\n`
   },
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   parseMarkdown(token, _helpers) {
     return {
       type: 'blockMath',
-      attrs: { latex: token.content || token.raw.slice(2, -2) },
+      attrs: { latex: token.content ?? (token.raw?.slice(2, -2) ?? '') },
     }
   },
 })

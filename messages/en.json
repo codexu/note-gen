@@ -397,6 +397,36 @@
           "title": "Commit Model",
           "desc": "For automatically generating Git commit messages based on file changes"
         }
+      },
+      "mermaid": {
+        "title": "Diagram",
+        "rendering": "Rendering...",
+        "renderError": "Render error",
+        "clickToEdit": "Click to edit source",
+        "clickToAdd": "Click to add diagram",
+        "placeholder": "Enter Mermaid diagram code...",
+        "preview": "Preview",
+        "done": "Done",
+        "diagramTypes": {
+          "flowchart": "Flowchart",
+          "sequence": "Sequence",
+          "classDiagram": "Class Diagram",
+          "stateDiagram": "State Diagram",
+          "er": "ER Diagram",
+          "gantt": "Gantt",
+          "pie": "Pie Chart",
+          "journey": "Journey"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[Start] --> B[Process]\n    B --> C[End]",
+          "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Hello\n    Bob-->>Alice: Reply",
+          "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+          "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+          "gantt": "gantt\n    title Project Plan\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task1 :a1, 2024-01-01, 30d\n    section Phase 2\n    Task2 :after a1, 20d",
+          "pie": "pie title Resource Allocation\n    \"CPU\" : 45\n    \"Memory\" : 30\n    \"Storage\" : 25",
+          "journey": "journey\n    title My Daily Work\n    section Morning\n    Commute : 7:00, 5\n    Work : 9:00, 8"
+        }
       }
     },
     "record": {
@@ -2309,6 +2339,35 @@
       "reject": "Reject",
       "generating": "Generating...",
       "abort": "Abort"
+    },
+    "mermaid": {
+      "rendering": "Rendering...",
+      "renderError": "Render error",
+      "clickToEdit": "Click to edit source",
+      "clickToAdd": "Click to add diagram",
+      "placeholder": "Enter Mermaid diagram code...",
+      "preview": "Preview",
+      "done": "Done",
+      "diagramTypes": {
+        "flowchart": "Flowchart",
+        "sequence": "Sequence",
+        "classDiagram": "Class Diagram",
+        "stateDiagram": "State Diagram",
+        "er": "ER Diagram",
+        "gantt": "Gantt",
+        "pie": "Pie Chart",
+        "journey": "Journey"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[Start] --> B[Process]\n    B --> C[End]",
+        "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Hello\n    Bob-->>Alice: Reply",
+        "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+        "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+        "gantt": "gantt\n    title Project Plan\n    dateFormat YYYY-MM-DD\n    section Phase 1\n    Task1 :a1, 2024-01-01, 30d\n    section Phase 2\n    Task2 :after a1, 20d",
+        "pie": "pie title Resource Allocation\n    \"CPU\" : 45\n    \"Memory\" : 30\n    \"Storage\" : 25",
+        "journey": "journey\n    title My Daily Work\n    section Morning\n    Commute : 7:00, 5\n    Work : 9:00, 8"
+      }
     }
   }
 }

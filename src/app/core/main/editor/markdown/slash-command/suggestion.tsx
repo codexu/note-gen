@@ -16,6 +16,14 @@ import {
   AlignJustify,
   Sparkles,
   Sigma,
+  GitBranch,
+  GitCommit,
+  Calendar,
+  Layers,
+  Activity,
+  PieChart,
+  Database,
+  Map,
 } from 'lucide-react'
 import { SuggestionProps } from '@tiptap/suggestion'
 import { type Editor } from '@tiptap/core'
@@ -227,6 +235,120 @@ export const suggestionItems = () => {
       command: ({ editor, range }: { editor: Editor; range: any }) => {
         editor.chain().focus().deleteRange(range).run()
         const event = new CustomEvent('tiptap-insert-block-math')
+        document.dispatchEvent(event)
+      },
+    },
+
+    // 图表
+    {
+      title: '流程图',
+      description: '插入流程图',
+      icon: <GitBranch className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'flowchart', 'diagram', '流程图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'flowchart' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '时序图',
+      description: '插入时序图',
+      icon: <GitCommit className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'sequence', 'sequenceDiagram', '时序图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'sequence' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '甘特图',
+      description: '插入甘特图',
+      icon: <Calendar className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'gantt', '甘特图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'gantt' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '类图',
+      description: '插入类图',
+      icon: <Layers className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'class', 'classDiagram', '类图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'classDiagram' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '状态图',
+      description: '插入状态图',
+      icon: <Activity className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'state', 'stateDiagram', '状态图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'stateDiagram' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '饼图',
+      description: '插入饼图',
+      icon: <PieChart className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'pie', '饼图', 'chart'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'pie' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: 'ER图',
+      description: '插入实体关系图',
+      icon: <Database className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'er', 'erDiagram', 'ER图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'er' },
+        })
+        document.dispatchEvent(event)
+      },
+    },
+    {
+      title: '旅程图',
+      description: '插入用户旅程图',
+      icon: <Map className="w-4 h-4" />,
+      group: '图表',
+      searchTerms: ['mermaid', 'journey', '旅程图'],
+      command: ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+        const event = new CustomEvent('tiptap-insert-mermaid', {
+          detail: { type: 'journey' },
+        })
         document.dispatchEvent(event)
       },
     },

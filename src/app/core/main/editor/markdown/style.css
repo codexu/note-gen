@@ -936,3 +936,99 @@
 .dark .tiptap-editor .ProseMirror .ai-suggestion:hover {
   background-color: hsl(var(--primary) / 0.4);
 }
+
+/* ========================
+   Mermaid 图表样式
+   ======================== */
+
+.mermaid-diagram-wrapper {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mermaid-diagram-wrapper .mermaid-preview {
+  min-height: 60px;
+  position: relative;
+}
+
+.mermaid-diagram-wrapper .mermaid-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg {
+  overflow-x: auto;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram-wrapper .mermaid-editor {
+  box-shadow: 0 4px 6px -1px hsl(var(--foreground) / 0.1);
+}
+
+.mermaid-diagram-wrapper textarea {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+/* Mermaid SVG 内联样式覆盖 */
+.mermaid-diagram-wrapper .mermaid-svg .label {
+  font-family: inherit !important;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg .node rect,
+.mermaid-diagram-wrapper .mermaid-svg .node circle,
+.mermaid-diagram-wrapper .mermaid-svg .node polygon,
+.mermaid-diagram-wrapper .mermaid-svg .node path {
+  fill: hsl(var(--card));
+  stroke: hsl(var(--border));
+  stroke-width: 1px;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg .edgePath .path {
+  stroke: hsl(var(--foreground));
+  stroke-width: 2px;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg .edgeLabel {
+  background-color: hsl(var(--background));
+}
+
+.mermaid-diagram-wrapper .mermaid-svg text {
+  fill: hsl(var(--foreground));
+  font-family: inherit !important;
+}
+
+.mermaid-diagram-wrapper .mermaid-svg .titleText {
+  fill: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* 甘特图样式 */
+.gantt .bar {
+  fill: hsl(var(--primary)) !important;
+}
+
+.gantt .bar-label {
+  fill: hsl(var(--primary-foreground)) !important;
+}
+
+/* 时序图样式 */
+.sequence-diagram .actor {
+  fill: hsl(var(--card)) !important;
+  stroke: hsl(var(--border)) !important;
+}
+
+.sequence-diagram .signal {
+  stroke: hsl(var(--foreground)) !important;
+}
+
+.sequence-diagram .note {
+  fill: hsl(var(--muted)) !important;
+  stroke: hsl(var(--border)) !important;
+}

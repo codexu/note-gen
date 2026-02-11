@@ -341,6 +341,36 @@
           "title": "コミットモデル",
           "desc": "ファイルの変更に基づいて Git コミットメッセージを自動生成するためのモデル"
         }
+      },
+      "mermaid": {
+        "title": " диаграмма",
+        "rendering": "レンダリング中...",
+        "renderError": "レンダリングエラー",
+        "clickToEdit": "クリックしてソースを編集",
+        "clickToAdd": "クリックして диаграммаを追加",
+        "placeholder": "Mermaid диаграммаコードを入力...",
+        "preview": "プレビュー",
+        "done": "完了",
+        "diagramTypes": {
+          "flowchart": "フローチャート",
+          "sequence": "シーケンス",
+          "classDiagram": "クラス図",
+          "stateDiagram": "ステート図",
+          "er": "ER図",
+          "gantt": "ガントチャート",
+          "pie": "円グラフ",
+          "journey": "ジャーニー"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[開始] --> B[処理]\n    B --> C[終了]",
+          "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: こんにちは\n    Bob-->>Alice: 返信",
+          "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+          "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+          "gantt": "gantt\n    title プロジェクト計画\n    dateFormat YYYY-MM-DD\n    section 第一フェーズ\n    タスク1 :a1, 2024-01-01, 30d\n    section 第二フェーズ\n    タスク2 :after a1, 20d",
+          "pie": "pie title リソース割り当て\n    \"CPU\" : 45\n    \"メモリ\" : 30\n    \"ストレージ\" : 25",
+          "journey": "journey\n    title 私の日常工作\n    section 午前\n    通勤 : 7:00, 5\n    仕事 : 9:00, 8"
+        }
       }
     },
     "record": {
@@ -2387,6 +2417,35 @@
       "reject": "拒否",
       "generating": "生成中...",
       "abort": "中止"
+    },
+    "mermaid": {
+      "rendering": "レンダリング中...",
+      "renderError": "レンダリングエラー",
+      "clickToEdit": "クリックしてソースを編集",
+      "clickToAdd": "クリックして диаграммаを追加",
+      "placeholder": "Mermaid диаграммаコードを入力...",
+      "preview": "プレビュー",
+      "done": "完了",
+      "diagramTypes": {
+        "flowchart": "フローチャート",
+        "sequence": "シーケンス",
+        "classDiagram": "クラス図",
+        "stateDiagram": "ステート図",
+        "er": "ER図",
+        "gantt": "ガントチャート",
+        "pie": "円グラフ",
+        "journey": "ジャーニー"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[開始] --> B[処理]\n    B --> C[終了]",
+        "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: こんにちは\n    Bob-->>Alice: 返信",
+        "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+        "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+        "gantt": "gantt\n    title プロジェクト計画\n    dateFormat YYYY-MM-DD\n    section 第一フェーズ\n    タスク1 :a1, 2024-01-01, 30d\n    section 第二フェーズ\n    タスク2 :after a1, 20d",
+        "pie": "pie title リソース割り当て\n    \"CPU\" : 45\n    \"メモリ\" : 30\n    \"ストレージ\" : 25",
+        "journey": "journey\n    title 私の日常工作\n    section 午前\n    通勤 : 7:00, 5\n    仕事 : 9:00, 8"
+      }
     }
   }
 }

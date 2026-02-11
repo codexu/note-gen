@@ -23,8 +23,10 @@ import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
+import { MermaidDiagram } from './mermaid-extension'
 import { MathEditorDialog } from './math-editor-dialog'
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
@@ -75,6 +77,8 @@ export function TipTapEditor({
   // Math dialog state
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
   const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
+
+  const t = useTranslations('editor.mermaid.templates')
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -135,6 +139,7 @@ export function TipTapEditor({
       }),
       InlineMath,
       BlockMath,
+      MermaidDiagram,
     ],
     content: initialContent,
     contentType: 'markdown',
@@ -777,12 +782,35 @@ export function TipTapEditor({
     emitter.on('editor-replace', handleReplace)
     emitter.on('get-quote-from-editor', handleGetQuote)
 
+    // Handle Mermaid diagram insertion
+    const handleInsertMermaid = (event: CustomEvent) => {
+      if (!editor) return
+      const { type } = event.detail || {}
+
+      // Get template from i18n
+      const getTemplate = (diagramType: string) => {
+        const key = `mermaid.templates.${diagramType}` as any
+        return t(key) || t('flowchart')
+      }
+
+      const code = getTemplate(type || 'flowchart')
+
+      // Insert mermaid diagram node
+      editor.chain().focus().insertContent({
+        type: 'mermaidDiagram',
+        attrs: { code, type: type || 'flowchart' },
+      }).run()
+    }
+
+    document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+
     return () => {
       emitter.off('editor-get-selection', handleGetSelection)
       emitter.off('editor-get-content', handleGetContent)
       emitter.off('editor-insert', handleInsert)
       emitter.off('editor-replace', handleReplace)
       emitter.off('get-quote-from-editor', handleGetQuote)
+      document.removeEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
     }
   }, [editor, activeFilePath])
 

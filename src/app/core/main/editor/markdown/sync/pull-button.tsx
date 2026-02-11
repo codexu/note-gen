@@ -1,7 +1,7 @@
 'use client'
 
 import { Editor } from '@tiptap/react'
-import { ArrowDownCircle } from 'lucide-react'
+import { ArrowDownCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
@@ -230,19 +230,29 @@ export function PullButton({ editor }: PullButtonProps) {
   if (!isConfigured || !activeFilePath) return null
 
   return (
-    <button
-      onClick={handlePull}
-      disabled={isLoading || !hasUpdate}
-      className={cn(
-        'p-0.5 rounded transition-colors',
-        hasUpdate && !isLoading
-          ? 'hover:bg-amber-500/10 text-amber-500'
-          : 'opacity-30 cursor-not-allowed'
+    <div className="flex items-center gap-1">
+      {/* 拉取中状态 */}
+      {isLoading ? (
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Loader2 size={12} className="animate-spin" />
+          拉取中...
+        </span>
+      ) : hasUpdate ? (
+        /* 有更新可以拉取 */
+        <button
+          onClick={handlePull}
+          className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500"
+          title="拉取更新"
+        >
+          <ArrowDownCircle size={14} />
+        </button>
+      ) : (
+        /* 无需拉取 */
+        <span className="p-0.5 opacity-30 cursor-not-allowed" title="无需拉取">
+          <ArrowDownCircle size={14} />
+        </span>
       )}
-      title={hasUpdate ? '拉取更新' : '无需拉取'}
-    >
-      <ArrowDownCircle size={14} className={cn(isLoading && 'animate-spin')} />
-    </button>
+    </div>
   )
 }
 

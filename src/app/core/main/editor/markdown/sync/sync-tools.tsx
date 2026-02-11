@@ -3,7 +3,6 @@ import { Editor } from '@tiptap/react'
 import { useTranslations } from 'next-intl'
 import { SyncButton } from './sync-button'
 import { PullButton } from './pull-button'
-import { PrimarySyncBadge } from './primary-sync-badge'
 import { HistorySheet } from './history-sheet'
 import { useRouter } from 'next/navigation'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
@@ -29,7 +28,6 @@ export function SyncTools({ editor }: SyncToolsProps) {
   if (configured) {
     return (
       <div className="flex items-center gap-1">
-        <PrimarySyncBadge />
         <HistorySheet editor={editor} />
         <SyncButton />
         <PullButton editor={editor} />

@@ -2315,5 +2315,12 @@
         "journey": "journey\n    title 我的日常工作\n    section 上午\n    通勤 : 7:00, 5\n    工作 : 9:00, 8"
       }
     }
+  },
+  "tabContext": {
+    "close": "關閉",
+    "closeOthers": "關閉其他",
+    "closeAll": "關閉全部",
+    "closeLeft": "關閉左側",
+    "closeRight": "關閉右側"
   }
 }

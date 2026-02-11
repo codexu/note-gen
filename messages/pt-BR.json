@@ -2486,5 +2486,12 @@
         "journey": "journey\n    title Meu Trabalho Diário\n    section Manhã\n    Deslocamento : 7:00, 5\n    Trabalho : 9:00, 8"
       }
     }
+  },
+  "tabContext": {
+    "close": "Fechar",
+    "closeOthers": "Fechar Outros",
+    "closeAll": "Fechar Tudo",
+    "closeLeft": "Fechar à Esquerda",
+    "closeRight": "Fechar à Direita"
   }
 }

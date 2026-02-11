@@ -2444,8 +2444,15 @@
         "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
         "gantt": "gantt\n    title プロジェクト計画\n    dateFormat YYYY-MM-DD\n    section 第一フェーズ\n    タスク1 :a1, 2024-01-01, 30d\n    section 第二フェーズ\n    タスク2 :after a1, 20d",
         "pie": "pie title リソース割り当て\n    \"CPU\" : 45\n    \"メモリ\" : 30\n    \"ストレージ\" : 25",
-        "journey": "journey\n    title 私の日常工作\n    section 午前\n    通勤 : 7:00, 5\n    仕事 : 9:00, 8"
+        "journey": "journey\n    title 私の日常\n    section 午前\n    通勤 : 7:00, 5\n    仕事 : 9:00, 8"
       }
     }
+  },
+  "tabContext": {
+    "close": "閉じる",
+    "closeOthers": "その他を閉じる",
+    "closeAll": "すべて閉じる",
+    "closeLeft": "左を閉じる",
+    "closeRight": "右を閉じる"
   }
 }

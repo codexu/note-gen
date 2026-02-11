@@ -252,6 +252,64 @@ export function EditorLayout() {
     }
   }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
 
+  // Handle close other tabs
+  const handleCloseOtherTabs = useCallback((keepPath: string) => {
+    const tabsToRemove = tabsRef.current.filter(t => t.path !== keepPath)
+
+    tabsToRemove.forEach(tab => {
+      delete tabContentsRef.current[tab.path]
+      removeTab(tab.id)
+    })
+
+    // Update active tab if needed
+    const keptTab = tabsRef.current.find(t => t.path === keepPath)
+    if (keptTab && localActiveTabId !== keptTab.id) {
+      setActiveTabId(keptTab.id)
+      setActiveFilePath(keptTab.path)
+    }
+  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+
+  // Handle close all tabs
+  const handleCloseAllTabs = useCallback(() => {
+    tabsRef.current.forEach(tab => {
+      delete tabContentsRef.current[tab.path]
+      removeTab(tab.id)
+    })
+    setActiveTabId('')
+    setActiveFilePath('')
+  }, [removeTab, setActiveTabId, setActiveFilePath])
+
+  // Handle close left tabs
+  const handleCloseLeftTabs = useCallback((rightPath: string) => {
+    const rightIndex = tabsRef.current.findIndex(t => t.path === rightPath)
+    const tabsToRemove = tabsRef.current.slice(0, rightIndex)
+
+    tabsToRemove.forEach(tab => {
+      delete tabContentsRef.current[tab.path]
+      removeTab(tab.id)
+    })
+
+    // Update active tab if needed
+    if (rightIndex > 0) {
+      const rightTab = tabsRef.current[rightIndex]
+      if (rightTab && localActiveTabId !== rightTab.id) {
+        setActiveTabId(rightTab.id)
+        setActiveFilePath(rightTab.path)
+      }
+    }
+  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+
+  // Handle close right tabs
+  const handleCloseRightTabs = useCallback((leftPath: string) => {
+    const leftIndex = tabsRef.current.findIndex(t => t.path === leftPath)
+    const tabsToRemove = tabsRef.current.slice(leftIndex + 1)
+
+    tabsToRemove.forEach(tab => {
+      delete tabContentsRef.current[tab.path]
+      removeTab(tab.id)
+    })
+  }, [removeTab])
+
   // Render content panel for a tab
   const renderContentPanel = useCallback((tab: TabInfo, isActive: boolean) => {
     const itemType = getItemType(tab.path)
@@ -292,6 +350,10 @@ export function EditorLayout() {
           onTabSwitch={handleTabSwitch}
           onNewTab={handleNewTab}
           onCloseTab={handleCloseTab}
+          onCloseOtherTabs={handleCloseOtherTabs}
+          onCloseAllTabs={handleCloseAllTabs}
+          onCloseLeftTabs={handleCloseLeftTabs}
+          onCloseRightTabs={handleCloseRightTabs}
         />
         <EmptyState />
       </div>
@@ -307,6 +369,10 @@ export function EditorLayout() {
         onTabSwitch={handleTabSwitch}
         onNewTab={handleNewTab}
         onCloseTab={handleCloseTab}
+        onCloseOtherTabs={handleCloseOtherTabs}
+        onCloseAllTabs={handleCloseAllTabs}
+        onCloseLeftTabs={handleCloseLeftTabs}
+        onCloseRightTabs={handleCloseRightTabs}
       />
 
       {/* Content panels - all rendered, only active one visible */}

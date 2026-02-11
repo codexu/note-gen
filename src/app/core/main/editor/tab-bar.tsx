@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { X, FileText, Folder, Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import {
   DndContext,
@@ -19,6 +20,15 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from '@/components/ui/enhanced-context-menu'
+import { platform } from '@tauri-apps/plugin-os'
 
 export interface TabInfo {
   id: string
@@ -33,19 +43,35 @@ interface TabBarProps {
   onTabSwitch: (path: string) => void
   onNewTab: () => void
   onCloseTab: (path: string) => void
+  onCloseOtherTabs: (path: string) => void
+  onCloseAllTabs: () => void
+  onCloseLeftTabs: (path: string) => void
+  onCloseRightTabs: (path: string) => void
 }
 
-// Sortable Tab Component
-function SortableTab({
+// Sortable Tab with Context Menu
+function SortableTabWithMenu({
   tab,
   isActive,
-  onClick,
-  onClose
+  tabs,
+  modKey,
+  onTabSwitch,
+  onCloseTab,
+  onCloseOtherTabs,
+  onCloseAllTabs,
+  onCloseLeftTabs,
+  onCloseRightTabs,
 }: {
   tab: TabInfo
   isActive: boolean
-  onClick: () => void
-  onClose: (e: React.MouseEvent) => void
+  tabs: TabInfo[]
+  modKey: string
+  onTabSwitch: (path: string) => void
+  onCloseTab: (path: string) => void
+  onCloseOtherTabs: (path: string) => void
+  onCloseAllTabs: () => void
+  onCloseLeftTabs: (path: string) => void
+  onCloseRightTabs: (path: string) => void
 }) {
   const {
     attributes,
@@ -62,51 +88,166 @@ function SortableTab({
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const t = useTranslations('tabContext')
+  const currentIndex = tabs.findIndex(t => t.id === tab.id)
+  const canCloseLeft = currentIndex > 0
+  const canCloseRight = currentIndex < tabs.length - 1
+  const hasOthers = tabs.length > 1
+
+  const handleAction = (action: 'close' | 'closeOthers' | 'closeAll' | 'closeLeft' | 'closeRight') => {
+    switch (action) {
+      case 'close':
+        onCloseTab(tab.path)
+        break
+      case 'closeOthers':
+        onCloseOtherTabs(tab.path)
+        break
+      case 'closeAll':
+        onCloseAllTabs()
+        break
+      case 'closeLeft':
+        onCloseLeftTabs(tab.path)
+        break
+      case 'closeRight':
+        onCloseRightTabs(tab.path)
+        break
+    }
+  }
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        'group relative flex items-center gap-1.5 px-3 h-9 text-sm cursor-pointer transition-all shrink-0',
-        isActive
-          ? 'text-foreground font-medium'
-          : 'text-muted-foreground hover:text-foreground'
-      )}
-      title={tab.path}
-      onClick={onClick}
-      {...attributes}
-      {...listeners}
-    >
-      {tab.isFolder ? (
-        <Folder className="w-4 h-4 shrink-0 text-amber-500" />
-      ) : (
-        <FileText className={cn('w-4 h-4 shrink-0', isActive ? 'text-primary' : '')} />
-      )}
-      <span className="truncate max-w-40">{tab.name}</span>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setNodeRef}
+          style={style}
+          className={cn(
+            'group relative flex items-center gap-1.5 px-3 h-9 text-sm cursor-pointer transition-all shrink-0',
+            isActive
+              ? 'text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+          title={tab.path}
+          onClick={() => onTabSwitch(tab.path)}
+          {...attributes}
+          {...listeners}
+        >
+          {tab.isFolder ? (
+            <Folder className="w-4 h-4 shrink-0 text-amber-500" />
+          ) : (
+            <FileText className={cn('w-4 h-4 shrink-0', isActive ? 'text-primary' : '')} />
+          )}
+          <span className="truncate max-w-40">{tab.name}</span>
 
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        className={cn(
-          'p-1 rounded transition-all shrink-0 ml-1',
-          'opacity-0 group-hover:opacity-100',
-          'hover:bg-muted'
-        )}
-      >
-        <X className="w-3 h-3" />
-      </button>
+          {/* Close button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onCloseTab(tab.path)
+            }}
+            className={cn(
+              'p-1 rounded transition-all shrink-0 ml-1',
+              'opacity-0 group-hover:opacity-100',
+              'hover:bg-muted'
+            )}
+          >
+            <X className="w-3 h-3" />
+          </button>
 
-      {/* Active indicator line */}
-      {isActive && (
-        <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary" />
-      )}
-    </div>
+          {/* Active indicator line */}
+          {isActive && (
+            <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary" />
+          )}
+        </div>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={() => handleAction('close')}>
+          {t('close')}
+          <ContextMenuShortcut>{modKey}W</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => handleAction('closeOthers')}
+          disabled={!hasOthers}
+        >
+          {t('closeOthers')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => handleAction('closeLeft')}
+          disabled={!canCloseLeft}
+        >
+          {t('closeLeft')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => handleAction('closeRight')}
+          disabled={!canCloseRight}
+        >
+          {t('closeRight')}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => handleAction('closeAll')}
+          disabled={tabs.length === 0}
+        >
+          {t('closeAll')}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 
-export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }: TabBarProps) {
+export function TabBar({
+  tabs,
+  activeTabId,
+  onTabSwitch,
+  onNewTab,
+  onCloseTab,
+  onCloseOtherTabs,
+  onCloseAllTabs,
+  onCloseLeftTabs,
+  onCloseRightTabs,
+}: TabBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
+
+  // Get current platform
+  const [currentPlatform, setCurrentPlatform] = useState<'macos' | 'windows' | 'linux' | 'unknown'>('unknown')
+  useEffect(() => {
+    try {
+      const p = platform()
+      if (p === 'macos') {
+        setCurrentPlatform('macos')
+      } else if (p === 'windows') {
+        setCurrentPlatform('windows')
+      } else if (p === 'linux') {
+        setCurrentPlatform('linux')
+      }
+    } catch {
+      setCurrentPlatform('unknown')
+    }
+  }, [])
+
+  // Keyboard shortcut for closing tab (Cmd/Ctrl + W)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = currentPlatform === 'macos'
+      const modKey = isMac ? e.metaKey : e.ctrlKey
+
+      // Cmd/Ctrl + W: Close current tab
+      if (modKey && e.key === 'w' && activeTabId) {
+        e.preventDefault()
+        onCloseTab(tabs.find(t => t.id === activeTabId)?.path || '')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentPlatform, activeTabId, tabs, onCloseTab])
+
+  const t = useTranslations('tabContext')
+
+  // Get modifier key display text
+  const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl'
 
   // Dnd sensors
   const sensors = useSensors(
@@ -141,21 +282,6 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
       }
     }
   }, [updateScrollState, tabs])
-
-  const handleTabClick = useCallback((tabId: string) => {
-    const tab = tabs.find(t => t.id === tabId)
-    if (tab) {
-      onTabSwitch(tab.path)
-    }
-  }, [tabs, onTabSwitch])
-
-  const handleCloseTab = useCallback((e: React.MouseEvent, tabId: string) => {
-    e.stopPropagation()
-    const tab = tabs.find(t => t.id === tabId)
-    if (tab) {
-      onCloseTab(tab.path)
-    }
-  }, [tabs, onCloseTab])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
@@ -202,13 +328,19 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
             items={tabs.map(t => t.id)}
             strategy={horizontalListSortingStrategy}
           >
-            {tabs.map(tab => (
-              <SortableTab
+            {tabs.map((tab) => (
+              <SortableTabWithMenu
                 key={tab.id}
                 tab={tab}
                 isActive={activeTabId === tab.id}
-                onClick={() => handleTabClick(tab.id)}
-                onClose={(e) => handleCloseTab(e, tab.id)}
+                tabs={tabs}
+                modKey={modKey}
+                onTabSwitch={onTabSwitch}
+                onCloseTab={onCloseTab}
+                onCloseOtherTabs={onCloseOtherTabs}
+                onCloseAllTabs={onCloseAllTabs}
+                onCloseLeftTabs={onCloseLeftTabs}
+                onCloseRightTabs={onCloseRightTabs}
               />
             ))}
           </SortableContext>
@@ -217,7 +349,7 @@ export function TabBar({ tabs, activeTabId, onTabSwitch, onNewTab, onCloseTab }:
           <button
             onClick={onNewTab}
             className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
-            title="新建标签页"
+            title={t('closeAll')}
           >
             <Plus className="w-4 h-4" />
           </button>

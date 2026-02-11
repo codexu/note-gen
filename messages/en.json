@@ -2369,5 +2369,12 @@
         "journey": "journey\n    title My Daily Work\n    section Morning\n    Commute : 7:00, 5\n    Work : 9:00, 8"
       }
     }
+  },
+  "tabContext": {
+    "close": "Close",
+    "closeOthers": "Close Others",
+    "closeAll": "Close All",
+    "closeLeft": "Close Left",
+    "closeRight": "Close Right"
   }
 }

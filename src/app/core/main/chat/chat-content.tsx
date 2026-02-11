@@ -20,6 +20,7 @@ import { McpToolCallCard } from './mcp-tool-call'
 import { AgentExecutionStatus } from './agent-execution-status'
 import { AgentPanelWithRag } from './agent-panel-with-rag'
 import { ChatImages } from "./chat-images"
+import Markdown from '@/components/markdown'
 
 const ChatContent = React.memo(function ChatContent() {
   const { chats, init, agentState, loading } = useChatStore()
@@ -174,8 +175,19 @@ const AgentExecutionStatusWrapper = React.memo(function AgentExecutionStatusWrap
   const { agentState } = useChatStore()
 
   // 只在 Agent 运行时显示
-  if (!agentState.isRunning) {
+  if (!agentState.isRunning && !agentState.isFinalAnswerMode) {
     return null
+  }
+
+  // Final Answer 模式：显示 Markdown 渲染的内容
+  if (agentState.isFinalAnswerMode && agentState.finalAnswerContent) {
+    return (
+      <div className="flex w-full min-w-0">
+        <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
+          <ChatPreview text={agentState.finalAnswerContent} />
+        </div>
+      </div>
+    )
   }
 
   return (

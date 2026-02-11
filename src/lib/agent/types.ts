@@ -73,6 +73,9 @@ export interface AgentState {
     filename: string
     content: string
   }> // RAG 检索到的来源文件详情
+  // Final Answer 模式（检测到 Final Answer 时切换到 Markdown 渲染）
+  isFinalAnswerMode?: boolean
+  finalAnswerContent?: string
 }
 
 export interface ReActStep {

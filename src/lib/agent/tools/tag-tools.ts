@@ -3,7 +3,7 @@ import { getTags, insertTag, updateTag, delTag, Tag, insertTags } from '@/db/tag
 
 export const listTagsTool: Tool = {
   name: 'list_tags',
-  description: '📋 **Tags System**: List all tags (organization categories). Tags are grouping labels used to organize marks (records). Use this first to discover available tag IDs for creating or reading marks.',
+  description: 'List all tags (organization categories for marks).',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [],
@@ -26,7 +26,7 @@ export const listTagsTool: Tool = {
 
 export const createTagTool: Tool = {
   name: 'create_tag',
-  description: '📋 **Tags System**: Create a new tag (category) for organizing marks. Tags are organizational containers - they hold marks but do not contain content themselves.',
+  description: 'Create a new tag (category) for organizing marks.',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
@@ -56,7 +56,7 @@ export const createTagTool: Tool = {
 
 export const updateTagTool: Tool = {
   name: 'update_tag',
-  description: '📋 **Tags System**: Update tag name or properties (like pin status).',
+  description: 'Update tag name or properties (pin status).',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [
@@ -113,7 +113,7 @@ export const updateTagTool: Tool = {
 
 export const searchTagsTool: Tool = {
   name: 'search_tags',
-  description: '📋 **Tags System**: Search/fuzzy match tags by name. Use this when you need to find a tag by keyword without knowing the exact ID.',
+  description: 'Search tags by name (fuzzy match).',
   category: 'search',
   requiresConfirmation: false,
   parameters: [
@@ -149,7 +149,7 @@ export const searchTagsTool: Tool = {
 
 export const deleteTagTool: Tool = {
   name: 'delete_tag',
-  description: '📋 **Tags System**: Delete a tag and ALL marks under it. Use with caution - this cannot be undone easily.',
+  description: 'Delete a tag and ALL marks under it. Use with caution.',
   category: 'tag',
   requiresConfirmation: true,
   parameters: [

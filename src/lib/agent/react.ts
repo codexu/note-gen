@@ -11,6 +11,7 @@ export interface ReActConfig {
   onToolCall?: (toolCall: ToolCall) => void
   onIterationStart?: () => void
   onSkillsSelected?: (skillIds: string[]) => void  // 当 AI 选择 Skills 时调用
+  onFinalAnswerRender?: (markdownContent: string) => void  // 当检测到 Final Answer 时立即渲染 Markdown
   requestConfirmation?: (toolName: string, params: Record<string, any>, context?: {
     originalContent?: string
     modifiedContent?: string
@@ -102,16 +103,22 @@ export class ReActAgent {
                              /Action:\s*Final\s*Answer/i.test(thought)
 
       if (hasFinalAnswer) {
-        // 尝试多种分割方式
+        // 直接提取 Final Answer 后面的内容作为 Markdown 格式返回
         if (thought.includes('Final Answer:')) {
           finalAnswer = thought.split('Final Answer:')[1].trim()
         } else if (thought.includes('Final Answer：')) {
           finalAnswer = thought.split('Final Answer：')[1].trim()
         } else if (thought.includes('最终答案')) {
           finalAnswer = thought.split('最终答案')[1].trim()
-        } else if (/Action:\s*Final\s*Answer/i.test(thought)) {
+        } else if (/Action:\s*Final\s*Answer:\s*([\s\S]*)/i.test(thought)) {
           // 处理 "Action: Final\nAnswer:" 的情况
           const match = thought.match(/Action:\s*Final\s*Answer:\s*([\s\S]*)/i)
+          if (match) {
+            finalAnswer = match[1].trim()
+          }
+        } else if (/Final Answer:\s*([\s\S]*)/i.test(thought)) {
+          // 处理 "Final Answer:\n..." 多行内容的情况
+          const match = thought.match(/Final Answer:\s*([\s\S]*)/i)
           if (match) {
             finalAnswer = match[1].trim()
           }
@@ -276,14 +283,12 @@ In the "context information", you may see "Knowledge Base Search Results" sectio
 **If automatic search results are insufficient**, you can actively call search tools for more precise retrieval:
 
 Search tool selection guide:
-- search_markdown_files (default mode): Exact keyword search, like "useState", "React Hooks", "API config"
-- search_markdown_files + mode=rag: Semantic search for exploratory queries, like "how to optimize performance", "sync problem solutions"
-- Add folderPath parameter: Limit search scope to specific folder, like only search in "Tech/React" folder
+- search_markdown_files: Use when user asks to search files (default: keyword mode, rag: semantic mode)
+- search_markdown_files + folderPath: Limit scope to specific folder
+- search_marks: Search database records under tags
 
 Important tips:
-- When automatic RAG results are limited, use mode=rag for deeper semantic search
-- For exact terms, default mode (keyword search) is faster and more accurate
-- If results are insufficient, try different query formulations or limit folder scope
+- Only call search tools when user explicitly requests to search/查找/搜索
 
 ## 🚨 Critical: Understanding Notes vs Tags vs Marks
 
@@ -518,6 +523,19 @@ Observation: ${step.observation}
 
           response = content
 
+          // 检测是否包含 Final Answer，提取内容并渲染 Markdown
+          const extractedFinalAnswer = this.extractFinalAnswer(content)
+          console.log('[Agent] 流式回调 - 检测 Final Answer:', {
+            hasContent: content.length > 0,
+            hasFinalAnswer: !!extractedFinalAnswer,
+            contentPreview: content.slice(0, 200)
+          })
+          if (extractedFinalAnswer) {
+            console.log('[Agent] 检测到 Final Answer，触发渲染')
+            // 包含 Final Answer，立即渲染 Markdown
+            this.config.onFinalAnswerRender?.(extractedFinalAnswer)
+          }
+
           // 实时更新，但只在内容有实质性增长时更新（避免频繁更新）
           if (content.length - lastUpdateLength > 10 || content.includes('Action:') || content.includes('Final Answer:')) {
             this.config.onThought?.(content)
@@ -607,6 +625,19 @@ This is iteration ${this.currentIteration}, please give your Thought and Action 
         }
 
         response = content
+
+        // 检测是否包含 Final Answer，提取内容并渲染 Markdown
+        const extractedFinalAnswer = this.extractFinalAnswer(content)
+        console.log('[Agent] 流式回调 - 检测 Final Answer:', {
+          hasContent: content.length > 0,
+          hasFinalAnswer: !!extractedFinalAnswer,
+          contentPreview: content.slice(0, 200)
+        })
+        if (extractedFinalAnswer) {
+          console.log('[Agent] 检测到 Final Answer，触发渲染')
+          // 包含 Final Answer，立即渲染 Markdown
+          this.config.onFinalAnswerRender?.(extractedFinalAnswer)
+        }
 
         // 实时更新，但只在内容有实质性增长时更新（避免频繁更新）
         if (content.length - lastUpdateLength > 10 || content.includes('Action:') || content.includes('Final Answer:')) {
@@ -1287,6 +1318,47 @@ ${skillsList.join('\n---\n\n')}
     }
 
     return mentioned
+  }
+
+  /**
+   * 从内容中提取 Final Answer（用于流式渲染 Markdown）
+   */
+  private extractFinalAnswer(content: string): string | null {
+    // 检测是否包含 Final Answer
+    const normalizedContent = content.replace(/\s+/g, ' ')
+    const hasFinalAnswer = normalizedContent.includes('Final Answer:') ||
+                           normalizedContent.includes('Final Answer：') ||
+                           normalizedContent.includes('最终答案') ||
+                           /Action:\s*Final\s*Answer/i.test(content)
+
+    console.log('[Agent] extractFinalAnswer - 检测结果:', {
+      contentLength: content.length,
+      hasFinalAnswer,
+      normalizedContent: normalizedContent.slice(-100),
+      includesFinalAnswerColons: normalizedContent.includes('Final Answer:')
+    })
+
+    if (!hasFinalAnswer) {
+      return null
+    }
+
+    // 提取 Final Answer 后面的内容
+    let result: string | null = null
+    if (content.includes('Final Answer:')) {
+      result = content.split('Final Answer:')[1].trim()
+    } else if (content.includes('Final Answer：')) {
+      result = content.split('Final Answer：')[1].trim()
+    } else if (content.includes('最终答案')) {
+      result = content.split('最终答案')[1].trim()
+    } else if (/Action:\s*Final\s*Answer:\s*([\s\S]*)/i.test(content)) {
+      const match = content.match(/Action:\s*Final\s*Answer:\s*([\s\S]*)/i)
+      if (match) {
+        result = match[1].trim()
+      }
+    }
+
+    console.log('[Agent] extractFinalAnswer - 提取结果:', result?.slice(0, 100))
+    return result
   }
 
   /**

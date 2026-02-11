@@ -135,6 +135,13 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     // 每次都创建新的 AgentHandler，使用当前的 placeholderMessage
     const agentHandler = new AgentHandler({
       requestConfirmation,
+      onFinalAnswerRender: (markdownContent) => {
+        // 检测到 Final Answer 时触发渲染
+        setAgentState({
+          isFinalAnswerMode: true,
+          finalAnswerContent: markdownContent
+        })
+      },
       onComplete: async (result, steps, stopped) => {
         // 获取 Agent 执行历史，保存完整的 ReAct 步骤
         const { agentState } = useChatStore.getState()
@@ -182,6 +189,12 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
           agentHistory: JSON.stringify(agentHistory),
         }, true)
 
+        // 清空 Final Answer 模式状态
+        setAgentState({
+          isFinalAnswerMode: false,
+          finalAnswerContent: undefined
+        })
+
         // 清空 ref
         agentHandlerRef.current = null
       },
@@ -204,6 +217,12 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
           ragSourceDetails: currentMessage?.ragSourceDetails,
           content: `Error: ${error}`,
         }, true)
+
+        // 清空 Final Answer 模式状态
+        setAgentState({
+          isFinalAnswerMode: false,
+          finalAnswerContent: undefined
+        })
 
         // 清空 ref
         agentHandlerRef.current = null

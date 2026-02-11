@@ -10,7 +10,7 @@ import emitter from '@/lib/emitter'
 
 export const listMarkdownFilesTool: Tool = {
   name: 'list_markdown_files',
-  description: '📁 **File Manager Notes**: List all Markdown note FILES in the workspace. These are organized file system resources (folders and .md files). Use this to find note files to read.',
+  description: 'List all Markdown files in the workspace.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [],
@@ -43,7 +43,7 @@ export const listMarkdownFilesTool: Tool = {
 // @deprecated since content is saved in real-time, use get_editor_content instead
 export const readMarkdownFileTool: Tool = {
   name: 'read_markdown_file',
-  description: '📁 **DEPRECATED - Use `get_editor_content` instead**: Read content of a specific Markdown note FILE by path. Since content is saved in real-time, use `get_editor_content` for better performance.',
+  description: 'DEPRECATED: Use `get_editor_content` instead. Read content of a Markdown file by path.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
@@ -112,17 +112,7 @@ export const readMarkdownFileTool: Tool = {
 
 export const createFileTool: Tool = {
   name: 'create_file',
-  description: `📁 **File Manager Notes**: Create a new FILE in the file system. Supports Markdown (.md) and other formats.
-
-**Key Difference from Marks**: This creates FILE SYSTEM resources (files with paths like "folder/note.md"), NOT database records. Use this when user wants to create organized notes/documents.
-
-**Returns:**
-- \`filePath\`: Relative path from workspace root
-- \`fullPath\`: Full absolute path (use this with execute_skill_script for executing scripts)
-
-**Example for script execution:**
-1. Create script: create_file with folderPath="skills/pptx/scripts"
-2. Execute: Use fullPath from result with execute_skill_script`,
+  description: 'Create a new file in the file system. Returns filePath (relative) and fullPath (absolute for script execution).',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
@@ -282,7 +272,7 @@ export const updateMarkdownFileTool: Tool = {
 
 export const deleteMarkdownFileTool: Tool = {
   name: 'delete_markdown_file',
-  description: '📁 **File Manager Notes**: Delete the specified Markdown note FILE from the file system.',
+  description: 'Delete a Markdown file from the file system.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
@@ -342,20 +332,13 @@ export const deleteMarkdownFileTool: Tool = {
 
 export const searchMarkdownFilesTool: Tool = {
   name: 'search_markdown_files',
-  description: `📁 **File Manager Notes**: Search content within Markdown note FILES in the file system. Supports two modes:
+  description: `Search content within Markdown files in the file system. Only use when user explicitly asks to search/查找/搜索 notes or content in files.
 
-1. **Keyword Search (default)**: Fast exact matching, suitable for finding specific terms, function names, code snippets
-   - Example: search "useState", "React", "API"
+Two modes:
+- keyword (default): Fast exact matching for specific terms like "useState", "React", "API"
+- rag: Semantic search for exploratory queries like "how to optimize React performance"
 
-2. **Semantic Search (mode=rag)**: Intelligent understanding of meaning, suitable for exploratory queries
-   - Example: search "how to optimize React performance", "note sync problem solutions"
-
-**NOT the same as search_marks**: This searches FILE SYSTEM notes, while search_marks searches database records under tags.
-
-Selection suggestions:
-- Find exact vocabulary → use default mode
-- Exploratory questions → use mode=rag
-- Need to limit scope → add folderPath parameter`,
+Use folderPath to limit scope to a specific folder.`,
   category: 'search',
   requiresConfirmation: false,
   parameters: [

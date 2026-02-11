@@ -17,7 +17,7 @@ function getCurrentTagId(tagId?: number): number {
 
 export const readMarksTool: Tool = {
   name: 'read_marks',
-  description: '🏷️ **Records System (Marks)**: Read all content records (marks) under a specific tag. Marks are database records like bookmarks, captured text, OCR results, etc. Each mark belongs to a tag via tagId. **If tagId is not specified, uses the currently selected tag.**',
+  description: 'Read all content records (marks) under a specific tag. Uses current selected tag if tagId not specified.',
   category: 'mark',
   requiresConfirmation: false,
   parameters: [
@@ -49,7 +49,7 @@ export const readMarksTool: Tool = {
 
 export const createMarkTool: Tool = {
   name: 'create_mark',
-  description: '🏷️ **Records System (Marks)**: Create a new content record (mark) under a specific tag. Marks are database records for things like bookmarks, captured text, OCR results, screenshots, etc. **NOT the same as creating note files (create_file)**.',
+  description: 'Create a new content record (mark) under a specific tag.',
   category: 'mark',
   requiresConfirmation: false,
   parameters: [
@@ -110,7 +110,7 @@ export const createMarkTool: Tool = {
 
 export const updateMarkTool: Tool = {
   name: 'update_mark',
-  description: '🏷️ **Records System (Marks)**: Update content of an existing mark (record). Used for editing bookmarks, captured content, etc.',
+  description: 'Update content of an existing mark.',
   category: 'mark',
   requiresConfirmation: false,
   parameters: [
@@ -174,7 +174,7 @@ export const updateMarkTool: Tool = {
 
 export const deleteMarkTool: Tool = {
   name: 'delete_mark',
-  description: '🏷️ **Records System (Marks)**: Soft delete a mark (record). Can be restored later using restore_mark.',
+  description: 'Soft delete a mark. Can be restored with restore_mark.',
   category: 'mark',
   requiresConfirmation: true,
   parameters: [
@@ -232,7 +232,7 @@ export const restoreMarkTool: Tool = {
 
 export const searchMarksTool: Tool = {
   name: 'search_marks',
-  description: '🏷️ **Records System (Marks)**: Search content within marks (database records) for keywords. **NOT the same as search_markdown_files** which searches file system notes. **If tagId is not specified, searches within the currently selected tag.**',
+  description: 'Search content within marks (database records). Uses current selected tag if tagId not specified.',
   category: 'search',
   requiresConfirmation: false,
   parameters: [
@@ -285,7 +285,7 @@ export const searchMarksTool: Tool = {
 
 export const searchAllMarksTool: Tool = {
   name: 'search_all_marks',
-  description: '🏷️ **Records System (Marks)**: Search ALL marks across ALL tags for keywords. Use this when you want to search everything without specifying a tag.',
+  description: 'Search ALL marks across ALL tags for keywords.',
   category: 'search',
   requiresConfirmation: false,
   parameters: [

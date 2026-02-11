@@ -206,6 +206,9 @@ const useChatStore = create<ChatState>((set, get) => ({
         // 保留 RAG 字段，因为它们应该在整个 Agent 执行期间显示
         ragSources: currentState.ragSources,
         ragSourceDetails: currentState.ragSourceDetails,
+        // 重置 Final Answer 模式
+        isFinalAnswerMode: false,
+        finalAnswerContent: undefined,
       }
     })
   },

@@ -7,7 +7,6 @@ import {
   CheckSquare,
   Quote,
   Code,
-  Image,
   Table,
   Minus,
   AlignLeft,
@@ -190,18 +189,6 @@ export const suggestionItems = () => {
     },
 
     // 嵌入
-    {
-      title: '图片',
-      description: '插入图片',
-      icon: <Image className="w-4 h-4" />,
-      group: '嵌入',
-      searchTerms: ['image', 'photo', 'picture', 'img'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-image')
-        document.dispatchEvent(event)
-      },
-    },
     {
       title: '表格',
       description: '插入表格',

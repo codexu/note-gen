@@ -225,38 +225,6 @@
   }
 }
 
-/* 图片工具栏 */
-.image-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid hsl(var(--border));
-  flex-shrink: 0;
-}
-
-.image-toolbar button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: hsl(var(--foreground));
-  transition: all 0.15s ease;
-}
-
-.image-toolbar button:hover {
-  background-color: hsl(var(--accent));
-}
-
-.image-toolbar button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* 拖拽上传提示 */
 .tiptap-editor .ProseMirror .drag-over {
   outline: 3px dashed hsl(var(--primary));

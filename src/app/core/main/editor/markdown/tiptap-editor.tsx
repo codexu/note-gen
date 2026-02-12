@@ -30,8 +30,6 @@ import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
-import { FloatingImageMenu } from './floating-image-menu'
-import { ImageExtension } from './image-extension'
 import { FooterBar } from './footer-bar/index'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
@@ -121,7 +119,6 @@ export function TipTapEditor({
       TableRow,
       TableHeader,
       TableCell,
-      ImageExtension,
       Markdown.configure({
         indentation: {
           style: 'space',
@@ -643,9 +640,12 @@ export function TipTapEditor({
       const { from, to } = editor.state.selection
       const text = editor.state.doc.textBetween(from, to)
 
-      // Calculate line numbers (1-indexed)
-      const startLine = editor.state.doc.lineAt(from).number
-      const endLine = editor.state.doc.lineAt(to).number
+      // Calculate line numbers (1-indexed) by counting newlines before position
+      const textBeforeFrom = editor.state.doc.textBetween(0, from)
+      const startLine = (textBeforeFrom.match(/\n/g)?.length || 0) + 1
+
+      const textBeforeTo = editor.state.doc.textBetween(0, to)
+      const endLine = (textBeforeTo.match(/\n/g)?.length || 0) + 1
 
       resolve({
         text,
@@ -668,8 +668,8 @@ export function TipTapEditor({
       const text = editor.getText()
       const html = editor.getHTML()
 
-      // Calculate total lines
-      const totalLines = editor.state.doc.lineCount
+      // Calculate total lines by counting newlines
+      const totalLines = (text.match(/\n/g)?.length || 0) + 1
 
       resolve({
         markdown,
@@ -770,8 +770,6 @@ export function TipTapEditor({
           let foundFrom = -1
           let foundTo = -1
 
-          // Track position while traversing
-          let currentPos = 0
           doc.descendants((node, pos) => {
             if (foundFrom !== -1) return false // Already found, stop traversal
 
@@ -782,11 +780,6 @@ export function TipTapEditor({
                 foundTo = foundFrom + searchContent.length
                 return false // Stop traversal
               }
-            }
-
-            // Move position forward (account for node size + any gap)
-            if (node.nodeSize) {
-              currentPos = pos + node.nodeSize
             }
           })
 
@@ -922,7 +915,7 @@ export function TipTapEditor({
     }
 
     // Use setTimeout to defer listener registration until after React render completes
-    const timer = setTimeout(setupListeners, 0)
+    setTimeout(setupListeners, 0)
 
     return cleanupListeners
   }, [editor, activeFilePath])
@@ -950,7 +943,6 @@ export function TipTapEditor({
         <AISuggestionFloating editor={editor} />
 
         <FloatingTableMenu editor={editor} />
-        <FloatingImageMenu editor={editor} />
 
         <EditorContent editor={editor} className="h-full" />
       </div>

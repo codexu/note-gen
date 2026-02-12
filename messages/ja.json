@@ -2423,7 +2423,18 @@
       "uploading": "アップロード中...",
       "uploadSuccess": "画像は画像ホスティングにアップロードされました",
       "saveSuccess": "画像はローカルに保存されました",
-      "uploadFailed": "画像の挿入に失敗しました"
+      "uploadFailed": "画像の挿入に失敗しました",
+      "sizeSmall": "小 (25%)",
+      "sizeMedium": "中 (50%)",
+      "sizeLarge": "大 (75%)",
+      "sizeOriginal": "元のサイズ",
+      "editAlt": "代替テキストを編集",
+      "editSrc": "URLを編集",
+      "altPlaceholder": "代替テキストを入力...",
+      "srcPlaceholder": "画像URLを入力...",
+      "delete": "画像を削除",
+      "confirm": "確認",
+      "cancel": "キャンセル"
     },
     "mermaid": {
       "rendering": "レンダリング中...",

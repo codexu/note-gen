@@ -30,6 +30,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { handleImageUpload } from '@/lib/image-handler'
 import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
+import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
 import { FooterBar } from './footer-bar/index'
@@ -1057,6 +1058,8 @@ export function TipTapEditor({
           onAIExpand={handleAIExpand}
           onQuoteToChat={onQuoteToChat}
         />
+
+        <ImageBubbleMenu editor={editor} />
 
         <AISuggestionFloating editor={editor} />
 

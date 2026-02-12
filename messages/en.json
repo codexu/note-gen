@@ -2345,7 +2345,18 @@
       "uploading": "Uploading...",
       "uploadSuccess": "Image uploaded to image hosting",
       "saveSuccess": "Image saved locally",
-      "uploadFailed": "Failed to insert image"
+      "uploadFailed": "Failed to insert image",
+      "sizeSmall": "Small (25%)",
+      "sizeMedium": "Medium (50%)",
+      "sizeLarge": "Large (75%)",
+      "sizeOriginal": "Original Size",
+      "editAlt": "Edit Alt Text",
+      "editSrc": "Edit URL",
+      "altPlaceholder": "Enter alt text...",
+      "srcPlaceholder": "Enter image URL...",
+      "delete": "Delete Image",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
     },
     "mermaid": {
       "rendering": "Rendering...",

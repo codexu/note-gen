@@ -2462,7 +2462,16 @@
       "uploading": "Enviando...",
       "uploadSuccess": "Imagem enviada para o servidor de imagens",
       "saveSuccess": "Imagem salva localmente",
-      "uploadFailed": "Falha ao inserir imagem"
+      "uploadFailed": "Falha ao inserir imagem",
+      "sizeSmall": "Pequeno (25%)",
+      "sizeMedium": "Médio (50%)",
+      "sizeLarge": "Grande (75%)",
+      "sizeOriginal": "Tamanho Original",
+      "editAlt": "Editar texto alternativo",
+      "editSrc": "Editar URL",
+      "altPlaceholder": "Digite o texto alternativo...",
+      "srcPlaceholder": "Digite a URL da imagem...",
+      "delete": "Excluir imagem"
     },
     "mermaid": {
       "rendering": "Renderizando...",

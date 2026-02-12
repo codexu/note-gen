@@ -2291,7 +2291,18 @@
       "uploading": "上傳中...",
       "uploadSuccess": "圖片已上傳到圖床",
       "saveSuccess": "圖片已保存到本地",
-      "uploadFailed": "插入圖片失敗"
+      "uploadFailed": "插入圖片失敗",
+      "sizeSmall": "小 (25%)",
+      "sizeMedium": "中 (50%)",
+      "sizeLarge": "大 (75%)",
+      "sizeOriginal": "原始尺寸",
+      "editAlt": "編輯替代文本",
+      "editSrc": "編輯地址",
+      "altPlaceholder": "輸入替代文本...",
+      "srcPlaceholder": "輸入圖片地址...",
+      "delete": "刪除圖片",
+      "confirm": "確認",
+      "cancel": "取消"
     },
     "mermaid": {
       "rendering": "渲染中...",

@@ -105,8 +105,14 @@ export function BubbleMenu({
       return
     }
 
-    // 检查是否是数学公式节点，如果是则不显示 bubble menu
+    // 检查是否是图片节点
     const node = editor.state.doc.nodeAt(from)
+    if (node?.type.name === 'image') {
+      setShow(false)
+      return
+    }
+
+    // 检查是否是数学公式节点，如果是则不显示 bubble menu
     if (node?.type.name === 'inlineMath' || node?.type.name === 'blockMath') {
       setShow(false)
       return

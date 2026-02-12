@@ -350,42 +350,32 @@ function findSlashMatch(config: {
   startOfLine: boolean
   $position: any
 }) {
-  const { allowSpaces, $position } = config
+  const { $position } = config
+  const $pos = $position
 
-  // Hardcode to match "/"
-  const char = '/'
-  const escapedChar = '\\/'
-  const regexp = allowSpaces
-    ? new RegExp(`${escapedChar}.*?(?=\\s|$)`, 'gm')
-    : new RegExp(`(?:^)?${escapedChar}[^\\s]*`, 'gm')
-
-  const nodeBefore = $position.nodeBefore
+  // Check if we're at the start of a text node or have text directly before position
+  const nodeBefore = $pos.nodeBefore
   const text = nodeBefore?.isText && nodeBefore.text
 
   if (!text) {
     return null
   }
 
-  const textFrom = $position.pos - text.length
-  const matches = Array.from(text.matchAll(regexp)) as RegExpMatchArray[]
-  const match = matches[matches.length - 1]
+  const textFrom = $pos.pos - text.length
+  const slashIndex = text.lastIndexOf('/')
 
-  if (!match || match.input === undefined || match.index === undefined) {
+  if (slashIndex === -1) {
     return null
   }
 
-  const from = textFrom + match.index
-  const to = from + match[0].length
+  const from = textFrom + slashIndex
+  const to = $pos.pos
 
-  if (from < $position.pos && to >= $position.pos) {
-    return {
-      range: { from, to },
-      query: match[0].slice(char.length),
-      text: match[0],
-    }
+  return {
+    range: { from, to },
+    query: text.slice(slashIndex + 1),
+    text: text.slice(slashIndex),
   }
-
-  return null
 }
 
 export { findSlashMatch }

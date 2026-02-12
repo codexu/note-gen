@@ -56,7 +56,6 @@ export function BubbleMenu({
   const t = useTranslations('editor')
   const [show, setShow] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
-  const [isAtTop, setIsAtTop] = useState(false)
   const [showAISubmenu, setShowAISubmenu] = useState(false)
   const [showTranslateSubmenu, setShowTranslateSubmenu] = useState(false)
   const [customTranslateLang, setCustomTranslateLang] = useState('')
@@ -95,7 +94,7 @@ export function BubbleMenu({
     setCustomTranslateLang('')
   }, [customTranslateLang, handleTranslate, t])
 
-  // 初始定位
+  // 更新定位
   const updatePosition = useCallback(() => {
     const { selection } = editor.state
     const { from, to } = selection
@@ -118,30 +117,36 @@ export function BubbleMenu({
       return
     }
 
-    // 获取编辑器元素
+    // 获取编辑器元素和滚动容器
     const editorElement = document.querySelector('.ProseMirror')
-    if (!editorElement) return
+    const scrollContainer = editorElement?.parentElement
+    if (!editorElement || !scrollContainer) return
 
-    const editorBounds = editorElement.getBoundingClientRect()
+    const containerBounds = scrollContainer.getBoundingClientRect()
 
-    // 左右：固定在编辑器水平中心
-    const left = editorBounds.width / 2
-
-    // 垂直：使用视口坐标
+    // 获取选区坐标（视口坐标）
     const coords = editor.view.coordsAtPos(from)
-    // 初始位置：选中文本上方 10px（负值，向上偏移）
-    let top = coords.top - 10
 
-    // 上边界检测：如果上方空间不够，改为在光标下方显示
-    if (top < 0) {
-      // 光标下方 20px
-      top = coords.top + 20
-      setIsAtTop(true)
+    // 转换为滚动容器内的相对坐标
+    const relativeTop = coords.top - containerBounds.top + scrollContainer.scrollTop
+    const relativeLeft = coords.left - containerBounds.left + scrollContainer.scrollLeft
+
+    // 计算菜单位置（顶部在选区上方）
+    const top = relativeTop - 48 // 48 是大约的菜单高度 + 间距
+
+    // 边界检测：left 在 [0, 容器宽度 - 菜单宽度] 范围内
+    const currentMenuWidth = menuRef.current?.offsetWidth || 360
+    // maxLeft 不能为负数
+    const maxLeft = Math.max(0, containerBounds.width - currentMenuWidth)
+    const left = Math.min(relativeLeft, maxLeft)
+
+    // 如果上方空间不够，改为在光标下方显示
+    if (relativeTop < 48) {
+      setPosition({ top: relativeTop + 24, left })
     } else {
-      setIsAtTop(false)
+      setPosition({ top, left })
     }
 
-    setPosition({ top, left })
     setShow(true)
   }, [editor])
 
@@ -287,8 +292,7 @@ export function BubbleMenu({
       className="absolute z-50 transition-[top,left] duration-150 ease-out"
       style={{
         top: position.top,
-        left: position.left,
-        transform: isAtTop ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
+        left: position.left
       }}
     >
       {/* 工具栏 */}

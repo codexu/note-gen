@@ -136,11 +136,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, que
   )
 
   if (items.length === 0) {
-    return (
-      <div className="p-2 text-sm text-muted-foreground text-center">
-        无匹配结果
-      </div>
-    )
+    return null
   }
 
   return (

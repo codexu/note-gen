@@ -132,17 +132,35 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
 
   if (!imageInfo) return null
 
-  const menuTop = imageInfo.rect.top - 8
-  const menuLeft = imageInfo.rect.left + (imageInfo.rect.width / 2)
+  // 获取滚动容器，计算相对于容器的坐标
+  const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
+  const containerBounds = scrollContainer?.getBoundingClientRect()
+
+  // 将视口坐标转换为滚动容器内的相对坐标
+  const relativeTop = containerBounds
+    ? imageInfo.rect.top - containerBounds.top + (scrollContainer?.scrollTop || 0) - 8
+    : imageInfo.rect.top - 8
+
+  const relativeLeft = containerBounds
+    ? imageInfo.rect.left - containerBounds.left + (scrollContainer?.scrollLeft || 0) + imageInfo.rect.width / 2
+    : imageInfo.rect.left + imageInfo.rect.width / 2
+
+  // 边界检测：left 在 [0, 容器宽度 - 菜单宽度] 范围内
+  const currentMenuWidth = menuRef.current?.offsetWidth || 200
+  const maxLeft = containerBounds
+    ? Math.max(0, containerBounds.width - currentMenuWidth)
+    : relativeLeft - currentMenuWidth / 2
+  const left = containerBounds
+    ? Math.min(relativeLeft - currentMenuWidth / 2, maxLeft)
+    : relativeLeft - currentMenuWidth / 2
 
   return (
     <div
       ref={menuRef}
-      className="fixed z-50"
+      className="absolute z-50"
       style={{
-        top: menuTop,
-        left: menuLeft,
-        transform: 'translate(-50%, -100%)',
+        top: relativeTop,
+        left: left,
       }}
     >
       <div

@@ -1065,7 +1065,7 @@ export function TipTapEditor({
     <div className="tiptap-editor relative flex flex-col h-full">
       {/* Editor content - scrollable area */}
       <div
-        className="flex-1 overflow-auto relative"
+        className="flex-1 overflow-x-hidden overflow-y-auto relative"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleEditorDrop}
       >

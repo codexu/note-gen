@@ -39,19 +39,21 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
     const scrollContainer = editorElement?.parentElement
     if (!editorElement || !scrollContainer) return
 
-    const editorBounds = editorElement.getBoundingClientRect()
-    const scrollRect = scrollContainer.getBoundingClientRect()
+    const containerBounds = scrollContainer.getBoundingClientRect()
 
     // Get the coordinates of the selection
     const coords = editor.view.coordsAtPos(from)
 
-    // Horizontal: fixed at editor center
-    const left = editorBounds.width / 2
+    // 转换为滚动容器内的相对坐标
+    const relativeTop = coords.bottom - containerBounds.top + scrollContainer.scrollTop + 10
+    const relativeLeft = coords.left - containerBounds.left + scrollContainer.scrollLeft
 
-    // Vertical: relative to scroll container
-    const top = coords.bottom - scrollRect.top + 10
+    // 边界检测：left 在 [0, 容器宽度 - 菜单宽度] 范围内
+    const currentMenuWidth = menuRef.current?.offsetWidth || 200
+    const maxLeft = Math.max(0, containerBounds.width - currentMenuWidth)
+    const left = Math.min(relativeLeft, maxLeft)
 
-    setPosition({ top, left })
+    setPosition({ top: relativeTop, left })
     setShow(true)
   }, [editor])
 
@@ -153,7 +155,6 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
       style={{
         top: position.top,
         left: position.left,
-        transform: 'translateX(-50%)'
       }}
     >
       {/* Arrow */}

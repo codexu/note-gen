@@ -2418,6 +2418,13 @@
       "generating": "生成中...",
       "abort": "中止"
     },
+    "image": {
+      "insert": "画像を挿入",
+      "uploading": "アップロード中...",
+      "uploadSuccess": "画像は画像ホスティングにアップロードされました",
+      "saveSuccess": "画像はローカルに保存されました",
+      "uploadFailed": "画像の挿入に失敗しました"
+    },
     "mermaid": {
       "rendering": "レンダリング中...",
       "renderError": "レンダリングエラー",

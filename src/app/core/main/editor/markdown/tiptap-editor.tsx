@@ -17,6 +17,7 @@ import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
+import Image from '@tiptap/extension-image'
 import { common, createLowlight } from 'lowlight'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
@@ -26,6 +27,7 @@ import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
 import { MathEditorDialog } from './math-editor-dialog'
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { handleImageUpload } from '@/lib/image-handler'
 import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { toast } from '@/hooks/use-toast'
@@ -77,6 +79,7 @@ export function TipTapEditor({
   const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
 
   const t = useTranslations('editor.mermaid.templates')
+  const tImage = useTranslations('editor.image')
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -137,6 +140,13 @@ export function TipTapEditor({
       InlineMath,
       BlockMath,
       MermaidDiagram,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-lg',
+        },
+      }),
     ],
     content: initialContent,
     contentType: 'markdown',
@@ -149,6 +159,114 @@ export function TipTapEditor({
       }
     },
   })
+
+  // Track active file path for image uploads (ref to avoid re-initializing editor)
+  const activeFilePathRef = useRef(activeFilePath)
+  useEffect(() => {
+    activeFilePathRef.current = activeFilePath
+  }, [activeFilePath])
+
+  // Track uploading images for loading state
+  const uploadingImagesRef = useRef<Map<string, boolean>>(new Map())
+
+  // Handle image paste and drop
+  useEffect(() => {
+    if (!editor) return
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const files = event.clipboardData?.files
+      if (!files || files.length === 0) return
+
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+      if (imageFiles.length === 0) return
+
+      const imageFile = imageFiles[0]
+      const uploadId = `paste-${Date.now()}`
+
+      // Show loading state
+      uploadingImagesRef.current.set(uploadId, true)
+
+      handleImageUpload(imageFile, activeFilePathRef.current)
+        .then(result => {
+          editor.commands.insertContent({
+            type: 'image',
+            attrs: {
+              src: result.src,
+              alt: imageFile.name,
+              relativeSrc: result.relativePath,
+            },
+          })
+          toast({
+            title: result.useImageHosting ? tImage('uploadSuccess') : tImage('saveSuccess'),
+          })
+        })
+        .catch(error => {
+          toast({
+            title: tImage('uploadFailed'),
+            description: error instanceof Error ? error.message : '未知错误',
+            variant: 'destructive',
+          })
+        })
+        .finally(() => {
+          uploadingImagesRef.current.delete(uploadId)
+        })
+
+      event.preventDefault()
+    }
+
+    const handleDrop = (event: DragEvent) => {
+      const files = event.dataTransfer?.files
+      if (!files || files.length === 0) return
+
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+      if (imageFiles.length === 0) return
+
+      const imageFile = imageFiles[0]
+      const uploadId = `drop-${Date.now()}`
+
+      // Show loading state
+      uploadingImagesRef.current.set(uploadId, true)
+
+      handleImageUpload(imageFile, activeFilePathRef.current)
+        .then(result => {
+          // Get drop position
+          const pos = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })
+          editor.commands.insertContentAt(pos?.pos || editor.state.selection.from, {
+            type: 'image',
+            attrs: {
+              src: result.src,
+              alt: imageFile.name,
+              relativeSrc: result.relativePath,
+            },
+          })
+          toast({
+            title: result.useImageHosting ? tImage('uploadSuccess') : tImage('saveSuccess'),
+          })
+        })
+        .catch(error => {
+          toast({
+            title: tImage('uploadFailed'),
+            description: error instanceof Error ? error.message : '未知错误',
+            variant: 'destructive',
+          })
+        })
+        .finally(() => {
+          uploadingImagesRef.current.delete(uploadId)
+        })
+
+      event.preventDefault()
+    }
+
+    // Add event listeners to editor DOM element
+    const dom = editor.view.dom
+    dom.addEventListener('paste', handlePaste as EventListener)
+    dom.addEventListener('drop', handleDrop as EventListener)
+
+    return () => {
+      dom.removeEventListener('paste', handlePaste as EventListener)
+      dom.removeEventListener('drop', handleDrop as EventListener)
+    }
+  }, [editor])
 
   // Handle AI Polish - improve selected text (with streaming and suggestion mode)
   const handleAIPolish = useCallback(async () => {
@@ -948,7 +1066,7 @@ export function TipTapEditor({
       </div>
 
       {/* Bottom toolbar - always visible */}
-      <FooterBar editor={editor} />
+      <FooterBar editor={editor} activeFilePath={activeFilePath} />
 
       <SlashCommandPortal />
 

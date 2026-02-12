@@ -16,12 +16,13 @@ export async function convertImage(path: string) {
 
 export async function convertImageByWorkspace(path: string) {
   const workspace = await getWorkspacePath()
+  let fullPath: string
   if (workspace.isCustom) {
-    path = `${workspace.path}/${path}`
+    fullPath = `${workspace.path}/${path}`
   } else {
-    path = `${await appDataDir()}/article/${path}`
+    fullPath = `${await appDataDir()}/article/${path}`
   }
-  return convertFileSrc(path)
+  return convertFileSrc(fullPath)
 }
 
 export function convertBytesToSize(bytes: number) {

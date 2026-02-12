@@ -2340,6 +2340,13 @@
       "generating": "Generating...",
       "abort": "Abort"
     },
+    "image": {
+      "insert": "Insert Image",
+      "uploading": "Uploading...",
+      "uploadSuccess": "Image uploaded to image hosting",
+      "saveSuccess": "Image saved locally",
+      "uploadFailed": "Failed to insert image"
+    },
     "mermaid": {
       "rendering": "Rendering...",
       "renderError": "Render error",

@@ -2286,6 +2286,13 @@
       "generating": "生成中...",
       "abort": "終止"
     },
+    "image": {
+      "insert": "插入圖片",
+      "uploading": "上傳中...",
+      "uploadSuccess": "圖片已上傳到圖床",
+      "saveSuccess": "圖片已保存到本地",
+      "uploadFailed": "插入圖片失敗"
+    },
     "mermaid": {
       "rendering": "渲染中...",
       "renderError": "渲染錯誤",

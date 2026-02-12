@@ -2457,6 +2457,13 @@
       "generating": "Gerando...",
       "abort": "Abortar"
     },
+    "image": {
+      "insert": "Inserir imagem",
+      "uploading": "Enviando...",
+      "uploadSuccess": "Imagem enviada para o servidor de imagens",
+      "saveSuccess": "Imagem salva localmente",
+      "uploadFailed": "Falha ao inserir imagem"
+    },
     "mermaid": {
       "rendering": "Renderizando...",
       "renderError": "Erro de renderização",

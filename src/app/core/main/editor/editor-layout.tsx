@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
+import emitter from '@/lib/emitter'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
@@ -231,15 +232,19 @@ export function EditorLayout() {
 
   // Handle close tab
   const handleCloseTab = useCallback((closedPath: string) => {
+    // Bug fix: Emit event to clean up loadedPathsRef in MdEditor
+    emitter.emit('editor-file-close', { path: closedPath })
     delete tabContentsRef.current[closedPath]
 
+    // Bug fix: Get closedTab from the current ref value (updated synchronously in useEffect)
     const closedTab = tabsRef.current.find(t => t.path === closedPath)
     if (closedTab) {
       removeTab(closedTab.id)
     }
 
-    // If closing the active tab, switch to another tab
-    if (localActiveTabId === closedTab?.id) {
+    // Bug fix: Only switch active tab if we're closing the currently active tab
+    // Use localActiveTabId which is kept in sync via useEffect
+    if (closedTab && localActiveTabId === closedTab.id) {
       if (tabsRef.current.length > 1) {
         const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
         const targetTab = tabsRef.current[Math.max(0, currentIndex - 1)] || tabsRef.current[tabsRef.current.length - 1]

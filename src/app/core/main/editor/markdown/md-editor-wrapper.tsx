@@ -25,8 +25,41 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const [initialContent, setInitialContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const isCreatingFileRef = useRef(false)
-  // Track loaded state per file path
+  // Track loaded state per file path - Bug fix: make this cleanup possible
   const loadedPathsRef = useRef<Set<string>>(new Set())
+  // Bug fix: Track which file's content is currently in currentArticle
+  const currentArticlePathRef = useRef<string | null>(null)
+
+  // Bug fix: Listen for file close events to clean up loaded state
+  useEffect(() => {
+    const handleFileClose = (event: { path: string }) => {
+      if (event.path === filePath) {
+        loadedPathsRef.current.delete(filePath)
+      }
+    }
+    emitter.on('editor-file-close', handleFileClose)
+    return () => {
+      emitter.off('editor-file-close', handleFileClose)
+      // Also clean up on component unmount
+      loadedPathsRef.current.delete(filePath)
+    }
+  }, [filePath])
+
+  // Bug fix: Listen for article opened events to track which file currentArticle belongs to
+  useEffect(() => {
+    const handleArticleOpened = (event: { path: string; content: string }) => {
+      if (event.path === filePath) {
+        currentArticlePathRef.current = filePath
+      } else {
+        // Bug fix: If a different file was opened, clear the reference
+        currentArticlePathRef.current = null
+      }
+    }
+    emitter.on('article-opened', handleArticleOpened as any)
+    return () => {
+      emitter.off('article-opened', handleArticleOpened as any)
+    }
+  }, [filePath])
 
   // Load content from cache or disk - only on first mount per file
   useEffect(() => {
@@ -40,8 +73,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       return
     }
 
-    // Check store content as fallback (set by readArticle for remote files)
-    if (currentArticle && currentArticle.length > 0) {
+    // Bug fix: Only use currentArticle if it belongs to this file
+    // Check if currentArticlePathRef matches current file path
+    if (currentArticle && currentArticle.length > 0 && currentArticlePathRef.current === filePath) {
       setInitialContent(currentArticle)
       loadedPathsRef.current.add(filePath)
       setIsLoading(false)
@@ -83,9 +117,10 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }, [filePath, tabContentsRef, currentArticle])
 
   // Subscribe to currentArticle changes (for remote file pull results)
+  // Bug fix: Only update if currentArticle belongs to this file
   useEffect(() => {
-    // 当 currentArticle 有内容且不是初始的空值时，更新编辑器
-    if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent) {
+    // Bug fix: Only process if currentArticle belongs to this file
+    if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent && currentArticlePathRef.current === filePath) {
       setInitialContent(currentArticle)
       // Update cache
       if (tabContentsRef.current) {

@@ -64,14 +64,20 @@ export function TipTapEditor({
   onQuoteToChat,
 }: TipTapEditorProps) {
   const isInitializedRef = useRef(false)
-  const isExternalUpdateRef = useRef(false)
-  const prevFilePathRef = useRef<string>(activeFilePath)
+  // Bug fix: Use counter instead of boolean to handle rapid successive updates
+  const externalUpdateCounterRef = useRef(0)
+  // Bug fix: Track which file path the editor is currently initialized with
+  const initializedForPathRef = useRef<string | null>(null)
+  // Bug fix: Track pending sync updates to verify they match current file path
+  const pendingSyncUpdateRef = useRef<{ path: string; content: string } | null>(null)
 
   // 当文件路径变化时，重置初始化状态，避免旧文件内容覆盖新文件
   useEffect(() => {
-    if (prevFilePathRef.current !== activeFilePath && activeFilePath) {
+    if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
       isInitializedRef.current = false
-      prevFilePathRef.current = activeFilePath
+      initializedForPathRef.current = activeFilePath
+      // Bug fix: Clear pending sync update when file path changes
+      pendingSyncUpdateRef.current = null
     }
   }, [activeFilePath])
 
@@ -153,8 +159,9 @@ export function TipTapEditor({
     contentType: 'markdown',
     editable,
     onUpdate: ({ editor }) => {
-      // Only trigger onChange if this is NOT an external update
-      if (!isExternalUpdateRef.current) {
+      // Bug fix: Only trigger onChange if this is NOT an external update
+      // Using counter to handle rapid successive updates
+      if (externalUpdateCounterRef.current === 0) {
         const markdown = editor.getMarkdown()
         onChange?.(markdown)
       }
@@ -519,56 +526,67 @@ export function TipTapEditor({
   }, [editor])
 
   // Initialize content only once - preserves undo/redo history when switching tabs
+  // Bug fix: Only initialize if the editor is for the current file path
   useEffect(() => {
     if (!editor) return
 
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
-    if (!isInitializedRef.current) {
+    // Bug fix: Also check that we're initializing for the correct file path
+    if (!isInitializedRef.current && initializedForPathRef.current === activeFilePath) {
       // Tiptap's Markdown extension will handle $...$ and $$...$$ parsing
       editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
       isInitializedRef.current = true
     }
-  }, [editor]) // intentionally not depending on initialContent
+  }, [editor, activeFilePath]) // Bug fix: added activeFilePath dependency
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {
     if (!editor || !isInitializedRef.current) return
 
-    // Only update if content actually changed (from remote pull)
+    // Bug fix: Only update if content actually changed (from remote pull)
+    // and if the initialContent belongs to the current file path
     const currentContent = editor.getHTML()
     const newContent = initialContent || ''
 
-    // Simple check - if content is different and new content is not empty
-    if (newContent && currentContent !== newContent) {
-      isExternalUpdateRef.current = true
+    // Bug fix: Only proceed if this is the correct file path
+    if (newContent && currentContent !== newContent && initializedForPathRef.current === activeFilePath) {
+      externalUpdateCounterRef.current++
       // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
       editor.commands.setContent(newContent, { contentType: 'markdown' })
-      // Reset the flag after a short delay
+      // Reset the counter after a short delay
       setTimeout(() => {
-        isExternalUpdateRef.current = false
+        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
       }, 100)
     }
-  }, [initialContent, editor])
+  }, [initialContent, editor, activeFilePath])
 
   // Handle sync content updated from auto-sync
   useEffect(() => {
     const handleSyncContentUpdated = (event: { path: string; content: string }) => {
-      // Only update if this is the active file
+      // Bug fix: Only update if this is the active file
       if (!editor || !event || event.path !== activeFilePath) return
 
-      isExternalUpdateRef.current = true
+      // Bug fix: Set pending update and verify path when processing
+      pendingSyncUpdateRef.current = event
+
+      externalUpdateCounterRef.current++
       // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
       editor.commands.setContent(event.content, { contentType: 'markdown' })
-      // Reset the flag after a short delay
+
+      // Reset the counter and pending update after a short delay
       setTimeout(() => {
-        isExternalUpdateRef.current = false
+        // Only reset if this is still the same pending update
+        if (pendingSyncUpdateRef.current === event) {
+          pendingSyncUpdateRef.current = null
+        }
+        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
       }, 100)
     }
 
-    emitter.on('sync-content-updated', handleSyncContentUpdated)
+    emitter.on('sync-content-updated', handleSyncContentUpdated as any)
     return () => {
-      emitter.off('sync-content-updated', handleSyncContentUpdated)
+      emitter.off('sync-content-updated', handleSyncContentUpdated as any)
     }
   }, [editor, activeFilePath])
 
@@ -687,23 +705,23 @@ export function TipTapEditor({
   // Handle external content updates (e.g., from Agent tools)
   useEffect(() => {
     const handleExternalUpdate = (newContent: string) => {
-      if (editor && !isExternalUpdateRef.current) {
-        // Set flag first to prevent circular updates
-        isExternalUpdateRef.current = true
+      if (editor && externalUpdateCounterRef.current === 0) {
+        // Set counter first to prevent circular updates
+        externalUpdateCounterRef.current++
         // Set content in editor with Markdown parsing
         editor.commands.setContent(newContent, { contentType: 'markdown' })
         // Directly call onChange with the new content (bypassing onUpdate to avoid timing issues)
         onChange?.(newContent)
       }
-      // Reset the flag after a short delay to handle rapid updates
+      // Reset the counter after a short delay to handle rapid updates
       setTimeout(() => {
-        isExternalUpdateRef.current = false
+        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
       }, 100)
     }
 
-    emitter.on('external-content-update', handleExternalUpdate)
+    emitter.on('external-content-update', handleExternalUpdate as any)
     return () => {
-      emitter.off('external-content-update', handleExternalUpdate)
+      emitter.off('external-content-update', handleExternalUpdate as any)
     }
   }, [editor, onChange])
 

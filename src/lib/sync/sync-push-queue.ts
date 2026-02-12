@@ -107,11 +107,9 @@ class SyncPushQueue {
 
     // 如果当前有任务正在处理
     if (this.isProcessing) {
-      // 如果新任务比正在处理的任务更新，将新任务加入队列
-      if (task.timestamp > this.processingTaskTimestamp) {
-        this.queue = [task]
-        return
-      }
+      // Bug fix: Instead of silently dropping, add the task to queue for processing
+      // This ensures all file changes are eventually synced
+      this.queue.push(task)
       return
     }
 
@@ -148,29 +146,45 @@ class SyncPushQueue {
 
   /**
    * 清空队列并处理任务
+   * Bug fix: Process all tasks in the queue, not just the last one
    */
   private async flush() {
     if (this.isProcessing || this.queue.length === 0) return
 
-    // 保留队列中最新的任务
-    const latestTask = this.queue.pop()
-    this.queue = [] // 清空队列
-
-    if (!latestTask) return
-
-    this.isProcessing = true
-    this.processingTaskTimestamp = latestTask.timestamp
-
-    try {
-      // 等待 100ms 确保文件系统完成写入
-      await new Promise(resolve => setTimeout(resolve, 100))
-      await this.pushToRemote(latestTask.path)
-    } finally {
-      this.isProcessing = false
-      // 检查是否有新任务加入
-      if (this.queue.length > 0) {
-        this.scheduleFlush()
+    // Bug fix: Process all tasks in the queue (newest first)
+    // Group by path - keep only the newest task for each path
+    const taskMap = new Map<string, PushTask>()
+    while (this.queue.length > 0) {
+      const task = this.queue.shift()!
+      // Only keep the newest task for each path
+      const existing = taskMap.get(task.path)
+      if (!existing || task.timestamp > existing.timestamp) {
+        taskMap.set(task.path, task)
       }
+    }
+    const tasksToProcess = Array.from(taskMap.values()).sort((a, b) => b.timestamp - a.timestamp)
+
+    this.isProcessing = false // Will be set to true in the loop
+
+    // Process each task
+    for (const task of tasksToProcess) {
+      this.isProcessing = true
+      this.processingTaskTimestamp = task.timestamp
+
+      try {
+        // Wait for file system to complete write
+        await new Promise(resolve => setTimeout(resolve, 100))
+        await this.pushToRemote(task.path)
+      } catch (error) {
+        console.error(`[SyncPushQueue] Failed to push ${task.path}:`, error)
+      } finally {
+        this.isProcessing = false
+      }
+    }
+
+    // Schedule if there are new tasks
+    if (this.queue.length > 0) {
+      this.scheduleFlush()
     }
   }
 

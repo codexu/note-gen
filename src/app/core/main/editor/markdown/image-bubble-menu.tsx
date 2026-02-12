@@ -64,7 +64,10 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
   // 保存 alt 文本
   const saveAltText = useCallback(() => {
     if (imageInfo) {
-      editor.commands.updateAttributes('image', { alt: altText })
+      // 先选中图片节点，然后更新属性
+      editor.chain().setNodeSelection(imageInfo.pos).updateAttributes('image', { alt: altText }).run()
+      // 更新 imageInfo 中的值
+      setImageInfo(prev => prev ? { ...prev, alt: altText } : null)
     }
     setEditMode('none')
   }, [editor, imageInfo, altText])
@@ -72,7 +75,10 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
   // 保存 src 地址
   const saveSrc = useCallback(() => {
     if (imageInfo && srcText.trim()) {
-      editor.commands.updateAttributes('image', { src: srcText.trim() })
+      // 先选中图片节点，然后更新属性
+      editor.chain().setNodeSelection(imageInfo.pos).updateAttributes('image', { src: srcText.trim() }).run()
+      // 更新 imageInfo 中的值
+      setImageInfo(prev => prev ? { ...prev, src: srcText.trim() } : null)
     }
     setEditMode('none')
   }, [editor, imageInfo, srcText])
@@ -150,7 +156,9 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
             <button
               className="p-1.5 rounded hover:bg-muted transition-colors"
               onClick={() => {
-                setSrcText(imageInfo.src)
+                // 从编辑器读取最新值
+                const node = editor.state.doc.nodeAt(imageInfo.pos)
+                setSrcText(node?.attrs.src || imageInfo.src)
                 setEditMode('src')
               }}
               title={t('editSrc')}
@@ -162,7 +170,9 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
             <button
               className="p-1.5 rounded hover:bg-muted transition-colors"
               onClick={() => {
-                setAltText(imageInfo.alt)
+                // 从编辑器读取最新值
+                const node = editor.state.doc.nodeAt(imageInfo.pos)
+                setAltText(node?.attrs.alt || imageInfo.alt)
                 setEditMode('alt')
               }}
               title={t('editAlt')}

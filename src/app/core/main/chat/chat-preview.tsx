@@ -1,6 +1,6 @@
 'use client'
 import useSettingStore from "@/stores/setting";
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes'
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js/lib/core';
@@ -15,12 +15,20 @@ import './chat.css';
 
 type ThemeType = 'light' | 'dark' | 'system';
 
-export default function ChatPreview({text}: {text: string, themeReverse?: boolean}) {
+type ChatPreviewProps = {
+  text: string;
+  streaming?: boolean; // 是否为流式内容
+};
+
+export default function ChatPreview({text, streaming = false}: ChatPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme()
   const [mdTheme, setMdTheme] = useState<ThemeType>('light')
   const { codeTheme, contentTextScale } = useSettingStore()
   const [htmlContent, setHtmlContent] = useState<string>('');
+  const [displayedText, setDisplayedText] = useState<string>('');
+  const animationRef = useRef<number | null>(null);
+  const lastTextRef = useRef<string>('');
 
   const md = useRef<MarkdownIt | null>(null);
 
@@ -55,25 +63,107 @@ export default function ChatPreview({text}: {text: string, themeReverse?: boolea
       }
     });
 
-    md.current.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+    md.current.renderer.rules.link_open = function (tokens, idx, options, _env, self) {
       tokens[idx].attrSet('target', '_blank');
       tokens[idx].attrSet('rel', 'noopener noreferrer');
       return self.renderToken(tokens, idx, options);
     }
-    
-    if (text) {
-      setHtmlContent(md.current.render(text));
-    }
-  }, [mdTheme, text]);
+  }, [mdTheme]);
 
-  // 解析Markdown为HTML - 仅在md实例未更新时处理
-  useEffect(() => {
-    if (md.current && text) {
-      setHtmlContent(md.current.render(text));
-    } else if (!text) {
-      setHtmlContent('');
+  // 打字机效果动画
+  const animateTypewriter = useCallback((targetText: string) => {
+    // 如果动画正在进行中，先取消
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
     }
-  }, [text]);
+
+    const startText = displayedText;
+    const startTime = performance.now();
+    const duration = 80; // 80ms 内平滑显示新内容
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // 使用 easeOutQuad 使动画更平滑
+      const easeProgress = 1 - (1 - progress) * (1 - progress);
+
+      const newLength = Math.floor(startText.length + (targetText.length - startText.length) * easeProgress);
+
+      if (newLength > displayedText.length && newLength <= targetText.length) {
+        const newText = targetText.slice(0, newLength);
+        if (md.current) {
+          setHtmlContent(md.current.render(newText));
+        }
+        setDisplayedText(newText);
+      }
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayedText(targetText);
+        if (md.current) {
+          setHtmlContent(md.current.render(targetText));
+        }
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+  }, [displayedText]);
+
+  // 处理流式内容更新
+  useEffect(() => {
+    if (!streaming) {
+      // 非流式内容，直接显示
+      if (text && md.current) {
+        setHtmlContent(md.current.render(text));
+        setDisplayedText(text);
+      } else if (!text) {
+        setHtmlContent('');
+        setDisplayedText('');
+      }
+      return;
+    }
+
+    // 流式内容
+    const newText = text;
+
+    // 检测是否是首次加载或文本被重置
+    if (!lastTextRef.current || newText.length < lastTextRef.current.length) {
+      // 重置或首次加载
+      setDisplayedText(newText);
+      if (md.current) {
+        setHtmlContent(md.current.render(newText));
+      }
+      lastTextRef.current = newText;
+      return;
+    }
+
+    // 有新内容到达
+    const addedContent = newText.slice(displayedText.length);
+
+    // 如果添加的内容不多，使用打字机效果
+    if (addedContent.length > 0 && addedContent.length <= 50) {
+      animateTypewriter(newText);
+    } else {
+      // 添加内容太多，直接显示
+      setDisplayedText(newText);
+      if (md.current) {
+        setHtmlContent(md.current.render(newText));
+      }
+    }
+
+    lastTextRef.current = newText;
+  }, [text, streaming, animateTypewriter]);
+
+  // 清理动画
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (theme === 'system') {
@@ -178,7 +268,7 @@ export default function ChatPreview({text}: {text: string, themeReverse?: boolea
       dragPreview.style.borderRadius = '4px'
       dragPreview.style.fontSize = '14px'
       dragPreview.style.maxWidth = '300px'
-      dragPreview.style.wordWrap = 'break-word'
+      dragPreview.style.overflowWrap = 'break-word'
       dragPreview.textContent = selectedText.length > 50 ? selectedText.substring(0, 50) + '...' : selectedText
 
       document.body.appendChild(dragPreview)

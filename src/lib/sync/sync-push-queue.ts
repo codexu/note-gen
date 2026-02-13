@@ -293,7 +293,6 @@ class SyncPushQueue {
         }
 
         if (success) {
-          console.log(`[SyncPushQueue] 推送成功: ${path}, sha: ${uploadedSha || '未获取到'}`)
           emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
           return { success: true, sha: uploadedSha }
         }
@@ -319,7 +318,6 @@ class SyncPushQueue {
           errorMessage.includes('冲突')
 
         if (isShaMismatch && attempt < maxRetries) {
-          console.log(`[SyncPushQueue] SHA 不匹配，${attempt}/${maxRetries} 次重试，等待后重试...`)
           // 等待一段时间后重试（指数退避）
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 500))
           continue

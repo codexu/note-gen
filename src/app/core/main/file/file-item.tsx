@@ -256,7 +256,6 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     });
     if (answer) {
       const currentPath = computedParentPath(item)
-      console.log(`[DEBUG handleDeleteSyncFile] 删除远程文件: path=${currentPath}, sha=${item.sha}`)
 
       try {
         // 获取当前主要备份方式

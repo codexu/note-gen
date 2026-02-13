@@ -525,13 +525,7 @@ Observation: ${step.observation}
 
           // 检测是否包含 Final Answer，提取内容并渲染 Markdown
           const extractedFinalAnswer = this.extractFinalAnswer(content)
-          console.log('[Agent] 流式回调 - 检测 Final Answer:', {
-            hasContent: content.length > 0,
-            hasFinalAnswer: !!extractedFinalAnswer,
-            contentPreview: content.slice(0, 200)
-          })
           if (extractedFinalAnswer) {
-            console.log('[Agent] 检测到 Final Answer，触发渲染')
             // 包含 Final Answer，立即渲染 Markdown
             this.config.onFinalAnswerRender?.(extractedFinalAnswer)
           }
@@ -628,13 +622,7 @@ This is iteration ${this.currentIteration}, please give your Thought and Action 
 
         // 检测是否包含 Final Answer，提取内容并渲染 Markdown
         const extractedFinalAnswer = this.extractFinalAnswer(content)
-        console.log('[Agent] 流式回调 - 检测 Final Answer:', {
-          hasContent: content.length > 0,
-          hasFinalAnswer: !!extractedFinalAnswer,
-          contentPreview: content.slice(0, 200)
-        })
         if (extractedFinalAnswer) {
-          console.log('[Agent] 检测到 Final Answer，触发渲染')
           // 包含 Final Answer，立即渲染 Markdown
           this.config.onFinalAnswerRender?.(extractedFinalAnswer)
         }
@@ -1331,13 +1319,6 @@ ${skillsList.join('\n---\n\n')}
                            normalizedContent.includes('最终答案') ||
                            /Action:\s*Final\s*Answer/i.test(content)
 
-    console.log('[Agent] extractFinalAnswer - 检测结果:', {
-      contentLength: content.length,
-      hasFinalAnswer,
-      normalizedContent: normalizedContent.slice(-100),
-      includesFinalAnswerColons: normalizedContent.includes('Final Answer:')
-    })
-
     if (!hasFinalAnswer) {
       return null
     }
@@ -1357,7 +1338,6 @@ ${skillsList.join('\n---\n\n')}
       }
     }
 
-    console.log('[Agent] extractFinalAnswer - 提取结果:', result?.slice(0, 100))
     return result
   }
 

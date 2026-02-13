@@ -129,8 +129,10 @@ export function AgentPlan({
   const t = useTranslations(i18nNs);
   const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const thoughtRefs = React.useRef<Map<string, HTMLParagraphElement>>(new Map());
   const [currentStepDuration, setCurrentStepDuration] = React.useState<number>(0);
   const [showDiff, setShowDiff] = React.useState(true);
+  const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
 
   // 实时更新当前步骤的耗时
   React.useEffect(() => {
@@ -379,10 +381,28 @@ export function AgentPlan({
 
   // Auto-scroll to bottom when content changes in live mode
   React.useEffect(() => {
-    if (mode === "live" && (currentThought || currentObservation) && contentRef.current) {
+    if (mode === "live" && (currentThought || currentObservation) && contentRef.current && autoScrollEnabled) {
       contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
-  }, [currentThought, currentObservation, currentStepDuration, mode]);
+  }, [currentThought, currentObservation, currentStepDuration, mode, autoScrollEnabled]);
+
+  // Handle scroll to detect if user manually scrolled up
+  const handleScroll = React.useCallback(() => {
+    if (!contentRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setAutoScrollEnabled(isAtBottom);
+  }, []);
+
+  // Auto-scroll thought paragraph to bottom when content updates
+  React.useEffect(() => {
+    if (mode === "live" && currentThought) {
+      const currentStepEl = thoughtRefs.current.get("current");
+      if (currentStepEl && autoScrollEnabled) {
+        currentStepEl.scrollTop = currentStepEl.scrollHeight;
+      }
+    }
+  }, [currentThought, mode, autoScrollEnabled]);
 
   // Auto-expand current step in live mode - keep current step always expanded while running
   React.useEffect(() => {
@@ -659,7 +679,15 @@ export function AgentPlan({
                         {t("thought")}
                       </span>
                     </div>
-                    <p className="whitespace-pre-wrap max-h-40 overflow-y-auto wrap-break-word py-1">
+                    <p
+                      ref={(el) => {
+                        if (step.id) {
+                          if (el) thoughtRefs.current.set(step.id, el);
+                          else thoughtRefs.current.delete(step.id);
+                        }
+                      }}
+                      className="whitespace-pre-wrap max-h-40 overflow-y-auto wrap-break-word py-1"
+                    >
                       {step.thought}
                     </p>
                   </div>
@@ -860,7 +888,7 @@ export function AgentPlan({
   return (
     <div className="w-full mb-4">
       {/* 步骤列表 */}
-      <div className="overflow-hidden" ref={contentRef}>
+      <div className="overflow-hidden" ref={contentRef} onScroll={handleScroll}>
         <ul className="space-y-1">
           {renderSteps()}
         </ul>

@@ -296,38 +296,38 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
 export async function pullRemoteFile(path: string): Promise<string> {
   const store = await Store.load('store.json')
   const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
-  
+
   try {
     let file
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepo = await getSyncRepoName('github')
         file = await getGithubFiles({ path, repo: githubRepo })
-        if (file?.content) {
+        if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
-        
+
       case 'gitee':
         const giteeRepo = await getSyncRepoName('gitee')
         file = await getGiteeFiles({ path, repo: giteeRepo })
-        if (file?.content) {
+        if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
-        
+
       case 'gitlab':
         const gitlabRepo = await getSyncRepoName('gitlab')
         file = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo })
-        if (file?.content) {
+        if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
-        
+
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         file = await getGiteaFileContent({ path, ref: 'main', repo: giteaRepo })
-        if (file?.content) {
+        if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
@@ -335,7 +335,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
   } catch (error) {
     throw error
   }
-  
+
   throw new Error('无法获取远程文件内容')
 }
 

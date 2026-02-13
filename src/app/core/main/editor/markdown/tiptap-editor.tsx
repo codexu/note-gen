@@ -73,19 +73,39 @@ export function TipTapEditor({
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
   const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
 
+  const [editorReady, setEditorReady] = useState(false)
+
+  // Wait for editor to be fully mounted before rendering components that may trigger flushSync
+  useEffect(() => {
+    let cancelled = false
+
+    const scheduleReady = () => {
+      // Use requestAnimationFrame to ensure we're outside React's render cycle
+      requestAnimationFrame(() => {
+        if (cancelled) return
+        requestAnimationFrame(() => {
+          if (cancelled) return
+          setEditorReady(true)
+        })
+      })
+    }
+
+    // Small delay to let initial render complete
+    const timer = setTimeout(scheduleReady, 50)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [])
+
   const isInitializedRef = useRef(false)
   const externalUpdateCounterRef = useRef(0)
-  const initializedForPathRef = useRef<string | null>(null)
   const pendingSyncUpdateRef = useRef<{ path: string; content: string } | null>(null)
-
-  // 当文件路径变化时，重置初始化状态，避免旧文件内容覆盖新文件
-  useEffect(() => {
-    if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
-      isInitializedRef.current = false
-      initializedForPathRef.current = activeFilePath
-      pendingSyncUpdateRef.current = null
-    }
-  }, [activeFilePath])
+  // Bug fix: Track when editor is ready (has caught up with content)
+  const isReadyRef = useRef(false)
+  // Bug fix: Track if this is the first onUpdate after initialization
+  const isFirstUpdateRef = useRef(true)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -148,7 +168,7 @@ export function TipTapEditor({
       MermaidDiagram,
       Image.configure({
         inline: true,
-        allowBase64: true,
+        allowBase64: false,
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-lg',
         },
@@ -158,11 +178,17 @@ export function TipTapEditor({
     contentType: 'markdown',
     editable,
     onUpdate: ({ editor }) => {
-      // Bug fix: Only trigger onChange if this is NOT an external update
+      // Bug fix: Only trigger onChange if editor is ready (not during initialization)
       // Using counter to handle rapid successive updates
-      if (externalUpdateCounterRef.current === 0) {
+      if (externalUpdateCounterRef.current === 0 && isReadyRef.current) {
         const markdown = editor.getMarkdown()
         onChange?.(markdown)
+        // Mark that we've processed the first update
+        isFirstUpdateRef.current = false
+      } else if (isFirstUpdateRef.current) {
+        // Skip the very first update during initialization
+      } else {
+        // Skip other updates (counter > 0 means external update)
       }
     },
   })
@@ -193,6 +219,9 @@ export function TipTapEditor({
       // Show loading state
       uploadingImagesRef.current.set(uploadId, true)
 
+      // Prevent default to avoid base64 image being inserted
+      event.preventDefault()
+
       handleImageUpload(imageFile, activeFilePathRef.current)
         .then(result => {
           editor.commands.insertContent({
@@ -208,17 +237,12 @@ export function TipTapEditor({
           })
         })
         .catch(error => {
-          toast({
-            title: tImage('uploadFailed'),
-            description: error instanceof Error ? error.message : '未知错误',
-            variant: 'destructive',
-          })
+          // 不插入任何内容，只显示错误提示
+          console.error('Image upload failed:', error)
         })
         .finally(() => {
           uploadingImagesRef.current.delete(uploadId)
         })
-
-      event.preventDefault()
     }
 
     const handleDrop = (event: DragEvent) => {
@@ -233,6 +257,9 @@ export function TipTapEditor({
 
       // Show loading state
       uploadingImagesRef.current.set(uploadId, true)
+
+      // Prevent default to avoid base64 image being inserted
+      event.preventDefault()
 
       handleImageUpload(imageFile, activeFilePathRef.current)
         .then(result => {
@@ -251,17 +278,12 @@ export function TipTapEditor({
           })
         })
         .catch(error => {
-          toast({
-            title: tImage('uploadFailed'),
-            description: error instanceof Error ? error.message : '未知错误',
-            variant: 'destructive',
-          })
+          // 不插入任何内容，只显示错误提示
+          console.error('Image upload failed:', error)
         })
         .finally(() => {
           uploadingImagesRef.current.delete(uploadId)
         })
-
-      event.preventDefault()
     }
 
     // Add event listeners to editor DOM element
@@ -532,12 +554,20 @@ export function TipTapEditor({
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
     // Bug fix: Also check that we're initializing for the correct file path
-    if (!isInitializedRef.current && initializedForPathRef.current === activeFilePath) {
-      // Tiptap's Markdown extension will handle $...$ and $$...$$ parsing
-      editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
-      isInitializedRef.current = true
+    if (!isInitializedRef.current && activeFilePath) {
+      // Use setTimeout to avoid flushSync conflict during React render
+      setTimeout(() => {
+        if (initialContent) {
+          editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
+        }
+        // Mark as initialized to allow subsequent content updates
+        isInitializedRef.current = true
+        // Bug fix: Mark editor as ready AFTER content is set
+        // This prevents onUpdate from firing with empty content during init
+        isReadyRef.current = true
+      }, 0)
     }
-  }, [editor, activeFilePath]) // Bug fix: added activeFilePath dependency
+  }, [editor, activeFilePath, initialContent])
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {
@@ -545,18 +575,29 @@ export function TipTapEditor({
 
     // Bug fix: Only update if content actually changed (from remote pull)
     // and if the initialContent belongs to the current file path
-    const currentContent = editor.getHTML()
+    const currentContent = editor.getMarkdown()
     const newContent = initialContent || ''
 
-    // Bug fix: Only proceed if this is the correct file path
-    if (newContent && currentContent !== newContent && initializedForPathRef.current === activeFilePath) {
-      externalUpdateCounterRef.current++
-      // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
-      editor.commands.setContent(newContent, { contentType: 'markdown' })
-      // Reset the counter after a short delay
-      setTimeout(() => {
-        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
-      }, 100)
+    // Bug fix: Use activeFilePath directly instead of ref to avoid race conditions
+    // Also handle the case where initialContent changed from empty to non-empty
+    if (activeFilePath) {
+      // Update if content changed, including empty to non-empty transitions
+      // But skip if both are empty (no meaningful change)
+      if (newContent !== currentContent && (newContent || currentContent)) {
+        // Bug fix: Mark editor as not ready during update to prevent onUpdate from firing
+        isReadyRef.current = false
+        externalUpdateCounterRef.current++
+        // Use setTimeout to avoid flushSync conflict during React render
+        setTimeout(() => {
+          editor.commands.setContent(newContent, { contentType: 'markdown' })
+          // Bug fix: Mark editor as ready after content is set
+          isReadyRef.current = true
+          // Reset the counter after a short delay
+          setTimeout(() => {
+            externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
+          }, 100)
+        }, 0)
+      }
     }
   }, [initialContent, editor, activeFilePath])
 
@@ -566,21 +607,30 @@ export function TipTapEditor({
       // Bug fix: Only update if this is the active file
       if (!editor || !event || event.path !== activeFilePath) return
 
+      // Bug fix: Skip if content hasn't actually changed
+      const currentContent = editor.getMarkdown()
+      if (currentContent === event.content) return
+
       // Bug fix: Set pending update and verify path when processing
       pendingSyncUpdateRef.current = event
 
+      // Bug fix: Mark editor as not ready during update
+      isReadyRef.current = false
       externalUpdateCounterRef.current++
-      // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析
-      editor.commands.setContent(event.content, { contentType: 'markdown' })
-
-      // Reset the counter and pending update after a short delay
+      // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
-        // Only reset if this is still the same pending update
-        if (pendingSyncUpdateRef.current === event) {
-          pendingSyncUpdateRef.current = null
-        }
-        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
-      }, 100)
+        editor.commands.setContent(event.content, { contentType: 'markdown' })
+        // Bug fix: Mark editor as ready after content is set
+        isReadyRef.current = true
+        // Reset the counter and pending update after a short delay
+        setTimeout(() => {
+          // Only reset if this is still the same pending update
+          if (pendingSyncUpdateRef.current === event) {
+            pendingSyncUpdateRef.current = null
+          }
+          externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
+        }, 100)
+      }, 0)
     }
 
     emitter.on('sync-content-updated', handleSyncContentUpdated as any)
@@ -588,6 +638,38 @@ export function TipTapEditor({
       emitter.off('sync-content-updated', handleSyncContentUpdated as any)
     }
   }, [editor, activeFilePath])
+
+  // Handle external content updates (e.g., from Agent tools)
+  useEffect(() => {
+    const handleExternalUpdate = (newContent: string) => {
+      if (editor && externalUpdateCounterRef.current === 0) {
+        // Bug fix: Skip if content hasn't actually changed
+        const currentContent = editor.getMarkdown()
+        if (currentContent === newContent) return
+
+        // Bug fix: Mark editor as not ready during update
+        isReadyRef.current = false
+        // Set counter first to prevent circular updates
+        externalUpdateCounterRef.current++
+        // Use setTimeout to avoid flushSync conflict during React render
+        setTimeout(() => {
+          // Set content in editor with Markdown parsing
+          editor.commands.setContent(newContent, { contentType: 'markdown' })
+          // Bug fix: Mark editor as ready after content is set
+          isReadyRef.current = true
+          // Reset the counter after a short delay to handle rapid updates
+          setTimeout(() => {
+            externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
+          }, 100)
+        }, 0)
+      }
+    }
+
+    emitter.on('external-content-update', handleExternalUpdate as any)
+    return () => {
+      emitter.off('external-content-update', handleExternalUpdate as any)
+    }
+  }, [editor])
 
   // Set editable state
   useEffect(() => {
@@ -700,29 +782,6 @@ export function TipTapEditor({
       }
     }
   }, [editor])
-
-  // Handle external content updates (e.g., from Agent tools)
-  useEffect(() => {
-    const handleExternalUpdate = (newContent: string) => {
-      if (editor && externalUpdateCounterRef.current === 0) {
-        // Set counter first to prevent circular updates
-        externalUpdateCounterRef.current++
-        // Set content in editor with Markdown parsing
-        editor.commands.setContent(newContent, { contentType: 'markdown' })
-        // Directly call onChange with the new content (bypassing onUpdate to avoid timing issues)
-        onChange?.(newContent)
-      }
-      // Reset the counter after a short delay to handle rapid updates
-      setTimeout(() => {
-        externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
-      }, 100)
-    }
-
-    emitter.on('external-content-update', handleExternalUpdate as any)
-    return () => {
-      emitter.off('external-content-update', handleExternalUpdate as any)
-    }
-  }, [editor, onChange])
 
   // Handle math formula insertion from slash menu
   useEffect(() => {
@@ -1058,6 +1117,18 @@ export function TipTapEditor({
 
   if (!editor) {
     return null
+  }
+
+  // Delay rendering components that may trigger flushSync until after initial render
+  if (!editorReady) {
+    return (
+      <div className="tiptap-editor relative flex flex-col h-full">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto relative">
+          <EditorContent editor={editor} className="h-full" />
+        </div>
+        <FooterBar editor={editor} activeFilePath={activeFilePath} />
+      </div>
+    )
   }
 
   return (

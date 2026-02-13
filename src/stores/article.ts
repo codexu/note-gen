@@ -1533,6 +1533,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const state = get()
         const debouncedContent = state.pendingSaveContent || content
 
+        // Bug fix: 检查路径是否仍然匹配，避免文件切换时保存到错误的文件
+        const currentActivePath = state.activeFilePath
+        if (currentActivePath !== path) {
+          // 文件已切换，取消保存
+          set({ debounceSaveTimer: null, pendingSaveContent: null })
+          return
+        }
+
         // 再次检查内容是否变化
         if (state.currentArticle === debouncedContent) {
           set({ debounceSaveTimer: null, pendingSaveContent: null })

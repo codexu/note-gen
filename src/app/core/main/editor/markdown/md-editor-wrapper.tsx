@@ -29,6 +29,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const loadedPathsRef = useRef<Set<string>>(new Set())
   // Bug fix: Track which file's content is currently in currentArticle
   const currentArticlePathRef = useRef<string | null>(null)
+  // Bug fix: Track if editor content has been initialized to prevent saving empty content
+  const contentInitializedRef = useRef(false)
+  // Bug fix: Use ref to track loading state since state might be stale in callbacks
+  const isLoadingRef = useRef(true)
+  // Bug fix: Track expected content to detect if editor is behind
+  const expectedContentRef = useRef<string | null>(null)
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -37,9 +43,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         loadedPathsRef.current.delete(filePath)
       }
     }
-    emitter.on('editor-file-close', handleFileClose)
+    emitter.on('editor-file-close', handleFileClose as any)
     return () => {
-      emitter.off('editor-file-close', handleFileClose)
+      emitter.off('editor-file-close', handleFileClose as any)
       // Also clean up on component unmount
       loadedPathsRef.current.delete(filePath)
     }
@@ -65,21 +71,27 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   useEffect(() => {
     if (!filePath || loadedPathsRef.current.has(filePath)) return
 
-    // Check cache first
+    // Bug fix: Check cache first
     if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
       setInitialContent(tabContentsRef.current[filePath])
       loadedPathsRef.current.add(filePath)
       setIsLoading(false)
+      isLoadingRef.current = false
       return
     }
 
-    // Bug fix: Only use currentArticle if it belongs to this file
-    // Check if currentArticlePathRef matches current file path
-    if (currentArticle && currentArticle.length > 0 && currentArticlePathRef.current === filePath) {
-      setInitialContent(currentArticle)
-      loadedPathsRef.current.add(filePath)
-      setIsLoading(false)
-      return
+    // Bug fix: Also check if currentArticle belongs to this file (for store initialization)
+    // This handles the case where app restarts and currentArticle is already set
+    if (currentArticle && currentArticle.length > 0) {
+      // Check if the current active file path matches
+      const { activeFilePath: storeActivePath } = useArticleStore.getState()
+      if (storeActivePath === filePath) {
+        setInitialContent(currentArticle)
+        loadedPathsRef.current.add(filePath)
+        setIsLoading(false)
+        isLoadingRef.current = false
+        return
+      }
     }
 
     // Load from disk directly (avoid using global currentArticle)
@@ -99,16 +111,26 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
 
+        // Bug fix: Only set isLoading(false) if we have actual content
+        // This prevents flickering when isLoading=false with empty content
         setInitialContent(content)
         // Update cache
         if (tabContentsRef.current) {
           tabContentsRef.current[filePath] = content
         }
+        if (content) {
+          setIsLoading(false)
+          isLoadingRef.current = false
+          // Mark content as initialized since we have actual content from disk
+          // This is safe because the content came from disk, not an empty initialization
+          contentInitializedRef.current = true
+        }
+        // If empty, wait for subscription
       } catch {
-        // File doesn't exist, start with empty content
+        // File doesn't exist
         setInitialContent('')
-      } finally {
-        setIsLoading(false)
+        // Don't set isLoading(false) here - wait for subscription
+        // This prevents showing empty content briefly before subscription updates
       }
     }
 
@@ -120,18 +142,59 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   // Bug fix: Only update if currentArticle belongs to this file
   useEffect(() => {
     // Bug fix: Only process if currentArticle belongs to this file
-    if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent && currentArticlePathRef.current === filePath) {
+    // Also check against store's activeFilePath as fallback
+    const { activeFilePath: storeActivePath } = useArticleStore.getState()
+    const isThisFile = currentArticlePathRef.current === filePath || storeActivePath === filePath
+
+    if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent && isThisFile) {
+      // Bug fix: Set expected content BEFORE updating initialContent
+      // This ensures handleContentChange knows what to expect
+      expectedContentRef.current = currentArticle
       setInitialContent(currentArticle)
       // Update cache
       if (tabContentsRef.current) {
         tabContentsRef.current[filePath] = currentArticle
       }
+      // Bug fix: Don't set isLoadingRef.current = false here!
+      // The editor needs to initialize first, and handleContentChange will
+      // only save if content matches expectedContentRef
+      // We'll set isLoading(false) but isLoadingRef remains true until editor confirms
       setIsLoading(false)
+      // Mark as initialized so that subsequent saves are allowed
+      contentInitializedRef.current = true
+    } else if (currentArticle === '' && isThisFile && initialContent === '') {
+      // Genuinely empty file - hide loading and mark as initialized
+      // Bug fix: Set expected content for empty file
+      expectedContentRef.current = ''
+      setIsLoading(false)
+      isLoadingRef.current = false
+      // Mark as initialized for empty files so user can start typing
+      contentInitializedRef.current = true
     }
   }, [currentArticle, filePath, tabContentsRef, initialContent])
 
   // Handle content changes - only save if this is the active file
   const handleContentChange = useCallback((content: string) => {
+    // Bug fix: Don't save if content is empty
+    if (content.length === 0) {
+      return
+    }
+    // Bug fix: If expected content is set and incoming content doesn't match, skip save
+    // This prevents saving stale content during editor initialization race
+    if (expectedContentRef.current !== null && content !== expectedContentRef.current) {
+      return
+    }
+    // Bug fix: Skip if content matches what we just loaded (first onUpdate after init)
+    // The editor's onUpdate fires after setContent, so we skip that initial call
+    if (expectedContentRef.current !== null && content === expectedContentRef.current) {
+      // Clear expectedContentRef after first matching update
+      expectedContentRef.current = null
+      return
+    }
+    // Mark as initialized when we receive valid content
+    if (!contentInitializedRef.current) {
+      contentInitializedRef.current = true
+    }
     // Update cache
     if (filePath && tabContentsRef.current) {
       tabContentsRef.current[filePath] = content

@@ -2361,6 +2361,7 @@
     "description": "記録ツールを選択して、素早く記録を作成"
   },
   "editor": {
+    "placeholder": "「/」を入力してメニューを開き、書き始める...",
     "translation": {
       "fail": "翻訳に失敗しました",
       "failNoSelection": "翻訳するテキストを選択してください",

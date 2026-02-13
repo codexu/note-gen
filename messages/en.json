@@ -2283,6 +2283,7 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "placeholder": "Type \"/\" to open menu, start writing...",
     "translation": {
       "fail": "Translation failed",
       "failNoSelection": "Please select text to translate",

@@ -2157,6 +2157,7 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "placeholder": "输入 \"/\" 呼出菜单，开始写作...",
     "translation": {
       "fail": "翻译失败",
       "failNoSelection": "请先选择要翻译的文本",

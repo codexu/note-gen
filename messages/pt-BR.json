@@ -2307,6 +2307,7 @@
     }
   },
   "editor": {
+    "placeholder": "Digite \"/\" para abrir o menu, comece a escrever...",
     "copySuccess": "Cópia Bem-sucedida",
     "copySuccessDescription": "Copiado para a área de transferência",
     "search": {

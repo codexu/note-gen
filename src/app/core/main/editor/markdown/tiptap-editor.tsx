@@ -58,17 +58,24 @@ interface TipTapEditorProps {
 export function TipTapEditor({
   initialContent,
   onChange,
-  placeholder = '开始写作...',
+  placeholder,
   editable = true,
   activeFilePath = '',
   onQuoteToChat,
 }: TipTapEditorProps) {
+  const t = useTranslations('editor')
+  const tMermaid = useTranslations('editor.mermaid.templates')
+  const tImage = useTranslations('editor.image')
+
+  const placeholderText = placeholder || t('placeholder')
+
+  // Math dialog state
+  const [mathDialogOpen, setMathDialogOpen] = useState(false)
+  const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
+
   const isInitializedRef = useRef(false)
-  // Bug fix: Use counter instead of boolean to handle rapid successive updates
   const externalUpdateCounterRef = useRef(0)
-  // Bug fix: Track which file path the editor is currently initialized with
   const initializedForPathRef = useRef<string | null>(null)
-  // Bug fix: Track pending sync updates to verify they match current file path
   const pendingSyncUpdateRef = useRef<{ path: string; content: string } | null>(null)
 
   // 当文件路径变化时，重置初始化状态，避免旧文件内容覆盖新文件
@@ -76,17 +83,9 @@ export function TipTapEditor({
     if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
       isInitializedRef.current = false
       initializedForPathRef.current = activeFilePath
-      // Bug fix: Clear pending sync update when file path changes
       pendingSyncUpdateRef.current = null
     }
   }, [activeFilePath])
-
-  // Math dialog state
-  const [mathDialogOpen, setMathDialogOpen] = useState(false)
-  const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
-
-  const t = useTranslations('editor.mermaid.templates')
-  const tImage = useTranslations('editor.image')
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -100,7 +99,7 @@ export function TipTapEditor({
         underline: false,
       }),
       Placeholder.configure({
-        placeholder,
+        placeholder: placeholderText,
       }),
       Link.configure({
         openOnClick: false,
@@ -1015,7 +1014,7 @@ export function TipTapEditor({
       // Get template from i18n
       const getTemplate = (diagramType: string) => {
         const key = `mermaid.templates.${diagramType}` as any
-        return t(key) || t('flowchart')
+        return tMermaid(key) || tMermaid('flowchart')
       }
 
       const code = getTemplate(type || 'flowchart')

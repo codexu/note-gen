@@ -744,9 +744,15 @@
 /* 移动端工具栏支持左右滑动 */
 @media (max-width: 768px) {
   /* 确保移动端写作页面的编辑器容器不会阻止滑动 */
-  #mobile-writing .vditor-toolbar {
+  #mobile-writing .tiptap-editor .ProseMirror {
     touch-action: pan-x pan-y !important;
-    overscroll-behavior-x: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 移动端优化 FooterBar */
+  #mobile-writing .tiptap-editor ~ div {
+    height: auto !important;
+    min-height: 44px !important;
   }
 }
 

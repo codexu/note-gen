@@ -1349,7 +1349,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         return
       }
 
-      // 正常的本地文件，显示内容
+      // 正常的本地文件，显示内容（即使是空文件也正确显示）
       set({ currentArticle: localContent })
       // 本地内容加载完成，解除加载状态
       get().setLoading(false)
@@ -1514,13 +1514,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
         return
       }
 
-      // 检查内容是否真的变化了（避免不必要的保存和同步）
-      const currentContent = get().currentArticle
-      if (currentContent === content) {
-        // 内容没有变化，不需要保存和同步
-        return
-      }
-
       // 清除之前的防抖定时器
       const existingTimer = get().debounceSaveTimer
       if (existingTimer) {
@@ -1529,6 +1522,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
       // 设置新的防抖定时器，500ms 后执行保存
       // 这样可以合并短时间内多次 content change
+      // 保存 pendingContent 用于防抖检查
+      set({ pendingSaveContent: content, debounceSaveTimer: undefined })
       const timer = setTimeout(async () => {
         const state = get()
         const debouncedContent = state.pendingSaveContent || content
@@ -1537,12 +1532,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const currentActivePath = state.activeFilePath
         if (currentActivePath !== path) {
           // 文件已切换，取消保存
-          set({ debounceSaveTimer: null, pendingSaveContent: null })
-          return
-        }
-
-        // 再次检查内容是否变化
-        if (state.currentArticle === debouncedContent) {
           set({ debounceSaveTimer: null, pendingSaveContent: null })
           return
         }

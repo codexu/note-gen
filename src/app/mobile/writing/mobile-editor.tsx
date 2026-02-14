@@ -11,7 +11,10 @@ export function MobileEditor() {
     setCurrentArticle,
     setActiveFilePath,
     loadFileTree,
-    currentArticle
+    currentArticle,
+    activeFilePath,
+    readArticle,
+    saveCurrentArticle
   } = useArticleStore()
 
   const [isCreating, setIsCreating] = useState(false)
@@ -20,20 +23,45 @@ export function MobileEditor() {
 
   const contentInitializedRef = useRef(false)
   const expectedContentRef = useRef<string | null>(null)
+  const previousActivePathRef = useRef<string>('')
+  const isFirstMountRef = useRef(true)
 
   // 初始化：检查是否有当前打开的文件
   useEffect(() => {
-    if (currentArticle && currentArticle.length > 0) {
-      setInitialContent(currentArticle)
-      setIsLoading(false)
-      contentInitializedRef.current = true
-    } else {
-      // 没有打开的文件，直接显示空编辑器
-      setInitialContent('')
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false
+      if (currentArticle && currentArticle.length > 0 && activeFilePath) {
+        setInitialContent(currentArticle)
+      } else {
+        setInitialContent('')
+      }
       setIsLoading(false)
       contentInitializedRef.current = true
     }
-  }, [currentArticle])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 监听 activeFilePath 变化，读取文件内容
+  useEffect(() => {
+    if (activeFilePath !== previousActivePathRef.current && activeFilePath) {
+      previousActivePathRef.current = activeFilePath
+      contentInitializedRef.current = false
+      setIsLoading(true)
+
+      // 读取文件内容
+      readArticle(activeFilePath)
+    }
+  }, [activeFilePath, readArticle])
+
+  // 监听 currentArticle 变化（从 readArticle 更新过来）
+  useEffect(() => {
+    // 只处理有 activeFilePath 且 currentArticle 有内容的情况
+    if (activeFilePath && currentArticle && currentArticle !== initialContent) {
+      setInitialContent(currentArticle)
+      setIsLoading(false)
+      contentInitializedRef.current = true
+    }
+  }, [currentArticle, activeFilePath])
 
   // 处理内容变化
   const handleContentChange = useCallback((content: string) => {
@@ -53,12 +81,17 @@ export function MobileEditor() {
     // 如果正在创建文件，跳过（等待创建完成）
     if (isCreating) return
 
-    // 如果还没有 filePath，创建文件
-    if (!isCreating && !expectedContentRef.current && currentArticle === '') {
+    // 如果有 activeFilePath，直接保存内容
+    if (activeFilePath) {
+      setCurrentArticle(content)
+      saveCurrentArticle(content)
+    }
+    // 如果还没有 activeFilePath，创建文件
+    else if (!isCreating && currentArticle === '') {
       setIsCreating(true)
       createUntitledFile(content)
     }
-  }, [isCreating, currentArticle])
+  }, [isCreating, activeFilePath, currentArticle, setCurrentArticle, saveCurrentArticle])
 
   // 创建 untitled 文件
   async function createUntitledFile(content: string) {

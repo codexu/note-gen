@@ -1,148 +1,130 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { TipTapEditor } from '@/app/core/main/editor/markdown/tiptap-editor'
 import { Loader2 } from 'lucide-react'
 import useArticleStore from '@/stores/article'
 import emitter from '@/lib/emitter'
+import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 
 export function MobileEditor() {
-  const {
-    setCurrentArticle,
-    setActiveFilePath,
-    loadFileTree,
-    currentArticle,
-    activeFilePath,
-    readArticle,
-    saveCurrentArticle
-  } = useArticleStore()
+  const { setCurrentArticle, activeFilePath } = useArticleStore()
 
-  const [isCreating, setIsCreating] = useState(false)
-  const [initialContent, setInitialContent] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [content, setContent] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isEditorReady, setIsEditorReady] = useState(false)
 
-  const contentInitializedRef = useRef(false)
-  const expectedContentRef = useRef<string | null>(null)
-  const previousActivePathRef = useRef<string>('')
-  const isFirstMountRef = useRef(true)
+  const activePathRef = useRef<string>('')
+  const contentRef = useRef<string>('')
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isSavingRef = useRef(false)
 
-  // 初始化：检查是否有当前打开的文件
+  // 监听 activeFilePath 变化
   useEffect(() => {
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false
-      if (currentArticle && currentArticle.length > 0 && activeFilePath) {
-        setInitialContent(currentArticle)
+    if (activeFilePath && activeFilePath !== activePathRef.current) {
+      activePathRef.current = activeFilePath
+      loadFile(activeFilePath)
+    } else if (!activeFilePath && activePathRef.current) {
+      activePathRef.current = ''
+      setContent('')
+      contentRef.current = ''
+      setIsLoading(false)
+      setIsEditorReady(false)
+    }
+  }, [activeFilePath])
+
+  // 加载文件内容
+  const loadFile = useCallback(async (path: string) => {
+    if (!path) return
+
+    setIsLoading(true)
+    try {
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(path)
+      let fileContent = ''
+
+      if (workspace.isCustom) {
+        const fileExists = await exists(pathOptions.path)
+        if (fileExists) {
+          fileContent = await readTextFile(pathOptions.path)
+        }
       } else {
-        setInitialContent('')
+        const fileExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+        if (fileExists) {
+          fileContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
       }
+
+      setContent(fileContent)
+      contentRef.current = fileContent
+      setCurrentArticle(fileContent)
+    } catch {
+      setContent('')
+      contentRef.current = ''
+      setCurrentArticle('')
+    } finally {
       setIsLoading(false)
-      contentInitializedRef.current = true
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [setCurrentArticle])
 
-  // 监听 activeFilePath 变化，读取文件内容
-  useEffect(() => {
-    if (activeFilePath !== previousActivePathRef.current && activeFilePath) {
-      previousActivePathRef.current = activeFilePath
-      contentInitializedRef.current = false
-      setIsLoading(true)
+  // 保存文件
+  const doSave = useCallback(async () => {
+    const path = activePathRef.current
+    const newContent = contentRef.current
 
-      // 读取文件内容
-      readArticle(activeFilePath)
-    }
-  }, [activeFilePath, readArticle])
-
-  // 监听 currentArticle 变化（从 readArticle 更新过来）
-  useEffect(() => {
-    // 只处理有 activeFilePath 且 currentArticle 有内容的情况
-    if (activeFilePath && currentArticle && currentArticle !== initialContent) {
-      setInitialContent(currentArticle)
-      setIsLoading(false)
-      contentInitializedRef.current = true
-    }
-  }, [currentArticle, activeFilePath])
-
-  // 处理内容变化
-  const handleContentChange = useCallback((content: string) => {
-    // 跳过空内容
-    if (content.length === 0) return
-
-    // 跳过初始化时的内容同步
-    if (expectedContentRef.current !== null && content === expectedContentRef.current) {
-      expectedContentRef.current = null
+    if (!path || isSavingRef.current || !isEditorReady) {
       return
     }
 
-    if (!contentInitializedRef.current) {
-      contentInitializedRef.current = true
-    }
-
-    // 如果正在创建文件，跳过（等待创建完成）
-    if (isCreating) return
-
-    // 如果有 activeFilePath，直接保存内容
-    if (activeFilePath) {
-      setCurrentArticle(content)
-      saveCurrentArticle(content)
-    }
-    // 如果还没有 activeFilePath，创建文件
-    else if (!isCreating && currentArticle === '') {
-      setIsCreating(true)
-      createUntitledFile(content)
-    }
-  }, [isCreating, activeFilePath, currentArticle, setCurrentArticle, saveCurrentArticle])
-
-  // 创建 untitled 文件
-  async function createUntitledFile(content: string) {
+    isSavingRef.current = true
     try {
-      const { exists, writeTextFile } = await import('@tauri-apps/plugin-fs')
-      const workspace = await import('@/lib/workspace').then(m => m.getWorkspacePath())
-      const { getFilePathOptions } = await import('@/lib/workspace')
-
-      let fileName = 'untitled.md'
-      let counter = 1
-      let path = fileName
-
-      // 查找不存在的文件名
-      while (true) {
-        const pathOptions = await getFilePathOptions(fileName)
-        let fileExists = false
-        if (workspace.isCustom) {
-          fileExists = await exists(pathOptions.path)
-        } else {
-          fileExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-        if (!fileExists) break
-        fileName = `untitled-${counter}.md`
-        path = fileName
-        counter++
-      }
-
-      // 写入文件
+      const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(path)
+
       if (workspace.isCustom) {
-        await writeTextFile(pathOptions.path, content)
+        await writeTextFile(pathOptions.path, newContent)
       } else {
-        await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+        await writeTextFile(pathOptions.path, newContent, { baseDir: pathOptions.baseDir })
       }
 
-      // 设置状态
-      setInitialContent(content)
-      expectedContentRef.current = content
-      setCurrentArticle(content)
-      setActiveFilePath(path)
-      loadFileTree()
-    } catch (error) {
-      console.error('Create untitled file error:', error)
+      setCurrentArticle(newContent)
     } finally {
-      setIsCreating(false)
+      isSavingRef.current = false
     }
-  }
+  }, [setCurrentArticle, isEditorReady])
+
+  // 处理内容变化
+  const handleContentChange = useCallback((newContent: string) => {
+    setContent(newContent)
+    contentRef.current = newContent
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      doSave()
+    }, 500)
+  }, [doSave])
+
+  // 处理编辑器就绪
+  const handleEditorReady = useCallback(() => {
+    setIsEditorReady(true)
+  }, [])
 
   // 处理引用到聊天
   const handleQuoteToChat = useCallback(() => {
     emitter.emit('get-quote-from-editor')
+  }, [])
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
   }, [])
 
   // 显示加载状态
@@ -157,10 +139,11 @@ export function MobileEditor() {
   return (
     <div className="flex-1 relative w-full h-full flex flex-col">
       <TipTapEditor
-        initialContent={initialContent || ''}
+        initialContent={content}
         onChange={handleContentChange}
         placeholder="开始写作..."
         onQuoteToChat={handleQuoteToChat}
+        onReady={handleEditorReady}
       />
     </div>
   )

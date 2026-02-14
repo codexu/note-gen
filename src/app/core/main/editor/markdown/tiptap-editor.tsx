@@ -53,6 +53,7 @@ interface TipTapEditorProps {
   editable?: boolean
   activeFilePath?: string
   onQuoteToChat?: () => void
+  onReady?: () => void
 }
 
 export function TipTapEditor({
@@ -62,6 +63,7 @@ export function TipTapEditor({
   editable = true,
   activeFilePath = '',
   onQuoteToChat,
+  onReady,
 }: TipTapEditorProps) {
   const t = useTranslations('editor')
   const tMermaid = useTranslations('editor.mermaid.templates')
@@ -554,7 +556,7 @@ export function TipTapEditor({
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
     // Bug fix: Also check that we're initializing for the correct file path
-    if (!isInitializedRef.current && activeFilePath) {
+    if (!isInitializedRef.current) {
       // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
         if (initialContent) {
@@ -565,9 +567,11 @@ export function TipTapEditor({
         // Bug fix: Mark editor as ready AFTER content is set
         // This prevents onUpdate from firing with empty content during init
         isReadyRef.current = true
+        // Notify mobile editor that editor is ready
+        onReady?.()
       }, 0)
     }
-  }, [editor, activeFilePath, initialContent])
+  }, [editor, initialContent, onReady])
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {

@@ -12,6 +12,7 @@ interface S3Config {
   endpoint?: string
   customDomain?: string
   pathPrefix?: string
+  forcePathStyle?: boolean
 }
 
 interface MarkState {

@@ -11,6 +11,7 @@ interface S3Config {
   endpoint?: string
   customDomain?: string
   pathPrefix?: string
+  forcePathStyle?: boolean
 }
 
 // 生成 AWS 签名 V4 (使用 Web Crypto API)
@@ -154,6 +155,47 @@ async function getSignatureKey(key: string, dateStamp: string, regionName: strin
   );
 }
 
+// 已知支持 Virtual Hosted Style 的 S3 兼容服务
+const VIRTUAL_HOSTED_SERVICES = [
+  'amazonaws.com',     // AWS S3
+  'aliyuncs.com',      // Alibaba Cloud OSS
+  'myqcloud.com',      // Tencent Cloud COS
+  'digitaloceanspaces.com', // DigitalOcean Spaces
+  'wasabisys.com',     // Wasabi
+];
+
+function isVirtualHostedService(endpoint: string): boolean {
+  return VIRTUAL_HOSTED_SERVICES.some(domain => endpoint.includes(domain));
+}
+
+// 构建 S3 URL，支持 Path Style 和 Virtual Hosted Style
+function buildS3Url(endpoint: string, bucket: string, key?: string, forcePathStyle?: boolean): string {
+  // Path Style: endpoint/bucket[/key]
+  if (forcePathStyle) {
+    const parts = [endpoint, bucket];
+    if (key) parts.push(key);
+    return parts.join('/').replace(/([^:]\/)\/+/g, "$1");
+  }
+
+  // Virtual Hosted Style for known services: bucket.hostname[/key]
+  if (isVirtualHostedService(endpoint)) {
+    try {
+      const urlObj = new URL(endpoint);
+      urlObj.hostname = `${bucket}.${urlObj.hostname}`;
+      let url = urlObj.toString().replace(/\/+$/, '');
+      if (key) url = `${url}/${key}`;
+      return url.replace(/([^:]\/)\/+/g, "$1");
+    } catch {
+      console.warn('[S3] Failed to construct Virtual Hosted URL, falling back to Path Style');
+    }
+  }
+
+  // Default: Path Style
+  const parts = [endpoint, bucket];
+  if (key) parts.push(key);
+  return parts.join('/').replace(/([^:]\/)\/+/g, "$1");
+}
+
 // 测试 S3 连接
 export async function testS3Connection(config: S3Config): Promise<boolean> {
   try {
@@ -161,29 +203,12 @@ export async function testS3Connection(config: S3Config): Promise<boolean> {
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    const endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
+    let endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
+    if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
     const bucket = config.bucket.trim();
-    
-    // 智能判断 URL 风格
-    let url = `${endpoint}/${bucket}`;
-    
-    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
-    // 将 https://oss-cn-beijing.aliyuncs.com/bucket 改为 https://bucket.oss-cn-beijing.aliyuncs.com
-    const isAliyun = endpoint.includes('aliyuncs.com');
-    const isAWS = endpoint.includes('amazonaws.com');
-    
-    if (isAliyun || isAWS) {
-       try {
-         const urlObj = new URL(endpoint);
-         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-         url = urlObj.toString();
-         // 移除末尾斜杠
-         if (url.endsWith('/')) url = url.slice(0, -1);
-       } catch {
-         console.warn('[S3] Failed to construct Virtual Hosted URL, falling back to Path Style');
-       }
-    }
-    
+
+    // 使用统一的 URL 构建函数
+    const url = buildS3Url(endpoint, bucket, undefined, config.forcePathStyle);
 
     const emptyPayload = new ArrayBuffer(0);
     const payloadHash = await crypto.subtle.digest('SHA-256', emptyPayload);
@@ -310,24 +335,8 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
     if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
 
     const bucket = config.bucket.trim();
-    let url = `${endpoint}/${bucket}/${key}`;
-
-    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
-    const isAliyun = endpoint.includes('aliyuncs.com');
-    const isAWS = endpoint.includes('amazonaws.com');
-    
-    if (isAliyun || isAWS) {
-       try {
-         const urlObj = new URL(endpoint);
-         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-         // 重新构建 URL，包含 key
-         url = `${urlObj.toString()}/${key}`;
-         // 处理可能的双斜杠
-         url = url.replace(/([^:]\/)\/+/g, "$1");
-       } catch {
-         console.warn('[S3 Upload] Failed to switch to Virtual Hosted Style');
-       }
-    }
+    // 使用统一的 URL 构建函数
+    const url = buildS3Url(endpoint, bucket, key, config.forcePathStyle);
     // 读取文件内容
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
@@ -359,18 +368,8 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
         const domain = config.customDomain.trim().replace(/\/+$/, '');
         return `${domain}/${key}`;
       } else {
-        // 如果使用了 Virtual Hosted Style，返回优化后的 URL
-        if (isAliyun || isAWS) {
-           try {
-             const urlObj = new URL(endpoint);
-             urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-             const baseUrl = urlObj.toString().replace(/\/+$/, '');
-             return `${baseUrl}/${key}`;
-           } catch {
-             return `${endpoint}/${bucket}/${key}`;
-           }
-        }
-        return `${endpoint}/${bucket}/${key}`;
+        // 使用统一的 URL 构建函数生成访问 URL
+        return buildS3Url(endpoint, bucket, key, config.forcePathStyle);
       }
     } else {
       const errorText = await response.text();

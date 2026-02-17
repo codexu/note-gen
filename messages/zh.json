@@ -769,6 +769,8 @@
         "advancedSettings": "高级设置",
         "endpoint": "自定义端点",
         "endpointDesc": "留空使用 AWS S3，或输入兼容 S3 的服务端点",
+        "forcePathStyle": "强制 Path Style",
+        "forcePathStyleDesc": "为 MinIO、Cloudflare R2 或其他需要 Path Style URL 的服务启用",
         "customDomain": "自定义域名",
         "customDomainDesc": "可选，用于访问图片的自定义域名",
         "pathPrefix": "路径前缀",

@@ -707,6 +707,8 @@
         "advancedSettings": "詳細設定",
         "endpoint": "カスタムエンドポイント",
         "endpointDesc": "AWS S3 の場合は空白、S3 互換サービスのエンドポイントを入力",
+        "forcePathStyle": "パススタイルを強制",
+        "forcePathStyleDesc": "MinIO、Cloudflare R2 など、パススタイル URL が必要なサービスで有効にしてください",
         "customDomain": "カスタムドメイン",
         "customDomainDesc": "オプション、画像アクセス用のカスタムドメイン",
         "pathPrefix": "パスプレフィックス",

@@ -774,6 +774,8 @@
         "advancedSettings": "Advanced Settings",
         "endpoint": "Custom Endpoint",
         "endpointDesc": "Leave empty for AWS S3, or enter S3-compatible service endpoint",
+        "forcePathStyle": "Force Path Style",
+        "forcePathStyleDesc": "Enable for MinIO, Cloudflare R2, or other services that require path-style URLs",
         "customDomain": "Custom Domain",
         "customDomainDesc": "Optional, custom domain for accessing images",
         "pathPrefix": "Path Prefix",

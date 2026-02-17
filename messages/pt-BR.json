@@ -732,6 +732,8 @@
         "advancedSettings": "Configurações Avançadas",
         "endpoint": "Endpoint Personalizado",
         "endpointDesc": "Deixe em branco para AWS S3, ou insira o endpoint do serviço compatível com S3",
+        "forcePathStyle": "Forçar Path Style",
+        "forcePathStyleDesc": "Ative para MinIO, Cloudflare R2 ou outros serviços que exigem URLs no estilo de caminho",
         "customDomain": "Domínio Personalizado",
         "customDomainDesc": "Opcional, domínio personalizado para acessar imagens",
         "pathPrefix": "Prefixo do Caminho",

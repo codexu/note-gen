@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
 import useImageStore from '@/stores/imageHosting';
 import { SyncStateEnum } from '@/lib/sync/github.types';
@@ -21,6 +22,7 @@ interface S3Config {
   endpoint?: string
   customDomain?: string
   pathPrefix?: string
+  forcePathStyle?: boolean
 }
 
 export function S3ImageHosting() {
@@ -34,7 +36,8 @@ export function S3ImageHosting() {
     bucket: '',
     endpoint: '',
     customDomain: '',
-    pathPrefix: ''
+    pathPrefix: '',
+    forcePathStyle: false
   });
   
   const [showSecretKey, setShowSecretKey] = useState(false);
@@ -237,6 +240,19 @@ export function S3ImageHosting() {
               value={config.endpoint || ''}
               onChange={(e) => handleConfigChange({ ...config, endpoint: e.target.value })}
               placeholder="https://s3.amazonaws.com"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="forcePathStyle">{t('settings.imageHosting.s3.forcePathStyle')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.imageHosting.s3.forcePathStyleDesc')}
+              </p>
+            </div>
+            <Switch
+              id="forcePathStyle"
+              checked={config.forcePathStyle || false}
+              onCheckedChange={(checked) => handleConfigChange({ ...config, forcePathStyle: checked })}
             />
           </div>
           <div className="space-y-2">

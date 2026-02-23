@@ -6,6 +6,7 @@ import { Suspense, useEffect } from "react";
 import { NextIntlProvider } from "@/components/providers/NextIntlProvider";
 import Script from "next/script";
 import { getSyncPushQueue } from "@/lib/sync/sync-push-queue";
+import { ConsoleFilter } from "@/components/console-filter";
 
 export default function RootLayout({
   children,
@@ -42,6 +43,7 @@ export default function RootLayout({
           </Script>
         </head>
         <body suppressHydrationWarning>
+          <ConsoleFilter />
           <Suspense>
             <NextIntlProvider>
               {children}

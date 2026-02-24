@@ -668,6 +668,9 @@
     "sync": {
       "title": "Sync",
       "desc": "Here, you can configure the synchronization repository, which can help you synchronize records, markdown files, system configurations and other information.",
+      "selectPlatform": "Select Sync Platform",
+      "platformSettings": "Platform Settings",
+      "moreSettings": "More Settings",
       "repoStatus": "Repository Status",
       "syncRepo": "Sync Repository",
       "syncRepoDesc": "Sync markdown files in writing",
@@ -697,6 +700,8 @@
       "creating": "Creating",
       "checkRepo": "Check Repository",
       "checking": "Checking",
+      "enterToken": "Please enter Access Token",
+      "enterTokenHint": "Please enter Access Token first to check repository status",
       "defaultRepoName": "Default: {name}",
       "gitlabInstanceType": "GitLab Instance Type",
       "gitlabInstanceTypeDesc": "Select the type of GitLab instance to connect to",
@@ -718,11 +723,14 @@
       "autoSyncOptions": {
         "placeholder": "Select auto sync time",
         "disabled": "Disabled",
+        "2s": "2 seconds",
+        "3s": "3 seconds",
+        "5s": "5 seconds",
         "10s": "10 seconds",
+        "20s": "20 seconds",
         "30s": "30 seconds",
         "1m": "1 minute",
-        "5m": "5 minutes",
-        "30m": "30 minutes"
+        "2m": "2 minutes"
       },
       "exclusions": {
         "title": "Sync Exclusion Configuration",

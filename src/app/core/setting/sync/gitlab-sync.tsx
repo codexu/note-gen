@@ -24,15 +24,13 @@ dayjs.extend(relativeTime)
 
 export function GitlabSync() {
   const t = useTranslations();
-  const { 
+  const {
     gitlabInstanceType,
     setGitlabInstanceType,
     gitlabCustomUrl,
     setGitlabCustomUrl,
     gitlabAccessToken,
     setGitlabAccessToken,
-    gitlabAutoSync,
-    setGitlabAutoSync,
     primaryBackupMethod,
     setPrimaryBackupMethod,
     gitlabCustomSyncRepo,
@@ -300,37 +298,6 @@ export function GitlabSync() {
           }
         </Card>
       </FormItem>
-      {
-        gitlabSyncProjectInfo &&
-        <FormItem title={t('settings.others')}>
-          <Item variant="outline">
-            <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
-            <ItemContent>
-              <ItemTitle>{t('settings.sync.autoSync')}</ItemTitle>
-              <ItemDescription>{t('settings.sync.autoSyncDesc')}</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Select
-                value={gitlabAutoSync}
-                onValueChange={(value) => setGitlabAutoSync(value)}
-                disabled={!gitlabAccessToken || gitlabSyncProjectState !== SyncStateEnum.success}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
-                  <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
-                  <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
-                  <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
-                  <SelectItem value="300">{t('settings.sync.autoSyncOptions.5m')}</SelectItem>
-                  <SelectItem value="1800">{t('settings.sync.autoSyncOptions.30m')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </ItemActions>
-          </Item>
-        </FormItem>
-      }
 
       {/* 主要备份方式设置 */}
         {primaryBackupMethod === 'gitlab' ? (

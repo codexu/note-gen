@@ -604,6 +604,9 @@
     "sync": {
       "title": "同步配置",
       "desc": "在這裡，你可以配置同步倉庫，它可以幫助你同步記錄、markdown 文件、系統配置等資訊。",
+      "selectPlatform": "選擇同步平台",
+      "platformSettings": "平台設置",
+      "moreSettings": "更多設置",
       "repoStatus": "倉庫狀態",
       "syncRepo": "同步倉庫",
       "syncRepoDesc": "同步寫作中的 markdown 文件。",
@@ -634,6 +637,8 @@
       "creating": "創建中",
       "checkRepo": "檢查倉庫",
       "checking": "檢查中",
+      "enterToken": "請輸入 Access Token",
+      "enterTokenHint": "請先輸入 Access Token 以檢查倉庫狀態",
       "defaultRepoName": "默認: {name}",
       "gitlabInstanceType": "GitLab 實例類型",
       "gitlabInstanceTypeDesc": "選擇要連接的 GitLab 實例類型",
@@ -647,11 +652,14 @@
       "autoSyncOptions": {
         "placeholder": "選擇自動同步時間",
         "disabled": "關閉",
+        "2s": "2 秒",
+        "3s": "3 秒",
+        "5s": "5 秒",
         "10s": "10 秒",
+        "20s": "20 秒",
         "30s": "30 秒",
         "1m": "1 分鐘",
-        "5m": "5 分鐘",
-        "30m": "30 分鐘"
+        "2m": "2 分鐘"
       },
       "exclusions": {
         "title": "同步排除配置",

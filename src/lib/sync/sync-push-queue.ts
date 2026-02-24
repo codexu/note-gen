@@ -7,6 +7,7 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
 import { pullRemoteFile } from './auto-sync'
 import { getRemoteFileInfo } from './auto-sync'
+import useSettingStore from '@/stores/setting'
 
 interface PushTask {
   path: string
@@ -31,8 +32,20 @@ class SyncPushQueue {
   private processingTaskTimestamp = 0
   private lastInputTime: number = Date.now()
 
-  private readonly IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后执行推送
-  private readonly CHECK_INTERVAL = 1000 // 每秒检查一次
+  private get IDLE_THRESHOLD(): number {
+    // 动态读取 autoSync 设置
+    const state = useSettingStore.getState()
+    if (!state) return 0
+
+    const { autoSync } = state
+
+    if (!autoSync || autoSync === 'disabled') {
+      return 0 // 禁用自动同步
+    }
+    return parseInt(autoSync, 10) * 1000
+  }
+
+  private readonly CHECK_INTERVAL = 100 // 每 100ms 检查一次
 
   /**
    * 初始化监听器 - 只执行一次
@@ -121,9 +134,14 @@ class SyncPushQueue {
   }
 
   /**
-   * 防抖调度 - 用户停止输入 10 秒后执行推送
+   * 防抖调度 - 用户停止输入后执行推送
    */
   private scheduleFlush() {
+    // 如果自动同步被禁用，直接返回
+    if (!this.IDLE_THRESHOLD) {
+      return
+    }
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
     }
@@ -133,7 +151,7 @@ class SyncPushQueue {
       const timeSinceInput = now - this.lastInputTime
 
       if (timeSinceInput >= this.IDLE_THRESHOLD) {
-        // 用户停止输入超过 10 秒，执行推送
+        // 用户停止输入超过等待时间，执行推送
         this.flush()
       } else {
         // 继续等待

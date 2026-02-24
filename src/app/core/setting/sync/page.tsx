@@ -6,60 +6,153 @@ import { GiteeSync } from "./gitee-sync";
 import { GitlabSync } from "./gitlab-sync";
 import { GiteaSync } from "./gitea-sync";
 import { SettingType } from '../components/setting-base';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SquareCheckBig } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, RefreshCcw } from "lucide-react"
 import useSettingStore from "@/stores/setting";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
-import { useEffect } from "react";
+import { SYNC_PLATFORMS, SyncPlatform } from "@/types/sync";
+import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from "@/components/ui/item";
+import useSyncStore from "@/stores/sync";
+import { SyncStateEnum } from "@/lib/sync/github.types";
 
 export default function SyncPage() {
   const t = useTranslations();
-  const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
+  const {
+    primaryBackupMethod,
+    setPrimaryBackupMethod,
+    autoSync,
+    setAutoSync,
+  } = useSettingStore()
+  const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState } = useSyncStore()
 
-  const tabs = ['github', 'gitee', 'gitlab', 'gitea']
+  const [tab, setTab] = useState<SyncPlatform>(primaryBackupMethod)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const [tab, setTab] = useState(primaryBackupMethod)
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const store = await Store.load('store.json')
+        const savedMethod = await store.get<SyncPlatform>('primaryBackupMethod')
+        if (savedMethod) {
+          setPrimaryBackupMethod(savedMethod)
+          setTab(savedMethod)
+        }
+      } catch (err) {
+        console.error('Failed to load primary backup method:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    init()
+  }, [setPrimaryBackupMethod])
 
-  async function init () {
-    const store = await Store.load('store.json')
-    const primaryBackupMethod = await store.get<'github' | 'gitee' | 'gitlab' | 'gitea'>('primaryBackupMethod')
-    if (primaryBackupMethod) {
-      setPrimaryBackupMethod(primaryBackupMethod)
-      setTab(primaryBackupMethod)
+  // Tab 切换时同步更新 Store
+  const handleTabChange = async (value: string) => {
+    const newTab = value as SyncPlatform
+    setTab(newTab)
+    await setPrimaryBackupMethod(newTab)
+  }
+
+  // 获取当前平台的同步状态
+  const getCurrentSyncState = () => {
+    switch (primaryBackupMethod) {
+      case 'github':
+        return syncRepoState
+      case 'gitee':
+        return giteeSyncRepoState
+      case 'gitlab':
+        return gitlabSyncProjectState
+      case 'gitea':
+        return giteaSyncRepoState
+      default:
+        return syncRepoState
     }
   }
 
-  useEffect(() => {
-    init()
-  }, [])
-  
+  const currentSyncState = getCurrentSyncState()
+  const isAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
+
+  if (isLoading) {
+    return (
+      <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-zinc-400" />
+        </div>
+      </SettingType>
+    )
+  }
+
+  const renderSyncContent = () => {
+    switch (tab) {
+      case 'github':
+        return <GithubSync />
+      case 'gitee':
+        return <GiteeSync />
+      case 'gitlab':
+        return <GitlabSync />
+      case 'gitea':
+        return <GiteaSync />
+      default:
+        return <GithubSync />
+    }
+  }
+
   return (
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'github' | 'gitee' | 'gitlab' | 'gitea')}>
-        <TabsList className="grid grid-cols-4 w-full mb-8">
-          {
-            tabs.map((item) => (
-              <TabsTrigger value={item} key={item} className="flex items-center gap-2">
-                {item.charAt(0).toUpperCase() + item.slice(1)}
-                {primaryBackupMethod === item && <SquareCheckBig className="size-4" />}
-              </TabsTrigger>
-            ))
-          }
-        </TabsList>
-        <TabsContent value="github">
-          <GithubSync />
-        </TabsContent>
-        <TabsContent value="gitee">
-          <GiteeSync />
-        </TabsContent>
-        <TabsContent value="gitlab">
-          <GitlabSync />
-        </TabsContent>
-        <TabsContent value="gitea">
-          <GiteaSync />
-        </TabsContent>
-      </Tabs>
+      {/* 平台选择器 */}
+      <div className="mb-6">
+        <h3 className="text-sm font-medium mb-3">{t('settings.sync.platformSettings')}</h3>
+        <Select value={tab} onValueChange={handleTabChange}>
+          <SelectTrigger className="w-50">
+            <SelectValue placeholder={t('settings.sync.selectPlatform')} />
+          </SelectTrigger>
+          <SelectContent>
+            {SYNC_PLATFORMS.map((platform) => (
+              <SelectItem key={platform} value={platform}>
+                {platform.charAt(0).toUpperCase() + platform.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 同步平台内容 */}
+      {renderSyncContent()}
+
+      {/* 全局自动同步设置 */}
+      <div className="mt-8 pt-8 border-t">
+        <h3 className="text-sm font-medium mb-4">{t('settings.sync.moreSettings')}</h3>
+        <Item variant="outline">
+          <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoSync')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoSyncDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Select
+              value={autoSync}
+              onValueChange={(value) => setAutoSync(value)}
+              disabled={isAutoSyncDisabled}
+            >
+              <SelectTrigger className="w-45">
+                <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
+                <SelectItem value="2">{t('settings.sync.autoSyncOptions.2s')}</SelectItem>
+                <SelectItem value="3">{t('settings.sync.autoSyncOptions.3s')}</SelectItem>
+                <SelectItem value="5">{t('settings.sync.autoSyncOptions.5s')}</SelectItem>
+                <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
+                <SelectItem value="20">{t('settings.sync.autoSyncOptions.20s')}</SelectItem>
+                <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
+                <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
+                <SelectItem value="120">{t('settings.sync.autoSyncOptions.2m')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </ItemActions>
+        </Item>
+      </div>
     </SettingType>
   )
 }

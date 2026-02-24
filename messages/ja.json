@@ -601,6 +601,9 @@
     "sync": {
       "title": "同期",
       "desc": "ここでは、同期リポジトリを設定することができます。ログ、markdownファイル、システム設定などの情報を同期するのに役立ちます。",
+      "selectPlatform": "同期プラットフォームを選択",
+      "platformSettings": "プラットフォーム設定",
+      "moreSettings": "その他の設定",
       "repoStatus": "リポジトリの状態",
       "syncRepo": "同期リポジトリ",
       "syncRepoDesc": "執筆中のMarkdownファイルを同期",
@@ -632,6 +635,8 @@
       "creating": "作成中",
       "checkRepo": "リポジトリを確認",
       "checking": "確認中",
+      "enterToken": "Access Tokenを入力してください",
+      "enterTokenHint": "リポジトリ的状态を確認するには、先にAccess Tokenを入力してください",
       "gitlabInstanceType": "GitLab インスタンスタイプ",
       "gitlabInstanceTypeDesc": "接続する GitLab インスタンスタイプを選択してください",
       "gitlabInstanceTypePlaceholder": "GitLab インスタンスタイプを選択してください",
@@ -643,11 +648,14 @@
       "autoSyncOptions": {
         "placeholder": "自動同期時間",
         "disabled": "無効",
+        "2s": "2 秒",
+        "3s": "3 秒",
+        "5s": "5 秒",
         "10s": "10 秒",
+        "20s": "20 秒",
         "30s": "30 秒",
         "1m": "1 分",
-        "5m": "5 分",
-        "30m": "30 分"
+        "2m": "2 分"
       },
       "exclusions": {
         "title": "同期除外設定",

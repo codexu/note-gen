@@ -22,11 +22,9 @@ dayjs.extend(relativeTime)
 
 export function GiteeSync() {
   const t = useTranslations();
-  const { 
-    giteeAccessToken, 
-    setGiteeAccessToken, 
-    giteeAutoSync, 
-    setGiteeAutoSync,
+  const {
+    giteeAccessToken,
+    setGiteeAccessToken,
     primaryBackupMethod,
     setPrimaryBackupMethod,
     giteeCustomSyncRepo,
@@ -249,37 +247,6 @@ export function GiteeSync() {
             }
           </Card>
       </FormItem>
-      {
-        giteeSyncRepoInfo &&
-        <FormItem title={t('settings.others')}>
-          <Item variant="outline">
-            <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
-            <ItemContent>
-              <ItemTitle>{t('settings.sync.autoSync')}</ItemTitle>
-              <ItemDescription>{t('settings.sync.giteeAutoSyncDesc')}</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Select
-                value={giteeAutoSync}
-                onValueChange={(value) => setGiteeAutoSync(value)}
-                disabled={!giteeAccessToken || giteeSyncRepoState !== SyncStateEnum.success}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
-                  <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
-                  <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
-                  <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
-                  <SelectItem value="300">{t('settings.sync.autoSyncOptions.5m')}</SelectItem>
-                  <SelectItem value="1800">{t('settings.sync.autoSyncOptions.30m')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </ItemActions>
-          </Item>
-        </FormItem>
-      }
       <div>
         {primaryBackupMethod === 'gitee' ? (
           <Button disabled variant="outline">

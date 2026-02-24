@@ -17,6 +17,7 @@ import { useState } from 'react'
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import useChatStore from "@/stores/chat"
+import useSettingStore from "@/stores/setting"
 import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from "@/lib/sync/github"
 import { getFiles as giteeGetFiles, uploadFile as uploadGiteeFile } from "@/lib/sync/gitee"
@@ -30,28 +31,19 @@ export function SyncToggle() {
   const t = useTranslations()
   const username = useUsername()
   const [syncing, setSyncing] = useState(false)
-  const [syncProvider, setSyncProvider] = useState<string>('')
-  
+
+  const { primaryBackupMethod } = useSettingStore()
+  const providerNames: Record<string, string> = {
+    'github': 'Github',
+    'gitee': 'Gitee',
+    'gitlab': 'Gitlab',
+    'gitea': 'Gitea'
+  }
+  const syncProvider = primaryBackupMethod ? providerNames[primaryBackupMethod] || primaryBackupMethod : ''
+
   const { uploadMarks, downloadMarks, fetchMarks } = useMarkStore()
   const { uploadTags, downloadTags, fetchTags, currentTagId } = useTagStore()
   const { uploadChats, downloadChats, init } = useChatStore()
-
-  React.useEffect(() => {
-    const loadSyncProvider = async () => {
-      const store = await Store.load('store.json')
-      const primaryBackupMethod = await store.get('primaryBackupMethod') as string
-      if (primaryBackupMethod) {
-        const providerNames: Record<string, string> = {
-          'github': 'Github',
-          'gitee': 'Gitee',
-          'gitlab': 'Gitlab',
-          'gitea': 'Gitea'
-        }
-        setSyncProvider(providerNames[primaryBackupMethod] || primaryBackupMethod)
-      }
-    }
-    loadSyncProvider()
-  }, [])
 
   async function uploadAll() {
     const confirmRef = await confirm(t('settings.uploadStore.uploadConfirm'))

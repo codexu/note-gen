@@ -1082,6 +1082,9 @@ export function TipTapEditor({
 
     // Defer emitter and document listener registration to avoid flushSync conflict during React render
     const setupListeners = () => {
+      // Check if editor is initialized before registering listeners
+      if (!editor) return
+
       emitter.on('editor-get-selection', handleGetSelection)
       emitter.on('editor-get-content', handleGetContent)
       emitter.on('editor-insert', handleInsert)

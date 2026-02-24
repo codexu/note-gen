@@ -9,10 +9,6 @@ import {
   Code,
   Table,
   Minus,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
   Sparkles,
   Sigma,
   GitBranch,
@@ -26,7 +22,7 @@ import {
   Image,
 } from 'lucide-react'
 import { SuggestionProps } from '@tiptap/suggestion'
-import { type Editor } from '@tiptap/core'
+import { type Editor, type Range } from '@tiptap/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { handleImageUpload } from '@/lib/image-handler'
@@ -39,11 +35,54 @@ export interface SlashCommandItem {
   icon: React.ReactNode
   group: string
   searchTerms?: string[]
-  command: (props: { editor: Editor; range: any }) => void
+  command: (props: { editor: Editor; range: Range }) => void
 }
 
-export const suggestionItems = () => {
-  return [
+// 辅助函数: 创建 Mermaid 图表命令
+const createMermaidCommand = (
+  type: 'flowchart' | 'sequence' | 'gantt' | 'classDiagram' | 'stateDiagram' | 'pie' | 'er' | 'journey'
+) => ({
+  command: ({ editor, range }: { editor: Editor; range: Range }) => {
+    editor.chain().focus().deleteRange(range).run()
+    const event = new CustomEvent('tiptap-insert-mermaid', {
+      detail: { type },
+    })
+    document.dispatchEvent(event)
+  },
+})
+
+// 辅助函数: 创建自定义事件命令
+const createCustomEventCommand = (eventName: string, detail?: any) => ({
+  command: ({ editor, range }: { editor: Editor; range: Range }) => {
+    editor.chain().focus().deleteRange(range).run()
+    const event = new CustomEvent(eventName, { detail })
+    document.dispatchEvent(event)
+  },
+})
+
+// 缓存的 items 数组
+let cachedItems: SlashCommandItem[] | null = null
+
+// 导出搜索函数供外部使用
+export function filterItems(items: SlashCommandItem[], query: string): SlashCommandItem[] {
+  if (!query || query.length === 0) {
+    return items
+  }
+  const search = query.toLowerCase()
+  return items.filter(
+    (item) =>
+      item.title.toLowerCase().includes(search) ||
+      item.searchTerms?.some((term) => term.toLowerCase().includes(search)) ||
+      item.description?.toLowerCase().includes(search)
+  )
+}
+
+export const suggestionItems = (): SlashCommandItem[] => {
+  if (cachedItems) {
+    return cachedItems
+  }
+
+  cachedItems = [
     // AI
     {
       title: '续写',
@@ -51,11 +90,7 @@ export const suggestionItems = () => {
       icon: <Sparkles className="w-4 h-4" />,
       group: 'AI',
       searchTerms: ['ai', 'continue', 'write', 'completion'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-ai-continue')
-        document.dispatchEvent(event)
-      },
+      ...createCustomEventCommand('tiptap-ai-continue'),
     },
     {
       title: '标题1',
@@ -63,7 +98,7 @@ export const suggestionItems = () => {
       icon: <Heading1 className="w-4 h-4" />,
       group: '标题',
       searchTerms: ['heading', 'h1', 'header'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run()
       },
     },
@@ -73,7 +108,7 @@ export const suggestionItems = () => {
       icon: <Heading2 className="w-4 h-4" />,
       group: '标题',
       searchTerms: ['heading', 'h2', 'header'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
       },
     },
@@ -83,7 +118,7 @@ export const suggestionItems = () => {
       icon: <Heading3 className="w-4 h-4" />,
       group: '标题',
       searchTerms: ['heading', 'h3', 'header'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
       },
     },
@@ -95,7 +130,7 @@ export const suggestionItems = () => {
       icon: <List className="w-4 h-4" />,
       group: '列表',
       searchTerms: ['bullet', 'ul', 'list'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleBulletList().run()
       },
     },
@@ -105,7 +140,7 @@ export const suggestionItems = () => {
       icon: <ListOrdered className="w-4 h-4" />,
       group: '列表',
       searchTerms: ['ordered', 'ol', 'numbered', 'list'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleOrderedList().run()
       },
     },
@@ -115,49 +150,19 @@ export const suggestionItems = () => {
       icon: <CheckSquare className="w-4 h-4" />,
       group: '列表',
       searchTerms: ['task', 'todo', 'checkbox', 'checklist'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleTaskList().run()
       },
     },
 
     // 块级元素
     {
-      title: '引用',
-      description: '捕获引用内容',
-      icon: <Quote className="w-4 h-4" />,
-      group: '块级',
-      searchTerms: ['blockquote', 'quote', 'citation'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).toggleBlockquote().run()
-      },
-    },
-    {
-      title: '代码块',
-      description: '捕获代码片段',
-      icon: <Code className="w-4 h-4" />,
-      group: '块级',
-      searchTerms: ['code', 'pre', 'programming'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
-      },
-    },
-    {
-      title: '分割线',
-      description: '在元素之间创建分隔线',
-      icon: <Minus className="w-4 h-4" />,
-      group: '块级',
-      searchTerms: ['hr', 'horizontal', 'divider', 'line'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).setHorizontalRule().run()
-      },
-    },
-    {
       title: '图片',
       description: '插入本地图片或图床图片',
       icon: <Image className="w-4 h-4" />,
       group: '块级',
       searchTerms: ['image', 'picture', 'photo', 'img'],
-      command: async ({ editor, range }: { editor: Editor; range: any }) => {
+      command: async ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).run()
 
         try {
@@ -211,58 +216,44 @@ export const suggestionItems = () => {
         }
       },
     },
-
-    // 对齐
-    {
-      title: '左对齐',
-      description: '将内容左对齐',
-      icon: <AlignLeft className="w-4 h-4" />,
-      group: '对齐',
-      searchTerms: ['align', 'left', 'justify'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).setTextAlign('left').run()
-      },
-    },
-    {
-      title: '居中对齐',
-      description: '将内容居中对齐',
-      icon: <AlignCenter className="w-4 h-4" />,
-      group: '对齐',
-      searchTerms: ['align', 'center', 'middle'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).setTextAlign('center').run()
-      },
-    },
-    {
-      title: '右对齐',
-      description: '将内容右对齐',
-      icon: <AlignRight className="w-4 h-4" />,
-      group: '对齐',
-      searchTerms: ['align', 'right'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).setTextAlign('right').run()
-      },
-    },
-    {
-      title: '两端对齐',
-      description: '将内容两端对齐',
-      icon: <AlignJustify className="w-4 h-4" />,
-      group: '对齐',
-      searchTerms: ['align', 'justify', 'full'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).setTextAlign('justify').run()
-      },
-    },
-
-    // 嵌入
     {
       title: '表格',
       description: '插入表格',
       icon: <Table className="w-4 h-4" />,
-      group: '嵌入',
+      group: '块级',
       searchTerms: ['table', 'grid', 'matrix'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      },
+    },
+    {
+      title: '引用',
+      description: '捕获引用内容',
+      icon: <Quote className="w-4 h-4" />,
+      group: '块级',
+      searchTerms: ['blockquote', 'quote', 'citation'],
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
+        editor.chain().focus().deleteRange(range).toggleBlockquote().run()
+      },
+    },
+    {
+      title: '代码块',
+      description: '捕获代码片段',
+      icon: <Code className="w-4 h-4" />,
+      group: '块级',
+      searchTerms: ['code', 'pre', 'programming'],
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
+        editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
+      },
+    },
+    {
+      title: '分割线',
+      description: '在元素之间创建分隔线',
+      icon: <Minus className="w-4 h-4" />,
+      group: '块级',
+      searchTerms: ['hr', 'horizontal', 'divider', 'line'],
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
+        editor.chain().focus().deleteRange(range).setHorizontalRule().run()
       },
     },
 
@@ -273,11 +264,7 @@ export const suggestionItems = () => {
       icon: <Sigma className="w-4 h-4" />,
       group: '数学',
       searchTerms: ['math', 'inline', 'latex', 'formula', 'inline-math'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-inline-math')
-        document.dispatchEvent(event)
-      },
+      ...createCustomEventCommand('tiptap-insert-inline-math'),
     },
     {
       title: '块级公式',
@@ -285,11 +272,7 @@ export const suggestionItems = () => {
       icon: <Sigma className="w-4 h-4" />,
       group: '数学',
       searchTerms: ['math', 'block', 'latex', 'formula', 'block-math', 'display'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-block-math')
-        document.dispatchEvent(event)
-      },
+      ...createCustomEventCommand('tiptap-insert-block-math'),
     },
 
     // 图表
@@ -299,13 +282,7 @@ export const suggestionItems = () => {
       icon: <GitBranch className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'flowchart', 'diagram', '流程图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'flowchart' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('flowchart'),
     },
     {
       title: '时序图',
@@ -313,13 +290,7 @@ export const suggestionItems = () => {
       icon: <GitCommit className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'sequence', 'sequenceDiagram', '时序图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'sequence' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('sequence'),
     },
     {
       title: '甘特图',
@@ -327,13 +298,7 @@ export const suggestionItems = () => {
       icon: <Calendar className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'gantt', '甘特图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'gantt' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('gantt'),
     },
     {
       title: '类图',
@@ -341,13 +306,7 @@ export const suggestionItems = () => {
       icon: <Layers className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'class', 'classDiagram', '类图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'classDiagram' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('classDiagram'),
     },
     {
       title: '状态图',
@@ -355,13 +314,7 @@ export const suggestionItems = () => {
       icon: <Activity className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'state', 'stateDiagram', '状态图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'stateDiagram' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('stateDiagram'),
     },
     {
       title: '饼图',
@@ -369,13 +322,7 @@ export const suggestionItems = () => {
       icon: <PieChart className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'pie', '饼图', 'chart'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'pie' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('pie'),
     },
     {
       title: 'ER图',
@@ -383,13 +330,7 @@ export const suggestionItems = () => {
       icon: <Database className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'er', 'erDiagram', 'ER图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'er' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('er'),
     },
     {
       title: '旅程图',
@@ -397,15 +338,11 @@ export const suggestionItems = () => {
       icon: <Map className="w-4 h-4" />,
       group: '图表',
       searchTerms: ['mermaid', 'journey', '旅程图'],
-      command: ({ editor, range }: { editor: Editor; range: any }) => {
-        editor.chain().focus().deleteRange(range).run()
-        const event = new CustomEvent('tiptap-insert-mermaid', {
-          detail: { type: 'journey' },
-        })
-        document.dispatchEvent(event)
-      },
+      ...createMermaidCommand('journey'),
     },
   ]
+
+  return cachedItems
 }
 
 // Simple slash match function - hardcoded to match "/"
@@ -455,17 +392,7 @@ export function setMenuKeyDownHandler(handler: ((props: { event: KeyboardEvent }
 
 export const suggestionOptions = {
   items: ({ query }: { query: string }) => {
-    return suggestionItems().filter((item) => {
-      if (typeof query === 'string' && query.length > 0) {
-        const search = query.toLowerCase()
-        return (
-          item.title.toLowerCase().includes(search) ||
-          item.searchTerms?.some((term) => term.includes(search)) ||
-          item.description?.toLowerCase().includes(search)
-        )
-      }
-      return true
-    })
+    return filterItems(suggestionItems(), query)
   },
 
   render: () => {

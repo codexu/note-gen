@@ -75,39 +75,25 @@ export function TipTapEditor({
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
   const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
 
-  const [editorReady, setEditorReady] = useState(false)
-
-  // Wait for editor to be fully mounted before rendering components that may trigger flushSync
-  useEffect(() => {
-    let cancelled = false
-
-    const scheduleReady = () => {
-      // Use requestAnimationFrame to ensure we're outside React's render cycle
-      requestAnimationFrame(() => {
-        if (cancelled) return
-        requestAnimationFrame(() => {
-          if (cancelled) return
-          setEditorReady(true)
-        })
-      })
-    }
-
-    // Small delay to let initial render complete
-    const timer = setTimeout(scheduleReady, 50)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [])
-
   const isInitializedRef = useRef(false)
+  const initializedForPathRef = useRef<string | null>(null)
   const externalUpdateCounterRef = useRef(0)
   const pendingSyncUpdateRef = useRef<{ path: string; content: string } | null>(null)
   // Bug fix: Track when editor is ready (has caught up with content)
   const isReadyRef = useRef(false)
   // Bug fix: Track if this is the first onUpdate after initialization
   const isFirstUpdateRef = useRef(true)
+
+  // When file path changes, reset initialization state to avoid old file content overwriting new file
+  useEffect(() => {
+    if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
+      isInitializedRef.current = false
+      isReadyRef.current = false
+      isFirstUpdateRef.current = true
+      initializedForPathRef.current = activeFilePath
+      pendingSyncUpdateRef.current = null
+    }
+  }, [activeFilePath])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -1121,18 +1107,6 @@ export function TipTapEditor({
 
   if (!editor) {
     return null
-  }
-
-  // Delay rendering components that may trigger flushSync until after initial render
-  if (!editorReady) {
-    return (
-      <div className="tiptap-editor relative flex flex-col h-full">
-        <div className="flex-1 overflow-x-hidden overflow-y-auto relative">
-          <EditorContent editor={editor} className="h-full" />
-        </div>
-        <FooterBar editor={editor} activeFilePath={activeFilePath} />
-      </div>
-    )
   }
 
   return (

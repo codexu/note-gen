@@ -1141,7 +1141,7 @@ export function TipTapEditor({
       </div>
 
       {/* Bottom toolbar - always visible */}
-      <FooterBar editor={editor} activeFilePath={activeFilePath} />
+      <FooterBar editor={editor} />
 
       <SlashCommandPortal />
 

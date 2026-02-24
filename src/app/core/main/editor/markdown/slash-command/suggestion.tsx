@@ -23,9 +23,14 @@ import {
   PieChart,
   Database,
   Map,
+  Image,
 } from 'lucide-react'
 import { SuggestionProps } from '@tiptap/suggestion'
 import { type Editor } from '@tiptap/core'
+import { open } from '@tauri-apps/plugin-dialog'
+import { handleImageUpload } from '@/lib/image-handler'
+import useArticleStore from '@/stores/article'
+import { toast } from '@/hooks/use-toast'
 
 export interface SlashCommandItem {
   title: string
@@ -143,6 +148,58 @@ export const suggestionItems = () => {
       searchTerms: ['hr', 'horizontal', 'divider', 'line'],
       command: ({ editor, range }: { editor: Editor; range: any }) => {
         editor.chain().focus().deleteRange(range).setHorizontalRule().run()
+      },
+    },
+    {
+      title: '图片',
+      description: '插入本地图片或图床图片',
+      icon: <Image className="w-4 h-4" />,
+      group: '块级',
+      searchTerms: ['image', 'picture', 'photo', 'img'],
+      command: async ({ editor, range }: { editor: Editor; range: any }) => {
+        editor.chain().focus().deleteRange(range).run()
+
+        try {
+          const file = await open({
+            multiple: false,
+            filters: [
+              {
+                name: 'Images',
+                extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
+              },
+            ],
+          })
+
+          if (!file) return
+
+          const activeFilePath = useArticleStore.getState().activeFilePath
+          const fileObj =
+            typeof file === 'string'
+              ? new File([file], file.split('/').pop() || 'image', { type: 'image/*' })
+              : file
+
+          const result = await handleImageUpload(fileObj, activeFilePath)
+
+          editor.chain().focus().insertContent({
+            type: 'image',
+            attrs: {
+              src: result.src,
+              alt: fileObj.name,
+              relativeSrc: result.relativePath,
+            },
+          }).run()
+
+          toast({
+            title: result.useImageHosting ? '上传成功' : '保存成功',
+            description: result.useImageHosting ? '' : `保存路径: ${result.relativePath}`,
+          })
+        } catch (error) {
+          toast({
+            title: '插入图片失败',
+            description: error instanceof Error ? error.message : '未知错误',
+            variant: 'destructive',
+          })
+        }
       },
     },
 

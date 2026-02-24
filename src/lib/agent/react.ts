@@ -384,12 +384,13 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 1. **Strict Format**: Thought → Action + Action Input or Final Answer
 2. **JSON Format**: Action Input must be valid JSON with double quotes
 3. **One Tool at a Time**: Only call one tool per iteration
-4. **Finish Immediately**: **MUST** give Final Answer after completing task, no extra operations
-5. **Don't Repeat**: If operation succeeded, immediately give Final Answer
+4. **✅ TASK COMPLETION (CRITICAL)**: After any successful tool execution, you MUST give Final Answer immediately - do NOT repeat the same or similar operations
+5. **Don't Repeat**: If operation succeeded, immediately give Final Answer - never create the same file twice or perform redundant actions
 6. **Use Available Tools Only**: Don't make up tools or parameters
 7. **Concise Thinking**: Keep Thought brief, directly state what to do
 8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
 9. **📌 Use Quote Line Numbers**: When context includes "quoted content" with specific line numbers, ALWAYS use those exact line numbers in modify_current_note (e.g., if user quoted line 19, use startLine: 19, endLine: 19, NOT 1-1000)
+10. **📝 State-Based Reasoning**: Base your next action on the PREVIOUS observation result, not on the original user request - the context shows what you just did and the result
 
 ## 🚫 Common Errors (Avoid)
 
@@ -399,7 +400,7 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ❌ **Error 2**: After getting search results, search again with same conditions
 ✅ **Correct**: After getting search results, execute operations based on results, then give Final Answer
 
-❌ **Error 3**: After creating a file, continue creating same or similar files
+❌ **Error 3**: After creating a file, try to create another similar file (redundant creation)
 ✅ **Correct**: After creating file, confirm success and immediately give Final Answer
 
 ❌ **Error 4**: Try to call Skill as a tool (like Action: style-detector)
@@ -407,6 +408,12 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 
 ❌ **Error 5**: User quoted specific lines (e.g., line 19) but you use different line numbers (e.g., startLine: 1, endLine: 1000)
 ✅ **Correct**: ALWAYS use the exact line numbers from the user's quote. If user quoted line 19, use startLine: 19, endLine: 19
+
+❌ **Error 6**: Ignore the previous operation result and repeat the same action
+✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows success, give Final Answer immediately
+
+❌ **Error 7**: Reconsider the original user request in every iteration instead of building on previous results
+✅ **Correct**: Focus on the PREVIOUS step's result - the context shows what you just did and what happened
 
 ## Example
 
@@ -501,11 +508,23 @@ Observation: ${step.observation}
         })
       }
 
-      // Add user request
-      messagesForAI.push({
-        role: 'user',
-        content: `This is iteration ${this.currentIteration}, please give your Thought and Action (or Final Answer):\n\nUser Request: ${userInput}`
-      })
+      // 【关键修改】按照 LangChain 最佳实践：
+      // 第一次迭代：发送原始用户请求
+      // 后续迭代：只发送上一步操作的结果，不再重复发送原始请求
+      if (this.currentIteration === 1) {
+        messagesForAI.push({
+          role: 'user',
+          content: `This is iteration ${this.currentIteration}, please give your Thought and Action (or Final Answer):\n\nUser Request: ${userInput}`
+        })
+      } else {
+        // 后续迭代：只发送上一步的结果
+        const lastStep = this.steps[this.steps.length - 1]
+        const lastObservation = lastStep?.observation || 'No previous result'
+        messagesForAI.push({
+          role: 'user',
+          content: `## Previous Step Result\n${lastObservation}\n\n---\nIf the task is completed, respond with Final Answer.\nIf you need to continue, provide your next Thought and Action.`
+        })
+      }
 
       // 调用实际的 LLM API
       try {
@@ -592,7 +611,12 @@ Final Answer: Unable to complete task, please retry later or check AI configurat
     }
 
     // 旧的字符串拼接模式（向后兼容）
-    const prompt = `${systemPrompt}
+    // 【关键修改】按照 LangChain 最佳实践：
+    // 第一次迭代：发送完整请求
+    // 后续迭代：只发送上一步结果，不再重复发送原始请求
+    let prompt: string
+    if (this.currentIteration === 1) {
+      prompt = `${systemPrompt}
 
 ${context ? `## 上下文信息\n${context}\n` : ''}
 
@@ -603,6 +627,22 @@ ${historyContext}
 ${userInput}
 
 This is iteration ${this.currentIteration}, please give your Thought and Action (or Final Answer):`
+    } else {
+      // 后续迭代：只发送上一步的结果
+      const lastStep = this.steps[this.steps.length - 1]
+      const lastObservation = lastStep?.observation || '无'
+      prompt = `${systemPrompt}
+
+## 已完成的步骤
+${historyContext}
+
+## 上一步操作结果
+${lastObservation}
+
+---
+如果任务已完成，请回复 Final Answer。
+如果需要继续操作，请提供你的 Thought 和 Action。`
+    }
 
     // 调用实际的 LLM API
     try {

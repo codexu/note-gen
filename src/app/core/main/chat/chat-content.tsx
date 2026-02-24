@@ -173,17 +173,28 @@ MessageWrapper.displayName = 'MessageWrapper'
 const AgentExecutionStatusWrapper = React.memo(function AgentExecutionStatusWrapper() {
   const { agentState, loading } = useChatStore()
 
-  // 只在 Agent 运行时显示
+  // 只在 Agent 运行时或 Final Answer 模式下显示
   if (!agentState.isRunning && !agentState.isFinalAnswerMode) {
     return null
   }
 
-  // Final Answer 模式：显示 Markdown 渲染的内容
+  // Final Answer 模式：同时显示 Markdown 内容 和 步骤历史面板
   if (agentState.isFinalAnswerMode && agentState.finalAnswerContent) {
     return (
-      <div className="flex w-full min-w-0">
-        <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
-          <ChatPreview text={agentState.finalAnswerContent} streaming={loading} />
+      <div className="flex flex-col w-full min-w-0 gap-2">
+        {/* 步骤历史面板 - 始终显示 */}
+        {(agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
+          <div className="flex w-full min-w-0">
+            <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
+              <AgentExecutionStatus />
+            </div>
+          </div>
+        )}
+        {/* Final Answer 内容 */}
+        <div className="flex w-full min-w-0">
+          <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
+            <ChatPreview text={agentState.finalAnswerContent} streaming={loading} />
+          </div>
         </div>
       </div>
     )

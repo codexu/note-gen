@@ -7,7 +7,6 @@ import useSyncStore from "@/stores/sync"
 import { OpenBroswer } from "@/components/open-broswer"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
-import { Button } from "@/components/ui/button"
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/github"
 import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types"
 import { DatabaseBackup } from "lucide-react"
@@ -29,8 +28,6 @@ export function GithubSync() {
   const {
     accessToken,
     setAccessToken,
-    primaryBackupMethod,
-    setPrimaryBackupMethod,
     githubCustomSyncRepo,
     setGithubCustomSyncRepo
   } = useSettingStore()
@@ -83,9 +80,6 @@ export function GithubSync() {
     }
   }
 
-  const isPrimary = primaryBackupMethod === 'github'
-  const isDisabled = !accessToken || syncRepoState !== SyncStateEnum.success
-
   return (
     <>
       <SyncPlatformCard
@@ -115,23 +109,6 @@ export function GithubSync() {
           </div>
         </div>
       </SyncPlatformCard>
-
-      {/* 主要备份方式设置 */}
-      <div className="mt-8">
-        {isPrimary ? (
-          <Button disabled variant="outline">
-            {t('settings.sync.isPrimaryBackup', { type: 'Github' })}
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={() => setPrimaryBackupMethod('github')}
-            disabled={isDisabled}
-          >
-            {t('settings.sync.setPrimaryBackup')}
-          </Button>
-        )}
-      </div>
     </>
   )
 }

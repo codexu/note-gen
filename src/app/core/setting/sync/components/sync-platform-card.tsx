@@ -1,8 +1,6 @@
 'use client'
 
 import { Input } from "@/components/ui/input"
-import { FormItem } from "../../components/setting-base"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState, useCallback } from "react"
@@ -10,7 +8,8 @@ import { useTranslations } from 'next-intl'
 import { Store } from "@tauri-apps/plugin-store"
 import { SyncStateEnum } from "@/lib/sync/github.types"
 import { SyncPlatform } from "@/types/sync"
-import { Eye, EyeOff, RefreshCcw, Loader2, AlertCircle, CheckCircle2, XCircle } from "lucide-react"
+import { Eye, EyeOff, RefreshCcw, Loader2, AlertCircle, CheckCircle2, XCircle, ExternalLink } from "lucide-react"
+import { OpenBroswer } from "@/components/open-broswer"
 
 export interface SyncPlatformConfig {
   platform: SyncPlatform
@@ -98,17 +97,20 @@ export function SyncPlatformCard({
   const isConnected = syncRepoState === SyncStateEnum.success
 
   return (
-    <div className="space-y-8">
+    <div className="rounded-md border p-4">
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex gap-2 items-center">
+          <span className="font-semibold">
+            {config.platform.charAt(0).toUpperCase() + config.platform.slice(1)} {t('settings.sync.settings')}
+          </span>
+        </div>
+        <StatusBadge state={syncRepoState} />
+      </div>
+      <p className="text-sm text-muted-foreground mb-4">{t('settings.sync.platformDesc')}</p>
+
       {/* Token 输入 */}
-      <FormItem title={config.tokenLabel} desc={config.tokenDesc}>
-        <a
-          href={config.tokenUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-blue-500 hover:underline mb-2 inline-block"
-        >
-          {config.tokenUrlText}
-        </a>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">{config.tokenLabel}</label>
         <div className="flex gap-2">
           <Input
             value={accessToken}
@@ -125,87 +127,77 @@ export function SyncPlatformCard({
             {tokenVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </Button>
         </div>
-      </FormItem>
+        <OpenBroswer
+          url={config.tokenUrl}
+          title={t('settings.sync.newToken')}
+          className="text-sm text-blue-500 hover:underline"
+        />
+      </div>
 
       {/* 自定义仓库 */}
-      <FormItem title={t('settings.sync.customSyncRepo')} desc={t('settings.sync.customSyncRepoDesc')}>
+      <div className="mt-4 space-y-2">
+        <label className="text-sm font-medium">{t('settings.sync.customSyncRepo')}</label>
         <Input
           value={customRepo}
           onChange={(e) => setCustomRepo(e.target.value)}
           placeholder={defaultRepoName}
         />
-      </FormItem>
+        <p className="text-xs text-muted-foreground">{t('settings.sync.customSyncRepoDesc')}</p>
+      </div>
 
-      {/* 仓库状态 */}
-      <FormItem title={t('settings.sync.repoStatus')}>
-        <Card>
-          <CardHeader className={syncRepoInfo ? 'border-b' : ''}>
-            <CardTitle className="flex justify-between items-center">
-              <div className="flex gap-2 items-center">
-                {getRepoName()}（{syncRepoInfo?.private ? t('settings.sync.private') : t('settings.sync.public')}）
-              </div>
-              <StatusBadge state={syncRepoState} />
-            </CardTitle>
-            <CardDescription>
-              <span>{t('settings.sync.syncRepoDesc')}</span>
-            </CardDescription>
-
-            {/* 操作按钮 */}
-            <div className="mt-3 flex gap-2 flex-wrap">
-              {accessToken ? (
+      {/* 操作按钮 */}
+      <div className="mt-4 flex gap-2 flex-wrap">
+        {accessToken ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCheckRepo}
+              disabled={isLoading}
+            >
+              {isLoading ? (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onCheckRepo}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="size-4 mr-1 animate-spin" />
-                        {syncRepoState === SyncStateEnum.checking
-                          ? t('settings.sync.checking')
-                          : t('settings.sync.creating')}
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCcw className="size-4 mr-1" />
-                        {t('settings.sync.checkRepo')}
-                      </>
-                    )}
-                  </Button>
-                  {syncRepoState === SyncStateEnum.fail && (
-                    <Button variant="outline" size="sm" onClick={onCreateRepo} disabled={isLoading}>
-                      <Loader2 className={`size-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                      {t('settings.sync.createRepo')}
-                    </Button>
-                  )}
+                  <Loader2 className="size-4 mr-1 animate-spin" />
+                  {syncRepoState === SyncStateEnum.checking
+                    ? t('settings.sync.checking')
+                    : t('settings.sync.creating')}
                 </>
               ) : (
-                <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
-                  <AlertCircle className="size-4" />
-                  {t('settings.sync.enterTokenHint')}
-                </div>
+                <>
+                  <RefreshCcw className="size-4 mr-1" />
+                  {t('settings.sync.checkRepo')}
+                </>
               )}
-            </div>
-
-            {/* 错误提示 */}
-            {error && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-red-500">
-                <AlertCircle className="size-4" />
-                {error}
-              </div>
+            </Button>
+            {syncRepoState === SyncStateEnum.fail && (
+              <Button variant="outline" size="sm" onClick={onCreateRepo} disabled={isLoading}>
+                <Loader2 className={`size-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+                {t('settings.sync.createRepo')}
+              </Button>
             )}
-          </CardHeader>
+          </>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+            <AlertCircle className="size-4" />
+            {t('settings.sync.enterTokenHint')}
+          </div>
+        )}
+      </div>
 
-          {/* 仓库信息 */}
-          {syncRepoInfo && (
-            <CardContent className="mt-4">
-              {children}
-            </CardContent>
-          )}
-        </Card>
-      </FormItem>
+      {/* 错误提示 */}
+      {error && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-red-500">
+          <AlertCircle className="size-4" />
+          {error}
+        </div>
+      )}
+
+      {/* 仓库信息 */}
+      {syncRepoInfo && (
+        <div className="border-t mt-4 pt-4">
+          {children}
+        </div>
+      )}
     </div>
   )
 }

@@ -102,7 +102,7 @@ export default function SyncPage() {
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
       {/* 平台选择器 */}
       <div className="mb-6">
-        <h3 className="text-sm font-medium mb-3">{t('settings.sync.platformSettings')}</h3>
+        <h3 className="text-sm mb-2 font-bold">{t('settings.sync.platformSettings')}</h3>
         <Select value={tab} onValueChange={handleTabChange}>
           <SelectTrigger className="w-50">
             <SelectValue placeholder={t('settings.sync.selectPlatform')} />
@@ -121,8 +121,8 @@ export default function SyncPage() {
       {renderSyncContent()}
 
       {/* 全局自动同步设置 */}
-      <div className="mt-8 pt-8 border-t">
-        <h3 className="text-sm font-medium mb-4">{t('settings.sync.moreSettings')}</h3>
+      <div className="mt-4">
+        <h3 className="text-sm mb-2 font-bold">{t('settings.sync.moreSettings')}</h3>
         <Item variant="outline">
           <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
           <ItemContent>

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GithubImageHosting } from "./github";
 import SMMSImageHosting from "./smms";
 import useImageStore from "@/stores/imageHosting";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import PicgoImageHosting from "./picgo";
 import { S3ImageHosting } from "./s3";
@@ -15,25 +15,30 @@ import { SettingSwitch } from "./setting-switch";
 export default function ImageHostingPage() {
   const t = useTranslations();
   const { mainImageHosting, setMainImageHosting } = useImageStore()
-  const [value, setValue] = useState(mainImageHosting)
 
-  async function init() {
-    const store = await Store.load('store.json');
-    const imageHosting = await store.get<string>('mainImageHosting')
-    if (imageHosting) {
-      setMainImageHosting(imageHosting)
-      setValue(imageHosting)
-    }
+  // 使用 mainImageHosting 作为受控值
+  const currentValue = mainImageHosting || 'github'
+
+  const handleValueChange = async (value: string) => {
+    await setMainImageHosting(value)
   }
 
   useEffect(() => {
+    // 初始化时从 store 加载
+    const init = async () => {
+      const store = await Store.load('store.json');
+      const imageHosting = await store.get<string>('mainImageHosting')
+      if (imageHosting) {
+        await setMainImageHosting(imageHosting)
+      }
+    }
     init()
   }, [])
   
   return (
     <SettingType id="imageHosting" icon={<ImageUp />} title={t('settings.imageHosting.title')} desc={t('settings.imageHosting.desc')}>
       <SettingSwitch />
-      <Tabs className="mt-4" value={value} defaultValue={mainImageHosting} onValueChange={(value) => {setValue(value)}}>
+      <Tabs className="mt-4" value={currentValue} onValueChange={handleValueChange}>
         <TabsList className="grid grid-cols-4 w-full mb-8">
           <TabsTrigger value="github" className="flex items-center gap-2">
             Github

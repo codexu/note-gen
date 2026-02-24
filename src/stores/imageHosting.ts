@@ -47,10 +47,11 @@ const useImageStore = create<MarkState>((set, get) => ({
   initMainHosting: async () => {
     const store = await Store.load('store.json');
     const mainImageHosting = await store.get<string>('mainImageHosting')
+    console.log('[ImageStore] initMainHosting - mainImageHosting from store:', mainImageHosting)
     if (mainImageHosting) {
       set({ mainImageHosting })
     }
-    
+
     // 初始化 S3 配置
     const s3Config = await store.get<S3Config>('s3Config');
     if (s3Config) {

@@ -25,22 +25,38 @@ export async function handleImageUpload(
   file: File,
   activeFilePath?: string
 ): Promise<ImageUploadResult> {
-  // 1. 首先尝试上传到图床
-  try {
-    const imageHostingUrl = await uploadImage(file)
-    if (imageHostingUrl) {
-      return {
-        src: imageHostingUrl,
-        relativePath: imageHostingUrl,
-        useImageHosting: true,
+  console.log('[ImageHandler] handleImageUpload called:', { fileName: file.name, activeFilePath })
+
+  // 检查是否配置了图床
+  const isConfigured = await isImageHostingConfigured()
+  console.log('[ImageHandler] isConfigured:', isConfigured)
+
+  // 1. 如果配置了图床，尝试上传
+  if (isConfigured) {
+    try {
+      console.log('[ImageHandler] Attempting to upload to image hosting...')
+      const imageHostingUrl = await uploadImage(file)
+      console.log('[ImageHandler] uploadImage result:', imageHostingUrl)
+      if (imageHostingUrl) {
+        return {
+          src: imageHostingUrl,
+          relativePath: imageHostingUrl,
+          useImageHosting: true,
+        }
       }
+      // 如果返回 undefined，说明上传失败（配置了图床但上传返回空）
+      // 抛出错误，不要静默失败
+      throw new Error('Image hosting upload returned empty result')
+    } catch (error) {
+      console.error('[ImageHandler] Failed to upload to image hosting:', error)
+      // 图床上传失败，抛出错误而不是回退到本地保存
+      throw error
     }
-  } catch (error) {
-    console.error('Failed to upload to image hosting:', error)
-    // 图床上传失败，继续尝试本地保存
   }
 
-  // 2. 如果没有配置图床或上传失败，保存到本地
+  console.log('[ImageHandler] No image hosting configured, saving locally')
+
+  // 2. 如果没有配置图床，保存到本地
   if (activeFilePath) {
     try {
       const localPath = await saveImageLocally(file, activeFilePath)
@@ -153,6 +169,12 @@ export async function isImageHostingConfigured(): Promise<boolean> {
   const store = await Store.load('store.json')
   const useImageRepo = await store.get<boolean>('useImageRepo')
   const mainImageHosting = await store.get<string>('mainImageHosting')
+
+  console.log('[ImageHandler] isImageHostingConfigured:', {
+    useImageRepo,
+    mainImageHosting,
+    result: !!(useImageRepo && mainImageHosting && mainImageHosting !== 'none')
+  })
 
   return !!(useImageRepo && mainImageHosting && mainImageHosting !== 'none')
 }

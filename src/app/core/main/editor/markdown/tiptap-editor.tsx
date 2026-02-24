@@ -1068,8 +1068,7 @@ export function TipTapEditor({
 
       // Get template from i18n
       const getTemplate = (diagramType: string) => {
-        const key = `mermaid.templates.${diagramType}` as any
-        return tMermaid(key) || tMermaid('flowchart')
+        return tMermaid(diagramType) || tMermaid('flowchart')
       }
 
       const code = getTemplate(type || 'flowchart')

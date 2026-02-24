@@ -142,6 +142,7 @@ export function MobileEditor() {
         initialContent={content}
         onChange={handleContentChange}
         placeholder="开始写作..."
+        activeFilePath={activeFilePath}
         onQuoteToChat={handleQuoteToChat}
         onReady={handleEditorReady}
       />

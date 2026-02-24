@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUpCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { ArrowUpCircle, CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
@@ -16,13 +16,28 @@ export function SyncButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showError, setShowError] = useState(false)
   const [lastPushTime, setLastPushTime] = useState<Date | null>(null)
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Check if sync is configured
   useEffect(() => {
     isSyncConfigured().then(setIsConfigured)
   }, [])
+
+  // 监听推送开始事件
+  useEffect(() => {
+    const handlePushStarted = (event: { path: string }) => {
+      if (activeFilePath && event.path === activeFilePath) {
+        setIsLoading(true)
+      }
+    }
+    emitter.on('sync-push-started', handlePushStarted as any)
+    return () => {
+      emitter.off('sync-push-started', handlePushStarted as any)
+    }
+  }, [activeFilePath])
 
   // 监听推送完成事件
   useEffect(() => {
@@ -31,6 +46,7 @@ export function SyncButton() {
         setIsLoading(false)
         if (event.success) {
           // 显示成功状态
+          setShowError(false)
           setShowSuccess(true)
           setLastPushTime(new Date())
           // 5秒后恢复
@@ -40,6 +56,17 @@ export function SyncButton() {
           successTimerRef.current = setTimeout(() => {
             setShowSuccess(false)
           }, 5000)
+        } else {
+          // 显示失败状态
+          setShowSuccess(false)
+          setShowError(true)
+          // 5秒后恢复
+          if (errorTimerRef.current) {
+            clearTimeout(errorTimerRef.current)
+          }
+          errorTimerRef.current = setTimeout(() => {
+            setShowError(false)
+          }, 5000)
         }
       }
     }
@@ -48,6 +75,9 @@ export function SyncButton() {
       emitter.off('sync-push-completed', handlePushCompleted as any)
       if (successTimerRef.current) {
         clearTimeout(successTimerRef.current)
+      }
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current)
       }
     }
   }, [activeFilePath])
@@ -142,6 +172,7 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     } catch (error) {
       console.error('Push failed:', error)
       setIsLoading(false)
+      emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
     }
   }, [activeFilePath, isLoading, generateCommitMessage])
 
@@ -171,8 +202,16 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
         </span>
       )}
 
+      {/* 失败推送状态 */}
+      {showError && !isLoading && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          <XCircle size={12} />
+          上传失败
+        </span>
+      )}
+
       {/* 同步按钮 */}
-      {!showSuccess && !isLoading && (
+      {!showSuccess && !showError && !isLoading && (
         <button
           onClick={handlePush}
           disabled={isLoading}

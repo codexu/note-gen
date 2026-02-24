@@ -29,7 +29,6 @@ class SyncPushQueue {
   private queue: PushTask[] = []
   private isProcessing = false
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
-  private processingTaskTimestamp = 0
   private lastInputTime: number = Date.now()
 
   private get IDLE_THRESHOLD(): number {
@@ -167,7 +166,9 @@ class SyncPushQueue {
    * Bug fix: Process all tasks in the queue, not just the last one
    */
   private async flush() {
-    if (this.isProcessing || this.queue.length === 0) return
+    if (this.isProcessing || this.queue.length === 0) {
+      return
+    }
 
     // Bug fix: Process all tasks in the queue (newest first)
     // Group by path - keep only the newest task for each path
@@ -187,11 +188,12 @@ class SyncPushQueue {
     // Process each task
     for (const task of tasksToProcess) {
       this.isProcessing = true
-      this.processingTaskTimestamp = task.timestamp
 
       try {
         // Wait for file system to complete write
         await new Promise(resolve => setTimeout(resolve, 100))
+        // 发送开始推送事件
+        emitter.emit('sync-push-started', { path: task.path })
         await this.pushToRemote(task.path)
       } catch (error) {
         console.error(`[SyncPushQueue] Failed to push ${task.path}:`, error)
@@ -231,6 +233,8 @@ class SyncPushQueue {
           if (remoteContent === content) {
             // 获取远程 SHA 用于更新文件树
             const remoteSha = await this.getRemoteSha(path)
+            // 发送完成事件
+            emitter.emit('sync-push-completed', { path, success: true, sha: remoteSha })
             return { success: true, sha: remoteSha }
           }
         } catch {
@@ -257,8 +261,11 @@ class SyncPushQueue {
               repo,
               path
             })
-            success = true
-            uploadedSha = result?.data?.content?.sha || fileInfo?.sha
+            // 检查上传是否成功（result 必须存在且有 data）
+            if (result && result.data) {
+              success = true
+              uploadedSha = result?.data?.content?.sha || fileInfo?.sha
+            }
             break
           }
           case 'gitee': {
@@ -274,8 +281,11 @@ class SyncPushQueue {
               repo,
               path
             })
-            success = true
-            uploadedSha = result?.data?.sha || fileInfo?.sha
+            // 检查上传是否成功
+            if (result && result.data) {
+              success = true
+              uploadedSha = result?.data?.sha || fileInfo?.sha
+            }
             break
           }
           case 'gitlab': {
@@ -313,6 +323,10 @@ class SyncPushQueue {
         if (success) {
           emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
           return { success: true, sha: uploadedSha }
+        } else {
+          // 上传失败（result 为空或无效）
+          emitter.emit('sync-push-completed', { path, success: false })
+          return { success: false }
         }
       } catch (error: any) {
         // 检查是否是 SHA 不匹配错误
@@ -337,7 +351,8 @@ class SyncPushQueue {
 
         if (isShaMismatch && attempt < maxRetries) {
           // 等待一段时间后重试（指数退避）
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt - 1) * 500))
+          const waitTime = Math.pow(2, attempt - 1) * 500
+          await new Promise(resolve => setTimeout(resolve, waitTime))
           continue
         }
 

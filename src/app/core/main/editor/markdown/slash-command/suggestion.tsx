@@ -28,6 +28,7 @@ import {
 import { SuggestionProps } from '@tiptap/suggestion'
 import { type Editor } from '@tiptap/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { readFile } from '@tauri-apps/plugin-fs'
 import { handleImageUpload } from '@/lib/image-handler'
 import useArticleStore from '@/stores/article'
 import { toast } from '@/hooks/use-toast'
@@ -173,10 +174,18 @@ export const suggestionItems = () => {
           if (!file) return
 
           const activeFilePath = useArticleStore.getState().activeFilePath
-          const fileObj =
-            typeof file === 'string'
-              ? new File([file], file.split('/').pop() || 'image', { type: 'image/*' })
-              : file
+          // open 返回的是文件路径字符串，需要读取文件内容并转换为 File 对象
+          let fileObj: File
+          if (typeof file === 'string') {
+            const fileData = await readFile(file)
+            const ext = file.split('.').pop() || 'png'
+            const fileName = file.split('/').pop() || `image.${ext}`
+            // 创建 ArrayBuffer 副本以避免类型问题
+            const arrayBuffer = new Uint8Array(fileData).buffer
+            fileObj = new File([arrayBuffer], fileName, { type: `image/${ext}` })
+          } else {
+            fileObj = file
+          }
 
           const result = await handleImageUpload(fileObj, activeFilePath)
 

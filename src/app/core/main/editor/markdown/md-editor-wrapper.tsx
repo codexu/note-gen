@@ -181,8 +181,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     }
     // Bug fix: If expected content is set and incoming content doesn't match, skip save
     // This prevents saving stale content during editor initialization race
+    // But clear expectedContentRef so subsequent edits can be saved
     if (expectedContentRef.current !== null && content !== expectedContentRef.current) {
-      return
+      expectedContentRef.current = null
     }
     // Bug fix: Skip if content matches what we just loaded (first onUpdate after init)
     // The editor's onUpdate fires after setContent, so we skip that initial call

@@ -537,7 +537,10 @@ export function TipTapEditor({
   // Initialize content only once - preserves undo/redo history when switching tabs
   // Bug fix: Only initialize if the editor is for the current file path
   useEffect(() => {
-    if (!editor) return
+    if (!editor || !activeFilePath) return
+
+    // Check if this is still the correct file path (handle race conditions)
+    const currentPath = activeFilePath
 
     // Only initialize on first mount - subsequent content changes should not overwrite
     // user edits (e.g., when switching back to a previously edited tab)
@@ -545,6 +548,9 @@ export function TipTapEditor({
     if (!isInitializedRef.current) {
       // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
+        // Check if the file path is still the same (handle race condition)
+        if (activeFilePath !== currentPath) return
+
         if (initialContent) {
           editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
         }
@@ -557,7 +563,7 @@ export function TipTapEditor({
         onReady?.()
       }, 0)
     }
-  }, [editor, initialContent, onReady])
+  }, [editor, initialContent, onReady, activeFilePath])
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {

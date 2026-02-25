@@ -312,7 +312,7 @@ export function BubbleMenu({
           {showAISubmenu && (
             <div
               ref={aiSubmenuRef}
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-1 py-1 bg-background border border-border rounded-lg shadow-lg min-w-32 z-50 data-right-edge:left-auto data-right-edge:right-0 data-right-edge:translate-x-0 data-bottom-edge:top-full data-bottom-edge:mt-1 data-bottom-edge:translate-y-0"
+              className="absolute top-full mt-1 py-1 bg-background border border-border rounded-lg shadow-lg min-w-32 z-50 data-right-edge:left-auto data-right-edge:right-0 data-right-edge:translate-x-0 data-bottom-edge:top-full data-bottom-edge:mt-1 data-bottom-edge:translate-y-0"
             >
               <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIPolish?.() }}>
                 <Sparkles className="w-3.5 h-3.5" /><span>{t('bubbleMenu.polish')}</span>

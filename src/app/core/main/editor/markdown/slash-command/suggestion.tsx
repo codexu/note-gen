@@ -60,8 +60,71 @@ const createCustomEventCommand = (eventName: string, detail?: any) => ({
   },
 })
 
-// 缓存的 items 数组
-let cachedItems: SlashCommandItem[] | null = null
+// 翻译接口
+export interface SlashCommandTranslations {
+  groups: {
+    ai: string
+    heading: string
+    list: string
+    block: string
+    align: string
+    embed: string
+    math: string
+    chart: string
+  }
+  items: {
+    continue: string
+    continueDesc: string
+    heading1: string
+    heading1Desc: string
+    heading2: string
+    heading2Desc: string
+    heading3: string
+    heading3Desc: string
+    bulletList: string
+    bulletListDesc: string
+    orderedList: string
+    orderedListDesc: string
+    taskList: string
+    taskListDesc: string
+    image: string
+    imageDesc: string
+    table: string
+    tableDesc: string
+    blockquote: string
+    blockquoteDesc: string
+    codeBlock: string
+    codeBlockDesc: string
+    divider: string
+    dividerDesc: string
+    inlineMath: string
+    inlineMathDesc: string
+    blockMath: string
+    blockMathDesc: string
+    flowchart: string
+    flowchartDesc: string
+    sequence: string
+    sequenceDesc: string
+    gantt: string
+    ganttDesc: string
+    classDiagram: string
+    classDiagramDesc: string
+    stateDiagram: string
+    stateDiagramDesc: string
+    pie: string
+    pieDesc: string
+    erDiagram: string
+    erDiagramDesc: string
+    journey: string
+    journeyDesc: string
+  }
+  imageUpload: {
+    success: string
+    saveSuccess: string
+    savePath: string
+    failed: string
+  }
+}
 
 // 导出搜索函数供外部使用
 export function filterItems(items: SlashCommandItem[], query: string): SlashCommandItem[] {
@@ -77,46 +140,110 @@ export function filterItems(items: SlashCommandItem[], query: string): SlashComm
   )
 }
 
-export const suggestionItems = (): SlashCommandItem[] => {
-  if (cachedItems) {
-    return cachedItems
+export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[] => {
+  // 默认中文翻译（作为后备）
+  const defaultT: SlashCommandTranslations = {
+    groups: {
+      ai: 'AI',
+      heading: '标题',
+      list: '列表',
+      block: '块级',
+      align: '对齐',
+      embed: '嵌入',
+      math: '数学',
+      chart: '图表',
+    },
+    items: {
+      continue: '续写',
+      continueDesc: 'AI 续写内容',
+      heading1: '标题1',
+      heading1Desc: '大标题',
+      heading2: '标题2',
+      heading2Desc: '中标题',
+      heading3: '标题3',
+      heading3Desc: '小标题',
+      bulletList: '无序列表',
+      bulletListDesc: '创建简单的项目列表',
+      orderedList: '有序列表',
+      orderedListDesc: '创建带编号的列表',
+      taskList: '任务列表',
+      taskListDesc: '创建带复选框的任务列表',
+      image: '图片',
+      imageDesc: '插入本地图片或图床图片',
+      table: '表格',
+      tableDesc: '插入表格',
+      blockquote: '引用',
+      blockquoteDesc: '捕获引用内容',
+      codeBlock: '代码块',
+      codeBlockDesc: '捕获代码片段',
+      divider: '分割线',
+      dividerDesc: '在元素之间创建分隔线',
+      inlineMath: '行内公式',
+      inlineMathDesc: '插入行内 LaTeX 公式',
+      blockMath: '块级公式',
+      blockMathDesc: '插入块级 LaTeX 公式',
+      flowchart: '流程图',
+      flowchartDesc: '插入流程图',
+      sequence: '时序图',
+      sequenceDesc: '插入时序图',
+      gantt: '甘特图',
+      ganttDesc: '插入甘特图',
+      classDiagram: '类图',
+      classDiagramDesc: '插入类图',
+      stateDiagram: '状态图',
+      stateDiagramDesc: '插入状态图',
+      pie: '饼图',
+      pieDesc: '插入饼图',
+      erDiagram: 'ER图',
+      erDiagramDesc: '插入实体关系图',
+      journey: '旅程图',
+      journeyDesc: '插入用户旅程图',
+    },
+    imageUpload: {
+      success: '上传成功',
+      saveSuccess: '保存成功',
+      savePath: '保存路径: __PATH__',
+      failed: '插入图片失败',
+    },
   }
 
-  cachedItems = [
+  const tr = t || defaultT
+
+  const items: SlashCommandItem[] = [
     // AI
     {
-      title: '续写',
-      description: 'AI 续写内容',
+      title: tr.items.continue,
+      description: tr.items.continueDesc,
       icon: <Sparkles className="w-4 h-4" />,
-      group: 'AI',
+      group: tr.groups.ai,
       searchTerms: ['ai', 'continue', 'write', 'completion'],
       ...createCustomEventCommand('tiptap-ai-continue'),
     },
     {
-      title: '标题1',
-      description: '大标题',
+      title: tr.items.heading1,
+      description: tr.items.heading1Desc,
       icon: <Heading1 className="w-4 h-4" />,
-      group: '标题',
+      group: tr.groups.heading,
       searchTerms: ['heading', 'h1', 'header'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run()
       },
     },
     {
-      title: '标题2',
-      description: '中标题',
+      title: tr.items.heading2,
+      description: tr.items.heading2Desc,
       icon: <Heading2 className="w-4 h-4" />,
-      group: '标题',
+      group: tr.groups.heading,
       searchTerms: ['heading', 'h2', 'header'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
       },
     },
     {
-      title: '标题3',
-      description: '小标题',
+      title: tr.items.heading3,
+      description: tr.items.heading3Desc,
       icon: <Heading3 className="w-4 h-4" />,
-      group: '标题',
+      group: tr.groups.heading,
       searchTerms: ['heading', 'h3', 'header'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
@@ -125,30 +252,30 @@ export const suggestionItems = (): SlashCommandItem[] => {
 
     // 列表
     {
-      title: '无序列表',
-      description: '创建简单的项目列表',
+      title: tr.items.bulletList,
+      description: tr.items.bulletListDesc,
       icon: <List className="w-4 h-4" />,
-      group: '列表',
+      group: tr.groups.list,
       searchTerms: ['bullet', 'ul', 'list'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleBulletList().run()
       },
     },
     {
-      title: '有序列表',
-      description: '创建带编号的列表',
+      title: tr.items.orderedList,
+      description: tr.items.orderedListDesc,
       icon: <ListOrdered className="w-4 h-4" />,
-      group: '列表',
+      group: tr.groups.list,
       searchTerms: ['ordered', 'ol', 'numbered', 'list'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleOrderedList().run()
       },
     },
     {
-      title: '任务列表',
-      description: '创建带复选框的任务列表',
+      title: tr.items.taskList,
+      description: tr.items.taskListDesc,
       icon: <CheckSquare className="w-4 h-4" />,
-      group: '列表',
+      group: tr.groups.list,
       searchTerms: ['task', 'todo', 'checkbox', 'checklist'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleTaskList().run()
@@ -157,10 +284,10 @@ export const suggestionItems = (): SlashCommandItem[] => {
 
     // 块级元素
     {
-      title: '图片',
-      description: '插入本地图片或图床图片',
+      title: tr.items.image,
+      description: tr.items.imageDesc,
       icon: <Image className="w-4 h-4" />,
-      group: '块级',
+      group: tr.groups.block,
       searchTerms: ['image', 'picture', 'photo', 'img'],
       command: async ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).run()
@@ -204,53 +331,53 @@ export const suggestionItems = (): SlashCommandItem[] => {
           }).run()
 
           toast({
-            title: result.useImageHosting ? '上传成功' : '保存成功',
-            description: result.useImageHosting ? '' : `保存路径: ${result.relativePath}`,
+            title: result.useImageHosting ? tr.imageUpload.success : tr.imageUpload.saveSuccess,
+            description: result.useImageHosting ? '' : tr.imageUpload.savePath.replace('__PATH__', result.relativePath),
           })
         } catch (error) {
           toast({
-            title: '插入图片失败',
-            description: error instanceof Error ? error.message : '未知错误',
+            title: tr.imageUpload.failed,
+            description: error instanceof Error ? error.message : 'Unknown error',
             variant: 'destructive',
           })
         }
       },
     },
     {
-      title: '表格',
-      description: '插入表格',
+      title: tr.items.table,
+      description: tr.items.tableDesc,
       icon: <Table className="w-4 h-4" />,
-      group: '块级',
+      group: tr.groups.block,
       searchTerms: ['table', 'grid', 'matrix'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
       },
     },
     {
-      title: '引用',
-      description: '捕获引用内容',
+      title: tr.items.blockquote,
+      description: tr.items.blockquoteDesc,
       icon: <Quote className="w-4 h-4" />,
-      group: '块级',
+      group: tr.groups.block,
       searchTerms: ['blockquote', 'quote', 'citation'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleBlockquote().run()
       },
     },
     {
-      title: '代码块',
-      description: '捕获代码片段',
+      title: tr.items.codeBlock,
+      description: tr.items.codeBlockDesc,
       icon: <Code className="w-4 h-4" />,
-      group: '块级',
+      group: tr.groups.block,
       searchTerms: ['code', 'pre', 'programming'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
       },
     },
     {
-      title: '分割线',
-      description: '在元素之间创建分隔线',
+      title: tr.items.divider,
+      description: tr.items.dividerDesc,
       icon: <Minus className="w-4 h-4" />,
-      group: '块级',
+      group: tr.groups.block,
       searchTerms: ['hr', 'horizontal', 'divider', 'line'],
       command: ({ editor, range }: { editor: Editor; range: Range }) => {
         editor.chain().focus().deleteRange(range).setHorizontalRule().run()
@@ -259,90 +386,90 @@ export const suggestionItems = (): SlashCommandItem[] => {
 
     // 数学公式
     {
-      title: '行内公式',
-      description: '插入行内 LaTeX 公式',
+      title: tr.items.inlineMath,
+      description: tr.items.inlineMathDesc,
       icon: <Sigma className="w-4 h-4" />,
-      group: '数学',
+      group: tr.groups.math,
       searchTerms: ['math', 'inline', 'latex', 'formula', 'inline-math'],
       ...createCustomEventCommand('tiptap-insert-inline-math'),
     },
     {
-      title: '块级公式',
-      description: '插入块级 LaTeX 公式',
+      title: tr.items.blockMath,
+      description: tr.items.blockMathDesc,
       icon: <Sigma className="w-4 h-4" />,
-      group: '数学',
+      group: tr.groups.math,
       searchTerms: ['math', 'block', 'latex', 'formula', 'block-math', 'display'],
       ...createCustomEventCommand('tiptap-insert-block-math'),
     },
 
     // 图表
     {
-      title: '流程图',
-      description: '插入流程图',
+      title: tr.items.flowchart,
+      description: tr.items.flowchartDesc,
       icon: <GitBranch className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'flowchart', 'diagram', '流程图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'flowchart', 'diagram'],
       ...createMermaidCommand('flowchart'),
     },
     {
-      title: '时序图',
-      description: '插入时序图',
+      title: tr.items.sequence,
+      description: tr.items.sequenceDesc,
       icon: <GitCommit className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'sequence', 'sequenceDiagram', '时序图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'sequence', 'sequenceDiagram'],
       ...createMermaidCommand('sequence'),
     },
     {
-      title: '甘特图',
-      description: '插入甘特图',
+      title: tr.items.gantt,
+      description: tr.items.ganttDesc,
       icon: <Calendar className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'gantt', '甘特图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'gantt'],
       ...createMermaidCommand('gantt'),
     },
     {
-      title: '类图',
-      description: '插入类图',
+      title: tr.items.classDiagram,
+      description: tr.items.classDiagramDesc,
       icon: <Layers className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'class', 'classDiagram', '类图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'class', 'classDiagram'],
       ...createMermaidCommand('classDiagram'),
     },
     {
-      title: '状态图',
-      description: '插入状态图',
+      title: tr.items.stateDiagram,
+      description: tr.items.stateDiagramDesc,
       icon: <Activity className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'state', 'stateDiagram', '状态图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'state', 'stateDiagram'],
       ...createMermaidCommand('stateDiagram'),
     },
     {
-      title: '饼图',
-      description: '插入饼图',
+      title: tr.items.pie,
+      description: tr.items.pieDesc,
       icon: <PieChart className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'pie', '饼图', 'chart'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'pie', 'chart'],
       ...createMermaidCommand('pie'),
     },
     {
-      title: 'ER图',
-      description: '插入实体关系图',
+      title: tr.items.erDiagram,
+      description: tr.items.erDiagramDesc,
       icon: <Database className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'er', 'erDiagram', 'ER图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'er', 'erDiagram'],
       ...createMermaidCommand('er'),
     },
     {
-      title: '旅程图',
-      description: '插入用户旅程图',
+      title: tr.items.journey,
+      description: tr.items.journeyDesc,
       icon: <Map className="w-4 h-4" />,
-      group: '图表',
-      searchTerms: ['mermaid', 'journey', '旅程图'],
+      group: tr.groups.chart,
+      searchTerms: ['mermaid', 'journey'],
       ...createMermaidCommand('journey'),
     },
   ]
 
-  return cachedItems
+  return items
 }
 
 // Simple slash match function - hardcoded to match "/"

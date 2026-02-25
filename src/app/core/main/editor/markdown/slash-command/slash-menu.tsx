@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, forwardRef, useImperativeHandle, useRef } from 'react'
 import { type Editor } from '@tiptap/react'
+import { useTranslations } from 'next-intl'
 import { SlashCommandItem, suggestionItems, filterItems } from './suggestion'
 import { cn } from '@/lib/utils'
 
@@ -15,15 +16,92 @@ export interface SlashMenuRef {
   onKeyDown: (props: { event: KeyboardEvent }) => boolean
 }
 
-const groupOrder = ['AI', '标题', '列表', '块级', '对齐', '嵌入', '数学', '图表']
-
 export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, query }, ref) => {
+  const t = useTranslations('editor.slashCommand')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
+  // 构建翻译对象
+  const translations = useMemo(() => ({
+    groups: {
+      ai: t('groups.ai'),
+      heading: t('groups.heading'),
+      list: t('groups.list'),
+      block: t('groups.block'),
+      align: t('groups.align'),
+      embed: t('groups.embed'),
+      math: t('groups.math'),
+      chart: t('groups.chart'),
+    },
+    items: {
+      continue: t('items.continue'),
+      continueDesc: t('items.continueDesc'),
+      heading1: t('items.heading1'),
+      heading1Desc: t('items.heading1Desc'),
+      heading2: t('items.heading2'),
+      heading2Desc: t('items.heading2Desc'),
+      heading3: t('items.heading3'),
+      heading3Desc: t('items.heading3Desc'),
+      bulletList: t('items.bulletList'),
+      bulletListDesc: t('items.bulletListDesc'),
+      orderedList: t('items.orderedList'),
+      orderedListDesc: t('items.orderedListDesc'),
+      taskList: t('items.taskList'),
+      taskListDesc: t('items.taskListDesc'),
+      image: t('items.image'),
+      imageDesc: t('items.imageDesc'),
+      table: t('items.table'),
+      tableDesc: t('items.tableDesc'),
+      blockquote: t('items.blockquote'),
+      blockquoteDesc: t('items.blockquoteDesc'),
+      codeBlock: t('items.codeBlock'),
+      codeBlockDesc: t('items.codeBlockDesc'),
+      divider: t('items.divider'),
+      dividerDesc: t('items.dividerDesc'),
+      inlineMath: t('items.inlineMath'),
+      inlineMathDesc: t('items.inlineMathDesc'),
+      blockMath: t('items.blockMath'),
+      blockMathDesc: t('items.blockMathDesc'),
+      flowchart: t('items.flowchart'),
+      flowchartDesc: t('items.flowchartDesc'),
+      sequence: t('items.sequence'),
+      sequenceDesc: t('items.sequenceDesc'),
+      gantt: t('items.gantt'),
+      ganttDesc: t('items.ganttDesc'),
+      classDiagram: t('items.classDiagram'),
+      classDiagramDesc: t('items.classDiagramDesc'),
+      stateDiagram: t('items.stateDiagram'),
+      stateDiagramDesc: t('items.stateDiagramDesc'),
+      pie: t('items.pie'),
+      pieDesc: t('items.pieDesc'),
+      erDiagram: t('items.erDiagram'),
+      erDiagramDesc: t('items.erDiagramDesc'),
+      journey: t('items.journey'),
+      journeyDesc: t('items.journeyDesc'),
+    },
+    imageUpload: {
+      success: t('imageUpload.success'),
+      saveSuccess: t('imageUpload.saveSuccess'),
+      savePath: t('imageUpload.savePath'),
+      failed: t('imageUpload.failed'),
+    },
+  }), [t])
+
+  // 分组顺序
+  const groupOrder = useMemo(() => [
+    translations.groups.ai,
+    translations.groups.heading,
+    translations.groups.list,
+    translations.groups.block,
+    translations.groups.align,
+    translations.groups.embed,
+    translations.groups.math,
+    translations.groups.chart,
+  ], [translations.groups])
+
   const items = useMemo(() => {
-    return filterItems(suggestionItems(), query)
-  }, [query])
+    return filterItems(suggestionItems(translations), query)
+  }, [query, translations])
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, SlashCommandItem[]> = {}

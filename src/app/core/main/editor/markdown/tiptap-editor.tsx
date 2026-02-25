@@ -54,6 +54,9 @@ interface TipTapEditorProps {
   activeFilePath?: string
   onQuoteToChat?: () => void
   onReady?: () => void
+  onEditorReady?: (editor: any) => void
+  outlineOpen?: boolean
+  onToggleOutline?: () => void
 }
 
 export function TipTapEditor({
@@ -64,6 +67,9 @@ export function TipTapEditor({
   activeFilePath = '',
   onQuoteToChat,
   onReady,
+  onEditorReady,
+  outlineOpen,
+  onToggleOutline,
 }: TipTapEditorProps) {
   const t = useTranslations('editor')
   const tMermaid = useTranslations('editor.mermaid.templates')
@@ -561,9 +567,11 @@ export function TipTapEditor({
         isReadyRef.current = true
         // Notify mobile editor that editor is ready
         onReady?.()
+        // Notify parent component about editor instance
+        onEditorReady?.(editor)
       }, 0)
     }
-  }, [editor, initialContent, onReady, activeFilePath])
+  }, [editor, initialContent, onReady, onEditorReady, activeFilePath])
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {
@@ -1143,7 +1151,11 @@ export function TipTapEditor({
       </div>
 
       {/* Bottom toolbar - always visible */}
-      <FooterBar editor={editor} />
+      <FooterBar
+        editor={editor}
+        outlineOpen={outlineOpen}
+        onToggleOutline={onToggleOutline}
+      />
 
       <SlashCommandPortal />
 

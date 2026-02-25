@@ -2318,6 +2318,11 @@
   },
   "editor": {
     "placeholder": "Digite \"/\" para abrir o menu, comece a escrever...",
+    "outline": {
+      "title": "Esboço",
+      "open": "Abrir Esboço",
+      "close": "Fechar Esboço"
+    },
     "copySuccess": "Cópia Bem-sucedida",
     "copySuccessDescription": "Copiado para a área de transferência",
     "search": {

@@ -2168,6 +2168,11 @@
   },
   "editor": {
     "placeholder": "输入 \"/\" 呼出菜单，开始写作...",
+    "outline": {
+      "title": "大纲",
+      "open": "打开大纲",
+      "close": "关闭大纲"
+    },
     "translation": {
       "fail": "翻译失败",
       "failNoSelection": "请先选择要翻译的文本",

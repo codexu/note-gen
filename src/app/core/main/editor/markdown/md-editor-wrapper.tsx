@@ -3,6 +3,7 @@
 import useArticleStore from '@/stores/article'
 import { useEffect, useState, useCallback, useRef, RefObject } from 'react'
 import { TipTapEditor } from './tiptap-editor'
+import { Outline } from './outline'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import emitter from '@/lib/emitter'
@@ -35,6 +36,10 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const isLoadingRef = useRef(true)
   // Bug fix: Track expected content to detect if editor is behind
   const expectedContentRef = useRef<string | null>(null)
+  // Outline panel state
+  const [outlineOpen, setOutlineOpen] = useState(false)
+  // State for editor instance (to trigger re-render when ready)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -218,6 +223,11 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     emitter.emit('get-quote-from-editor')
   }, [])
 
+  // Handle editor ready - store editor instance
+  const handleEditorReady = useCallback((editor: any) => {
+    setEditorInstance(editor)
+  }, [])
+
   // Auto-create untitled.md file
   async function createUntitledFile(content: string) {
     try {
@@ -269,7 +279,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   return (
-    <div className="flex-1 relative w-full h-full flex flex-col">
+    <div className="flex-1 relative w-full h-full flex flex-row">
       {/* Pull loading overlay */}
       {isPulling && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -293,6 +303,15 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         placeholder="开始写作..."
         activeFilePath={activeFilePath}
         onQuoteToChat={handleQuoteToChat}
+        onEditorReady={handleEditorReady}
+        outlineOpen={outlineOpen}
+        onToggleOutline={() => setOutlineOpen(prev => !prev)}
+      />
+
+      {/* Outline Panel - right sidebar */}
+      <Outline
+        editor={editorInstance}
+        isOpen={outlineOpen}
       />
     </div>
   )

@@ -2240,6 +2240,11 @@
   },
   "editor": {
     "placeholder": "輸入「/」叫出選單，開始寫作...",
+    "outline": {
+      "title": "大綱",
+      "open": "打開大綱",
+      "close": "關閉大綱"
+    },
     "translation": {
       "fail": "翻譯失敗",
       "failNoSelection": "請先選擇要翻譯的文本",

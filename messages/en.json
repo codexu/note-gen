@@ -2294,6 +2294,11 @@
   },
   "editor": {
     "placeholder": "Type \"/\" to open menu, start writing...",
+    "outline": {
+      "title": "Outline",
+      "open": "Open Outline",
+      "close": "Close Outline"
+    },
     "translation": {
       "fail": "Translation failed",
       "failNoSelection": "Please select text to translate",

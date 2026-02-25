@@ -643,7 +643,7 @@
       "newToken": "Criar Token de Acesso",
       "newTokenDesc": "Ao criar um novo token, por favor, certifique-se de marcar a permissão 'repo', e após a configuração, ele criará automaticamente um repositório de arquivos (privado) e um repositório de imagens.",
       "giteeTokenDesc": "O token de acesso pessoal do Gitee é usado para sincronização de dados. Ele precisa de permissões de leitura e escrita do repositório. Após a configuração, ele criará automaticamente um repositório de arquivos (privado) e um repositório de imagens.",
-      "imageRepoSetting": "Armazenamento Local/Nuvem",
+      "imageRepoSetting": "Ativar Hospedagem de Imagens",
       "imageRepoSettingDesc": "Você já configurou um repositório de imagens, pode escolher usar o repositório de imagens ou usar o armazenamento local.",
       "jsdelivrSetting": "jsDelivr",
       "autoSyncDesc": "Quando habilitado, o editor sincronizará automaticamente com o GitHub 10 segundos após a interrupção da entrada",
@@ -713,6 +713,8 @@
     "imageHosting": {
       "title": "Hospedagem de Imagens",
       "desc": "Aqui, você pode configurar serviços de hospedagem de imagens para armazenar e gerenciar suas imagens.",
+      "type": "Selecionar Plataforma",
+      "typeDesc": "Selecione o provedor de serviços de hospedagem de imagens",
       "customRepoName": "Nome Personalizado do Repositório",
       "customRepoNameDesc": "Deixe em branco para usar o nome do repositório padrão",
       "isPrimaryBackup": "Método principal atual de hospedagem de imagens: {type}",

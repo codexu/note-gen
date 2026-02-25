@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl'
 import { Store } from "@tauri-apps/plugin-store"
 import { SyncStateEnum } from "@/lib/sync/github.types"
 import { SyncPlatform } from "@/types/sync"
-import { Eye, EyeOff, RefreshCcw, Loader2, AlertCircle, CheckCircle2, XCircle, ExternalLink } from "lucide-react"
+import { Eye, EyeOff, RefreshCcw, Loader2, AlertCircle, CheckCircle2, XCircle } from "lucide-react"
 import { OpenBroswer } from "@/components/open-broswer"
 
 export interface SyncPlatformConfig {
@@ -91,10 +91,7 @@ export function SyncPlatformCard({
     }
   }, [config.tokenKey, setAccessToken])
 
-  const getRepoName = () => customRepo.trim() || defaultRepoName
-
   const isLoading = syncRepoState === SyncStateEnum.checking || syncRepoState === SyncStateEnum.creating
-  const isConnected = syncRepoState === SyncStateEnum.success
 
   return (
     <div className="rounded-md border p-4">
@@ -204,8 +201,6 @@ export function SyncPlatformCard({
 
 // 状态徽章组件
 function StatusBadge({ state }: { state: SyncStateEnum }) {
-  const t = useTranslations()
-
   if (state === SyncStateEnum.success) {
     return (
       <Badge className="bg-green-600">

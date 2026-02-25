@@ -685,7 +685,7 @@
       "newToken": "Create Access Token",
       "newTokenDesc": "When creating a new token, please make sure to check the repo permission, and after configuration, it will automatically create a file repository (private) and an image repository.",
       "giteeTokenDesc": "Gitee personal access token is used for data synchronization. It needs repository read and write permissions. After configuration, it will automatically create a file repository (private) and an image repository.",
-      "imageRepoSetting": "Local/Cloud Storage",
+      "imageRepoSetting": "Enable Image Hosting",
       "imageRepoSettingDesc": "You have already configured an image repository, you can choose to use the image repository or use local storage.",
       "jsdelivrSetting": "jsDelivr",
       "autoSyncDesc": "When enabled, the editor will automatically sync to GitHub 10 seconds after input stops",
@@ -755,6 +755,8 @@
     "imageHosting": {
       "title": "Image Hosting",
       "desc": "Here, you can configure image hosting services for storing and managing your images.",
+      "type": "Select Platform",
+      "typeDesc": "Select image hosting service provider",
       "customRepoName": "Custom Repository Name",
       "customRepoNameDesc": "Leave empty to use default repository name",
       "isPrimaryBackup": "Current {type} primary image hosting method",

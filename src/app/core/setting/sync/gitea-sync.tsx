@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/gitea";
 import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
 import { GiteaInstanceType, GITEA_INSTANCES } from "@/lib/sync/gitea.types";
-import { DatabaseBackup, Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
+import { Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 dayjs.extend(relativeTime)
@@ -150,14 +150,6 @@ export function GiteaSync() {
     }
     const instance = GITEA_INSTANCES[giteaInstanceType]
     return `${instance.baseUrl}/user/settings/applications`
-  }
-
-  // 获取当前实例显示名称
-  function getInstanceDisplayName() {
-    if (giteaInstanceType === GiteaInstanceType.SELF_HOSTED) {
-      return giteaCustomUrl || '自建实例'
-    }
-    return GITEA_INSTANCES[giteaInstanceType].name
   }
 
   useEffect(() => {

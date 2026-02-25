@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import useImageStore from '@/stores/imageHosting';
 import { SyncStateEnum } from '@/lib/sync/github.types';
 import { testS3Connection } from '@/lib/imageHosting/s3';
@@ -25,7 +24,7 @@ interface S3Config {
 
 export function S3ImageHosting() {
   const t = useTranslations();
-  const { setS3Config, s3State, setS3State, mainImageHosting, setMainImageHosting } = useImageStore();
+  const { setS3Config, s3State, setS3State } = useImageStore();
   
   const [config, setConfig] = useState<S3Config>({
     accessKeyId: '',
@@ -97,24 +96,6 @@ export function S3ImageHosting() {
     }
   };
 
-  // 设为主要图床
-  const handleSetAsPrimary = async () => {
-    if (s3State !== SyncStateEnum.success) {
-      toast({
-        title: t('settings.imageHosting.s3.error'),
-        description: t('settings.imageHosting.s3.testFirstDesc'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    await setMainImageHosting('s3');
-    toast({
-      title: t('settings.imageHosting.s3.setPrimarySuccess'),
-      description: t('settings.imageHosting.s3.setPrimarySuccessDesc'),
-    });
-  };
-
   const getStatusIcon = () => {
     switch (s3State) {
       case SyncStateEnum.success:
@@ -149,18 +130,7 @@ export function S3ImageHosting() {
               {t('settings.imageHosting.s3.description')}
             </CardDescription>
           </div>
-          <Button 
-            onClick={handleSetAsPrimary}
-            disabled={mainImageHosting === 's3' || s3State !== SyncStateEnum.success}
-            size="sm"
-          >
-            {mainImageHosting === 's3' ? 
-              '当前主要图床' : 
-              t('settings.imageHosting.s3.setAsPrimary')
-            }
-          </Button>
         </div>
-      
       </CardHeader>
       <CardContent className="space-y-4">
         {/* 状态显示 */}

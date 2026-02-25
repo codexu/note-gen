@@ -618,7 +618,7 @@
       "newToken": "作成 access token",
       "newTokenDesc": "新しいトークンを作成する際は必ずrepo権限を選択してください。設定後、自動的にプライベートリポジトリと画像ホスティングリポジトリが作成されます。",
       "giteeTokenDesc": "Giteeの個人アクセストークンはデータ同期に使用されます。リポジトリの読み書き権限が必要です。設定後、自動的にファイルリポジトリ（プライベート）と画像リポジトリが作成されます。",
-      "imageRepoSetting": "ローカル/クラウドストレージ",
+      "imageRepoSetting": "画像ホスティングを有効化",
       "imageRepoSettingDesc": "画像ホスティングリポジトリが設定されています。有効にすると画像はそちらに保存され、無効の場合はローカル保存となります。",
       "jsdelivrSetting": "jsDelivr",
       "jsdelivrSettingDesc": "jsdelivrを利用して画像アクセスを高速化します。",
@@ -688,6 +688,8 @@
     "imageHosting": {
       "title": "画像ホスティング",
       "desc": "ここでは、画像の保存と管理のための画像ホスティングサービスを設定できます。",
+      "type": "プラットフォームを選択",
+      "typeDesc": "画像ホスティングサービスを選択",
       "customRepoName": "カスタムリポジトリ名",
       "customRepoNameDesc": "空白の場合はデフォルトのリポジトリ名を使用",
       "isPrimaryBackup": "現在の {type} 主要バックアップ方法",

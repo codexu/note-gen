@@ -23,7 +23,7 @@ dayjs.extend(relativeTime)
 export function GithubImageHosting() {
 
   const t = useTranslations();
-  const { setImageRepoUserInfo, mainImageHosting, setMainImageHosting } = useImageStore()
+  const { setImageRepoUserInfo } = useImageStore()
   const [accessTokenVisible, setAccessTokenVisible] = useState(false)
 
   const {
@@ -166,18 +166,6 @@ export function GithubImageHosting() {
               使用 GitHub 仓库作为图片存储服务
             </CardDescription>
           </div>
-          {imageRepoInfo && (
-            <Button 
-              onClick={() => setMainImageHosting('github')}
-              disabled={mainImageHosting === 'github' || !githubImageAccessToken || imageRepoState !== SyncStateEnum.success}
-              size="sm"
-            >
-              {mainImageHosting === 'github' ? 
-                '当前主要图床' : 
-                t('settings.imageHosting.setPrimaryBackup')
-              }
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -226,18 +214,18 @@ export function GithubImageHosting() {
         <div className="space-y-2">
           <label className="text-sm font-medium">GitHub Access Token</label>
           <p className="text-xs text-muted-foreground">{t('settings.sync.newTokenDesc')}</p>
-          <OpenBroswer url="https://github.com/settings/tokens/new" title={t('settings.sync.newToken')} className="mb-2" />
           <div className="flex gap-2">
-            <Input 
-              value={githubImageAccessToken} 
-              onChange={tokenChangeHandler} 
-              type={accessTokenVisible ? 'text' : 'password'} 
+            <Input
+              value={githubImageAccessToken}
+              onChange={tokenChangeHandler}
+              type={accessTokenVisible ? 'text' : 'password'}
               placeholder="输入 GitHub Access Token"
             />
             <Button variant="outline" size="icon" onClick={() => setAccessTokenVisible(!accessTokenVisible)}>
               {accessTokenVisible ? <Eye /> : <EyeOff />}
             </Button>
           </div>
+          <OpenBroswer url="https://github.com/settings/tokens/new" title={t('settings.sync.newToken')} className="text-sm text-blue-500 hover:underline" />
         </div>
 
         {/* 仓库信息 */}

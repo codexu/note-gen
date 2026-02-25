@@ -12,7 +12,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/gitee";
 import { Button } from "@/components/ui/button";
 import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
-import { DatabaseBackup, Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
+import { Eye, EyeOff, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 dayjs.extend(relativeTime)
@@ -22,8 +22,6 @@ export function GiteeSync() {
   const {
     giteeAccessToken,
     setGiteeAccessToken,
-    primaryBackupMethod,
-    setPrimaryBackupMethod,
     giteeCustomSyncRepo,
     setGiteeCustomSyncRepo
   } = useSettingStore()

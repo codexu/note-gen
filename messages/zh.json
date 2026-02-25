@@ -682,7 +682,7 @@
       "newToken": "创建 access token",
       "newTokenDesc": "新建 token 时，请务必勾选 repo 权限，配置后将自动创建文件仓库（私有）和图床仓库。",
       "giteeTokenDesc": "Gitee 私人令牌用于同步数据，需要有仓库的读写权限，配置后将自动创建文件仓库（私有）和图床仓库。",
-      "imageRepoSetting": "本地/图床",
+      "imageRepoSetting": "开启图床",
       "imageRepoSettingDesc": "你已经配置了图床仓库，开启此项将使用图床仓库，否则将使用本地存储。",
       "jsdelivrSetting": "jsDelivr",
       "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。",
@@ -752,6 +752,8 @@
     "imageHosting": {
       "title": "图床设置",
       "desc": "在这里，你可以配置图床服务，用于存储和管理你的图片。",
+      "type": "选择平台",
+      "typeDesc": "选择图床服务提供商",
       "customRepoName": "自定义仓库名",
       "customRepoNameDesc": "留空则使用默认仓库名",
       "isPrimaryBackup": "当前 {type} 为主要图床",

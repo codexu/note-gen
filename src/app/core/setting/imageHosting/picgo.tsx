@@ -1,6 +1,5 @@
 import { useTranslations } from 'next-intl';
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import useImageStore from "@/stores/imageHosting";
@@ -11,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const DEFAULT_URL = 'http://127.0.0.1:36677'
 
 export default function PicgoImageHosting() {
-  const t = useTranslations('settings.imageHosting');
-  const { mainImageHosting, setMainImageHosting } = useImageStore()
+  useTranslations('settings.imageHosting');
+  useImageStore()
 
   const [loading, setLoading] = useState(false)
   const [picgoState, setPicgoState] = useState(false)
@@ -84,16 +83,6 @@ export default function PicgoImageHosting() {
               使用 PicGo 客户端作为图片上传工具
             </CardDescription>
           </div>
-          <Button 
-            onClick={() => setMainImageHosting('picgo')}
-            disabled={mainImageHosting === 'picgo' || !picgoState}
-            size="sm"
-          >
-            {mainImageHosting === 'picgo' ? 
-              '当前主要图床' : 
-              t('setPrimaryBackup')
-            }
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -109,8 +98,7 @@ export default function PicgoImageHosting() {
 
         {/* URL 配置 */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">PicGo 服务地址</label>
-          <p className="text-xs text-muted-foreground">{t('picgo.desc')}</p>
+          <label className="text-sm font-medium">PicGo Server</label>
           <Input
             type="text"
             value={url}

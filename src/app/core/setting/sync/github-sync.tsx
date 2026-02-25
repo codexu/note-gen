@@ -1,6 +1,5 @@
 'use client'
-import { SyncPlatformCard, StatusBadge } from "./components/sync-platform-card"
-import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from '@/components/ui/item'
+import { SyncPlatformCard } from "./components/sync-platform-card"
 import { useTranslations } from 'next-intl'
 import useSettingStore from "@/stores/setting"
 import useSyncStore from "@/stores/sync"
@@ -9,7 +8,6 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import { checkSyncRepoState, createSyncRepo, getUserInfo } from "@/lib/sync/github"
 import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types"
-import { DatabaseBackup } from "lucide-react"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 
 dayjs.extend(relativeTime)

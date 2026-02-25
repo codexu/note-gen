@@ -3,18 +3,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, LoaderCircle, CheckCircle, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { open } from "@tauri-apps/plugin-shell";
 import { Store } from "@tauri-apps/plugin-store";
 import { type SMMSUserInfo, type SMMSImageHostingSetting } from "@/lib/imageHosting/smms";
 import useImageStore from "@/stores/imageHosting";
 import { getUserInfo } from "@/lib/imageHosting/smms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { OpenBroswer } from "@/components/open-broswer";
 
 const CREATE_TOKEN_URL = 'https://sm.ms/home/apitoken'
 
 export default function SMMSImageHosting() {
   const t = useTranslations('settings.imageHosting');
-  const { mainImageHosting, setMainImageHosting } = useImageStore()
+  useImageStore()
 
   const [loading, setLoading] = useState(false)
   const [token, setToken] = useState('')
@@ -27,11 +27,6 @@ export default function SMMSImageHosting() {
     if (imageHostings) {
       setToken(imageHostings.token)
     }
-  }
-
-  // 外部打开链接
-  function openUrl(url?: string) {
-    if (url) open(url)
   }
 
   // 设置 token
@@ -97,16 +92,6 @@ export default function SMMSImageHosting() {
               使用 SM.MS 免费图片存储服务
             </CardDescription>
           </div>
-          <Button 
-            onClick={() => setMainImageHosting('smms')}
-            disabled={mainImageHosting === 'smms' || token === ''}
-            size="sm"
-          >
-            {mainImageHosting === 'smms' ? 
-              '当前主要图床' : 
-              t('setPrimaryBackup')
-            }
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -123,11 +108,6 @@ export default function SMMSImageHosting() {
         <div className="space-y-2">
           <label className="text-sm font-medium">API Token</label>
           <p className="text-xs text-muted-foreground">{t('smms.token.desc')}</p>
-          <div className="flex items-center gap-2 mb-2">
-            <Button onClick={() => openUrl(CREATE_TOKEN_URL)} variant="outline" size="sm">
-              {t('smms.token.createToken')}
-            </Button>
-          </div>
           <div className="flex items-center gap-2">
             <Input
               className="flex-1"
@@ -140,6 +120,7 @@ export default function SMMSImageHosting() {
               {tokenVisible ? <Eye /> : <EyeOff />}
             </Button>
           </div>
+          <OpenBroswer url={CREATE_TOKEN_URL} title={t('smms.token.createToken')} className="text-sm text-blue-500 hover:underline" />
         </div>
 
         {/* 磁盘使用情况 */}

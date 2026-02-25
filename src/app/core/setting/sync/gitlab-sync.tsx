@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { checkSyncProjectState, createSyncProject, getUserInfo } from "@/lib/sync/gitlab";
 import { RepoNames, SyncStateEnum } from "@/lib/sync/github.types";
 import { GitlabInstanceType, GITLAB_INSTANCES } from "@/lib/sync/gitlab.types";
-import { DatabaseBackup, Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
+import { Eye, EyeOff, Globe, Server, Plus, RefreshCcw } from "lucide-react";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 dayjs.extend(relativeTime)
@@ -123,14 +123,6 @@ export function GitlabSync() {
     }
     const instance = GITLAB_INSTANCES[gitlabInstanceType]
     return `${instance.baseUrl}/-/user_settings/personal_access_tokens`
-  }
-
-  // 获取当前实例显示名称
-  function getInstanceDisplayName() {
-    if (gitlabInstanceType === GitlabInstanceType.SELF_HOSTED) {
-      return gitlabCustomUrl || '自建实例'
-    }
-    return GITLAB_INSTANCES[gitlabInstanceType].name
   }
 
   useEffect(() => {

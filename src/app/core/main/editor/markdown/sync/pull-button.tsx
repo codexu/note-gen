@@ -220,31 +220,36 @@ export function PullButton({ editor }: PullButtonProps) {
         }
 
         if (result.action === 'conflict') {
-          setPullStatus('conflict')
-        } else if (result.action === 'pull') {
-          // 切换文件时检测到更新，弹出确认对话框让用户选择
-          try {
-            const content = await pullRemoteFile(activeFilePath)
-            remoteContentRef.current = content
+          // 有冲突，自动拉取远程版本覆盖本地
+          setIsLoading(true)
+          const content = await pullRemoteFile(activeFilePath)
 
-            // 弹出确认对话框
-            const shouldPull = await ask('检测到远程文件有新版本，是否现在拉取？', {
-              title: '远程更新',
-              kind: 'info',
-            })
-
-            if (shouldPull && pendingFileRef.current === activeFilePath) {
-              await executePull(content)
-            } else {
-              // 用户取消，显示更新提示
-              setPullStatus('update-available')
-              setHasUpdate(true)
-            }
-          } catch {
-            setPullStatus('error')
-            setErrorMessage('获取远程内容失败')
-            // 文件切换时的错误静默处理
+          if (pendingFileRef.current !== activeFilePath) {
+            setIsLoading(false)
+            return
           }
+
+          await saveLocalFile(activeFilePath, content)
+          editor.commands.setContent(content, { contentType: 'markdown' })
+          setIsLoading(false)
+        } else if (result.action === 'pull') {
+          // 切换文件时检测到更新，自动拉取
+          setIsLoading(true)
+          const content = await pullRemoteFile(activeFilePath)
+
+          // 拉取后再次检查是否还是当前文件
+          if (pendingFileRef.current !== activeFilePath) {
+            setIsLoading(false)
+            return
+          }
+
+          await saveLocalFile(activeFilePath, content)
+
+          editor.commands.setContent(content, { contentType: 'markdown' })
+          await updateFileSyncTime(activeFilePath)
+          emitter.emit('sync-pulled', { path: activeFilePath })
+          setIsLoading(false)
+          setHasUpdate(false)
         } else {
           setPullStatus('idle')
           setHasUpdate(false)

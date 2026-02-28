@@ -5,11 +5,14 @@ interface RecordingState {
   isRecording: boolean
   isPaused: boolean
   recordingDuration: number // 录音时长（秒）
-  
+
   // 录音数据
   audioChunks: Blob[]
   mediaRecorder: MediaRecorder | null
-  
+
+  // 计时器
+  timerId?: NodeJS.Timeout
+
   // 控制方法
   startRecording: () => Promise<void>
   pauseRecording: () => void
@@ -71,23 +74,26 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
       
       mediaRecorder.start()
       
-      set({
-        isRecording: true,
-        isPaused: false,
-        audioChunks: chunks,
-        mediaRecorder,
-        recordingDuration: 0
-      })
-      
-      // 启动计时器
+      // 启动计时器，保存到 state
       const timerId = setInterval(() => {
         const state = get()
         if (state.isRecording && !state.isPaused) {
           set({ recordingDuration: state.recordingDuration + 1 })
         } else {
-          clearInterval(timerId)
+          // 暂停时清除计时器
+          clearInterval(state.timerId)
+          set({ timerId: undefined })
         }
       }, 1000)
+
+      set({
+        isRecording: true,
+        isPaused: false,
+        audioChunks: chunks,
+        mediaRecorder,
+        recordingDuration: 0,
+        timerId
+      })
       
     } catch (error) {
       console.error('启动录音失败:', error)
@@ -108,10 +114,14 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
   },
 
   pauseRecording: () => {
-    const { mediaRecorder } = get()
+    const { mediaRecorder, timerId } = get()
     if (mediaRecorder && mediaRecorder.state === 'recording') {
       mediaRecorder.pause()
-      set({ isPaused: true })
+      // 暂停时清除计时器
+      if (timerId) {
+        clearInterval(timerId)
+      }
+      set({ isPaused: true, timerId: undefined })
     }
   },
 
@@ -124,8 +134,13 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
   },
 
   stopRecording: async (): Promise<Blob | null> => {
-    const { mediaRecorder, audioChunks } = get()
-    
+    const { mediaRecorder, audioChunks, timerId } = get()
+
+    // 停止时清除计时器
+    if (timerId) {
+      clearInterval(timerId)
+    }
+
     if (!mediaRecorder) {
       return null
     }
@@ -152,12 +167,18 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
   },
 
   resetState: () => {
+    const { timerId } = get()
+    // 重置时清除计时器
+    if (timerId) {
+      clearInterval(timerId)
+    }
     set({
       isRecording: false,
       isPaused: false,
       recordingDuration: 0,
       audioChunks: [],
-      mediaRecorder: null
+      mediaRecorder: null,
+      timerId: undefined
     })
   }
 }))

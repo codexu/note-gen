@@ -240,7 +240,13 @@ export async function fetchAiStream(
             const toolName = toolNameParts.join('__')
             
             // 解析参数
-            const args = JSON.parse(toolCall.function.arguments)
+            let args = {}
+            try {
+              args = JSON.parse(toolCall.function.arguments)
+            } catch (parseError) {
+              const errorMsg = parseError instanceof Error ? parseError.message : 'Invalid JSON'
+              throw new Error(`Invalid JSON in tool arguments: ${errorMsg}. Raw arguments: ${toolCall.function.arguments.slice(0, 200)}`)
+            }
             
             // 记录 MCP 工具调用（如果提供了 chatId）
             if (chatId) {

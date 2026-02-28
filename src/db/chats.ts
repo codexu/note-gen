@@ -201,11 +201,19 @@ export async function getAllChats() {
 // 插入多条 chat（用于同步）
 export async function insertChats(chats: Chat[]) {
   const db = await getDb()
-  for (const chat of chats) {
-    await db.execute(
-      "insert into chats (tagId, content, role, type, image, images, inserted, createdAt, ragSources) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-      [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources]
-    )
+
+  await db.execute('BEGIN TRANSACTION')
+  try {
+    for (const chat of chats) {
+      await db.execute(
+        "insert into chats (tagId, content, role, type, image, images, inserted, createdAt, ragSources) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        [chat.tagId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources]
+      )
+    }
+    await db.execute('COMMIT')
+  } catch (error) {
+    await db.execute('ROLLBACK')
+    throw error
   }
 }
 

@@ -114,6 +114,10 @@ const useChatStore = create<ChatState>((set, get) => ({
       return
     }
 
+    // 添加版本号引用，防止竞态条件
+    const versionRef = { current: 0 }
+    const currentVersion = ++versionRef.current
+
     const { chats } = state
 
     // 获取最后一次清除后的消息
@@ -125,7 +129,17 @@ const useChatStore = create<ChatState>((set, get) => ({
       // 动态导入 condense 模块（避免循环依赖）
       const { shouldCondense, condenseChats } = await import('@/lib/ai/condense')
 
+      // 版本号检查：防止被新版本覆盖
+      if (currentVersion !== versionRef.current) {
+        return
+      }
+
       if (!(await shouldCondense(chatsAfterClear))) {
+        return
+      }
+
+      // 再次检查版本号
+      if (currentVersion !== versionRef.current) {
         return
       }
 
@@ -135,6 +149,11 @@ const useChatStore = create<ChatState>((set, get) => ({
       try {
         // 为每条消息生成摘要并存储
         const condensedResults = await condenseChats(chatsAfterClear)
+
+        // 版本号检查：防止在压缩过程中被新版本覆盖
+        if (currentVersion !== versionRef.current) {
+          return
+        }
 
         for (const result of condensedResults) {
           if (result.summary) {

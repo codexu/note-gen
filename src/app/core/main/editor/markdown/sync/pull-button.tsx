@@ -9,80 +9,179 @@ import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import { ask } from '@tauri-apps/plugin-dialog'
 import emitter from '@/lib/emitter'
+import { toast } from '@/hooks/use-toast'
+import { ConflictDialog } from './conflict-dialog'
 
 interface PullButtonProps {
   editor: Editor
 }
+
+// 拉取状态
+type PullStatus = 'idle' | 'checking' | 'update-available' | 'pulling' | 'conflict' | 'error'
 
 export function PullButton({ editor }: PullButtonProps) {
   const { activeFilePath } = useArticleStore()
   const [hasUpdate, setHasUpdate] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
+  const [pullStatus, setPullStatus] = useState<PullStatus>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showConflictDialog, setShowConflictDialog] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastInputTimeRef = useRef<number>(Date.now())
+
+  // 编辑器状态检测
+  const [isEditorFocused, setIsEditorFocused] = useState(false)
+  const [hasSelection, setHasSelection] = useState(false)
 
   // 用于防抖和竞态处理
   const pendingFileRef = useRef<string | null>(null)
   const pullTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 远程内容缓存（用于显示更新提示）
+  const remoteContentRef = useRef<string | null>(null)
 
   const IDLE_PULL_INTERVAL = 30 * 1000 // 30 秒
   const IDLE_THRESHOLD = 10 * 1000 // 用户停止输入 10 秒后开始计时
+
+  // 检测编辑器状态
+  useEffect(() => {
+    if (!editor) return
+
+    const handleFocus = () => setIsEditorFocused(true)
+    const handleBlur = () => setIsEditorFocused(false)
+    const handleSelectionUpdate = () => {
+      const selection = editor.state.selection
+      const from = selection.from
+      const to = selection.to
+      setHasSelection(from !== to)
+    }
+
+    editor.on('focus', handleFocus)
+    editor.on('blur', handleBlur)
+    editor.on('selectionUpdate', handleSelectionUpdate)
+
+    // 初始化状态
+    setIsEditorFocused(editor.isFocused)
+    const selection = editor.state.selection
+    setHasSelection(selection.from !== selection.to)
+
+    return () => {
+      editor.off('focus', handleFocus)
+      editor.off('blur', handleBlur)
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor])
 
   // Check if sync is configured
   useEffect(() => {
     isSyncConfigured().then(setIsConfigured)
   }, [])
 
+  // 检查用户是否正在活跃编辑
+  const isUserActive = isEditorFocused || hasSelection
+  const timeSinceInput = Date.now() - lastInputTimeRef.current
+
+  // 执行实际的拉取操作
+  const executePull = useCallback(async (remoteContent: string) => {
+    if (!activeFilePath) return
+
+    setIsLoading(true)
+    try {
+      await saveLocalFile(activeFilePath, remoteContent)
+      // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析 Markdown
+      editor.commands.setContent(remoteContent, { contentType: 'markdown' })
+      // 更新同步时间，避免重复检测
+      await updateFileSyncTime(activeFilePath)
+      // 触发事件，让推送队列重置计时器
+      emitter.emit('sync-pulled', { path: activeFilePath })
+      // 清除远程内容缓存
+      remoteContentRef.current = null
+      setPullStatus('idle')
+      setHasUpdate(false)
+    } catch (error) {
+      console.error('Pull failed:', error)
+      setPullStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : '拉取失败')
+      toast({
+        title: '拉取失败',
+        description: error instanceof Error ? error.message : '请检查网络连接后重试',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [activeFilePath, editor])
+
   // Auto pull from remote (called by interval)
-  const autoPull = useCallback(async () => {
+  const checkForUpdates = useCallback(async () => {
     if (!activeFilePath || isLoading) return
 
+    // 如果用户正在编辑，延迟拉取
+    if (isUserActive) {
+      setPullStatus('idle')
+      return
+    }
+
+    // 如果用户刚停止输入不久，也延迟
+    if (timeSinceInput < IDLE_THRESHOLD) {
+      setPullStatus('idle')
+      return
+    }
+
     try {
+      setPullStatus('checking')
       const result = await compareFileVersions(activeFilePath)
 
       if (result.action === 'conflict') {
-        // 有冲突，提示用户
-        const shouldPull = await ask('远程文件与本地有冲突，是否使用远程版本覆盖本地？', {
-          title: '冲突检测',
-          kind: 'warning',
-        })
-
-        if (shouldPull) {
-          setIsLoading(true)
-          const content = await pullRemoteFile(activeFilePath)
-          await saveLocalFile(activeFilePath, content)
-
-          // Update editor content - 使用 contentType: 'markdown' 让扩展解析
-          editor.commands.setContent(content, { contentType: 'markdown' })
-        }
+        setPullStatus('conflict')
         return
       }
 
       if (result.action === 'pull') {
-        // 有更新，直接拉取
-        setIsLoading(true)
-        const content = await pullRemoteFile(activeFilePath)
-        await saveLocalFile(activeFilePath, content)
-
-        // 使用 contentType: 'markdown' 让 @tiptap/markdown 扩展解析 Markdown
-        editor.commands.setContent(content, { contentType: 'markdown' })
-
-        // 更新同步时间，避免重复检测
-        await updateFileSyncTime(activeFilePath)
-
-        // 触发事件，让推送队列重置计时器
-        emitter.emit('sync-pulled', { path: activeFilePath })
+        // 缓存远程内容
+        try {
+          const content = await pullRemoteFile(activeFilePath)
+          remoteContentRef.current = content
+          // 检测到更新，但不自动拉取，只显示状态
+          setPullStatus('update-available')
+          setHasUpdate(true)
+          return
+        } catch (error) {
+          // 如果拉取失败，标记为错误
+          setPullStatus('error')
+          setErrorMessage('获取远程内容失败')
+          toast({
+            title: '获取远程更新失败',
+            description: '请检查网络连接后重试',
+            variant: 'destructive',
+          })
+          return
+        }
       }
 
-      // 同步后更新按钮状态
+      // 没有更新
+      setPullStatus('idle')
       setHasUpdate(false)
+      remoteContentRef.current = null
     } catch (error) {
-      console.error('Auto pull failed:', error)
-    } finally {
-      setIsLoading(false)
+      console.error('Auto pull check failed:', error)
+      setPullStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : '检查更新失败')
+      // 静默处理自动检查的错误，不弹 toast 打扰用户
     }
-  }, [activeFilePath, editor, isLoading])
+  }, [activeFilePath, isLoading, isUserActive, timeSinceInput])
+
+  // 处理冲突 - 打开对比对话框
+  const handleConflict = useCallback(() => {
+    setShowConflictDialog(true)
+  }, [])
+
+  // 冲突解决后的回调
+  const handleConflictResolved = useCallback(() => {
+    setPullStatus('idle')
+    setHasUpdate(false)
+    remoteContentRef.current = null
+  }, [])
 
   // Check for updates and auto pull when file changes
   useEffect(() => {
@@ -94,7 +193,8 @@ export function PullButton({ editor }: PullButtonProps) {
       pullTimeoutRef.current = null
     }
 
-    const checkAndPullOnSwitch = async () => {
+    // 文件切换时也使用新的检测逻辑，不自动拉取
+    const checkOnSwitch = async () => {
       // 竞态检查：如果当前正在处理的文件不是这个了，忽略
       if (pendingFileRef.current !== null && pendingFileRef.current !== activeFilePath) {
         return
@@ -102,7 +202,16 @@ export function PullButton({ editor }: PullButtonProps) {
 
       pendingFileRef.current = activeFilePath
 
+      // 清除之前的缓存
+      remoteContentRef.current = null
+
       try {
+        // 如果用户正在编辑，不执行检测
+        if (isUserActive) {
+          setPullStatus('idle')
+          return
+        }
+
         const result = await compareFileVersions(activeFilePath)
 
         // 再次检查是否还是当前文件（可能已经切换走了）
@@ -111,39 +220,23 @@ export function PullButton({ editor }: PullButtonProps) {
         }
 
         if (result.action === 'conflict') {
-          const shouldPull = await ask('远程文件与本地有冲突，是否使用远程版本覆盖本地？', {
-            title: '冲突检测',
-            kind: 'warning',
-          })
-
-          if (shouldPull && pendingFileRef.current === activeFilePath) {
-            setIsLoading(true)
-            const content = await pullRemoteFile(activeFilePath)
-            await saveLocalFile(activeFilePath, content)
-
-            editor.commands.setContent(content, { contentType: 'markdown' })
-            setIsLoading(false)
-          }
+          setPullStatus('conflict')
         } else if (result.action === 'pull') {
-          // 切换文件时发现远程有更新，立即拉取
-          setIsLoading(true)
-          const content = await pullRemoteFile(activeFilePath)
-
-          // 拉取后再次检查是否还是当前文件
-          if (pendingFileRef.current !== activeFilePath) {
-            setIsLoading(false)
-            return
+          // 切换文件时检测到更新，缓存内容但不自动拉取
+          try {
+            const content = await pullRemoteFile(activeFilePath)
+            remoteContentRef.current = content
+            setPullStatus('update-available')
+            setHasUpdate(true)
+          } catch {
+            setPullStatus('error')
+            setErrorMessage('获取远程内容失败')
+            // 文件切换时的错误静默处理
           }
-
-          await saveLocalFile(activeFilePath, content)
-
-          editor.commands.setContent(content, { contentType: 'markdown' })
-          await updateFileSyncTime(activeFilePath)
-          emitter.emit('sync-pulled', { path: activeFilePath })
-          setIsLoading(false)
+        } else {
+          setPullStatus('idle')
+          setHasUpdate(false)
         }
-
-        setHasUpdate(result.action === 'pull')
       } catch {
         setHasUpdate(false)
       } finally {
@@ -155,7 +248,7 @@ export function PullButton({ editor }: PullButtonProps) {
     }
 
     // 防抖：延迟 500ms 执行，等待用户停止切换
-    pullTimeoutRef.current = setTimeout(checkAndPullOnSwitch, 500)
+    pullTimeoutRef.current = setTimeout(checkOnSwitch, 500)
 
     return () => {
       if (pullTimeoutRef.current) {
@@ -163,7 +256,7 @@ export function PullButton({ editor }: PullButtonProps) {
         pullTimeoutRef.current = null
       }
     }
-  }, [activeFilePath, isConfigured, editor])
+  }, [activeFilePath, isConfigured, editor, isUserActive])
 
   // 监听用户输入事件，重置计时器
   useEffect(() => {
@@ -176,20 +269,21 @@ export function PullButton({ editor }: PullButtonProps) {
     }
   }, [])
 
-  // Set up auto-pull interval
+  // Set up auto-pull interval (now only checks, doesn't auto-pull)
   useEffect(() => {
     if (!isConfigured || !activeFilePath) return
 
-    const checkAndPull = () => {
+    const checkForUpdatesPeriodically = () => {
+      // 使用 ref 中的最新值
       const now = Date.now()
       const timeSinceInput = now - lastInputTimeRef.current
-      // 用户停止输入超过 10 秒才执行拉取
+      // 用户停止输入超过阈值时才检查
       if (timeSinceInput >= IDLE_THRESHOLD) {
-        autoPull()
+        checkForUpdates()
       }
     }
 
-    intervalRef.current = setInterval(checkAndPull, IDLE_PULL_INTERVAL)
+    intervalRef.current = setInterval(checkForUpdatesPeriodically, IDLE_PULL_INTERVAL)
 
     return () => {
       if (intervalRef.current) {
@@ -197,55 +291,101 @@ export function PullButton({ editor }: PullButtonProps) {
         intervalRef.current = null
       }
     }
-  }, [isConfigured, activeFilePath, autoPull])
+  }, [isConfigured, activeFilePath, checkForUpdates])
 
-  // Pull from remote (manual)
+  // Pull from remote (manual) - 使用缓存的远程内容
   const handlePull = useCallback(async () => {
     if (!activeFilePath || isLoading) return
 
+    // 如果有缓存的远程内容，直接使用
+    if (remoteContentRef.current) {
+      await executePull(remoteContentRef.current)
+      return
+    }
+
+    // 如果没有缓存，重新拉取
     setIsLoading(true)
     try {
       const content = await pullRemoteFile(activeFilePath)
-      await saveLocalFile(activeFilePath, content)
-
-      // Update editor content - 使用 contentType: 'markdown' 让扩展解析
-      editor.commands.setContent(content, { contentType: 'markdown' })
-
-      setHasUpdate(false)
+      await executePull(content)
     } catch (error) {
       console.error('Pull failed:', error)
-    } finally {
-      setIsLoading(false)
     }
-  }, [activeFilePath, editor, isLoading])
+  }, [activeFilePath, isLoading, executePull])
 
   // 如果没有配置同步，不显示
   if (!isConfigured || !activeFilePath) return null
 
+  // 计算状态提示
+  const getStatusText = () => {
+    switch (pullStatus) {
+      case 'checking':
+        return '检查中...'
+      case 'update-available':
+        return '有更新'
+      case 'pulling':
+        return '拉取中...'
+      case 'conflict':
+        return '有冲突'
+      case 'error':
+        return errorMessage || '错误'
+      default:
+        return null
+    }
+  }
+
+  const statusText = getStatusText()
+
   return (
-    <div className="flex items-center gap-1">
-      {/* 拉取中状态 */}
-      {isLoading ? (
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <Loader2 size={12} className="animate-spin" />
-          拉取中...
-        </span>
-      ) : hasUpdate ? (
-        /* 有更新可以拉取 */
-        <button
-          onClick={handlePull}
-          className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500"
-          title="拉取更新"
-        >
-          <ArrowDownCircle size={14} />
-        </button>
-      ) : (
-        /* 无需拉取 */
-        <span className="p-0.5 opacity-30 cursor-not-allowed" title="无需拉取">
-          <ArrowDownCircle size={14} />
-        </span>
-      )}
-    </div>
+    <>
+      <div className="flex items-center gap-1">
+        {/* 状态显示 */}
+        {statusText && !isLoading && pullStatus !== 'idle' && (
+          <span className="text-xs text-muted-foreground">
+            {statusText}
+          </span>
+        )}
+        {/* 拉取中状态 */}
+        {isLoading ? (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Loader2 size={12} className="animate-spin" />
+            拉取中...
+          </span>
+        ) : pullStatus === 'conflict' ? (
+          /* 冲突状态 - 提示用户处理 */
+          <button
+            onClick={handleConflict}
+            className="p-0.5 rounded transition-colors hover:bg-red-500/10 text-red-500"
+            title="处理冲突"
+          >
+            <ArrowDownCircle size={14} />
+          </button>
+        ) : hasUpdate ? (
+          /* 有更新可以拉取 */
+          <button
+            onClick={handlePull}
+            className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500"
+            title="拉取更新"
+          >
+            <ArrowDownCircle size={14} />
+          </button>
+        ) : (
+          /* 无需拉取 */
+          <span className="p-0.5 opacity-30 cursor-not-allowed" title="无需拉取">
+            <ArrowDownCircle size={14} />
+          </span>
+        )}
+      </div>
+
+      {/* 冲突对比对话框 */}
+      <ConflictDialog
+        open={showConflictDialog}
+        onOpenChange={setShowConflictDialog}
+        activeFilePath={activeFilePath}
+        editor={editor}
+        onResolved={handleConflictResolved}
+      />
+    </>
   )
 }
 

@@ -24,6 +24,7 @@ import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
+import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
@@ -47,6 +48,37 @@ import { QuoteMark } from './quote-mark'
 import './style.css'
 
 const lowlight = createLowlight(common)
+
+// Helper function to convert 1-based line number to document position
+function lineToPosition(doc: ProseMirrorNode, line: number): number {
+  let pos = 0
+  let currentLine = 1
+
+  doc.descendants((node, nodePos) => {
+    if (currentLine >= line) return false
+
+    if (node.isText && node.text) {
+      const lineBreaks = node.text.split('\n').length - 1
+      if (currentLine + lineBreaks >= line) {
+        const targetInNode = line - currentLine
+        // Include the target line plus newlines before it
+        const textBeforeTarget = node.text.split('\n').slice(0, targetInNode + 1).join('\n')
+        pos = nodePos + textBeforeTarget.length
+        return false
+      }
+      currentLine += lineBreaks
+    } else if (!node.isInline) {
+      currentLine++
+    }
+    return true
+  })
+
+  // 如果行号超出范围，返回文档末尾
+  if (pos === 0 && line > 1) {
+    return doc.content.size
+  }
+  return pos
+}
 
 // 自定义扩展：处理粘贴 Markdown 文本
 const PasteMarkdown = Extension.create({
@@ -141,6 +173,9 @@ export function TipTapEditor({
   // Bug fix: Track if this is the first onUpdate after initialization
   const isFirstUpdateRef = useRef(true)
 
+  // Content version ref for race condition prevention between editor and agent
+  const contentVersionRef = useRef(0)
+
   // When file path changes, reset initialization state to avoid old file content overwriting new file
   useEffect(() => {
     if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
@@ -232,6 +267,8 @@ export function TipTapEditor({
         onChange?.(markdown)
         // Mark that we've processed the first update
         isFirstUpdateRef.current = false
+        // Increment version on user content changes
+        contentVersionRef.current++
       } else if (isFirstUpdateRef.current) {
         // Skip the very first update during initialization
       } else {
@@ -933,9 +970,9 @@ export function TipTapEditor({
     }
 
     // Get editor content
-    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number }) => void }) => {
+    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => void }) => {
       if (!editor) {
-        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1 })
+        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1, version: 0 })
         return
       }
 
@@ -953,6 +990,7 @@ export function TipTapEditor({
         wordCount: text.split(/\s+/).filter(w => w).length,
         charCount: text.length,
         totalLines,
+        version: contentVersionRef.current,
       })
     }
 
@@ -964,18 +1002,14 @@ export function TipTapEditor({
       }
 
       try {
-        const { from } = editor.state.selection
-
         // Insert content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         setTimeout(() => {
-          editor.chain()
-            .focus()
-            .insertContent(content, { contentType: 'markdown' })
-            .run()
+          const tr = editor.state.tr.insertContent(content, { contentType: 'markdown' })
+          editor.dispatch(tr)
 
-          // Calculate new cursor position
-          const newPosition = from + content.length
+          // Use the actual cursor position after transaction
+          const newPosition = editor.state.selection.from
 
           resolve({
             success: true,
@@ -997,6 +1031,7 @@ export function TipTapEditor({
       occurrence,
       startLine,
       endLine,
+      expectedVersion,
       resolve,
     }: {
       content?: string
@@ -1005,10 +1040,17 @@ export function TipTapEditor({
       occurrence?: number
       startLine?: number
       endLine?: number
-      resolve: (result: { success: boolean; insertedLength: number; message?: string; error?: string; newCursorPosition?: number }) => void
+      expectedVersion?: number
+      resolve: (result: { success: boolean; insertedLength: number; message?: string; error?: string; newCursorPosition?: number; versionMismatch?: boolean }) => void
     }) => {
       if (!editor) {
         resolve({ success: false, insertedLength: 0, error: 'Editor not initialized' })
+        return
+      }
+
+      // Verify version if provided
+      if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
+        resolve({ success: false, versionMismatch: true, insertedLength: 0, error: 'Content has changed, please get editor content again' })
         return
       }
 
@@ -1024,7 +1066,7 @@ export function TipTapEditor({
         else if (searchContent) {
           // Try to find searchContent in the document using a more robust method
           const doc = editor.state.doc
-          const content = editor.getMarkdown() || editor.getText()
+          const content = editor.state.doc.textContent
           const searchLower = searchContent.toLowerCase()
           const contentLower = content.toLowerCase()
 
@@ -1074,10 +1116,8 @@ export function TipTapEditor({
         else if (startLine !== undefined && endLine !== undefined) {
           const doc = editor.state.doc
           // Convert 1-based line numbers to positions
-          const startPos = doc.resolve(startLine - 1)
-          const endPos = doc.resolve(endLine)
-          from = startPos.pos
-          to = endPos.pos
+          from = lineToPosition(doc, startLine)
+          to = lineToPosition(doc, endLine + 1)
         }
         // Fallback: use current selection (only if content is provided)
         else if (content) {
@@ -1097,6 +1137,9 @@ export function TipTapEditor({
             .deleteRange({ from, to })
             .insertContent(newContent, { contentType: 'markdown' })
             .run()
+
+          // Increment version after successful replacement
+          contentVersionRef.current++
 
           resolve({
             success: true,

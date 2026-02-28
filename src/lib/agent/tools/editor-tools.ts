@@ -52,6 +52,7 @@ export const getEditorContentTool: Tool = {
 - \`wordCount\`: Number of words
 - \`charCount\`: Number of characters
 - \`totalLines\`: Total number of lines
+- \`version\`: Version number for content verification (use this when calling replace_editor_content)
 
 **Note:** Use read_markdown_file if you need the saved file content.`,
   category: 'editor',
@@ -60,11 +61,14 @@ export const getEditorContentTool: Tool = {
   execute: async (): Promise<ToolResult> => {
     return new Promise((resolve) => {
       emitter.emit('editor-get-content', {
-        resolve: (data) => {
+        resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => {
           resolve({
             success: true,
-            data,
-            message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字，${data.totalLines || '?'} 行)`,
+            data: {
+              ...data,
+              version: data.version,
+            },
+            message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字，${data.totalLines || '?'} 行, v${data.version})`,
           })
         },
       })
@@ -203,6 +207,12 @@ When the user quotes specific lines from the editor, you MUST use line-based mod
       description: 'Which occurrence to replace (1-based, default: 1)',
       required: false,
     },
+    {
+      name: 'version',
+      type: 'number',
+      description: 'Version number from get_editor_content (to ensure content has not changed, highly recommended)',
+      required: false,
+    },
   ],
   execute: async (params): Promise<ToolResult> => {
     return new Promise((resolve) => {
@@ -229,8 +239,15 @@ When the user quotes specific lines from the editor, you MUST use line-based mod
         occurrence: params.occurrence || 1,
         startLine: params.startLine,
         endLine: params.endLine,
+        expectedVersion: params.version,
         resolve: (result) => {
-          if (result.success) {
+          if (result.versionMismatch) {
+            resolve({
+              success: false,
+              error: result.error,
+              message: '编辑器内容已变化，请重新获取内容后再操作',
+            });
+          } else if (result.success) {
             resolve({
               success: true,
               data: result,

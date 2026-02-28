@@ -4,7 +4,7 @@ import type { QuickPrompt } from '@/lib/ai/placeholder'
 // 定义编辑器事件类型
 interface EditorEvents {
   'editor-get-selection': { resolve: (data: { text: string; from: number; to: number; html?: string; startLine?: number; endLine?: number }) => void }
-  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number }) => void }
+  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => void }
   'editor-insert': { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void }
   'editor-replace': {
     content?: string;
@@ -13,7 +13,8 @@ interface EditorEvents {
     occurrence?: number;
     startLine?: number;
     endLine?: number;
-    resolve: (result: { success: boolean; insertedLength: number; message?: string; error?: string; newCursorPosition?: number }) => void
+    expectedVersion?: number;
+    resolve: (result: { success: boolean; insertedLength: number; message?: string; error?: string; newCursorPosition?: number; versionMismatch?: boolean }) => void
   }
 }
 

@@ -80,6 +80,9 @@ export interface SkillMetadata {
   enabled?: boolean             // 是否启用
   createdAt: number
   updatedAt: number
+
+  // 依赖声明
+  dependencies?: SkillDependency[]
 }
 
 /**
@@ -118,6 +121,18 @@ export interface SkillYamlMetadata {
   author?: string
   model?: string
   userInvocable?: boolean
+
+  // 依赖声明
+  dependencies?: SkillDependency[]
+}
+
+/**
+ * Skill 依赖声明
+ */
+export interface SkillDependency {
+  name: string           // 依赖名称，如 "requests" 或 "lodash"
+  version?: string      // 版本要求，如 ">=2.0.0"（可选）
+  manager: 'pip' | 'npm' | 'yarn' | 'pnpm'  // 包管理器
 }
 
 /**

@@ -1107,16 +1107,18 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
         return observation
       } else {
-        return `工具 ${toolName} 执行失败：${result.error}`
+        const errorMsg = result.error || '未知错误'
+        return `工具 ${toolName} 执行失败：${errorMsg}`
       }
     } catch (error) {
       toolCall.status = 'error'
+      const errorStr = error instanceof Error ? error.message : String(error)
       toolCall.result = {
         success: false,
-        error: String(error),
+        error: errorStr,
       }
       this.config.onToolCall?.(toolCall)
-      return `工具 ${toolName} 执行出错：${error}`
+      return `工具 ${toolName} 执行出错：${errorStr}`
     }
   }
 

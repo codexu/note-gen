@@ -5,6 +5,7 @@
  */
 
 import { Command } from '@tauri-apps/plugin-shell'
+import { readTextFile, writeTextFile, exists, BaseDirectory } from '@tauri-apps/plugin-fs'
 
 /**
  * Parsed dependency information
@@ -124,11 +125,48 @@ async function commandExists(cmd: string): Promise<boolean> {
 
 /**
  * Install a dependency
+ * @param dep - Dependency info
+ * @param targetDir - Optional target directory for installation (e.g., appDataPath for node_modules)
  */
-export async function installDependency(dep: DependencyInfo): Promise<InstallResult> {
+export async function installDependency(dep: DependencyInfo, targetDir?: string): Promise<InstallResult> {
   const { installCommand, installArgs, moduleName, type } = dep
 
   try {
+    // For Node.js modules, if targetDir is provided, install locally there
+    if (type === 'node' && targetDir) {
+      // Check if package.json exists, if not create one
+      const packageJsonPath = `${targetDir}/package.json`
+      const hasPackageJson = await exists(packageJsonPath)
+
+      if (!hasPackageJson) {
+        // Create a minimal package.json
+        await writeTextFile(packageJsonPath, JSON.stringify({
+          name: 'note-gen-skills',
+          version: '1.0.0',
+          description: 'Dependencies for NoteGen skills',
+          private: true
+        }, null, 2))
+      }
+
+      // Install in target directory
+      const installCmd = `cd "${targetDir}" && npm install ${moduleName}`
+
+      const result = await Command.create('bash', ['-c', installCmd]).execute()
+
+      if (result.code === 0) {
+        return {
+          success: true,
+          message: `Successfully installed node module '${moduleName}' in ${targetDir}`,
+          installed: moduleName,
+        }
+      } else {
+        return {
+          success: false,
+          message: `Failed to install node module '${moduleName}': ${result.stderr || 'Unknown error'}`,
+        }
+      }
+    }
+
     // Try with fallback commands (e.g., pip -> pip3, python -> python3)
     const fallbacks = {
       pip: ['pip3'],
@@ -175,13 +213,15 @@ export async function installDependency(dep: DependencyInfo): Promise<InstallRes
 /**
  * Parse error and install dependency if applicable
  * Returns null if error is not a dependency error
+ * @param stderr - Error message from command execution
+ * @param targetDir - Optional target directory for dependency installation
  */
-export async function handleDependencyError(stderr: string): Promise<InstallResult | null> {
+export async function handleDependencyError(stderr: string, targetDir?: string): Promise<InstallResult | null> {
   const dep = parseDependencyError(stderr)
 
   if (!dep) {
     return null
   }
 
-  return await installDependency(dep)
+  return await installDependency(dep, targetDir)
 }

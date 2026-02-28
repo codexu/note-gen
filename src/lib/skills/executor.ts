@@ -12,6 +12,7 @@ import type {
   ScriptExecutionResult,
   SkillScript,
 } from './types'
+import { resolveSkillDirectory, resolveScriptRelativePath, escapeShellArg, buildShellCommand } from './path-utils'
 
 // ============================================================================
 // SkillExecutor 类
@@ -251,11 +252,8 @@ export class SkillExecutor {
     skill?: SkillContent
   ): Promise<{ output: string; exitCode: number }> {
     // 注意：在 Tauri 环境中，脚本执行需要通过 Command API
-    // 这里提供基本的接口，实际实现需要根据具体环境调整
 
     const { Command } = await import('@tauri-apps/plugin-shell')
-    const { getFilePathOptions } = await import('@/lib/workspace')
-    const { basename } = await import('@tauri-apps/api/path')
 
     let command: string
 
@@ -263,7 +261,6 @@ export class SkillExecutor {
     // 优先使用 'python3'，如果不存在则回退到 'python'
     switch (script.type) {
       case 'python':
-        // 优先使用 python3，添加回退逻辑
         command = 'python3'
         break
       case 'bash':
@@ -278,60 +275,34 @@ export class SkillExecutor {
         throw new Error(`Unsupported script type: ${script.type}`)
     }
 
-    // Resolve working directory if skill is provided
-    let workingDirectory = ''
-    if (skill) {
-      const fileInfo = await import('@/lib/skills').then(m => m.skillManager.getSkillFileInfo(skill.metadata.id))
-      if (fileInfo) {
-        // Import appDataDir for resolving BaseDirectory enum to actual path
-        const { appDataDir } = await import('@tauri-apps/api/path')
-
-        if (skill.metadata.scope === 'global') {
-          // For global skills, fileInfo.directory is a relative path under AppData
-          const appDataPath = await appDataDir()
-          workingDirectory = `${appDataPath}/${fileInfo.directory}`
-        } else {
-          const options = await getFilePathOptions(fileInfo.directory)
-          if (options.baseDir) {
-            // Resolve BaseDirectory enum to actual path
-            const appDataPath = await appDataDir()
-            workingDirectory = `${appDataPath}/${options.path}`
-          } else {
-            workingDirectory = options.path
-          }
-        }
-
-        // 计算相对于 skill 目录的脚本路径
-        // script.path 格式: "skills/example/scripts/example.js"
-        // fileInfo.directory 格式: "skills/example"
-        // 相对路径应该是 "scripts/example.js"
-        const skillBaseName = basename(fileInfo.directory)
-        // 匹配 "skills/{skillName}/" 开头的部分并替换
-        const relativeScriptPath = script.path.replace(new RegExp(`^skills/${skillBaseName}/`), '')
-
-        // 使用 shell 命令切换到工作目录并执行
-        const shellCommand = `cd "${workingDirectory}" && ${command} "${relativeScriptPath}" ${(args || []).map(a => `"${a}"`).join(' ')}`
-
-        const result = await Command.create('bash', ['-c', shellCommand]).execute()
-
-        return {
-          output: result.stdout || result.stderr,
-          exitCode: result.code ?? 0,
-        }
-      }
+    // 如果没有 skill 信息，抛出错误而不是静默失败
+    if (!skill) {
+      throw new Error('Skill information is required to execute script')
     }
 
-    // Fallback: execute without working directory (使用绝对路径)
+    // 获取 skill 文件信息
+    const fileInfo = await import('@/lib/skills').then(m => m.skillManager.getSkillFileInfo(skill.metadata.id))
+    if (!fileInfo) {
+      throw new Error(`Cannot find skill file info for: ${skill.metadata.id}`)
+    }
 
-    // 如果没有 skill 信息，使用绝对路径
-    const absolutePath = script.path.startsWith('/')
-      ? script.path
-      : script.path
+    // 使用统一的路径解析函数
+    const workingDirectory = await resolveSkillDirectory(fileInfo.directory, skill.metadata.scope)
 
-    const result = await Command.create(command, [absolutePath, ...(args || [])]).execute()
+    // 使用统一的脚本路径解析函数
+    const skillBaseName = fileInfo.directory.split('/').pop() || skill.metadata.id
+    const relativeScriptPath = resolveScriptRelativePath(script.path, skillBaseName)
+
+    // 使用参数转义函数
+    const shellCommand = buildShellCommand(workingDirectory, command, [relativeScriptPath, ...(args || [])])
+
+    const result = await Command.create('bash', ['-c', shellCommand]).execute()
+
+    // 合并 stdout 和 stderr，确保不丢失任何输出
+    const output = result.stdout + result.stderr
 
     return {
-      output: result.stdout || result.stderr,
+      output: output || '',
       exitCode: result.code ?? 0,
     }
   }

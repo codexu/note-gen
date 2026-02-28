@@ -19,6 +19,7 @@ interface SkillsState {
 
   // 是否已初始化
   initialized: boolean
+  initializing: boolean  // 是否正在初始化，防止重复初始化
 
   // 方法
   initSkills: () => Promise<void>
@@ -55,24 +56,38 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   activeSkill: null,
   skillHistory: [],
   initialized: false,
+  initializing: false,  // 防止重复初始化
 
   // 初始化 Skills
   initSkills: async () => {
+    const state = get()
+
+    // 防止重复初始化
+    if (state.initializing) {
+      // 等待正在进行的初始化完成
+      while (get().initializing) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      return
+    }
+
     // 如果已经初始化过，只加载配置
-    if (get().initialized) {
+    if (state.initialized) {
       await get().loadSkillsConfig()
       return
     }
 
     try {
+      set({ initializing: true })
+
       const store = await Store.load('store.json')
       const enabled = await store.get<boolean>('skills.enabled')
       const autoMatch = await store.get<boolean>('skills.autoMatch')
 
+      // 先设置配置，不设置 initialized
       set({
         enabled: enabled ?? true,  // 默认为 true
         autoMatch: autoMatch ?? true,
-        initialized: true,
       })
 
       // 初始化 Skill 管理器
@@ -80,8 +95,15 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
 
       // 加载 Skills 到状态
       await get().refreshSkills()
+
+      // 只有成功完成所有初始化后才设置 initialized 为 true
+      set({ initialized: true })
     } catch (error) {
       console.error('Failed to initialize Skills:', error)
+      // 初始化失败，重置状态
+      set({ initialized: false })
+    } finally {
+      set({ initializing: false })
     }
   },
 

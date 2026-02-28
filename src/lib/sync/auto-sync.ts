@@ -20,6 +20,38 @@ import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import emitter from '@/lib/emitter'
 
+// Store 实例缓存
+let storeInstance: Store | null = null
+
+/**
+ * 获取 Store 实例
+ */
+async function getStore(): Promise<Store> {
+  if (!storeInstance) {
+    storeInstance = await Store.load('store.json')
+  }
+  return storeInstance
+}
+
+/**
+ * 从 store 获取本地记录的远程 SHA
+ */
+async function getLocalRecordedSha(filePath: string): Promise<string | null> {
+  const store = await getStore()
+  const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
+  return syncedShas[filePath] || null
+}
+
+/**
+ * 设置本地记录的远程 SHA
+ */
+async function setLocalRecordedSha(filePath: string, sha: string): Promise<void> {
+  const store = await getStore()
+  const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
+  syncedShas[filePath] = sha
+  await store.set('syncedFileShas', syncedShas)
+}
+
 export interface FileMetadata {
   path: string
   localSha?: string
@@ -196,6 +228,26 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
   const syncStatus = await getFileSyncStatus(path)
   const lastSyncTime = syncStatus.lastSyncTime
   const lastRestoreTime = await getFileRestoreTime(path)
+
+  // SHA 比较逻辑：使用本地记录的远程 SHA 与当前远程 SHA 进行比较
+  if (remoteInfo.sha) {
+    const localRecordedSha = await getLocalRecordedSha(path)
+
+    // 如果有本地记录的 SHA 和远程 SHA，进行比较
+    if (localRecordedSha && localRecordedSha !== remoteInfo.sha) {
+      // SHA 不一致，说明远程文件已更新，需要拉取
+      return {
+        shouldUpdate: true,
+        action: 'pull',
+        reason: '远程文件已更新（SHA 不匹配），需要拉取更新'
+      }
+    }
+
+    // 如果没有本地记录的 SHA，但远程有内容，记录 SHA
+    if (!localRecordedSha) {
+      await setLocalRecordedSha(path, remoteInfo.sha)
+    }
+  }
 
   // 如果本地文件不存在
   if (!localMeta.localSha) {
@@ -597,7 +649,11 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
     }
     
     const remoteContent = await pullRemoteFile(path)
-    
+
+    // 获取远程文件的 SHA，用于后续更新记录的 SHA
+    const remoteInfo = await getRemoteFileInfo(path)
+    const remoteSha = remoteInfo.sha
+
     // 检测和处理冲突
     if (enableConflictResolution && localContent && localContent !== remoteContent) {
       const resolution = await detectAndHandleConflict(path, localContent, remoteContent)
@@ -637,6 +693,11 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       await saveLocalFile(actualPath, finalContent)
       await updateFileSyncTime(actualPath)
 
+      // 成功拉取后，更新记录的 SHA
+      if (remoteSha) {
+        await setLocalRecordedSha(actualPath, remoteSha)
+      }
+
       // 通知编辑器内容已更新
       emitter.emit('sync-content-updated', { path: actualPath, content: finalContent })
 
@@ -645,6 +706,11 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       // 无冲突，直接保存
       await saveLocalFile(actualPath, remoteContent)
       await updateFileSyncTime(actualPath)
+
+      // 成功拉取后，更新记录的 SHA
+      if (remoteSha) {
+        await setLocalRecordedSha(actualPath, remoteSha)
+      }
 
       // 通知编辑器内容已更新
       emitter.emit('sync-content-updated', { path: actualPath, content: remoteContent })

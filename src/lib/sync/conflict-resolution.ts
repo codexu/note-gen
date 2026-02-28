@@ -1,6 +1,11 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { confirm } from '@tauri-apps/plugin-dialog'
 
+/**
+ * 冲突解决策略类型
+ */
+export type ConflictResolutionStrategy = 'local' | 'remote' | 'manual'
+
 export interface ConflictResolution {
   action: 'keep_local' | 'keep_remote' | 'merge' | 'manual'
   reason?: string
@@ -125,33 +130,51 @@ export async function releaseFileLock(filePath: string): Promise<void> {
 
 /**
  * 检测和处理冲突
+ * @param filePath 文件路径
+ * @param localContent 本地内容
+ * @param remoteContent 远程内容
+ * @param strategy 可选的冲突解决策略，如果提供则直接使用该策略
  */
 export async function detectAndHandleConflict(
   filePath: string,
   localContent: string,
-  remoteContent: string
+  remoteContent: string,
+  strategy?: ConflictResolutionStrategy
 ): Promise<ConflictResolution> {
   // 如果内容相同，不是冲突
   if (localContent === remoteContent) {
     return { action: 'keep_local', reason: '内容相同，无需处理' }
   }
-  
+
+  // 如果提供了策略，直接使用策略解决
+  if (strategy) {
+    const result = await resolveConflict(filePath, localContent, remoteContent, strategy)
+    if (result.resolved) {
+      return {
+        action: strategy === 'local' ? 'keep_local' : strategy === 'remote' ? 'keep_remote' : 'manual',
+        reason: `使用${strategy}策略解决冲突`
+      }
+    } else {
+      return { action: 'manual', reason: '需要用户手动处理' }
+    }
+  }
+
   // 分析冲突类型
   const conflictType = analyzeConflictType(localContent, remoteContent)
-  
+
   switch (conflictType) {
     case 'simple_addition':
       // 简单的内容追加，可以自动合并
       return { action: 'merge', reason: '检测到简单的内容追加，可以自动合并' }
-      
+
     case 'significant_change':
       // 显著内容变化，需要用户选择
       return await promptUserForResolution(filePath, localContent, remoteContent)
-      
+
     case 'format_only':
       // 仅格式变化，保留远程版本
       return { action: 'keep_remote', reason: '检测到格式变化，使用远程版本' }
-      
+
     default:
       return await promptUserForResolution(filePath, localContent, remoteContent)
   }
@@ -163,7 +186,7 @@ export async function detectAndHandleConflict(
 function analyzeConflictType(localContent: string, remoteContent: string): 'simple_addition' | 'significant_change' | 'format_only' {
   const localLines = localContent.split('\n')
   const remoteLines = remoteContent.split('\n')
-  
+
   // 检查是否只是简单的追加
   if (localLines.length < remoteLines.length) {
     const localPrefix = remoteLines.slice(0, localLines.length).join('\n')
@@ -171,16 +194,48 @@ function analyzeConflictType(localContent: string, remoteContent: string): 'simp
       return 'simple_addition'
     }
   }
-  
+
   // 检查是否只是格式变化（去除空白字符后内容相同）
   const normalizedLocal = localContent.replace(/\s+/g, ' ').trim()
   const normalizedRemote = remoteContent.replace(/\s+/g, ' ').trim()
-  
+
   if (normalizedLocal === normalizedRemote) {
     return 'format_only'
   }
-  
+
   return 'significant_change'
+}
+
+/**
+ * 导出分析冲突类型函数供外部使用
+ */
+export function analyzeConflictTypeExported(localContent: string, remoteContent: string): 'simple_addition' | 'significant_change' | 'format_only' {
+  return analyzeConflictType(localContent, remoteContent)
+}
+
+/**
+ * 根据策略解决冲突
+ * @param filePath 文件路径
+ * @param localContent 本地内容
+ * @param remoteContent 远程内容
+ * @param strategy 冲突解决策略
+ * @returns 解决后的内容和是否已解决
+ */
+export async function resolveConflict(
+  filePath: string,
+  localContent: string,
+  remoteContent: string,
+  strategy: ConflictResolutionStrategy
+): Promise<{ content: string; resolved: boolean }> {
+  switch (strategy) {
+    case 'local':
+      return { content: localContent, resolved: true }
+    case 'remote':
+      return { content: remoteContent, resolved: true }
+    case 'manual':
+      // 返回特殊标记，表示需要用户手动处理
+      return { content: localContent, resolved: false }
+  }
 }
 
 /**

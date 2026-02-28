@@ -11,6 +11,22 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { shouldExclude } from '@/config/sync-exclusions'
 
+/**
+ * 获取 GitLab 分支配置
+ */
+async function getGitlabBranch(): Promise<string> {
+  const store = await Store.load('store.json')
+  return await store.get<string>('gitlabBranch') || 'main'
+}
+
+/**
+ * 获取 Gitea 分支配置
+ */
+async function getGiteaBranch(): Promise<string> {
+  const store = await Store.load('store.json')
+  return await store.get<string>('giteaBranch') || 'main'
+}
+
 // 同步配置
 export interface SyncConfig {
   autoSync: boolean           // 自动同步总开关
@@ -223,14 +239,18 @@ export class SyncManager {
           const giteeFile = await getGiteeFiles({ path, repo })
           content = giteeFile?.content
           break
-        case 'gitlab':
-          const gitlabFile = await getGitlabFile({ path, ref: 'main', repo })
+        case 'gitlab': {
+          const branch = await getGitlabBranch()
+          const gitlabFile = await getGitlabFile({ path, ref: branch, repo })
           content = gitlabFile?.content
           break
-        case 'gitea':
-          const giteaFile = await getGiteaFile({ path, ref: 'main', repo })
+        }
+        case 'gitea': {
+          const branch = await getGiteaBranch()
+          const giteaFile = await getGiteaFile({ path, ref: branch, repo })
           content = giteaFile?.content
           break
+        }
       }
 
       if (content) {

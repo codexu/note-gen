@@ -34,6 +34,22 @@ async function getStore(): Promise<Store> {
 }
 
 /**
+ * 获取 GitLab 分支配置
+ */
+async function getGitlabBranch(): Promise<string> {
+  const store = await getStore()
+  return await store.get<string>('gitlabBranch') || 'main'
+}
+
+/**
+ * 获取 Gitea 分支配置
+ */
+async function getGiteaBranch(): Promise<string> {
+  const store = await getStore()
+  return await store.get<string>('giteaBranch') || 'main'
+}
+
+/**
  * 从 store 获取本地记录的远程 SHA
  */
 async function getLocalRecordedSha(filePath: string): Promise<string | null> {
@@ -176,9 +192,10 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
         }
         break
 
-      case 'gitlab':
+      case 'gitlab': {
         const gitlabRepo = await getSyncRepoName('gitlab')
-        file = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo })
+        const gitlabBranch = await getGitlabBranch()
+        file = await getGitlabFileContent({ path, ref: gitlabBranch, repo: gitlabRepo })
         if (file) {
           const commits = await getGitlabFileCommits({ path, repo: gitlabRepo })
           if (commits && commits.data && commits.data.length > 0) {
@@ -191,10 +208,12 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
           return { sha: undefined }
         }
         break
+      }
 
-      case 'gitea':
+      case 'gitea': {
         const giteaRepo = await getSyncRepoName('gitea')
-        file = await getGiteaFileContent({ path, ref: 'main', repo: giteaRepo })
+        const giteaBranch = await getGiteaBranch()
+        file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
         if (file) {
           const commits = await getGiteaFileCommits({ path, repo: giteaRepo })
           if (commits && commits.data && commits.data.length > 0) {
@@ -207,6 +226,7 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
           return { sha: undefined }
         }
         break
+      }
     }
   } catch {
     // 静默处理错误
@@ -368,21 +388,25 @@ export async function pullRemoteFile(path: string): Promise<string> {
         }
         break
 
-      case 'gitlab':
+      case 'gitlab': {
         const gitlabRepo = await getSyncRepoName('gitlab')
-        file = await getGitlabFileContent({ path, ref: 'main', repo: gitlabRepo })
+        const gitlabBranch = await getGitlabBranch()
+        file = await getGitlabFileContent({ path, ref: gitlabBranch, repo: gitlabRepo })
         if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
+      }
 
-      case 'gitea':
+      case 'gitea': {
         const giteaRepo = await getSyncRepoName('gitea')
-        file = await getGiteaFileContent({ path, ref: 'main', repo: giteaRepo })
+        const giteaBranch = await getGiteaBranch()
+        file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
         if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
         }
         break
+      }
     }
   } catch (error) {
     throw error
@@ -731,25 +755,56 @@ export async function hasNetworkConnection(): Promise<boolean> {
   try {
     const store = await Store.load('store.json')
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
-    
-    // 简单的网络检测：尝试获取用户信息
+
+    // 真正的网络检测：尝试发送请求到 API 端点
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10秒超时
+
+    let url = ''
+    let token = ''
+
     switch (primaryBackupMethod) {
       case 'github':
-        const accessToken = await store.get<string>('accessToken')
-        return !!accessToken
+        token = await store.get<string>('accessToken') || ''
+        url = 'https://api.github.com/user'
+        break
       case 'gitee':
-        const giteeAccessToken = await store.get<string>('giteeAccessToken')
-        return !!giteeAccessToken
+        token = await store.get<string>('giteeAccessToken') || ''
+        url = 'https://gitee.com/api/v5/user'
+        break
       case 'gitlab':
-        const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
-        return !!gitlabAccessToken
+        token = await store.get<string>('gitlabAccessToken') || ''
+        const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
+        url = `${gitlabUrl}/api/v4/user`
+        break
       case 'gitea':
-        const giteaAccessToken = await store.get<string>('giteaAccessToken')
-        return !!giteaAccessToken
+        token = await store.get<string>('giteaAccessToken') || ''
+        const giteaUrl = await store.get<string>('giteaUrl') || 'https://gitea.com'
+        url = `${giteaUrl}/api/v1/user`
+        break
       default:
+        clearTimeout(timeoutId)
         return false
     }
-  } catch {
+
+    if (!token) {
+      clearTimeout(timeoutId)
+      return false
+    }
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    clearTimeout(timeoutId)
+    return response.ok
+  } catch (error) {
+    // 网络错误、超时等
+    console.error('Network connection check failed:', error)
     return false
   }
 }

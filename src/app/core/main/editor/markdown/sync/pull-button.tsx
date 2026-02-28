@@ -222,12 +222,24 @@ export function PullButton({ editor }: PullButtonProps) {
         if (result.action === 'conflict') {
           setPullStatus('conflict')
         } else if (result.action === 'pull') {
-          // 切换文件时检测到更新，缓存内容但不自动拉取
+          // 切换文件时检测到更新，弹出确认对话框让用户选择
           try {
             const content = await pullRemoteFile(activeFilePath)
             remoteContentRef.current = content
-            setPullStatus('update-available')
-            setHasUpdate(true)
+
+            // 弹出确认对话框
+            const shouldPull = await ask('检测到远程文件有新版本，是否现在拉取？', {
+              title: '远程更新',
+              kind: 'info',
+            })
+
+            if (shouldPull && pendingFileRef.current === activeFilePath) {
+              await executePull(content)
+            } else {
+              // 用户取消，显示更新提示
+              setPullStatus('update-available')
+              setHasUpdate(true)
+            }
           } catch {
             setPullStatus('error')
             setErrorMessage('获取远程内容失败')

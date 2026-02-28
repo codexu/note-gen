@@ -316,35 +316,9 @@ export function PullButton({ editor }: PullButtonProps) {
   // 如果没有配置同步，不显示
   if (!isConfigured || !activeFilePath) return null
 
-  // 计算状态提示
-  const getStatusText = () => {
-    switch (pullStatus) {
-      case 'checking':
-        return '检查中...'
-      case 'update-available':
-        return '有更新'
-      case 'pulling':
-        return '拉取中...'
-      case 'conflict':
-        return '有冲突'
-      case 'error':
-        return errorMessage || '错误'
-      default:
-        return null
-    }
-  }
-
-  const statusText = getStatusText()
-
   return (
     <>
       <div className="flex items-center gap-1">
-        {/* 状态显示 */}
-        {statusText && !isLoading && pullStatus !== 'idle' && (
-          <span className="text-xs text-muted-foreground">
-            {statusText}
-          </span>
-        )}
         {/* 拉取中状态 */}
         {isLoading ? (
           <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -355,20 +329,28 @@ export function PullButton({ editor }: PullButtonProps) {
           /* 冲突状态 - 提示用户处理 */
           <button
             onClick={handleConflict}
-            className="p-0.5 rounded transition-colors hover:bg-red-500/10 text-red-500"
+            className="p-0.5 rounded transition-colors hover:bg-red-500/10 text-red-500 flex items-center gap-1"
             title="处理冲突"
           >
             <ArrowDownCircle size={14} />
+            <span className="text-xs">有冲突</span>
           </button>
         ) : hasUpdate ? (
           /* 有更新可以拉取 */
           <button
             onClick={handlePull}
-            className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500"
+            className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500 flex items-center gap-1"
             title="拉取更新"
           >
             <ArrowDownCircle size={14} />
+            <span className="text-xs">有更新</span>
           </button>
+        ) : pullStatus === 'checking' ? (
+          /* 检查中状态 */
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Loader2 size={12} className="animate-spin" />
+            检查中
+          </span>
         ) : (
           /* 无需拉取 */
           <span className="p-0.5 opacity-30 cursor-not-allowed" title="无需拉取">

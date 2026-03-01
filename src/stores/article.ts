@@ -541,7 +541,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (workspace.isCustom) {
       // 自定义工作区
       dirs = (await readDir(workspace.path))
-        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i))).map(file => ({
+        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))).map(file => ({
           ...file,
           isEditing: false,
           isLocale: true,
@@ -554,7 +554,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else {
       // 默认工作区
       dirs = (await readDir('article', { baseDir: BaseDirectory.AppData }))
-        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i))).map(file => ({
+        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))).map(file => ({
           ...file,
           isEditing: false,
           isLocale: true,
@@ -602,7 +602,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         try {
           if (workspace.isCustom) {
             children = (await readDir(fullPath))
-              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)))
+              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')))
               .map(file => ({
                 ...file,
                 parent: folder,
@@ -617,7 +617,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
             const dirRelative = await toWorkspaceRelativePath(fullPath)
             const pathOptions = await getFilePathOptions(dirRelative)
             children = (await readDir(pathOptions.path, { baseDir: pathOptions.baseDir }))
-              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)))
+              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')))
               .map(file => ({
                 ...file,
                 parent: folder,

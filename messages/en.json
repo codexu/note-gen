@@ -903,6 +903,7 @@
           "title": "Export Backup",
           "desc": "Package application data into a .zip file and save to specified location.",
           "button": "Choose Location and Export",
+          "simpleButton": "Export",
           "exporting": "Exporting..."
         },
         "import": {

@@ -878,6 +878,7 @@
           "title": "导出备份",
           "desc": "将应用数据打包为 .zip 文件，保存到指定位置。",
           "button": "选择位置并导出",
+          "simpleButton": "导出",
           "exporting": "导出中..."
         },
         "import": {

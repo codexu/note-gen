@@ -861,6 +861,7 @@
           "title": "Exportar Backup",
           "desc": "Empacote os dados do aplicativo em um arquivo .zip e salve no local especificado.",
           "button": "Escolher Local e Exportar",
+          "simpleButton": "Exportar",
           "exporting": "Exportando..."
         },
         "import": {

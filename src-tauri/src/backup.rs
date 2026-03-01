@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
 
+use log::{info, error};
 use tauri::{AppHandle, Manager, command};
 
 use zip::write::SimpleFileOptions;
@@ -15,7 +16,10 @@ pub async fn import_app_data_from_file(
     _file_name: String,
     file_content: Vec<u8>,
 ) -> Result<(), String> {
-    let data_dir = get_data_dir(&app_handle)?;
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app_data_dir: {}", e))?;
 
     // 将文件内容保存到临时文件
     let temp_zip_path = data_dir.join("temp_import.zip");
@@ -70,27 +74,100 @@ pub async fn import_app_data_from_file(
     fs::remove_file(&temp_zip_path)
         .map_err(|e| format!("Failed to remove temp zip file: {}", e))?;
 
-    app_handle.restart();
-}
-
-#[command]
-pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Result<(), String> {
-    // 根据平台选择目录
-    let data_dir = get_data_dir(&app_handle)?;
-
-    if !data_dir.exists() {
-        return Err("Data directory does not exist".to_string());
-    }
-
-    // 使用 zip crate 压缩
-    compress_dir(&data_dir, PathBuf::from(&output_path).as_path())?;
-
+    // 注意：不再自动重启，由前端处理
     Ok(())
 }
 
 #[command]
+pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Result<String, String> {
+    info!("Starting export_app_data with output_path: {}", output_path);
+
+    // 获取数据目录
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| {
+            error!("Failed to get app_data_dir: {}", e);
+            format!("Failed to get app_data_dir: {}", e)
+        })?;
+
+    info!("Data directory: {:?}", data_dir);
+
+    if !data_dir.exists() {
+        error!("Data directory does not exist: {:?}", data_dir);
+        return Err(format!("Data directory does not exist: {:?}", data_dir));
+    }
+
+    // 列出目录内容用于调试
+    let entries = fs::read_dir(&data_dir)
+        .map_err(|e| {
+            error!("Failed to read data directory: {}", e);
+            format!("Failed to read data directory: {}", e)
+        })?;
+
+    let mut entry_count = 0;
+    let mut entry_names = Vec::new();
+    for entry in entries {
+        if let Ok(e) = entry {
+            entry_names.push(e.file_name().to_string_lossy().to_string());
+            entry_count += 1;
+        }
+    }
+
+    info!("Data directory has {} entries: {:?}", entry_count, entry_names);
+
+    if entry_count == 0 {
+        error!("Data directory is empty: {:?}", data_dir);
+        return Err(format!("Data directory is empty: {:?}", data_dir));
+    }
+
+    // 尝试直接保存到用户选择的路径
+    let dest_path = PathBuf::from(&output_path);
+    info!("Trying to export to: {:?}", dest_path);
+
+    // 尝试压缩
+    let write_result = compress_dir(&data_dir, &dest_path);
+
+    match write_result {
+        Ok(_) => {
+            info!("Compression completed successfully to user selected path");
+            Ok(dest_path.to_string_lossy().to_string())
+        }
+        Err(e) => {
+            error!("Failed to write to user selected path: {}", e);
+            // 如果失败，尝试保存到 document_dir
+            info!("Trying to save to document_dir instead");
+
+            let export_dir = app_handle
+                .path()
+                .document_dir()
+                .map_err(|e| {
+                    error!("Failed to get document_dir: {}", e);
+                    format!("Failed to get document_dir: {}", e)
+                })?;
+
+            let file_name = PathBuf::from(&output_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "note-gen-backup.zip".to_string());
+
+            let new_dest_path = export_dir.join(&file_name);
+            info!("Exporting to document_dir: {:?}", new_dest_path);
+
+            compress_dir(&data_dir, &new_dest_path)?;
+            info!("Compression completed successfully to document_dir");
+
+            Ok(new_dest_path.to_string_lossy().to_string())
+        }
+    }
+}
+
+#[command]
 pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<(), String> {
-    let data_dir = get_data_dir(&app_handle)?;
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app_data_dir: {}", e))?;
 
     // 创建临时目录用于解压
     let temp_dir = data_dir.join("temp_import");
@@ -138,7 +215,8 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
     fs::remove_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
 
-    app_handle.restart();
+    // 注意：不再自动重启，由前端处理
+    Ok(())
 }
 
 // 递归复制目录的辅助函数
@@ -163,26 +241,26 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-// 获取数据目录 - 支持移动端和桌面端
-fn get_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    // iOS 上数据存储在 document_dir (Documents 目录)
-    // 这是用户可以访问的目录，也是 tauri-plugin-store 默认存储的位置
-    if let Ok(doc_dir) = app_handle.path().document_dir() {
-        return Ok(doc_dir);
-    }
-
-    // 回退到 app_data_dir
-    if let Ok(data_dir) = app_handle.path().app_data_dir() {
-        return Ok(data_dir);
-    }
-
-    Err("Failed to get data directory".to_string())
-}
-
 // 使用 zip crate 压缩目录
 fn compress_dir(src_dir: &Path, dest_file: &Path) -> Result<(), String> {
+    info!("compress_dir: src_dir={:?}, dest_file={:?}", src_dir, dest_file);
+
+    // 确保父目录存在（仅当父目录不同于源目录时）
+    if let Some(parent) = dest_file.parent() {
+        if parent != src_dir {
+            info!("Creating parent directory if not exists: {:?}", parent);
+            fs::create_dir_all(parent).map_err(|e| {
+                error!("Failed to create parent directory: {}", e);
+                format!("Failed to create parent directory: {}", e)
+            })?;
+        }
+    }
+
     let file =
-        fs::File::create(dest_file).map_err(|e| format!("Failed to create zip file: {}", e))?;
+        fs::File::create(dest_file).map_err(|e| {
+            error!("Failed to create zip file: {}", e);
+            format!("Failed to create zip file: {}", e)
+        })?;
 
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -190,8 +268,17 @@ fn compress_dir(src_dir: &Path, dest_file: &Path) -> Result<(), String> {
     let base_path = src_dir.to_path_buf();
     add_dir_to_zip(&mut zip, &base_path, &base_path, &options)?;
 
-    zip.finish()
-        .map_err(|e| format!("Failed to finish zip: {}", e))?;
+    zip.finish().map_err(|e| {
+        error!("Failed to finish zip: {}", e);
+        format!("Failed to finish zip: {}", e)
+    })?;
+
+    // 检查生成的 zip 文件大小
+    let metadata = fs::metadata(dest_file).map_err(|e| {
+        error!("Failed to get zip file metadata: {}", e);
+        format!("Failed to get zip file metadata: {}", e)
+    })?;
+    info!("Generated zip file size: {} bytes", metadata.len());
 
     Ok(())
 }

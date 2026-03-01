@@ -6,7 +6,7 @@ import { Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item';
 import { invoke } from '@tauri-apps/api/core';
-import { save, open } from '@tauri-apps/plugin-dialog';
+import { save, open, ask } from '@tauri-apps/plugin-dialog';
 import { useToast } from "@/hooks/use-toast";
 import dayjs from 'dayjs';
 import { isMobileDevice } from '@/lib/check';
@@ -23,27 +23,37 @@ export default function LocalBackup() {
     try {
       setIsExporting(true);
 
-      // 选择保存位置
-      const filePath = await save({
-        title: t('exportDialog.title'),
-        defaultPath: `note-gen-backup-${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.zip`,
-        filters: [{
-          name: 'ZIP Files',
-          extensions: ['zip']
-        }]
-      });
+      let filePath: string;
 
-      if (!filePath) {
-        setIsExporting(false);
-        return;
+      if (isMobile) {
+        // 移动端直接生成文件名，保存到应用目录
+        filePath = `note-gen-backup-${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.zip`;
+      } else {
+        // 桌面端弹出保存对话框
+        const selectedPath = await save({
+          title: t('exportDialog.title'),
+          defaultPath: `note-gen-backup-${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.zip`,
+          filters: [{
+            name: 'ZIP Files',
+            extensions: ['zip']
+          }]
+        });
+
+        if (!selectedPath) {
+          setIsExporting(false);
+          return;
+        }
+        filePath = selectedPath;
       }
 
       // 调用后端命令导出AppData
-      await invoke('export_app_data', { outputPath: filePath });
+      const savedPath = await invoke<string>('export_app_data', { outputPath: filePath });
 
       toast({
         title: t('exportSuccess'),
-        description: filePath,
+        description: isMobile
+          ? `文件已保存到: ${savedPath}\n请在 Files App 中查看`
+          : savedPath,
       });
     } catch (error) {
       console.error('Export failed:', error);
@@ -89,10 +99,21 @@ export default function LocalBackup() {
       // 调用后端命令导入AppData
       await invoke('import_app_data', { zipPath: filePath });
 
-      toast({
+      // 导入成功，询问用户是否立即重启
+      const shouldRestart = await ask(t('restartConfirm'), {
         title: t('importSuccess'),
-        description: t('restartConfirm'),
+        kind: 'info'
       });
+
+      if (shouldRestart) {
+        // 移动端关闭程序，桌面端重启
+        const { exit, relaunch } = await import('@tauri-apps/plugin-process')
+        if (isMobile) {
+          await exit(0)
+        } else {
+          await relaunch()
+        }
+      }
     } catch (error) {
       console.error('Import failed:', error);
       toast({
@@ -128,9 +149,10 @@ export default function LocalBackup() {
         fileContent: Array.from(uint8Array)
       });
 
+      // 导入成功
       toast({
         title: t('importSuccess'),
-        description: t('restartConfirm'),
+        description: isMobile ? '请手动关闭应用后重新打开' : t('restartConfirm'),
       });
     } catch (error) {
       console.error('Import failed:', error);
@@ -174,7 +196,7 @@ export default function LocalBackup() {
               onClick={handleExport}
               disabled={isExporting}
             >
-              {isExporting ? t('export.exporting') : t('export.button')}
+              {isExporting ? t('export.exporting') : (isMobile ? t('export.simpleButton') : t('export.button'))}
             </Button>
           </ItemActions>
         </Item>

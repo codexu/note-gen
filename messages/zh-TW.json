@@ -817,6 +817,7 @@
           "title": "匯出備份",
           "desc": "將應用數據打包為 .zip 文件，保存到指定位置。",
           "button": "選擇位置並匯出",
+          "simpleButton": "匯出",
           "exporting": "匯出中..."
         },
         "import": {

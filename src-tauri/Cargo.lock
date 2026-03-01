@@ -3491,7 +3491,6 @@ dependencies = [
  "core-graphics 0.23.2",
  "fuzzy-matcher",
  "jieba-rs",
- "log",
  "machine-uid",
  "openssl",
  "percent-encoding",

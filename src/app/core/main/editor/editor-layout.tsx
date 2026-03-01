@@ -8,6 +8,7 @@ import { TabBar, TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
+import { UnsupportedFile } from './unsupported-file'
 
 export function EditorLayout() {
   const {
@@ -339,7 +340,7 @@ export function EditorLayout() {
           />
         )}
         {itemType === 'unknown' && (
-          <EmptyState />
+          <UnsupportedFile filePath={tab.path} />
         )}
       </div>
     )

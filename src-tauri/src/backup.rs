@@ -19,7 +19,7 @@ pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Resu
     }
 
     // 使用 zip crate 压缩
-    compress_dir(&data_dir, &PathBuf::from(&output_path))?;
+    compress_dir(&data_dir, PathBuf::from(&output_path).as_path())?;
 
     Ok(())
 }
@@ -38,7 +38,7 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         .map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     // 使用 zip crate 解压
-    extract_zip(&PathBuf::from(&zip_path), &temp_dir)?;
+    extract_zip(PathBuf::from(&zip_path).as_path(), &temp_dir)?;
 
     // 处理 store.json
     let store_path = temp_dir.join("store.json");
@@ -186,6 +186,11 @@ fn extract_zip(src_file: &Path, dest_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("Failed to read file from zip: {}", e))?;
 
         let outpath = dest_dir.join(file.mangled_name());
+
+        // 添加路径验证，防止 zip slip 攻击
+        if !outpath.starts_with(dest_dir) {
+            return Err("Invalid zip entry: path traversal detected".to_string());
+        }
 
         if file.name().ends_with('/') {
             fs::create_dir_all(&outpath)

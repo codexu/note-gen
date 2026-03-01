@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { File, FolderOpen, ExternalLink } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { open } from '@tauri-apps/plugin-shell'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
@@ -70,8 +69,18 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
   // 用外部程序打开
   const handleOpenExternal = async () => {
     try {
-      const pathOptions = await getFilePathOptions(filePath)
-      await open(pathOptions.path)
+      const workspace = await getWorkspacePath()
+
+      if (workspace.isCustom) {
+        // 自定义工作区：使用绝对路径
+        const pathOptions = await getFilePathOptions(filePath)
+        await openPath(pathOptions.path)
+      } else {
+        // 默认工作区：使用 AppData 目录
+        const appDir = await appDataDir()
+        const { join } = await import('@tauri-apps/api/path')
+        await openPath(await join(appDir, 'article', filePath))
+      }
     } catch (error) {
       console.error('Failed to open file:', error)
     }

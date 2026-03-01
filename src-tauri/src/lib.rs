@@ -7,7 +7,7 @@ mod skills;
 use webdav::{webdav_backup, webdav_create_dir, webdav_sync, webdav_test};
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
-use backup::{export_app_data, import_app_data};
+use backup::{export_app_data, import_app_data, import_app_data_from_file};
 use skills::import_skill_zip;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,6 +32,7 @@ pub fn run() {
             get_device_id,
             export_app_data,
             import_app_data,
+            import_app_data_from_file,
             import_skill_zip,
         ])
         .run(tauri::generate_context!())

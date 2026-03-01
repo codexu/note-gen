@@ -10,6 +10,70 @@ use zip::ZipArchive;
 use zip::ZipWriter;
 
 #[command]
+pub async fn import_app_data_from_file(
+    app_handle: AppHandle,
+    _file_name: String,
+    file_content: Vec<u8>,
+) -> Result<(), String> {
+    let data_dir = get_data_dir(&app_handle)?;
+
+    // 将文件内容保存到临时文件
+    let temp_zip_path = data_dir.join("temp_import.zip");
+    fs::write(&temp_zip_path, &file_content)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+
+    // 创建临时目录用于解压
+    let temp_dir = data_dir.join("temp_import");
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir)
+            .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
+    }
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    // 使用 zip crate 解压
+    extract_zip(temp_zip_path.as_path(), &temp_dir)?;
+
+    // 处理 store.json
+    let store_path = temp_dir.join("store.json");
+    if store_path.exists() {
+        let dest_store_path = data_dir.join("store.json");
+        fs::copy(&store_path, &dest_store_path)
+            .map_err(|e| format!("Failed to copy store.json: {}", e))?;
+    }
+
+    // 复制其他文件
+    for entry in fs::read_dir(&temp_dir)
+        .map_err(|e| format!("Failed to read temp directory: {}", e))? {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let file_name = entry.file_name();
+
+        if file_name == "store.json" {
+            continue;
+        }
+
+        let src_path = entry.path();
+        let dest_path = data_dir.join(&file_name);
+
+        if src_path.is_file() {
+            fs::copy(&src_path, &dest_path)
+                .map_err(|e| format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e))?;
+        } else if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dest_path)
+                .map_err(|e| format!("Failed to copy directory {}: {}", file_name.to_string_lossy(), e))?;
+        }
+    }
+
+    // 清理临时目录
+    fs::remove_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
+    fs::remove_file(&temp_zip_path)
+        .map_err(|e| format!("Failed to remove temp zip file: {}", e))?;
+
+    app_handle.restart();
+}
+
+#[command]
 pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Result<(), String> {
     // 根据平台选择目录
     let data_dir = get_data_dir(&app_handle)?;
@@ -101,16 +165,18 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
 
 // 获取数据目录 - 支持移动端和桌面端
 fn get_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    // 尝试获取 document_dir（移动端）
+    // iOS 上数据存储在 document_dir (Documents 目录)
+    // 这是用户可以访问的目录，也是 tauri-plugin-store 默认存储的位置
     if let Ok(doc_dir) = app_handle.path().document_dir() {
         return Ok(doc_dir);
     }
 
-    // 回退到 app_data_dir（桌面端）
-    app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get data directory: {}", e))
+    // 回退到 app_data_dir
+    if let Ok(data_dir) = app_handle.path().app_data_dir() {
+        return Ok(data_dir);
+    }
+
+    Err("Failed to get data directory".to_string())
 }
 
 // 使用 zip crate 压缩目录

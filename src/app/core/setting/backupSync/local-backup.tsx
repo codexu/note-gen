@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Download, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { useToast } from "@/hooks/use-toast";
 import dayjs from 'dayjs';
+import { isMobileDevice } from '@/lib/check';
 
 export default function LocalBackup() {
   const t = useTranslations('settings.backupSync.localBackup');
   const { toast } = useToast();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = isMobileDevice();
 
   const handleExport = async () => {
     try {
@@ -37,7 +40,7 @@ export default function LocalBackup() {
 
       // 调用后端命令导出AppData
       await invoke('export_app_data', { outputPath: filePath });
-      
+
       toast({
         title: t('exportSuccess'),
         description: filePath,
@@ -58,10 +61,20 @@ export default function LocalBackup() {
     try {
       setIsImporting(true);
 
-      // 选择zip文件
+      // 移动端使用原生 file input，桌面端使用 Tauri dialog
+      if (isMobile) {
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        }
+        // 等待用户选择文件，onChange 会处理后续逻辑
+        return;
+      }
+
+      // 桌面端使用 Tauri dialog
       const filePath = await open({
         title: t('importDialog.title'),
         multiple: false,
+        directory: false,
         filters: [{
           name: 'ZIP Files',
           extensions: ['zip']
@@ -75,7 +88,7 @@ export default function LocalBackup() {
 
       // 调用后端命令导入AppData
       await invoke('import_app_data', { zipPath: filePath });
-      
+
       toast({
         title: t('importSuccess'),
         description: t('restartConfirm'),
@@ -92,45 +105,99 @@ export default function LocalBackup() {
     }
   };
 
-  return (
-    <ItemGroup className="gap-4">
-      {/* 导出备份 */}
-      <Item variant="outline">
-        <ItemMedia variant="icon">
-          <Download className="size-4" />
-        </ItemMedia>
-        <ItemContent>
-          <ItemTitle>{t('export.title')}</ItemTitle>
-          <ItemDescription>{t('export.desc')}</ItemDescription>
-        </ItemContent>
-        <ItemActions>
-          <Button 
-            onClick={handleExport} 
-            disabled={isExporting}
-          >
-            {isExporting ? t('export.exporting') : t('export.button')}
-          </Button>
-        </ItemActions>
-      </Item>
+  // 处理移动端文件选择
+  const handleFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      setIsImporting(false);
+      return;
+    }
 
-      {/* 导入备份 */}
-      <Item variant="outline">
-        <ItemMedia variant="icon">
-          <Upload className="size-4" />
-        </ItemMedia>
-        <ItemContent>
-          <ItemTitle>{t('import.title')}</ItemTitle>
-          <ItemDescription>{t('import.desc')}</ItemDescription>
-        </ItemContent>
-        <ItemActions>
-          <Button 
-            onClick={handleImport} 
-            disabled={isImporting}
-          >
-            {isImporting ? t('import.importing') : t('import.button')}
-          </Button>
-        </ItemActions>
-      </Item>
-    </ItemGroup>
+    const file = files[0];
+    // 移动端选择的文件需要读取路径
+    // 由于 webview 限制，需要通过后端处理
+    try {
+      // 获取文件路径 - 移动端使用 webkitRelativePath 或 name
+      // 在 Tauri 中，可以通过读取文件内容然后保存到临时位置
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // 调用后端命令导入，传入文件内容
+      await invoke('import_app_data_from_file', {
+        fileName: file.name,
+        fileContent: Array.from(uint8Array)
+      });
+
+      toast({
+        title: t('importSuccess'),
+        description: t('restartConfirm'),
+      });
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast({
+        title: t('importError'),
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      // 重置 input
+      event.target.value = '';
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <>
+      {/* 移动端文件选择 input */}
+      {isMobile && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip,application/zip,application/x-zip-compressed"
+          onChange={handleFileInputChange}
+          className="hidden"
+        />
+      )}
+
+      <ItemGroup className="gap-4">
+        {/* 导出备份 */}
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <Download className="size-4" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('export.title')}</ItemTitle>
+            <ItemDescription>{t('export.desc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button
+              onClick={handleExport}
+              disabled={isExporting}
+            >
+              {isExporting ? t('export.exporting') : t('export.button')}
+            </Button>
+          </ItemActions>
+        </Item>
+
+        {/* 导入备份 */}
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <Upload className="size-4" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('import.title')}</ItemTitle>
+            <ItemDescription>{t('import.desc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button
+              onClick={handleImport}
+              disabled={isImporting}
+            >
+              {isImporting ? t('import.importing') : t('import.button')}
+            </Button>
+          </ItemActions>
+        </Item>
+      </ItemGroup>
+    </>
   );
 }

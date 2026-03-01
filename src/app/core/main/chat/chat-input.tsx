@@ -572,8 +572,8 @@ ${previewLines.join('\n')}
         // 生成并设置文件预览
         const preview = await generateFilePreview(fullPath, workspace.isCustom)
         setLinkedResourcePreview(preview)
-      } else {
-        // 文件夹关联逻辑 - 只有在有索引文件时才关联
+      } else if (!activeFilePath.includes('.')) {
+        // 文件夹关联逻辑 - 只有当路径不包含 . 时才可能是文件夹
         const folderName = activeFilePath.split('/').pop() || activeFilePath
 
         // 构建完整路径
@@ -612,6 +612,11 @@ ${previewLines.join('\n')}
           setChatLinkedResource(null)
           setLinkedResourcePreview(null)
         }
+      } else {
+        // 不支持的文件类型（如 .docx, .pdf 等），不进行关联
+        setLinkedResource(null)
+        setChatLinkedResource(null)
+        setLinkedResourcePreview(null)
       }
     }
 

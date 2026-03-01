@@ -1,12 +1,12 @@
 use std::fs;
 use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use tauri::{AppHandle, Manager, command};
 
 use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
+use zip::ZipArchive;
 use zip::ZipWriter;
 
 #[command]
@@ -26,13 +26,10 @@ pub async fn export_app_data(app_handle: AppHandle, output_path: String) -> Resu
 
 #[command]
 pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<(), String> {
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let data_dir = get_data_dir(&app_handle)?;
 
     // 创建临时目录用于解压
-    let temp_dir = app_data_dir.join("temp_import");
+    let temp_dir = data_dir.join("temp_import");
     if temp_dir.exists() {
         fs::remove_dir_all(&temp_dir)
             .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
@@ -40,24 +37,13 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
     fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
-    // 解压到临时目录
-    let output = Command::new("unzip")
-        .arg("-o")  // 覆盖已存在的文件
-        .arg("-q")  // 静默模式，避免交互
-        .arg(&zip_path)  // zip文件路径
-        .current_dir(&temp_dir)  // 设置工作目录为临时目录
-        .output()
-        .map_err(|e| format!("Failed to execute unzip command: {}", e))?;
+    // 使用 zip crate 解压
+    extract_zip(&PathBuf::from(&zip_path), &temp_dir)?;
 
-    let stderr_msg = String::from_utf8_lossy(&output.stderr);
-    if !output.status.success() {
-        return Err(format!("Unzip command failed: {}", stderr_msg));
-    }
-
-    // 处理 store.json - 直接替换文件而不是循环 set
+    // 处理 store.json
     let store_path = temp_dir.join("store.json");
     if store_path.exists() {
-        let dest_store_path = app_data_dir.join("store.json");
+        let dest_store_path = data_dir.join("store.json");
         fs::copy(&store_path, &dest_store_path)
             .map_err(|e| format!("Failed to copy store.json: {}", e))?;
     }
@@ -68,13 +54,12 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
 
-        // 跳过 store.json，已经在上面处理过了
         if file_name == "store.json" {
             continue;
         }
 
         let src_path = entry.path();
-        let dest_path = app_data_dir.join(&file_name);
+        let dest_path = data_dir.join(&file_name);
 
         if src_path.is_file() {
             fs::copy(&src_path, &dest_path)
@@ -89,7 +74,6 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
     fs::remove_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
 
-    
     app_handle.restart();
 }
 
@@ -183,6 +167,42 @@ fn add_dir_to_zip<W: Write + Seek>(
                 .map_err(|e| format!("Failed to add directory to zip: {}", e))?;
 
             add_dir_to_zip(zip, base_path, &path, options)?;
+        }
+    }
+
+    Ok(())
+}
+
+// 使用 zip crate 解压文件
+fn extract_zip(src_file: &Path, dest_dir: &Path) -> Result<(), String> {
+    let file = fs::File::open(src_file)
+        .map_err(|e| format!("Failed to open zip file: {}", e))?;
+
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)
+            .map_err(|e| format!("Failed to read file from zip: {}", e))?;
+
+        let outpath = dest_dir.join(file.mangled_name());
+
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&outpath)
+                .map_err(|e| format!("Failed to create directory: {}", e))?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(p)
+                        .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+                }
+            }
+
+            let mut outfile = fs::File::create(&outpath)
+                .map_err(|e| format!("Failed to create output file: {}", e))?;
+
+            std::io::copy(&mut file, &mut outfile)
+                .map_err(|e| format!("Failed to extract file: {}", e))?;
         }
     }
 

@@ -1913,6 +1913,15 @@
         }
       }
     },
+    "unsupportedFile": {
+      "title": "Cannot Preview This File",
+      "fileName": "File Name",
+      "filePath": "File Path",
+      "fileSize": "File Size",
+      "modifiedTime": "Modified Time",
+      "openExternal": "Open with External App",
+      "openDirectory": "Open File Directory"
+    },
     "file": {
       "toolbar": {
         "accessRepo": "Access Repository",

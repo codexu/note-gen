@@ -1961,6 +1961,15 @@
         }
       }
     },
+    "unsupportedFile": {
+      "title": "Não É Possível Visualizar Este Arquivo",
+      "fileName": "Nome do Arquivo",
+      "filePath": "Caminho do Arquivo",
+      "fileSize": "Tamanho do Arquivo",
+      "modifiedTime": "Data de Modificação",
+      "openExternal": "Abrir com App Externo",
+      "openDirectory": "Abrir Diretório do Arquivo"
+    },
     "file": {
       "toolbar": {
         "accessRepo": "Acessar Repositório",

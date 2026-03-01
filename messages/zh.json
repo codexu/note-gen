@@ -1855,6 +1855,15 @@
         }
       }
     },
+    "unsupportedFile": {
+      "title": "无法预览此文件",
+      "fileName": "文件名",
+      "filePath": "文件路径",
+      "fileSize": "文件大小",
+      "modifiedTime": "修改时间",
+      "openExternal": "用外部程序打开",
+      "openDirectory": "打开文件目录"
+    },
     "file": {
       "toolbar": {
         "accessRepo": "访问仓库",

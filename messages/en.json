@@ -1523,6 +1523,8 @@
         "copyLink": "Copy Link",
         "copied": "Copied to clipboard!",
         "regenerateDesc": "Regenerate Description",
+        "reconvertStt": "Reconvert Speech to Text",
+        "reconvertSttProcessing": "Reconverting Speech to Text...",
         "viewFolder": "View Folder",
         "viewFile": "View Original File",
         "deleteForever": "Delete Forever",

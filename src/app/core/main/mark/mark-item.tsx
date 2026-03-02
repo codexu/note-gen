@@ -21,7 +21,7 @@ import { LocalImage } from "@/components/local-image";
 import { fetchAiDesc } from "@/lib/ai/description";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { appDataDir } from "@tauri-apps/api/path";
-import { ImageUp } from "lucide-react";
+import { ImageUp, LoaderCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,8 @@ import { MarkMobileActions } from "./mark-mobile-actions";
 import { markToMarkdown } from "@/lib/mark-to-markdown";
 import useSettingStore from "@/stores/setting";
 import { TodoItemContent } from "./todo-item-content";
+import { fetchAudioTranscription } from "@/lib/audio";
+import { BaseDirectory, readFile } from "@tauri-apps/plugin-fs";
 
 dayjs.extend(relativeTime)
 
@@ -139,7 +141,7 @@ DetailViewer.displayName = 'DetailViewer'
 
 export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
   const t = useTranslations('record.mark.type');
-  const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
+  const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection, queues } = useMarkStore();
   const { recordTextSize } = useSettingStore();
 
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
@@ -147,6 +149,14 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
   const handleCheckboxChange = useCallback(() => {
     toggleMarkSelection(mark.id);
   }, [mark.id, toggleMarkSelection]);
+
+  const isReconvertingStt = useMemo(() => {
+    return queues.some(queue =>
+      queue.type === 'recording' &&
+      queue.tagId === mark.tagId &&
+      queue.queueId.startsWith(`reconvert-stt-${mark.id}-`)
+    )
+  }, [queues, mark.id, mark.tagId])
 
   const renderContent = () => {
     switch (mark.type) {
@@ -222,6 +232,12 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
             {mark.url && (
               <div className="mt-2">
                 <AudioPlayer audioPath={mark.url} />
+                {isReconvertingStt && (
+                  <div className={`mt-1 flex items-center gap-1 text-${recordTextSize} text-muted-foreground`}>
+                    <LoaderCircle className="size-3 animate-spin" />
+                    <span>{t('record.mark.toolbar.reconvertSttProcessing')}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -277,6 +293,7 @@ MarkWrapper.displayName = 'MarkWrapper'
 
 export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
   const t = useTranslations();
+  const { sttModel } = useSettingStore()
   const {
     marks,
     fetchMarks,
@@ -284,9 +301,12 @@ export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
     fetchAllTrashMarks,
     isMultiSelectMode,
     selectedMarkIds,
-    clearSelection
+    clearSelection,
+    addQueue,
+    removeQueue
   } = useMarkStore()
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
+  const [isReconvertSttLoading, setIsReconvertSttLoading] = useState(false)
 
   const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     if (isMultiSelectMode) {
@@ -384,6 +404,74 @@ export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
     fetchMarks()
   }, [mark, fetchMarks])
 
+  const handleReconvertStt = useCallback(async (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+
+    if (mark.type !== 'recording' || !mark.url || isReconvertSttLoading) {
+      return
+    }
+
+    if (!sttModel) {
+      toast({
+        title: t('recording.error'),
+        description: t('recording.noModelConfigured'),
+        variant: 'destructive'
+      })
+      return
+    }
+
+    const queueId = `reconvert-stt-${mark.id}-${Date.now()}`
+    addQueue({
+      queueId,
+      tagId: mark.tagId,
+      type: 'recording',
+      progress: t('record.mark.toolbar.reconvertSttProcessing'),
+      startTime: Date.now()
+    })
+
+    setIsReconvertSttLoading(true)
+    try {
+      const fileData = await readFile(mark.url, { baseDir: BaseDirectory.AppData })
+      const extension = mark.url.split('.').pop()?.toLowerCase()
+      const mimeType = extension === 'wav' ? 'audio/wav' :
+        extension === 'mp3' ? 'audio/mpeg' :
+        extension === 'm4a' || extension === 'mp4' ? 'audio/mp4' :
+        extension === 'ogg' ? 'audio/ogg' :
+        extension === 'webm' ? 'audio/webm' :
+        extension === 'flac' ? 'audio/flac' :
+        extension === 'aac' ? 'audio/aac' :
+        'audio/mpeg'
+
+      const buffer = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength) as ArrayBuffer
+      const audioBlob = new Blob([buffer], { type: mimeType })
+
+      const transcription = (await fetchAudioTranscription(audioBlob)).trim()
+      const content = transcription || t('recording.noContentDetected')
+
+      await updateMark({
+        ...mark,
+        content,
+        desc: content.substring(0, 100)
+      })
+      await fetchMarks()
+
+      toast({
+        title: t('recording.success'),
+        description: t('recording.transcriptionSuccess')
+      })
+    } catch (error) {
+      console.error('reconvert STT failed:', error)
+      toast({
+        title: t('recording.error'),
+        description: error instanceof Error ? error.message : t('recording.transcriptionError'),
+        variant: 'destructive'
+      })
+    } finally {
+      removeQueue(queueId)
+      setIsReconvertSttLoading(false)
+    }
+  }, [mark, isReconvertSttLoading, sttModel, t, fetchMarks, addQueue, removeQueue])
+
   const handelShowInFolder = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
     const appDir = await appDataDir()
@@ -438,6 +526,8 @@ export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
               onTransfer={handleTransfer}
               onCopyLink={handleCopyLink}
               onRegenerateDesc={regenerateDesc}
+              onReconvertStt={handleReconvertStt}
+              isReconvertSttLoading={isReconvertSttLoading}
               onShowInFolder={handelShowInFolder}
               onShowInFile={handelShowInFile}
               onRestore={handleRestore}
@@ -481,6 +571,14 @@ export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
         </ContextMenuItem>
         <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc} menuType="record">
           {t('record.mark.toolbar.regenerateDesc')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          inset
+          disabled={isMultiSelectMode || mark.type !== 'recording' || !mark.url || isReconvertSttLoading}
+          onClick={handleReconvertStt}
+          menuType="record"
+        >
+          {isReconvertSttLoading ? t('record.mark.toolbar.reconvertSttProcessing') : t('record.mark.toolbar.reconvertStt')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFolder} menuType="record">

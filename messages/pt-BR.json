@@ -1561,6 +1561,8 @@
         "copyLink": "Copiar Link",
         "copied": "Copiado para a área de transferência!",
         "regenerateDesc": "Gerar Descrição Novamente",
+        "reconvertStt": "Reconverter Áudio em Texto",
+        "reconvertSttProcessing": "Reconvertendo Áudio em Texto...",
         "viewFolder": "Ver na Pasta",
         "viewFile": "Ver Arquivo Original",
         "deleteForever": "Excluir Permanentemente",

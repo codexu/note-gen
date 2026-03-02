@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { MoreVertical, FolderOpen, File, Link2, RefreshCw, Trash2, RotateCcw, XCircle } from 'lucide-react'
+import { MoreVertical, FolderOpen, File, Link2, RefreshCw, Trash2, RotateCcw, XCircle, AudioLines } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +27,8 @@ interface MarkMobileActionsProps {
   onTransfer: (tagId: number, e?: React.MouseEvent) => void
   onCopyLink: (e?: React.MouseEvent) => void
   onRegenerateDesc: (e?: React.MouseEvent) => void
+  onReconvertStt: (e?: React.MouseEvent) => void
+  isReconvertSttLoading?: boolean
   onShowInFolder: (e?: React.MouseEvent) => void
   onShowInFile: (e?: React.MouseEvent) => void
   onRestore: (e?: React.MouseEvent) => void
@@ -44,6 +46,8 @@ export function MarkMobileActions({
   onTransfer,
   onCopyLink,
   onRegenerateDesc,
+  onReconvertStt,
+  isReconvertSttLoading = false,
   onShowInFolder,
   onShowInFile,
   onRestore,
@@ -104,6 +108,14 @@ export function MarkMobileActions({
         >
           <RefreshCw className="mr-2 h-4 w-4" />
           {t('record.mark.toolbar.regenerateDesc')}
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          disabled={isMultiSelectMode || mark.type !== 'recording' || !mark.url || isReconvertSttLoading}
+          onClick={(e) => onReconvertStt(e)}
+        >
+          <AudioLines className="mr-2 h-4 w-4" />
+          {isReconvertSttLoading ? t('record.mark.toolbar.reconvertSttProcessing') : t('record.mark.toolbar.reconvertStt')}
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { File, FolderOpen, ExternalLink } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { toast } from '@/hooks/use-toast'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
@@ -139,6 +140,7 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
   title={fullPath || filePath}
   onClick={async () => {
     await navigator.clipboard.writeText(fullPath || filePath)
+    toast({ title: t('pathCopied') || '路径已复制' })
   }}
 >
   {fullPath || filePath}

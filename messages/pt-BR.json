@@ -1968,6 +1968,7 @@
       "fileSize": "Tamanho do Arquivo",
       "modifiedTime": "Data de Modificação",
       "createdTime": "Data de Criação",
+      "pathCopied": "Caminho copiado",
       "openExternal": "Abrir com App Externo",
       "openDirectory": "Abrir Diretório do Arquivo"
     },

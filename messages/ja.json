@@ -2058,6 +2058,7 @@
       "fileSize": "ファイルサイズ",
       "modifiedTime": "更新日時",
       "createdTime": "作成日時",
+      "pathCopied": "パスをコピーしました",
       "openExternal": "外部アプリで開く",
       "openDirectory": "ファイルのディレクトリを開く"
     },

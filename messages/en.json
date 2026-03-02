@@ -1920,6 +1920,7 @@
       "fileSize": "File Size",
       "modifiedTime": "Modified Time",
       "createdTime": "Created Time",
+      "pathCopied": "Path copied",
       "openExternal": "Open with External App",
       "openDirectory": "Open File Directory"
     },

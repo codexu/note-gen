@@ -113,7 +113,6 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
           <File className="w-8 h-8 text-muted-foreground" />
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold truncate">{fileName}</h2>
-            <p className="text-sm text-muted-foreground truncate">{filePath}</p>
           </div>
         </div>
 

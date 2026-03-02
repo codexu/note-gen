@@ -21,8 +21,27 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
   const t = useTranslations('article.unsupportedFile')
   const [metadata, setMetadata] = useState<FileMetadata | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fullPath, setFullPath] = useState('')
 
   const fileName = filePath.split('/').pop() || filePath
+
+  // 获取完整文件路径
+  useEffect(() => {
+    const fetchFullPath = async () => {
+      try {
+        const workspace = await getWorkspacePath()
+        if (workspace.isCustom) {
+          setFullPath(workspace.path + '/' + filePath)
+        } else {
+          const appDir = await appDataDir()
+          setFullPath(appDir + '/article/' + filePath)
+        }
+      } catch (error) {
+        console.error('Failed to get full path:', error)
+      }
+    }
+    fetchFullPath()
+  }, [filePath])
 
   // 获取文件元信息
   useEffect(() => {
@@ -115,7 +134,7 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
           <File className="w-8 h-8 text-muted-foreground" />
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold truncate">{fileName}</h2>
-            <p className="text-sm text-muted-foreground truncate">{filePath}</p>
+            <p className="text-sm text-muted-foreground truncate">{fullPath || filePath}</p>
           </div>
         </div>
 

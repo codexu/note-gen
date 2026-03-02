@@ -45,6 +45,7 @@ import { AISuggestion } from './ai-suggestion'
 import { AISuggestionFloating } from './ai-suggestion-floating'
 import emitter from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
+import useSettingStore from '@/stores/setting'
 import './style.css'
 
 const lowlight = createLowlight(common)
@@ -159,6 +160,12 @@ export function TipTapEditor({
   const tImage = useTranslations('editor.image')
 
   const placeholderText = placeholder || t('placeholder')
+
+  // 获取正文缩放设置
+  const { contentTextScale } = useSettingStore()
+
+  // 编辑器容器 ref，用于应用字体缩放
+  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Math dialog state
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
@@ -277,6 +284,25 @@ export function TipTapEditor({
       }
     },
   })
+
+  // 应用正文文字大小缩放
+  useEffect(() => {
+    if (!editor) return
+
+    const applyFontSize = () => {
+      if (editorContainerRef.current) {
+        const proseMirror = editorContainerRef.current.querySelector('.ProseMirror') as HTMLElement
+        if (proseMirror) {
+          // 使用 16px 作为基础字体大小，根据 contentTextScale 进行缩放
+          const baseFontSize = 16
+          proseMirror.style.fontSize = `${(baseFontSize * contentTextScale) / 100}px`
+        }
+      }
+    }
+
+    // 立即应用一次
+    applyFontSize()
+  }, [contentTextScale, editor])
 
   // Track active file path for image uploads (ref to avoid re-initializing editor)
   const activeFilePathRef = useRef(activeFilePath)
@@ -1248,7 +1274,7 @@ export function TipTapEditor({
   }
 
   return (
-    <div className="tiptap-editor relative flex flex-col h-full">
+    <div ref={editorContainerRef} className="tiptap-editor relative flex flex-col h-full">
       {/* Editor content - scrollable area */}
       <div
         className="flex-1 overflow-x-hidden overflow-y-auto relative"

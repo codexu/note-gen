@@ -2057,6 +2057,7 @@
       "filePath": "ファイルパス",
       "fileSize": "ファイルサイズ",
       "modifiedTime": "更新日時",
+      "createdTime": "作成日時",
       "openExternal": "外部アプリで開く",
       "openDirectory": "ファイルのディレクトリを開く"
     },

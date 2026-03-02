@@ -10,6 +10,7 @@ import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 interface FileMetadata {
   size: number
   modifiedAt: number | null
+  createdAt: number | null
 }
 
 interface UnsupportedFileProps {
@@ -39,7 +40,8 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
 
         setMetadata({
           size: fileStat.size,
-          modifiedAt: fileStat.mtime?.getTime() || null
+          modifiedAt: fileStat.mtime?.getTime() || null,
+          createdAt: fileStat.birthtime?.getTime() || null
         })
       } catch (error) {
         console.error('Failed to get file metadata:', error)
@@ -128,6 +130,12 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
             <span className="text-sm text-muted-foreground">{t('modifiedTime')}</span>
             <span className="text-sm font-medium">
               {loading ? '...' : formatDate(metadata?.modifiedAt || null)}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">{t('createdTime')}</span>
+            <span className="text-sm font-medium">
+              {loading ? '...' : formatDate(metadata?.createdAt || null)}
             </span>
           </div>
         </div>

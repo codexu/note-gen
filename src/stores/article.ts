@@ -541,7 +541,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (workspace.isCustom) {
       // 自定义工作区
       dirs = (await readDir(workspace.path))
-        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))).map(file => ({
+        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')).map(file => ({
           ...file,
           isEditing: false,
           isLocale: true,
@@ -554,7 +554,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else {
       // 默认工作区
       dirs = (await readDir('article', { baseDir: BaseDirectory.AppData }))
-        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))).map(file => ({
+        .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')).map(file => ({
           ...file,
           isEditing: false,
           isLocale: true,
@@ -602,8 +602,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         try {
           if (workspace.isCustom) {
             children = (await readDir(fullPath))
-              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')))
-              .map(file => ({
+              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')).map(file => ({
                 ...file,
                 parent: folder,
                 isEditing: false,
@@ -617,8 +616,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
             const dirRelative = await toWorkspaceRelativePath(fullPath)
             const pathOptions = await getFilePathOptions(dirRelative)
             children = (await readDir(pathOptions.path, { baseDir: pathOptions.baseDir }))
-              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')))
-              .map(file => ({
+              .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.')).map(file => ({
                 ...file,
                 parent: folder,
                 isEditing: false,

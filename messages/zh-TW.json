@@ -1925,6 +1925,7 @@
       "filePath": "文件路徑",
       "fileSize": "文件大小",
       "modifiedTime": "修改時間",
+      "createdTime": "創建時間",
       "openExternal": "用外部程序打開",
       "openDirectory": "打開文件目錄"
     },

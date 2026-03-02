@@ -1919,6 +1919,7 @@
       "filePath": "File Path",
       "fileSize": "File Size",
       "modifiedTime": "Modified Time",
+      "createdTime": "Created Time",
       "openExternal": "Open with External App",
       "openDirectory": "Open File Directory"
     },

@@ -46,6 +46,22 @@ function useFileManagerShortcuts() {
     }
   }, [currentPlatform])
 
+  const isEditableTarget = useCallback((target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) {
+      return false
+    }
+
+    if (target.isContentEditable) {
+      return true
+    }
+
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+      return true
+    }
+
+    return !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+  }, [])
+
   // 获取当前激活的 item（文件或文件夹）
   const getActiveItem = useCallback((): { path: string; isDirectory: boolean; isLocale: boolean; name: string; sha?: string } | null => {
     if (!activeFilePath) return null
@@ -80,6 +96,10 @@ function useFileManagerShortcuts() {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // 移动端不处理快捷键
     if (isMobileDevice()) {
+      return
+    }
+
+    if (isEditableTarget(e.target)) {
       return
     }
 
@@ -158,7 +178,7 @@ function useFileManagerShortcuts() {
       window.dispatchEvent(event)
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, setClipboardItem])
+  }, [isFocused, getActiveItem, isModKey, currentPlatform, setClipboardItem, isEditableTarget])
 
   // 注册全局快捷键
   useEffect(() => {

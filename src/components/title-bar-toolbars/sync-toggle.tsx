@@ -76,7 +76,7 @@ async function requestGitLab(method: string, url: string, body?: object) {
   const accessToken = await store.get<string>('accessToken')
 
   const headers = new Headers()
-  headers.append('PRIVATE-TOKEN', accessToken)
+  headers.append('PRIVATE-TOKEN', accessToken as string)
   headers.append('Content-Type', 'application/json')
 
   const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
@@ -196,7 +196,6 @@ export function SyncToggle() {
       // 上传数据（tags, marks, chats）
       const tagRes = await uploadTags()
       const markRes = await uploadMarks()
-      const chatRes = await uploadChats()
       
       // 上传配置
       const path = '.settings'
@@ -278,7 +277,7 @@ export function SyncToggle() {
         }
       }
       
-      if (tagRes && markRes && chatRes && settingsRes) {
+      if (tagRes && markRes && settingsRes) {
         toast({
           description: t('record.mark.uploadSuccess'),
         })
@@ -303,9 +302,8 @@ export function SyncToggle() {
       // 下载数据（tags, marks, chats）
       const tagRes = await downloadTags()
       const markRes = await downloadMarks()
-      const chatRes = await downloadChats()
       
-      if (tagRes && markRes && chatRes) {
+      if (tagRes && markRes) {
         await fetchTags()
         await fetchMarks()
         init(currentTagId)

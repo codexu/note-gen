@@ -82,9 +82,6 @@ const useTagStore = create<TagState>((set, get) => ({
     const filename = 'tags.json'
     const tags = await getTags()
     const store = await Store.load('store.json');
-    const jsonToBase64 = (data: Tag[]) => {
-      return Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
-    }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
     let res;
@@ -95,7 +92,7 @@ const useTagStore = create<TagState>((set, get) => ({
         const githubRepo = await getSyncRepoName('github')
         files = await githubGetFiles({ path: fullPath, repo: githubRepo })
         res = await uploadGithubFile({
-          file: jsonToBase64(tags),
+          file: JSON.stringify(tags),
           repo: githubRepo,
           path: fullPath,
           sha: files?.sha,
@@ -105,7 +102,7 @@ const useTagStore = create<TagState>((set, get) => ({
         const giteeRepo = await getSyncRepoName('gitee')
         files = await giteeGetFiles({ path: fullPath, repo: giteeRepo })
         res = await uploadGiteeFile({
-          file: jsonToBase64(tags),
+          file: JSON.stringify(tags),
           repo: giteeRepo,
           path: fullPath,
           sha: files?.sha,
@@ -118,7 +115,7 @@ const useTagStore = create<TagState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
-          file: jsonToBase64(tags),
+          file: JSON.stringify(tags),
           repo: gitlabRepo,
           path,
           filename,
@@ -132,7 +129,7 @@ const useTagStore = create<TagState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
-          file: jsonToBase64(tags),
+          file: JSON.stringify(tags),
           repo: giteaRepo,
           path,
           filename,

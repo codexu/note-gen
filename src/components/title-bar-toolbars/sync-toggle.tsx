@@ -26,224 +26,147 @@ import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
 import { confirm } from "@tauri-apps/plugin-dialog"
 
+// ============ 通用辅助函数 ============
+function encodePath(path: string, filename?: string): string {
+  const fullPath = filename ? `${path}/${filename}` : path
+  return fullPath.replace(/\s/g, '_').split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+async function requestGitHub(method: string, url: string, body?: object) {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('accessToken')
+
+  const headers = new Headers()
+  headers.append('Authorization', `Bearer ${accessToken}`)
+  headers.append('Accept', 'application/vnd.github+json')
+  headers.append('X-GitHub-Api-Version', '2022-11-28')
+  headers.append('Content-Type', 'application/json')
+
+  const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+
+  if (response.status >= 200 && response.status < 300) {
+    return method === 'GET' ? await response.json() : await response.json()
+  }
+  if (method === 'GET') return null
+
+  const errorData = await response.json()
+  throw { status: response.status, message: errorData.message || 'Request failed' }
+}
+
+async function requestGitee(method: string, url: string, body?: object) {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('accessToken')
+
+  const headers = new Headers()
+  headers.append('Content-Type', 'application/json')
+
+  const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+
+  if (response.status >= 200 && response.status < 300) {
+    return method === 'GET' ? await response.json() : await response.json()
+  }
+  if (method === 'GET') return null
+
+  const errorData = await response.json()
+  throw { status: response.status, message: errorData.message || 'Request failed' }
+}
+
+async function requestGitLab(method: string, url: string, body?: object) {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('accessToken')
+
+  const headers = new Headers()
+  headers.append('PRIVATE-TOKEN', accessToken)
+  headers.append('Content-Type', 'application/json')
+
+  const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+
+  if (response.status >= 200 && response.status < 300) {
+    return method === 'GET' ? await response.json() : await response.json()
+  }
+  if (method === 'GET') return null
+
+  const errorData = await response.json()
+  throw { status: response.status, message: errorData.message || 'Request failed' }
+}
+
+async function requestGitea(method: string, url: string, body?: object) {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('accessToken')
+
+  const headers = new Headers()
+  headers.append('Authorization', `token ${accessToken}`)
+  headers.append('Content-Type', 'application/json')
+
+  const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+
+  if (response.status >= 200 && response.status < 300) {
+    return method === 'GET' ? await response.json() : await response.json()
+  }
+  if (method === 'GET') return null
+
+  const errorData = await response.json()
+  throw { status: response.status, message: errorData.message || 'Request failed' }
+}
+
 // ============ GitHub 上传/下载函数 ============
 async function githubUpload({ file, path, filename, sha, repo, accessToken, githubUsername }: {
   file: string, path: string, filename: string, sha?: string, repo: string, accessToken: string, githubUsername: string
 }) {
-  // 构建完整的文件路径
-  const fullPath = `/${path}/${filename}`.replace(/\s/g, '_')
-  const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-  const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${encodedPath}`
-
-  const base64Content = Buffer.from(file, 'utf-8').toString('base64')
-
-  const headers = new Headers();
-  headers.append('Authorization', `Bearer ${accessToken}`);
-  headers.append('Accept', 'application/vnd.github+json');
-  headers.append('X-GitHub-Api-Version', '2022-11-28');
-  headers.append('Content-Type', 'application/json');
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify({
-      message: `Upload ${filename}`,
-      content: base64Content,
-      sha
-    })
-  });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  const errorData = await response.json();
-  throw { status: response.status, message: errorData.message || 'Upload failed' };
+  const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodePath(path, filename)}`
+  return requestGitHub('PUT', url, { message: `Upload ${filename}`, content: file, sha })
 }
 
 async function githubGetFile({ path, repo, accessToken, githubUsername }: {
   path: string, repo: string, accessToken: string, githubUsername: string
 }) {
-  const fullPath = `/${path}`.replace(/\s/g, '_')
-  const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-  const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${encodedPath}`
-
-  const headers = new Headers();
-  headers.append('Authorization', `Bearer ${accessToken}`);
-  headers.append('Accept', 'application/vnd.github+json');
-  headers.append('X-GitHub-Api-Version', '2022-11-28');
-
-  const response = await fetch(url, { method: 'GET', headers });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  return null;
+  const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodePath(path)}`
+  return requestGitHub('GET', url)
 }
 
 // ============ Gitee 上传/下载函数 ============
 async function giteeUpload({ file, path, filename, sha, repo, accessToken, giteeUsername }: {
   file: string, path: string, filename: string, sha?: string, repo: string, accessToken: string, giteeUsername: string
 }) {
-  const fullPath = `/${path}/${filename}`.replace(/\s/g, '_')
-  const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-  const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${encodedPath}`
-
-  const base64Content = Buffer.from(file, 'utf-8').toString('base64')
-
-  const headers = new Headers();
-  headers.append('Content-Type', 'application/json');
-
-  const response = await fetch(url, {
-    method: sha ? 'PUT' : 'POST',
-    headers,
-    body: JSON.stringify({
-      access_token: accessToken,
-      content: base64Content,
-      message: `Upload ${filename}`,
-      branch: 'master',
-      sha
-    })
-  });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  const errorData = await response.json();
-  throw { status: response.status, message: errorData.message || 'Upload failed' };
+  const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${encodePath(path, filename)}`
+  return requestGitee(sha ? 'PUT' : 'POST', url, { access_token: accessToken, content: file, message: `Upload ${filename}`, branch: 'master', sha })
 }
 
 async function giteeGetFile({ path, repo, accessToken, giteeUsername }: {
   path: string, repo: string, accessToken: string, giteeUsername: string
 }) {
-  const fullPath = `/${path}`.replace(/\s/g, '_')
-  const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-  const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${encodedPath}?access_token=${accessToken}`
-
-  const response = await fetch(url, { method: 'GET' });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  return null;
+  const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${encodePath(path)}?access_token=${accessToken}`
+  return requestGitee('GET', url)
 }
 
 // ============ GitLab 上传/下载函数 ============
 async function gitlabUpload({ file, path, filename, sha: _sha, accessToken, projectId }: {
   file: string, path: string, filename: string, sha?: string, accessToken: string, projectId: string
 }) {
-  const fullPath = `${path}/${filename}`.replace(/\s/g, '_')
-  const encodedPath = fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
-
-  const baseUrl = 'https://gitlab.com/api/v4'
-  const url = `${baseUrl}/projects/${projectId}/repository/files/${encodedPath}`
-
-  const base64Content = Buffer.from(file, 'utf-8').toString('base64')
-
-  const headers = new Headers();
-  headers.append('PRIVATE-TOKEN', accessToken);
-  headers.append('Content-Type', 'application/json');
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify({
-      branch: 'main',
-      content: base64Content,
-      commit_message: `Upload ${filename}`,
-      encoding: 'base64'
-    })
-  });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  const errorData = await response.json();
-  throw { status: response.status, message: errorData.message || 'Upload failed' };
+  const url = `https://gitlab.com/api/v4/projects/${projectId}/repository/files/${encodePath(path, filename)}`
+  return requestGitLab('PUT', url, { branch: 'main', content: file, commit_message: `Upload ${filename}`, encoding: 'base64' })
 }
 
 async function gitlabGetFile({ path, accessToken, projectId }: {
   path: string, accessToken: string, projectId: string
 }) {
-  const encodedPath = path.split('/').map(segment => encodeURIComponent(segment)).join('/')
-  const baseUrl = 'https://gitlab.com/api/v4'
-  const url = `${baseUrl}/projects/${projectId}/repository/files/${encodedPath}?ref=main`
-
-  const headers = new Headers();
-  headers.append('PRIVATE-TOKEN', accessToken);
-
-  const response = await fetch(url, { method: 'GET', headers });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  return null;
+  const url = `https://gitlab.com/api/v4/projects/${projectId}/repository/files/${encodePath(path)}?ref=main`
+  return requestGitLab('GET', url)
 }
 
 // ============ Gitea 上传/下载函数 ============
 async function giteaUpload({ file, path, filename, sha, repo, accessToken, giteaUsername }: {
   file: string, path: string, filename: string, sha?: string, repo: string, accessToken: string, giteaUsername: string
 }) {
-  const fullPath = `${path}/${filename}`.replace(/\s/g, '_')
-  const normalizedPath = fullPath.split('/').map((p, i) => {
-    if (i === fullPath.split('/').length - 1) return p
-    return encodeURIComponent(p.replace(/\s/g, '_'))
-  }).join('/')
-
-  const baseUrl = 'https://gitea.com/api/v1'
-  const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${normalizedPath}`
-
-  const base64Content = Buffer.from(file, 'utf-8').toString('base64')
-
-  const headers = new Headers();
-  headers.append('Content-Type', 'application/json');
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify({
-      content: base64Content,
-      message: `Upload ${filename}`,
-      branch: 'main',
-      sha
-    })
-  });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  const errorData = await response.json();
-  throw { status: response.status, message: errorData.message || 'Upload failed' };
+  const url = `https://gitea.com/api/v1/repos/${giteaUsername}/${repo}/contents/${encodePath(path, filename)}`
+  return requestGitea('PUT', url, { content: file, message: `Upload ${filename}`, branch: 'main', sha })
 }
 
 async function giteaGetFile({ path, repo, accessToken, giteaUsername }: {
   path: string, repo: string, accessToken: string, giteaUsername: string
 }) {
-  const fullPath = `/${path}`.replace(/\s/g, '_')
-  const normalizedPath = fullPath.split('/').map((p, i) => {
-    if (i === fullPath.split('/').length - 1) return p
-    return encodeURIComponent(p.replace(/\s/g, '_'))
-  }).join('/')
-
-  const baseUrl = 'https://gitea.com/api/v1'
-  const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents${normalizedPath}?ref=main`
-
-  const headers = new Headers();
-  headers.append('Authorization', `token ${accessToken}`);
-
-  const response = await fetch(url, { method: 'GET', headers });
-
-  if (response.status >= 200 && response.status < 300) {
-    return await response.json();
-  }
-
-  return null;
+  const url = `https://gitea.com/api/v1/repos/${giteaUsername}/${repo}/contents/${encodePath(path)}?ref=main`
+  return requestGitea('GET', url)
 }
 
 export function SyncToggle() {

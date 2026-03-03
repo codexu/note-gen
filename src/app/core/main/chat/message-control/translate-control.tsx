@@ -32,6 +32,7 @@ export function TranslateControl({ chat, onTranslatedContent }: TranslateControl
     "Deutsch",
     "Español",
     "Русский",
+    "Tiếng Việt"
   ]
   
   // 处理翻译

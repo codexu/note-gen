@@ -89,26 +89,25 @@ const useTagStore = create<TagState>((set, get) => ({
     let result = false
     let res;
     let files: any;
+    const fullPath = `${path}/${filename}`;
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepo = await getSyncRepoName('github')
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
+        files = await githubGetFiles({ path: fullPath, repo: githubRepo })
         res = await uploadGithubFile({
           file: jsonToBase64(tags),
           repo: githubRepo,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         break;
       case 'gitee':
         const giteeRepo = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
+        files = await giteeGetFiles({ path: fullPath, repo: giteeRepo })
         res = await uploadGiteeFile({
           file: jsonToBase64(tags),
           repo: giteeRepo,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         break;

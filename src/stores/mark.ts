@@ -200,26 +200,25 @@ const useMarkStore = create<MarkState>((set, get) => ({
     let result = false
     let files: any;
     let res;
+    const fullPath = `${path}/${filename}`;
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepoName = await getSyncRepoName('github')
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepoName })
+        files = await githubGetFiles({ path: fullPath, repo: githubRepoName })
         res = await uploadGithubFile({
           file: jsonToBase64(marks),
           repo: githubRepoName,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         break;
       case 'gitee':
         const giteeRepoName = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepoName })
+        files = await giteeGetFiles({ path: fullPath, repo: giteeRepoName })
         res = await uploadGiteeFile({
           file: jsonToBase64(marks),
           repo: giteeRepoName,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         if (res) {

@@ -141,6 +141,7 @@ DetailViewer.displayName = 'DetailViewer'
 
 export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
   const t = useTranslations('record.mark.type');
+  const toolbarT = useTranslations('record.mark.toolbar');
   const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection, queues } = useMarkStore();
   const { recordTextSize } = useSettingStore();
 
@@ -235,7 +236,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
                 {isReconvertingStt && (
                   <div className={`mt-1 flex items-center gap-1 text-${recordTextSize} text-muted-foreground`}>
                     <LoaderCircle className="size-3 animate-spin" />
-                    <span>{t('record.mark.toolbar.reconvertSttProcessing')}</span>
+                    <span>{toolbarT('reconvertSttProcessing')}</span>
                   </div>
                 )}
               </div>

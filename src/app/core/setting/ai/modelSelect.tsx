@@ -15,7 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { AiConfig } from "../config";
+import { AiConfig, baseAiConfig } from "../config";
 import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
 
@@ -56,7 +56,22 @@ export default function ModelSelect(
     if (requestId !== currentRequestIdRef.current) return
     
     if (!models) return
-    setList(models)
+    // 如果API返回空列表，尝试使用静态模型列表作为后备
+    if (models.length === 0 && model) {
+      const baseConfig = baseAiConfig.find(c => c.baseURL === model.baseURL)
+      if (baseConfig?.staticModels?.length) {
+        setList(baseConfig.staticModels.map(id => ({
+          id,
+          object: 'model' as const,
+          created: 0,
+          owned_by: baseConfig.key,
+        })))
+      } else {
+        setList(models)
+      }
+    } else {
+      setList(models)
+    }
     
     // 如果没有传入aiConfig，则从store中设置model值
     if (!aiConfig && setModel) {

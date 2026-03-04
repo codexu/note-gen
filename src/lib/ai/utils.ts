@@ -3,6 +3,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import OpenAI from 'openai';
 import { AiConfig } from "@/app/core/setting/config";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 /**
  * 获取当前的prompt内容
@@ -279,6 +280,7 @@ export async function createOpenAIClient(AiConfig?: AiConfig) {
     apiKey: apiKey || '',
     baseURL: baseURL,
     dangerouslyAllowBrowser: true,
+    fetch: tauriFetch as unknown as typeof globalThis.fetch,
     defaultHeaders:{
       "x-stainless-arch": null,
       "x-stainless-lang": null,

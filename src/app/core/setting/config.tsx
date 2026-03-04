@@ -131,6 +131,7 @@ export interface AiConfig {
   apiKeyUrl?: string
   customHeaders?: Record<string, string>
   models?: ModelConfig[]
+  staticModels?: string[]
   // 保持向后兼容
   model?: string
   temperature?: number
@@ -231,6 +232,23 @@ const baseAiConfig: AiConfig[] = [
     baseURL: 'https://ai.gitee.com/v1',
     icon: 'https://s2.loli.net/2025/09/15/ih7aTnGPvELFsVc.png',
     apiKeyUrl: 'https://ai.gitee.com/'
+  },
+  {
+    key: 'bailian-coding',
+    title: '阿里云百炼（Coding Plan）',
+    baseURL: 'https://coding.dashscope.aliyuncs.com/v1',
+    icon: 'https://unpkg.com/@lobehub/icons-static-png/light/Bailian.png',
+    apiKeyUrl: 'https://dashscope.console.aliyun.com/apiKey',
+    staticModels: [
+      'qwen3.5-plus',
+      'qwen3-max-2026-01-23',
+      'qwen3-coder-next',
+      'qwen3-coder-plus',
+      'glm-5',
+      'glm-4.7',
+      'kimi-k2.5',
+      'MiniMax-M2.5',
+    ]
   },
 ]
 

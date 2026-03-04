@@ -47,6 +47,11 @@ export default function AiPage() {
   
   // 当前选中的AI配置
   const currentConfig = userCustomModels.find(model => model.key === selectedAiConfig)
+
+  const getConfigDisplayTitle = (config?: AiConfig) => {
+    if (!config) return t('selectConfig')
+    return baseAiConfig.find(item => item.baseURL === config.baseURL)?.title || config.title
+  }
   
   const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
     return Object.entries(headers).map(([key, value]) => ({
@@ -282,13 +287,13 @@ export default function AiPage() {
                 <Select value={selectedAiConfig} onValueChange={setSelectedAiConfig}>
                   <SelectTrigger className="w-full">
                     <div className="flex items-center gap-2">
-                      {currentConfig?.title || t('selectConfig')}
+                      {getConfigDisplayTitle(currentConfig)}
                     </div>
                   </SelectTrigger>
                   <SelectContent>
                     {userCustomModels.map((item) => (
                       <SelectItem value={item.key} key={item.key}>
-                        {item.title}
+                        {getConfigDisplayTitle(item)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -331,7 +336,7 @@ export default function AiPage() {
                         />
                       )}
                       <div>
-                        <div className="font-medium">{currentConfig.title}</div>
+                        <div className="font-medium">{baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.title || currentConfig.title}</div>
                         <div className="text-sm text-muted-foreground">{currentConfig.baseURL}</div>
                       </div>
                     </div>

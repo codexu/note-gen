@@ -218,8 +218,11 @@ export function PullButton({ editor }: PullButtonProps) {
 
         if (result.action === 'conflict') {
           // 有冲突时，根据 autoPullOnSwitch 配置决定是否自动拉取
+          // 先显示检查中状态
+          setPullStatus('checking')
+          setIsLoading(true)
+
           if (autoPullOnSwitch) {
-            setIsLoading(true)
             // 禁用编辑器
             editor.setEditable(false)
             const content = await pullRemoteFile(activeFilePath)
@@ -238,11 +241,15 @@ export function PullButton({ editor }: PullButtonProps) {
           } else {
             // 不自动拉取，只显示冲突状态
             setPullStatus('conflict')
+            setIsLoading(false)
           }
         } else if (result.action === 'pull') {
           // 切换文件时检测到更新，根据 autoPullOnSwitch 配置决定是否自动拉取
+          // 先显示检查中状态
+          setPullStatus('checking')
+          setIsLoading(true)
+
           if (autoPullOnSwitch) {
-            setIsLoading(true)
             // 禁用编辑器
             editor.setEditable(false)
             const content = await pullRemoteFile(activeFilePath)
@@ -264,14 +271,16 @@ export function PullButton({ editor }: PullButtonProps) {
             setIsLoading(false)
             setHasUpdate(false)
           } else {
-            // 不自动拉取，只提示有更新
+            // 不自动拉取，只提示有更新，但先显示 loading 状态
             try {
               const content = await pullRemoteFile(activeFilePath)
               remoteContentRef.current = content
               setPullStatus('update-available')
               setHasUpdate(true)
+              setIsLoading(false)
             } catch {
               setPullStatus('error')
+              setIsLoading(false)
             }
           }
         } else {

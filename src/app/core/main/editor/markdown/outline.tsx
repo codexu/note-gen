@@ -88,12 +88,15 @@ export function Outline({ editor, isOpen }: OutlineProps) {
 
   // Update headings when editor content changes
   useEffect(() => {
+    // Check if editor is fully initialized
+    if (!editor || !editor.view || !editor.view.dom) return
     setHeadings(extractHeadings())
   }, [editor, extractHeadings])
 
   // Find active heading based on scroll position (viewport)
   const findActiveHeadingByScroll = useCallback((): string | null => {
-    if (!editor || headings.length === 0) return null
+    // Check if editor is fully initialized
+    if (!editor || !editor.view || !editor.view.dom || headings.length === 0) return null
 
     // Get the editor's scrollable element
     const editorElement = editor.view.dom as HTMLElement
@@ -119,7 +122,8 @@ export function Outline({ editor, isOpen }: OutlineProps) {
 
   // Update active heading when selection or scroll changes
   useEffect(() => {
-    if (!editor) return
+    // Check if editor is fully initialized
+    if (!editor || !editor.view || !editor.view.dom) return
 
     const updateActiveHeading = () => {
       // First try to get heading from cursor position

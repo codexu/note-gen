@@ -328,11 +328,13 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         editable={!isPulling}
       />
 
-      {/* Outline Panel - right sidebar */}
-      <Outline
-        editor={editorInstance}
-        isOpen={outlineOpen}
-      />
+      {/* Outline Panel - right sidebar - 当正在拉取时不显示 */}
+      {!isPulling && (
+        <Outline
+          editor={editorInstance}
+          isOpen={outlineOpen}
+        />
+      )}
     </div>
   )
 }

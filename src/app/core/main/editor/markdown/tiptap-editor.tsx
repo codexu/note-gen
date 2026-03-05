@@ -413,8 +413,23 @@ export function TipTapEditor({
     if (!editor) return
 
     const handleCopy = (event: ClipboardEvent) => {
+      const { from, to } = editor.state.selection
+
+      // If there's no selection, let browser handle the default copy
+      if (from === to) {
+        return
+      }
+
+      // Check if markdown extension is available
+      if (!editor.markdown) {
+        return
+      }
+
       // Get the selected content as Markdown
-      const markdown = editor.getMarkdown()
+      const slice = editor.state.doc.slice(from, to)
+      // Wrap in doc node for proper serialization
+      const json = { type: 'doc', content: slice.content.toJSON() }
+      const markdown = editor.markdown.serialize(json)
 
       // Write Markdown to clipboard
       if (event.clipboardData) {

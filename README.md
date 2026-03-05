@@ -14,6 +14,18 @@
   <a href="https://www.producthunt.com/products/notegen-2?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-notegen&#0045;2" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=956348&theme=light&t=1749194675492" alt="NoteGen - A&#0032;cross&#0045;platform&#0032;Markdown&#0032;note&#0045;taking&#0032;application | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </div>
 
+## 我正在寻找工作 / Looking For Work
+
+我是一名全栈（侧重前端）开发者，目前正在寻找新的工作机会，欢迎联系我！
+
+I am a full-stack (with a focus on front-end) developer, currently looking for new job opportunities. Feel free to contact me! 
+
+我希望可以获取一份远程办公的工作，或在北京的公司上班。
+
+I am looking for a remote job or a position in a company based in Beijing.
+
+Email: xu461229187@gmail.com
+
 ## Guide
 
 🖥️ Official Document: [English](https://notegen.top/en/) | [简体中文](https://notegen.top/cn/)

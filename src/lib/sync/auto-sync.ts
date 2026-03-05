@@ -52,7 +52,7 @@ async function getGiteaBranch(): Promise<string> {
 /**
  * 从 store 获取本地记录的远程 SHA
  */
-async function getLocalRecordedSha(filePath: string): Promise<string | null> {
+export async function getLocalRecordedSha(filePath: string): Promise<string | null> {
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
   return syncedShas[filePath] || null
@@ -61,7 +61,7 @@ async function getLocalRecordedSha(filePath: string): Promise<string | null> {
 /**
  * 设置本地记录的远程 SHA
  */
-async function setLocalRecordedSha(filePath: string, sha: string): Promise<void> {
+export async function setLocalRecordedSha(filePath: string, sha: string): Promise<void> {
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
   syncedShas[filePath] = sha

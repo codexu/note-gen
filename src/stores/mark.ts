@@ -193,33 +193,29 @@ const useMarkStore = create<MarkState>((set, get) => ({
     const filename = 'marks.json'
     const marks = await getAllMarks()
     const store = await Store.load('store.json');
-    const jsonToBase64 = (data: Mark[]) => {
-      return Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
-    }
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false
     let files: any;
     let res;
+    const fullPath = `${path}/${filename}`;
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepoName = await getSyncRepoName('github')
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepoName })
+        files = await githubGetFiles({ path: fullPath, repo: githubRepoName })
         res = await uploadGithubFile({
-          file: jsonToBase64(marks),
+          file: JSON.stringify(marks),
           repo: githubRepoName,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         break;
       case 'gitee':
         const giteeRepoName = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepoName })
+        files = await giteeGetFiles({ path: fullPath, repo: giteeRepoName })
         res = await uploadGiteeFile({
-          file: jsonToBase64(marks),
+          file: JSON.stringify(marks),
           repo: giteeRepoName,
-          path,
-          filename,
+          path: fullPath,
           sha: files?.sha,
         })
         if (res) {
@@ -233,7 +229,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGitlabFile({
-          file: jsonToBase64(marks),
+          file: JSON.stringify(marks),
           repo: gitlabRepoName,
           path,
           filename,
@@ -247,7 +243,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
         res = await uploadGiteaFile({
-          file: jsonToBase64(marks),
+          file: JSON.stringify(marks),
           repo: giteaRepoName,
           path,
           filename,

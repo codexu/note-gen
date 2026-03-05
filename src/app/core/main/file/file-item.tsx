@@ -89,8 +89,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
 
   const isRoot = path.split('/').length === 1
   const folderPath = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
-  const cacheTree = cloneDeep(fileTree)
-  const currentFolder = getCurrentFolder(folderPath, cacheTree)
+  // 不需要 cloneDeep，因为 getCurrentFolder 只读取数据不修改
+  const currentFolder = getCurrentFolder(folderPath, fileTree)
 
   // 优化的输入处理，支持输入法
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,6 +209,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
             }
           }
         } else {
+          // 根目录文件：需要克隆 fileTree 来更新
+          const cacheTree = cloneDeep(fileTree)
           const index = cacheTree.findIndex(file => file.name === item.name)
           if (index !== undefined && index !== -1) {
             const current = cacheTree[index]
@@ -220,8 +222,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
               cacheTree.splice(index, 1)
             }
           }
+          setFileTree(cacheTree)
         }
-        setFileTree(cacheTree)
 
         // 删除向量数据库中的记录
         try {
@@ -380,11 +382,14 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           currentFolder.children[fileIndex].isEditing = false
         }
       } else {
+        // 根目录文件：需要克隆 fileTree 来更新
+        const cacheTree = cloneDeep(fileTree)
         const fileIndex = cacheTree.findIndex(file => file.name === item.name)
         if (fileIndex !== -1 && fileIndex !== undefined) {
           cacheTree[fileIndex].name = displayName
           cacheTree[fileIndex].isEditing = false
         }
+        setFileTree(cacheTree)
       }
       
       // 确定是重命名现有文件还是创建新文件
@@ -456,11 +461,15 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           if (index !== undefined && index !== -1 && currentFolder?.children) {
             currentFolder?.children?.splice(index, 1)
           }
+          setFileTree(fileTree)
         } else {
+          // 根目录文件：需要克隆 fileTree 来更新
+          const cacheTree = cloneDeep(fileTree)
           const index = cacheTree.findIndex(item => item.name === '')
           if (index !== -1) {
             cacheTree.splice(index, 1)
           }
+          setFileTree(cacheTree)
         }
       } else {
         // 对于重命名现有文件，如果没有输入新名称，则保持原状态
@@ -469,16 +478,19 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           if (fileIndex !== undefined && fileIndex !== -1) {
             currentFolder.children[fileIndex].isEditing = false
           }
+          setFileTree(fileTree)
         } else {
+          // 根目录文件：需要克隆 fileTree 来更新
+          const cacheTree = cloneDeep(fileTree)
           const fileIndex = cacheTree.findIndex(file => file.name === item.name)
           if (fileIndex !== -1 && fileIndex !== undefined) {
             cacheTree[fileIndex].isEditing = false
           }
+          setFileTree(cacheTree)
         }
       }
     }
-    
-    setFileTree(cacheTree)
+
     setIsEditing(false)
   }
 
@@ -671,13 +683,16 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
       if (index !== undefined && index !== -1 && currentFolder?.children) {
         currentFolder?.children?.splice(index, 1)
       }
+      setFileTree(fileTree)
     } else {
+      // 根目录文件：需要克隆 fileTree 来更新
+      const cacheTree = cloneDeep(fileTree)
       const index = cacheTree.findIndex(item => item.name === '')
       if (index !== -1) {
         cacheTree.splice(index, 1)
       }
+      setFileTree(cacheTree)
     }
-    setFileTree(cacheTree)
     setIsEditing(false)
   }
 

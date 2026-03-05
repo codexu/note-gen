@@ -10,6 +10,16 @@ import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
 import { UnsupportedFile } from './unsupported-file'
 
+// 常量：扩展名到类型的映射（避免每次渲染时重新创建）
+const MARKDOWN_EXTENSIONS = new Set([
+  'md', 'txt', 'markdown', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less',
+  'html', 'xml', 'json', 'yaml', 'yml', 'sh', 'bash', 'java', 'c', 'cpp', 'h', 'go',
+  'rs', 'sql', 'rb', 'php', 'vue', 'svelte', 'astro', 'toml', 'ini', 'conf', 'cfg',
+  'gitignore', 'env', 'example', 'template'
+])
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'])
+
 export function EditorLayout() {
   const {
     activeFilePath,
@@ -68,10 +78,10 @@ export function EditorLayout() {
     const extension = path.split('.').pop()?.toLowerCase()
     if (!extension) return 'unknown'
 
-    if (['md', 'txt', 'markdown', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'html', 'xml', 'json', 'yaml', 'yml', 'sh', 'bash', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'sql', 'rb', 'php', 'vue', 'svelte', 'astro', 'toml', 'ini', 'conf', 'cfg', 'gitignore', 'env', 'example', 'template'].includes(extension)) {
+    if (MARKDOWN_EXTENSIONS.has(extension)) {
       return 'markdown'
     }
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) {
+    if (IMAGE_EXTENSIONS.has(extension)) {
       return 'image'
     }
     return 'unknown'
@@ -237,20 +247,28 @@ export function EditorLayout() {
     emitter.emit('editor-file-close', { path: closedPath })
     delete tabContentsRef.current[closedPath]
 
-    // Bug fix: Get closedTab from the current ref value (updated synchronously in useEffect)
+    // Get closedTab from the current ref value
     const closedTab = tabsRef.current.find(t => t.path === closedPath)
-    if (closedTab) {
-      removeTab(closedTab.id)
-    }
+    if (!closedTab) return
 
-    // Bug fix: Only switch active tab if we're closing the currently active tab
-    // Use localActiveTabId which is kept in sync via useEffect
-    if (closedTab && localActiveTabId === closedTab.id) {
-      if (tabsRef.current.length > 1) {
-        const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
-        const targetTab = tabsRef.current[Math.max(0, currentIndex - 1)] || tabsRef.current[tabsRef.current.length - 1]
-        setActiveTabId(targetTab.id)
-        setActiveFilePath(targetTab.path)
+    // Save the current tabs count before removing
+    const tabsCountBeforeRemove = tabsRef.current.length
+
+    // Remove the tab
+    removeTab(closedTab.id)
+
+    // Only switch active tab if we're closing the currently active tab
+    if (localActiveTabId === closedTab.id) {
+      if (tabsCountBeforeRemove > 1) {
+        // Find the new target tab from the updated tabsRef after removal
+        const remainingTabs = tabsRef.current.filter(t => t.id !== closedTab.id)
+        if (remainingTabs.length > 0) {
+          // Try to select the tab to the left, otherwise select the last one
+          const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
+          const targetTab = remainingTabs[Math.max(0, currentIndex - 1)] || remainingTabs[remainingTabs.length - 1]
+          setActiveTabId(targetTab.id)
+          setActiveFilePath(targetTab.path)
+        }
       } else {
         setActiveTabId('')
         setActiveFilePath('')
@@ -381,8 +399,8 @@ export function EditorLayout() {
         onCloseRightTabs={handleCloseRightTabs}
       />
 
-      {/* Content panels - all rendered, only active one visible */}
-      {tabs.map(tab => renderContentPanel(tab, tab.id === localActiveTabId))}
+      {/* Only render active tab content - improves performance with many tabs */}
+      {tabs.filter(tab => tab.id === localActiveTabId).map(tab => renderContentPanel(tab, true))}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect, memo } from 'react'
 import { X, FileText, Folder, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
@@ -197,6 +197,9 @@ function SortableTabWithMenu({
   )
 }
 
+// Memoize to prevent unnecessary re-renders
+const MemoizedSortableTabWithMenu = memo(SortableTabWithMenu)
+
 export function TabBar({
   tabs,
   activeTabId,
@@ -356,7 +359,7 @@ export function TabBar({
             strategy={horizontalListSortingStrategy}
           >
             {tabs.map((tab) => (
-              <SortableTabWithMenu
+              <MemoizedSortableTabWithMenu
                 key={tab.id}
                 tab={tab}
                 isActive={activeTabId === tab.id}

@@ -5,7 +5,7 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
-import { pullRemoteFile } from './auto-sync'
+import { pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { getRemoteFileInfo } from './auto-sync'
 import useSettingStore from '@/stores/setting'
 
@@ -252,6 +252,16 @@ class SyncPushQueue {
             const githubModule = await import('@/lib/sync/github') as any
             // 每次尝试都重新获取远程 SHA，因为远程可能在变化
             const fileInfo = await githubModule.getFiles({ path, repo })
+
+            // 检查返回的是文件还是目录
+            // GitHub API 对文件返回对象，对目录返回数组
+            // 如果是数组（目录），则无法获取 sha，跳过推送
+            if (Array.isArray(fileInfo)) {
+              console.warn(`[SyncPushQueue] ${path} 是目录，无法推送`)
+              emitter.emit('sync-push-completed', { path, success: false })
+              return { success: false }
+            }
+
             const result = await githubModule.uploadFile({
               ext: path.split('.').pop() || 'md',
               file: content,
@@ -272,6 +282,16 @@ class SyncPushQueue {
             const giteeModule = await import('@/lib/sync/gitee') as any
             // 每次尝试都重新获取远程 SHA
             const fileInfo = await giteeModule.getFiles({ path, repo })
+
+            // 检查返回的是文件还是目录
+            // Gitee API 对文件返回对象，对目录返回数组
+            // 如果是数组（目录），则无法获取 sha，跳过推送
+            if (Array.isArray(fileInfo)) {
+              console.warn(`[SyncPushQueue] ${path} 是目录，无法推送`)
+              emitter.emit('sync-push-completed', { path, success: false })
+              return { success: false }
+            }
+
             const result = await giteeModule.uploadFile({
               ext: path.split('.').pop() || 'md',
               file: content,
@@ -321,6 +341,10 @@ class SyncPushQueue {
         }
 
         if (success) {
+          // 推送成功后，保存远程 SHA 到本地 store
+          if (uploadedSha) {
+            await setLocalRecordedSha(path, uploadedSha)
+          }
           emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
           return { success: true, sha: uploadedSha }
         } else {
@@ -348,6 +372,26 @@ class SyncPushQueue {
           errorMessage.includes('out of date') ||
           errorMessage.includes('已过时') ||
           errorMessage.includes('冲突')
+
+        // 如果是 SHA 不匹配错误且是首次尝试，显示确认对话框让用户选择
+        if (isShaMismatch && attempt === 1) {
+          // 获取本地记录的 SHA 和远程 SHA
+          const localRecordedSha = await getLocalRecordedSha(path)
+          const remoteFileInfo = await getRemoteFileInfo(path)
+          const remoteFileSha = remoteFileInfo.sha
+
+          // 发射事件让 UI 显示确认对话框
+          emitter.emit('sync-sha-mismatch', {
+            path,
+            localSha: localRecordedSha || undefined,
+            remoteSha: remoteFileSha || undefined,
+            force: false
+          })
+
+          // 不再自动重试，等待用户确认
+          emitter.emit('sync-push-completed', { path, success: false })
+          return { success: false }
+        }
 
         if (isShaMismatch && attempt < maxRetries) {
           // 等待一段时间后重试（指数退避）
@@ -377,6 +421,113 @@ class SyncPushQueue {
       return info.sha
     } catch {
       return undefined
+    }
+  }
+
+  /**
+   * 强制推送文件到远程（忽略 SHA 不匹配）
+   * 用于用户确认后强制覆盖远程文件
+   */
+  async forcePush(path: string): Promise<{ success: boolean; sha?: string }> {
+    try {
+      const store = await Store.load('store.json')
+      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
+      const repo = await getSyncRepoName(provider)
+
+      // 从磁盘读取最新内容
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(path)
+      const content = workspace.isCustom
+        ? await readTextFile(pathOptions.path)
+        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+
+      // 生成提交信息
+      const commitMessage = await this.generateCommitMessage(path, content)
+
+      let success = false
+      let uploadedSha: string | undefined
+
+      switch (provider) {
+        case 'github': {
+          const githubModule = await import('@/lib/sync/github') as any
+          // 强制上传：不带 sha 参数
+          const result = await githubModule.uploadFile({
+            ext: path.split('.').pop() || 'md',
+            file: content,
+            filename: path.split('/').pop() || path,
+            sha: undefined, // 强制上传，不带 sha
+            message: commitMessage,
+            repo,
+            path
+          })
+          if (result && result.data) {
+            success = true
+            uploadedSha = result?.data?.content?.sha
+          }
+          break
+        }
+        case 'gitee': {
+          const giteeModule = await import('@/lib/sync/gitee') as any
+          const result = await giteeModule.uploadFile({
+            ext: path.split('.').pop() || 'md',
+            file: content,
+            filename: path.split('/').pop() || path,
+            sha: undefined, // 强制上传
+            message: commitMessage,
+            repo,
+            path
+          })
+          if (result && result.data) {
+            success = true
+            uploadedSha = result?.data?.sha
+          }
+          break
+        }
+        case 'gitlab': {
+          const gitlabModule = await import('@/lib/sync/gitlab') as any
+          await gitlabModule.uploadFile({
+            file: content,
+            filename: path.split('/').pop() || path,
+            sha: undefined,
+            message: commitMessage,
+            repo,
+            path
+          })
+          success = true
+          uploadedSha = await this.getRemoteSha(path)
+          break
+        }
+        case 'gitea': {
+          const giteaModule = await import('@/lib/sync/gitea') as any
+          await giteaModule.uploadFile({
+            file: content,
+            filename: path.split('/').pop() || path,
+            sha: undefined,
+            message: commitMessage,
+            repo,
+            path
+          })
+          success = true
+          uploadedSha = await this.getRemoteSha(path)
+          break
+        }
+      }
+
+      if (success) {
+        // 保存新的 SHA
+        if (uploadedSha) {
+          await setLocalRecordedSha(path, uploadedSha)
+        }
+        emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
+        return { success: true, sha: uploadedSha }
+      } else {
+        emitter.emit('sync-push-completed', { path, success: false })
+        return { success: false }
+      }
+    } catch (error) {
+      console.error('[SyncPushQueue] 强制推送失败:', error)
+      emitter.emit('sync-push-completed', { path, success: false })
+      return { success: false }
     }
   }
 

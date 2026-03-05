@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useMemo } from "react"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import useArticleStore, { DirTree } from "@/stores/article"
 import { BaseDirectory, rename, writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
@@ -141,8 +141,11 @@ export function FileManager({ focusSidebar }: { focusSidebar: () => void }) {
     }
   }, [loadFileTree])
 
-  // 根据开关状态过滤文件树
-  const filteredFileTree = filterFileTree(fileTree, showCloudFiles)
+  // 根据开关状态过滤文件树 - 使用 useMemo 缓存结果
+  const filteredFileTree = useMemo(
+    () => filterFileTree(fileTree, showCloudFiles),
+    [fileTree, showCloudFiles]
+  )
 
   return (
     <div className={`flex-1 overflow-y-auto ${isDragging && 'outline-2 outline-black outline-dotted -outline-offset-4'}`}>

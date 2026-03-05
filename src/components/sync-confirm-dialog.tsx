@@ -30,6 +30,9 @@ import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 import { cn } from '@/lib/utils'
+import emitter from '@/lib/emitter'
+import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
+import { useEffect } from 'react'
 
 // 初始化 dayjs 插件
 dayjs.extend(relativeTime)
@@ -42,13 +45,43 @@ export function SyncConfirmDialog() {
     dialogType,
     fileName,
     commitInfo,
+    localSha,
+    remoteSha,
     onConfirm,
     onCancel,
     onKeepLocal,
     onMerge,
     onIgnore,
-    hideConfirmDialog
+    hideConfirmDialog,
+    showShaMismatchDialog
   } = useSyncConfirmStore()
+
+  // 监听 SHA 不匹配事件，显示确认对话框
+  useEffect(() => {
+    const handleShaMismatch = async (data: { path: string; localSha?: string; remoteSha?: string }) => {
+      const fileName = data.path.split('/').pop() || data.path
+      const syncPushQueue = getSyncPushQueue()
+
+      showShaMismatchDialog({
+        fileName,
+        localSha: data.localSha,
+        remoteSha: data.remoteSha,
+        onForceUpload: async () => {
+          // 用户确认强制上传
+          await syncPushQueue.forcePush(data.path)
+        },
+        onCancel: () => {
+          // 用户取消，不做任何操作
+        }
+      })
+    }
+
+    emitter.on('sync-sha-mismatch', handleShaMismatch)
+
+    return () => {
+      emitter.off('sync-sha-mismatch', handleShaMismatch)
+    }
+  }, [showShaMismatchDialog])
 
   const getLocale = () => {
     switch (currentLocale) {
@@ -90,6 +123,7 @@ export function SyncConfirmDialog() {
 
   const isPullDialog = dialogType === 'pull'
   const isConflictDialog = dialogType === 'conflict'
+  const isShaMismatchDialog = dialogType === 'shaMismatch'
 
   return (
     <>
@@ -240,6 +274,53 @@ export function SyncConfirmDialog() {
                   <Button variant="ghost" onClick={handleCancel} className="w-full gap-2">
                     <X className="h-4 w-4" />
                     取消
+                  </Button>
+                </DrawerFooter>
+              </>
+            )}
+
+            {isShaMismatchDialog && (
+              <>
+                <DrawerHeader>
+                  <DrawerTitle className="flex items-center gap-2">
+                    <GitMerge className="h-5 w-5" />
+                    同步冲突检测
+                  </DrawerTitle>
+                  <DrawerDescription>
+                    文件 <span className="font-mono bg-muted px-1 rounded">{fileName}</span> 推送失败
+                  </DrawerDescription>
+                </DrawerHeader>
+
+                <div className="space-y-4 px-4 overflow-y-auto">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-lg">
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      远程文件的 SHA 与本地记录不一致，可能已被其他设备修改。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">本地记录 SHA：</span>
+                      <code className="bg-muted px-2 py-1 rounded text-xs">
+                        {localSha ? localSha.slice(0, 7) : '无'}
+                      </code>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">远程文件 SHA：</span>
+                      <code className="bg-muted px-2 py-1 rounded text-xs">
+                        {remoteSha ? remoteSha.slice(0, 7) : '无'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                <DrawerFooter className="flex-row gap-2">
+                  <Button variant="outline" onClick={handleCancel} className="flex-1">
+                    取消
+                  </Button>
+                  <Button variant="destructive" onClick={handleConfirm} className="flex-1 gap-2">
+                    <ArrowUpFromLine className="h-4 w-4" />
+                    强制上传
                   </Button>
                 </DrawerFooter>
               </>
@@ -395,6 +476,57 @@ export function SyncConfirmDialog() {
                   <Button variant="ghost" onClick={handleCancel} className="gap-2">
                     <X className="h-4 w-4" />
                     取消
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+
+            {isShaMismatchDialog && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <GitMerge className="h-5 w-5" />
+                    同步冲突检测
+                  </DialogTitle>
+                  <DialogDescription>
+                    文件 <span className="font-mono bg-muted px-1 rounded">{fileName}</span> 推送失败
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className={cn(
+                    "p-4 rounded-lg",
+                    "bg-red-50 dark:bg-red-900/20",
+                    "border border-red-200 dark:border-red-800"
+                  )}>
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      远程文件的 SHA 与本地记录不一致，可能已被其他设备修改。
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">本地记录 SHA：</span>
+                      <code className="bg-muted px-2 py-1 rounded text-xs">
+                        {localSha ? localSha.slice(0, 7) : '无'}
+                      </code>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">远程文件 SHA：</span>
+                      <code className="bg-muted px-2 py-1 rounded text-xs">
+                        {remoteSha ? remoteSha.slice(0, 7) : '无'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleCancel}>
+                    取消
+                  </Button>
+                  <Button variant="destructive" onClick={handleConfirm} className="gap-2">
+                    <ArrowUpFromLine className="h-4 w-4" />
+                    强制上传（覆盖远程）
                   </Button>
                 </DialogFooter>
               </>

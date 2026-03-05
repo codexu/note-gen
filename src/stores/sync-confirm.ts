@@ -2,10 +2,12 @@ import { create } from 'zustand'
 
 interface SyncConfirmState {
   isOpen: boolean
-  dialogType: 'pull' | 'conflict'  // 对话框类型：拉取确认 | 冲突解决
+  dialogType: 'pull' | 'conflict' | 'shaMismatch'  // 对话框类型：拉取确认 | 冲突解决 | SHA 不匹配
   fileName: string
   localContent?: string
   remoteContent?: string
+  localSha?: string      // 本地记录的 SHA（SHA 不匹配时使用）
+  remoteSha?: string    // 远程文件的 SHA（SHA 不匹配时使用）
   commitInfo?: {
     sha: string
     message: string
@@ -52,6 +54,15 @@ interface SyncConfirmState {
     onCancel?: () => void
   }) => void
 
+  // 显示 SHA 不匹配对话框
+  showShaMismatchDialog: (data: {
+    fileName: string
+    localSha?: string
+    remoteSha?: string
+    onForceUpload: () => void  // 强制上传（不带 SHA）
+    onCancel: () => void        // 取消
+  }) => void
+
   hideConfirmDialog: () => void
 }
 
@@ -91,12 +102,24 @@ export const useSyncConfirmStore = create<SyncConfirmState>((set) => ({
     onCancel: data.onCancel
   }),
 
+  showShaMismatchDialog: (data) => set({
+    isOpen: true,
+    dialogType: 'shaMismatch',
+    fileName: data.fileName,
+    localSha: data.localSha,
+    remoteSha: data.remoteSha,
+    onConfirm: data.onForceUpload,  // onConfirm 用于强制上传
+    onCancel: data.onCancel
+  }),
+
   hideConfirmDialog: () => set({
     isOpen: false,
     dialogType: 'pull',
     fileName: '',
     localContent: undefined,
     remoteContent: undefined,
+    localSha: undefined,
+    remoteSha: undefined,
     commitInfo: undefined,
     onConfirm: undefined,
     onCancel: undefined,

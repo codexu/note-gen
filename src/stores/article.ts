@@ -20,6 +20,15 @@ import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@
 import emitter from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
 
+// 缓存 Store 实例，避免每次都重新加载
+let storeInstance: Store | null = null
+async function getStore(): Promise<Store> {
+  if (!storeInstance) {
+    storeInstance = await Store.load('store.json')
+  }
+  return storeInstance
+}
+
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
 
@@ -172,7 +181,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   sortType: 'none',
   sortDirection: 'asc',
   initSortSettings: async () => {
-    const store = await Store.load('store.json')
+    const store = await getStore()
     const sortType = await store.get<SortType>('sortType')
     const sortDirection = await store.get<SortDirection>('sortDirection')
     if (sortType) set({ sortType })
@@ -199,7 +208,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   setSortType: async (sortType: SortType) => {
     set({ sortType })
-    const store = await Store.load('store.json')
+    const store = await getStore()
     await store.set('sortType', sortType)
     
     // 如果需要按时间排序，先加载统计信息
@@ -213,7 +222,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   setSortDirection: async (direction: SortDirection) => {
     set({ sortDirection: direction })
-    const store = await Store.load('store.json')
+    const store = await getStore()
     await store.set('sortDirection', direction)
     
     // 如果当前是按时间排序，确保统计信息已加载
@@ -297,7 +306,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   setActiveFilePath: async (path: string) => {
     // 切换文件时，先清空 currentArticle，避免内容覆盖
     set({ currentArticle: '', activeFilePath: path })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('activeFilePath', path)
     // 触发事件，让推送队列重置计时器
     emitter.emit('article-opened', { path })
@@ -308,12 +317,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
   activeTabId: '',
   setOpenTabs: async (tabs) => {
     set({ openTabs: tabs })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('openTabs', tabs)
   },
   setActiveTabId: async (id) => {
     set({ activeTabId: id })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('activeTabId', id)
   },
   addTab: async (tab) => {
@@ -324,7 +333,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
     const newTabs = [...currentTabs, tab].slice(-10) // Limit to 10 tabs
     set({ openTabs: newTabs, activeTabId: tab.id })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('openTabs', newTabs)
     await store.set('activeTabId', tab.id)
   },
@@ -332,7 +341,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const currentTabs = get().openTabs
     const newTabs = currentTabs.filter(t => t.id !== id)
     set({ openTabs: newTabs })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('openTabs', newTabs)
   },
 
@@ -362,7 +371,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
 
       set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
-      const store = await Store.load('store.json');
+      const store = await getStore();
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
       await store.set('activeFilePath', newActiveFilePath)
@@ -396,7 +405,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
 
       set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
-      const store = await Store.load('store.json');
+      const store = await getStore();
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
       await store.set('activeFilePath', newActiveFilePath)
@@ -405,7 +414,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   clearTabs: async () => {
     set({ openTabs: [], activeTabId: '' })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('openTabs', [])
     await store.set('activeTabId', '')
   },
@@ -417,33 +426,33 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   html2md: false,
   initHtml2md: async () => {
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const res = await store.get<boolean>('html2md')
     set({ html2md: res || false })
   },
   setHtml2md: async (html2md: boolean) => {
     set({ html2md })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     store.set('html2md', html2md)
   },
 
   showCloudFiles: true,
   initShowCloudFiles: async () => {
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const res = await store.get<boolean>('showCloudFiles')
     set({ showCloudFiles: res ?? true })
   },
 
   // Initialize open tabs from store
   initOpenTabs: async () => {
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const tabs = await store.get<Array<{ id: string; path: string; name: string; isFolder: boolean }>>('openTabs')
     const activeTabId = await store.get<string>('activeTabId')
     set({ openTabs: tabs || [], activeTabId: activeTabId || '' })
   },
   setShowCloudFiles: async (show: boolean) => {
     set({ showCloudFiles: show })
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('showCloudFiles', show)
   },
 
@@ -659,7 +668,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   // 加载远程同步文件（后台任务）
   loadRemoteSyncFiles: async () => {
     try {
-      const store = await Store.load('store.json');
+      const store = await getStore();
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
       
       if (primaryBackupMethod === 'github') {
@@ -829,7 +838,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
     
     // 检查是否配置了云同步
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let hasCloudSync = false
     
@@ -921,7 +930,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   
   // 加载特定文件夹的远程同步文件（后台任务）
   loadFolderRemoteFiles: async (fullpath: string) => {
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
     // 检查是否配置了访问令牌
@@ -1175,7 +1184,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return
     }
 
-    const store = await Store.load('store.json');
+    const store = await getStore();
     const res = await store.get<string[]>('collapsibleList')
     const activeFilePath = await store.get<string>('activeFilePath')
     set({
@@ -1210,7 +1219,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         collapsibleList.splice(index, 1)
       }
     }
-    const store = await Store.load('store.json');
+    const store = await getStore();
     await store.set('collapsibleList', collapsibleList)
     set({ collapsibleList: uniq(collapsibleList).filter(item => !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)) })
   },
@@ -1232,7 +1241,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
     
     const folderPaths = getAllFolderPaths(get().fileTree)
-    const store = await Store.load('store.json')
+    const store = await getStore()
     await store.set('collapsibleList', folderPaths)
     set({ collapsibleList: uniq(folderPaths) })
     
@@ -1243,7 +1252,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   
   collapseAllFolders: async () => {
-    const store = await Store.load('store.json')
+    const store = await getStore()
     await store.set('collapsibleList', [])
     set({ collapsibleList: [] })
   },
@@ -1258,7 +1267,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   clearCollapsibleList: async () => {
     set({ collapsibleList: [] })
-    const store = await Store.load('store.json')
+    const store = await getStore()
     await store.set('collapsibleList', [])
   },
 

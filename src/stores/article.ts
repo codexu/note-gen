@@ -1333,33 +1333,46 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const fileInfo = findFileInTree(fileTree, actualPath)
       const isRemoteFile = fileInfo && !fileInfo.isLocale
 
-      // 如果是远程文件且本地内容为空，立即拉取
+      // 如果是远程文件且本地内容为空，先显示编辑器（禁用），再异步拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
+        // 先设置当前内容为空，显示编辑器
+        set({ currentArticle: '', loading: true })
+
+        // 标记正在拉取
         get().setIsPulling(true)
-        get().setJustPulledFile(true) // 标记为刚从远程拉取
+        get().setJustPulledFile(true)
 
-        try {
-          const remoteContent = await pullRemoteFile(actualPath)
-          await saveLocalFile(actualPath, remoteContent)
-          set({ currentArticle: remoteContent })
+        // 异步拉取远程内容
+        setTimeout(async () => {
+          try {
+            const remoteContent = await pullRemoteFile(actualPath)
+            await saveLocalFile(actualPath, remoteContent)
 
-          // 拉取成功后，更新文件树的 isLocale 状态为本地文件
-          const cacheTree = cloneDeep(get().fileTree)
-          const fileNode = findFileInTree(cacheTree, actualPath)
-          if (fileNode) {
-            fileNode.isLocale = true
-            set({ fileTree: cacheTree })
+            // 再次检查当前是否还是同一个文件
+            if (get().activeFilePath === actualPath) {
+              set({ currentArticle: remoteContent })
+            }
+
+            // 拉取成功后，更新文件树的 isLocale 状态为本地文件
+            const cacheTree = cloneDeep(get().fileTree)
+            const fileNode = findFileInTree(cacheTree, actualPath)
+            if (fileNode) {
+              fileNode.isLocale = true
+              set({ fileTree: cacheTree })
+            }
+          } catch {
+            if (get().activeFilePath === actualPath) {
+              set({ currentArticle: '' })
+            }
+          } finally {
+            get().setIsPulling(false)
+            get().setLoading(false)
+            setTimeout(() => {
+              get().setJustPulledFile(false)
+            }, 1000)
           }
-        } catch {
-          set({ currentArticle: '' })
-        } finally {
-          get().setIsPulling(false)
-          get().setLoading(false)
-          // 延迟清除标志，让 saveCurrentArticle 有时间检查
-          setTimeout(() => {
-            get().setJustPulledFile(false)
-          }, 1000)
-        }
+        }, 0)
+
         return
       }
 
@@ -1383,31 +1396,43 @@ const useArticleStore = create<NoteState>((set, get) => ({
                             errorMsg.toLowerCase().includes('系统找不到指定的路径')
 
       if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
+        // 先设置当前内容为空，显示编辑器
+        set({ currentArticle: '', loading: true })
+
+        // 标记正在拉取
         get().setIsPulling(true)
-        get().setJustPulledFile(true) // 标记为刚从远程拉取
+        get().setJustPulledFile(true)
 
-        try {
-          const remoteContent = await pullRemoteFile(actualPath)
-          await saveLocalFile(actualPath, remoteContent)
-          set({ currentArticle: remoteContent })
+        // 异步拉取远程内容
+        setTimeout(async () => {
+          try {
+            const remoteContent = await pullRemoteFile(actualPath)
+            await saveLocalFile(actualPath, remoteContent)
 
-          // 拉取成功后，更新文件树的 isLocale 状态为本地文件
-          const cacheTree = cloneDeep(get().fileTree)
-          const fileNode = findFileInTree(cacheTree, actualPath)
-          if (fileNode) {
-            fileNode.isLocale = true
-            set({ fileTree: cacheTree })
+            // 再次检查当前是否还是同一个文件
+            if (get().activeFilePath === actualPath) {
+              set({ currentArticle: remoteContent })
+            }
+
+            // 拉取成功后，更新文件树的 isLocale 状态为本地文件
+            const cacheTree = cloneDeep(get().fileTree)
+            const fileNode = findFileInTree(cacheTree, actualPath)
+            if (fileNode) {
+              fileNode.isLocale = true
+              set({ fileTree: cacheTree })
+            }
+          } catch {
+            if (get().activeFilePath === actualPath) {
+              set({ currentArticle: '' })
+            }
+          } finally {
+            get().setIsPulling(false)
+            get().setLoading(false)
+            setTimeout(() => {
+              get().setJustPulledFile(false)
+            }, 1000)
           }
-        } catch {
-          set({ currentArticle: '' })
-        } finally {
-          get().setIsPulling(false)
-          get().setLoading(false)
-          // 延迟清除标志，让 saveCurrentArticle 有时间检查
-          setTimeout(() => {
-            get().setJustPulledFile(false)
-          }, 1000)
-        }
+        }, 0)
       } else if (isFileNotFound) {
         // 本地文件，创建空白文件
         await ensureDirectoryExists(actualPath)

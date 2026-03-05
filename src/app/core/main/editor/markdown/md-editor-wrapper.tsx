@@ -237,9 +237,11 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     }, 100)
   }, [])
 
-  // Reset outline ready state when file changes
+  // Reset states when file changes - ensure old editor instance is cleared
   useEffect(() => {
+    // Reset all editor-related states when file changes
     setIsOutlineReady(false)
+    setEditorInstance(null)
   }, [filePath])
 
   // Auto-create untitled.md file

@@ -269,6 +269,24 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   // Loading state - wait for content to be loaded
+  // 如果正在从远程拉取，优先显示拉取遮罩
+  if (isPulling) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="relative">
+            <Loader2 className="size-8 animate-spin" />
+            <Download className="size-4 absolute inset-0 m-auto" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium">{t('syncingRemote')}</p>
+            <p className="text-xs mt-1">{t('pullingRemote')}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 如果 currentArticle 已经有内容，直接显示（拉取完成）
   const showContent = (currentArticle && currentArticle.length > 0) || initialContent !== null
   if (isLoading && !showContent) {

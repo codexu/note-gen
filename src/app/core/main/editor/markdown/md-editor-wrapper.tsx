@@ -307,6 +307,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         onEditorReady={handleEditorReady}
         outlineOpen={outlineOpen}
         onToggleOutline={() => setOutlineOpen(prev => !prev)}
+        editable={!isPulling}
       />
 
       {/* Outline Panel - right sidebar */}

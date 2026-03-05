@@ -344,8 +344,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       />
 
       {/* Outline Panel - right sidebar - 当正在拉取或编辑器未准备好时不显示 */}
-      {!isPulling && isOutlineReady && (
+      {!isPulling && isOutlineReady && editorInstance && (
         <Outline
+          key={filePath}
           editor={editorInstance}
           isOpen={outlineOpen}
         />

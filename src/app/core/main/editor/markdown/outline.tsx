@@ -23,6 +23,29 @@ export function Outline({ editor, isOpen }: OutlineProps) {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null)
   // Use ref to always get latest headings in event handlers
   const headingsRef = useRef<HeadingItem[]>([])
+  // Track if editor is ready
+  const isEditorReadyRef = useRef(false)
+
+  // Check if editor is ready - wait for view to be available
+  useEffect(() => {
+    if (!editor) {
+      isEditorReadyRef.current = false
+      return
+    }
+
+    // Check periodically if editor view is available
+    const checkEditor = () => {
+      if (editor.view && editor.view.dom && editor.view.dom.isConnected) {
+        isEditorReadyRef.current = true
+      } else {
+        isEditorReadyRef.current = false
+        // Retry after a short delay
+        setTimeout(checkEditor, 50)
+      }
+    }
+
+    checkEditor()
+  }, [editor])
 
   // Keep ref in sync with state
   useEffect(() => {

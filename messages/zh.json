@@ -730,6 +730,10 @@
         "1m": "1 分钟",
         "2m": "2 分钟"
       },
+      "autoPullOnOpen": "打开文件时自动拉取",
+      "autoPullOnOpenDesc": "打开文件时，如果远程有新版本则自动拉取覆盖本地",
+      "autoPullOnSwitch": "切换文件时自动拉取",
+      "autoPullOnSwitchDesc": "切换到其他文件时，如果远程有新版本则自动拉取覆盖本地",
       "exclusions": {
         "title": "同步排除配置",
         "desc": "以下配置项不会在设备间同步，因为它们是设备特定的",

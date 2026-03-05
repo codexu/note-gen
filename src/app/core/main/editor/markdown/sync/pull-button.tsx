@@ -4,6 +4,7 @@ import { Editor } from '@tiptap/react'
 import { ArrowDownCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useArticleStore from '@/stores/article'
+import useSettingStore from '@/stores/setting'
 import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
@@ -20,6 +21,7 @@ type PullStatus = 'idle' | 'checking' | 'update-available' | 'pulling' | 'confli
 
 export function PullButton({ editor }: PullButtonProps) {
   const { activeFilePath } = useArticleStore()
+  const { autoPullOnSwitch } = useSettingStore()
   const [hasUpdate, setHasUpdate] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isConfigured, setIsConfigured] = useState(false)
@@ -215,36 +217,63 @@ export function PullButton({ editor }: PullButtonProps) {
         }
 
         if (result.action === 'conflict') {
-          // 有冲突，自动拉取远程版本覆盖本地
-          setIsLoading(true)
-          const content = await pullRemoteFile(activeFilePath)
+          // 有冲突时，根据 autoPullOnSwitch 配置决定是否自动拉取
+          if (autoPullOnSwitch) {
+            setIsLoading(true)
+            // 禁用编辑器
+            editor.setEditable(false)
+            const content = await pullRemoteFile(activeFilePath)
 
-          if (pendingFileRef.current !== activeFilePath) {
+            if (pendingFileRef.current !== activeFilePath) {
+              setIsLoading(false)
+              editor.setEditable(true)
+              return
+            }
+
+            await saveLocalFile(activeFilePath, content)
+            editor.commands.setContent(content, { contentType: 'markdown' })
+            // 恢复编辑器
+            editor.setEditable(true)
             setIsLoading(false)
-            return
+          } else {
+            // 不自动拉取，只显示冲突状态
+            setPullStatus('conflict')
           }
-
-          await saveLocalFile(activeFilePath, content)
-          editor.commands.setContent(content, { contentType: 'markdown' })
-          setIsLoading(false)
         } else if (result.action === 'pull') {
-          // 切换文件时检测到更新，自动拉取
-          setIsLoading(true)
-          const content = await pullRemoteFile(activeFilePath)
+          // 切换文件时检测到更新，根据 autoPullOnSwitch 配置决定是否自动拉取
+          if (autoPullOnSwitch) {
+            setIsLoading(true)
+            // 禁用编辑器
+            editor.setEditable(false)
+            const content = await pullRemoteFile(activeFilePath)
 
-          // 拉取后再次检查是否还是当前文件
-          if (pendingFileRef.current !== activeFilePath) {
+            // 拉取后再次检查是否还是当前文件
+            if (pendingFileRef.current !== activeFilePath) {
+              setIsLoading(false)
+              editor.setEditable(true)
+              return
+            }
+
+            await saveLocalFile(activeFilePath, content)
+
+            editor.commands.setContent(content, { contentType: 'markdown' })
+            await updateFileSyncTime(activeFilePath)
+            emitter.emit('sync-pulled', { path: activeFilePath })
+            // 恢复编辑器
+            editor.setEditable(true)
             setIsLoading(false)
-            return
+            setHasUpdate(false)
+          } else {
+            // 不自动拉取，只提示有更新
+            try {
+              const content = await pullRemoteFile(activeFilePath)
+              remoteContentRef.current = content
+              setPullStatus('update-available')
+              setHasUpdate(true)
+            } catch {
+              setPullStatus('error')
+            }
           }
-
-          await saveLocalFile(activeFilePath, content)
-
-          editor.commands.setContent(content, { contentType: 'markdown' })
-          await updateFileSyncTime(activeFilePath)
-          emitter.emit('sync-pulled', { path: activeFilePath })
-          setIsLoading(false)
-          setHasUpdate(false)
         } else {
           setPullStatus('idle')
           setHasUpdate(false)
@@ -268,7 +297,7 @@ export function PullButton({ editor }: PullButtonProps) {
         pullTimeoutRef.current = null
       }
     }
-  }, [activeFilePath, isConfigured, editor, isUserActive])
+  }, [activeFilePath, isConfigured, editor, isUserActive, autoPullOnSwitch])
 
   // 监听用户输入事件，重置计时器
   useEffect(() => {

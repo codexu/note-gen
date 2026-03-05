@@ -732,6 +732,10 @@
         "1m": "1 minute",
         "2m": "2 minutes"
       },
+      "autoPullOnOpen": "Auto pull when opening files",
+      "autoPullOnOpenDesc": "When opening a file, automatically pull remote version if newer",
+      "autoPullOnSwitch": "Auto pull when switching files",
+      "autoPullOnSwitchDesc": "When switching to another file, automatically pull remote version if newer",
       "exclusions": {
         "title": "Sync Exclusion Configuration",
         "desc": "The following settings will not be synced across devices as they are device-specific",

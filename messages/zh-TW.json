@@ -661,6 +661,10 @@
         "1m": "1 分鐘",
         "2m": "2 分鐘"
       },
+      "autoPullOnOpen": "開啟檔案時自動拉取",
+      "autoPullOnOpenDesc": "開啟檔案時，若遠端有新版本則自動拉取覆蓋本地",
+      "autoPullOnSwitch": "切換檔案時自動拉取",
+      "autoPullOnSwitchDesc": "切換到其他檔案時，若遠端有新版本則自動拉取覆蓋本地",
       "exclusions": {
         "title": "同步排除配置",
         "desc": "以下配置項不會在設備間同步，因為它們是設備特定的",

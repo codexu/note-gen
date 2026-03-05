@@ -112,6 +112,13 @@ interface SettingState {
   autoSync: string
   setAutoSync: (autoSync: string) => Promise<void>
 
+  // 自动拉取相关设置
+  autoPullOnOpen: boolean
+  setAutoPullOnOpen: (autoPullOnOpen: boolean) => Promise<void>
+
+  autoPullOnSwitch: boolean
+  setAutoPullOnSwitch: (autoPullOnSwitch: boolean) => Promise<void>
+
   // Gitee 相关设置
   giteeAccessToken: string
   setGiteeAccessToken: (giteeAccessToken: string) => void
@@ -713,6 +720,39 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ autoSync })
     const store = await Store.load('store.json');
     await store.set('autoSync', autoSync)
+  },
+
+  // 自动拉取相关设置 - 默认关闭
+  autoPullOnOpen: false,
+  setAutoPullOnOpen: async (autoPullOnOpen: boolean) => {
+    set({ autoPullOnOpen })
+    const store = await Store.load('store.json');
+    await store.set('autoPullOnOpen', autoPullOnOpen)
+
+    // 同步更新 sync-manager 的配置
+    try {
+      const { getSyncManager } = await import('@/lib/sync/sync-manager')
+      const manager = getSyncManager()
+      await manager.updateConfig({ autoPullOnOpen })
+    } catch {
+      // 静默处理
+    }
+  },
+
+  autoPullOnSwitch: false,
+  setAutoPullOnSwitch: async (autoPullOnSwitch: boolean) => {
+    set({ autoPullOnSwitch })
+    const store = await Store.load('store.json');
+    await store.set('autoPullOnSwitch', autoPullOnSwitch)
+
+    // 同步更新 sync-manager 的配置
+    try {
+      const { getSyncManager } = await import('@/lib/sync/sync-manager')
+      const manager = getSyncManager()
+      await manager.updateConfig({ autoPullOnSwitch })
+    } catch {
+      // 静默处理
+    }
   },
 
   lastSettingPage: 'ai',

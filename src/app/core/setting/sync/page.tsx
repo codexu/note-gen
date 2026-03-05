@@ -1,5 +1,5 @@
 'use client';
-import { FileUp } from "lucide-react"
+import { FileUp, FileDown, Files } from "lucide-react"
 import { useTranslations } from 'next-intl';
 import { GithubSync } from "./github-sync";
 import { GiteeSync } from "./gitee-sync";
@@ -15,6 +15,7 @@ import { SYNC_PLATFORMS, SyncPlatform } from "@/types/sync";
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from "@/components/ui/item";
 import useSyncStore from "@/stores/sync";
 import { SyncStateEnum } from "@/lib/sync/github.types";
+import { Switch } from "@/components/ui/switch";
 
 export default function SyncPage() {
   const t = useTranslations();
@@ -23,6 +24,10 @@ export default function SyncPage() {
     setPrimaryBackupMethod,
     autoSync,
     setAutoSync,
+    autoPullOnOpen,
+    setAutoPullOnOpen,
+    autoPullOnSwitch,
+    setAutoPullOnSwitch,
   } = useSettingStore()
   const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState } = useSyncStore()
 
@@ -150,6 +155,38 @@ export default function SyncPage() {
                 <SelectItem value="120">{t('settings.sync.autoSyncOptions.2m')}</SelectItem>
               </SelectContent>
             </Select>
+          </ItemActions>
+        </Item>
+
+        {/* 打开文件时自动拉取 */}
+        <Item variant="outline" className="mt-2">
+          <ItemMedia variant="icon"><FileDown className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoPullOnOpen')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoPullOnOpenDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoPullOnOpen}
+              onCheckedChange={setAutoPullOnOpen}
+              disabled={isAutoSyncDisabled}
+            />
+          </ItemActions>
+        </Item>
+
+        {/* 切换文件时自动拉取 */}
+        <Item variant="outline" className="mt-2">
+          <ItemMedia variant="icon"><Files className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoPullOnSwitch')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoPullOnSwitchDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoPullOnSwitch}
+              onCheckedChange={setAutoPullOnSwitch}
+              disabled={isAutoSyncDisabled}
+            />
           </ItemActions>
         </Item>
       </div>

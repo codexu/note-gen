@@ -690,6 +690,10 @@
         "1m": "1 minuto",
         "2m": "2 minutos"
       },
+      "autoPullOnOpen": "Puxar automaticamente ao abrir arquivos",
+      "autoPullOnOpenDesc": "Ao abrir um arquivo, puxa automaticamente a versão remota se for mais recente",
+      "autoPullOnSwitch": "Puxar automaticamente ao trocar de arquivo",
+      "autoPullOnSwitchDesc": "Ao trocar para outro arquivo, puxa automaticamente a versão remota se for mais recente",
       "exclusions": {
         "title": "Configuração de Exclusão de Sincronização",
         "desc": "As seguintes configurações não serão sincronizadas entre dispositivos, pois são específicas do dispositivo",

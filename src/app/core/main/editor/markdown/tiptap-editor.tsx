@@ -399,6 +399,8 @@ export function TipTapEditor({
     }
 
     // Add event listeners to editor DOM element
+    // Check if editor is fully initialized first
+    if (!editor.view || !editor.view.dom) return
     const dom = editor.view.dom
     dom.addEventListener('paste', handlePaste as EventListener)
     dom.addEventListener('drop', handleDrop as EventListener)

@@ -41,8 +41,9 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const [outlineOpen, setOutlineOpen] = useState(false)
   // State for editor instance (to trigger re-render when ready)
   const [editorInstance, setEditorInstance] = useState<any>(null)
-  // Track if editor is ready
-  const [isEditorReady, setIsEditorReady] = useState(false)
+  // Track if editor is ready - add delay to ensure editor is fully mounted
+  const [, setIsEditorReady] = useState(false)
+  const [isOutlineReady, setIsOutlineReady] = useState(false)
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -230,7 +231,16 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const handleEditorReady = useCallback((editor: any) => {
     setEditorInstance(editor)
     setIsEditorReady(true)
+    // Delay showing outline to ensure editor is fully mounted
+    setTimeout(() => {
+      setIsOutlineReady(true)
+    }, 100)
   }, [])
+
+  // Reset outline ready state when file changes
+  useEffect(() => {
+    setIsOutlineReady(false)
+  }, [filePath])
 
   // Auto-create untitled.md file
   async function createUntitledFile(content: string) {
@@ -332,7 +342,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       />
 
       {/* Outline Panel - right sidebar - 当正在拉取或编辑器未准备好时不显示 */}
-      {!isPulling && isEditorReady && (
+      {!isPulling && isOutlineReady && (
         <Outline
           editor={editorInstance}
           isOpen={outlineOpen}

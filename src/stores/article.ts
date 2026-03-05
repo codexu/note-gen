@@ -310,6 +310,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
     await store.set('activeFilePath', path)
     // 触发事件，让推送队列重置计时器
     emitter.emit('article-opened', { path })
+
+    // 触发读取文件内容（包括远程拉取）
+    // 需要确保是文件而不是文件夹
+    const fileName = path.split('/').pop() || ''
+    if (fileName && fileName.includes('.')) {
+      get().readArticle(path)
+    }
   },
 
   // Tabs initialization - load from store

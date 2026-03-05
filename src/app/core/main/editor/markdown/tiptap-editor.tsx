@@ -315,7 +315,8 @@ export function TipTapEditor({
 
   // Handle image paste and drop
   useEffect(() => {
-    if (!editor) return
+    // Check if editor is fully initialized
+    if (!editor || !editor.view || !editor.view.dom) return
 
     const handlePaste = (event: ClipboardEvent) => {
       const files = event.clipboardData?.files
@@ -410,7 +411,8 @@ export function TipTapEditor({
 
   // Handle copy event to output Markdown format
   useEffect(() => {
-    if (!editor) return
+    // Check if editor is fully initialized
+    if (!editor || !editor.view || !editor.view.dom) return
 
     const handleCopy = (event: ClipboardEvent) => {
       const { from, to } = editor.state.selection

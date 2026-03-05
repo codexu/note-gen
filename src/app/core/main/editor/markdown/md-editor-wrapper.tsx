@@ -41,9 +41,6 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   const [outlineOpen, setOutlineOpen] = useState(false)
   // State for editor instance (to trigger re-render when ready)
   const [editorInstance, setEditorInstance] = useState<any>(null)
-  // Track if editor is ready - add delay to ensure editor is fully mounted
-  const [, setIsEditorReady] = useState(false)
-  const [isOutlineReady, setIsOutlineReady] = useState(false)
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -230,17 +227,10 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   // Handle editor ready - store editor instance
   const handleEditorReady = useCallback((editor: any) => {
     setEditorInstance(editor)
-    setIsEditorReady(true)
-    // Delay showing outline to ensure editor is fully mounted
-    setTimeout(() => {
-      setIsOutlineReady(true)
-    }, 100)
   }, [])
 
-  // Reset states when file changes - ensure old editor instance is cleared
+  // Reset editor instance when file changes
   useEffect(() => {
-    // Reset all editor-related states when file changes
-    setIsOutlineReady(false)
     setEditorInstance(null)
   }, [filePath])
 
@@ -343,10 +333,10 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         editable={!isPulling}
       />
 
-      {/* Outline Panel - right sidebar - 当正在拉取或编辑器未准备好时不显示 */}
-      {!isPulling && isOutlineReady && editorInstance && (
+      {/* Outline Panel - right sidebar - 当正在拉取时不显示 */}
+      {/* Outline 组件内部会检查编辑器是否准备好 */}
+      {!isPulling && editorInstance && (
         <Outline
-          key={filePath}
           editor={editorInstance}
           isOpen={outlineOpen}
         />

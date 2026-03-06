@@ -24,8 +24,9 @@ export function Outline({ editor, isOpen }: OutlineProps) {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null)
   // Use ref to always get latest headings in event handlers
   const headingsRef = useRef<HeadingItem[]>([])
-  // Track if editor is ready
+  // Track if editor is ready - use both ref and state
   const isEditorReadyRef = useRef(false)
+  const [isReady, setIsReady] = useState(false)
 
   // Check if editor is ready - wait for view to be available
   useEffect(() => {
@@ -49,13 +50,16 @@ export function Outline({ editor, isOpen }: OutlineProps) {
           // This will throw if not ready
           editor.view.dom.getBoundingClientRect()
           isEditorReadyRef.current = true
+          setIsReady(true)
         } catch {
           isEditorReadyRef.current = false
+          setIsReady(false)
           setTimeout(checkEditor, 50)
           return
         }
       } else {
         isEditorReadyRef.current = false
+        setIsReady(false)
         setTimeout(checkEditor, 50)
       }
     }
@@ -238,7 +242,8 @@ export function Outline({ editor, isOpen }: OutlineProps) {
     }
   }, [activeHeadingId])
 
-  if (!isOpen) return null
+  // 如果编辑器还没准备好或没有打开Outline，直接返回 null
+  if (!isOpen || !isReady) return null
 
   return (
     <div className="outline-panel w-64 border-l border-[hsl(var(--border))] bg-[hsl(var(--background))] overflow-y-auto">

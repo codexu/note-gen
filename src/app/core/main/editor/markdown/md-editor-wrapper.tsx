@@ -337,8 +337,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         editable={!isPulling}
       />
 
-      {/* Outline Panel - right sidebar - 当正在拉取或编辑器未准备好时不显示 */}
-      {!isPulling && editorReady && editorInstance && (
+      {/* Outline Panel - right sidebar - 只有在打开时才渲染 */}
+      {outlineOpen && !isPulling && editorReady && editorInstance && (
         <Outline
           editor={editorInstance}
           isOpen={outlineOpen}

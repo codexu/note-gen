@@ -5,7 +5,7 @@ import { ArrowDownCircle, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
-import { compareFileVersions, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
+import { compareFileVersions, pullRemoteFile, saveLocalFile, getRemoteFileInfo, setLocalRecordedSha } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import emitter from '@/lib/emitter'
@@ -92,6 +92,11 @@ export function PullButton({ editor }: PullButtonProps) {
       editor.commands.setContent(remoteContent, { contentType: 'markdown' })
       // 更新同步时间，避免重复检测
       await updateFileSyncTime(activeFilePath)
+      // 更新本地记录的远程 SHA，避免重复提示有更新
+      const remoteInfo = await getRemoteFileInfo(activeFilePath)
+      if (remoteInfo.sha) {
+        await setLocalRecordedSha(activeFilePath, remoteInfo.sha)
+      }
       // 触发事件，让推送队列重置计时器
       emitter.emit('sync-pulled', { path: activeFilePath })
       // 清除远程内容缓存

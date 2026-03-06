@@ -718,8 +718,6 @@ export function TipTapEditor({
 
         if (initialContent) {
           editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
-          // Clear history so undo/redo starts from this loaded state
-          editor.commands.clearHistory()
         }
         // Mark as initialized to allow subsequent content updates
         isInitializedRef.current = true
@@ -772,8 +770,6 @@ export function TipTapEditor({
         // Use setTimeout to avoid flushSync conflict during React render
         setTimeout(() => {
           editor.commands.setContent(newContent, { contentType: 'markdown' })
-          // Clear history after remote update
-          editor.commands.clearHistory()
           // Bug fix: Mark editor as ready after content is set
           isReadyRef.current = true
           // Reset the counter after a short delay
@@ -804,8 +800,6 @@ export function TipTapEditor({
       // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
         editor.commands.setContent(event.content, { contentType: 'markdown' })
-        // Clear history after sync update
-        editor.commands.clearHistory()
         // Bug fix: Mark editor as ready after content is set
         isReadyRef.current = true
         // Reset the counter and pending update after a short delay
@@ -841,8 +835,6 @@ export function TipTapEditor({
         setTimeout(() => {
           // Set content in editor with Markdown parsing
           editor.commands.setContent(newContent, { contentType: 'markdown' })
-          // Clear history after external content update
-          editor.commands.clearHistory()
           // Bug fix: Mark editor as ready after content is set
           isReadyRef.current = true
           // Reset the counter after a short delay to handle rapid updates

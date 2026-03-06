@@ -75,12 +75,14 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         }
         case 'gitlab': {
           const result = await getGitlabFileCommits({ path: activeFilePath, repo })
-          commits = (Array.isArray(result) ? result : []) as any[]
+          // GitLab 返回 { data } 对象，需要从中提取数组
+          commits = (result && result.data) ? result.data : []
           break
         }
         case 'gitea': {
           const result = await getGiteaFileCommits({ path: activeFilePath, repo })
-          commits = (Array.isArray(result) ? result : []) as any[]
+          // Gitea 返回 { data } 对象，需要从中提取数组
+          commits = (result && result.data) ? result.data : []
           break
         }
       }

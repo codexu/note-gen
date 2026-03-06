@@ -277,8 +277,9 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    // 获取文件的最新提交 ID
-    const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${path}&per_page=1`;
+    // 获取文件的最新提交 ID，对 path 进行编码
+    const encodedPath = encodeURIComponent(path);
+    const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${encodedPath}&per_page=1`;
     const commitsResponse = await fetch(commitsUrl, {
       method: 'GET',
       headers,
@@ -343,7 +344,9 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    const url = `${baseUrl}/projects/${projectId}/repository/commits?path=${path}&per_page=100`;
+    // 对 path 进行编码，避免特殊字符导致 404
+    const encodedPath = encodeURIComponent(path);
+    const url = `${baseUrl}/projects/${projectId}/repository/commits?path=${encodedPath}&per_page=100`;
 
     const response = await fetch(url, {
       method: 'GET',

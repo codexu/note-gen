@@ -364,7 +364,9 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const proxy = await getProxyConfig();
 
     // Gitea API 需要指定分支（sha 参数），默认使用 main 分支
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?sha=main&path=${path}&per_page=100`;
+    // 对 path 进行编码，避免特殊字符导致 404
+    const encodedPath = encodeURIComponent(path);
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?sha=main&path=${encodedPath}&per_page=100`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -404,8 +406,9 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    // 获取特定 commit 的文件内容
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${path}?ref=${ref}`;
+    // 获取特定 commit 的文件内容，对 path 进行编码
+    const encodedPath = encodeURIComponent(path);
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}?ref=${ref}`;
 
     const response = await encodeFetch(url, {
       method: 'GET',

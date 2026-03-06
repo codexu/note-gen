@@ -315,32 +315,54 @@ class SyncPushQueue {
           }
           case 'gitlab': {
             const gitlabModule = await import('@/lib/sync/gitlab') as any
-            await gitlabModule.uploadFile({
+            // 先获取远程文件的 SHA（blob_id），uploadFile 会用它获取 last_commit_id
+            const fileInfo = await gitlabModule.getFiles({ path, repo })
+            // GitLab getFiles 返回文件对象或文件数组，检查是否为数组（目录）
+            if (Array.isArray(fileInfo)) {
+              console.warn(`[SyncPushQueue] ${path} 是目录，无法推送`)
+              emitter.emit('sync-push-completed', { path, success: false })
+              return { success: false }
+            }
+            const result = await gitlabModule.uploadFile({
               file: content,
               filename: path.split('/').pop() || path,
-              sha: undefined, // GitLab 使用 last_commit_id，不使用 sha
+              sha: fileInfo?.sha, // GitLab 会用 sha 获取 last_commit_id
               message: commitMessage,
               repo,
               path
             })
-            success = true
-            // GitLab 上传成功后获取最新 SHA
-            uploadedSha = await this.getRemoteSha(path)
+            // 检查上传是否成功
+            if (result && result.data) {
+              success = true
+              // GitLab 上传成功后从 commit 获取 SHA
+              uploadedSha = await this.getRemoteSha(path)
+            }
             break
           }
           case 'gitea': {
             const giteaModule = await import('@/lib/sync/gitea') as any
-            await giteaModule.uploadFile({
+            // 先获取远程文件的 SHA
+            const fileInfo = await giteaModule.getFiles({ path, repo })
+            // Gitea getFiles 返回文件对象或文件数组，检查是否为数组（目录）
+            if (Array.isArray(fileInfo)) {
+              console.warn(`[SyncPushQueue] ${path} 是目录，无法推送`)
+              emitter.emit('sync-push-completed', { path, success: false })
+              return { success: false }
+            }
+            const result = await giteaModule.uploadFile({
               file: content,
               filename: path.split('/').pop() || path,
-              sha: undefined, // Gitea API 处理方式
+              sha: fileInfo?.sha, // 传递 SHA 以便 Gitea 进行冲突检测
               message: commitMessage,
               repo,
               path
             })
-            success = true
-            // Gitea 上传成功后获取最新 SHA
-            uploadedSha = await this.getRemoteSha(path)
+            // 检查上传是否成功
+            if (result && result.data) {
+              success = true
+              // Gitea 上传成功后从 commit 获取 SHA
+              uploadedSha = await this.getRemoteSha(path)
+            }
             break
           }
         }

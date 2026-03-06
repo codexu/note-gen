@@ -152,13 +152,29 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
         }
         case 'gitlab': {
           const gitlabModule = await import('@/lib/sync/gitlab') as any
-          await gitlabModule.updateFileContent({ path: activeFilePath, ref: 'main', repo, content, message: commitMessage })
+          const fileInfo = await gitlabModule.getFiles({ path: activeFilePath, repo })
+          await gitlabModule.uploadFile({
+            file: content,
+            filename: activeFilePath.split('/').pop() || activeFilePath,
+            sha: fileInfo?.sha,
+            message: commitMessage,
+            repo,
+            path: activeFilePath
+          })
           success = true
           break
         }
         case 'gitea': {
           const giteaModule = await import('@/lib/sync/gitea') as any
-          await giteaModule.updateFileContent({ path: activeFilePath, ref: 'main', repo, content, message: commitMessage })
+          const fileInfo = await giteaModule.getFiles({ path: activeFilePath, repo })
+          await giteaModule.uploadFile({
+            file: content,
+            filename: activeFilePath.split('/').pop() || activeFilePath,
+            sha: fileInfo?.sha,
+            message: commitMessage,
+            repo,
+            path: activeFilePath
+          })
           success = true
           break
         }

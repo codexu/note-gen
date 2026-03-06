@@ -46,12 +46,16 @@ export async function getGiteaApiBaseUrl(): Promise<string> {
 async function getCommonHeaders(): Promise<any> {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteaAccessToken');
-  
+
+  if (!accessToken) {
+    throw new Error('Gitea Access Token 未配置');
+  }
+
   const headers = {
     "Content-Type": 'application/json;charset=utf-8',
     "Authorization": `token ${accessToken}`,
   };
-  
+
   return headers;
 }
 
@@ -92,15 +96,13 @@ export async function uploadFile({
     const id = uuid();
     let _filename = filename || id;
     // 将空格转换成下划线
-    _filename = encodeURIComponent(_filename.replace(/\s/g, '_'));
-    const _path = path ? `${path}/${_filename}` : _filename;
+    _filename = _filename.replace(/\s/g, '_');
 
-    // 对路径进行标准化处理
-    const normalizedPath = _path.split('/').map((p, i) => {
-      // 最后一部分（文件名）已经编码过了，不需要再编码
-      if (i === _path.split('/').length - 1) return p;
-      return encodeURIComponent(p.replace(/\s/g, '_'));
-    }).join('/');
+    // path 是完整路径（如 notes/test.md），需要分离出目录和文件名
+    // 参考 Gitee 的处理方式
+    const _path = path ? `/${path}` : '';
+    const encodedPath = _path.split('/').slice(0, -1).map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/');
+    const normalizedPath = _path ? `${encodedPath}/${_filename}` : _filename;
 
     // 将内容转换为 Base64（Gitea API 要求）
     const base64Content = Buffer.from(file, 'utf-8').toString('base64')
@@ -162,6 +164,47 @@ export async function uploadFile({
 }
 
 /**
+ * 更新文件内容（获取文件 sha 后上传）
+ * @param params 更新参数
+ */
+export async function updateFileContent({
+  path,
+  ref,
+  repo,
+  content,
+  message
+}: {
+  path: string;
+  ref?: string;
+  repo: string;
+  content: string;
+  message?: string;
+}) {
+  try {
+    // 先获取文件信息，获取 sha
+    const fileInfo = await getFiles({ path, repo });
+    const sha = fileInfo?.sha;
+
+    // 调用 uploadFile 上传文件
+    return await uploadFile({
+      file: content,
+      filename: path.split('/').pop() || path,
+      sha,
+      message: message || `Update ${path}`,
+      repo,
+      path: path.substring(0, path.lastIndexOf('/'))
+    });
+  } catch (error) {
+    toast({
+      title: '更新文件失败',
+      description: (error as GiteaError).message || '更新文件时发生错误',
+      variant: 'destructive',
+    });
+    throw error;
+  }
+}
+
+/**
  * 获取 Gitea 仓库文件列表
  * @param params 查询参数
  */
@@ -214,14 +257,26 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
     }
 
     // 文件或目录不存在，返回 null
-    if (response.status >= 400 && response.status < 500) {
+    if (response.status === 404) {
       return null
+    }
+
+    // 401 或其他客户端错误，抛出错误
+    if (response.status >= 400 && response.status < 500) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        message: errorData.message || `获取文件列表失败: ${response.status}`
+      } as GiteaError;
     }
 
     return null;
 
-  } catch {
-    // 静默处理错误，返回 null
+  } catch (error) {
+    // 重新抛出已处理的错误，静默处理其他错误
+    if ((error as GiteaError).status) {
+      throw error;
+    }
     return null;
   }
 }

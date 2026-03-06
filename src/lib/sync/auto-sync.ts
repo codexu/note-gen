@@ -1,8 +1,9 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
-import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits } from '@/lib/sync/gitea'
+import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
 import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
@@ -769,6 +770,7 @@ export async function hasNetworkConnection(): Promise<boolean> {
 
     let url = ''
     let token = ''
+    let proxy: Proxy | undefined = undefined
 
     switch (primaryBackupMethod) {
       case 'github':
@@ -786,8 +788,12 @@ export async function hasNetworkConnection(): Promise<boolean> {
         break
       case 'gitea':
         token = await store.get<string>('giteaAccessToken') || ''
-        const giteaUrl = await store.get<string>('giteaUrl') || 'https://gitea.com'
-        url = `${giteaUrl}/api/v1/user`
+        url = `${await getGiteaApiBaseUrl()}/user`
+        // Gitea 自建实例可能需要代理
+        const giteaProxyUrl = await store.get<string>('proxy')
+        if (giteaProxyUrl) {
+          proxy = { all: giteaProxyUrl }
+        }
         break
       default:
         clearTimeout(timeoutId)
@@ -799,13 +805,20 @@ export async function hasNetworkConnection(): Promise<boolean> {
       return false
     }
 
-    const response = await fetch(url, {
-      method: 'HEAD',
+    const fetchOptions: any = {
+      method: 'GET',
       signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${token}`
       }
-    })
+    }
+
+    // Gitea 自建实例使用代理
+    if (proxy) {
+      fetchOptions.proxy = proxy
+    }
+
+    const response = await fetch(url, fetchOptions)
 
     clearTimeout(timeoutId)
     return response.ok

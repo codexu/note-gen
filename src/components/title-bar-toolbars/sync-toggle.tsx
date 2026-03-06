@@ -23,6 +23,7 @@ import useSettingStore from "@/stores/setting"
 import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
+import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
 import { confirm } from "@tauri-apps/plugin-dialog"
 
@@ -158,14 +159,16 @@ async function gitlabGetFile({ path, accessToken, projectId }: {
 async function giteaUpload({ file, path, filename, sha, repo, accessToken, giteaUsername }: {
   file: string, path: string, filename: string, sha?: string, repo: string, accessToken: string, giteaUsername: string
 }) {
-  const url = `https://gitea.com/api/v1/repos/${giteaUsername}/${repo}/contents/${encodePath(path, filename)}`
+  const baseUrl = await getGiteaApiBaseUrl()
+  const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodePath(path, filename)}`
   return requestGitea('PUT', url, { content: file, message: `Upload ${filename}`, branch: 'main', sha })
 }
 
 async function giteaGetFile({ path, repo, accessToken, giteaUsername }: {
   path: string, repo: string, accessToken: string, giteaUsername: string
 }) {
-  const url = `https://gitea.com/api/v1/repos/${giteaUsername}/${repo}/contents/${encodePath(path)}?ref=main`
+  const baseUrl = await getGiteaApiBaseUrl()
+  const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodePath(path)}?ref=main`
   return requestGitea('GET', url)
 }
 

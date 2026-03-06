@@ -169,13 +169,11 @@ export async function uploadFile({
  */
 export async function updateFileContent({
   path,
-  ref,
   repo,
   content,
   message
 }: {
   path: string;
-  ref?: string;
   repo: string;
   content: string;
   message?: string;
@@ -183,7 +181,8 @@ export async function updateFileContent({
   try {
     // 先获取文件信息，获取 sha
     const fileInfo = await getFiles({ path, repo });
-    const sha = fileInfo?.sha;
+    // getFiles 可能返回数组（目录）或对象（文件），需要检查类型
+    const sha = fileInfo && !Array.isArray(fileInfo) ? fileInfo.sha : undefined;
 
     // 调用 uploadFile 上传文件
     return await uploadFile({

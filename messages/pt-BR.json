@@ -316,8 +316,8 @@
       "title": "Configurações do Editor",
       "interfaceSettings": "Configurações de Interface",
       "desc": "Aqui, você pode personalizar o editor, criando uma experiência de escrita adaptada às suas necessidades.",
-      "typewriterMode": "Modo Máquina de Escrever",
-      "typewriterModeDesc": "No modo máquina de escrever, o editor simula o efeito de uma máquina de escrever, permitindo que você se concentre melhor na escrita.",
+      "centeredContent": "Conteúdo Centralizado",
+      "centeredContentDesc": "Quando ativado, o conteúdo do editor será centralizado com margens em ambos os lados.",
       "outlineEnable": "Sumário habilitado por padrão",
       "outlineEnableDesc": "Habilitar esta opção tornará o sumário visível por padrão.",
       "outlinePosition": "Posição do Sumário",
@@ -326,16 +326,8 @@
         "left": "Esquerda",
         "right": "Direita"
       },
-      "pageView": "Visualização da Página",
-      "pageViewDesc": "Na visualização imersiva, o editor reservará uma grande quantidade de espaço em branco em ambos os lados, e na visualização panorâmica, o conteúdo do editor ocupará toda a área de edição.",
-      "pageViewOptions": {
-        "immersiveView": "Visualização Imersiva",
-        "panoramaView": "Visualização Panorâmica"
-      },
       "showUndoRedo": "Botões Desfazer/Refazer",
       "showUndoRedoDesc": "Mostrar botões de desfazer e refazer na barra de guias do editor.",
-      "enableLineNumber": "Habilitar número da linha",
-      "enableLineNumberDesc": "Habilitar esta opção tornará o número da linha visível nos blocos de código.",
       "completion": {
         "title": "Auto Completar",
         "model": {

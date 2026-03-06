@@ -366,8 +366,8 @@
       "title": "Editor Settings",
       "interfaceSettings": "Interface Settings",
       "desc": "Here, you can customize the editor, creating a writing experience tailored to your needs.",
-      "typewriterMode": "Typewriter Mode",
-      "typewriterModeDesc": "In typewriter mode, the editor will simulate a typewriter effect, helping you better immerse in writing.",
+      "centeredContent": "Centered Content",
+      "centeredContentDesc": "When enabled, editor content will be centered with margins on both sides.",
       "outlineEnable": "Default outline enabled",
       "outlineEnableDesc": "Enabling it will make the outline visible by default.",
       "outlinePosition": "Outline position",
@@ -376,16 +376,8 @@
         "left": "Left",
         "right": "Right"
       },
-      "pageView": "Page view",
-      "pageViewDesc": "In immersive view, the editor will reserve a large amount of blank space on both sides, and in panorama view, the editor content will occupy the entire editing area.",
-      "pageViewOptions": {
-        "immersiveView": "Immersive view",
-        "panoramaView": "Panorama view"
-      },
       "showUndoRedo": "Undo/Redo buttons",
       "showUndoRedoDesc": "Show undo and redo buttons in the editor tab bar.",
-      "enableLineNumber": "Enable line number",
-      "enableLineNumberDesc": "Enabling it will make the line number visible in code blocks.",
       "completion": {
         "title": "Auto Completion",
         "model": {

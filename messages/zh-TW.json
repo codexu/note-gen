@@ -310,8 +310,8 @@
       "title": "編輯器設置",
       "interfaceSettings": "界面設置",
       "desc": "在這裡，你可以對編輯器進行自定義配置，打造更適合你的寫作方式。",
-      "typewriterMode": "打字機模式",
-      "typewriterModeDesc": "打字機模式下，編輯器會模擬打字機效果，幫助你更好地沉浸在寫作中。",
+      "centeredContent": "置中內容",
+      "centeredContentDesc": "啟用後，編輯器內容將在中間顯示，兩側留白。",
       "outlineEnable": "預設啟用大綱",
       "outlineEnableDesc": "啟用後，編輯器將默認顯示大綱。",
       "outlinePosition": "大綱位置",
@@ -320,16 +320,8 @@
         "left": "左側",
         "right": "右側"
       },
-      "pageView": "頁面視圖",
-      "pageViewDesc": "沉浸視圖下編輯器兩側會保留大量空白，全景模式下編輯器內容占據整個編輯區域。",
-      "pageViewOptions": {
-        "immersiveView": "沉浸視圖",
-        "panoramaView": "全景視圖"
-      },
       "showUndoRedo": "復原/重做按鈕",
       "showUndoRedoDesc": "在編輯器標籤列顯示復原和重做按鈕。",
-      "enableLineNumber": "代碼塊行號",
-      "enableLineNumberDesc": "啟用後，代碼塊將顯示行號。",
       "completion": {
         "title": "快速補全",
         "model": {

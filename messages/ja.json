@@ -310,8 +310,8 @@
       "title": "エディター設定",
       "interfaceSettings": "インターフェース設定",
       "desc": "ここでは、エディターをカスタマイズして、より適した書き込み体験を提供できます。",
-      "typewriterMode": "打字機モード",
-      "typewriterModeDesc": "打字機モード下、エディタは打字機の効果を模倣し、より深く浸かる書き込み体験を提供します。",
+      "centeredContent": "コンテンツを中央に表示",
+      "centeredContentDesc": "有効にすると、コンテンツを中央に表示し、両側に余白を設けます。",
       "outlineEnable": "アウトラインを有効にする",
       "outlineEnableDesc": "アウトラインを有効にすると、アウトラインが表示されます。",
       "outlinePosition": "アウトライン位置",
@@ -320,16 +320,8 @@
         "left": "左側",
         "right": "右側"
       },
-      "pageView": "ページビュー",
-      "pageViewDesc": "沉浸視图下、編集器の両側に大量の空白が残され、全景モード下、編集器の内容は編集領域を占めます。",
-      "pageViewOptions": {
-        "immersiveView": "沉浸視图",
-        "panoramaView": "全景視图"
-      },
       "showUndoRedo": "元に戻す/やり直しボタン",
       "showUndoRedoDesc": "エディターのタブバーに元に戻すボタンとやり直しボタンを表示します。",
-      "enableLineNumber": "コードブロック行番号",
-      "enableLineNumberDesc": "コードブロックに行番号を表示します。",
       "completion": {
         "title": "自動補完",
         "model": {

@@ -49,6 +49,7 @@ interface TabBarProps {
   onCloseAllTabs: () => void
   onCloseLeftTabs: (path: string) => void
   onCloseRightTabs: (path: string) => void
+  showUndoRedo?: boolean
 }
 
 // Sortable Tab with Context Menu
@@ -212,6 +213,7 @@ export function TabBar({
   onCloseAllTabs,
   onCloseLeftTabs,
   onCloseRightTabs,
+  showUndoRedo = true,
 }: TabBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
@@ -382,28 +384,30 @@ export function TabBar({
       <div className="relative tab-scrollbar-wrapper">
         <div className="flex items-center h-12 bg-background border-b">
           {/* Undo/Redo buttons - fixed on the left */}
-          <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
-            <TooltipButton
-              icon={<Undo2 className="w-4 h-4" />}
-              tooltipText={`撤销 (${modKey}+Z)`}
-              onClick={() => {
-                emitter.emit('editor-undo')
-                // Update state after action
-                setTimeout(queryCanUndoRedo, 0)
-              }}
-              disabled={!canUndo}
-            />
-            <TooltipButton
-              icon={<Redo2 className="w-4 h-4" />}
-              tooltipText={`重做 (${modKey}+Shift+Z)`}
-              onClick={() => {
-                emitter.emit('editor-redo')
-                // Update state after action
-                setTimeout(queryCanUndoRedo, 0)
-              }}
-              disabled={!canRedo}
-            />
-          </div>
+          {showUndoRedo && (
+            <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
+              <TooltipButton
+                icon={<Undo2 className="w-4 h-4" />}
+                tooltipText={`撤销 (${modKey}+Z)`}
+                onClick={() => {
+                  emitter.emit('editor-undo')
+                  // Update state after action
+                  setTimeout(queryCanUndoRedo, 0)
+                }}
+                disabled={!canUndo}
+              />
+              <TooltipButton
+                icon={<Redo2 className="w-4 h-4" />}
+                tooltipText={`重做 (${modKey}+Shift+Z)`}
+                onClick={() => {
+                  emitter.emit('editor-redo')
+                  // Update state after action
+                  setTimeout(queryCanUndoRedo, 0)
+                }}
+                disabled={!canRedo}
+              />
+            </div>
+          )}
 
           {/* Tabs scroll container */}
           <div

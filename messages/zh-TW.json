@@ -326,6 +326,8 @@
         "immersiveView": "沉浸視圖",
         "panoramaView": "全景視圖"
       },
+      "showUndoRedo": "復原/重做按鈕",
+      "showUndoRedoDesc": "在編輯器標籤列顯示復原和重做按鈕。",
       "enableLineNumber": "代碼塊行號",
       "enableLineNumberDesc": "啟用後，代碼塊將顯示行號。",
       "completion": {

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import TypewriterMode from './typewriter-mode';
 import PageView from './page-view';
 import LineNumber from './lineNumber';
+import ShowUndoRedo from './show-undo-redo';
 import { DefaultModelsSettings } from '../components/default-models-settings';
 
 export default function EditorSettingPage() {
@@ -15,6 +16,7 @@ export default function EditorSettingPage() {
       <h3 className="text-lg font-semibold">{t('interfaceSettings')}</h3>
       <PageView />
       <TypewriterMode />
+      <ShowUndoRedo />
       <LineNumber />
     </div>
   </SettingType>

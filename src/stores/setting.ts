@@ -236,6 +236,10 @@ interface SettingState {
   recordToolbarConfig: RecordToolbarItem[]
   setRecordToolbarConfig: (config: RecordToolbarItem[]) => Promise<void>
 
+  // 编辑器撤销/重做按钮显示设置
+  showEditorUndoRedo: boolean
+  setShowEditorUndoRedo: (show: boolean) => Promise<void>
+
   // 摘要设置
   enableCondense: boolean
   setEnableCondense: (enabled: boolean) => Promise<void>
@@ -1180,6 +1184,15 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ condenseMaxLength: length })
     const store = await Store.load('store.json');
     await store.set('condenseMaxLength', length)
+    await store.save()
+  },
+
+  // 编辑器撤销/重做按钮显示设置 - 默认开启
+  showEditorUndoRedo: true,
+  setShowEditorUndoRedo: async (show: boolean) => {
+    set({ showEditorUndoRedo: show })
+    const store = await Store.load('store.json');
+    await store.set('showEditorUndoRedo', show)
     await store.save()
   },
 }))

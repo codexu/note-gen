@@ -380,6 +380,8 @@
         "immersiveView": "沉浸视图",
         "panoramaView": "全景视图"
       },
+      "showUndoRedo": "撤销/重做按钮",
+      "showUndoRedoDesc": "在编辑器标签栏显示撤销和重做按钮。",
       "enableLineNumber": "代码块行号",
       "enableLineNumberDesc": "启用后，代码块将显示行号。",
       "completion": {

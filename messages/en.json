@@ -382,6 +382,8 @@
         "immersiveView": "Immersive view",
         "panoramaView": "Panorama view"
       },
+      "showUndoRedo": "Undo/Redo buttons",
+      "showUndoRedoDesc": "Show undo and redo buttons in the editor tab bar.",
       "enableLineNumber": "Enable line number",
       "enableLineNumberDesc": "Enabling it will make the line number visible in code blocks.",
       "completion": {

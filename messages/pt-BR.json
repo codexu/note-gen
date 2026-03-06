@@ -332,6 +332,8 @@
         "immersiveView": "Visualização Imersiva",
         "panoramaView": "Visualização Panorâmica"
       },
+      "showUndoRedo": "Botões Desfazer/Refazer",
+      "showUndoRedoDesc": "Mostrar botões de desfazer e refazer na barra de guias do editor.",
       "enableLineNumber": "Habilitar número da linha",
       "enableLineNumberDesc": "Habilitar esta opção tornará o número da linha visível nos blocos de código.",
       "completion": {

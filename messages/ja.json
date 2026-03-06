@@ -326,6 +326,8 @@
         "immersiveView": "沉浸視图",
         "panoramaView": "全景視图"
       },
+      "showUndoRedo": "元に戻す/やり直しボタン",
+      "showUndoRedoDesc": "エディターのタブバーに元に戻すボタンとやり直しボタンを表示します。",
       "enableLineNumber": "コードブロック行番号",
       "enableLineNumberDesc": "コードブロックに行番号を表示します。",
       "completion": {

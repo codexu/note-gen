@@ -475,7 +475,7 @@ export async function getFileContentFromCommit({ path, ref, repo }: { path: stri
       encoding: blobData.encoding || 'base64'
     };
 
-  } catch (error) {
+  } catch {
     return null;
   }
 }

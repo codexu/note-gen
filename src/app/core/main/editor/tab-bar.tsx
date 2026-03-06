@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useRef, useState, useEffect, memo } from 'react'
-import { X, FileText, Folder, Plus } from 'lucide-react'
+import { X, FileText, Folder, Plus, Undo2, Redo2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
+import emitter from '@/lib/emitter'
 import {
   DndContext,
   closestCenter,
@@ -353,6 +354,24 @@ export function TabBar({
           className="flex items-center h-12 px-1 bg-background border-b overflow-x-auto tab-scrollbar gap-1"
           onWheel={handleWheel}
         >
+          {/* Undo/Redo buttons */}
+          <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-border shrink-0">
+            <button
+              onClick={() => emitter.emit('editor-undo')}
+              className="flex items-center justify-center w-7 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+              title={`撤销 (${modKey}+Z)`}
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => emitter.emit('editor-redo')}
+              className="flex items-center justify-center w-7 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+              title={`重做 (${modKey}+Shift+Z)`}
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Tabs */}
           <SortableContext
             items={tabs.map(t => t.id)}

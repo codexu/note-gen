@@ -5,6 +5,7 @@ import { Heading1, Heading2, Heading3 } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
+
 interface HeadingItem {
   level: number
   text: string
@@ -35,11 +36,26 @@ export function Outline({ editor, isOpen }: OutlineProps) {
 
     // Check periodically if editor view is available
     const checkEditor = () => {
+      // Check if editor is destroyed
+      if (!editor || (editor as any).isDestroyed) {
+        isEditorReadyRef.current = false
+        return
+      }
+
+      // Check if editor view is ready
       if (editor.view && editor.view.dom && editor.view.dom.isConnected) {
-        isEditorReadyRef.current = true
+        // Additional check: ensure DOM is actually mounted
+        try {
+          // This will throw if not ready
+          editor.view.dom.getBoundingClientRect()
+          isEditorReadyRef.current = true
+        } catch {
+          isEditorReadyRef.current = false
+          setTimeout(checkEditor, 50)
+          return
+        }
       } else {
         isEditorReadyRef.current = false
-        // Retry after a short delay
         setTimeout(checkEditor, 50)
       }
     }
@@ -112,14 +128,21 @@ export function Outline({ editor, isOpen }: OutlineProps) {
   // Update headings when editor content changes
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!editor || !editor.view || !editor.view.dom) return
-    setHeadings(extractHeadings())
+    if (!editor || !editor.view || !editor.view.dom) {
+      console.log('[Outline] useEffect extractHeadings: editor not ready')
+      return
+    }
+    try {
+      setHeadings(extractHeadings())
+    } catch (e) {
+      console.error('[Outline] Error in extractHeadings:', e)
+    }
   }, [editor, extractHeadings])
 
   // Find active heading based on scroll position (viewport)
   const findActiveHeadingByScroll = useCallback((): string | null => {
-    // Check if editor is fully initialized
-    if (!editor || !editor.view || !editor.view.dom || headings.length === 0) return null
+    // Check if editor is fully initialized - use isEditorReadyRef
+    if (!isEditorReadyRef.current || headings.length === 0) return null
 
     // Get the editor's scrollable element
     const editorElement = editor.view.dom as HTMLElement

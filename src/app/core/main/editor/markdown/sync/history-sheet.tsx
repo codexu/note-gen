@@ -187,14 +187,19 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         case 'gitlab': {
           const fileInfo = await getGitlabFileContent({ path: activeFilePath, ref: commitSha, repo })
           if (fileInfo?.content) {
-            content = fileInfo.content
+            // GitLab 返回的是 base64 编码内容，需要解码
+            content = decodeBase64ToString(fileInfo.content)
           }
           break
         }
         case 'gitea': {
           const fileInfo = await getGiteaFileContent({ path: activeFilePath, ref: commitSha, repo })
           if (fileInfo) {
-            content = typeof fileInfo === 'string' ? fileInfo : fileInfo.content || ''
+            // Gitea 返回的是 base64 编码内容，需要解码
+            const fileContent = typeof fileInfo === 'string' ? fileInfo : fileInfo.content || ''
+            if (fileContent) {
+              content = decodeGiteeBase64(fileContent)
+            }
           }
           break
         }

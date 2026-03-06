@@ -31,6 +31,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/enhanced-context-menu'
 import { platform } from '@tauri-apps/plugin-os'
+import useSettingStore from '@/stores/setting'
 
 export interface TabInfo {
   id: string
@@ -49,7 +50,7 @@ interface TabBarProps {
   onCloseAllTabs: () => void
   onCloseLeftTabs: (path: string) => void
   onCloseRightTabs: (path: string) => void
-  showUndoRedo?: boolean
+  showUndoRedo?: boolean // 保留这个 prop 以保持兼容性，但主要使用 store 中的值
 }
 
 // Sortable Tab with Context Menu
@@ -213,8 +214,9 @@ export function TabBar({
   onCloseAllTabs,
   onCloseLeftTabs,
   onCloseRightTabs,
-  showUndoRedo = true,
 }: TabBarProps) {
+  const { showEditorUndoRedo } = useSettingStore()
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
   const [canUndo, setCanUndo] = useState(false)
@@ -384,7 +386,7 @@ export function TabBar({
       <div className="relative tab-scrollbar-wrapper">
         <div className="flex items-center h-12 bg-background border-b">
           {/* Undo/Redo buttons - fixed on the left */}
-          {showUndoRedo && (
+          {showEditorUndoRedo && (
             <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
               <TooltipButton
                 icon={<Undo2 className="w-4 h-4" />}

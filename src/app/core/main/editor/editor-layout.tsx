@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
-import useSettingStore from '@/stores/setting'
 import emitter from '@/lib/emitter'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, TabInfo } from './tab-bar'
@@ -35,8 +34,6 @@ export function EditorLayout() {
     initOpenTabs,
     initShowCloudFiles
   } = useArticleStore()
-
-  const { showEditorUndoRedo } = useSettingStore()
 
   const tabContentsRef = useRef<Record<string, string>>({})
   const [tabs, setLocalTabs] = useState<TabInfo[]>([])
@@ -381,7 +378,6 @@ export function EditorLayout() {
           onCloseAllTabs={handleCloseAllTabs}
           onCloseLeftTabs={handleCloseLeftTabs}
           onCloseRightTabs={handleCloseRightTabs}
-          showUndoRedo={showEditorUndoRedo}
         />
         <EmptyState />
       </div>
@@ -401,7 +397,6 @@ export function EditorLayout() {
         onCloseAllTabs={handleCloseAllTabs}
         onCloseLeftTabs={handleCloseLeftTabs}
         onCloseRightTabs={handleCloseRightTabs}
-        showUndoRedo={showEditorUndoRedo}
       />
 
       {/* Only render active tab content - improves performance with many tabs */}

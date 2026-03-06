@@ -10,7 +10,7 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, decodeBase64ToString as decodeGiteeBase64 } from '@/lib/sync/gitee'
 import { getFileCommits as getGitlabFileCommits, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
-import { getFileCommits as getGiteaFileCommits, getFileContent as getGiteaFileContent, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
+import { getFileCommits as getGiteaFileCommits, getFileContentFromCommit as getGiteaFileContentFromCommit, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 interface CommitInfo {
   sha: string
+  fullSha?: string // 完整 SHA，用于恢复功能
   message: string
   author: string
   date: Date
@@ -129,6 +130,7 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         const sha = commit.sha || commit.id || ''
         return {
           sha: sha.slice(0, 7),
+          fullSha: sha, // 保存完整 SHA，用于恢复功能
           message: commit.commit?.message || commit.message || 'No message',
           author: commit.commit?.author?.name || commit.author?.name || commit.author_name || 'Unknown',
           date: new Date(commit.commit?.author?.date || commit.created_at || commit.committed_date || Date.now()),
@@ -185,25 +187,32 @@ export function HistorySheet({ editor }: HistorySheetProps) {
           break
         }
         case 'gitlab': {
-          const fileInfo = await getGitlabFileContent({ path: activeFilePath, ref: commitSha, repo })
-          if (fileInfo?.content) {
-            // GitLab 返回的是 base64 编码内容，需要解码
-            content = decodeBase64ToString(fileInfo.content)
+          try {
+            const fileInfo = await getGitlabFileContent({ path: activeFilePath, ref: commitSha, repo })
+            if (fileInfo?.content) {
+              // GitLab 返回的是 base64 编码内容，需要解码
+              content = decodeBase64ToString(fileInfo.content)
+            }
+          } catch (e) {
+            console.error('[HistorySheet] GitLab 获取内容失败:', e)
           }
           break
         }
         case 'gitea': {
-          const fileInfo = await getGiteaFileContent({ path: activeFilePath, ref: commitSha, repo })
-          if (fileInfo) {
-            // Gitea 返回的是 base64 编码内容，需要解码
-            const fileContent = typeof fileInfo === 'string' ? fileInfo : fileInfo.content || ''
-            if (fileContent) {
-              content = decodeGiteeBase64(fileContent)
+          try {
+            // 使用 getFileContentFromCommit 通过 Git tree API 获取特定 commit 的文件内容
+            const fileInfo = await getGiteaFileContentFromCommit({ path: activeFilePath, ref: commitSha, repo })
+            if (fileInfo && fileInfo.content) {
+              // Gitea 返回的是 base64 编码内容，需要解码
+              content = decodeGiteeBase64(fileInfo.content)
             }
+          } catch (e) {
+            console.error('[HistorySheet] Gitea 获取内容失败:', e)
           }
           break
         }
       }
+
 
       if (content) {
         // 保存到本地文件
@@ -320,7 +329,7 @@ export function HistorySheet({ editor }: HistorySheetProps) {
                       {commit.author}
                     </p>
                     <button
-                      onClick={() => restoreVersion(commit.sha)}
+                      onClick={() => restoreVersion(commit.fullSha || commit.sha)}
                       disabled={restoringSha === commit.sha}
                       className={cn(
                         'text-xs text-blue-500 hover:text-blue-600 inline-flex items-center gap-1',

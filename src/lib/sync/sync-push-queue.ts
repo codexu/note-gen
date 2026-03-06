@@ -233,6 +233,10 @@ class SyncPushQueue {
           if (remoteContent === content) {
             // 获取远程 SHA 用于更新文件树
             const remoteSha = await this.getRemoteSha(path)
+            // 更新本地记录的 SHA，这样下次推送时就会检测到 SHA 匹配而跳过
+            if (remoteSha) {
+              await setLocalRecordedSha(path, remoteSha)
+            }
             // 发送完成事件
             emitter.emit('sync-push-completed', { path, success: true, sha: remoteSha })
             return { success: true, sha: remoteSha }
@@ -281,7 +285,7 @@ class SyncPushQueue {
           case 'gitee': {
             const giteeModule = await import('@/lib/sync/gitee') as any
             // 每次尝试都重新获取远程 SHA
-            const fileInfo = await giteeModule.getFiles({ path, repo })
+            const fileInfo = await giteeModule.getFiles({ path, repo})
 
             // 检查返回的是文件还是目录
             // Gitee API 对文件返回对象，对目录返回数组
@@ -304,7 +308,8 @@ class SyncPushQueue {
             // 检查上传是否成功
             if (result && result.data) {
               success = true
-              uploadedSha = result?.data?.sha || fileInfo?.sha
+              // Gitee API 返回的是 result.data.content.sha
+              uploadedSha = result?.data?.content?.sha || fileInfo?.sha
             }
             break
           }
@@ -479,7 +484,8 @@ class SyncPushQueue {
           })
           if (result && result.data) {
             success = true
-            uploadedSha = result?.data?.sha
+            // Gitee API 返回的是 result.data.content.sha
+            uploadedSha = result?.data?.content?.sha
           }
           break
         }

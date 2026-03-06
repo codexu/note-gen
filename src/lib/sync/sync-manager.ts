@@ -225,6 +225,11 @@ export class SyncManager {
       }
 
       if (uploadSuccess) {
+        // 推送成功后更新本地记录的远程 SHA
+        const newRemoteSha = await this.getRemoteSha(path)
+        if (newRemoteSha) {
+          await setLocalRecordedSha(path, newRemoteSha)
+        }
         await this.logSync(path, 'push', true)
         return { success: true, action: 'push', message: '推送成功' }
       }

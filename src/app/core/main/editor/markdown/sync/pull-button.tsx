@@ -118,15 +118,11 @@ export function PullButton({ editor }: PullButtonProps) {
 
   // Auto pull from remote (called by interval)
   const checkForUpdates = useCallback(async () => {
-    if (!activeFilePath || isLoading) return
-
-    // 如果用户正在编辑，延迟拉取
-    if (isUserActive) {
-      setPullStatus('idle')
+    if (!activeFilePath || isLoading) {
       return
     }
 
-    // 如果用户刚停止输入不久，也延迟
+    // 如果用户正在编辑（停止输入不到 10 秒），延迟拉取
     if (timeSinceInput < IDLE_THRESHOLD) {
       setPullStatus('idle')
       return
@@ -195,6 +191,9 @@ export function PullButton({ editor }: PullButtonProps) {
       pullTimeoutRef.current = null
     }
 
+    // 文件切换时，重置最后输入时间，让首次检测可以立即执行
+    lastInputTimeRef.current = 0
+
     // 文件切换时也使用新的检测逻辑，不自动拉取
     const checkOnSwitch = async () => {
       // 竞态检查：如果当前正在处理的文件不是这个了，忽略
@@ -208,12 +207,8 @@ export function PullButton({ editor }: PullButtonProps) {
       remoteContentRef.current = null
 
       try {
-        // 如果用户正在编辑，不执行检测
-        if (isUserActive) {
-          setPullStatus('idle')
-          return
-        }
-
+        // 文件切换时总是检测（用户主动打开的文件，检测更新不会打扰用户）
+        // 只有定时器检测才需要考虑用户是否在编辑
         const result = await compareFileVersions(activeFilePath)
 
         // 再次检查是否还是当前文件（可能已经切换走了）

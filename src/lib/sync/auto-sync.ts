@@ -266,6 +266,13 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
     // 如果没有本地记录的 SHA，但远程有内容，记录 SHA
     if (!localRecordedSha) {
       await setLocalRecordedSha(path, remoteInfo.sha)
+    } else {
+      // SHA 匹配，直接返回，无需继续比较时间
+      return {
+        shouldUpdate: false,
+        action: 'none',
+        reason: 'SHA 匹配，文件已同步'
+      }
     }
   }
 

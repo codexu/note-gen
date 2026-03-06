@@ -23,7 +23,18 @@ export async function getGiteaApiBaseUrl(): Promise<string> {
   if (instanceType === GiteaInstanceType.SELF_HOSTED) {
     let customUrl = await store.get<string>('giteaCustomUrl') || '';
     // 移除末尾的斜杠，避免双斜杠问题
-    customUrl = customUrl.replace(/\/+$/, '');
+    customUrl = customUrl.replace(/\/+$/, '').trim();
+
+    // 验证自定义 URL 是否有效
+    if (!customUrl) {
+      throw new Error('自建 Gitea 实例的 URL 未配置，请先在设置中填写 Gitea URL');
+    }
+
+    // 确保 URL 包含协议
+    if (!customUrl.startsWith('http://') && !customUrl.startsWith('https://')) {
+      customUrl = 'http://' + customUrl;
+    }
+
     return `${customUrl}/api/v1`;
   }
 

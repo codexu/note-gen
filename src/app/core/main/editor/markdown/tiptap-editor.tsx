@@ -32,6 +32,7 @@ import { MathEditorDialog } from './math-editor-dialog'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { handleImageUpload } from '@/lib/image-handler'
+import { isMobileDevice } from '@/lib/check'
 import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
@@ -180,9 +181,14 @@ export function TipTapEditor({
   const externalUpdateCounterRef = useRef(0)
   const pendingSyncUpdateRef = useRef<{ path: string; content: string } | null>(null)
 
-  // 读取居中内容设置
+  // 读取居中内容设置（移动端强制关闭）
   useEffect(() => {
     async function loadCenteredContent() {
+      // 移动端强制关闭居中内容
+      if (isMobileDevice()) {
+        setCenteredContent(false)
+        return
+      }
       const store = await Store.load('store.json');
       const centered = await store.get<boolean>('centeredContent') || false
       setCenteredContent(centered)

@@ -380,13 +380,9 @@ export function TabBar({
       onDragEnd={handleDragEnd}
     >
       <div className="relative tab-scrollbar-wrapper">
-        <div
-          ref={scrollContainerRef}
-          className="flex items-center h-12 px-1 bg-background border-b overflow-x-auto tab-scrollbar gap-1"
-          onWheel={handleWheel}
-        >
-          {/* Undo/Redo buttons */}
-          <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-border shrink-0">
+        <div className="flex items-center h-12 bg-background border-b">
+          {/* Undo/Redo buttons - fixed on the left */}
+          <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
             <TooltipButton
               icon={<Undo2 className="w-4 h-4" />}
               tooltipText={`撤销 (${modKey}+Z)`}
@@ -409,36 +405,43 @@ export function TabBar({
             />
           </div>
 
-          {/* Tabs */}
-          <SortableContext
-            items={tabs.map(t => t.id)}
-            strategy={horizontalListSortingStrategy}
+          {/* Tabs scroll container */}
+          <div
+            ref={scrollContainerRef}
+            className="flex items-center h-12 px-1 overflow-x-auto tab-scrollbar gap-1"
+            onWheel={handleWheel}
           >
-            {tabs.map((tab) => (
-              <MemoizedSortableTabWithMenu
-                key={tab.id}
-                tab={tab}
-                isActive={activeTabId === tab.id}
-                tabs={tabs}
-                modKey={modKey}
-                onTabSwitch={onTabSwitch}
-                onCloseTab={onCloseTab}
-                onCloseOtherTabs={onCloseOtherTabs}
-                onCloseAllTabs={onCloseAllTabs}
-                onCloseLeftTabs={onCloseLeftTabs}
-                onCloseRightTabs={onCloseRightTabs}
-              />
-            ))}
-          </SortableContext>
+            {/* Tabs */}
+            <SortableContext
+              items={tabs.map(t => t.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {tabs.map((tab) => (
+                <MemoizedSortableTabWithMenu
+                  key={tab.id}
+                  tab={tab}
+                  isActive={activeTabId === tab.id}
+                  tabs={tabs}
+                  modKey={modKey}
+                  onTabSwitch={onTabSwitch}
+                  onCloseTab={onCloseTab}
+                  onCloseOtherTabs={onCloseOtherTabs}
+                  onCloseAllTabs={onCloseAllTabs}
+                  onCloseLeftTabs={onCloseLeftTabs}
+                  onCloseRightTabs={onCloseRightTabs}
+                />
+              ))}
+            </SortableContext>
 
-          {/* New tab button */}
-          <button
-            onClick={onNewTab}
-            className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
-            title={t('closeAll')}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+            {/* New tab button */}
+            <button
+              onClick={onNewTab}
+              className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
+              title={t('closeAll')}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Custom absolute scrollbar */}

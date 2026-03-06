@@ -1364,10 +1364,11 @@ export function TipTapEditor({
     <div ref={editorContainerRef} className="tiptap-editor relative flex flex-col h-full">
       {/* Editor content - scrollable area */}
       <div
-        className={`flex-1 overflow-x-hidden overflow-y-auto relative ${centeredContent ? 'max-w-3xl mx-auto px-4 w-full' : ''}`}
+        className="flex-1 overflow-x-hidden overflow-y-auto relative"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleEditorDrop}
       >
+        <div className={centeredContent ? 'max-w-3xl mx-auto px-4' : ''}>
         <BubbleMenuComponent
           editor={editor}
           onAIPolish={handleAIPolish}
@@ -1383,6 +1384,7 @@ export function TipTapEditor({
         <FloatingTableMenu editor={editor} />
 
         <EditorContent editor={editor} className="h-full" />
+        </div>
       </div>
 
       {/* Bottom toolbar - always visible */}

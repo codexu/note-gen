@@ -1,5 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
-import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, saveLocalFile } from './auto-sync'
+import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, saveLocalFile, setLocalRecordedSha } from './auto-sync'
 import { decodeBase64ToString } from './github'
 import { updateFileSyncTime } from './conflict-resolution'
 import { getSyncRepoName } from './repo-utils'
@@ -274,6 +274,13 @@ export class SyncManager {
         // 解码 base64 内容后再保存到本地
         const decodedContent = decodeBase64ToString(content)
         await saveLocalFile(path, decodedContent)
+
+        // 获取远程文件的 SHA 并更新本地记录
+        const remoteSha = await this.getRemoteSha(path)
+        if (remoteSha) {
+          await setLocalRecordedSha(path, remoteSha)
+        }
+
         await updateFileSyncTime(path)
         await this.logSync(path, 'pull', true)
         return { success: true, action: 'pull', message: '拉取成功' }

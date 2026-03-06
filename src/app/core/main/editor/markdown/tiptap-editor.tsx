@@ -718,6 +718,8 @@ export function TipTapEditor({
 
         if (initialContent) {
           editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
+          // Clear history so undo/redo starts from this loaded state
+          editor.commands.clearHistory()
         }
         // Mark as initialized to allow subsequent content updates
         isInitializedRef.current = true
@@ -731,6 +733,23 @@ export function TipTapEditor({
       }, 0)
     }
   }, [editor, initialContent, onReady, onEditorReady, activeFilePath])
+
+  // Listen to editor updates and notify TabBar about undo/redo state
+  useEffect(() => {
+    if (!editor) return
+
+    const handleUpdate = () => {
+      emitter.emit('editor-undo-redo-changed', {
+        undo: editor.can().undo(),
+        redo: editor.can().redo()
+      })
+    }
+
+    editor.on('update', handleUpdate)
+    return () => {
+      editor.off('update', handleUpdate)
+    }
+  }, [editor, activeFilePath])
 
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {
@@ -753,6 +772,8 @@ export function TipTapEditor({
         // Use setTimeout to avoid flushSync conflict during React render
         setTimeout(() => {
           editor.commands.setContent(newContent, { contentType: 'markdown' })
+          // Clear history after remote update
+          editor.commands.clearHistory()
           // Bug fix: Mark editor as ready after content is set
           isReadyRef.current = true
           // Reset the counter after a short delay
@@ -783,6 +804,8 @@ export function TipTapEditor({
       // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
         editor.commands.setContent(event.content, { contentType: 'markdown' })
+        // Clear history after sync update
+        editor.commands.clearHistory()
         // Bug fix: Mark editor as ready after content is set
         isReadyRef.current = true
         // Reset the counter and pending update after a short delay
@@ -818,6 +841,8 @@ export function TipTapEditor({
         setTimeout(() => {
           // Set content in editor with Markdown parsing
           editor.commands.setContent(newContent, { contentType: 'markdown' })
+          // Clear history after external content update
+          editor.commands.clearHistory()
           // Bug fix: Mark editor as ready after content is set
           isReadyRef.current = true
           // Reset the counter after a short delay to handle rapid updates
@@ -1266,6 +1291,18 @@ export function TipTapEditor({
       editor.chain().focus().redo().run()
     }
 
+    // Handle query for undo/redo capability
+    const handleCanUndoRedo = ({ resolve }: { resolve: (can: { undo: boolean; redo: boolean }) => void }) => {
+      if (!editor) {
+        resolve({ undo: false, redo: false })
+        return
+      }
+      resolve({
+        undo: editor.can().undo(),
+        redo: editor.can().redo()
+      })
+    }
+
     // Defer emitter and document listener registration to avoid flushSync conflict during React render
     const setupListeners = () => {
       // Check if editor is initialized before registering listeners
@@ -1278,6 +1315,7 @@ export function TipTapEditor({
       emitter.on('get-quote-from-editor', handleGetQuote)
       emitter.on('editor-undo', handleUndo)
       emitter.on('editor-redo', handleRedo)
+      emitter.on('editor-can-undo-redo', handleCanUndoRedo)
       document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
       listenersSetup = true
     }
@@ -1290,6 +1328,7 @@ export function TipTapEditor({
       emitter.off('get-quote-from-editor', handleGetQuote)
       emitter.off('editor-undo', handleUndo)
       emitter.off('editor-redo', handleRedo)
+      emitter.off('editor-can-undo-redo', handleCanUndoRedo)
       // Only remove event listener if it was actually added
       if (listenersSetup) {
         document.removeEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
@@ -1297,8 +1336,10 @@ export function TipTapEditor({
       }
     }
 
-    // Use setTimeout to defer listener registration until after React render completes
-    setTimeout(setupListeners, 0)
+    // Register listeners synchronously
+    if (editor) {
+      setupListeners()
+    }
 
     return cleanupListeners
   }, [editor, activeFilePath])

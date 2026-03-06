@@ -102,6 +102,8 @@ interface Events {
   'editor-insert': { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void };
   'editor-undo': void;
   'editor-redo': void;
+  'editor-can-undo-redo': { resolve: (can: { undo: boolean; redo: boolean }) => void };
+  'editor-undo-redo-changed': { undo: boolean; redo: boolean };
   'editor-replace': {
     content?: string;
     range?: { from: number; to: number };

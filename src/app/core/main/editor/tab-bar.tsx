@@ -5,6 +5,7 @@ import { X, FileText, Folder, Plus, Undo2, Redo2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import emitter from '@/lib/emitter'
+import { TooltipButton } from '@/components/tooltip-button'
 import {
   DndContext,
   closestCenter,
@@ -214,6 +215,36 @@ export function TabBar({
 }: TabBarProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+
+  // Query undo/redo capability from editor
+  const queryCanUndoRedo = useCallback(() => {
+    emitter.emit('editor-can-undo-redo', {
+      resolve: (can) => {
+        setCanUndo(can.undo)
+        setCanRedo(can.redo)
+      }
+    })
+  }, [])
+
+  // Query on mount and when activeTabId changes
+  useEffect(() => {
+    queryCanUndoRedo()
+  }, [activeTabId, queryCanUndoRedo])
+
+  // Listen for undo/redo state changes from editor
+  useEffect(() => {
+    const handleUndoRedoChanged = (can: { undo: boolean; redo: boolean }) => {
+      setCanUndo(can.undo)
+      setCanRedo(can.redo)
+    }
+
+    emitter.on('editor-undo-redo-changed', handleUndoRedoChanged)
+    return () => {
+      emitter.off('editor-undo-redo-changed', handleUndoRedoChanged)
+    }
+  }, [])
 
   // Get current platform
   const [currentPlatform, setCurrentPlatform] = useState<'macos' | 'windows' | 'linux' | 'unknown'>('unknown')
@@ -356,20 +387,26 @@ export function TabBar({
         >
           {/* Undo/Redo buttons */}
           <div className="flex items-center gap-0.5 pr-2 mr-1 border-r border-border shrink-0">
-            <button
-              onClick={() => emitter.emit('editor-undo')}
-              className="flex items-center justify-center w-7 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-              title={`撤销 (${modKey}+Z)`}
-            >
-              <Undo2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => emitter.emit('editor-redo')}
-              className="flex items-center justify-center w-7 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-              title={`重做 (${modKey}+Shift+Z)`}
-            >
-              <Redo2 className="w-4 h-4" />
-            </button>
+            <TooltipButton
+              icon={<Undo2 className="w-4 h-4" />}
+              tooltipText={`撤销 (${modKey}+Z)`}
+              onClick={() => {
+                emitter.emit('editor-undo')
+                // Update state after action
+                setTimeout(queryCanUndoRedo, 0)
+              }}
+              disabled={!canUndo}
+            />
+            <TooltipButton
+              icon={<Redo2 className="w-4 h-4" />}
+              tooltipText={`重做 (${modKey}+Shift+Z)`}
+              onClick={() => {
+                emitter.emit('editor-redo')
+                // Update state after action
+                setTimeout(queryCanUndoRedo, 0)
+              }}
+              disabled={!canRedo}
+            />
           </div>
 
           {/* Tabs */}

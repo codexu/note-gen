@@ -402,10 +402,14 @@ export function PullButton({ editor }: PullButtonProps) {
             检查中
           </span>
         ) : (
-          /* 无需拉取 */
-          <span className="p-0.5 opacity-30 cursor-not-allowed" title="无需拉取">
+          /* 无需拉取时也显示可点击的按钮，让用户可以手动拉取 */
+          <button
+            onClick={handlePull}
+            className="p-0.5 rounded transition-colors hover:bg-accent text-muted-foreground flex items-center gap-1"
+            title="手动拉取远程文件"
+          >
             <ArrowDownCircle size={14} />
-          </span>
+          </button>
         )}
       </div>
 

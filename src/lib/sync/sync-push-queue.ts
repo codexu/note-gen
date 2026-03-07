@@ -8,6 +8,29 @@ import emitter from '@/lib/emitter'
 import { pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { getRemoteFileInfo } from './auto-sync'
 import useSettingStore from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
+import { S3Config } from '@/types/sync'
+
+/**
+ * 获取 S3 配置
+ */
+async function getS3Config(): Promise<S3Config | null> {
+  const store = await Store.load('store.json')
+  const config = await store.get<S3Config>('s3SyncConfig')
+  if (config && config.accessKeyId && config.secretAccessKey && config.region && config.bucket) {
+    return config
+  }
+  return null
+}
+
+/**
+ * 获取代理配置
+ */
+async function getProxyConfig(): Promise<{ all: string } | undefined> {
+  const store = await Store.load('store.json')
+  const proxyUrl = await store.get<string>('proxy')
+  return proxyUrl ? { all: proxyUrl } : undefined
+}
 
 interface PushTask {
   path: string
@@ -217,8 +240,8 @@ class SyncPushQueue {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const store = await Store.load('store.json')
-        const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
-        const repo = await getSyncRepoName(provider)
+        const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3'
+        const repo = provider !== 's3' ? await getSyncRepoName(provider) : undefined
 
         // 从磁盘读取最新内容，确保上传的是本地最新内容
         const workspace = await getWorkspacePath()
@@ -365,6 +388,28 @@ class SyncPushQueue {
             }
             break
           }
+          case 's3': {
+            const s3Module = await import('@/lib/sync/s3') as any
+            const s3Config = await getS3Config()
+            if (!s3Config) {
+              console.warn('[SyncPushQueue] S3 未配置')
+              emitter.emit('sync-push-completed', { path, success: false })
+              return { success: false }
+            }
+
+            // 获取代理配置
+            const proxy = await getProxyConfig()
+
+            // S3 不需要 SHA 检查，直接上传
+            const result = await s3Module.s3Upload(s3Config, path, content, proxy)
+            if (result && result.etag) {
+              success = true
+              uploadedSha = result.etag // 使用 ETag 作为标识
+              // 更新本地记录的 ETag
+              useSyncStore.getState().updateS3FileEtag(path, result.etag)
+            }
+            break
+          }
         }
 
         if (success) {
@@ -458,8 +503,8 @@ class SyncPushQueue {
   async forcePush(path: string): Promise<{ success: boolean; sha?: string }> {
     try {
       const store = await Store.load('store.json')
-      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
-      const repo = await getSyncRepoName(provider)
+      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3'
+      const repo = provider !== 's3' ? await getSyncRepoName(provider) : undefined
 
       // 从磁盘读取最新内容
       const workspace = await getWorkspacePath()
@@ -537,6 +582,28 @@ class SyncPushQueue {
           })
           success = true
           uploadedSha = await this.getRemoteSha(path)
+          break
+        }
+        case 's3': {
+          const s3Module = await import('@/lib/sync/s3') as any
+          const s3Config = await getS3Config()
+          if (!s3Config) {
+            console.warn('[SyncPushQueue] S3 未配置')
+            emitter.emit('sync-push-completed', { path, success: false })
+            return { success: false }
+          }
+
+          // 获取代理配置
+          const proxy = await getProxyConfig()
+
+          // S3 强制推送：直接上传，不检查 ETag
+          const result = await s3Module.s3Upload(s3Config, path, content, proxy)
+          if (result && result.etag) {
+            success = true
+            uploadedSha = result.etag
+            // 更新本地记录的 ETag
+            useSyncStore.getState().updateS3FileEtag(path, result.etag)
+          }
           break
         }
       }

@@ -49,6 +49,15 @@ interface SyncState {
   setS3FileEtags: (etags: Record<string, string>) => void
   updateS3FileEtag: (path: string, etag: string) => void
   removeS3FileEtag: (path: string) => void
+
+  // WebDAV 相关状态
+  webdavConnected: boolean
+  setWebDAVConnected: (connected: boolean) => void
+
+  webdavFileEtags: Record<string, string>
+  setWebDAVFileEtags: (etags: Record<string, string>) => void
+  updateWebDAVFileEtag: (path: string, etag: string) => void
+  removeWebDAVFileEtag: (path: string) => void
 }
 
 const useSyncStore = create<SyncState>((set) => ({
@@ -132,6 +141,29 @@ const useSyncStore = create<SyncState>((set) => ({
       const newEtags = { ...state.s3FileEtags }
       delete newEtags[path]
       return { s3FileEtags: newEtags }
+    })
+  },
+
+  // WebDAV 相关状态
+  webdavConnected: false,
+  setWebDAVConnected: (connected) => {
+    set({ webdavConnected: connected })
+  },
+
+  webdavFileEtags: {},
+  setWebDAVFileEtags: (etags) => {
+    set({ webdavFileEtags: etags })
+  },
+  updateWebDAVFileEtag: (path, etag) => {
+    set((state) => ({
+      webdavFileEtags: { ...state.webdavFileEtags, [path]: etag },
+    }))
+  },
+  removeWebDAVFileEtag: (path) => {
+    set((state) => {
+      const newEtags = { ...state.webdavFileEtags }
+      delete newEtags[path]
+      return { webdavFileEtags: newEtags }
     })
   },
 }))

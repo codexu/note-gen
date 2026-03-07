@@ -30,7 +30,7 @@ export default function SyncPage() {
     autoPullOnSwitch,
     setAutoPullOnSwitch,
   } = useSettingStore()
-  const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected } = useSyncStore()
+  const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected, webdavConnected } = useSyncStore()
 
   const [tab, setTab] = useState<SyncPlatform>(primaryBackupMethod)
   const [isLoading, setIsLoading] = useState(true)
@@ -73,6 +73,8 @@ export default function SyncPage() {
         return giteaSyncRepoState
       case 's3':
         return s3Connected ? SyncStateEnum.success : SyncStateEnum.fail
+      case 'webdav':
+        return webdavConnected ? SyncStateEnum.success : SyncStateEnum.fail
       default:
         return syncRepoState
     }
@@ -103,6 +105,9 @@ export default function SyncPage() {
         return <GiteaSync />
       case 's3':
         return <S3Sync />
+      case 'webdav':
+        // TODO: Replace with WebDAV sync component in Task 4
+        return <div className="p-4 text-zinc-500">WebDAV sync coming soon...</div>
       default:
         return <GithubSync />
     }

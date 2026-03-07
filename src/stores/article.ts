@@ -719,11 +719,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const collapsibleList = get().collapsibleList
     const pathsToLoad: string[] = [''] // 总是加载根目录
     
-    // 检查 collapsibleList 中的路径是否在本地存在
+    // 检查 collapsibleList 中的路径是否在本地存在，或者尝试加载远程文件夹
     for (const path of collapsibleList) {
       const fullPath = await join(workspace.path, path)
       let dirExists = false
-      
+
       try {
         if (workspace.isCustom) {
           dirExists = await exists(fullPath)
@@ -735,14 +735,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } catch {
         dirExists = false
       }
-      
-      // 只有本地存在的文件夹才加载远程同步状态
-      if (dirExists) {
+
+      // 本地存在的文件夹，或者对于云同步（GitHub/Gitee/GitLab/Gitea/S3/WebDAV），即使本地不存在也尝试加载远程
+      // 这样可以显示仅存在于云端的文件夹
+      if (dirExists || primaryBackupMethod !== 'github') {
+        // 对于非 Git 平台，总是尝试加载
+        pathsToLoad.push(path)
+      } else if (dirExists) {
+        // 对于 Git 平台，只加载本地存在的
         pathsToLoad.push(path)
       }
     }
     
     // 使用 Promise.all 并发请求所有路径的远程文件
+    console.log('[WebDAV] loadFiles - pathsToLoad:', pathsToLoad, 'primaryBackupMethod:', primaryBackupMethod)
     const loadPromises = pathsToLoad.map(async path => {
       try {
         let files;
@@ -772,8 +778,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
           case 'webdav': {
             const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+            console.log('[WebDAV] loadFiles case webdav - path:', path, 'config:', !!webdavConfig)
             if (webdavConfig) {
               files = await webdavListObjects(webdavConfig, path)
+              console.log('[WebDAV] loadFiles case webdav - files:', files)
             }
             break;
           }
@@ -801,6 +809,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
                 return;
               }
 
+              // 计算相对路径
               const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
               const isDirectChild = !relativePath.includes('/')
 
@@ -809,17 +818,22 @@ const useArticleStore = create<NoteState>((set, get) => ({
               }
 
               const isDirectory = file.key.endsWith('/')
-              const itemPath = file.key
+
+              // 移除 pathPrefix 前缀，转换为本地相对路径
+              let localItemPath = file.key
+              if (prefix && localItemPath.startsWith(prefix + '/')) {
+                localItemPath = localItemPath.substring(prefix.length + 1)
+              }
 
               let currentFolder: DirTree | undefined
               if (isDirectory) {
-                currentFolder = getCurrentFolder(itemPath, dirs)?.parent
+                currentFolder = getCurrentFolder(localItemPath, dirs)?.parent
               } else {
-                const filePath = itemPath.split('/').slice(0, -1).join('/')
+                const filePath = localItemPath.split('/').slice(0, -1).join('/')
                 currentFolder = getCurrentFolder(filePath, dirs)
               }
 
-              if (itemPath.includes('/')) {
+              if (localItemPath.includes('/')) {
                 const index = currentFolder?.children?.findIndex(item => item.name === fileName)
                 if (index !== -1 && index !== undefined && currentFolder?.children) {
                   currentFolder.children[index].sha = file.etag
@@ -1047,8 +1061,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
   
   // 加载特定文件夹的远程同步文件（后台任务）
   loadFolderRemoteFiles: async (fullpath: string) => {
+    console.log('[WebDAV] loadFolderRemoteFiles called with fullpath:', fullpath)
     const store = await getStore();
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    console.log('[WebDAV] loadFolderRemoteFiles - primaryBackupMethod:', primaryBackupMethod)
     
     // 检查是否配置了访问令牌
     if (primaryBackupMethod === 'github') {
@@ -1103,8 +1119,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
         case 'webdav': {
           const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+          console.log('[WebDAV] loadFolderRemoteFiles - fullpath:', fullpath)
           if (webdavConfig) {
             files = await webdavListObjects(webdavConfig, fullpath)
+            console.log('[WebDAV] loadFolderRemoteFiles - files:', files)
           }
           break;
         }

@@ -32,8 +32,8 @@ import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
-import { s3Upload, s3Download, s3HeadObject, s3Delete } from "@/lib/sync/s3"
-import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete } from "@/lib/sync/webdav"
+import { s3Upload, s3Download, s3HeadObject, s3Delete, testS3Connection } from "@/lib/sync/s3"
+import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete, testWebDAVConnection } from "@/lib/sync/webdav"
 import { S3Config, WebDAVConfig, SyncPlatform } from "@/types/sync"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
 import { confirm, save, open } from "@tauri-apps/plugin-dialog"
@@ -212,7 +212,9 @@ export function SyncToggle() {
     gitlabSyncProjectState,
     giteaSyncRepoState,
     s3Connected,
-    webdavConnected
+    webdavConnected,
+    setS3Connected,
+    setWebDAVConnected
   } = useSyncStore()
 
   const { uploadMarks, downloadMarks, fetchMarks } = useMarkStore()
@@ -318,6 +320,24 @@ export function SyncToggle() {
       // 跳转到同步设置页面
       router.push('/core/setting?anchor=sync')
       return
+    }
+
+    // 如果是 S3 或 WebDAV，切换后重新检测连接状态
+    if (value === 's3' || value === 'webdav') {
+      const store = await Store.load('store.json')
+      if (value === 's3') {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        if (s3Config?.bucket) {
+          const isConnected = await testS3Connection(s3Config).catch(() => false)
+          setS3Connected(isConnected)
+        }
+      } else if (value === 'webdav') {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (webdavConfig?.url && webdavConfig?.username && webdavConfig?.password) {
+          const isConnected = await testWebDAVConnection(webdavConfig).catch(() => false)
+          setWebDAVConnected(isConnected)
+        }
+      }
     }
 
     await setPrimaryBackupMethod(value as SyncPlatform)

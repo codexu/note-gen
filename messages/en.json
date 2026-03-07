@@ -737,6 +737,28 @@
         "saveConfig": "Save Config",
         "saving": "Saving"
       },
+      "webdav": {
+        "title": "WebDAV Sync",
+        "description": "Sync your notes using WebDAV protocol",
+        "status": "Connection Status",
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "disconnected": "Disconnected",
+        "url": "Server URL",
+        "urlPlaceholder": "Please enter WebDAV server URL",
+        "urlDesc": "Supports Synology, QNAP, Nextcloud and other WebDAV services",
+        "username": "Username",
+        "usernamePlaceholder": "Please enter username",
+        "password": "Password",
+        "passwordPlaceholder": "Please enter password",
+        "pathPrefix": "Path Prefix",
+        "pathPrefixPlaceholder": "Please enter path prefix",
+        "pathPrefixDesc": "Used to differentiate files between different users",
+        "testConnection": "Test Connection",
+        "testing": "Testing",
+        "saveConfig": "Save Config",
+        "saving": "Saving"
+      },
       "autoSync": "Auto Sync",
       "autoSyncOptions": {
         "placeholder": "Select auto sync time",

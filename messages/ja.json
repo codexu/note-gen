@@ -705,6 +705,28 @@
         "testing": "テスト中",
         "saveConfig": "設定を保存",
         "saving": "保存中"
+      },
+      "webdav": {
+        "title": "WebDAV 同期",
+        "description": "WebDAVプロトコルを使用してノートを同期します",
+        "status": "接続状態",
+        "connected": "接続済み",
+        "connecting": "接続中",
+        "disconnected": "未接続",
+        "url": "サーバーURL",
+        "urlPlaceholder": "WebDAV サーバーURLを入力してください",
+        "urlDesc": "Synology、QNAP、Nextcloud などのWebDAVサービスをサポート",
+        "username": "ユーザー名",
+        "usernamePlaceholder": "ユーザー名を入力してください",
+        "password": "パスワード",
+        "passwordPlaceholder": "パスワードを入力してください",
+        "pathPrefix": "パスプレフィックス",
+        "pathPrefixPlaceholder": "パスプレフィックスを入力してください",
+        "pathPrefixDesc": "異なるユーザーのファイルを区別するために使用",
+        "testConnection": "接続テスト",
+        "testing": "テスト中",
+        "saveConfig": "設定を保存",
+        "saving": "保存中"
       }
     },
     "imageHosting": {

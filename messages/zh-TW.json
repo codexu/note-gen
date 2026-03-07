@@ -708,6 +708,28 @@
         "testing": "测试中",
         "saveConfig": "保存配置",
         "saving": "保存中"
+      },
+      "webdav": {
+        "title": "WebDAV 同步",
+        "description": "使用 WebDAV 协议同步你的笔记",
+        "status": "连接状态",
+        "connected": "已连接",
+        "connecting": "连接中",
+        "disconnected": "未连接",
+        "url": "服务器地址",
+        "urlPlaceholder": "请输入 WebDAV 服务器地址",
+        "urlDesc": "支持群晖、QNAP、Nextcloud 等 WebDAV 服务",
+        "username": "用户名",
+        "usernamePlaceholder": "请输入用户名",
+        "password": "密码",
+        "passwordPlaceholder": "请输入密码",
+        "pathPrefix": "路径前缀",
+        "pathPrefixPlaceholder": "请输入路径前缀",
+        "pathPrefixDesc": "用于区分不同用户的文件",
+        "testConnection": "测试连接",
+        "testing": "测试中",
+        "saveConfig": "保存配置",
+        "saving": "保存中"
       }
     },
     "imageHosting": {

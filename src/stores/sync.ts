@@ -40,6 +40,15 @@ interface SyncState {
   setGiteaSyncRepoState: (giteaSyncRepoState: SyncStateEnum) => void
   giteaSyncRepoInfo?: GiteaRepositoryInfo
   setGiteaSyncRepoInfo: (giteaSyncRepoInfo?: GiteaRepositoryInfo) => void
+
+  // S3 相关状态
+  s3Connected: boolean
+  setS3Connected: (connected: boolean) => void
+
+  s3FileEtags: Record<string, string>
+  setS3FileEtags: (etags: Record<string, string>) => void
+  updateS3FileEtag: (path: string, etag: string) => void
+  removeS3FileEtag: (path: string) => void
 }
 
 const useSyncStore = create<SyncState>((set) => ({
@@ -101,6 +110,29 @@ const useSyncStore = create<SyncState>((set) => ({
   giteaSyncRepoInfo: undefined,
   setGiteaSyncRepoInfo: (giteaSyncRepoInfo) => {
     set({ giteaSyncRepoInfo })
+  },
+
+  // S3 相关状态
+  s3Connected: false,
+  setS3Connected: (connected) => {
+    set({ s3Connected: connected })
+  },
+
+  s3FileEtags: {},
+  setS3FileEtags: (etags) => {
+    set({ s3FileEtags: etags })
+  },
+  updateS3FileEtag: (path, etag) => {
+    set((state) => ({
+      s3FileEtags: { ...state.s3FileEtags, [path]: etag },
+    }))
+  },
+  removeS3FileEtag: (path) => {
+    set((state) => {
+      const newEtags = { ...state.s3FileEtags }
+      delete newEtags[path]
+      return { s3FileEtags: newEtags }
+    })
   },
 }))
 

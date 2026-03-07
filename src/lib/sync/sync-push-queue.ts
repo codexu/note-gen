@@ -436,11 +436,11 @@ class SyncPushQueue {
 
             // WebDAV 不需要 SHA 检查，直接上传
             const result = await webdavModule.webdavUpload(webdavConfig, path, content, proxy)
-            if (result && result.etag) {
+            if (result) {
               success = true
-              uploadedSha = result.etag // 使用 ETag 作为标识
+              uploadedSha = result.etag || 'uploaded' // 使用 ETag 作为标识，空字符串使用默认值
               // 更新本地记录的 ETag
-              useSyncStore.getState().updateWebDAVFileEtag(path, result.etag)
+              useSyncStore.getState().updateWebDAVFileEtag(path, result.etag || '')
             }
             break
           }

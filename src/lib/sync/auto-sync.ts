@@ -5,7 +5,7 @@ import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { s3HeadObject, s3Download } from './s3'
-import { webdavHeadObject } from './webdav'
+import { webdavHeadObject, webdavDownload } from './webdav'
 import { S3Config, WebDAVConfig } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
@@ -438,6 +438,17 @@ export async function pullRemoteFile(path: string): Promise<string> {
           const s3File = await s3Download(s3Config, path)
           if (s3File) {
             return s3File.content
+          }
+        }
+        break
+      }
+
+      case 'webdav': {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (webdavConfig) {
+          const webdavFile = await webdavDownload(webdavConfig, path)
+          if (webdavFile) {
+            return webdavFile.content
           }
         }
         break

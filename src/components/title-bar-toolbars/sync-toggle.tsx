@@ -283,8 +283,34 @@ export function SyncToggle() {
       setProviders(providerList)
     }
 
+    // 检测 S3 连接状态
+    async function checkS3Status() {
+      const store = await Store.load('store.json')
+      const s3Config = await store.get<S3Config>('s3SyncConfig')
+      if (s3Config?.bucket) {
+        const isConnected = await testS3Connection(s3Config).catch(() => false)
+        setS3Connected(isConnected)
+      }
+    }
+
+    // 检测 WebDAV 连接状态
+    async function checkWebDAVStatus() {
+      const store = await Store.load('store.json')
+      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+      if (webdavConfig?.url && webdavConfig?.username && webdavConfig?.password) {
+        const isConnected = await testWebDAVConnection(webdavConfig).catch(() => false)
+        setWebDAVConnected(isConnected)
+      }
+    }
+
     loadProviderStatus()
-  }, [syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected, webdavConnected])
+
+    // 弹窗打开时检测 S3 和 WebDAV 连接状态
+    if (popoverOpen) {
+      checkS3Status()
+      checkWebDAVStatus()
+    }
+  }, [popoverOpen, syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected, webdavConnected])
 
   // 获取当前方案的显示文本
   const getCurrentProviderDisplay = () => {

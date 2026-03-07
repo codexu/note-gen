@@ -25,6 +25,7 @@ import { useState, useEffect } from 'react'
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import useChatStore from "@/stores/chat"
+import useArticleStore from "@/stores/article"
 import useSettingStore from "@/stores/setting"
 import useSyncStore from "@/stores/sync"
 import { Store } from "@tauri-apps/plugin-store"
@@ -217,6 +218,7 @@ export function SyncToggle() {
   const { uploadMarks, downloadMarks, fetchMarks } = useMarkStore()
   const { uploadTags, downloadTags, fetchTags, currentTagId } = useTagStore()
   const { init } = useChatStore()
+  const { loadFileTree, loadRemoteSyncFiles } = useArticleStore()
 
   const isMobile = isMobileDevice()
 
@@ -319,6 +321,10 @@ export function SyncToggle() {
     }
 
     await setPrimaryBackupMethod(value as SyncPlatform)
+
+    // 切换方案后重新加载文件列表
+    await loadFileTree()
+    await loadRemoteSyncFiles()
   }
 
   // 上传到云端

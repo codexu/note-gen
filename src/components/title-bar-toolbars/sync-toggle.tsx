@@ -25,7 +25,8 @@ import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
 import { s3Upload, s3Download, s3HeadObject, s3Delete } from "@/lib/sync/s3"
-import { S3Config } from "@/types/sync"
+import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete } from "@/lib/sync/webdav"
+import { S3Config, WebDAVConfig } from "@/types/sync"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
 import { confirm } from "@tauri-apps/plugin-dialog"
 
@@ -179,26 +180,31 @@ export function SyncToggle() {
   const username = useUsername()
   const [syncing, setSyncing] = useState(false)
   const [s3Configured, setS3Configured] = useState(false)
+  const [webdavConfigured, setWebdavConfigured] = useState(false)
 
   const { primaryBackupMethod } = useSettingStore()
 
-  // 检测 S3 是否配置
+  // 检测 S3/WebDAV 是否配置
   useEffect(() => {
-    async function checkS3() {
+    async function checkCloudConfig() {
+      const store = await Store.load('store.json')
       if (primaryBackupMethod === 's3') {
-        const store = await Store.load('store.json')
         const s3Config = await store.get<S3Config>('s3SyncConfig')
         setS3Configured(!!s3Config?.bucket)
+      } else if (primaryBackupMethod === 'webdav') {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        setWebdavConfigured(!!webdavConfig?.url && !!webdavConfig?.username && !!webdavConfig?.password)
       }
     }
-    checkS3()
+    checkCloudConfig()
   }, [primaryBackupMethod])
   const providerNames: Record<string, string> = {
     'github': 'Github',
     'gitee': 'Gitee',
     'gitlab': 'Gitlab',
     'gitea': 'Gitea',
-    's3': 'S3'
+    's3': 'S3',
+    'webdav': 'WebDAV'
   }
   const syncProvider = primaryBackupMethod ? providerNames[primaryBackupMethod] || primaryBackupMethod : ''
 
@@ -309,6 +315,19 @@ export function SyncToggle() {
           }
           break;
         }
+        case 'webdav': {
+          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+          if (webdavConfig) {
+            const webdavKey = `${path}/${filename}`
+            const existingFile = await webdavHeadObject(webdavConfig, webdavKey)
+            if (existingFile) {
+              await webdavDelete(webdavConfig, webdavKey)
+            }
+            const result = await webdavUpload(webdavConfig, webdavKey, filteredContent)
+            settingsRes = result ? { success: true } : null
+          }
+          break;
+        }
       }
       
       if (tagRes && markRes && settingsRes) {
@@ -393,12 +412,23 @@ export function SyncToggle() {
           }
           break;
         }
+        case 'webdav': {
+          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+          if (webdavConfig) {
+            const webdavKey = `${path}/${filename}`
+            const content = await webdavDownload(webdavConfig, webdavKey)
+            if (content) {
+              remoteFile = { content }
+            }
+          }
+          break;
+        }
       }
 
       if (remoteFile) {
-        // S3 返回的 content 是字符串，Git 平台需要 base64 解码
+        // S3/WebDAV 返回的 content 是字符串，Git 平台需要 base64 解码
         let remoteSettings: Record<string, any>
-        if (primaryBackupMethod === 's3') {
+        if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
           // s3Download 返回 { content: string; etag: string; lastModified: string }
           // remoteFile.content 是整个对象，需要取 .content 属性
           const s3Content = (remoteFile as any).content?.content
@@ -430,7 +460,7 @@ export function SyncToggle() {
   }
 
   // Git 平台需要用户名，S3 需要配置
-  const isConfigured = username || (primaryBackupMethod === 's3' && s3Configured)
+  const isConfigured = username || (primaryBackupMethod === 's3' && s3Configured) || (primaryBackupMethod === 'webdav' && webdavConfigured)
   if (!isConfigured) {
     return null
   }

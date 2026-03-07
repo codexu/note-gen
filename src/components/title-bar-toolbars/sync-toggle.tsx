@@ -396,8 +396,14 @@ export function SyncToggle() {
       }
 
       if (remoteFile) {
-        const configJson = decodeBase64ToString(remoteFile.content)
-        const remoteSettings = JSON.parse(configJson)
+        // S3 返回的 content 是字符串，Git 平台需要 base64 解码
+        let remoteSettings: Record<string, any>
+        if (primaryBackupMethod === 's3') {
+          remoteSettings = JSON.parse(remoteFile.content)
+        } else {
+          const configJson = decodeBase64ToString(remoteFile.content)
+          remoteSettings = JSON.parse(configJson)
+        }
         
         const mergedSettings = mergeSyncData(localSettings, remoteSettings)
         

@@ -399,7 +399,10 @@ export function SyncToggle() {
         // S3 返回的 content 是字符串，Git 平台需要 base64 解码
         let remoteSettings: Record<string, any>
         if (primaryBackupMethod === 's3') {
-          remoteSettings = JSON.parse(remoteFile.content)
+          // s3Download 返回 { content: string; etag: string; lastModified: string }
+          // remoteFile.content 是整个对象，需要取 .content 属性
+          const s3Content = (remoteFile as any).content?.content
+          remoteSettings = JSON.parse(s3Content)
         } else {
           const configJson = decodeBase64ToString(remoteFile.content)
           remoteSettings = JSON.parse(configJson)

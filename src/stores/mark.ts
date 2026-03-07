@@ -4,6 +4,8 @@ import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab';
 import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea';
 import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
+import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
+import { WebDAVConfig } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
@@ -264,6 +266,18 @@ const useMarkStore = create<MarkState>((set, get) => ({
         }
         break;
       }
+      case 'webdav': {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (webdavConfig) {
+          const webdavKey = `${path}/${filename}`
+          const existingFile = await webdavHeadObject(webdavConfig, webdavKey)
+          if (existingFile) {
+            await webdavDelete(webdavConfig, webdavKey)
+          }
+          res = await webdavUpload(webdavConfig, webdavKey, JSON.stringify(marks))
+        }
+        break;
+      }
     }
     if (res) {
       result = true
@@ -303,6 +317,17 @@ const useMarkStore = create<MarkState>((set, get) => ({
           if (s3Result) {
             // S3 返回的 content 是字符串，直接解析
             result = JSON.parse(s3Result.content)
+          }
+        }
+        break;
+      }
+      case 'webdav': {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (webdavConfig) {
+          const webdavKey = `${path}/${filename}`
+          const webdavResult = await webdavDownload(webdavConfig, webdavKey)
+          if (webdavResult) {
+            result = JSON.parse(webdavResult.content)
           }
         }
         break;

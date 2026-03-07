@@ -796,6 +796,16 @@ export async function isSyncConfigured(): Promise<boolean> {
         const giteaToken = await store.get<string>('giteaAccessToken')
         return !!(giteaToken && giteaToken.trim().length > 0)
       }
+      case 's3': {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        return !!(
+          s3Config &&
+          s3Config.accessKeyId &&
+          s3Config.secretAccessKey &&
+          s3Config.region &&
+          s3Config.bucket
+        )
+      }
       default:
         return false
     }

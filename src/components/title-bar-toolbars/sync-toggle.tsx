@@ -15,7 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from '@/hooks/use-toast'
 import useUsername from '@/hooks/use-username'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import useChatStore from "@/stores/chat"
@@ -178,6 +178,19 @@ export function SyncToggle() {
   const t = useTranslations()
   const username = useUsername()
   const [syncing, setSyncing] = useState(false)
+  const [s3Configured, setS3Configured] = useState(false)
+
+  // 检测 S3 是否配置
+  useEffect(() => {
+    async function checkS3() {
+      if (primaryBackupMethod === 's3') {
+        const store = await Store.load('store.json')
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        setS3Configured(!!s3Config?.bucket)
+      }
+    }
+    checkS3()
+  }, [primaryBackupMethod])
 
   const { primaryBackupMethod } = useSettingStore()
   const providerNames: Record<string, string> = {
@@ -407,7 +420,9 @@ export function SyncToggle() {
     setSyncing(false)
   }
 
-  if (!username) {
+  // Git 平台需要用户名，S3 需要配置
+  const isConfigured = username || (primaryBackupMethod === 's3' && s3Configured)
+  if (!isConfigured) {
     return null
   }
 

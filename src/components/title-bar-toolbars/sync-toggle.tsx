@@ -24,6 +24,8 @@ import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
+import { s3Upload, s3Download, s3HeadObject, s3Delete } from "@/lib/sync/s3"
+import { S3Config } from "@/types/sync"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
 import { confirm } from "@tauri-apps/plugin-dialog"
 
@@ -182,7 +184,8 @@ export function SyncToggle() {
     'github': 'Github',
     'gitee': 'Gitee',
     'gitlab': 'Gitlab',
-    'gitea': 'Gitea'
+    'gitea': 'Gitea',
+    's3': 'S3'
   }
   const syncProvider = primaryBackupMethod ? providerNames[primaryBackupMethod] || primaryBackupMethod : ''
 
@@ -278,6 +281,21 @@ export function SyncToggle() {
           })
           break;
         }
+        case 's3': {
+          const s3Config = await store.get<S3Config>('s3SyncConfig')
+          if (s3Config) {
+            const s3Key = `${path}/${filename}`
+            // 检查文件是否存在
+            const existingFile = await s3HeadObject(s3Config, s3Key)
+            if (existingFile) {
+              // 存在则先删除再上传（S3 不支持更新文件）
+              await s3Delete(s3Config, s3Key)
+            }
+            const result = await s3Upload(s3Config, s3Key, filteredContent)
+            settingsRes = result ? { success: true } : null
+          }
+          break;
+        }
       }
       
       if (tagRes && markRes && settingsRes) {
@@ -349,6 +367,17 @@ export function SyncToggle() {
         case 'gitea': {
           const giteaRepo = await getSyncRepoName('gitea')
           remoteFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: accessToken!, giteaUsername: giteaUsername! })
+          break;
+        }
+        case 's3': {
+          const s3Config = await store.get<S3Config>('s3SyncConfig')
+          if (s3Config) {
+            const s3Key = `${path}/${filename}`
+            const content = await s3Download(s3Config, s3Key)
+            if (content) {
+              remoteFile = { content }
+            }
+          }
           break;
         }
       }

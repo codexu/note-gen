@@ -684,7 +684,31 @@
         "selfHosted": "自建实例",
         "selfHostedDesc": "输入您的自建 Gitea 服务器地址（如：https://gitea.example.com）"
       },
-      "giteaAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要完整的 repository 权限"
+      "giteaAccessTokenDesc": "在 {instanceDisplayName} 创建个人访问令牌，需要完整的 repository 权限",
+      "s3": {
+        "title": "S3 同步",
+        "description": "使用 S3 兼容存储同步你的笔记",
+        "status": "连接状态",
+        "connected": "已连接",
+        "connecting": "连接中",
+        "disconnected": "未连接",
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdPlaceholder": "请输入 Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "secretAccessKeyPlaceholder": "请输入 Secret Access Key",
+        "region": "区域",
+        "bucket": "存储桶",
+        "bucketPlaceholder": "请输入存储桶名称",
+        "endpoint": "端点",
+        "pathPrefix": "路径前缀",
+        "pathPrefixPlaceholder": "请输入路径前缀",
+        "pathPrefixDesc": "用于区分不同用户的文件，类似仓库名",
+        "customDomain": "自定义域名",
+        "testConnection": "测试连接",
+        "testing": "测试中",
+        "saveConfig": "保存配置",
+        "saving": "保存中"
+      }
     },
     "imageHosting": {
       "title": "圖床設置",

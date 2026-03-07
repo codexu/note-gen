@@ -4,7 +4,7 @@ import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as get
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
-import { s3HeadObject } from './s3'
+import { s3HeadObject, s3Download } from './s3'
 import { S3Config } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
@@ -423,6 +423,17 @@ export async function pullRemoteFile(path: string): Promise<string> {
         file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
         if (file && typeof file.content === 'string') {
           return decodeBase64ToString(file.content)
+        }
+        break
+      }
+
+      case 's3': {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        if (s3Config) {
+          const s3File = await s3Download(s3Config, path)
+          if (s3File) {
+            return s3File.content
+          }
         }
         break
       }

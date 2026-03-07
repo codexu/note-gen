@@ -4,6 +4,7 @@ import { ArrowUpCircle, CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
+import useSyncStore from '@/stores/sync'
 import { Store } from '@tauri-apps/plugin-store'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
@@ -105,8 +106,9 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     setIsLoading(true)
     try {
       const store = await Store.load('store.json')
-      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea'
-      const repo = await getSyncRepoName(provider)
+      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3'
+      // S3 不需要 repo
+      const repo = provider === 's3' ? '' : await getSyncRepoName(provider)
 
       // 始终从磁盘读取最新内容
       const workspace = await getWorkspacePath()
@@ -120,6 +122,21 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
       let success = false
 
       switch (provider) {
+        case 's3': {
+          const s3Module = await import('@/lib/sync/s3') as any
+          const s3Config = await store.get<any>('s3SyncConfig')
+          if (!s3Config) {
+            throw new Error('S3 配置未找到')
+          }
+          // S3 上传文件
+          const result = await s3Module.s3Upload(s3Config, activeFilePath, content)
+          if (result) {
+            // 更新 ETag 记录
+            useSyncStore.getState().updateS3FileEtag(activeFilePath, result.etag)
+            success = true
+          }
+          break
+        }
         case 'github': {
           const githubModule = await import('@/lib/sync/github') as any
           const fileInfo = await githubModule.getFiles({ path: activeFilePath, repo })

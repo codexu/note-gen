@@ -6,6 +6,8 @@ import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { GiteeFile } from '@/lib/sync/gitee'
 import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { s3ListObjects } from '@/lib/sync/s3'
+import { S3Config } from '@/types/sync'
 import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
@@ -698,8 +700,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
         if (!giteaAccessToken) {
           return
         }
+      } else if (primaryBackupMethod === 's3') {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        if (!s3Config || !s3Config.accessKeyId || !s3Config.secretAccessKey || !s3Config.region || !s3Config.bucket) {
+          return
+        }
       }
-    
+
     // 只为根目录和本地存在的已展开文件夹加载远程文件
     // 云端文件夹默认折叠，不加载其子内容
     const workspace = await getWorkspacePath()
@@ -750,68 +757,146 @@ const useArticleStore = create<NoteState>((set, get) => ({
             const giteaRepo = await getSyncRepoName('gitea');
             files = await getGiteaFiles({ path, repo: giteaRepo });
             break;
+          case 's3': {
+            const s3Config = await store.get<S3Config>('s3SyncConfig')
+            if (s3Config) {
+              files = await s3ListObjects(s3Config, path)
+            }
+            break;
+          }
         }
 
         if (files) {
           const dirs = get().fileTree
-          files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-            // 过滤以"."开头的文件和文件夹
-            if (file.name.startsWith('.')) {
-              return;
-            }
-            
-            // 只加载直接子项，不加载孙子项
-            const relativePath = path ? file.path.substring(path.length + 1) : file.path
-            const isDirectChild = !relativePath.includes('/')
-            
-            if (!isDirectChild) {
-              return // 跳过非直接子项
-            }
-            
-            const itemPath = file.path;
-            let currentFolder: DirTree | undefined
-            if (file.type === 'dir') {
-              currentFolder = getCurrentFolder(itemPath, dirs)?.parent
-            } else {
-              const filePath = itemPath.split('/').slice(0, -1).join('/')
-              currentFolder = getCurrentFolder(filePath, dirs)
-            }
-            if (itemPath.includes('/')) {
-              const index = currentFolder?.children?.findIndex(item => item.name === file.name)
-              if (index !== -1 && index !== undefined && currentFolder?.children) {
-                currentFolder.children[index].sha = file.sha
-              } else {
-                currentFolder?.children?.push({
-                  name: file.name,
-                  isFile: file.type === 'file',
-                  isSymlink: false,
-                  parent: currentFolder,
-                  isEditing: false,
-                  isDirectory: file.type === 'dir',
-                  sha: file.sha,
-                  isLocale: false,
-                  children: file.type === 'dir' ? [] : undefined
-                })
+
+          // S3 文件处理
+          if (primaryBackupMethod === 's3') {
+            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
+            const config = await store.get<S3Config>('s3SyncConfig')
+            const prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            const fullPrefix = prefix ? `${prefix}/${path}` : path
+
+            s3Files.forEach((file) => {
+              const fileName = file.key.split('/').pop() || file.key
+              if (fileName.startsWith('.')) {
+                return;
               }
-            } else {
-              const index = dirs.findIndex(item => item.name === file.name)
-              if (index !== -1 && index !== undefined) {
-                dirs[index].sha = file.sha
-              } else {
-                (dirs as any).push({
-                  name: file.name,
-                  isFile: file.type === 'file',
-                  isSymlink: false,
-                  parent: undefined,
-                  isEditing: false,
-                  isDirectory: file.type === 'dir',
-                  sha: file.sha,
-                  isLocale: false,
-                  children: file.type === 'dir' ? [] : undefined
-                })
+
+              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
+              const isDirectChild = !relativePath.includes('/')
+
+              if (!isDirectChild) {
+                return
               }
-            }
-          });
+
+              const isDirectory = file.key.endsWith('/')
+              const itemPath = file.key
+
+              let currentFolder: DirTree | undefined
+              if (isDirectory) {
+                currentFolder = getCurrentFolder(itemPath, dirs)?.parent
+              } else {
+                const filePath = itemPath.split('/').slice(0, -1).join('/')
+                currentFolder = getCurrentFolder(filePath, dirs)
+              }
+
+              if (itemPath.includes('/')) {
+                const index = currentFolder?.children?.findIndex(item => item.name === fileName)
+                if (index !== -1 && index !== undefined && currentFolder?.children) {
+                  currentFolder.children[index].sha = file.etag
+                } else {
+                  currentFolder?.children?.push({
+                    name: fileName,
+                    isFile: !isDirectory,
+                    isSymlink: false,
+                    parent: currentFolder,
+                    isEditing: false,
+                    isDirectory: isDirectory,
+                    sha: file.etag,
+                    isLocale: false,
+                    children: isDirectory ? [] : undefined
+                  })
+                }
+              } else {
+                const index = dirs.findIndex(item => item.name === fileName)
+                if (index !== -1 && index !== undefined) {
+                  dirs[index].sha = file.etag
+                } else {
+                  (dirs as any).push({
+                    name: fileName,
+                    isFile: !isDirectory,
+                    isSymlink: false,
+                    parent: undefined,
+                    isEditing: false,
+                    isDirectory: isDirectory,
+                    sha: file.etag,
+                    isLocale: false,
+                    children: isDirectory ? [] : undefined
+                  })
+                }
+              }
+            })
+          } else {
+            // Git 平台处理逻辑
+            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
+              // 过滤以"."开头的文件和文件夹
+              if (file.name.startsWith('.')) {
+                return;
+              }
+
+              // 只加载直接子项，不加载孙子项
+              const relativePath = path ? file.path.substring(path.length + 1) : file.path
+              const isDirectChild = !relativePath.includes('/')
+
+              if (!isDirectChild) {
+                return // 跳过非直接子项
+              }
+
+              const itemPath = file.path;
+              let currentFolder: DirTree | undefined
+              if (file.type === 'dir') {
+                currentFolder = getCurrentFolder(itemPath, dirs)?.parent
+              } else {
+                const filePath = itemPath.split('/').slice(0, -1).join('/')
+                currentFolder = getCurrentFolder(filePath, dirs)
+              }
+              if (itemPath.includes('/')) {
+                const index = currentFolder?.children?.findIndex(item => item.name === file.name)
+                if (index !== -1 && index !== undefined && currentFolder?.children) {
+                  currentFolder.children[index].sha = file.sha
+                } else {
+                  currentFolder?.children?.push({
+                    name: file.name,
+                    isFile: file.type === 'file',
+                    isSymlink: false,
+                    parent: currentFolder,
+                    isEditing: false,
+                    isDirectory: file.type === 'dir',
+                    sha: file.sha,
+                    isLocale: false,
+                    children: file.type === 'dir' ? [] : undefined
+                  })
+                }
+              } else {
+                const index = dirs.findIndex(item => item.name === file.name)
+                if (index !== -1 && index !== undefined) {
+                  dirs[index].sha = file.sha
+                } else {
+                  (dirs as any).push({
+                    name: file.name,
+                    isFile: file.type === 'file',
+                    isSymlink: false,
+                    parent: undefined,
+                    isEditing: false,
+                    isDirectory: file.type === 'dir',
+                    sha: file.sha,
+                    isLocale: false,
+                    children: file.type === 'dir' ? [] : undefined
+                  })
+                }
+              }
+            });
+          }
           set({ fileTree: dirs })
         }
       } catch {
@@ -953,6 +1038,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else if (primaryBackupMethod === 'gitea') {
       const giteaAccessToken = await store.get<string>('giteaAccessToken')
       if (!giteaAccessToken) return
+    } else if (primaryBackupMethod === 's3') {
+      const s3Config = await store.get<S3Config>('s3SyncConfig')
+      if (!s3Config || !s3Config.accessKeyId || !s3Config.secretAccessKey || !s3Config.region || !s3Config.bucket) return
     }
     
     try {
@@ -974,47 +1062,107 @@ const useArticleStore = create<NoteState>((set, get) => ({
           const giteaRepo1 = await getSyncRepoName('gitea');
           files = await getGiteaFiles({ path: fullpath, repo: giteaRepo1 });
           break;
+        case 's3': {
+          const s3Config = await store.get<S3Config>('s3SyncConfig')
+          console.log('[S3 FileList] primaryBackupMethod is s3, fullpath:', fullpath)
+          console.log('[S3 FileList] s3Config:', s3Config)
+          if (s3Config) {
+            console.log('[S3 FileList] Calling s3ListObjects with fullpath:', fullpath)
+            files = await s3ListObjects(s3Config, fullpath)
+            console.log('[S3 FileList] s3ListObjects returned:', files)
+          }
+          break;
+        }
       }
-      
+
+      console.log('[S3 FileList] primaryBackupMethod:', primaryBackupMethod, 'files:', files)
       if (files) {
         const cacheTree = get().fileTree
         const currentFolder = getCurrentFolder(fullpath, cacheTree)
-        
+
         if (currentFolder) {
-          files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-            // 过滤以"."开头的文件和文件夹
-            if (file.name.startsWith('.')) {
-              return;
-            }
-            
-            // 只加载直接子项，不加载孙子项
-            // 例如: fullpath='test', file.path='test/file.md' → 加载
-            //      fullpath='test', file.path='test/sub/file.md' → 跳过
-            const relativePath = fullpath ? file.path.substring(fullpath.length + 1) : file.path
-            const isDirectChild = !relativePath.includes('/')
-            
-            if (!isDirectChild) {
-              return // 跳过非直接子项
-            }
-            
-            const index = currentFolder.children?.findIndex(item => item.name === file.name)
-            if (index !== undefined && index !== -1 && currentFolder.children) {
-              currentFolder.children[index].sha = file.sha
-            } else {
-              currentFolder.children?.push({
-                name: file.name,
-                isFile: file.type === 'file',
-                isSymlink: false,
-                parent: currentFolder,
-                isEditing: false,
-                isDirectory: file.type === 'dir',
-                sha: file.sha,
-                isLocale: false,
-                children: file.type === 'file' ? undefined : []
-              })
-            }
-          });
-          
+          // S3 返回的文件格式不同，需要特殊处理
+          if (primaryBackupMethod === 's3') {
+            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
+            const config = await store.get<S3Config>('s3SyncConfig')
+            const prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            const fullPrefix = prefix ? `${prefix}/${fullpath}` : fullpath
+
+            s3Files.forEach((file) => {
+              // 提取文件名（key 的最后一部分）
+              const fileName = file.key.split('/').pop() || file.key
+              // 过滤以"."开头的文件和文件夹
+              if (fileName.startsWith('.')) {
+                return;
+              }
+
+              // 只加载直接子项，不加载孙子项
+              // 例如: fullPrefix='test', file.key='test/file.md' → 加载
+              //      fullPrefix='test', file.key='test/sub/file.md' → 跳过
+              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
+              const isDirectChild = !relativePath.includes('/')
+
+              if (!isDirectChild) {
+                return // 跳过非直接子项
+              }
+
+              // S3 没有文件夹概念，检查 key 是否以 / 结尾来判断是否是"文件夹"
+              const isDirectory = file.key.endsWith('/')
+
+              const index = currentFolder.children?.findIndex(item => item.name === fileName)
+              if (index !== undefined && index !== -1 && currentFolder.children) {
+                currentFolder.children[index].sha = file.etag
+              } else {
+                currentFolder.children?.push({
+                  name: fileName,
+                  isFile: !isDirectory,
+                  isSymlink: false,
+                  parent: currentFolder,
+                  isEditing: false,
+                  isDirectory: isDirectory,
+                  sha: file.etag,
+                  isLocale: false,
+                  children: isDirectory ? [] : undefined
+                })
+              }
+            })
+          } else {
+            // Git 平台处理逻辑
+            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
+              // 过滤以"."开头的文件和文件夹
+              if (file.name.startsWith('.')) {
+                return;
+              }
+
+              // 只加载直接子项，不加载孙子项
+              // 例如: fullpath='test', file.path='test/file.md' → 加载
+              //      fullpath='test', file.path='test/sub/file.md' → 跳过
+              const relativePath = fullpath ? file.path.substring(fullpath.length + 1) : file.path
+              const isDirectChild = !relativePath.includes('/')
+
+              if (!isDirectChild) {
+                return // 跳过非直接子项
+              }
+
+              const index = currentFolder.children?.findIndex(item => item.name === file.name)
+              if (index !== undefined && index !== -1 && currentFolder.children) {
+                currentFolder.children[index].sha = file.sha
+              } else {
+                currentFolder.children?.push({
+                  name: file.name,
+                  isFile: file.type === 'file',
+                  isSymlink: false,
+                  parent: currentFolder,
+                  isEditing: false,
+                  isDirectory: file.type === 'dir',
+                  sha: file.sha,
+                  isLocale: false,
+                  children: file.type === 'file' ? undefined : []
+                })
+              }
+            });
+          }
+
           // 移除加载状态
           currentFolder.loading = false
           set({ fileTree: cacheTree })

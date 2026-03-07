@@ -582,20 +582,24 @@ const useChatStore = create<ChatState>((set, get) => ({
         const s3Config = await store.get<S3Config>('s3SyncConfig')
         if (s3Config) {
           const s3Key = `${path}/${filename}`
-          const content = await s3Download(s3Config, s3Key)
-          if (content) {
-            files = { content: btoa(unescape(encodeURIComponent(content))) }
+          const s3Result = await s3Download(s3Config, s3Key)
+          if (s3Result) {
+            // S3 返回的 content 是字符串，直接解析
+            result = JSON.parse(s3Result.content)
           }
         }
         break;
       }
     }
+    // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
       const configJson = decodeBase64ToString(files.content)
       result = JSON.parse(configJson)
     }
-    await deleteAllChats()
-    await insertChats(result)
+    if (result.length > 0) {
+      await deleteAllChats()
+      await insertChats(result)
+    }
     set({ syncState: false })
     return result
   },

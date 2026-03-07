@@ -180,6 +180,8 @@ export function SyncToggle() {
   const [syncing, setSyncing] = useState(false)
   const [s3Configured, setS3Configured] = useState(false)
 
+  const { primaryBackupMethod } = useSettingStore()
+
   // 检测 S3 是否配置
   useEffect(() => {
     async function checkS3() {
@@ -191,8 +193,6 @@ export function SyncToggle() {
     }
     checkS3()
   }, [primaryBackupMethod])
-
-  const { primaryBackupMethod } = useSettingStore()
   const providerNames: Record<string, string> = {
     'github': 'Github',
     'gitee': 'Gitee',

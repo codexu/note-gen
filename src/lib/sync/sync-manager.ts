@@ -209,8 +209,9 @@ export class SyncManager {
 
     try {
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3'
-      const repo = await getSyncRepoName(platform)
-      const sha = await this.getRemoteSha(path) || undefined
+      // S3 不需要 repo，直接设为空字符串
+      const repo = platform === 's3' ? '' : await getSyncRepoName(platform)
+      const sha = platform === 's3' ? undefined : await this.getRemoteSha(path) || undefined
       const message = `Sync: ${path} - ${new Date().toLocaleString('zh-CN')}`
       const filename = path.split('/').pop() || path
 
@@ -279,7 +280,8 @@ export class SyncManager {
   async pullFile(path: string): Promise<SyncResult> {
     try {
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3'
-      const repo = await getSyncRepoName(platform)
+      // S3 不需要 repo
+      const repo = platform === 's3' ? '' : await getSyncRepoName(platform)
 
       let content: string | undefined
 
@@ -355,8 +357,9 @@ export class SyncManager {
   async deleteRemoteFile(path: string): Promise<SyncResult> {
     try {
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3'
-      const repo = await getSyncRepoName(platform)
-      const sha = await this.getRemoteSha(path)
+      // S3 不需要 repo
+      const repo = platform === 's3' ? '' : await getSyncRepoName(platform)
+      const sha = platform === 's3' ? undefined : await this.getRemoteSha(path)
 
       // S3 不需要 SHA，但其他平台需要
       if (platform !== 's3' && !sha) {

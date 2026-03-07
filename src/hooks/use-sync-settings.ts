@@ -57,6 +57,7 @@ export function useSyncSettings(): UseSyncSettingsReturn {
     gitee: { ...defaultPlatformStatus },
     gitlab: { ...defaultPlatformStatus },
     gitea: { ...defaultPlatformStatus },
+    s3: { ...defaultPlatformStatus },
   })
 
   const initialized = useRef(false)
@@ -70,7 +71,7 @@ export function useSyncSettings(): UseSyncSettingsReturn {
       try {
         const store = await getStore()
 
-        const platforms: SyncPlatform[] = ['github', 'gitee', 'gitlab', 'gitea']
+        const platforms: SyncPlatform[] = ['github', 'gitee', 'gitlab', 'gitea', 's3']
         const statusMap: Record<SyncPlatform, SyncPlatformStatus> = { ...platformStatus }
 
         await Promise.all(

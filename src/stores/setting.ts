@@ -159,8 +159,8 @@ interface SettingState {
   setGiteaUsername: (giteaUsername: string) => Promise<void>
 
   // 主要备份方式设置
-  primaryBackupMethod: 'github' | 'gitee' | 'gitlab' | 'gitea'
-  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab' | 'gitea') => Promise<void>
+  primaryBackupMethod: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3'
+  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3') => Promise<void>
 
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -903,7 +903,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   // 默认使用 GitHub 作为主要备份方式
   primaryBackupMethod: 'github',
-  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab' | 'gitea') => {
+  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3') => {
     const store = await Store.load('store.json')
     await store.set('primaryBackupMethod', method)
     await store.save()

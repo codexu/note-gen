@@ -748,7 +748,6 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
     
     // 使用 Promise.all 并发请求所有路径的远程文件
-    console.log('[WebDAV] loadFiles - pathsToLoad:', pathsToLoad, 'primaryBackupMethod:', primaryBackupMethod)
     const loadPromises = pathsToLoad.map(async path => {
       try {
         let files;
@@ -778,10 +777,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
           case 'webdav': {
             const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-            console.log('[WebDAV] loadFiles case webdav - path:', path, 'config:', !!webdavConfig)
             if (webdavConfig) {
               files = await webdavListObjects(webdavConfig, path)
-              console.log('[WebDAV] loadFiles case webdav - files:', files)
             }
             break;
           }
@@ -1061,10 +1058,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
   
   // 加载特定文件夹的远程同步文件（后台任务）
   loadFolderRemoteFiles: async (fullpath: string) => {
-    console.log('[WebDAV] loadFolderRemoteFiles called with fullpath:', fullpath)
     const store = await getStore();
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    console.log('[WebDAV] loadFolderRemoteFiles - primaryBackupMethod:', primaryBackupMethod)
     
     // 检查是否配置了访问令牌
     if (primaryBackupMethod === 'github') {
@@ -1108,27 +1103,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
           break;
         case 's3': {
           const s3Config = await store.get<S3Config>('s3SyncConfig')
-          console.log('[S3 FileList] primaryBackupMethod is s3, fullpath:', fullpath)
-          console.log('[S3 FileList] s3Config:', s3Config)
           if (s3Config) {
-            console.log('[S3 FileList] Calling s3ListObjects with fullpath:', fullpath)
             files = await s3ListObjects(s3Config, fullpath)
-            console.log('[S3 FileList] s3ListObjects returned:', files)
           }
           break;
         }
         case 'webdav': {
           const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-          console.log('[WebDAV] loadFolderRemoteFiles - fullpath:', fullpath)
           if (webdavConfig) {
             files = await webdavListObjects(webdavConfig, fullpath)
-            console.log('[WebDAV] loadFolderRemoteFiles - files:', files)
           }
           break;
         }
       }
 
-      console.log('[S3 FileList] primaryBackupMethod:', primaryBackupMethod, 'files:', files)
       if (files) {
         const cacheTree = get().fileTree
         const currentFolder = getCurrentFolder(fullpath, cacheTree)

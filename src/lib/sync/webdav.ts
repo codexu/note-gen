@@ -7,7 +7,7 @@ import { WebDAVConfig } from '@/types/sync'
  */
 
 // 调试模式
-const DEBUG = true
+const DEBUG = false
 
 /**
  * 构建 Basic Auth 头
@@ -61,15 +61,12 @@ async function ensureParentDirsExist(
   proxy?: Proxy
 ): Promise<boolean> {
   const pathPrefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-  console.log('[WebDAV] ensureParentDirsExist - pathPrefix:', pathPrefix, 'key:', key)
 
   // 首先确保 pathPrefix 目录存在
   if (pathPrefix) {
-    console.log('[WebDAV] Ensuring pathPrefix exists:', pathPrefix)
     // 直接用 baseUrl + pathPrefix 创建目录，不经过 webdavMkcol（它会重复添加 pathPrefix）
     const baseUrl = config.url.replace(/\/$/, '')
     const mkcolUrl = `${baseUrl}/${pathPrefix}`
-    console.log('[WebDAV] MKCOL pathPrefix:', mkcolUrl)
 
     const mkcolResponse = await fetch(mkcolUrl, {
       method: 'MKCOL',
@@ -77,15 +74,15 @@ async function ensureParentDirsExist(
         'Authorization': buildAuthHeader(config.username, config.password)
       }
     })
-    console.log('[WebDAV] MKCOL pathPrefix result:', mkcolResponse.status)
+    if (DEBUG) {
+      console.log('[WebDAV] MKCOL pathPrefix result:', mkcolResponse.status)
+    }
   }
 
   const parts = key.split('/').filter(p => p)
-  console.log('[WebDAV] parts:', parts)
   // 构建所有可能的父目录路径
   for (let i = 1; i < parts.length; i++) {
     const parentPath = parts.slice(0, i).join('/')
-    console.log('[WebDAV] Creating parent dir:', parentPath)
     await webdavMkcol(config, parentPath, proxy)
   }
   return true

@@ -7,7 +7,7 @@ import { S3Config } from '@/types/sync'
  */
 
 // 调试模式
-const DEBUG = true
+const DEBUG = false
 
 // 生成 AWS 签名 V4 (使用 Web Crypto API)
 async function generateSignature(

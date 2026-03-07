@@ -5,7 +5,8 @@ import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { s3HeadObject, s3Download } from './s3'
-import { S3Config } from '@/types/sync'
+import { webdavHeadObject, webdavDownload } from './webdav'
+import { S3Config, WebDAVConfig } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'
 import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
@@ -251,6 +252,10 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
 
   if (platform === 's3') {
     return compareS3FileVersions(path)
+  }
+
+  if (platform === 'webdav') {
+    return compareWebDAVFileVersions(path)
   }
 
   const localMeta = await getLocalFileMetadata(path)
@@ -876,6 +881,91 @@ export async function compareS3FileVersions(path: string): Promise<SyncResult> {
 
   // 获取远程文件的 ETag
   const remoteInfo = await s3HeadObject(config, path, proxy)
+
+  // 如果远程不存在
+  if (!remoteInfo) {
+    if (localMeta.localSha) {
+      return {
+        shouldUpdate: true,
+        action: 'push',
+        reason: '远程文件不存在，需要推送到远程'
+      }
+    }
+    return { shouldUpdate: false, action: 'none' }
+  }
+
+  // 如果本地不存在
+  if (!localMeta.localSha) {
+    return {
+      shouldUpdate: true,
+      action: 'pull',
+      reason: '本地文件不存在，需要从远程拉取'
+    }
+  }
+
+  // 比较 ETag
+  if (localRecordedEtag && localRecordedEtag !== remoteInfo.etag) {
+    return {
+      shouldUpdate: true,
+      action: 'pull',
+      reason: '远程文件已更新（ETag 不匹配），需要拉取更新'
+    }
+  }
+
+  // ETag 匹配
+  if (localRecordedEtag === remoteInfo.etag) {
+    return {
+      shouldUpdate: false,
+      action: 'none',
+      reason: 'ETag 匹配，文件已同步'
+    }
+  }
+
+  // 没有本地记录的 ETag，记录并检查时间
+  // 使用修改时间比较
+  const localTime = localMeta.lastModified || 0
+  const remoteTime = remoteInfo.lastModified ? new Date(remoteInfo.lastModified).getTime() : 0
+
+  if (localTime > remoteTime) {
+    return {
+      shouldUpdate: true,
+      action: 'push',
+      reason: '本地文件较新，需要推送'
+    }
+  }
+
+  return {
+    shouldUpdate: true,
+    action: 'pull',
+    reason: '远程文件较新，需要拉取'
+  }
+}
+
+/**
+ * 比较 WebDAV 本地和远程文件版本
+ * 使用 ETag 进行比较
+ */
+export async function compareWebDAVFileVersions(path: string): Promise<SyncResult> {
+  // 获取 WebDAV 配置
+  const store = await getStore()
+  const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+  if (!config) {
+    return { shouldUpdate: false, action: 'none', reason: 'WebDAV 未配置' }
+  }
+
+  // 获取 proxy
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy = proxyUrl ? { all: proxyUrl } : undefined
+
+  // 获取本地文件的元数据
+  const localMeta = await getLocalFileMetadata(path)
+
+  // 从 sync store 获取本地记录的云端 ETag
+  const syncStoreState = useSyncStore.getState()
+  const localRecordedEtag = syncStoreState.webdavFileEtags[path]
+
+  // 获取远程文件的 ETag
+  const remoteInfo = await webdavHeadObject(config, path, proxy)
 
   // 如果远程不存在
   if (!remoteInfo) {

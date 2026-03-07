@@ -6,6 +6,7 @@ import { GiteeSync } from "./gitee-sync";
 import { GitlabSync } from "./gitlab-sync";
 import { GiteaSync } from "./gitea-sync";
 import { S3Sync } from "./s3-sync";
+import { WebDAVSync } from "./webdav-sync";
 import { SettingType } from '../components/setting-base';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCcw } from "lucide-react"
@@ -107,7 +108,7 @@ export default function SyncPage() {
         return <S3Sync />
       case 'webdav':
         // TODO: Replace with WebDAV sync component in Task 4
-        return <div className="p-4 text-zinc-500">WebDAV sync coming soon...</div>
+        return <WebDAVSync />
       default:
         return <GithubSync />
     }

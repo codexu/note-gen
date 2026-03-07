@@ -836,44 +836,6 @@
     "backupSync": {
       "title": "備用方案",
       "desc": "ここでは、他の方法でデータをバックアップすることができます。定期的にバックアップを取ることで、データの安全を確保できます。",
-      "webdav": {
-        "connectionState": {
-          "success": "接続済み",
-          "checking": "接続中",
-          "failed": "未接続"
-        },
-        "description": "WebDAVはバックアップソリューションとしてのみ使用され、自動同期や履歴ロールバックなどの機能はサポートしていません。",
-        "backupTo": "WebDAVにバックアップ",
-        "syncFrom": "WebDAVから同期",
-        "serverUrl": "WebDAVサーバーURL",
-        "serverUrlDesc": "WebDAVサーバーのURLを入力してくださいパスを含まない、例：https://dav.example.com http://192.8.8.88:9999 ",
-        "serverUrlPlaceholder": "https://dav.example.com",
-        "username": "ユーザー名",
-        "usernameDesc": "WebDAVサーバーのユーザー名",
-        "usernamePlaceholder": "ユーザー名",
-        "password": "パスワード",
-        "passwordDesc": "WebDAVサーバーのパスワード",
-        "passwordPlaceholder": "パスワード",
-        "backupPath": "バックアップパス",
-        "backupPathDesc": "WebDAVサーバー上のバックアップパス、例：/backup/notes",
-        "backupPathPlaceholder": "/backup/notes",
-        "backupSuccess": "バックアップ成功",
-        "backupSuccessDesc": "{count} 個のファイルをWebDAVにバックアップしました。",
-        "syncSuccess": "同期成功",
-        "syncSuccessDesc": "WebDAVからローカルに {count} 個のファイルを同期しました。",
-        "syncFailed": "同期失敗",
-        "backupFailed": "バックアップ失敗",
-        "directoryCreated": "ディレクトリが作成されました",
-        "directoryCreatedDesc": "ディレクトリ {path} が正常に作成されました。",
-        "createDir": "ディレクトリを作成",
-        "success": "成功",
-        "failed": "失敗",
-        "error": {
-          "pathNotFound": "パスが存在しないか、サーバーにアクセスできません。",
-          "createDirFailed": "ディレクトリの作成に失敗しました",
-          "connectionTimeOut": "接続タイムアウト、ネットワークまたはサーバーを確認してください。"
-        }
-      },
       "localBackup": {
         "tabTitle": "ローカルバックアップ",
         "export": {

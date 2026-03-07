@@ -861,44 +861,6 @@
     "backupSync": {
       "title": "Dados de Backup",
       "desc": "Aqui, você pode usar outros métodos para fazer backup de seus dados, você pode fazer backup regularmente para garantir a segurança dos dados.",
-      "webdav": {
-        "connectionState": {
-          "success": "Conectado",
-          "checking": "Conectando",
-          "failed": "Não Conectado"
-        },
-        "description": "O WebDAV é usado apenas como uma solução de backup e não suporta sincronização automática, reversão de histórico e outros recursos.",
-        "backupTo": "Backup para WebDAV",
-        "syncFrom": "Sincronizar do WebDAV",
-        "serverUrl": "URL do Servidor WebDAV",
-        "serverUrlDesc": "Insira a URL do servidor WebDAV. Nenhum caminho incluído, ex: https://dav.example.com http://192.8.8.88:9999",
-        "serverUrlPlaceholder": "https://dav.example.com",
-        "username": "Nome de Usuário",
-        "usernameDesc": "Nome de usuário do servidor WebDAV",
-        "usernamePlaceholder": "Nome de Usuário",
-        "password": "Senha",
-        "passwordDesc": "Senha do servidor WebDAV",
-        "passwordPlaceholder": "Senha",
-        "backupPath": "Caminho do Backup",
-        "backupPathDesc": "Caminho do backup no servidor WebDAV, ex: /backup/notes",
-        "backupPathPlaceholder": "/backup/notes",
-        "backupSuccess": "Backup Bem-sucedido",
-        "backupSuccessDesc": "Backup de {count} arquivos para WebDAV concluído.",
-        "syncSuccess": "Sincronização Bem-sucedida",
-        "syncSuccessDesc": "Sincronizados {count} arquivos do WebDAV para o local.",
-        "syncFailed": "Falha na Sincronização",
-        "backupFailed": "Falha no Backup",
-        "directoryCreated": "Diretório Criado",
-        "directoryCreatedDesc": "Diretório {path} criado com sucesso.",
-        "createDir": "Criar Diretório",
-        "success": "Sucesso",
-        "failed": "Falha",
-        "error": {
-          "pathNotFound": "Caminho não encontrado ou servidor inacessível.",
-          "createDirFailed": "Falha ao criar diretório",
-          "connectionTimeOut": "Tempo limite de conexão, por favor, verifique a rede ou o servidor."
-        }
-      },
       "localBackup": {
         "tabTitle": "Backup Local",
         "export": {

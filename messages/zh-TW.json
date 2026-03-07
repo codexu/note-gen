@@ -817,44 +817,6 @@
     "backupSync": {
       "title": "備用方案",
       "desc": "在這裡，你可以使用其他方案來備份你的數據，你可以定期進行備份，以確保數據的安全。",
-      "webdav": {
-        "connectionState": {
-          "success": "已連接",
-          "checking": "連線中",
-          "failed": "未連接"
-        },
-        "description": "WebDAV 僅作為備用備份方案，不支持自動同步、歷史回滾等功能。",
-        "backupTo": "備份至 WebDAV",
-        "syncFrom": "從 WebDAV 同步",
-        "serverUrl": "WebDAV 伺服器地址",
-        "serverUrlDesc": "輸入WebDAV伺服器的URL不含路徑，例如：https://dav.example.com http://192.8.8.88:9999 ",
-        "serverUrlPlaceholder": "https://dav.example.com",
-        "username": "使用者名稱",
-        "usernameDesc": "WebDAV伺服器的使用者名稱",
-        "usernamePlaceholder": "使用者名稱",
-        "password": "密碼",
-        "passwordDesc": "WebDAV伺服器的密碼",
-        "passwordPlaceholder": "密碼",
-        "backupPath": "備份路徑",
-        "backupPathDesc": "WebDAV伺服器上的備份路徑，例如：/backup/notes",
-        "backupPathPlaceholder": "/backup/notes",
-        "backupSuccess": "備份成功",
-        "backupSuccessDesc": "已備份 {count} 個文件至 WebDAV。",
-        "syncSuccess": "同步成功",
-        "syncSuccessDesc": "已從 WebDAV 同步至本地 {count} 個文件。",
-        "syncFailed": "同步失敗",
-        "backupFailed": "備份失敗",
-        "directoryCreated": "目錄已創建",
-        "directoryCreatedDesc": "目錄 {path} 已成功創建。",
-        "createDir": "創建目錄",
-        "success": "成功",
-        "failed": "失敗",
-        "error": {
-          "pathNotFound": "路徑不存在或伺服器無法訪問。",
-          "createDirFailed": "創建目錄失敗",
-          "connectionTimeOut": "連接超時，請檢查網路或伺服器。"
-        }
-      },
       "localBackup": {
         "tabTitle": "本地備份",
         "export": {

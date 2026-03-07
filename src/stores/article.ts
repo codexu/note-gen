@@ -7,7 +7,8 @@ import { GiteeFile } from '@/lib/sync/gitee'
 import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3ListObjects } from '@/lib/sync/s3'
-import { S3Config } from '@/types/sync'
+import { webdavListObjects } from '@/lib/sync/webdav'
+import { S3Config, WebDAVConfig } from '@/types/sync'
 import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
@@ -705,6 +706,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
         if (!s3Config || !s3Config.accessKeyId || !s3Config.secretAccessKey || !s3Config.region || !s3Config.bucket) {
           return
         }
+      } else if (primaryBackupMethod === 'webdav') {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
+          return
+        }
       }
 
     // 只为根目录和本地存在的已展开文件夹加载远程文件
@@ -764,16 +770,29 @@ const useArticleStore = create<NoteState>((set, get) => ({
             }
             break;
           }
+          case 'webdav': {
+            const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+            if (webdavConfig) {
+              files = await webdavListObjects(webdavConfig, path)
+            }
+            break;
+          }
         }
 
         if (files) {
           const dirs = get().fileTree
 
-          // S3 文件处理
-          if (primaryBackupMethod === 's3') {
+          // S3 或 WebDAV 文件处理
+          if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
             const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            const config = await store.get<S3Config>('s3SyncConfig')
-            const prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            let prefix = ''
+            if (primaryBackupMethod === 's3') {
+              const config = await store.get<S3Config>('s3SyncConfig')
+              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            } else {
+              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            }
             const fullPrefix = prefix ? `${prefix}/${path}` : path
 
             s3Files.forEach((file) => {
@@ -946,8 +965,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else if (primaryBackupMethod === 'gitea') {
       const giteaAccessToken = await store.get<string>('giteaAccessToken')
       hasCloudSync = !!giteaAccessToken
+    } else if (primaryBackupMethod === 's3') {
+      const s3Config = await store.get<S3Config>('s3SyncConfig')
+      hasCloudSync = !!(s3Config && s3Config.accessKeyId && s3Config.secretAccessKey && s3Config.region && s3Config.bucket)
+    } else if (primaryBackupMethod === 'webdav') {
+      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+      hasCloudSync = !!(webdavConfig && webdavConfig.url && webdavConfig.username && webdavConfig.password)
     }
-    
+
     // 只有在配置了云同步时才设置加载状态
     if (hasCloudSync) {
       currentFolder.loading = true
@@ -1041,8 +1066,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else if (primaryBackupMethod === 's3') {
       const s3Config = await store.get<S3Config>('s3SyncConfig')
       if (!s3Config || !s3Config.accessKeyId || !s3Config.secretAccessKey || !s3Config.region || !s3Config.bucket) return
+    } else if (primaryBackupMethod === 'webdav') {
+      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+      if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) return
     }
-    
+
     try {
       let files;
       switch (primaryBackupMethod) {
@@ -1073,6 +1101,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
           break;
         }
+        case 'webdav': {
+          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+          if (webdavConfig) {
+            files = await webdavListObjects(webdavConfig, fullpath)
+          }
+          break;
+        }
       }
 
       console.log('[S3 FileList] primaryBackupMethod:', primaryBackupMethod, 'files:', files)
@@ -1081,11 +1116,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
         if (currentFolder) {
-          // S3 返回的文件格式不同，需要特殊处理
-          if (primaryBackupMethod === 's3') {
+          // S3 和 WebDAV 返回的文件格式相同，需要特殊处理
+          if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
             const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            const config = await store.get<S3Config>('s3SyncConfig')
-            const prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            let prefix = ''
+            if (primaryBackupMethod === 's3') {
+              const config = await store.get<S3Config>('s3SyncConfig')
+              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            } else {
+              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+            }
             const fullPrefix = prefix ? `${prefix}/${fullpath}` : fullpath
 
             s3Files.forEach((file) => {

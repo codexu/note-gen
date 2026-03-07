@@ -53,6 +53,45 @@ export async function testWebDAVConnection(config: WebDAVConfig, proxy?: Proxy):
 }
 
 /**
+ * 创建所有父目录
+ */
+async function ensureParentDirsExist(
+  config: WebDAVConfig,
+  key: string,
+  proxy?: Proxy
+): Promise<boolean> {
+  const pathPrefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+  console.log('[WebDAV] ensureParentDirsExist - pathPrefix:', pathPrefix, 'key:', key)
+
+  // 首先确保 pathPrefix 目录存在
+  if (pathPrefix) {
+    console.log('[WebDAV] Ensuring pathPrefix exists:', pathPrefix)
+    // 直接用 baseUrl + pathPrefix 创建目录，不经过 webdavMkcol（它会重复添加 pathPrefix）
+    const baseUrl = config.url.replace(/\/$/, '')
+    const mkcolUrl = `${baseUrl}/${pathPrefix}`
+    console.log('[WebDAV] MKCOL pathPrefix:', mkcolUrl)
+
+    const mkcolResponse = await fetch(mkcolUrl, {
+      method: 'MKCOL',
+      headers: {
+        'Authorization': buildAuthHeader(config.username, config.password)
+      }
+    })
+    console.log('[WebDAV] MKCOL pathPrefix result:', mkcolResponse.status)
+  }
+
+  const parts = key.split('/').filter(p => p)
+  console.log('[WebDAV] parts:', parts)
+  // 构建所有可能的父目录路径
+  for (let i = 1; i < parts.length; i++) {
+    const parentPath = parts.slice(0, i).join('/')
+    console.log('[WebDAV] Creating parent dir:', parentPath)
+    await webdavMkcol(config, parentPath, proxy)
+  }
+  return true
+}
+
+/**
  * 上传文件到 WebDAV
  */
 export async function webdavUpload(
@@ -62,6 +101,9 @@ export async function webdavUpload(
   proxy?: Proxy
 ): Promise<{ etag: string } | null> {
   try {
+    // 先确保父目录存在
+    await ensureParentDirsExist(config, key, proxy)
+
     const url = buildWebDAVUrl(config, key)
     const contentBytes = new TextEncoder().encode(content)
 
@@ -206,7 +248,11 @@ export async function webdavHeadObject(
       }
 
       return { etag, lastModified }
-    } else if (response.status === 404) {
+    } else if (response.status === 404 || response.status === 409) {
+      // 文件不存在，返回 null
+      if (DEBUG) {
+        console.log('[WebDAV] Head object: file not found:', response.status)
+      }
       return null
     } else {
       const errorText = await response.text()
@@ -230,9 +276,11 @@ export async function webdavListObjects(
   try {
     const baseUrl = config.url.replace(/\/$/, '')
     const pathPrefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-    const fullPrefix = pathPrefix ? `${pathPrefix}/${prefix}` : prefix
+    // 不要尾随斜杠
+    const fullPrefix = pathPrefix ? (prefix ? `${pathPrefix}/${prefix}` : pathPrefix) : prefix
 
     if (DEBUG) {
+      console.log('[WebDAV] Listing objects - pathPrefix:', pathPrefix, 'prefix:', prefix, 'fullPrefix:', fullPrefix)
       console.log('[WebDAV] Listing objects from:', `${baseUrl}/${fullPrefix}`)
     }
 
@@ -247,7 +295,13 @@ export async function webdavListObjects(
 
     if (response.status === 207) {
       const text = await response.text()
-      return parsePropfindResponse(text, pathPrefix)
+      return parsePropfindResponse(text, fullPrefix)
+    } else if (response.status === 404 || response.status === 409) {
+      // 目录不存在是正常情况，不需要打印错误日志
+      if (DEBUG) {
+        console.log('[WebDAV] Path not found (may not exist on server):', response.status)
+      }
+      return []
     } else {
       const errorText = await response.text()
       console.error('WebDAV ListObjects failed:', response.status, errorText)
@@ -289,21 +343,33 @@ function parsePropfindResponse(
       if (hrefMatch) {
         let href = hrefMatch[1]
 
+        // 坚果云返回的 href 包含 /dav/ 前缀，需要移除
+        if (href.startsWith('/dav/')) {
+          href = href.substring(5) // 移除 /dav/
+        }
+
         // 跳过根目录本身
-        if (href === `/${prefix}/` || href === `/${prefix}` || href.endsWith('/')) {
+        if (href === `${prefix}/` || href === prefix || href.endsWith('/')) {
           // 这是一个目录，跳过文件列表中的目录
           continue
         }
 
         // 移除前缀，还原相对路径
-        if (prefix && href.startsWith(`/${prefix}/`)) {
-          href = href.substring(`/${prefix}/`.length)
-        } else if (prefix && href.startsWith(`/${prefix}`)) {
-          href = href.substring(`/${prefix}`.length)
+        if (prefix && href.startsWith(`${prefix}/`)) {
+          href = href.substring(`${prefix}/`.length)
+        } else if (prefix && href.startsWith(prefix)) {
+          href = href.substring(prefix.length)
         }
 
         // 移除开头的斜杠
         href = href.replace(/^\/+/, '')
+
+        // URL 解码
+        try {
+          href = decodeURIComponent(href)
+        } catch {
+          // 解码失败保持原样
+        }
 
         results.push({
           key: href,

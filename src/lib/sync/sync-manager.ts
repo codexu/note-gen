@@ -860,6 +860,15 @@ export async function isSyncConfigured(): Promise<boolean> {
           s3Config.bucket
         )
       }
+      case 'webdav': {
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+        return !!(
+          webdavConfig &&
+          webdavConfig.url &&
+          webdavConfig.username &&
+          webdavConfig.password
+        )
+      }
       default:
         return false
     }

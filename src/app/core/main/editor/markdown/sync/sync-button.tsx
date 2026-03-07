@@ -106,9 +106,9 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
     setIsLoading(true)
     try {
       const store = await Store.load('store.json')
-      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3'
-      // S3 不需要 repo
-      const repo = provider === 's3' ? '' : await getSyncRepoName(provider)
+      const provider = (await store.get<string>('primaryBackupMethod') || 'github') as 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3' | 'webdav'
+      // S3 和 WebDAV 不需要 repo
+      const repo = (provider === 's3' || provider === 'webdav') ? '' : await getSyncRepoName(provider)
 
       // 始终从磁盘读取最新内容
       const workspace = await getWorkspacePath()
@@ -193,6 +193,20 @@ ${content.slice(0, 1000)}${content.length > 1000 ? '...' : ''}
             path: activeFilePath
           })
           success = true
+          break
+        }
+        case 'webdav': {
+          const webdavModule = await import('@/lib/sync/webdav') as any
+          const webdavConfig = await store.get<any>('webdavSyncConfig')
+          if (!webdavConfig) {
+            throw new Error('WebDAV 配置未找到')
+          }
+          const result = await webdavModule.webdavUpload(webdavConfig, activeFilePath, content)
+          if (result) {
+            // 更新 ETag 记录
+            useSyncStore.getState().updateWebDAVFileEtag(activeFilePath, result.etag)
+            success = true
+          }
           break
         }
       }

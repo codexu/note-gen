@@ -3,9 +3,11 @@ import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase6
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab'
 import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea'
+import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
+import { S3Config } from '@/types/sync'
 
 interface TagState {
   currentTagId: number
@@ -136,6 +138,18 @@ const useTagStore = create<TagState>((set, get) => ({
           sha: giteaTagFile?.sha || '',
         })
         break;
+      case 's3': {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        if (s3Config) {
+          const s3Key = `${path}/${filename}`
+          const existingFile = await s3HeadObject(s3Config, s3Key)
+          if (existingFile) {
+            await s3Delete(s3Config, s3Key)
+          }
+          res = await s3Upload(s3Config, s3Key, JSON.stringify(tags))
+        }
+        break;
+      }
     }
     if (res) {
       result = true
@@ -167,6 +181,17 @@ const useTagStore = create<TagState>((set, get) => ({
         const giteaRepo2 = await getSyncRepoName('gitea')
         files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
         break;
+      case 's3': {
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        if (s3Config) {
+          const s3Key = `${path}/${filename}`
+          const content = await s3Download(s3Config, s3Key)
+          if (content) {
+            files = { content: btoa(unescape(encodeURIComponent(content))) }
+          }
+        }
+        break;
+      }
     }
     if (files) {
       const configJson = decodeBase64ToString(files.content)

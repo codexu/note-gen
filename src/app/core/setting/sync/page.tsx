@@ -5,6 +5,7 @@ import { GithubSync } from "./github-sync";
 import { GiteeSync } from "./gitee-sync";
 import { GitlabSync } from "./gitlab-sync";
 import { GiteaSync } from "./gitea-sync";
+import { S3Sync } from "./s3-sync";
 import { SettingType } from '../components/setting-base';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCcw } from "lucide-react"
@@ -29,7 +30,7 @@ export default function SyncPage() {
     autoPullOnSwitch,
     setAutoPullOnSwitch,
   } = useSettingStore()
-  const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState } = useSyncStore()
+  const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected } = useSyncStore()
 
   const [tab, setTab] = useState<SyncPlatform>(primaryBackupMethod)
   const [isLoading, setIsLoading] = useState(true)
@@ -70,6 +71,8 @@ export default function SyncPage() {
         return gitlabSyncProjectState
       case 'gitea':
         return giteaSyncRepoState
+      case 's3':
+        return s3Connected ? SyncStateEnum.success : SyncStateEnum.fail
       default:
         return syncRepoState
     }
@@ -98,6 +101,8 @@ export default function SyncPage() {
         return <GitlabSync />
       case 'gitea':
         return <GiteaSync />
+      case 's3':
+        return <S3Sync />
       default:
         return <GithubSync />
     }

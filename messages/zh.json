@@ -669,6 +669,16 @@
       "syncRepoDesc": "同步写作中的 markdown 文件。",
       "imageRepo": "图床仓库",
       "imageRepoDesc": "同步你的图片到图床仓库。",
+      "status": {
+        "connected": "已连接",
+        "disconnected": "未连接",
+        "failed": "连接失败",
+        "unconfigured": "未配置"
+      },
+      "uploadRecords": "上载记录和配置",
+      "downloadConfig": "下载记录和配置",
+      "cloudSync": "记录与配置同步",
+      "localBackupAll": "本地备份（全部）",
       "private": "私有",
       "public": "公开",
       "createdAt": "创建于 {time}",

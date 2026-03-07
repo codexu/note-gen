@@ -605,6 +605,16 @@
       "syncRepoDesc": "執筆中のMarkdownファイルを同期",
       "imageRepo": "画像ホスティング倉庫",
       "imageRepoDesc": "あなたの画像を画像ホスティングリポジトリに同期します。",
+      "status": {
+        "connected": "接続済み",
+        "disconnected": "未接続",
+        "failed": "接続失敗",
+        "unconfigured": "未設定"
+      },
+      "uploadRecords": "レコードと設定をアップロード",
+      "downloadConfig": "レコードと設定をダウンロード",
+      "cloudSync": "レコードと設定の同期",
+      "localBackupAll": "ローカルバックアップ（全て）",
       "private": "非公開",
       "public": "公開",
       "createdAt": "{time} に作成",

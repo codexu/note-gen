@@ -630,6 +630,16 @@
       "syncRepoDesc": "Sincronizar arquivos markdown na escrita",
       "imageRepo": "Repositório de Imagens",
       "imageRepoDesc": "Sincronize suas imagens para o repositório, usando jsdelivr para aceleração",
+      "status": {
+        "connected": "Conectado",
+        "disconnected": "Desconectado",
+        "failed": "Conexão Falhou",
+        "unconfigured": "Não Configurado"
+      },
+      "uploadRecords": "Enviar Registros e Config",
+      "downloadConfig": "Baixar Registros e Config",
+      "cloudSync": "Sinc Registros e Config",
+      "localBackupAll": "Backup Local (Tudo)",
       "private": "Privado",
       "public": "Público",
       "createdAt": "Criado {time}",

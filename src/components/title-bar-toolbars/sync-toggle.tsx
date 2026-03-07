@@ -3,32 +3,43 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 import * as React from "react"
-import { DownloadCloud, Loader2, UploadCloud, CloudSync } from "lucide-react"
+import { DownloadCloud, Loader2, UploadCloud, CloudSync, Download, Upload } from "lucide-react"
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from '@/hooks/use-toast'
-import useUsername from '@/hooks/use-username'
 import { useState, useEffect } from 'react'
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import useChatStore from "@/stores/chat"
 import useSettingStore from "@/stores/setting"
+import useSyncStore from "@/stores/sync"
 import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
 import { s3Upload, s3Download, s3HeadObject, s3Delete } from "@/lib/sync/s3"
 import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete } from "@/lib/sync/webdav"
-import { S3Config, WebDAVConfig } from "@/types/sync"
+import { S3Config, WebDAVConfig, SyncPlatform } from "@/types/sync"
 import { filterSyncData, mergeSyncData } from "@/config/sync-exclusions"
-import { confirm } from "@tauri-apps/plugin-dialog"
+import { confirm, save, open } from "@tauri-apps/plugin-dialog"
+import { invoke } from "@tauri-apps/api/core"
+import { SyncStateEnum } from "@/lib/sync/github.types"
+import dayjs from "dayjs"
+import { isMobileDevice } from "@/lib/check"
 
 // ============ 通用辅助函数 ============
 function encodePath(path: string, filename?: string): string {
@@ -175,68 +186,165 @@ async function giteaGetFile({ path, repo, accessToken, giteaUsername }: {
   return requestGitea('GET', url)
 }
 
+// ============ 方案状态类型 ============
+type ProviderStatus = 'connected' | 'disconnected' | 'failed' | 'unconfigured'
+
+interface ProviderInfo {
+  platform: SyncPlatform
+  name: string
+  status: ProviderStatus
+}
+
 export function SyncToggle() {
   const t = useTranslations()
-  const username = useUsername()
+  const router = useRouter()
   const [syncing, setSyncing] = useState(false)
-  const [s3Configured, setS3Configured] = useState(false)
-  const [webdavConfigured, setWebdavConfigured] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [providers, setProviders] = useState<ProviderInfo[]>([])
 
-  const { primaryBackupMethod } = useSettingStore()
-
-  // 检测 S3/WebDAV 是否配置
-  useEffect(() => {
-    async function checkCloudConfig() {
-      const store = await Store.load('store.json')
-      if (primaryBackupMethod === 's3') {
-        const s3Config = await store.get<S3Config>('s3SyncConfig')
-        setS3Configured(!!s3Config?.bucket)
-      } else if (primaryBackupMethod === 'webdav') {
-        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-        setWebdavConfigured(!!webdavConfig?.url && !!webdavConfig?.username && !!webdavConfig?.password)
-      }
-    }
-    checkCloudConfig()
-  }, [primaryBackupMethod])
-  const providerNames: Record<string, string> = {
-    'github': 'Github',
-    'gitee': 'Gitee',
-    'gitlab': 'Gitlab',
-    'gitea': 'Gitea',
-    's3': 'S3',
-    'webdav': 'WebDAV'
-  }
-  const syncProvider = primaryBackupMethod ? providerNames[primaryBackupMethod] || primaryBackupMethod : ''
+  const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
+  const {
+    syncRepoState,
+    giteeSyncRepoState,
+    gitlabSyncProjectState,
+    giteaSyncRepoState,
+    s3Connected,
+    webdavConnected
+  } = useSyncStore()
 
   const { uploadMarks, downloadMarks, fetchMarks } = useMarkStore()
   const { uploadTags, downloadTags, fetchTags, currentTagId } = useTagStore()
-  const { uploadChats, downloadChats, init } = useChatStore()
+  const { init } = useChatStore()
 
+  const isMobile = isMobileDevice()
+
+  // 加载各平台状态
+  useEffect(() => {
+    async function loadProviderStatus() {
+      const store = await Store.load('store.json')
+      const accessToken = await store.get<string>('accessToken')
+      const githubUsername = await store.get<string>('githubUsername')
+      const giteeUsername = await store.get<string>('giteeUsername')
+      const giteaUsername = await store.get<string>('giteaUsername')
+      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
+      const s3Config = await store.get<S3Config>('s3SyncConfig')
+      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+
+      const providerList: ProviderInfo[] = []
+
+      // GitHub
+      let githubStatus: ProviderStatus = 'unconfigured'
+      if (githubUsername && accessToken) {
+        githubStatus = syncRepoState === SyncStateEnum.success ? 'connected' : syncRepoState === SyncStateEnum.fail ? 'failed' : 'disconnected'
+      }
+      providerList.push({ platform: 'github', name: 'GitHub', status: githubStatus })
+
+      // Gitee
+      let giteeStatus: ProviderStatus = 'unconfigured'
+      if (giteeUsername && accessToken) {
+        giteeStatus = giteeSyncRepoState === SyncStateEnum.success ? 'connected' : giteeSyncRepoState === SyncStateEnum.fail ? 'failed' : 'disconnected'
+      }
+      providerList.push({ platform: 'gitee', name: 'Gitee', status: giteeStatus })
+
+      // GitLab
+      let gitlabStatus: ProviderStatus = 'unconfigured'
+      if (gitlabProjectId && accessToken) {
+        gitlabStatus = gitlabSyncProjectState === SyncStateEnum.success ? 'connected' : gitlabSyncProjectState === SyncStateEnum.fail ? 'failed' : 'disconnected'
+      }
+      providerList.push({ platform: 'gitlab', name: 'GitLab', status: gitlabStatus })
+
+      // Gitea
+      let giteaStatus: ProviderStatus = 'unconfigured'
+      if (giteaUsername && accessToken) {
+        giteaStatus = giteaSyncRepoState === SyncStateEnum.success ? 'connected' : giteaSyncRepoState === SyncStateEnum.fail ? 'failed' : 'disconnected'
+      }
+      providerList.push({ platform: 'gitea', name: 'Gitea', status: giteaStatus })
+
+      // S3
+      let s3Status: ProviderStatus = 'unconfigured'
+      if (s3Config?.bucket) {
+        s3Status = s3Connected ? 'connected' : 'failed'
+      }
+      providerList.push({ platform: 's3', name: 'S3', status: s3Status })
+
+      // WebDAV
+      let webdavStatus: ProviderStatus = 'unconfigured'
+      if (webdavConfig?.url && webdavConfig?.username && webdavConfig?.password) {
+        webdavStatus = webdavConnected ? 'connected' : 'failed'
+      }
+      providerList.push({ platform: 'webdav', name: 'WebDAV', status: webdavStatus })
+
+      setProviders(providerList)
+    }
+
+    loadProviderStatus()
+  }, [syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected, webdavConnected])
+
+  // 获取当前方案的显示文本
+  const getCurrentProviderDisplay = () => {
+    const current = providers.find(p => p.platform === primaryBackupMethod)
+    if (!current) return ''
+
+    // 已配置时只显示名称，未配置时显示名称 + "未配置"
+    if (current.status === 'unconfigured') {
+      return `${current.name} ${t('settings.sync.status.unconfigured')}`
+    }
+    return current.name
+  }
+
+  // 获取状态图标
+  const getStatusIcon = (status: ProviderStatus) => {
+    if (status === 'connected') {
+      return <span className="text-green-500">●</span>
+    } else if (status === 'failed') {
+      return <span className="text-red-500">●</span>
+    } else if (status === 'disconnected') {
+      return <span className="text-yellow-500">●</span>
+    }
+    return <span className="text-zinc-400">○</span>
+  }
+
+  // 处理方案切换
+  const handleProviderChange = async (value: string) => {
+    const selectedProvider = providers.find(p => p.platform === value)
+
+    // 如果选择了未配置的方案，跳转到设置页面
+    if (selectedProvider?.status === 'unconfigured') {
+      await setPrimaryBackupMethod(value as SyncPlatform)
+      // 跳转到同步设置页面
+      router.push('/core/setting?anchor=sync')
+      return
+    }
+
+    await setPrimaryBackupMethod(value as SyncPlatform)
+  }
+
+  // 上传到云端
   async function uploadAll() {
     const confirmRef = await confirm(t('settings.uploadStore.uploadConfirm'))
     if (!confirmRef) return
     setSyncing(true)
-    
+
     try {
-      // 上传数据（tags, marks, chats）
       const tagRes = await uploadTags()
       const markRes = await uploadMarks()
-      
-      // 上传配置
+
       const path = '.settings'
       const filename = 'store.json'
-      
+
       const store = await Store.load('store.json');
       const allSettings: Record<string, any> = {}
       const entries = await store.entries()
       for (const [key, value] of entries) {
         allSettings[key] = value
       }
-      
+
       const syncableSettings = filterSyncData(allSettings)
       const filteredContent = JSON.stringify(syncableSettings, null, 2)
       const file = new TextEncoder().encode(filteredContent)
-      
+
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
       const accessToken = await store.get<string>('accessToken')
       const githubUsername = await store.get<string>('githubUsername')
@@ -304,10 +412,8 @@ export function SyncToggle() {
           const s3Config = await store.get<S3Config>('s3SyncConfig')
           if (s3Config) {
             const s3Key = `${path}/${filename}`
-            // 检查文件是否存在
             const existingFile = await s3HeadObject(s3Config, s3Key)
             if (existingFile) {
-              // 存在则先删除再上传（S3 不支持更新文件）
               await s3Delete(s3Config, s3Key)
             }
             const result = await s3Upload(s3Config, s3Key, filteredContent)
@@ -329,7 +435,7 @@ export function SyncToggle() {
           break;
         }
       }
-      
+
       if (tagRes && markRes && settingsRes) {
         toast({
           description: t('record.mark.uploadSuccess'),
@@ -342,37 +448,36 @@ export function SyncToggle() {
         variant: 'destructive'
       })
     }
-    
+
     setSyncing(false)
   }
 
+  // 从云端下载
   async function downloadAll() {
     const res = await confirm(t('settings.uploadStore.downloadConfirm'))
     if (!res) return
     setSyncing(true)
-    
+
     try {
-      // 下载数据（tags, marks, chats）
       const tagRes = await downloadTags()
       const markRes = await downloadMarks()
-      
+
       if (tagRes && markRes) {
         await fetchTags()
         await fetchMarks()
         init(currentTagId)
       }
-      
-      // 下载配置
+
       const path = '.settings'
       const filename = 'store.json'
       const store = await Store.load('store.json');
-      
+
       const localSettings: Record<string, any> = {}
       const entries = await store.entries()
       for (const [key, value] of entries) {
         localSettings[key] = value
       }
-      
+
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
       const accessToken = await store.get<string>('accessToken')
       const githubUsername = await store.get<string>('githubUsername')
@@ -426,24 +531,21 @@ export function SyncToggle() {
       }
 
       if (remoteFile) {
-        // S3/WebDAV 返回的 content 是字符串，Git 平台需要 base64 解码
         let remoteSettings: Record<string, any>
         if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-          // s3Download 返回 { content: string; etag: string; lastModified: string }
-          // remoteFile.content 是整个对象，需要取 .content 属性
           const s3Content = (remoteFile as any).content?.content
           remoteSettings = JSON.parse(s3Content)
         } else {
           const configJson = decodeBase64ToString(remoteFile.content)
           remoteSettings = JSON.parse(configJson)
         }
-        
+
         const mergedSettings = mergeSyncData(localSettings, remoteSettings)
-        
+
         const keys = Object.keys(mergedSettings)
         await Promise.allSettled(keys.map(async key => await store.set(key, mergedSettings[key])))
         await store.save()
-        
+
         toast({
           description: t('record.mark.downloadSuccess') + t('common.restartToApply'),
         })
@@ -455,55 +557,229 @@ export function SyncToggle() {
         variant: 'destructive'
       })
     }
-    
+
     setSyncing(false)
   }
 
-  // Git 平台需要用户名，S3 需要配置
-  const isConfigured = username || (primaryBackupMethod === 's3' && s3Configured) || (primaryBackupMethod === 'webdav' && webdavConfigured)
-  if (!isConfigured) {
+  // 导出本地备份
+  async function handleExport() {
+    try {
+      setExporting(true);
+
+      let filePath: string;
+
+      if (isMobile) {
+        filePath = `note-gen-backup-${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.zip`;
+      } else {
+        const selectedPath = await save({
+          title: t('settings.backupSync.localBackup.exportDialog.title'),
+          defaultPath: `note-gen-backup-${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.zip`,
+          filters: [{
+            name: 'ZIP Files',
+            extensions: ['zip']
+          }]
+        });
+
+        if (!selectedPath) {
+          setExporting(false);
+          return;
+        }
+        filePath = selectedPath;
+      }
+
+      const savedPath = await invoke<string>('export_app_data', { outputPath: filePath });
+
+      toast({
+        title: t('settings.backupSync.localBackup.exportSuccess'),
+        description: isMobile
+          ? `文件已保存到: ${savedPath}\n请在 Files App 中查看`
+          : savedPath,
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast({
+        title: t('settings.backupSync.localBackup.exportError'),
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // 导入本地备份
+  async function handleImport() {
+    try {
+      setImporting(true);
+
+      if (isMobile) {
+        // 移动端 TODO: 需要实现文件选择
+        toast({
+          description: t('settings.backupSync.localBackup.importError'),
+          variant: "destructive",
+        });
+        setImporting(false);
+        return;
+      }
+
+      const filePath = await open({
+        title: t('settings.backupSync.localBackup.importDialog.title'),
+        multiple: false,
+        directory: false,
+        filters: [{
+          name: 'ZIP Files',
+          extensions: ['zip']
+        }]
+      });
+
+      if (!filePath) {
+        setImporting(false);
+        return;
+      }
+
+      await invoke('import_app_data', { zipPath: filePath });
+
+      const shouldRestart = await confirm(t('settings.backupSync.localBackup.restartConfirm'), {
+        title: t('settings.backupSync.localBackup.importSuccess'),
+        kind: 'info'
+      });
+
+      if (shouldRestart) {
+        const { relaunch } = await import('@tauri-apps/plugin-process')
+        await relaunch()
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast({
+        title: t('settings.backupSync.localBackup.importError'),
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // 检查是否有任何平台已配置
+  const hasAnyConfigured = providers.some(p => p.status !== 'unconfigured')
+  if (!hasAnyConfigured) {
     return null
   }
 
   return (
-    <DropdownMenu onOpenChange={(open) => {
-        if (!open) {
-          setTimeout(() => {
-            (document.activeElement as HTMLElement)?.blur()
-          }, 0)
-        }
-      }}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                disabled={syncing}
-              >
-                {syncing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CloudSync className="h-4 w-4" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>{t('common.sync')}</p>
-          </TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={uploadAll}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            {syncProvider ? t('record.mark.type.uploadTo', { provider: syncProvider }) : t('record.mark.type.upload')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={downloadAll}>
-            <DownloadCloud className="mr-2 h-4 w-4" />
-            {syncProvider ? t('record.mark.type.downloadFrom', { provider: syncProvider }) : t('record.mark.type.download')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={syncing || exporting || importing}
+            >
+              {syncing || exporting || importing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CloudSync className="h-4 w-4" />
+              )}
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>{t('common.sync')}</p>
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" className="w-72">
+        <div className="space-y-4">
+          {/* 记录与配置同步分隔线 */}
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
+            <span className="text-xs text-zinc-400">{t('settings.sync.cloudSync')}</span>
+            <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
+          </div>
+
+          {/* 方案选择器 */}
+          <div>
+            <Select value={primaryBackupMethod} onValueChange={handleProviderChange}>
+              <SelectTrigger className="w-full">
+                <span className="flex items-center gap-2">
+                  <span className="mr-2">
+                    {getStatusIcon(providers.find(p => p.platform === primaryBackupMethod)?.status || 'unconfigured')}
+                  </span>
+                  <SelectValue placeholder={t('settings.sync.selectPlatform')}>
+                    {getCurrentProviderDisplay()}
+                  </SelectValue>
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.platform} value={provider.platform}>
+                    <span className="flex items-center gap-2">
+                      <span>{provider.name}</span>
+                      {provider.status === 'unconfigured' && (
+                        <span className="text-zinc-400 text-xs ml-auto">
+                          {t('settings.sync.status.unconfigured')}
+                        </span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 网络备份操作 */}
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={uploadAll}
+              disabled={syncing}
+            >
+              <UploadCloud className="mr-2 h-4 w-4" />
+              {t('settings.sync.uploadRecords')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadAll}
+              disabled={syncing}
+            >
+              <DownloadCloud className="mr-2 h-4 w-4" />
+              {t('settings.sync.downloadConfig')}
+            </Button>
+          </div>
+
+          {/* 分隔线 */}
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
+            <span className="text-xs text-zinc-400">{t('settings.sync.localBackupAll')}</span>
+            <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700"></div>
+          </div>
+
+          {/* 本地备份操作 */}
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {t('settings.backupSync.localBackup.export.button')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleImport}
+              disabled={importing}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {t('settings.backupSync.localBackup.import.button')}
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

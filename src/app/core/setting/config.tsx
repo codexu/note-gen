@@ -6,7 +6,6 @@ import {
   UserRoundCog,
   Drama,
   FolderOpen,
-  Database,
   DatabaseBackup,
   ImageUp,
   FileCog,
@@ -50,10 +49,6 @@ const baseConfig = [
   {
     icon: <ImageUp className="size-4 md:size-6" />,
     anchor: 'imageHosting',
-  },
-  {
-    icon: <Database className="size-4 md:size-6" />,
-    anchor: 'backupSync',
   },
   '-',
   {

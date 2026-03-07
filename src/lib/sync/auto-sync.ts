@@ -5,7 +5,7 @@ import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { s3HeadObject, s3Download } from './s3'
-import { webdavHeadObject, webdavDownload } from './webdav'
+import { webdavHeadObject } from './webdav'
 import { S3Config, WebDAVConfig } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { toast } from '@/hooks/use-toast'

@@ -354,13 +354,14 @@ export class FolderSync {
         message: message
       }
 
-      // 如果有 SHA（文件已存在），带上用于覆盖
+      // 如果有 SHA（文件已存在），使用 PUT 方法覆盖
       if (file.sha) {
         body.sha = file.sha
+        console.log('[Gitee] 文件', file.path, '使用 PUT 覆盖, sha:', file.sha)
       }
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: file.sha ? 'PUT' : 'POST',
         headers,
         body: JSON.stringify(body),
         proxy

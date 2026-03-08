@@ -1422,7 +1422,7 @@ export function TipTapEditor({
   }
 
   return (
-    <div ref={editorContainerRef} className="tiptap-editor relative flex flex-col h-full">
+    <div ref={editorContainerRef} id="aritcle-md-editor" className="tiptap-editor relative flex flex-col h-full">
       {/* Editor content - scrollable area */}
       <div
         className="flex-1 overflow-x-hidden overflow-y-auto relative"

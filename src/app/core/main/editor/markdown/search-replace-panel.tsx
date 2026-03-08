@@ -28,8 +28,29 @@ function getSearchAndReplaceStorage(editor: Editor): SearchAndReplaceStorage | u
 
 // 辅助函数来运行搜索替换命令
 function runSearchCommand(editor: Editor, fn: (chain: any) => any) {
-  const chain = (editor.chain() as any).focus()
-  fn(chain).run()
+  try {
+    const chain = (editor.chain() as any).focus()
+    if (chain.search) {
+      fn(chain).run()
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+// 直接清除搜索状态
+function clearSearch(editor: Editor) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage) {
+      storage.searchTerm = ''
+      storage.results = []
+      storage.resultIndex = 0
+      editor.view.dispatch(editor.state.tr)
+    }
+  } catch {
+    // 忽略错误
+  }
 }
 
 export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplacePanelProps) {
@@ -98,7 +119,7 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   // 关闭面板时清除搜索
   const handleClose = useCallback(() => {
     if (editor) {
-      runSearchCommand(editor, (chain) => chain.search.setSearchTerm(''))
+      clearSearch(editor)
     }
     setSearchText('')
     setReplaceText('')

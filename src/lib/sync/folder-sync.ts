@@ -294,6 +294,7 @@ export class FolderSync {
     }
 
     const data = await response.json()
+    console.log('[Gitee] 获取文件列表返回:', JSON.stringify(data).substring(0, 500))
     const result: Record<string, { sha: string }> = {}
 
     if (Array.isArray(data)) {

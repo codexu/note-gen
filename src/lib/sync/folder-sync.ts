@@ -402,6 +402,7 @@ export class FolderSync {
     const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
     const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
     const gitlabBranch = await store.get<string>('gitlabBranch') || 'main'
+    const gitlabProjectId = await store.get<string>(`gitlab_${repo}_project_id`)
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
@@ -410,8 +411,13 @@ export class FolderSync {
       return false
     }
 
+    if (!gitlabProjectId) {
+      console.error('[GitLab] 缺少 projectId')
+      return false
+    }
+
     console.log('[GitLab] URL:', gitlabUrl)
-    console.log('[GitLab] Repo:', repo)
+    console.log('[GitLab] ProjectId:', gitlabProjectId)
     console.log('[GitLab] Branch:', gitlabBranch)
     console.log('[GitLab] Token 长度:', gitlabAccessToken?.length)
 
@@ -427,7 +433,7 @@ export class FolderSync {
       ...(file.sha && { sha: file.sha })
     }))
 
-    const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(repo)}/repository/commits`
+    const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(gitlabProjectId)}/repository/commits`
     const response = await fetch(url, {
       method: 'POST',
       headers,

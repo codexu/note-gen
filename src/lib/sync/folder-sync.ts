@@ -267,9 +267,9 @@ export class FolderSync {
   }
 
   /**
-   * 获取 Gitee 仓库中所有文件的 SHA
+   * 获取 Gitee 仓库中所有文件的 SHA（递归获取子目录）
    */
-  async _getGiteeFiles(repo: string): Promise<Record<string, { sha: string }>> {
+  async _getGiteeFiles(repo: string, path: string = ''): Promise<Record<string, { sha: string }>> {
     const store = await Store.load('store.json')
     const giteeAccessToken = await store.get<string>('giteeAccessToken')
     const giteeUsername = await store.get<string>('giteeUsername')
@@ -285,7 +285,8 @@ export class FolderSync {
     headers.append('Authorization', `Bearer ${giteeAccessToken}`)
 
     // 使用 Gitee API 获取仓库内容
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents?access_token=${giteeAccessToken}`
+    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${path ? '/' + path : ''}?access_token=${giteeAccessToken}`
+    console.log('[Gitee] 获取文件列表 URL:', url)
     const response = await fetch(url, { method: 'GET', headers, proxy })
 
     if (!response.ok) {
@@ -299,8 +300,12 @@ export class FolderSync {
 
     if (Array.isArray(data)) {
       for (const item of data) {
-        if (item.path && item.type === 'file' && item.sha) {
+        if (item.type === 'file' && item.path && item.sha) {
           result[item.path] = { sha: item.sha }
+        } else if (item.type === 'dir' && item.path) {
+          // 递归获取子目录
+          const subFiles = await this._getGiteeFiles(repo, item.path)
+          Object.assign(result, subFiles)
         }
       }
     }

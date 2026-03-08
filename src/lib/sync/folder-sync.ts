@@ -4,6 +4,7 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { collectMarkdownFiles } from '@/lib/files'
 import { RepoNames } from './github.types'
+import { getGiteaApiBaseUrl } from './gitea'
 
 export interface FolderSyncResult {
   success: boolean
@@ -34,14 +35,10 @@ export class FolderSync {
     await this.init()
 
     console.log('[FolderSync] 开始同步文件夹:', localFolderPath)
-    console.log('[FolderSync] 当前平台:', this.platform)
 
     try {
       // 1. 获取本地文件夹下所有 Markdown 文件
-      console.log('[FolderSync] 开始收集 Markdown 文件...')
       const markdownFiles = await collectMarkdownFiles(localFolderPath)
-      console.log('[FolderSync] 找到文件数:', markdownFiles.length)
-      console.log('[FolderSync] 文件列表:', markdownFiles.map(f => f.path))
 
       if (markdownFiles.length === 0) {
         return {
@@ -54,9 +51,7 @@ export class FolderSync {
       }
 
       // 2. 读取每个文件的内容
-      console.log('[FolderSync] 开始读取文件内容...')
       const workspace = await getWorkspacePath()
-      console.log('[FolderSync] workspace:', workspace)
       const filesToUpload: Array<{ path: string; content: string; sha?: string }> = []
 
       for (const file of markdownFiles) {
@@ -90,15 +85,10 @@ export class FolderSync {
         }
         case 'gitee': {
           // 先获取远程文件 SHA（用于覆盖）
-          console.log('[FolderSync] 获取 Gitee 远程文件 SHA...')
           const giteeFiles = await this._getGiteeFiles(RepoNames.sync)
-          console.log('[FolderSync] Gitee 文件 SHA 映射:', JSON.stringify(giteeFiles))
           for (const file of filesToUpload) {
             if (giteeFiles[file.path]) {
               file.sha = giteeFiles[file.path].sha
-              console.log('[FolderSync] 文件', file.path, '找到 SHA:', file.sha)
-            } else {
-              console.log('[FolderSync] 文件', file.path, '未找到 SHA')
             }
           }
           // Gitee: 逐个上传，带 SHA 可以覆盖
@@ -296,7 +286,6 @@ export class FolderSync {
 
     // 使用 Gitee API 获取仓库内容
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${path ? '/' + path : ''}?access_token=${giteeAccessToken}`
-    console.log('[Gitee] 获取文件列表 URL:', url)
     const response = await fetch(url, { method: 'GET', headers, proxy })
 
     if (!response.ok) {
@@ -305,7 +294,6 @@ export class FolderSync {
     }
 
     const data = await response.json()
-    console.log('[Gitee] 获取文件列表返回:', JSON.stringify(data).substring(0, 500))
     const result: Record<string, { sha: string }> = {}
 
     if (Array.isArray(data)) {
@@ -321,6 +309,65 @@ export class FolderSync {
     }
 
     return result
+  }
+
+  /**
+   * 获取 Gitea 仓库中所有文件的 SHA（递归获取子目录）
+   */
+  async _getGiteaFiles(repo: string, path: string = ''): Promise<Record<string, { sha: string }>> {
+    const store = await Store.load('store.json')
+    const giteaAccessToken = await store.get<string>('giteaAccessToken')
+    const giteaUsername = await store.get<string>('giteaUsername')
+    const proxyUrl = await store.get<string>('proxy')
+    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+
+    if (!giteaAccessToken || !giteaUsername) {
+      console.error('[Gitea] 缺少 accessToken 或 username')
+      return {}
+    }
+
+    let giteaUrl: string
+    try {
+      giteaUrl = await getGiteaApiBaseUrl()
+    } catch {
+      return {}
+    }
+
+    const apiBaseUrl = giteaUrl.endsWith('/') ? giteaUrl.slice(0, -1) : giteaUrl
+
+    const headers = new Headers()
+    headers.append('Authorization', `Bearer ${giteaAccessToken}`)
+
+    const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents${path ? '/' + path : ''}`
+
+    try {
+      const response = await fetch(url, { method: 'GET', headers, proxy })
+
+      if (!response.ok) {
+        console.error('[Gitea] 获取文件列表失败:', response.status)
+        return {}
+      }
+
+      const data = await response.json()
+      const result: Record<string, { sha: string }> = {}
+
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          if (item.type === 'file' && item.path && item.sha) {
+            result[item.path] = { sha: item.sha }
+          } else if (item.type === 'dir' && item.path) {
+            // 递归获取子目录
+            const subFiles = await this._getGiteaFiles(repo, item.path)
+            Object.assign(result, subFiles)
+          }
+        }
+      }
+
+      return result
+    } catch (error) {
+      console.error('[Gitea] 获取文件列表异常:', error)
+      return {}
+    }
   }
 
   /**
@@ -363,7 +410,6 @@ export class FolderSync {
       // 如果有 SHA（文件已存在），使用 PUT 方法覆盖
       if (file.sha) {
         body.sha = file.sha
-        console.log('[Gitee] 文件', file.path, '使用 PUT 覆盖, sha:', file.sha)
       }
 
       const response = await fetch(url, {
@@ -383,8 +429,6 @@ export class FolderSync {
 
     const results = await Promise.all(uploadPromises)
     const successCount = results.filter(r => r).length
-
-    console.log(`[Gitee] 上传完成: 成功 ${successCount}/${files.length}`)
 
     // 只要有一个文件成功就算成功
     return successCount > 0
@@ -416,14 +460,9 @@ export class FolderSync {
       return false
     }
 
-    console.log('[GitLab] URL:', gitlabUrl)
-    console.log('[GitLab] ProjectId:', gitlabProjectId)
-    console.log('[GitLab] Branch:', gitlabBranch)
-    console.log('[GitLab] Token 长度:', gitlabAccessToken?.length)
-
     const headers = new Headers()
     headers.append('PRIVATE-TOKEN', gitlabAccessToken)
-    headers.append('Content-Type', 'application/json')
+    headers.append('Content-Type', 'application/json;charset=iso-8859-1')
 
     // 构建 actions 数组
     const actions = files.map(file => ({
@@ -434,6 +473,7 @@ export class FolderSync {
     }))
 
     const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(gitlabProjectId)}/repository/commits`
+
     const response = await fetch(url, {
       method: 'POST',
       headers,
@@ -455,7 +495,8 @@ export class FolderSync {
   }
 
   /**
-   * Gitea 批量提交（使用 commit with actions）
+   * Gitea 批量提交（使用单个文件上传 + 并发）
+   * Gitea API 不支持批量 commit，需要逐个上传文件
    */
   async _giteaBatchCommit(
     repo: string,
@@ -465,13 +506,19 @@ export class FolderSync {
     const store = await Store.load('store.json')
     const giteaAccessToken = await store.get<string>('giteaAccessToken')
     const giteaUsername = await store.get<string>('giteaUsername')
-    const giteaUrl = await store.get<string>('giteaUrl')
-    const giteaBranch = await store.get<string>('giteaBranch') || 'main'
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    if (!giteaUrl || !giteaAccessToken || !giteaUsername) {
-      console.error('[Gitea] 缺少配置: url, accessToken 或 username')
+    let giteaUrl: string
+    try {
+      giteaUrl = await getGiteaApiBaseUrl()
+    } catch (error) {
+      console.error('[Gitea] 获取 API URL 失败:', error)
+      return false
+    }
+
+    if (!giteaAccessToken || !giteaUsername) {
+      console.error('[Gitea] 缺少配置: accessToken 或 username')
       return false
     }
 
@@ -479,34 +526,79 @@ export class FolderSync {
     headers.append('Authorization', `Bearer ${giteaAccessToken}`)
     headers.append('Content-Type', 'application/json')
 
-    // 构建 actions 数组
-    const actions = files.map(file => ({
-      action: file.sha ? 'update' : 'create',
-      path: file.path,
-      content: Buffer.from(file.content).toString('base64'),
-      ...(file.sha && { sha: file.sha })
-    }))
-
     const apiBaseUrl = giteaUrl.endsWith('/') ? giteaUrl.slice(0, -1) : giteaUrl
-    const url = `${apiBaseUrl}/api/v1/repos/${giteaUsername}/${repo}/commits`
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        branch: giteaBranch,
-        message,
-        actions
-      }),
-      proxy
-    })
+    // 先获取远程文件 SHA（用于覆盖）
+    const remoteFiles = await this._getGiteaFiles(repo)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[Gitea] 批量提交失败:', errorText)
-      return false
+    // 为每个文件设置 SHA
+    for (const file of files) {
+      if (remoteFiles[file.path]) {
+        file.sha = remoteFiles[file.path].sha
+      }
     }
 
-    return true
+    // 使用顺序上传（避免并发导致分支锁定冲突）
+    let successCount = 0
+    const uploadedPaths = new Set<string>()
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const base64Content = Buffer.from(file.content).toString('base64')
+
+      // 分离路径和文件名
+      const lastSlashIndex = file.path.lastIndexOf('/')
+      const dirPath = lastSlashIndex > 0 ? file.path.substring(0, lastSlashIndex) : ''
+      const fileName = lastSlashIndex > 0 ? file.path.substring(lastSlashIndex + 1) : file.path
+
+      // 编码路径
+      const normalizedPath = dirPath
+        ? `${dirPath.split('/').map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/')}/${fileName.replace(/\s/g, '_')}`
+        : fileName.replace(/\s/g, '_')
+
+      const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents/${normalizedPath}`
+
+      const requestBody: Record<string, unknown> = {
+        branch: 'main',
+        content: base64Content,
+        message: file.sha ? `Update ${fileName}` : `Create ${fileName}`
+      }
+
+      // 如果有 SHA，使用 PUT 覆盖
+      if (file.sha) {
+        requestBody.sha = file.sha
+      }
+
+      const response = await fetch(url, {
+        method: file.sha ? 'PUT' : 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        proxy
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[Gitea] 上传文件 ${file.path} 失败:`, response.status, errorText)
+        // 继续上传下一个文件
+        continue
+      }
+
+      successCount++
+      uploadedPaths.add(file.path)
+
+      // 重新获取剩余文件的 SHA（因为分支已更新）
+      if (i < files.length - 1) {
+        const newRemoteFiles = await this._getGiteaFiles(repo)
+        // 更新后续文件中尚未上传的文件的 SHA
+        for (let j = i + 1; j < files.length; j++) {
+          const otherFile = files[j]
+          if (!uploadedPaths.has(otherFile.path) && newRemoteFiles[otherFile.path]) {
+            otherFile.sha = newRemoteFiles[otherFile.path].sha
+          }
+        }
+      }
+    }
+
+    return successCount > 0
   }
 }

@@ -1444,13 +1444,13 @@ export function TipTapEditor({
             onAIExpand={handleAIExpand}
             onQuoteToChat={onQuoteToChat}
           />
-
-          <SearchReplacePanel
-            editor={editor}
-            open={searchReplaceOpen}
-            onOpenChange={setSearchReplaceOpen}
-          />
         </EditorContent>
+
+        <SearchReplacePanel
+          editor={editor}
+          open={searchReplaceOpen}
+          onOpenChange={setSearchReplaceOpen}
+        />
         </div>
       </div>
 

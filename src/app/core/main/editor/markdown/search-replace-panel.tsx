@@ -29,7 +29,8 @@ function getSearchAndReplaceStorage(editor: Editor): SearchAndReplaceStorage | u
 // 辅助函数来运行搜索替换命令
 function runSearchCommand(editor: Editor, fn: (chain: any) => any) {
   try {
-    const chain = (editor.chain() as any).focus()
+    // 不调用 focus()，避免把焦点从输入框转移到编辑器
+    const chain = editor.chain() as any
     if (chain.search) {
       fn(chain).run()
     }

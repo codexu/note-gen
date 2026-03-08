@@ -78,20 +78,23 @@ export class FolderSync {
 
       switch (this.platform) {
         case 'github': {
-          // 先获取远程文件列表获取 SHA（用于覆盖）
-          const remoteFiles = await this._getGithubTreeFiles(RepoNames.sync, '')
-          for (const file of filesToUpload) {
-            if (remoteFiles[file.path]) {
-              file.sha = remoteFiles[file.path].sha
-            }
-          }
+          // GitHub 批量提交
           success = await this._githubBatchCommit(RepoNames.sync, filesToUpload, message)
           break
         }
-        case 'gitee':
+        case 'gitee': {
+          // 先获取远程文件 SHA（用于覆盖）
+          console.log('[FolderSync] 获取 Gitee 远程文件 SHA...')
+          const giteeFiles = await this._getGiteeFiles(RepoNames.sync)
+          for (const file of filesToUpload) {
+            if (giteeFiles[file.path]) {
+              file.sha = giteeFiles[file.path].sha
+            }
+          }
           // Gitee: 逐个上传，带 SHA 可以覆盖
           success = await this._giteeBatchCommit(RepoNames.sync, filesToUpload, message)
           break
+        }
         case 'gitlab':
           success = await this._gitlabBatchCommit(RepoNames.sync, filesToUpload, message)
           break
@@ -190,12 +193,13 @@ export class FolderSync {
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
     // 构建 tree
+    // 注意：GitHub API 不允许同时提供 sha 和 content
+    // 只提供 content，让 GitHub 自动处理（新文件创建 blob，已存在文件也会创建新的 blob）
     const tree = files.map((file) => ({
       path: file.path,
       mode: '100644',
       type: 'blob',
       content: Buffer.from(file.content).toString('base64'),
-      sha: file.sha, // 如果有 SHA 则带上，用于覆盖
     }))
 
     const headers = new Headers()
@@ -260,6 +264,47 @@ export class FolderSync {
     })
 
     return updateResponse.ok
+  }
+
+  /**
+   * 获取 Gitee 仓库中所有文件的 SHA
+   */
+  async _getGiteeFiles(repo: string): Promise<Record<string, { sha: string }>> {
+    const store = await Store.load('store.json')
+    const giteeAccessToken = await store.get<string>('giteeAccessToken')
+    const giteeUsername = await store.get<string>('giteeUsername')
+    const proxyUrl = await store.get<string>('proxy')
+    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+
+    if (!giteeAccessToken || !giteeUsername) {
+      console.error('[Gitee] 缺少 accessToken 或 username')
+      return {}
+    }
+
+    const headers = new Headers()
+    headers.append('Authorization', `Bearer ${giteeAccessToken}`)
+
+    // 使用 Gitee API 获取仓库内容
+    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents?access_token=${giteeAccessToken}`
+    const response = await fetch(url, { method: 'GET', headers, proxy })
+
+    if (!response.ok) {
+      console.error('[Gitee] 获取文件列表失败:', await response.text())
+      return {}
+    }
+
+    const data = await response.json()
+    const result: Record<string, { sha: string }> = {}
+
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item.path && item.type === 'file' && item.sha) {
+          result[item.path] = { sha: item.sha }
+        }
+      }
+    }
+
+    return result
   }
 
   /**

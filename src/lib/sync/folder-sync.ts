@@ -273,4 +273,60 @@ export class FolderSync {
 
     return true
   }
+
+  /**
+   * Gitea 批量提交（使用 commit with actions）
+   */
+  async _giteaBatchCommit(
+    repo: string,
+    files: Array<{ path: string; content: string; sha?: string }>,
+    message: string
+  ): Promise<boolean> {
+    const store = await Store.load('store.json')
+    const giteaAccessToken = await store.get<string>('giteaAccessToken')
+    const giteaUsername = await store.get<string>('giteaUsername')
+    const giteaUrl = await store.get<string>('giteaUrl')
+    const giteaBranch = await store.get<string>('giteaBranch') || 'main'
+    const proxyUrl = await store.get<string>('proxy')
+    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+
+    if (!giteaUrl || !giteaAccessToken || !giteaUsername) {
+      console.error('[Gitea] 缺少配置: url, accessToken 或 username')
+      return false
+    }
+
+    const headers = new Headers()
+    headers.append('Authorization', `Bearer ${giteaAccessToken}`)
+    headers.append('Content-Type', 'application/json')
+
+    // 构建 actions 数组
+    const actions = files.map(file => ({
+      action: file.sha ? 'update' : 'create',
+      path: file.path,
+      content: Buffer.from(file.content).toString('base64'),
+      ...(file.sha && { sha: file.sha })
+    }))
+
+    const apiBaseUrl = giteaUrl.endsWith('/') ? giteaUrl.slice(0, -1) : giteaUrl
+    const url = `${apiBaseUrl}/api/v1/repos/${giteaUsername}/${repo}/commits`
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        branch: giteaBranch,
+        message,
+        actions
+      }),
+      proxy
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[Gitea] 批量提交失败:', errorText)
+      return false
+    }
+
+    return true
+  }
 }

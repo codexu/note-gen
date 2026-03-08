@@ -27,9 +27,15 @@ export class FolderSync {
   }
 
   async syncFolder(localFolderPath: string): Promise<FolderSyncResult> {
+    console.log('[FolderSync] 开始同步文件夹:', localFolderPath)
+    console.log('[FolderSync] 当前平台:', this.platform)
+
     try {
       // 1. 获取本地文件夹下所有 Markdown 文件
+      console.log('[FolderSync] 开始收集 Markdown 文件...')
       const markdownFiles = await collectMarkdownFiles(localFolderPath)
+      console.log('[FolderSync] 找到文件数:', markdownFiles.length)
+      console.log('[FolderSync] 文件列表:', markdownFiles.map(f => f.path))
 
       if (markdownFiles.length === 0) {
         return {
@@ -42,7 +48,9 @@ export class FolderSync {
       }
 
       // 2. 读取每个文件的内容
+      console.log('[FolderSync] 开始读取文件内容...')
       const workspace = await getWorkspacePath()
+      console.log('[FolderSync] workspace:', workspace)
       const filesToUpload: Array<{ path: string; content: string; sha?: string }> = []
 
       for (const file of markdownFiles) {

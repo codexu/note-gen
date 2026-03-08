@@ -29,6 +29,7 @@ import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
 import { MathEditorDialog } from './math-editor-dialog'
+import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { handleImageUpload } from '@/lib/image-handler'
@@ -187,6 +188,9 @@ export function TipTapEditor({
   // Math dialog state
   const [mathDialogOpen, setMathDialogOpen] = useState(false)
   const [mathType, setMathType] = useState<'inline' | 'block'>('inline')
+
+  // Search and replace panel state
+  const [searchReplaceOpen, setSearchReplaceOpen] = useState(false)
 
   const isInitializedRef = useRef(false)
   const initializedForPathRef = useRef<string | null>(null)
@@ -814,6 +818,18 @@ export function TipTapEditor({
     }
   }, [editor, activeFilePath])
 
+  // Listen for search trigger from layout (Ctrl+F / Cmd+F)
+  useEffect(() => {
+    const handleSearchTrigger = () => {
+      setSearchReplaceOpen(true)
+    }
+
+    emitter.on('editor-search-trigger' as any, handleSearchTrigger)
+    return () => {
+      emitter.off('editor-search-trigger' as any, handleSearchTrigger)
+    }
+  }, [])
+
   // Handle remote file pull updates - update content when initialContent changes
   useEffect(() => {
     if (!editor || !isInitializedRef.current) return
@@ -1427,6 +1443,12 @@ export function TipTapEditor({
             onAIConcise={handleAIConcise}
             onAIExpand={handleAIExpand}
             onQuoteToChat={onQuoteToChat}
+          />
+
+          <SearchReplacePanel
+            editor={editor}
+            open={searchReplaceOpen}
+            onOpenChange={setSearchReplaceOpen}
           />
         </EditorContent>
         </div>

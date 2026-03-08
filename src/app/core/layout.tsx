@@ -23,6 +23,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { TextSizeProvider } from "@/contexts/text-size-context"
 import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
 import { applyThemeColors } from "@/lib/theme-utils"
+import emitter from "@/lib/emitter"
 
 export default function RootLayout({
   children,
@@ -108,8 +109,7 @@ export default function RootLayout({
         if (isFocusInEditor) {
           e.preventDefault()
           // 触发编辑器内搜索
-          const searchButton = document.getElementById('editor-search-button-container')
-          searchButton?.click()
+          emitter.emit('editor-search-trigger' as any)
           return
         }
 

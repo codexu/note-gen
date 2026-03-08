@@ -154,4 +154,70 @@ export class FolderSync {
 
     return updateResponse.ok
   }
+
+  /**
+   * Gitee 批量提交
+   * 注意：Gitee API 不支持真正的批量操作，这里使用并发上传
+   */
+  async _giteeBatchCommit(
+    repo: string,
+    files: Array<{ path: string; content: string; sha?: string }>,
+    message: string
+  ): Promise<boolean> {
+    const store = await Store.load('store.json')
+    const giteeAccessToken = await store.get<string>('giteeAccessToken')
+    const giteeUsername = await store.get<string>('giteeUsername')
+    const proxyUrl = await store.get<string>('proxy')
+    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+
+    if (!giteeAccessToken || !giteeUsername) {
+      console.error('[Gitee] 缺少 accessToken 或 username')
+      return false
+    }
+
+    const headers = new Headers()
+    headers.append('Authorization', `Bearer ${giteeAccessToken}`)
+    headers.append('Content-Type', 'application/json')
+
+    // Gitee API: 使用单个文件操作，每个文件一次请求
+    // 使用并发上传提高速度
+
+    const uploadPromises = files.map(async (file) => {
+      const base64Content = Buffer.from(file.content).toString('base64')
+      const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${file.path}`
+
+      const body: Record<string, unknown> = {
+        access_token: giteeAccessToken,
+        content: base64Content,
+        message: message
+      }
+
+      // 如果有 SHA（文件已存在），带上用于覆盖
+      if (file.sha) {
+        body.sha = file.sha
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        proxy
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[Gitee] 上传文件 ${file.path} 失败:`, errorText)
+      }
+
+      return response.ok
+    })
+
+    const results = await Promise.all(uploadPromises)
+    const successCount = results.filter(r => r).length
+
+    console.log(`[Gitee] 上传完成: 成功 ${successCount}/${files.length}`)
+
+    // 只要有一个文件成功就算成功
+    return successCount > 0
+  }
 }

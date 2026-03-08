@@ -1,6 +1,7 @@
 'use client'
 
 import { Editor } from '@tiptap/react'
+import { TextSelection } from '@tiptap/pm/state'
 import { useState, useCallback, useEffect } from 'react'
 import { Search, X, ChevronDown, ChevronUp, Replace, ReplaceAll } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,12 +28,127 @@ function getSearchAndReplaceStorage(editor: Editor): SearchAndReplaceStorage | u
 }
 
 // 辅助函数来运行搜索替换命令
-function runSearchCommand(editor: Editor, fn: (chain: any) => any) {
+// 直接触发 transaction 来更新插件状态
+function setSearchTerm(editor: Editor, term: string) {
   try {
-    // 不调用 focus()，避免把焦点从输入框转移到编辑器
-    const chain = editor.chain() as any
-    if (chain.search) {
-      fn(chain).run()
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage) {
+      storage.searchTerm = term
+      editor.view.dispatch(editor.state.tr)
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function setReplaceTerm(editor: Editor, term: string) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage) {
+      storage.replaceTerm = term
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function setSearchCaseSensitive(editor: Editor, value: boolean) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage) {
+      storage.caseSensitive = value
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function nextResult(editor: Editor) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage && storage.results.length > 0) {
+      const nextIndex = storage.resultIndex + 1
+      storage.resultIndex = nextIndex >= storage.results.length ? 0 : nextIndex
+
+      const result = storage.results[storage.resultIndex]
+      if (result) {
+        const sel = TextSelection.near(editor.state.doc.resolve(result.from))
+        editor.view.dispatch(
+          editor.state.tr.setSelection(sel)
+        )
+        setTimeout(() => {
+          const domPos = editor.view.domAtPos(result.from)
+          if (domPos.node instanceof Element) {
+            domPos.node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          } else if (domPos.node.parentElement) {
+            domPos.node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 0)
+      }
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function prevResult(editor: Editor) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage && storage.results.length > 0) {
+      const prevIndex = storage.resultIndex - 1
+      storage.resultIndex = prevIndex < 0 ? storage.results.length - 1 : prevIndex
+
+      const result = storage.results[storage.resultIndex]
+      if (result) {
+        const sel = TextSelection.near(editor.state.doc.resolve(result.from))
+        editor.view.dispatch(
+          editor.state.tr.setSelection(sel)
+        )
+        setTimeout(() => {
+          const domPos = editor.view.domAtPos(result.from)
+          if (domPos.node instanceof Element) {
+            domPos.node.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          } else if (domPos.node.parentElement) {
+            domPos.node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 0)
+      }
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function replaceCurrent(editor: Editor) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage && storage.results.length > 0 && storage.replaceTerm) {
+      const { from, to } = storage.results[storage.resultIndex]
+      editor.view.dispatch(
+        editor.state.tr.insertText(storage.replaceTerm, from, to)
+      )
+      storage.searchTerm = storage.searchTerm
+      editor.view.dispatch(editor.state.tr)
+    }
+  } catch {
+    // 忽略错误
+  }
+}
+
+function replaceAll(editor: Editor) {
+  try {
+    const storage = getSearchAndReplaceStorage(editor)
+    if (storage && storage.results.length > 0 && storage.replaceTerm) {
+      for (let i = storage.results.length - 1; i >= 0; i--) {
+        const { from, to } = storage.results[i]
+        editor.view.dispatch(
+          editor.state.tr.insertText(storage.replaceTerm, from, to)
+        )
+      }
+      storage.searchTerm = ''
+      storage.results = []
+      storage.resultIndex = 0
+      editor.view.dispatch(editor.state.tr)
     }
   } catch {
     // 忽略错误
@@ -92,28 +208,28 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   // 替换当前
   const handleReplace = useCallback(() => {
     if (!editor) return
-    runSearchCommand(editor, (chain) => chain.search.replace())
+    replaceCurrent(editor)
     updateResults()
   }, [editor, updateResults])
 
   // 替换全部
   const handleReplaceAll = useCallback(() => {
     if (!editor) return
-    runSearchCommand(editor, (chain) => chain.search.replaceAll())
+    replaceAll(editor)
     updateResults()
   }, [editor, updateResults])
 
   // 查找上一个
   const handlePrev = useCallback(() => {
     if (!editor) return
-    runSearchCommand(editor, (chain) => chain.search.previousSearchResult())
+    prevResult(editor)
     updateResults()
   }, [editor, updateResults])
 
   // 查找下一个
   const handleNext = useCallback(() => {
     if (!editor) return
-    runSearchCommand(editor, (chain) => chain.search.nextSearchResult())
+    nextResult(editor)
     updateResults()
   }, [editor, updateResults])
 
@@ -131,9 +247,9 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   const handleSearchChange = useCallback((value: string) => {
     setSearchText(value)
     if (editor && value) {
-      runSearchCommand(editor, (chain) => chain.search.setSearchTerm(value))
+      setSearchTerm(editor, value)
     } else if (editor) {
-      runSearchCommand(editor, (chain) => chain.search.setSearchTerm(''))
+      setSearchTerm(editor, '')
     }
     updateResults()
   }, [editor, updateResults])
@@ -142,7 +258,7 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   const handleReplaceChange = useCallback((value: string) => {
     setReplaceText(value)
     if (editor) {
-      runSearchCommand(editor, (chain) => chain.search.setReplaceTerm(value))
+      setReplaceTerm(editor, value)
     }
   }, [editor])
 
@@ -151,9 +267,9 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
     const newValue = !caseSensitive
     setCaseSensitive(newValue)
     if (editor) {
-      runSearchCommand(editor, (chain) => chain.search.setCaseSensitive(newValue))
+      setSearchCaseSensitive(editor, newValue)
       if (searchText) {
-        runSearchCommand(editor, (chain) => chain.search.setSearchTerm(searchText))
+        setSearchTerm(editor, searchText)
       }
     }
     updateResults()
@@ -163,7 +279,7 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   useEffect(() => {
     if (open) {
       setTimeout(() => {
-        const input = document.getElementById('search-replace-input')
+        const input = document.getElementById('searchAndReplace-replace-input')
         input?.focus()
       }, 100)
     }
@@ -172,14 +288,14 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   if (!open) return null
 
   return (
-    <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50">
+    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50">
       <div className="bg-background border border-border rounded-lg shadow-lg p-3 min-w-96">
         {/* 搜索行 */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              id="search-replace-input"
+              id="searchAndReplace-replace-input"
               placeholder="搜索..."
               value={searchText}
               onChange={(e) => handleSearchChange(e.target.value)}

@@ -557,6 +557,8 @@
   border-radius: 2px !important;
 }
 
+/* 搜索替换插件的高亮 - 在 globals.css 中定义 */
+
 /* 选中文本时的背景 */
 .ProseMirror-focused::selection {
   background-color: hsl(var(--primary) / 0.3);

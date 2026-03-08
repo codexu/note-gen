@@ -354,3 +354,30 @@ ol {
     @apply bg-background text-foreground;
   }
 }
+
+/* Tiptap 搜索替换高亮样式 */
+.search-result {
+  background-color: #ffeb3b !important;
+  color: #000 !important;
+  padding: 0 2px !important;
+  border-radius: 2px !important;
+  text-decoration: none !important;
+}
+
+.search-result.search-result-current,
+.search-result.is-current {
+  background-color: #ff9800 !important;
+  color: #fff !important;
+}
+
+/* 暗色模式适配 */
+.dark .search-result {
+  background-color: #f59e0b !important;
+  color: #000 !important;
+}
+
+.dark .search-result.search-result-current,
+.dark .search-result.is-current {
+  background-color: #ea580c !important;
+  color: #fff !important;
+}

@@ -86,9 +86,13 @@ export class FolderSync {
           // 先获取远程文件 SHA（用于覆盖）
           console.log('[FolderSync] 获取 Gitee 远程文件 SHA...')
           const giteeFiles = await this._getGiteeFiles(RepoNames.sync)
+          console.log('[FolderSync] Gitee 文件 SHA 映射:', JSON.stringify(giteeFiles))
           for (const file of filesToUpload) {
             if (giteeFiles[file.path]) {
               file.sha = giteeFiles[file.path].sha
+              console.log('[FolderSync] 文件', file.path, '找到 SHA:', file.sha)
+            } else {
+              console.log('[FolderSync] 文件', file.path, '未找到 SHA')
             }
           }
           // Gitee: 逐个上传，带 SHA 可以覆盖

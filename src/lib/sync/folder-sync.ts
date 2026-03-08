@@ -220,4 +220,57 @@ export class FolderSync {
     // 只要有一个文件成功就算成功
     return successCount > 0
   }
+
+  /**
+   * GitLab 批量提交（使用 commit with actions）
+   */
+  async _gitlabBatchCommit(
+    repo: string,
+    files: Array<{ path: string; content: string; sha?: string }>,
+    message: string
+  ): Promise<boolean> {
+    const store = await Store.load('store.json')
+    const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
+    const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
+    const gitlabBranch = await store.get<string>('gitlabBranch') || 'main'
+    const proxyUrl = await store.get<string>('proxy')
+    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+
+    if (!gitlabAccessToken) {
+      console.error('[GitLab] 缺少 accessToken')
+      return false
+    }
+
+    const headers = new Headers()
+    headers.append('PRIVATE-TOKEN', gitlabAccessToken)
+    headers.append('Content-Type', 'application/json')
+
+    // 构建 actions 数组
+    const actions = files.map(file => ({
+      action: file.sha ? 'update' : 'create',
+      file_path: file.path,
+      content: Buffer.from(file.content).toString('base64'),
+      ...(file.sha && { sha: file.sha })
+    }))
+
+    const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(repo)}/repository/commits`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        branch: gitlabBranch,
+        commit_message: message,
+        actions
+      }),
+      proxy
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[GitLab] 批量提交失败:', errorText)
+      return false
+    }
+
+    return true
+  }
 }

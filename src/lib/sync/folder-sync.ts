@@ -18,15 +18,21 @@ export class FolderSync {
   private platform: string = 'github'
 
   constructor() {
-    this.init()
+    // 不再在 constructor 中初始化
   }
 
+  /**
+   * 初始化平台配置（在每次同步前调用以获取最新配置）
+   */
   private async init() {
     const store = await Store.load('store.json')
     this.platform = await store.get<string>('primaryBackupMethod') || 'github'
   }
 
   async syncFolder(localFolderPath: string): Promise<FolderSyncResult> {
+    // 每次同步前重新读取平台配置
+    await this.init()
+
     console.log('[FolderSync] 开始同步文件夹:', localFolderPath)
     console.log('[FolderSync] 当前平台:', this.platform)
 
@@ -403,6 +409,11 @@ export class FolderSync {
       console.error('[GitLab] 缺少 accessToken')
       return false
     }
+
+    console.log('[GitLab] URL:', gitlabUrl)
+    console.log('[GitLab] Repo:', repo)
+    console.log('[GitLab] Branch:', gitlabBranch)
+    console.log('[GitLab] Token 长度:', gitlabAccessToken?.length)
 
     const headers = new Headers()
     headers.append('PRIVATE-TOKEN', gitlabAccessToken)

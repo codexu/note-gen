@@ -27,7 +27,106 @@ export class FolderSync {
   }
 
   async syncFolder(localFolderPath: string): Promise<FolderSyncResult> {
-    // TODO: 实现
+    try {
+      // 1. 获取本地文件夹下所有 Markdown 文件
+      const markdownFiles = await collectMarkdownFiles(localFolderPath)
+
+      if (markdownFiles.length === 0) {
+        return {
+          success: false,
+          totalFiles: 0,
+          successCount: 0,
+          failedCount: 0,
+          message: '当前文件夹下没有 Markdown 文件'
+        }
+      }
+
+      // 2. 读取每个文件的内容
+      const workspace = await getWorkspacePath()
+      const filesToUpload: Array<{ path: string; content: string; sha?: string }> = []
+
+      for (const file of markdownFiles) {
+        const pathOptions = await getFilePathOptions(file.path)
+        let content = ''
+
+        if (workspace.isCustom) {
+          content = await readTextFile(pathOptions.path)
+        } else {
+          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        }
+
+        // 相对路径作为远程路径
+        const remotePath = file.path
+
+        filesToUpload.push({
+          path: remotePath,
+          content
+        })
+      }
+
+      // 3. 根据平台执行批量提交
+      const message = `Sync folder: ${localFolderPath} - ${new Date().toLocaleString('zh-CN')}`
+      let success = false
+
+      switch (this.platform) {
+        case 'github': {
+          // 先获取远程文件列表获取 SHA（用于覆盖）
+          const remoteFiles = await this._getGithubTreeFiles(RepoNames.sync, '')
+          for (const file of filesToUpload) {
+            if (remoteFiles[file.path]) {
+              file.sha = remoteFiles[file.path].sha
+            }
+          }
+          success = await this._githubBatchCommit(RepoNames.sync, filesToUpload, message)
+          break
+        }
+        case 'gitee':
+          // Gitee: 逐个上传，带 SHA 可以覆盖
+          success = await this._giteeBatchCommit(RepoNames.sync, filesToUpload, message)
+          break
+        case 'gitlab':
+          success = await this._gitlabBatchCommit(RepoNames.sync, filesToUpload, message)
+          break
+        case 'gitea':
+          success = await this._giteaBatchCommit(RepoNames.sync, filesToUpload, message)
+          break
+        default:
+          return {
+            success: false,
+            totalFiles: markdownFiles.length,
+            successCount: 0,
+            failedCount: markdownFiles.length,
+            message: `不支持的平台: ${this.platform}`
+          }
+      }
+
+      if (success) {
+        return {
+          success: true,
+          totalFiles: markdownFiles.length,
+          successCount: markdownFiles.length,
+          failedCount: 0,
+          message: `成功同步 ${markdownFiles.length} 个文件`
+        }
+      } else {
+        return {
+          success: false,
+          totalFiles: markdownFiles.length,
+          successCount: 0,
+          failedCount: markdownFiles.length,
+          message: '同步失败'
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        totalFiles: 0,
+        successCount: 0,
+        failedCount: 0,
+        message: String(error),
+        errors: [String(error)]
+      }
+    }
   }
 
   /**

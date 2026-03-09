@@ -27,11 +27,6 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const isClickingMenu = useRef(false)
 
-  // 全选 input 文本
-  const selectAllText = (event: React.FocusEvent<HTMLInputElement>) => {
-    event.target.select()
-  }
-
   // 处理图片点击
   const handleImageClick = useCallback((event: MouseEvent) => {
     if (isClickingMenu.current) return
@@ -44,19 +39,33 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
 
     // 遍历文档找到对应的图片节点
     editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === 'image' && node.attrs.src === dom.src) {
-        // 先选中图片节点
-        editor.chain().setNodeSelection(pos).run()
-        setImageInfo({
-          src: node.attrs.src,
-          alt: node.attrs.alt || '',
-          pos,
-          rect,
-        })
-        setAltText(node.attrs.alt || '')
-        setSrcText(node.attrs.src || '')
-        setEditMode('none')
-        return false
+      if (node.type.name === 'image') {
+        const nodeRelativeSrc = node.attrs.relativeSrc || ''
+        const nodeAssetSrc = node.attrs.src || ''
+        const domSrc = dom.src
+        const domRelativeSrc = dom.getAttribute('data-relative-src') || ''
+
+        const matches =
+          nodeRelativeSrc === domRelativeSrc ||
+          nodeRelativeSrc === domRelativeSrc.replace(/^\.\//, '') ||
+          nodeAssetSrc === domSrc ||
+          nodeRelativeSrc && domSrc.includes(nodeRelativeSrc) ||
+          nodeRelativeSrc && domRelativeSrc.includes(nodeRelativeSrc)
+
+        if (matches) {
+          editor.chain().setNodeSelection(pos).run()
+          setImageInfo({
+            src: node.attrs.src,
+            alt: node.attrs.alt || '',
+            pos,
+            rect,
+          })
+          setAltText(node.attrs.alt || '')
+          const displaySrc = node.attrs.relativeSrc || node.attrs.src?.replace(/^(tauri|asset|http):\/\/localhost\//, '') || ''
+          setSrcText(displaySrc)
+          setEditMode('none')
+          return false
+        }
       }
     })
   }, [editor])
@@ -64,9 +73,7 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
   // 保存 alt 文本
   const saveAltText = useCallback(() => {
     if (imageInfo) {
-      // 先选中图片节点，然后更新属性
       editor.chain().setNodeSelection(imageInfo.pos).updateAttributes('image', { alt: altText }).run()
-      // 更新 imageInfo 中的值
       setImageInfo(prev => prev ? { ...prev, alt: altText } : null)
     }
     setEditMode('none')
@@ -75,9 +82,10 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
   // 保存 src 地址
   const saveSrc = useCallback(() => {
     if (imageInfo && srcText.trim()) {
-      // 先选中图片节点，然后更新属性
-      editor.chain().setNodeSelection(imageInfo.pos).updateAttributes('image', { src: srcText.trim() }).run()
-      // 更新 imageInfo 中的值
+      editor.chain().setNodeSelection(imageInfo.pos).updateAttributes('image', {
+        src: srcText.trim(),
+        relativeSrc: srcText.trim()
+      }).run()
       setImageInfo(prev => prev ? { ...prev, src: srcText.trim() } : null)
     }
     setEditMode('none')
@@ -132,27 +140,18 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
 
   if (!imageInfo) return null
 
-  // 获取滚动容器，计算相对于容器的坐标
+  // 获取滚动容器
   const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
   const containerBounds = scrollContainer?.getBoundingClientRect()
 
-  // 将视口坐标转换为滚动容器内的相对坐标
+  // 始终保持在编辑器横向居中
+  const containerWidth = containerBounds?.width || 800
+  const centerLeft = containerWidth / 2
+
+  // 垂直位置根据图片调整
   const relativeTop = containerBounds
     ? imageInfo.rect.top - containerBounds.top + (scrollContainer?.scrollTop || 0) - 8
     : imageInfo.rect.top - 8
-
-  const relativeLeft = containerBounds
-    ? imageInfo.rect.left - containerBounds.left + (scrollContainer?.scrollLeft || 0) + imageInfo.rect.width / 2
-    : imageInfo.rect.left + imageInfo.rect.width / 2
-
-  // 边界检测：left 在 [0, 容器宽度 - 菜单宽度] 范围内
-  const currentMenuWidth = menuRef.current?.offsetWidth || 200
-  const maxLeft = containerBounds
-    ? Math.max(0, containerBounds.width - currentMenuWidth)
-    : relativeLeft - currentMenuWidth / 2
-  const left = containerBounds
-    ? Math.min(relativeLeft - currentMenuWidth / 2, maxLeft)
-    : relativeLeft - currentMenuWidth / 2
 
   return (
     <div
@@ -160,7 +159,8 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
       className="absolute z-50"
       style={{
         top: relativeTop,
-        left: left,
+        left: centerLeft,
+        transform: 'translateX(-50%)',
       }}
     >
       <div
@@ -174,7 +174,6 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
             <button
               className="p-1.5 rounded hover:bg-muted transition-colors"
               onClick={() => {
-                // 从编辑器读取最新值
                 const node = editor.state.doc.nodeAt(imageInfo.pos)
                 setSrcText(node?.attrs.src || imageInfo.src)
                 setEditMode('src')
@@ -188,7 +187,6 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
             <button
               className="p-1.5 rounded hover:bg-muted transition-colors"
               onClick={() => {
-                // 从编辑器读取最新值
                 const node = editor.state.doc.nodeAt(imageInfo.pos)
                 setAltText(node?.attrs.alt || imageInfo.alt)
                 setEditMode('alt')
@@ -226,7 +224,7 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
                   setEditMode('none')
                 }
               }}
-              onFocus={selectAllText}
+              onFocus={(e) => e.target.select()}
               className="w-40 px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               autoFocus
             />
@@ -260,7 +258,7 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
                   setEditMode('none')
                 }
               }}
-              onFocus={selectAllText}
+              onFocus={(e) => e.target.select()}
               className="w-60 px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               autoFocus
             />

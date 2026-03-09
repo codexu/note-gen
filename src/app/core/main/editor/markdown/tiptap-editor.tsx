@@ -22,7 +22,7 @@ import { common, createLowlight } from 'lowlight'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
-import { Extension } from '@tiptap/core'
+import { Extension, nodeInputRule } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import 'katex/dist/katex.min.css'
@@ -33,6 +33,7 @@ import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { handleImageUpload } from '@/lib/image-handler'
+import { convertImageByWorkspace } from '@/lib/utils'
 import { isMobileDevice } from '@/lib/check'
 import { useTranslations } from 'next-intl'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
@@ -290,7 +291,78 @@ export function TipTapEditor({
       InlineMath,
       BlockMath,
       MermaidDiagram,
-      Image.configure({
+      Image.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            relativeSrc: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('data-relative-src'),
+              renderHTML: (attributes) => {
+                return {
+                  'data-relative-src': attributes.relativeSrc,
+                }
+              },
+            },
+          }
+        },
+        parseHTML() {
+          return [
+            {
+              tag: 'img[src]',
+              getAttrs: (element) => {
+                const src = element.getAttribute('src')
+                const relativeSrc = element.getAttribute('data-relative-src') || src
+                // 如果是相对路径（非 http/https/asset://），转换为 asset://
+                if (src && !src.startsWith('http') && !src.startsWith('asset://') && !src.startsWith('tauri://')) {
+                  // 这里不能直接调用 async 函数，需要在后续处理
+                  return {
+                    src, // 先保持原样，后续通过其他方式处理
+                    relativeSrc: src,
+                    alt: element.getAttribute('alt') || '',
+                  }
+                }
+                return {
+                  src,
+                  relativeSrc,
+                  alt: element.getAttribute('alt') || '',
+                }
+              },
+            },
+          ]
+        },
+        renderHTML({ node }) {
+          return ['img', {
+            src: node.attrs.src,
+            alt: node.attrs.alt || '',
+            class: 'max-w-full h-auto rounded-lg',
+            'data-relative-src': node.attrs.relativeSrc,
+          }]
+        },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        renderMarkdown(node, _helpers) {
+          // 优先使用 relativeSrc，其次使用 src
+          const attrs = node.attrs || {}
+          let src = attrs.relativeSrc || attrs.src || ''
+          // 如果是 asset:// 或 tauri:// 路径，提取实际路径
+          src = src.replace(/^(tauri|asset|http):\/\/localhost\//, '')
+          return `![${attrs.alt || ''}](${src})`
+        },
+        addInputRules() {
+          return [
+            nodeInputRule({
+              find: /!\[(.*?)\]\((.*?)(?:\s+"(.*?)")?\)$/,
+              type: this.type,
+              getAttributes: (match) => {
+                const [, alt, src, title] = match
+                // 规范化路径：去掉 ./ 前缀
+                const normalizedSrc = src.replace(/^\.\//, '')
+                return { src: normalizedSrc, alt, title, relativeSrc: normalizedSrc }
+              },
+            }),
+          ]
+        },
+              }).configure({
         inline: true,
         allowBase64: false,
         HTMLAttributes: {
@@ -802,6 +874,65 @@ export function TipTapEditor({
       }, 0)
     }
   }, [editor, initialContent, onReady, onEditorReady, activeFilePath])
+
+  // 处理编辑器中图片的相对路径，转换为 asset:// URL
+  useEffect(() => {
+    if (!editor || !editor.view) return
+
+    const { convertImageByWorkspace } = require('@/lib/utils')
+
+    const transformImagePaths = () => {
+      // 获取编辑器 DOM 中的所有图片
+      const editorDom = editor.view.dom
+      const images = editorDom.querySelectorAll('img')
+
+      for (const img of images) {
+        const src = img.getAttribute('src')
+        // 如果是相对路径，转换为 asset://
+        if (src && !src.startsWith('http') && !src.startsWith('asset://') && !src.startsWith('tauri://')) {
+          // 异步转换路径
+          convertImageByWorkspace(src).then((assetUrl: string) => {
+            // 只有当 src 仍然是相对路径时才更新（避免覆盖已转换的）
+            const currentSrc = img.getAttribute('src')
+            if (currentSrc === src || !currentSrc?.startsWith('asset://')) {
+              img.setAttribute('src', assetUrl)
+            }
+          })
+        }
+        // 添加 onerror 处理：如果加载失败，尝试转换路径
+        if (img && !img.onerror) {
+          img.onerror = async () => {
+            const currentSrc = img.getAttribute('src')
+            if (currentSrc && !currentSrc.startsWith('http') && !currentSrc.startsWith('asset://') && !currentSrc.startsWith('tauri://')) {
+              const assetUrl = await convertImageByWorkspace(currentSrc)
+              img.setAttribute('src', assetUrl)
+            }
+          }
+        }
+      }
+    }
+
+    // 监听 transaction 事件 - 在文档更新时立即转换
+    const handleTransaction = () => {
+      transformImagePaths()
+    }
+
+    // 监听 selectionUpdate 事件
+    const handleSelectionUpdate = () => {
+      transformImagePaths()
+    }
+
+    editor.on('transaction', handleTransaction)
+    editor.on('selectionUpdate', handleSelectionUpdate)
+
+    // 初始执行
+    transformImagePaths()
+
+    return () => {
+      editor.off('transaction', handleTransaction)
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor])
 
   // Listen to editor updates and notify TabBar about undo/redo state
   useEffect(() => {

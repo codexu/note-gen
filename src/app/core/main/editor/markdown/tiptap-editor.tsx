@@ -830,37 +830,38 @@ export function TipTapEditor({
     }
   }, [])
 
-  // Handle remote file pull updates - update content when initialContent changes
+  // Handle remote file pull updates via event (instead of initialContent change)
+  // This fixes cursor jump issue caused by unnecessary setContent during local saves
   useEffect(() => {
-    if (!editor || !isInitializedRef.current) return
+    const handleRemoteContentUpdate = (event: { content: string }) => {
+      if (!editor || !event?.content) return
 
-    // Bug fix: Only update if content actually changed (from remote pull)
-    // and if the initialContent belongs to the current file path
-    const currentContent = editor.getMarkdown()
-    const newContent = initialContent || ''
+      const currentContent = editor.getMarkdown()
+      const newContent = event.content
 
-    // Bug fix: Use activeFilePath directly instead of ref to avoid race conditions
-    // Also handle the case where initialContent changed from empty to non-empty
-    if (activeFilePath) {
-      // Update if content changed, including empty to non-empty transitions
-      // But skip if both are empty (no meaningful change)
-      if (newContent !== currentContent && (newContent || currentContent)) {
-        // Bug fix: Mark editor as not ready during update to prevent onUpdate from firing
+      // Only update if content actually changed
+      if (newContent !== currentContent) {
         isReadyRef.current = false
         externalUpdateCounterRef.current++
-        // Use setTimeout to avoid flushSync conflict during React render
         setTimeout(() => {
           editor.commands.setContent(newContent, { contentType: 'markdown' })
-          // Bug fix: Mark editor as ready after content is set
           isReadyRef.current = true
-          // Reset the counter after a short delay
           setTimeout(() => {
             externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
           }, 100)
         }, 0)
       }
     }
-  }, [initialContent, editor, activeFilePath])
+
+    emitter.on('editor-content-from-remote', handleRemoteContentUpdate as any)
+    return () => {
+      emitter.off('editor-content-from-remote', handleRemoteContentUpdate as any)
+    }
+  }, [editor, activeFilePath])
+
+  // NOTE: Removed initialContent useEffect that caused cursor jump during local edits
+  // Remote pull is now handled via 'editor-content-from-remote' event
+  // Sync and external updates are handled by their respective events
 
   // Handle sync content updated from auto-sync
   useEffect(() => {

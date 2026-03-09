@@ -10,6 +10,7 @@ interface Events {
   'editor:ready': unknown;
   'editor-mode-changed': string;
   'external-content-update': string;
+  'editor-content-from-remote': { content: string };
   'toolbar-text-number': number;
   'toolbar-reset-selected-text': unknown;
   'quickRecordText': unknown;

@@ -19,7 +19,8 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     isPulling,
     setCurrentArticle,
     activeFilePath,
-    currentArticle
+    currentArticle,
+    justPulledFile
   } = useArticleStore()
 
   const t = useTranslations('article.file.sync')
@@ -204,6 +205,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       setIsLoading(false)
       // Mark as initialized so that subsequent saves are allowed
       contentInitializedRef.current = true
+
+      // Fix cursor jump: Only trigger remote content update if this is a remote pull
+      // This prevents unnecessary setContent during local saves
+      if (justPulledFile) {
+        emitter.emit('editor-content-from-remote', { content: currentArticle })
+      }
     } else if (currentArticle === '' && isThisFile && initialContent === '') {
       // Genuinely empty file - hide loading and mark as initialized
       // Bug fix: Set expected content for empty file
@@ -213,7 +220,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       // Mark as initialized for empty files so user can start typing
       contentInitializedRef.current = true
     }
-  }, [currentArticle, filePath, tabContentsRef, initialContent])
+  }, [currentArticle, filePath, tabContentsRef, initialContent, justPulledFile])
 
   // Handle content changes - only save if this is the active file
   const handleContentChange = useCallback((content: string) => {

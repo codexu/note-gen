@@ -255,6 +255,13 @@
   text-align: left;
   vertical-align: top;
   min-width: 100px;
+  empty-cells: hide;
+}
+
+/* 隐藏表格空单元格中的零宽空格和 &nbsp; */
+.tiptap-editor .ProseMirror table td:empty::before,
+.tiptap-editor .ProseMirror table th:empty::before {
+  content: "";
 }
 
 .tiptap-editor .ProseMirror table th {

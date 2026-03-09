@@ -180,7 +180,7 @@ export function DiffViewer({
                       line.type === "unchanged" && "text-foreground"
                     )}
                     dangerouslySetInnerHTML={{
-                      __html: line.content || "&nbsp;",
+                      __html: line.content,
                     }}
                   />
                 </pre>

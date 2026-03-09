@@ -307,7 +307,9 @@ export function TipTapEditor({
       // Bug fix: Only trigger onChange if editor is ready (not during initialization)
       // Using counter to handle rapid successive updates
       if (externalUpdateCounterRef.current === 0 && isReadyRef.current) {
-        const markdown = editor.getMarkdown()
+        let markdown = editor.getMarkdown()
+        // 修复表格空单元格中的 &nbsp; 问题 - 替换为空格
+        markdown = markdown.replace(/&nbsp;/g, ' ')
         onChange?.(markdown)
         // Mark that we've processed the first update
         isFirstUpdateRef.current = false
@@ -1120,7 +1122,9 @@ export function TipTapEditor({
         return
       }
 
-      const markdown = editor.getMarkdown()
+      let markdown = editor.getMarkdown()
+      // 修复表格空单元格中的 &nbsp; 问题 - 替换为空格
+      markdown = markdown.replace(/&nbsp;/g, ' ')
       const text = editor.getText()
       const html = editor.getHTML()
 

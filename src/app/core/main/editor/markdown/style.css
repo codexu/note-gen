@@ -258,10 +258,12 @@
   empty-cells: hide;
 }
 
-/* 隐藏表格空单元格中的零宽空格和 &nbsp; */
-.tiptap-editor .ProseMirror table td:empty::before,
-.tiptap-editor .ProseMirror table th:empty::before {
-  content: "";
+/* 表格空单元格使用空格替代 nbsp */
+/* TipTap 空单元格结构为 <td><p></p></td> */
+.tiptap-editor .ProseMirror table td:has(p:empty)::before,
+.tiptap-editor .ProseMirror table th:has(p:empty)::before {
+  content: " ";
+  visibility: hidden;
 }
 
 .tiptap-editor .ProseMirror table th {

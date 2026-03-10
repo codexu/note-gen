@@ -33,6 +33,60 @@ import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
 import { fetch } from '@tauri-apps/plugin-http'
+
+// GitLab 实例类型
+enum GitlabInstanceType {
+  OFFICIAL = 'official',
+  JIHULAB = 'jihulab',
+  SELF_HOSTED = 'self-hosted'
+}
+
+// GitLab 实例配置
+const GITLAB_INSTANCES: Record<GitlabInstanceType, { name: string; baseUrl: string }> = {
+  [GitlabInstanceType.OFFICIAL]: {
+    name: 'GitLab',
+    baseUrl: 'https://gitlab.com'
+  },
+  [GitlabInstanceType.JIHULAB]: {
+    name: '极狐GitLab',
+    baseUrl: 'https://jihulab.com'
+  },
+  [GitlabInstanceType.SELF_HOSTED]: {
+    name: '自建 GitLab',
+    baseUrl: ''
+  }
+}
+
+// 获取 GitLab API 基础 URL
+async function getGitlabApiBaseUrl(): Promise<string> {
+  const store = await Store.load('store.json')
+  const instanceType = await store.get<GitlabInstanceType>('gitlabInstanceType') || GitlabInstanceType.OFFICIAL
+
+  console.log('[getGitlabApiBaseUrl] instanceType:', instanceType)
+
+  if (instanceType === GitlabInstanceType.SELF_HOSTED) {
+    let customUrl = await store.get<string>('gitlabCustomUrl') || ''
+    console.log('[getGitlabApiBaseUrl] customUrl:', customUrl)
+    customUrl = customUrl.replace(/\/+$/, '').trim()
+
+    if (!customUrl) {
+      throw new Error('自建 GitLab 实例的 URL 未配置')
+    }
+
+    // 用户使用 http://localhost:8080/ 这种本地地址，不需要添加 https://
+    const baseUrl = `${customUrl}/api/v4`
+    console.log('[getGitlabApiBaseUrl] Self-hosted baseUrl:', baseUrl)
+    return baseUrl
+  }
+
+  const instance = GITLAB_INSTANCES[instanceType]
+  if (!instance) {
+    console.log('[getGitlabApiBaseUrl] Unknown instanceType, using OFFICIAL')
+    // 未知类型，默认使用官方 GitLab
+    return `${GITLAB_INSTANCES[GitlabInstanceType.OFFICIAL].baseUrl}/api/v4`
+  }
+  return `${instance.baseUrl}/api/v4`
+}
 import { s3Upload, s3Download, s3HeadObject, s3Delete, testS3Connection } from "@/lib/sync/s3"
 import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete, testWebDAVConnection } from "@/lib/sync/webdav"
 import { S3Config, WebDAVConfig, SyncPlatform } from "@/types/sync"
@@ -47,6 +101,12 @@ import { isMobileDevice } from "@/lib/check"
 function encodePath(path: string, filename?: string): string {
   const fullPath = filename ? `${path}/${filename}` : path
   return fullPath.replace(/\s/g, '_').split('/').map(segment => encodeURIComponent(segment)).join('/')
+}
+
+// GitLab API 需要完整路径一起编码
+function encodeGitLabPath(path: string, filename?: string): string {
+  const fullPath = filename ? `${path}/${filename}` : path
+  return encodeURIComponent(fullPath)
 }
 
 async function requestGitHub(method: string, url: string, body?: object) {
@@ -72,7 +132,7 @@ async function requestGitHub(method: string, url: string, body?: object) {
 
 async function requestGitee(method: string, url: string, body?: object) {
   const store = await Store.load('store.json')
-  const accessToken = await store.get<string>('accessToken')
+  const giteeAccessToken = await store.get<string>('giteeAccessToken')
 
   const headers = new Headers()
   headers.append('Content-Type', 'application/json')
@@ -92,11 +152,20 @@ async function requestGitLab(method: string, url: string, body?: object) {
   const store = await Store.load('store.json')
   const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
 
+  console.log('[requestGitLab] URL:', url)
+  console.log('[requestGitLab] Method:', method)
+  console.log('[requestGitLab] Token exists:', !!gitlabAccessToken)
+  console.log('[requestGitLab] Token prefix:', gitlabAccessToken?.substring(0, 10))
+
   const headers = new Headers()
   headers.append('PRIVATE-TOKEN', gitlabAccessToken as string)
   headers.append('Content-Type', 'application/json')
 
-  const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+  // 使用 @tauri-apps/plugin-http 的 fetch 避免 CORS 问题
+  const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
+  const response = await tauriFetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+
+  console.log('[requestGitLab] Status:', response.status)
 
   if (response.status >= 200 && response.status < 300) {
     return method === 'GET' ? await response.json() : await response.json()
@@ -104,6 +173,7 @@ async function requestGitLab(method: string, url: string, body?: object) {
   if (method === 'GET') return null
 
   const errorData = await response.json()
+  console.log('[requestGitLab] Error:', errorData)
   throw { status: response.status, message: errorData.message || 'Request failed' }
 }
 
@@ -157,17 +227,36 @@ async function giteeGetFile({ path, repo, accessToken, giteeUsername }: {
 }
 
 // ============ GitLab 上传/下载函数 ============
-async function gitlabUpload({ file, path, filename, sha: _sha, accessToken, projectId }: {
+async function gitlabUpload({ file, path, filename, sha, accessToken, projectId }: {
   file: string, path: string, filename: string, sha?: string, accessToken: string, projectId: string
 }) {
-  const url = `https://gitlab.com/api/v4/projects/${projectId}/repository/files/${encodePath(path, filename)}`
-  return requestGitLab('PUT', url, { branch: 'main', content: file, commit_message: `Upload ${filename}`, encoding: 'base64' })
+  const baseUrl = await getGitlabApiBaseUrl()
+  const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeGitLabPath(path, filename)}`
+
+  // 如果没有 sha，先尝试用 POST 创建
+  if (!sha) {
+    try {
+      return await requestGitLab('POST', url, { branch: 'main', content: file, commit_message: `Upload ${filename}`, encoding: 'base64' })
+    } catch (error: any) {
+      // 如果是 404 错误，说明文件不存在，先获取 SHA 后再上传
+      if (error.status === 404) {
+        const existingFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken, projectId })
+        if (existingFile) {
+          sha = existingFile.file_sha || existingFile.sha
+        }
+      }
+    }
+  }
+
+  // 如果有 sha，或者 POST 失败，用 PUT 更新
+  return requestGitLab('PUT', url, { branch: 'main', content: file, commit_message: `Upload ${filename}`, encoding: 'base64', sha })
 }
 
 async function gitlabGetFile({ path, accessToken, projectId }: {
   path: string, accessToken: string, projectId: string
 }) {
-  const url = `https://gitlab.com/api/v4/projects/${projectId}/repository/files/${encodePath(path)}?ref=main`
+  const baseUrl = await getGitlabApiBaseUrl()
+  const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeGitLabPath(path)}?ref=main`
   return requestGitLab('GET', url)
 }
 
@@ -343,14 +432,14 @@ export function SyncToggle() {
 
       // GitLab
       let gitlabStatus: ProviderStatus = 'unconfigured'
-      if (gitlabProjectId && accessToken) {
+      if (gitlabProjectId && gitlabAccessToken) {
         gitlabStatus = gitlabSyncProjectState === SyncStateEnum.success ? 'connected' : gitlabSyncProjectState === SyncStateEnum.fail ? 'failed' : 'disconnected'
       }
       providerList.push({ platform: 'gitlab', name: 'GitLab', status: gitlabStatus })
 
       // Gitea
       let giteaStatus: ProviderStatus = 'unconfigured'
-      if (giteaUsername && accessToken) {
+      if (giteaUsername && giteaAccessToken) {
         giteaStatus = giteaSyncRepoState === SyncStateEnum.success ? 'connected' : giteaSyncRepoState === SyncStateEnum.fail ? 'failed' : 'disconnected'
       }
       providerList.push({ platform: 'gitea', name: 'Gitea', status: giteaStatus })
@@ -531,7 +620,9 @@ export function SyncToggle() {
           break;
         }
         case 'gitlab': {
+          console.log('[uploadAll] GitLab - path:', path, 'filename:', filename, 'projectId:', gitlabProjectId)
           const existingFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: gitlabAccessToken!, projectId: gitlabProjectId! })
+          console.log('[uploadAll] GitLab existingFile:', existingFile)
           settingsRes = await gitlabUpload({
             file: uint8ArrayToBase64(file),
             path,

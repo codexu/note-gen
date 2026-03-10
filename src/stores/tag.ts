@@ -111,9 +111,27 @@ const useTagStore = create<TagState>((set, get) => ({
           sha: files?.sha,
         })
         break;
-      case 'gitlab':
+      case 'gitlab': {
         const gitlabRepo = await getSyncRepoName('gitlab')
         files = await gitlabGetFiles({ path, repo: gitlabRepo })
+
+        // 如果目录不存在（files 为 null），先创建目录标记文件
+        if (!files) {
+          try {
+            await uploadGitlabFile({
+              file: '',
+              repo: gitlabRepo,
+              path,
+              filename: '.gitkeep',
+              sha: '',
+            })
+          } catch (e) {
+            console.log('[tag store] GitLab create .gitkeep error:', e)
+          }
+          // 重新获取文件列表
+          files = await gitlabGetFiles({ path, repo: gitlabRepo })
+        }
+
         const tagFile = Array.isArray(files)
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
@@ -125,6 +143,7 @@ const useTagStore = create<TagState>((set, get) => ({
           sha: tagFile?.sha || '',
         })
         break;
+      }
       case 'gitea':
         const giteaRepo = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })

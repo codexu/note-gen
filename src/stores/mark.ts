@@ -196,12 +196,15 @@ const useMarkStore = create<MarkState>((set, get) => ({
     const path = '.data'
     const filename = 'marks.json'
     const marks = await getAllMarks()
+    console.log('[mark store] uploadMarks - marks count:', marks.length)
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
+    console.log('[mark store] uploadMarks - primaryBackupMethod:', primaryBackupMethod)
     let result = false
     let files: any;
     let res;
     const fullPath = `${path}/${filename}`;
+    try {
     switch (primaryBackupMethod) {
       case 'github':
         const githubRepoName = await getSyncRepoName('github')
@@ -231,20 +234,52 @@ const useMarkStore = create<MarkState>((set, get) => ({
           result = true
         }
         break;
-      case 'gitlab':
+      case 'gitlab': {
         const gitlabRepoName = await getSyncRepoName('gitlab')
-        files = await gitlabGetFiles({ path, repo: gitlabRepoName })
+        console.log('[mark store] GitLab upload - path:', path, 'filename:', filename, 'repo:', gitlabRepoName)
+        try {
+          files = await gitlabGetFiles({ path, repo: gitlabRepoName })
+        } catch (e) {
+          console.error('[mark store] GitLab getFiles error:', e)
+        }
+        console.log('[mark store] GitLab files:', files)
+
+        // 如果目录不存在（files 为 null），先创建目录标记文件
+        if (!files) {
+          console.log('[mark store] GitLab directory does not exist, creating .gitkeep')
+          try {
+            await uploadGitlabFile({
+              file: '',
+              repo: gitlabRepoName,
+              path,
+              filename: '.gitkeep',
+              sha: '',
+            })
+          } catch (e) {
+            console.log('[mark store] GitLab create .gitkeep error:', e)
+          }
+          // 重新获取文件列表
+          files = await gitlabGetFiles({ path, repo: gitlabRepoName })
+        }
+
         const markFile = Array.isArray(files)
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
-        res = await uploadGitlabFile({
-          file: JSON.stringify(marks),
-          repo: gitlabRepoName,
-          path,
-          filename,
-          sha: markFile?.sha || '',
-        })
+        console.log('[mark store] GitLab markFile:', markFile)
+        try {
+          res = await uploadGitlabFile({
+            file: JSON.stringify(marks),
+            repo: gitlabRepoName,
+            path,
+            filename,
+            sha: markFile?.sha || '',
+          })
+        } catch (e) {
+          console.error('[mark store] GitLab uploadFile error:', e)
+        }
+        console.log('[mark store] GitLab upload result:', res)
         break;
+      }
       case 'gitea':
         const giteaRepoName = await getSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepoName })
@@ -283,6 +318,9 @@ const useMarkStore = create<MarkState>((set, get) => ({
         }
         break;
       }
+    }
+    } catch (error) {
+      console.error('[mark store] uploadMarks error:', error)
     }
     if (res) {
       result = true

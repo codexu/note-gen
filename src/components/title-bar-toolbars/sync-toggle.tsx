@@ -224,17 +224,88 @@ export function SyncToggle() {
 
   const isMobile = isMobileDevice()
 
-  // 加载各平台状态
+  // 加载各平台状态并自动检测
   useEffect(() => {
     async function loadProviderStatus() {
-      const store = await Store.load('store.json')
-      const accessToken = await store.get<string>('accessToken')
-      const githubUsername = await store.get<string>('githubUsername')
-      const giteeUsername = await store.get<string>('giteeUsername')
-      const giteaUsername = await store.get<string>('giteaUsername')
-      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
-      const s3Config = await store.get<S3Config>('s3SyncConfig')
-      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+      try {
+        const store = await Store.load('store.json')
+        const accessToken = await store.get<string>('accessToken')
+        const giteeAccessToken = await store.get<string>('giteeAccessToken')
+        const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
+        const giteaAccessToken = await store.get<string>('giteaAccessToken')
+        const githubUsername = await store.get<string>('githubUsername')
+        const giteeUsername = await store.get<string>('giteeUsername')
+        const giteaUsername = await store.get<string>('giteaUsername')
+        const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
+        const s3Config = await store.get<S3Config>('s3SyncConfig')
+        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+
+        // 移动端自动检测各平台状态
+        if (isMobile) {
+          // GitHub 检测
+          if (githubUsername && accessToken && syncRepoState === SyncStateEnum.fail) {
+            try {
+              const { checkSyncRepoState } = await import('@/lib/sync/github')
+              const repoName = await getSyncRepoName('github')
+              const syncRepo = await checkSyncRepoState(repoName)
+              if (syncRepo) {
+                useSyncStore.getState().setSyncRepoState(SyncStateEnum.success)
+              } else {
+                useSyncStore.getState().setSyncRepoState(SyncStateEnum.fail)
+              }
+            } catch {
+              useSyncStore.getState().setSyncRepoState(SyncStateEnum.fail)
+            }
+          }
+
+          // Gitee 检测
+          if (giteeUsername && giteeAccessToken && giteeSyncRepoState === SyncStateEnum.fail) {
+            try {
+              const { checkSyncRepoState } = await import('@/lib/sync/gitee')
+              const repoName = await getSyncRepoName('gitee')
+              const syncRepo = await checkSyncRepoState(repoName)
+              if (syncRepo) {
+                useSyncStore.getState().setGiteeSyncRepoState(SyncStateEnum.success)
+              } else {
+                useSyncStore.getState().setGiteeSyncRepoState(SyncStateEnum.fail)
+              }
+            } catch {
+              useSyncStore.getState().setGiteeSyncRepoState(SyncStateEnum.fail)
+            }
+          }
+
+          // GitLab 检测
+          if (gitlabProjectId && gitlabAccessToken && gitlabSyncProjectState === SyncStateEnum.fail) {
+            try {
+              const { checkSyncProjectState } = await import('@/lib/sync/gitlab')
+              const repoName = await getSyncRepoName('gitlab')
+              const syncRepo = await checkSyncProjectState(repoName)
+              if (syncRepo) {
+                useSyncStore.getState().setGitlabSyncProjectState(SyncStateEnum.success)
+              } else {
+                useSyncStore.getState().setGitlabSyncProjectState(SyncStateEnum.fail)
+              }
+            } catch {
+              useSyncStore.getState().setGitlabSyncProjectState(SyncStateEnum.fail)
+            }
+          }
+
+          // Gitea 检测
+          if (giteaUsername && giteaAccessToken && giteaSyncRepoState === SyncStateEnum.fail) {
+            try {
+              const { checkSyncRepoState } = await import('@/lib/sync/gitea')
+              const repoName = await getSyncRepoName('gitea')
+              const syncRepo = await checkSyncRepoState(repoName)
+              if (syncRepo) {
+                useSyncStore.getState().setGiteaSyncRepoState(SyncStateEnum.success)
+              } else {
+                useSyncStore.getState().setGiteaSyncRepoState(SyncStateEnum.fail)
+              }
+            } catch {
+              useSyncStore.getState().setGiteaSyncRepoState(SyncStateEnum.fail)
+            }
+          }
+        }
 
       const providerList: ProviderInfo[] = []
 
@@ -247,7 +318,7 @@ export function SyncToggle() {
 
       // Gitee
       let giteeStatus: ProviderStatus = 'unconfigured'
-      if (giteeUsername && accessToken) {
+      if (giteeUsername && giteeAccessToken) {
         giteeStatus = giteeSyncRepoState === SyncStateEnum.success ? 'connected' : giteeSyncRepoState === SyncStateEnum.fail ? 'failed' : 'disconnected'
       }
       providerList.push({ platform: 'gitee', name: 'Gitee', status: giteeStatus })
@@ -281,6 +352,9 @@ export function SyncToggle() {
       providerList.push({ platform: 'webdav', name: 'WebDAV', status: webdavStatus })
 
       setProviders(providerList)
+      } catch (error) {
+        console.error('[SyncToggle] Error loading provider status:', error)
+      }
     }
 
     // 检测 S3 连接状态
@@ -343,8 +417,9 @@ export function SyncToggle() {
     // 如果选择了未配置的方案，跳转到设置页面
     if (selectedProvider?.status === 'unconfigured') {
       await setPrimaryBackupMethod(value as SyncPlatform)
-      // 跳转到同步设置页面
-      router.push('/core/setting?anchor=sync')
+      // 跳转到同步设置页面，区分移动端和 PC 端
+      const settingPath = isMobile ? '/mobile/setting/pages/sync' : '/core/setting?anchor=sync'
+      router.push(settingPath)
       return
     }
 
@@ -399,10 +474,13 @@ export function SyncToggle() {
 
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
       const accessToken = await store.get<string>('accessToken')
+      const giteeAccessToken = await store.get<string>('giteeAccessToken')
+      const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
+      const giteaAccessToken = await store.get<string>('giteaAccessToken')
       const githubUsername = await store.get<string>('githubUsername')
       const giteeUsername = await store.get<string>('giteeUsername')
-      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
       const giteaUsername = await store.get<string>('giteaUsername')
+      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
       let settingsRes;
 
       switch (primaryBackupMethod) {
@@ -422,40 +500,40 @@ export function SyncToggle() {
         }
         case 'gitee': {
           const giteeRepo = await getSyncRepoName('gitee')
-          const existingFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: accessToken!, giteeUsername: giteeUsername! })
+          const existingFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: giteeAccessToken!, giteeUsername: giteeUsername! })
           settingsRes = await giteeUpload({
             file: uint8ArrayToBase64(file),
             path,
             filename,
             sha: existingFile?.sha,
             repo: giteeRepo,
-            accessToken: accessToken!,
+            accessToken: giteeAccessToken!,
             giteeUsername: giteeUsername!,
           })
           break;
         }
         case 'gitlab': {
-          const existingFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: accessToken!, projectId: gitlabProjectId! })
+          const existingFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: gitlabAccessToken!, projectId: gitlabProjectId! })
           settingsRes = await gitlabUpload({
             file: uint8ArrayToBase64(file),
             path,
             filename,
             sha: existingFile?.sha,
-            accessToken: accessToken!,
+            accessToken: gitlabAccessToken!,
             projectId: gitlabProjectId!,
           })
           break;
         }
         case 'gitea': {
           const giteaRepo = await getSyncRepoName('gitea')
-          const existingFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: accessToken!, giteaUsername: giteaUsername! })
+          const existingFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: giteaAccessToken!, giteaUsername: giteaUsername! })
           settingsRes = await giteaUpload({
             file: uint8ArrayToBase64(file),
             path,
             filename,
             sha: existingFile?.sha,
             repo: giteaRepo,
-            accessToken: accessToken!,
+            accessToken: giteaAccessToken!,
             giteaUsername: giteaUsername!,
           })
           break;
@@ -532,10 +610,13 @@ export function SyncToggle() {
 
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
       const accessToken = await store.get<string>('accessToken')
+      const giteeAccessToken = await store.get<string>('giteeAccessToken')
+      const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
+      const giteaAccessToken = await store.get<string>('giteaAccessToken')
       const githubUsername = await store.get<string>('githubUsername')
       const giteeUsername = await store.get<string>('giteeUsername')
-      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
       const giteaUsername = await store.get<string>('giteaUsername')
+      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
       let remoteFile;
 
       switch (primaryBackupMethod) {
@@ -546,16 +627,16 @@ export function SyncToggle() {
         }
         case 'gitee': {
           const giteeRepo = await getSyncRepoName('gitee')
-          remoteFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: accessToken!, giteeUsername: giteeUsername! })
+          remoteFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: giteeAccessToken!, giteeUsername: giteeUsername! })
           break;
         }
         case 'gitlab': {
-          remoteFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: accessToken!, projectId: gitlabProjectId! })
+          remoteFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: gitlabAccessToken!, projectId: gitlabProjectId! })
           break;
         }
         case 'gitea': {
           const giteaRepo = await getSyncRepoName('gitea')
-          remoteFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: accessToken!, giteaUsername: giteaUsername! })
+          remoteFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: giteaAccessToken!, giteaUsername: giteaUsername! })
           break;
         }
         case 's3': {
@@ -710,12 +791,6 @@ export function SyncToggle() {
     } finally {
       setImporting(false);
     }
-  }
-
-  // 检查是否有任何平台已配置
-  const hasAnyConfigured = providers.some(p => p.status !== 'unconfigured')
-  if (!hasAnyConfigured) {
-    return null
   }
 
   return (

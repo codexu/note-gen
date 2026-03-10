@@ -179,7 +179,32 @@ export async function uploadFile(
     if (response.status === 400) {
       return null;
     }
-    
+
+    // 404 表示文件不存在，尝试用 POST 创建新文件
+    if (response.status === 404) {
+      const postOptions = {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          access_token: accessToken,
+          content: base64Content,
+          message: message || `Upload ${filename || id}`,
+          branch: 'master',
+        }),
+        proxy
+      };
+      const postResponse = await fetch(url, postOptions);
+      if (postResponse.status >= 200 && postResponse.status < 300) {
+        const data = await postResponse.json();
+        return { data } as GiteeResponse<any>;
+      }
+      const postErrorData = await postResponse.json();
+      throw {
+        status: postResponse.status,
+        message: postErrorData.message || '同步失败'
+      };
+    }
+
     const errorData = await response.json();
     throw {
       status: response.status,

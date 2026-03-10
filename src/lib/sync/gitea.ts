@@ -180,6 +180,31 @@ export async function uploadFile({
       return null;
     }
 
+    // 404 表示文件不存在，尝试用 POST 创建新文件
+    if (response.status === 404) {
+      const postMethod = 'POST';
+      const postBody = { ...requestBody };
+      delete postBody.sha; // POST 不需要 sha
+
+      const postResponse = await fetch(url, {
+        method: postMethod,
+        headers,
+        body: JSON.stringify(postBody),
+        proxy
+      });
+
+      if (postResponse.status >= 200 && postResponse.status < 300) {
+        const data = await postResponse.json();
+        return { data } as GiteaResponse<any>;
+      }
+
+      const postErrorData = await postResponse.json();
+      throw {
+        status: postResponse.status,
+        message: postErrorData.message || '同步失败'
+      } as GiteaError;
+    }
+
     const errorData = await response.json();
     throw {
       status: response.status,

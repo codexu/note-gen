@@ -156,6 +156,31 @@ export async function uploadFile({
       return null;
     }
 
+    // 404 表示文件不存在，尝试用 POST 创建新文件
+    if (response.status === 404) {
+      const postMethod = 'POST';
+      const postBody = { ...requestBody };
+      delete (postBody as any).last_commit_id; // POST 不需要 last_commit_id
+
+      const postResponse = await fetch(url, {
+        method: postMethod,
+        headers,
+        body: JSON.stringify(postBody),
+        proxy
+      });
+
+      if (postResponse.status >= 200 && postResponse.status < 300) {
+        const data = await postResponse.json();
+        return { data } as GitlabResponse<any>;
+      }
+
+      const postErrorData = await postResponse.json();
+      throw {
+        status: postResponse.status,
+        message: postErrorData.message || '同步失败'
+      } as GitlabError;
+    }
+
     const errorData = await response.json();
     throw {
       status: response.status,

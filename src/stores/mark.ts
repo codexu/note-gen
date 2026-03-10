@@ -215,13 +215,18 @@ const useMarkStore = create<MarkState>((set, get) => ({
         break;
       case 'gitee':
         const giteeRepoName = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: fullPath, repo: giteeRepoName })
-        res = await uploadGiteeFile({
-          file: JSON.stringify(marks),
-          repo: giteeRepoName,
-          path: fullPath,
-          sha: files?.sha,
-        })
+        try {
+          files = await giteeGetFiles({ path: fullPath, repo: giteeRepoName })
+          const sha = files?.sha
+          res = await uploadGiteeFile({
+            file: JSON.stringify(marks),
+            repo: giteeRepoName,
+            path: fullPath,
+            sha: sha,
+          })
+        } catch (err) {
+          console.error('[mark store] Gitee upload error:', err)
+        }
         if (res) {
           result = true
         }

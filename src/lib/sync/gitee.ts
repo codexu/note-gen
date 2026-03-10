@@ -143,9 +143,8 @@ export async function uploadFile(
     const _path = path ? `/${path}`: ''
 
     // 对路径进行编码
-    const pathParts = _path.split('/').filter(p => p); // 去掉空字符串
-    const encodedPath = pathParts.slice(0, -1).map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/')
-    const finalPath = pathParts.length > 1 ? `${encodedPath}/${_filename}` : (pathParts.length === 1 ? `${pathParts[0]}/${_filename}` : _filename)
+    const encodedPath = _path.split('/').slice(0, -1).map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/')
+    const finalPath = _path ? `${encodedPath}/${_filename}` : _filename
 
     // 将内容转换为 Base64（Gitee API 要求）
     const base64Content = Buffer.from(file, 'utf-8').toString('base64')

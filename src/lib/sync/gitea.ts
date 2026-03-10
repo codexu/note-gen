@@ -108,10 +108,14 @@ export async function uploadFile({
         // path 包含目录和文件名
         dirPath = path.substring(0, lastSlashIndex);
         _filename = filename || path.substring(lastSlashIndex + 1);
+      } else if (lastSlashIndex === -1 && path) {
+        // path 是纯目录名（如 .settings），filename 单独传
+        dirPath = path;
+        _filename = filename || id;
       } else {
-        // path 只有文件名
+        // path 为空
         dirPath = '';
-        _filename = filename || path;
+        _filename = filename || id;
       }
     } else {
       dirPath = '';

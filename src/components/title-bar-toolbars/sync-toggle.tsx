@@ -32,6 +32,7 @@ import { Store } from "@tauri-apps/plugin-store"
 import { uint8ArrayToBase64, decodeBase64ToString } from "@/lib/sync/github"
 import { getSyncRepoName } from "@/lib/sync/repo-utils"
 import { getGiteaApiBaseUrl } from "@/lib/sync/gitea"
+import { fetch } from '@tauri-apps/plugin-http'
 import { s3Upload, s3Download, s3HeadObject, s3Delete, testS3Connection } from "@/lib/sync/s3"
 import { webdavUpload, webdavDownload, webdavHeadObject, webdavDelete, testWebDAVConnection } from "@/lib/sync/webdav"
 import { S3Config, WebDAVConfig, SyncPlatform } from "@/types/sync"
@@ -89,10 +90,10 @@ async function requestGitee(method: string, url: string, body?: object) {
 
 async function requestGitLab(method: string, url: string, body?: object) {
   const store = await Store.load('store.json')
-  const accessToken = await store.get<string>('accessToken')
+  const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
 
   const headers = new Headers()
-  headers.append('PRIVATE-TOKEN', accessToken as string)
+  headers.append('PRIVATE-TOKEN', gitlabAccessToken as string)
   headers.append('Content-Type', 'application/json')
 
   const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
@@ -108,10 +109,10 @@ async function requestGitLab(method: string, url: string, body?: object) {
 
 async function requestGitea(method: string, url: string, body?: object) {
   const store = await Store.load('store.json')
-  const accessToken = await store.get<string>('accessToken')
+  const giteaAccessToken = await store.get<string>('giteaAccessToken')
 
   const headers = new Headers()
-  headers.append('Authorization', `token ${accessToken}`)
+  headers.append('Authorization', `token ${giteaAccessToken}`)
   headers.append('Content-Type', 'application/json')
 
   const response = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
@@ -176,6 +177,23 @@ async function giteaUpload({ file, path, filename, sha, repo, accessToken, gitea
 }) {
   const baseUrl = await getGiteaApiBaseUrl()
   const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodePath(path, filename)}`
+
+  // 如果没有 sha，先尝试用 POST 创建
+  if (!sha) {
+    try {
+      return await requestGitea('POST', url, { content: file, message: `Upload ${filename}`, branch: 'main' })
+    } catch (error: any) {
+      // 如果是 422 错误，说明文件可能已存在，需要先获取 SHA
+      if (error.status === 422) {
+        const existingFile = await giteaGetFile({ path: `${path}/${filename}`, repo, accessToken, giteaUsername })
+        if (existingFile) {
+          sha = existingFile.sha
+        }
+      }
+    }
+  }
+
+  // 如果有 sha 或者 POST 失败，用 PUT 更新
   return requestGitea('PUT', url, { content: file, message: `Upload ${filename}`, branch: 'main', sha })
 }
 

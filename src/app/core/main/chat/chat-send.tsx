@@ -83,6 +83,65 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     })
   }
 
+  const shouldCarryUserHistoryForAgent = (input: string) => {
+    const normalized = input.trim().toLowerCase()
+    if (!normalized) {
+      return false
+    }
+
+    return /^(继续|接着|然后|再来|再生成|再做|顺便|另外|刚才|基于刚才|在此基础上|那个|这个|它|继续用|再用)/.test(normalized)
+      || /(继续|接着|然后|再来|再生成|再做|顺便|另外|刚才|基于刚才|在此基础上|那个|这个|它)/.test(normalized)
+  }
+
+  const buildPartialSuccessContent = (result: string, toolCalls: { result?: { success?: boolean; data?: any; error?: string } }[]) => {
+    const generatedOutputFiles = toolCalls.flatMap((toolCall) => {
+      const outputFiles = toolCall.result?.data?.output_files
+      return Array.isArray(outputFiles) ? outputFiles : []
+    })
+
+    const uniqueOutputFiles = Array.from(new Set(generatedOutputFiles.filter((file): file is string => typeof file === 'string' && file.trim().length > 0)))
+    if (uniqueOutputFiles.length === 0) {
+      return null
+    }
+
+    const failedToolCall = [...toolCalls].reverse().find((toolCall) => toolCall.result?.success === false)
+    const failureMessage = failedToolCall?.result?.error || result
+
+    return [
+      `已成功生成文件：`,
+      uniqueOutputFiles.map((file) => `- ${file}`).join('\n'),
+      '',
+      `后续校验或附加步骤失败：${failureMessage}`,
+    ].join('\n')
+  }
+
+  const sanitizeAgentFinalContent = (content: string) => {
+    const trimmed = content.trim()
+    if (!trimmed) {
+      return trimmed
+    }
+
+    const markers = ['\nThought:', '\nAction:', '\nAction Input:']
+    let cutoff = trimmed.length
+
+    for (const marker of markers) {
+      const index = trimmed.indexOf(marker)
+      if (index !== -1) {
+        cutoff = Math.min(cutoff, index)
+      }
+    }
+
+    const leadingActionIndex = trimmed.search(/^(Thought:|Action:|Action Input:)/)
+    if (leadingActionIndex === 0) {
+      const finalAnswerMatch = trimmed.match(/Final Answer[:：]\s*([\s\S]*)/i)
+      if (finalAnswerMatch) {
+        return finalAnswerMatch[1].trim()
+      }
+    }
+
+    return trimmed.slice(0, cutoff).trim()
+  }
+
   useImperativeHandle(ref, () => ({
     sendChat: handleSubmit
   }))
@@ -185,6 +244,15 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
             finalContent = t('record.chat.input.stopped')
           }
         }
+
+        if (!stopped) {
+          const partialSuccessContent = buildPartialSuccessContent(result, agentState.toolCalls)
+          if (partialSuccessContent && /^工具 .+执行失败：|^工具 .+执行出错：|^Error:/.test(finalContent.trim())) {
+            finalContent = partialSuccessContent
+          }
+        }
+
+        finalContent = sanitizeAgentFinalContent(finalContent)
 
         // 获取当前消息状态，保留 ragSources 和 ragSourceDetails
         const currentState = useChatStore.getState()
@@ -447,6 +515,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
           // Agent 自己会在 think() 里重新注入当前请求，避免重复。
           includeAssistantMessages: false,
           includeLatestUserMessage: false,
+          maxUserMessages: shouldCarryUserHistoryForAgent(inputValue) ? 3 : 0,
         }
       )
 

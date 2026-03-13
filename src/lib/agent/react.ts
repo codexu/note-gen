@@ -408,7 +408,7 @@ ${memoryPrompt ? `## User Memories\n\n${memoryPrompt}\n` : ''}
 
 **Efficiency**: Complete tasks with minimum steps, avoid unnecessary tool calls.
 **Direct Action**: If intent is clear and action is needed, execute without over-analysis.
-**Quick Finish**: Give Final Answer immediately after completing task, don't repeat operations.
+**Quick Finish**: Give Final Answer immediately after the task is actually complete. If the previous result shows there is still a required next step, continue with that next step instead of stopping early.
 
 ## Knowledge Base Search Guide
 
@@ -532,8 +532,8 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 1. **Strict Format**: Thought → Action + Action Input or Final Answer
 2. **JSON Format**: Action Input must be valid JSON with double quotes
 3. **One Tool at a Time**: Only call one tool per iteration
-4. **✅ TASK COMPLETION (CRITICAL)**: After any successful tool execution, you MUST give Final Answer immediately - do NOT repeat the same or similar operations
-5. **Don't Repeat**: If operation succeeded, immediately give Final Answer - never create the same file twice or perform redundant actions
+4. **✅ TASK COMPLETION (CRITICAL)**: After a successful tool execution, decide whether the overall task is complete. If complete, give Final Answer immediately. If another required step remains, continue with that next step.
+5. **Don't Repeat**: Never repeat the same successful operation. Only continue when the previous observation clearly shows a different next step is still required.
 6. **Use Available Tools Only**: Don't make up tools or parameters
 7. **Concise Thinking**: Keep Thought brief, directly state what to do
 8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
@@ -558,7 +558,7 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ✅ **Correct**: For explanation/summary/analysis requests, answer directly from the quoted content. For explicit edit requests, if quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Only fall back to startLine/endLine when exact positions are unavailable
 
 ❌ **Error 6**: Ignore the previous operation result and repeat the same action
-✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows success, give Final Answer immediately
+✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows the task is complete, give Final Answer; if it shows a different required next step, continue with that next step
 
 ❌ **Error 7**: Reconsider the original user request in every iteration instead of building on previous results
 ✅ **Correct**: Focus on the PREVIOUS step's result - the context shows what you just did and what happened

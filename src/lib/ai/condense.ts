@@ -207,11 +207,13 @@ export function buildMessagesWithHistory(
   options?: {
     includeAssistantMessages?: boolean
     includeLatestUserMessage?: boolean
+    maxUserMessages?: number
   }
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
   const messages: OpenAI.ChatCompletionMessageParam[] = []
   const includeAssistantMessages = options?.includeAssistantMessages ?? true
   const includeLatestUserMessage = options?.includeLatestUserMessage ?? true
+  const maxUserMessages = options?.maxUserMessages
 
   // 1. 添加系统提示词（如果有）
   if (systemPrompt) {
@@ -229,6 +231,20 @@ export function buildMessagesWithHistory(
     if (lastUserIndex !== -1) {
       chatsAfterClear = chatsAfterClear.filter((_, index) => index !== lastUserIndex)
     }
+  }
+
+  if (typeof maxUserMessages === 'number' && maxUserMessages >= 0) {
+    const userIndexes = chatsAfterClear
+      .map((chat, index) => chat.role === 'user' ? index : -1)
+      .filter(index => index !== -1)
+    const allowedUserIndexes = new Set(userIndexes.slice(-maxUserMessages))
+    chatsAfterClear = chatsAfterClear.filter((chat, index) => {
+      if (chat.role !== 'user') {
+        return true
+      }
+
+      return allowedUserIndexes.has(index)
+    })
   }
 
   for (const chat of chatsAfterClear) {

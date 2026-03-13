@@ -89,6 +89,10 @@ function isSafeRelativePath(filePath: string): boolean {
   return !filePath.startsWith('..') && !isAbsolutePath(filePath)
 }
 
+function toPosixPath(filePath: string): string {
+  return filePath.replace(/\\/g, '/')
+}
+
 async function pathExists(filePath: string, baseDir?: BaseDirectory): Promise<boolean> {
   try {
     return baseDir ? await exists(filePath, { baseDir }) : await exists(filePath)
@@ -290,8 +294,8 @@ function determineWorkingDirectory(
   command: string,
   processedArgs: string[]
 ): string {
-  if ((command === 'node' || command === 'python' || command === 'python3') && processedArgs.length > 0) {
-    const candidateScript = processedArgs.find((arg) => !arg.startsWith('-'))
+  if ((command === 'node' || command === 'python' || command === 'python3' || command === 'bash' || command === 'sh') && processedArgs.length > 0) {
+    const candidateScript = processedArgs.find((arg) => !arg.startsWith('-') && isScriptLikeFile(arg))
     if (candidateScript && candidateScript.startsWith(`${context.runtimeDir}/`)) {
       return context.runtimeDir
     }
@@ -319,13 +323,14 @@ async function collectGeneratedOutputs(context: SkillRuntimeContext, previousOut
   const movedFiles: string[] = []
   const seenTargets = new Set<string>()
 
-  async function moveOutputFile(fullPathFs: string, entryName: string): Promise<void> {
-    if (!isOutputLikeFile(entryName) || isScriptLikeFile(entryName)) {
+  async function moveOutputFile(fullPathFs: string, relativeFromRuntime: string): Promise<void> {
+    const normalizedRelativePath = toPosixPath(relativeFromRuntime).replace(/^\/+/, '')
+    if (!normalizedRelativePath || !isOutputLikeFile(normalizedRelativePath) || isScriptLikeFile(normalizedRelativePath)) {
       return
     }
 
-    const targetPathFs = `${context.outputDirFsPath}/${entryName}`.replace(/\/+/g, '/')
-    const outputRelativePath = `outputs/${context.skillId}/${entryName}`
+    const targetPathFs = `${context.outputDirFsPath}/${normalizedRelativePath}`.replace(/\/+/g, '/')
+    const outputRelativePath = `outputs/${context.skillId}/${normalizedRelativePath}`.replace(/\/+/g, '/')
 
     if (seenTargets.has(outputRelativePath)) {
       return
@@ -338,6 +343,9 @@ async function collectGeneratedOutputs(context: SkillRuntimeContext, previousOut
         movedFiles.push(outputRelativePath)
         return
       }
+
+      const targetDirFsPath = targetPathFs.slice(0, targetPathFs.lastIndexOf('/'))
+      await ensureDir(targetDirFsPath, context.fsBaseDir)
 
       if (context.fsBaseDir) {
         await rename(fullPathFs, targetPathFs, {
@@ -380,7 +388,7 @@ async function collectGeneratedOutputs(context: SkillRuntimeContext, previousOut
         continue
       }
 
-      await moveOutputFile(fullPathFs, entry.name)
+      await moveOutputFile(fullPathFs, relativeFromRuntime)
     }
   }
 

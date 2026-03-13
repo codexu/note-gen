@@ -1323,6 +1323,10 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
   }
 
   private normalizeToolParams(toolName: string, params: Record<string, any>): Record<string, any> {
+    if (toolName === 'create_file') {
+      return this.normalizeCreateFileParams(params)
+    }
+
     if (toolName !== 'replace_editor_content') {
       return params
     }
@@ -1388,6 +1392,59 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       normalizedParams,
       quoteRange: currentQuote,
     })
+
+    return normalizedParams
+  }
+
+  private normalizeCreateFileParams(params: Record<string, any>): Record<string, any> {
+    if (this.selectedSkills.size !== 1) {
+      return params
+    }
+
+    const rawFileName = typeof params.fileName === 'string' ? params.fileName.trim() : ''
+    if (!rawFileName) {
+      return params
+    }
+
+    const rawFolderPath = typeof params.folderPath === 'string' ? params.folderPath.trim() : ''
+    const scriptPattern = /\.(?:js|mjs|cjs|ts|py|sh|bash)$/i
+    const selectedSkillId = Array.from(this.selectedSkills)[0]
+    const runtimeFolder = `skills/${selectedSkillId}/runtime`
+    const runtimePrefix = `${runtimeFolder}/`
+
+    const fileNameLooksLikeScript = scriptPattern.test(rawFileName)
+    const folderLooksLikeScriptTarget = scriptPattern.test(rawFolderPath)
+    if (!fileNameLooksLikeScript && !folderLooksLikeScriptTarget) {
+      return params
+    }
+
+    const normalizedParams = { ...params }
+
+    if (rawFileName.startsWith(runtimePrefix)) {
+      normalizedParams.fileName = rawFileName.slice(runtimePrefix.length)
+      normalizedParams.folderPath = runtimeFolder
+    } else if (rawFileName.includes('/')) {
+      const segments = rawFileName.split('/').filter(Boolean)
+      const extractedFileName = segments.pop()
+      if (extractedFileName) {
+        normalizedParams.fileName = extractedFileName
+        normalizedParams.folderPath = segments.join('/')
+      }
+    }
+
+    const currentFolderPath = typeof normalizedParams.folderPath === 'string'
+      ? normalizedParams.folderPath.trim()
+      : ''
+
+    if (!currentFolderPath) {
+      normalizedParams.folderPath = runtimeFolder
+    } else if (currentFolderPath === `skills/${selectedSkillId}`) {
+      normalizedParams.folderPath = runtimeFolder
+    } else if (currentFolderPath === 'runtime') {
+      normalizedParams.folderPath = runtimeFolder
+    } else if (currentFolderPath.startsWith('runtime/')) {
+      normalizedParams.folderPath = `${runtimeFolder}/${currentFolderPath.slice('runtime/'.length)}`
+    }
 
     return normalizedParams
   }

@@ -89,7 +89,9 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
     /\b(do not execute|don't execute|do not run|don't run)\b/i,
   ]
 
-  const allowWrite = writePatterns.some((pattern) => pattern.test(input))
+  const allowWrite =
+    writePatterns.some((pattern) => pattern.test(input)) ||
+    skillExecutionPatterns.some((pattern) => pattern.test(input))
   const allowDestructive =
     destructivePatterns.some((pattern) => pattern.test(input)) &&
     !denyDestructivePatterns.some((pattern) => pattern.test(input))

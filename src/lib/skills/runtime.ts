@@ -3,7 +3,7 @@ import { BaseDirectory, exists, mkdir, readDir, rename } from '@tauri-apps/plugi
 import { Command } from '@tauri-apps/plugin-shell'
 import { skillManager } from './manager'
 import { buildShellCommand, resolveSkillDirectory } from './path-utils'
-import { ensureDependencyForCommand } from './dependency-installer'
+import { detectPythonCommand, ensureDependencyForCommand } from './dependency-installer'
 import { getFilePathOptions } from '@/lib/workspace'
 
 export interface SkillRuntimeContext {
@@ -234,7 +234,88 @@ function parseCommand(command: string, args: string[]): { cmd: string; cmdArgs: 
   }
 }
 
-async function collectGeneratedOutputs(context: SkillRuntimeContext): Promise<string[]> {
+async function normalizeExecutableCommand(command: string): Promise<string> {
+  if (command === 'python' || command === 'python3') {
+    return (await detectPythonCommand(command)) || command
+  }
+
+  return command
+}
+
+async function normalizeExecutionPlan(
+  command: string,
+  args: string[]
+): Promise<{ command: string; args: string[] }> {
+  if (command === 'python' || command === 'python3') {
+    const pythonCommand = (await detectPythonCommand(command)) || command
+
+    if (args[0] === '-m' && args[1] === 'markitdown' && args[2]) {
+      return {
+        command: pythonCommand,
+        args: [
+          '-c',
+          [
+            'from markitdown import MarkItDown',
+            'import sys',
+            'result = MarkItDown().convert(sys.argv[1])',
+            'print(getattr(result, "text_content", str(result)))',
+          ].join('; '),
+          args[2],
+        ],
+      }
+    }
+
+    return {
+      command: pythonCommand,
+      args,
+    }
+  }
+
+  if (command === 'pip' || command === 'pip3') {
+    const pythonCommand = (await detectPythonCommand('python3')) || 'python3'
+    return {
+      command: pythonCommand,
+      args: ['-m', 'pip', ...args],
+    }
+  }
+
+  return {
+    command,
+    args,
+  }
+}
+
+function determineWorkingDirectory(
+  context: SkillRuntimeContext,
+  command: string,
+  processedArgs: string[]
+): string {
+  if ((command === 'node' || command === 'python' || command === 'python3') && processedArgs.length > 0) {
+    const candidateScript = processedArgs.find((arg) => !arg.startsWith('-'))
+    if (candidateScript && candidateScript.startsWith(`${context.runtimeDir}/`)) {
+      return context.runtimeDir
+    }
+  }
+
+  return context.skillDir
+}
+
+async function snapshotOutputFiles(context: SkillRuntimeContext): Promise<Set<string>> {
+  const snapshot = new Set<string>()
+  const entries = context.fsBaseDir
+    ? await readDir(context.outputDirFsPath, { baseDir: context.fsBaseDir })
+    : await readDir(context.outputDirFsPath)
+
+  for (const entry of entries) {
+    if (entry.isFile && entry.name && isOutputLikeFile(entry.name) && !isScriptLikeFile(entry.name)) {
+      snapshot.add(`outputs/${context.skillId}/${entry.name}`)
+    }
+  }
+
+  return snapshot
+}
+
+async function collectGeneratedOutputs(context: SkillRuntimeContext, previousOutputs: Set<string>): Promise<string[]> {
   const movedFiles: string[] = []
   const seenTargets = new Set<string>()
 
@@ -312,7 +393,7 @@ async function collectGeneratedOutputs(context: SkillRuntimeContext): Promise<st
   for (const entry of existingOutputEntries) {
     if (entry.isFile && entry.name && isOutputLikeFile(entry.name) && !isScriptLikeFile(entry.name)) {
       const outputRelativePath = `outputs/${context.skillId}/${entry.name}`
-      if (!seenTargets.has(outputRelativePath)) {
+      if (!seenTargets.has(outputRelativePath) && !previousOutputs.has(outputRelativePath)) {
         movedFiles.push(outputRelativePath)
       }
     }
@@ -329,9 +410,12 @@ export async function executeSkillRuntime(
 
   const context = await resolveContext(request.skillId)
   const parsed = parseCommand(request.command, Array.isArray(request.args) ? request.args : [])
+  const normalizedPlan = await normalizeExecutionPlan(parsed.cmd, parsed.cmdArgs)
+  const normalizedCommand = normalizedPlan.command
   const processedArgs: string[] = []
+  const existingOutputs = await snapshotOutputFiles(context)
 
-  for (const arg of parsed.cmdArgs) {
+  for (const arg of normalizedPlan.args) {
     processedArgs.push(await normalizeArg(arg, context))
   }
 
@@ -341,10 +425,11 @@ export async function executeSkillRuntime(
     `SKILL_ROOT_DIR="${context.skillDir}"`,
     `NOTEGEN_OUTPUT_DIR="${context.outputDir}"`,
   ].join(' ')
+  const workingDirectory = determineWorkingDirectory(context, normalizedCommand, processedArgs)
 
   const shellCommand = parsed.cmd === 'bash' && processedArgs[0] === '-c'
-    ? `cd "${context.skillDir}" && ${envPrefix} ${processedArgs.slice(1).join(' ')}`
-    : `cd "${context.skillDir}" && ${envPrefix} ${buildShellCommand(context.skillDir, context.skillDir, parsed.cmd, processedArgs).replace(`cd "${context.skillDir}" && `, '')}`
+    ? `cd "${workingDirectory}" && ${envPrefix} ${processedArgs.slice(1).join(' ')}`
+    : `cd "${workingDirectory}" && ${envPrefix} ${buildShellCommand(workingDirectory, workingDirectory, normalizedCommand, processedArgs).replace(`cd "${workingDirectory}" && `, '')}`
 
   const stdoutChunks: string[] = []
   const stderrChunks: string[] = []
@@ -382,7 +467,7 @@ export async function executeSkillRuntime(
     if (result.code !== 0) {
       const installResult = await ensureDependencyForCommand({
         stderr: result.stderr,
-        command: parsed.cmd,
+        command: normalizedCommand,
         workingDirectory: context.skillDir,
       })
 
@@ -394,7 +479,7 @@ export async function executeSkillRuntime(
       }
     }
 
-    const outputFiles = result.code === 0 ? await collectGeneratedOutputs(context) : []
+    const outputFiles = result.code === 0 ? await collectGeneratedOutputs(context, existingOutputs) : []
     const executionTime = Date.now() - startTime
 
     return {
@@ -403,7 +488,7 @@ export async function executeSkillRuntime(
       data: {
         exit_code: result.code,
         execution_time_ms: executionTime,
-        working_directory: context.skillDir,
+        working_directory: workingDirectory,
         runtime_directory: context.runtimeDir,
         output_directory: context.outputDir,
         stdout: result.stdout,
@@ -426,7 +511,7 @@ export async function executeSkillRuntime(
       data: {
         exit_code: -1,
         execution_time_ms: executionTime,
-        working_directory: context.skillDir,
+        working_directory: workingDirectory,
         runtime_directory: context.runtimeDir,
         output_directory: context.outputDir,
         stdout: stdoutChunks.join(''),

@@ -84,19 +84,13 @@ export function resolveScriptRelativePath(
  * @returns 转义后的参数
  */
 export function escapeShellArg(arg: string): string {
-  // 如果参数已经包含引号，直接返回（假设用户已经正确处理）
-  if (arg.includes('"') || arg.includes("'")) {
+  // 简单安全字符直接返回
+  if (/^[a-zA-Z0-9_./:-]+$/.test(arg)) {
     return arg
   }
 
-  // 如果参数包含空格或特殊字符，用双引号包裹
-  if (/[\s$`\\]/.test(arg)) {
-    // 转义 $ ` \ 字符
-    const escaped = arg.replace(/([$`\\])/g, '\\$1')
-    return `"${escaped}"`
-  }
-
-  return arg
+  // 统一使用单引号包裹，并安全转义内部单引号
+  return `'${arg.replace(/'/g, `'\"'\"'`)}'`
 }
 
 /**

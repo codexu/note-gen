@@ -151,7 +151,7 @@ async function detectNodePackageManager(workingDirectory: string): Promise<'pnpm
   return null
 }
 
-async function detectPythonCommand(preferred: string): Promise<string | null> {
+export async function detectPythonCommand(preferred: string): Promise<string | null> {
   if (await commandExists(preferred)) {
     return preferred
   }

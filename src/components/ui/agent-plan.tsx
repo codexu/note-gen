@@ -134,6 +134,61 @@ export function AgentPlan({
   const [showDiff, setShowDiff] = React.useState(true);
   const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
 
+  const extractFinalAnswer = React.useCallback((content: string): string => {
+    if (!content) return "";
+
+    const normalized = content.replace(/Action:\s*Final\s*Answer:\s*/i, "Final Answer: ");
+    const finalAnswerPatterns = [
+      /Final Answer[:：]\s*([\s\S]*)/i,
+      /最终答案[:：]?\s*([\s\S]*)/i,
+    ];
+
+    for (const pattern of finalAnswerPatterns) {
+      const match = normalized.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return "";
+  }, []);
+
+  const getThoughtBody = React.useCallback((content: string): string => {
+    if (!content) return "";
+
+    return content
+      .replace(/^Thought:\s*/i, "")
+      .replace(/^思考[:：]?\s*/i, "")
+      .trim();
+  }, []);
+
+  const shouldHideThoughtBlock = React.useCallback((thought?: string): boolean => {
+    if (!thought) return false;
+
+    const finalAnswer = extractFinalAnswer(thought);
+    if (!finalAnswer) return false;
+
+    const thoughtBody = getThoughtBody(thought)
+      .replace(/Final Answer[:：][\s\S]*/i, "")
+      .replace(/最终答案[:：]?[\s\S]*/i, "")
+      .trim();
+
+    if (!thoughtBody) {
+      return true;
+    }
+
+    const normalizeForCompare = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[：:，。、“”"'`]/g, "");
+
+    const normalizedThought = normalizeForCompare(thoughtBody);
+    const normalizedAnswer = normalizeForCompare(finalAnswer);
+
+    return !normalizedThought || normalizedAnswer.includes(normalizedThought);
+  }, [extractFinalAnswer, getThoughtBody]);
+
   // 实时更新当前步骤的耗时
   React.useEffect(() => {
     if (mode === "live" && isRunning && currentStepStartTime) {
@@ -509,6 +564,11 @@ export function AgentPlan({
     const extractFromContent = (content: string): string => {
       if (!content || !content.trim()) return '';
 
+      const finalAnswer = extractFinalAnswer(content);
+      if (finalAnswer) {
+        return extractFromContent(finalAnswer);
+      }
+
       // 预处理：移除首尾的代码块标记 ``` 及其周围的空白行
       let processedContent = content.trim();
 
@@ -671,7 +731,7 @@ export function AgentPlan({
             {isExpanded && (
               <div className="border-muted mt-1 mr-2 mb-1.5 ml-6 space-y-2">
                 {/* Thought */}
-                {step.thought && (
+                {step.thought && !shouldHideThoughtBlock(step.thought) && (
                   <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                     <div className="flex items-center gap-2 py-1">
                       <Brain className="size-3.5 text-blue-500 shrink-0" />

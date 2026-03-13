@@ -316,7 +316,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
 
             {isLiveAgentVisible && (
               <div className="space-y-2">
-                {(agentState.isRunning || agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
+                {!agentState.isFinalAnswerMode && (agentState.isRunning || agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
                   <AgentExecutionStatus />
                 )}
                 {agentState.isFinalAnswerMode && agentState.finalAnswerContent && (

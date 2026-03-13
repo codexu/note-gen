@@ -127,11 +127,11 @@ export const replaceEditorContentTool: Tool = {
   name: 'replace_editor_content',
   description: `📝 **Editor Operation**: Replace content in the specified range with new content.
 
-**IMPORTANT - Use Line Numbers When Quoting**:
-When the user quotes specific lines from the editor, you MUST use line-based mode (startLine/endLine) - this is required behavior.
-- If user quoted line 5: use startLine: 5, endLine: 5
-- If user quoted lines 5-10: use startLine: 5, endLine: 10
-- NEVER use position-based mode (from/to) or text-based mode when line numbers are available
+**IMPORTANT - Prefer Exact Quoted Range**:
+When the user quotes content from the editor and exact selection positions are provided, you MUST use position-based mode (\`from\`/\`to\`) so that only the quoted selection is replaced.
+- If quote context includes \`from\` and \`to\`, use them directly
+- Only use line-based mode (\`startLine\`/\`endLine\`) when exact positions are not available
+- NEVER expand a quoted edit to the whole document
 
 **Use Cases:**
 - AI wants to modify specific lines/paragraphs
@@ -140,7 +140,7 @@ When the user quotes specific lines from the editor, you MUST use line-based mod
 
 **Parameters (choose one of these modes):**
 
-**Mode 1: Line-based (RECOMMENDED when user quotes content)**
+**Mode 1: Line-based (fallback when exact positions are unavailable)**
 - \`startLine\`: Start line number (1-based, required for line-based mode)
 - \`endLine\`: End line number (1-based, required for line-based mode)
 - \`replaceContent\`: New content to replace with
@@ -150,12 +150,12 @@ When the user quotes specific lines from the editor, you MUST use line-based mod
 - \`replaceContent\`: New content to replace with
 - \`occurrence\`: Which occurrence to replace (1-based, default: 1)
 
-**Mode 3: Position-based (use current selection if not specified)**
+**Mode 3: Position-based (RECOMMENDED for quoted editor selections)**
 - \`content\`: New content to replace with
 - \`from\`: Start position (0-indexed, optional)
 - \`to\`: End position (0-indexed, optional)
 
-**Note:** Use \`get_editor_content\` to read the current document content first. Always prefer line-based mode when line numbers are available from user's quote.`,
+**Note:** Use \`get_editor_content\` only when necessary. Prefer exact quoted positions (\`from\`/\`to\`) when they are available from the user's selection.`,
   category: 'editor',
   requiresConfirmation: false,
   parameters: [

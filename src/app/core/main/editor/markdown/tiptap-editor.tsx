@@ -60,32 +60,35 @@ const lowlight = createLowlight(common)
 
 // Helper function to convert 1-based line number to document position
 function lineToPosition(doc: ProseMirrorNode, line: number): number {
-  let pos = 0
+  if (line <= 1) {
+    return 0
+  }
+
+  let pos = doc.content.size
   let currentLine = 1
 
   doc.descendants((node, nodePos) => {
-    if (currentLine >= line) return false
-
-    if (node.isText && node.text) {
-      const lineBreaks = node.text.split('\n').length - 1
-      if (currentLine + lineBreaks >= line) {
-        const targetInNode = line - currentLine
-        // Include the target line plus newlines before it
-        const textBeforeTarget = node.text.split('\n').slice(0, targetInNode + 1).join('\n')
-        pos = nodePos + textBeforeTarget.length
-        return false
-      }
-      currentLine += lineBreaks
-    } else if (!node.isInline) {
-      currentLine++
+    if (!node.isTextblock) {
+      return true
     }
+
+    if (currentLine === line) {
+      pos = nodePos + 1
+      return false
+    }
+
+    const blockText = node.textContent || ''
+    const lineBreaks = blockText.split('\n').length - 1
+    currentLine += lineBreaks + 1
+
+    if (currentLine === line) {
+      pos = nodePos + 1
+      return false
+    }
+
     return true
   })
 
-  // 如果行号超出范围，返回文档末尾
-  if (pos === 0 && line > 1) {
-    return doc.content.size
-  }
   return pos
 }
 
@@ -1400,10 +1403,10 @@ export function TipTapEditor({
       const text = editor.state.doc.textBetween(from, to)
 
       // Calculate line numbers (1-indexed) by counting newlines before position
-      const textBeforeFrom = editor.state.doc.textBetween(0, from)
+      const textBeforeFrom = editor.state.doc.textBetween(0, from, '\n', '\n')
       const startLine = (textBeforeFrom.match(/\n/g)?.length || 0) + 1
 
-      const textBeforeTo = editor.state.doc.textBetween(0, to)
+      const textBeforeTo = editor.state.doc.textBetween(0, to, '\n', '\n')
       const endLine = (textBeforeTo.match(/\n/g)?.length || 0) + 1
 
       resolve({
@@ -1608,12 +1611,20 @@ export function TipTapEditor({
       if (from !== to) {
         const quote = editor.state.doc.textBetween(from, to)
         const fileName = activeFilePath?.split('/').pop() || ''
+        const textBeforeFrom = editor.state.doc.textBetween(0, from, '\n', '\n')
+        const startLine = (textBeforeFrom.match(/\n/g)?.length || 0) + 1
+
+        const textBeforeTo = editor.state.doc.textBetween(0, to, '\n', '\n')
+        const endLine = (textBeforeTo.match(/\n/g)?.length || 0) + 1
+
         emitter.emit('insert-quote', {
           quote,
           fullContent: quote,
           fileName,
-          startLine: -1,
-          endLine: -1,
+          startLine,
+          endLine,
+          from,
+          to,
           articlePath: activeFilePath || '',
         })
         // Mark the selected text as quoted - use setTimeout to defer execution

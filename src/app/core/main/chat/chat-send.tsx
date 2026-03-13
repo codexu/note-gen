@@ -22,6 +22,8 @@ interface QuoteData {
   fileName: string
   startLine: number
   endLine: number
+  from: number
+  to: number
   articlePath: string
 }
 
@@ -135,6 +137,15 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     // 每次都创建新的 AgentHandler，使用当前的 placeholderMessage
     const agentHandler = new AgentHandler({
       requestConfirmation,
+      currentQuote: quoteData
+        ? {
+            fileName: quoteData.fileName,
+            startLine: quoteData.startLine,
+            endLine: quoteData.endLine,
+            from: quoteData.from,
+            to: quoteData.to,
+          }
+        : undefined,
       onFinalAnswerRender: (markdownContent) => {
         // 检测到 Final Answer 时触发渲染
         setAgentState({
@@ -307,37 +318,36 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         }, true)
       }
 
-      // 3. 如果有关联文件（非文件夹），使用行号预览
+      // 3. 如果有关联文件（非文件夹），始终注入完整内容作为 Agent 上下文
       if (linkedResource && !isLinkedFolder(linkedResource)) {
-        if (linkedResourcePreview) {
-          // 使用预生成的行号预览
-          context += `\n${linkedResourcePreview}\n`
-        } else {
-          // 回退：读取完整文件内容
-          try {
-            const workspace = await getWorkspacePath()
-            let linkedFileContent = ''
-            if (workspace.isCustom) {
-              linkedFileContent = await readTextFile(linkedResource.path)
-            } else {
-              const { path, baseDir } = await getFilePathOptions(linkedResource.path)
-              linkedFileContent = await readTextFile(path, { baseDir })
-            }
-
-            if (linkedFileContent) {
-              context += `\n## 关联文件内容\n\nThe following is the content of the linked file "${linkedResource.name}" (${linkedResource.relativePath}):\n${linkedFileContent}\n`
-            }
-          } catch (error) {
-            console.error('Failed to read linked file in Agent mode:', error)
+        try {
+          const workspace = await getWorkspacePath()
+          let linkedFileContent = ''
+          if (workspace.isCustom) {
+            linkedFileContent = await readTextFile(linkedResource.path)
+          } else {
+            const { path, baseDir } = await getFilePathOptions(linkedResource.path)
+            linkedFileContent = await readTextFile(path, { baseDir })
           }
+
+          if (linkedResourcePreview) {
+            context += `\n${linkedResourcePreview}\n`
+          }
+
+          if (linkedFileContent) {
+            context += `\n## 关联文件完整内容\n\nThe full content of the linked file "${linkedResource.name}" (${linkedResource.relativePath}) is already included below. Do not call tools to read or check this same file again unless the user explicitly asks to refresh it.\n\n---\n${linkedFileContent}\n---\n`
+          }
+        } catch (error) {
+          console.error('Failed to read linked file in Agent mode:', error)
         }
       }
 
       // 4. 如果有引用内容，添加引用上下文（在构建消息之前）
       if (quoteData) {
-        const { fileName, startLine, endLine, fullContent } = quoteData
+        const { fileName, startLine, endLine, fullContent, from, to } = quoteData
         let lineInfo = ''
         const hasValidLineNumbers = startLine !== -1 && endLine !== -1
+        const hasValidRange = from >= 0 && to >= from
 
         if (hasValidLineNumbers) {
           if (startLine === endLine) {
@@ -355,7 +365,20 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 ${fullContent}
 ---
 
-${hasValidLineNumbers ? `**🚨 必须使用行号修改**: 当用户引用内容并要求修改时，你必须使用 replace_editor_content 工具的 line-based 模式，传入精确的行号：
+${hasValidRange ? `**🚨 必须精确替换用户选中的范围**: 当前引用内容来自编辑器选区，必须优先使用 replace_editor_content 的 position-based 模式，只替换这段选中的内容：
+- from: ${from}
+- to: ${to}
+- 使用 content 或 replaceContent 传入新内容
+- 只允许替换这个选区，禁止扩大到整篇文档或整段之外
+
+**兜底行号信息**:
+- 单行修改: startLine: ${startLine}, endLine: ${endLine}
+- 多行范围: startLine: ${startLine}, endLine: ${endLine}
+
+**禁止**:
+- 禁止改动选区之外的内容
+- 禁止获取整个文档后再重写整篇
+- 禁止把 startLine/endLine 擅自改成 1/1` : hasValidLineNumbers ? `**🚨 必须使用行号修改**: 当用户引用内容并要求修改时，你必须使用 replace_editor_content 工具的 line-based 模式，传入精确的行号：
 - 单行修改: startLine: ${startLine}, endLine: ${endLine}
 - 多行范围: startLine: ${startLine}, endLine: ${endLine}
 - 必须使用 replaceContent 参数传入新内容
@@ -381,7 +404,12 @@ ${hasValidLineNumbers ? `**🚨 必须使用行号修改**: 当用户引用内�
         chats,
         undefined, // systemPrompt - Agent 会自己构建
         context,   // additionalContext - 包含文章、RAG、关联文件、引用等
-        inputValue // currentUserInput - 当前用户输入
+        inputValue, // currentUserInput - 当前用户输入
+        {
+          // Agent 自己会在 think() 里重新注入当前请求，避免重复。
+          includeAssistantMessages: false,
+          includeLatestUserMessage: false,
+        }
       )
 
       await agentHandler.execute(inputValue, messages, imageUrls)

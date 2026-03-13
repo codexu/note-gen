@@ -8,6 +8,8 @@ interface QuoteData {
   fileName: string
   startLine: number
   endLine: number
+  from: number
+  to: number
   articlePath: string
 }
 

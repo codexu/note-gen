@@ -1,6 +1,16 @@
 import { ReActStep, ToolCall, ToolResult } from './types'
 import { getToolByName, getToolDescriptions } from './tools'
 import { skillManager } from '@/lib/skills'
+import useChatStore from '@/stores/chat'
+import { isLinkedFolder } from '@/lib/files'
+import {
+  IntentPolicy,
+  deriveIntentPolicy,
+  formatIntentPolicyForPrompt,
+  getToolRiskLevel,
+  isDestructiveTool,
+  isExecuteTool,
+} from './tool-policy'
 import OpenAI from 'openai'
 
 export interface ReActConfig {
@@ -18,9 +28,26 @@ export interface ReActConfig {
     filePath?: string
   }) => Promise<boolean>
   activeSkills?: string[]  // 当前激活的 Skills
+  currentQuote?: {
+    fileName: string
+    startLine: number
+    endLine: number
+    from: number
+    to: number
+  }
 }
 
 export class ReActAgent {
+  private static readonly ESSENTIAL_DEBUG_EVENTS = new Set([
+    'run:start',
+    'run:max-iterations',
+    'tool:blocked',
+    'tool:blocked-no-confirmation-channel',
+    'tool:confirmation-result',
+    'tool:execute-error',
+    'tool:missing',
+  ])
+
   private config: ReActConfig
   private steps: ReActStep[] = []
   private currentIteration = 0
@@ -28,6 +55,11 @@ export class ReActAgent {
   private stopped = false
   private abortController: AbortController | null = null
   private selectedSkills: Set<string> = new Set() // 记录 AI 选择的 Skills
+  private intentPolicy: IntentPolicy = {
+    allowWrite: false,
+    allowDestructive: false,
+    allowExecute: false,
+  }
 
   constructor(config: ReActConfig) {
     this.config = config
@@ -49,6 +81,30 @@ export class ReActAgent {
     return this.stopped
   }
 
+  private logDebug(event: string, payload: Record<string, unknown>) {
+    if (!this.shouldLogDebugEvent(event)) {
+      return
+    }
+
+    console.info(`[Agent Debug] ${event}`, payload)
+  }
+
+  private shouldLogDebugEvent(event: string): boolean {
+    if (ReActAgent.ESSENTIAL_DEBUG_EVENTS.has(event)) {
+      return true
+    }
+
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    try {
+      return window.localStorage.getItem('agent.debug.verbose') === 'true'
+    } catch {
+      return false
+    }
+  }
+
   async run(
     userInput: string,
     contextOrMessages?: string | OpenAI.Chat.ChatCompletionMessageParam[],
@@ -59,6 +115,13 @@ export class ReActAgent {
     this.toolCallCounter = 0
     this.stopped = false
     this.selectedSkills.clear()
+    this.intentPolicy = deriveIntentPolicy(userInput)
+    this.logDebug('run:start', {
+      userInput,
+      intentPolicy: this.intentPolicy,
+      hasImages: !!(imageUrls && imageUrls.length > 0),
+      contextType: Array.isArray(contextOrMessages) ? 'messages' : 'string',
+    })
     // 创建新的 AbortController
     this.abortController = new AbortController()
 
@@ -87,6 +150,10 @@ export class ReActAgent {
       const systemPrompt = await this.buildSystemPrompt()
 
       const thought = await this.think(userInput, contextString, messagesArray, systemPrompt, imageUrls)
+      this.logDebug('run:thought-received', {
+        iteration: this.currentIteration,
+        preview: thought.slice(0, 400),
+      })
 
       // 再次检查是否已停止
       if (this.stopped) {
@@ -123,6 +190,11 @@ export class ReActAgent {
             finalAnswer = match[1].trim()
           }
         }
+        this.logDebug('run:finish-final-answer', {
+          iteration: this.currentIteration,
+          reason: 'thought_contains_final_answer',
+          preview: finalAnswer.slice(0, 300),
+        })
         break
       }
 
@@ -133,6 +205,11 @@ export class ReActAgent {
         const thoughtContent = thought.replace(/Thought:\s*/i, '').trim()
         if (thoughtContent.length > 0 && !thoughtContent.includes('Action:')) {
           finalAnswer = thoughtContent
+          this.logDebug('run:finish-thought-only', {
+            iteration: this.currentIteration,
+            reason: 'thought_without_action_after_iteration_1',
+            preview: finalAnswer.slice(0, 300),
+          })
           break
         }
       }
@@ -145,6 +222,11 @@ export class ReActAgent {
         if (thoughtContent && thoughtContent.length > 10 && !thoughtContent.includes('Action:')) {
           // 看起来 AI 想直接回答，提取内容作为答案
           finalAnswer = thoughtContent
+          this.logDebug('run:finish-unparsed-answer', {
+            iteration: this.currentIteration,
+            reason: 'parse_action_failed_but_answer_like_content',
+            preview: finalAnswer.slice(0, 300),
+          })
           break
         }
 
@@ -152,13 +234,29 @@ export class ReActAgent {
         // 尝试让 AI 直接回答而不是调用工具
         if (this.currentIteration === 1) {
           finalAnswer = thoughtContent || '抱歉，我不太理解您的需求。您能详细说明一下吗？'
+          this.logDebug('run:finish-first-iteration-fallback', {
+            iteration: this.currentIteration,
+            reason: 'parse_action_failed_first_iteration',
+            preview: finalAnswer.slice(0, 300),
+          })
           break
         }
 
         // 多次迭代后仍然失败，给出提示
         finalAnswer = thoughtContent || '抱歉，我遇到了一些问题。您能换种方式说明一下您的需求吗？'
+        this.logDebug('run:finish-multi-iteration-fallback', {
+          iteration: this.currentIteration,
+          reason: 'parse_action_failed_after_retries',
+          preview: finalAnswer.slice(0, 300),
+        })
         break
       }
+
+      this.logDebug('run:parsed-action', {
+        iteration: this.currentIteration,
+        toolName: action.tool,
+        params: action.params,
+      })
 
       // 检测重复操作
       const lastStep = this.steps[this.steps.length - 1]
@@ -166,12 +264,21 @@ export class ReActAgent {
         // 检查是否是相同的工具和参数
         const isSameTool = lastStep.action.tool === action.tool
         const isSameParams = JSON.stringify(lastStep.action.params) === JSON.stringify(action.params)
+        const lastStepWasPolicyAdjustment = this.isPolicyAdjustmentObservation(lastStep.observation)
 
         if (isSameTool && isSameParams) {
-          // 检测到重复操作，给出警告并结束
-          console.warn(`检测到重复操作: ${action.tool}`, action.params)
-          finalAnswer = `操作已完成。${lastStep.observation}`
-          break
+          if (lastStepWasPolicyAdjustment) {
+            this.logDebug('run:repeat-blocked-action', {
+              iteration: this.currentIteration,
+              toolName: action.tool,
+              params: action.params,
+            })
+          } else {
+            // 检测到重复操作，给出警告并结束
+            console.warn(`检测到重复操作: ${action.tool}`, action.params)
+            finalAnswer = `操作已完成。${lastStep.observation}`
+            break
+          }
         }
 
         // 检查是否连续多次执行完全相同的操作（超过 5 次且工具和参数都相同）
@@ -226,6 +333,9 @@ export class ReActAgent {
 
     if (!finalAnswer && this.currentIteration >= this.config.maxIterations) {
       finalAnswer = '已达到最大迭代次数，任务可能未完全完成。'
+      this.logDebug('run:max-iterations', {
+        currentIteration: this.currentIteration,
+      })
     }
 
     return finalAnswer || '任务执行完成。'
@@ -234,6 +344,7 @@ export class ReActAgent {
   private async buildSystemPrompt(): Promise<string> {
     const toolDescriptions = getToolDescriptions()
     const skillsInstructions = this.formatSkillsInstructions()
+    const intentPolicyPrompt = formatIntentPolicyForPrompt(this.intentPolicy)
 
     // Load user memories (preferences and knowledge)
     let memoryPrompt = ''
@@ -385,6 +496,15 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 - NEVER use search tools when user is just asking a question without requesting search
 - For RAG mode (semantic search): only use when user explicitly asks for "语义搜索" or "AI搜索"
 
+**📁 File Existence Claims**:
+- NEVER claim a file/folder "does not exist", "was deleted", or "is missing" unless a read/check tool observation explicitly confirms it
+- Do NOT infer missing files from conversation history or your own assumptions
+- If uncertain, first use a read-only check tool or ask the user for the exact file/path
+- If the user asks to summarize/analyze a note and the exact file is unclear, prefer asking a clarifying question over inventing a missing-file reason
+- If the target path ends with \`.md\`, treat it as a note file: use \`read_markdown_file\` or \`read_markdown_files_batch\`, not \`check_folder_exists\`
+- Only use \`check_folder_exists\` for actual folders, never for Markdown note paths
+- If context already includes the full content of the linked file, do not call read/check tools for that same file again. Answer directly from context.
+
 **Technical Rules**:
 1. **Strict Format**: Thought → Action + Action Input or Final Answer
 2. **JSON Format**: Action Input must be valid JSON with double quotes
@@ -394,7 +514,7 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 6. **Use Available Tools Only**: Don't make up tools or parameters
 7. **Concise Thinking**: Keep Thought brief, directly state what to do
 8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
-9. **📌 Use Quote Line Numbers**: When context includes "quoted content" with VALID line numbers (positive integers, NOT -1), ALWAYS use replace_editor_content with line-based mode (startLine/endLine). If line numbers are -1 or invalid, first use get_editor_selection to get valid line numbers. NEVER use from/to or searchContent.
+9. **📌 Prefer Exact Quoted Range**: When context includes quoted content with exact selection positions (\`from\`/\`to\`), ALWAYS use replace_editor_content with those positions so only the quoted selection is replaced. Use line-based mode only as a fallback when exact positions are unavailable.
 10. **📝 State-Based Reasoning**: Base your next action on the PREVIOUS observation result, not on the original user request - the context shows what you just did and the result
 
 ## 🚫 Common Errors (Avoid)
@@ -411,8 +531,8 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ❌ **Error 4**: Try to call Skill as a tool (like Action: style-detector)
 ✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_file) and follow Skill requirements in content
 
-❌ **Error 5**: Use invalid line numbers (e.g., -1) or use from/to/searchContent when valid positive line numbers are available
-✅ **Correct**: Only use line-based mode with VALID positive line numbers. If line numbers are -1 or invalid, first call get_editor_selection to get valid line numbers, then use replace_editor_content with those line numbers
+❌ **Error 5**: Ignore exact quoted selection positions and replace a whole document or unrelated range
+✅ **Correct**: If quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Only fall back to startLine/endLine when exact positions are unavailable
 
 ❌ **Error 6**: Ignore the previous operation result and repeat the same action
 ✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows success, give Final Answer immediately
@@ -422,6 +542,10 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 
 ❌ **Error 8**: Use search tools when user is just asking a question without explicitly requesting search
 ✅ **Correct**: Only use search_markdown_files when user explicitly says "搜索", "查找", "帮我找". For regular questions like "What is React?", give Final Answer directly without searching
+
+## Runtime Tool Policy
+
+${intentPolicyPrompt}
 
 ## Example
 
@@ -575,34 +699,18 @@ Final Answer: Task was terminated by user`
           this.config.onThought?.(response)
         }
 
-        // 记录 AI 的思考内容，用于调试
-        const mentionedSkills = this.extractMentionedSkills(response)
-
-        // 第一次迭代后，处理 Skills 选择
+        // 第一次迭代后，不再根据文本提及自动选择 Skills。
+        // 只有显式调用 select_skill 工具才会生效，避免误命中无关 Skill。
         if (this.currentIteration === 1) {
-          const activeSkillIds = this.config.activeSkills || []
-          const selectedSkillIds: string[] = []
-
-          if (mentionedSkills.length > 0) {
-            // 将提到的 Skills ID 添加到已选择集合
-            for (const skillName of mentionedSkills) {
-              // 通过名称查找对应的 Skill ID
-              const skill = activeSkillIds
-                .map(id => skillManager.getSkill(id))
-                .filter((s): s is Exclude<typeof s, undefined> => s !== undefined)
-                .find(s => s.metadata.name === skillName)
-
-              if (skill) {
-                this.selectedSkills.add(skill.metadata.id)
-                selectedSkillIds.push(skill.metadata.id)
-              }
-            }
-          }
-
-          // 无论是否选择了 Skills，都要通知外部（空数组表示未选择）
-          this.config.onSkillsSelected?.(selectedSkillIds)
+          this.config.onSkillsSelected?.([])
         }
 
+        this.logDebug('think:response', {
+          iteration: this.currentIteration,
+          mode: 'messages',
+          selectedSkillIds: Array.from(this.selectedSkills),
+          preview: response.slice(0, 400),
+        })
         return response
       } catch (error) {
         // 检查是否是因为终止导致的错误
@@ -693,34 +801,18 @@ Final Answer: 任务已被用户终止`
         this.config.onThought?.(response)
       }
 
-      // 记录 AI 的思考内容，用于调试
-      const mentionedSkills = this.extractMentionedSkills(response)
-
-      // 第一次迭代后，处理 Skills 选择
+      // 第一次迭代后，不再根据文本提及自动选择 Skills。
+      // 只有显式调用 select_skill 工具才会生效，避免误命中无关 Skill。
       if (this.currentIteration === 1) {
-        const activeSkillIds = this.config.activeSkills || []
-        const selectedSkillIds: string[] = []
-
-        if (mentionedSkills.length > 0) {
-          // 将提到的 Skills ID 添加到已选择集合
-          for (const skillName of mentionedSkills) {
-            // 通过名称查找对应的 Skill ID
-            const skill = activeSkillIds
-              .map(id => skillManager.getSkill(id))
-              .filter((s): s is Exclude<typeof s, undefined> => s !== undefined)
-              .find(s => s.metadata.name === skillName)
-
-            if (skill) {
-              this.selectedSkills.add(skill.metadata.id)
-              selectedSkillIds.push(skill.metadata.id)
-            }
-          }
-        }
-
-        // 无论是否选择了 Skills，都要通知外部（空数组表示未选择）
-        this.config.onSkillsSelected?.(selectedSkillIds)
+        this.config.onSkillsSelected?.([])
       }
 
+      this.logDebug('think:response', {
+        iteration: this.currentIteration,
+        mode: 'prompt',
+        selectedSkillIds: Array.from(this.selectedSkills),
+        preview: response.slice(0, 400),
+      })
       return response
     } catch (error) {
       // 检查是否是因为终止导致的错误
@@ -752,7 +844,12 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       // 修改正则表达式，支持工具名称中的连字符、下划线等字符
       const actionMatch = thought.match(/Action:\s*([a-zA-Z0-9_-]+)/i)
 
-      if (!actionMatch) return null
+      if (!actionMatch) {
+        this.logDebug('parse-action:no-action-match', {
+          preview: thought.slice(0, 300),
+        })
+        return null
+      }
 
       const tool = actionMatch[1]
       let params = {}
@@ -879,6 +976,11 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
             console.error('Failed to parse action input after repair:', retryError)
             console.error('Original JSON:', inputMatch[1])
             console.error('Repaired JSON:', jsonStr)
+            this.logDebug('parse-action:json-parse-failed', {
+              tool,
+              originalInputPreview: inputMatch[1].slice(0, 200),
+              repairedInputPreview: jsonStr.slice(0, 200),
+            })
             // 返回 null 而不是空对象，让调用方知道解析失败
             return null
           }
@@ -896,8 +998,11 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     const tool = getToolByName(toolName)
 
     if (!tool) {
+      this.logDebug('tool:missing', { toolName, params })
       return `错误：未找到工具 "${toolName}"。请使用可用的工具列表中的工具。`
     }
+
+    params = this.normalizeToolParams(toolName, params)
 
     this.toolCallCounter++
     const toolCall: ToolCall = {
@@ -906,6 +1011,31 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       params,
       status: 'pending',
       timestamp: Date.now(),
+    }
+
+    const policyCheck = this.evaluateToolPolicy(toolName, tool, params)
+    this.logDebug('tool:policy-check', {
+      toolName,
+      params,
+      category: tool.category,
+      requiresConfirmation: tool.requiresConfirmation,
+      policyCheck,
+      intentPolicy: this.intentPolicy,
+    })
+    if (!policyCheck.allowed) {
+      const blockedMessage = this.getPolicyAdjustmentMessage(toolName, policyCheck.reason || '已调整工具选择')
+      toolCall.status = 'error'
+      toolCall.result = {
+        success: false,
+        error: `BLOCKED_BY_POLICY: ${policyCheck.reason}`,
+      }
+      this.logDebug('tool:blocked', {
+        toolName,
+        params,
+        reason: policyCheck.reason,
+      })
+      this.config.onToolCall?.(toolCall)
+      return blockedMessage
     }
 
     // 查找哪个 Skill 授权了这个工具
@@ -924,7 +1054,27 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     // 检查工具是否在当前激活的 Skills 中被授权
     const isAuthorized = this.isToolAuthorized(toolName)
-    const requiresConfirmation = tool.requiresConfirmation && !isAuthorized
+    const requiresConfirmation = policyCheck.requiresConfirmation || (tool.requiresConfirmation && !isAuthorized)
+    this.logDebug('tool:authorization', {
+      toolName,
+      isAuthorized,
+      selectedSkills: Array.from(this.selectedSkills),
+      requiresConfirmation,
+    })
+
+    if (requiresConfirmation && !this.config.requestConfirmation) {
+      toolCall.status = 'error'
+      toolCall.result = {
+        success: false,
+        error: 'BLOCKED_BY_POLICY: 操作需要确认，但未配置确认回调',
+      }
+      this.logDebug('tool:blocked-no-confirmation-channel', {
+        toolName,
+        params,
+      })
+      this.config.onToolCall?.(toolCall)
+      return '这个操作需要你的确认，当前先不执行。'
+    }
 
     if (requiresConfirmation && this.config.requestConfirmation) {
       // 准备确认上下文信息（原始内容、修改后内容、文件路径）
@@ -1050,6 +1200,11 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       }
 
       const confirmed = await this.config.requestConfirmation(toolName, params, confirmContext)
+      this.logDebug('tool:confirmation-result', {
+        toolName,
+        confirmed,
+        hasConfirmContext: !!(confirmContext.filePath || confirmContext.originalContent || confirmContext.modifiedContent),
+      })
 
       if (!confirmed) {
         toolCall.status = 'error'
@@ -1064,9 +1219,21 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     toolCall.status = 'running'
     this.config.onToolCall?.(toolCall)
+    this.logDebug('tool:execute-start', {
+      toolName,
+      params,
+      thought,
+    })
 
     try {
       const result: ToolResult = await tool.execute(params)
+      this.logDebug('tool:execute-finish', {
+        toolName,
+        success: result.success,
+        error: result.error,
+        hasData: result.data !== undefined,
+        messagePreview: result.message?.slice(0, 200),
+      })
 
       toolCall.status = result.success ? 'success' : 'error'
       toolCall.result = result
@@ -1084,6 +1251,9 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
           // 通知外部选择的 Skills
           this.config.onSkillsSelected?.(selectedSkillIds)
+          this.logDebug('skill:selected', {
+            selectedSkillIds,
+          })
         }
 
         let observation = result.message || `工具 ${toolName} 执行成功。`
@@ -1113,6 +1283,11 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     } catch (error) {
       toolCall.status = 'error'
       const errorStr = error instanceof Error ? error.message : String(error)
+      this.logDebug('tool:execute-error', {
+        toolName,
+        params,
+        error: errorStr,
+      })
       toolCall.result = {
         success: false,
         error: errorStr,
@@ -1120,6 +1295,43 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       this.config.onToolCall?.(toolCall)
       return `工具 ${toolName} 执行出错：${errorStr}`
     }
+  }
+
+  private normalizeToolParams(toolName: string, params: Record<string, any>): Record<string, any> {
+    if (toolName !== 'replace_editor_content') {
+      return params
+    }
+
+    const currentQuote = this.config.currentQuote
+    if (!currentQuote) {
+      return params
+    }
+
+    if (currentQuote.from < 0 || currentQuote.to < currentQuote.from) {
+      return params
+    }
+
+    const normalizedParams = { ...params }
+    delete normalizedParams.startLine
+    delete normalizedParams.endLine
+    delete normalizedParams.searchContent
+    delete normalizedParams.occurrence
+
+    normalizedParams.from = currentQuote.from
+    normalizedParams.to = currentQuote.to
+
+    if (normalizedParams.replaceContent !== undefined && normalizedParams.content === undefined) {
+      normalizedParams.content = normalizedParams.replaceContent
+    }
+
+    this.logDebug('tool:quote-range-applied', {
+      toolName,
+      originalParams: params,
+      normalizedParams,
+      quoteRange: currentQuote,
+    })
+
+    return normalizedParams
   }
 
   /**
@@ -1395,17 +1607,152 @@ ${skillsList.join('\n---\n\n')}
    * 检查工具是否在当前激活的 Skills 中被授权（移除 enabled 判断）
    */
   isToolAuthorized(toolName: string): boolean {
-    const activeSkillIds = this.config.activeSkills
-    if (!activeSkillIds || activeSkillIds.length === 0) {
+    if (this.selectedSkills.size === 0) {
       return false
     }
 
-    for (const skillId of activeSkillIds) {
+    for (const skillId of this.selectedSkills) {
       const skill = skillManager.getSkill(skillId)
       // 移除 enabled 判断，只要 Skill 存在且授权了工具就返回 true
       if (skill && skill.metadata.allowedTools?.includes(toolName)) {
         return true
       }
+    }
+
+    return false
+  }
+
+  private evaluateToolPolicy(
+    toolName: string,
+    tool: { category: string; requiresConfirmation: boolean },
+    params: Record<string, any> = {}
+  ): { allowed: boolean; requiresConfirmation: boolean; reason?: string } {
+    const risk = getToolRiskLevel(toolName, tool.category)
+    const isDestructive = isDestructiveTool(toolName)
+    const isExecute = isExecuteTool(toolName)
+    const folderPath = typeof params.folderPath === 'string' ? params.folderPath.trim() : ''
+
+    if (toolName === 'check_folder_exists' && /\.md$/i.test(folderPath)) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: 'Markdown 文件路径应使用 read_markdown_file，而不是 check_folder_exists',
+      }
+    }
+
+    if (this.isRedundantLinkedFileRead(toolName, params)) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '当前关联文件的完整内容已在上下文中，无需再次读取或检查',
+      }
+    }
+
+    if (isExecute && !this.intentPolicy.allowExecute) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '用户未明确要求执行命令或脚本',
+      }
+    }
+
+    if (isDestructive && !this.intentPolicy.allowDestructive) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '用户未明确要求删除或清空操作',
+      }
+    }
+
+    if (risk === 'medium' && !this.intentPolicy.allowWrite) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '当前是默认只读模式，用户未明确要求修改内容',
+      }
+    }
+
+    if (risk === 'high' && !isDestructive && !isExecute && !this.intentPolicy.allowWrite) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '高风险写入操作需要用户明确修改意图',
+      }
+    }
+
+    return {
+      allowed: true,
+      requiresConfirmation: risk === 'high',
+    }
+  }
+
+  private getPolicyAdjustmentMessage(toolName: string, reason: string): string {
+    if (reason.includes('Markdown 文件路径')) {
+      return `已调整工具选择：Markdown 文件会按笔记文件读取，而不是按文件夹处理。不要再次调用 ${toolName}，请改用 read_markdown_file。`
+    }
+
+    if (reason.includes('完整内容已在上下文中')) {
+      return '已直接使用关联文件上下文：这篇笔记的完整内容已经在当前对话中，无需再次读取。'
+    }
+
+    if (reason.includes('执行命令或脚本')) {
+      return '已保持只读分析模式：不会执行命令或脚本。'
+    }
+
+    if (reason.includes('删除或清空')) {
+      return '已避免高风险操作：当前不会删除或清空内容。'
+    }
+
+    if (reason.includes('默认只读模式') || reason.includes('修改意图')) {
+      return '已保持只读模式：先分析内容，不直接修改。'
+    }
+
+    return '已调整工具选择，继续采用更合适的处理方式。'
+  }
+
+  private isPolicyAdjustmentObservation(observation?: string): boolean {
+    if (!observation) {
+      return false
+    }
+
+    return observation.includes('已调整工具选择：')
+  }
+
+  private isRedundantLinkedFileRead(toolName: string, params: Record<string, any>): boolean {
+    const { linkedResource } = useChatStore.getState()
+
+    if (!linkedResource || isLinkedFolder(linkedResource)) {
+      return false
+    }
+
+    const linkedPaths = new Set([
+      linkedResource.relativePath,
+      linkedResource.name,
+      linkedResource.path,
+    ])
+
+    const matchesLinkedFile = (candidate: string) => {
+      const normalized = candidate.trim()
+      if (!normalized) {
+        return false
+      }
+
+      const fileName = normalized.split('/').pop() || normalized
+      return linkedPaths.has(normalized) || linkedPaths.has(fileName)
+    }
+
+    if (toolName === 'read_markdown_file') {
+      return typeof params.filePath === 'string' && matchesLinkedFile(params.filePath)
+    }
+
+    if (toolName === 'read_markdown_files_batch') {
+      return Array.isArray(params.filePaths) && params.filePaths.some((filePath: unknown) =>
+        typeof filePath === 'string' && matchesLinkedFile(filePath)
+      )
+    }
+
+    if (toolName === 'check_folder_exists') {
+      return typeof params.folderPath === 'string' && matchesLinkedFile(params.folderPath)
     }
 
     return false

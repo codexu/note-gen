@@ -203,9 +203,15 @@ export function buildMessagesWithHistory(
   chats: Chat[],
   systemPrompt?: string,
   additionalContext?: string,
-  currentUserInput?: string
+  currentUserInput?: string,
+  options?: {
+    includeAssistantMessages?: boolean
+    includeLatestUserMessage?: boolean
+  }
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
   const messages: OpenAI.ChatCompletionMessageParam[] = []
+  const includeAssistantMessages = options?.includeAssistantMessages ?? true
+  const includeLatestUserMessage = options?.includeLatestUserMessage ?? true
 
   // 1. 添加系统提示词（如果有）
   if (systemPrompt) {
@@ -216,11 +222,22 @@ export function buildMessagesWithHistory(
   }
 
   // 2. 添加对话历史
-  const chatsAfterClear = getChatsAfterLastClear(chats)
+  let chatsAfterClear = getChatsAfterLastClear(chats)
+
+  if (!includeLatestUserMessage) {
+    const lastUserIndex = [...chatsAfterClear].map(chat => chat.role).lastIndexOf('user')
+    if (lastUserIndex !== -1) {
+      chatsAfterClear = chatsAfterClear.filter((_, index) => index !== lastUserIndex)
+    }
+  }
 
   for (const chat of chatsAfterClear) {
     // 只包含 chat 和 note 类型的消息
     if (chat.type !== 'chat' && chat.type !== 'note') {
+      continue
+    }
+
+    if (chat.role !== 'user' && !includeAssistantMessages) {
       continue
     }
 

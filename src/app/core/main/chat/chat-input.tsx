@@ -121,6 +121,8 @@ export const ChatInput = React.memo(function ChatInput() {
     fileName: string
     startLine: number
     endLine: number
+    from: number
+    to: number
     articlePath: string
   } | null>(null)
   const chatSendRef = useRef<any>(null)
@@ -456,6 +458,8 @@ export const ChatInput = React.memo(function ChatInput() {
         fileName: string
         startLine: number
         endLine: number
+        from: number
+        to: number
         articlePath: string
       }
       // 设置引用数据

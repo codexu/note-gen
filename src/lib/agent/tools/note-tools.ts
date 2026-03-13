@@ -1500,7 +1500,7 @@ export const renameFilesBatchTool: Tool = {
 
 export const noteTools: Tool[] = [
   listMarkdownFilesTool,
-  // readMarkdownFileTool: DEPRECATED - use get_editor_content from editor-tools.ts instead
+  readMarkdownFileTool,
   createFileTool,
   deleteMarkdownFileTool,
   searchMarkdownFilesTool,

@@ -1616,10 +1616,12 @@ export function TipTapEditor({
 
         const textBeforeTo = editor.state.doc.textBetween(0, to, '\n', '\n')
         const endLine = (textBeforeTo.match(/\n/g)?.length || 0) + 1
+        const markdownLines = editor.getMarkdown().split('\n')
+        const quotedMarkdown = markdownLines.slice(startLine - 1, endLine).join('\n')
 
         emitter.emit('insert-quote', {
           quote,
-          fullContent: quote,
+          fullContent: quotedMarkdown || quote,
           fileName,
           startLine,
           endLine,

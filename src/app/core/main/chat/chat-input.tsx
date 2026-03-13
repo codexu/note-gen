@@ -350,7 +350,6 @@ export const ChatInput = React.memo(function ChatInput() {
     setText('')
     setHistoryIndex(-1)
     setAttachedImages([])
-    setQuoteData(null)
     const textarea = document.querySelector('textarea')
     if (textarea) {
       textarea.style.height = 'auto'

@@ -34,6 +34,7 @@ export interface ReActConfig {
     endLine: number
     from: number
     to: number
+    fullContent?: string
   }
 }
 
@@ -46,6 +47,7 @@ export class ReActAgent {
     'tool:confirmation-result',
     'tool:execute-error',
     'tool:missing',
+    'tool:quoted-insert-applied',
   ])
 
   private config: ReActConfig
@@ -55,6 +57,7 @@ export class ReActAgent {
   private stopped = false
   private abortController: AbortController | null = null
   private selectedSkills: Set<string> = new Set() // 记录 AI 选择的 Skills
+  private currentUserInput = ''
   private intentPolicy: IntentPolicy = {
     allowWrite: false,
     allowDestructive: false,
@@ -115,6 +118,7 @@ export class ReActAgent {
     this.toolCallCounter = 0
     this.stopped = false
     this.selectedSkills.clear()
+    this.currentUserInput = userInput
     this.intentPolicy = deriveIntentPolicy(userInput)
     this.logDebug('run:start', {
       userInput,
@@ -514,7 +518,7 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 6. **Use Available Tools Only**: Don't make up tools or parameters
 7. **Concise Thinking**: Keep Thought brief, directly state what to do
 8. **🚨 Skills Are Not Tools**: NEVER use Action: skill_xxx, Skills are just guidance documents
-9. **📌 Prefer Exact Quoted Range**: When context includes quoted content with exact selection positions (\`from\`/\`to\`), ALWAYS use replace_editor_content with those positions so only the quoted selection is replaced. Use line-based mode only as a fallback when exact positions are unavailable.
+9. **📌 Quoted Content Rule**: If the user is asking to explain, summarize, analyze, translate, or discuss quoted content, answer directly and do NOT call editing tools. Only use replace_editor_content for quoted content when the user explicitly asks to modify, rewrite, insert, expand, or delete content.
 10. **📝 State-Based Reasoning**: Base your next action on the PREVIOUS observation result, not on the original user request - the context shows what you just did and the result
 
 ## 🚫 Common Errors (Avoid)
@@ -531,8 +535,8 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ❌ **Error 4**: Try to call Skill as a tool (like Action: style-detector)
 ✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_file) and follow Skill requirements in content
 
-❌ **Error 5**: Ignore exact quoted selection positions and replace a whole document or unrelated range
-✅ **Correct**: If quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Only fall back to startLine/endLine when exact positions are unavailable
+❌ **Error 5**: Treat any quoted content as an edit request and call replace_editor_content for explanation/analysis tasks
+✅ **Correct**: For explanation/summary/analysis requests, answer directly from the quoted content. For explicit edit requests, if quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Only fall back to startLine/endLine when exact positions are unavailable
 
 ❌ **Error 6**: Ignore the previous operation result and repeat the same action
 ✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows success, give Final Answer immediately
@@ -1312,6 +1316,39 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     }
 
     const normalizedParams = { ...params }
+    const insertDirective = this.getQuotedInsertDirective()
+    const rawContent = typeof normalizedParams.content === 'string'
+      ? normalizedParams.content
+      : typeof normalizedParams.replaceContent === 'string'
+        ? normalizedParams.replaceContent
+        : ''
+
+    if (insertDirective && rawContent.trim().length > 0) {
+      delete normalizedParams.startLine
+      delete normalizedParams.endLine
+      delete normalizedParams.searchContent
+      delete normalizedParams.occurrence
+      delete normalizedParams.replaceContent
+
+      normalizedParams.from = currentQuote.from
+      normalizedParams.to = currentQuote.to
+      normalizedParams.content = this.buildQuotedInsertContent(
+        insertDirective,
+        rawContent,
+        currentQuote.fullContent
+      )
+
+      this.logDebug('tool:quoted-insert-applied', {
+        toolName,
+        directive: insertDirective,
+        originalParams: params,
+        normalizedParams,
+        quoteRange: currentQuote,
+      })
+
+      return normalizedParams
+    }
+
     delete normalizedParams.startLine
     delete normalizedParams.endLine
     delete normalizedParams.searchContent
@@ -1332,6 +1369,72 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     })
 
     return normalizedParams
+  }
+
+  private getQuotedInsertDirective(): 'before' | 'after' | 'around' | null {
+    if (!/插入|添加|补充|加入|增加/.test(this.currentUserInput)) {
+      return null
+    }
+
+    const hasBefore = /前面|前边|上面|之前|前方/.test(this.currentUserInput)
+    const hasAfter = /后面|后边|下面|之后|后方/.test(this.currentUserInput)
+
+    if (hasBefore && hasAfter) {
+      return 'around'
+    }
+
+    if (hasBefore) {
+      return 'before'
+    }
+
+    if (hasAfter) {
+      return 'after'
+    }
+
+    return null
+  }
+
+  private buildQuotedInsertContent(
+    directive: 'before' | 'after' | 'around',
+    insertedContent: string,
+    quoteContent?: string
+  ): string {
+    const normalizedInserted = insertedContent.trim()
+    const normalizedQuote = quoteContent?.trim()
+
+    if (!normalizedQuote) {
+      return normalizedInserted
+    }
+
+    if (normalizedInserted.includes(normalizedQuote)) {
+      return normalizedInserted
+    }
+
+    if (directive === 'before') {
+      return `${normalizedInserted}\n${normalizedQuote}`
+    }
+
+    if (directive === 'around') {
+      const structuredAround = normalizedInserted.match(
+        /^<<BEFORE>>\s*([\s\S]*?)\s*<<AFTER>>\s*([\s\S]*)$/i
+      )
+
+      if (structuredAround) {
+        const beforeContent = structuredAround[1].trim()
+        const afterContent = structuredAround[2].trim()
+
+        return [
+          beforeContent,
+          normalizedQuote,
+          afterContent,
+        ].filter(Boolean).join('\n\n')
+      }
+
+      // Fallback: preserve the quoted content and append the generated content once.
+      return `${normalizedQuote}\n\n${normalizedInserted}`
+    }
+
+    return `${normalizedQuote}\n${normalizedInserted}`
   }
 
   /**

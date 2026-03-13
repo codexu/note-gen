@@ -20,6 +20,7 @@ export interface AgentHandlerConfig {
     endLine: number
     from: number
     to: number
+    fullContent?: string
   }
 }
 

@@ -144,6 +144,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
             endLine: quoteData.endLine,
             from: quoteData.from,
             to: quoteData.to,
+            fullContent: quoteData.fullContent,
           }
         : undefined,
       onFinalAnswerRender: (markdownContent) => {
@@ -365,25 +366,54 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 ${fullContent}
 ---
 
-${hasValidRange ? `**🚨 必须精确替换用户选中的范围**: 当前引用内容来自编辑器选区，必须优先使用 replace_editor_content 的 position-based 模式，只替换这段选中的内容：
+${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才允许编辑**。
+
+如果用户是在提问、解释、总结、分析、翻译、润色建议、代码说明，应该直接基于这段引用内容回答，**不要调用任何编辑工具**。
+
+**🚨 当且仅当用户明确要求修改时，必须精确替换用户选中的范围**: 当前引用内容来自编辑器选区，必须优先使用 replace_editor_content 的 position-based 模式，只替换这段选中的内容：
 - from: ${from}
 - to: ${to}
 - 使用 content 或 replaceContent 传入新内容
 - 只允许替换这个选区，禁止扩大到整篇文档或整段之外
+
+**如果用户说“在这段前面/后面/上面/下面插入、补充、添加”**:
+- 仍然使用 replace_editor_content
+- 基于当前引用范围整体替换
+- 前插: 新内容 + 原引用内容
+- 后插: 原引用内容 + 新内容
+- 不要使用 insert_at_cursor，因为聊天输入会让编辑器失焦，当前光标位置不可靠
+
+**如果用户明确要求“前面和后面都增加内容”**:
+- 仍然使用 replace_editor_content
+- 必须先分别生成前插内容和后插内容
+- 请在传给工具的 content 中使用这个精确格式：
+  <<BEFORE>>
+  [前插内容]
+  <<AFTER>>
+  [后插内容]
+- 系统会自动把它拼接成：前插内容 + 原引用内容 + 后插内容
+- 不要把前后内容合并成一整段普通文本
 
 **兜底行号信息**:
 - 单行修改: startLine: ${startLine}, endLine: ${endLine}
 - 多行范围: startLine: ${startLine}, endLine: ${endLine}
 
 **禁止**:
+- 禁止在解释/分析类请求中调用编辑工具
 - 禁止改动选区之外的内容
 - 禁止获取整个文档后再重写整篇
 - 禁止把 startLine/endLine 擅自改成 1/1` : hasValidLineNumbers ? `**🚨 必须使用行号修改**: 当用户引用内容并要求修改时，你必须使用 replace_editor_content 工具的 line-based 模式，传入精确的行号：
+` : hasValidLineNumbers ? `**仅在用户明确要求修改/改写/补充/插入时才允许编辑**。
+
+如果用户是在提问、解释、总结、分析、翻译、润色建议、代码说明，应该直接基于这段引用内容回答，**不要调用任何编辑工具**。
+
+**🚨 当且仅当用户明确要求修改时，必须使用行号修改**: 当用户引用内容并要求修改时，你必须使用 replace_editor_content 工具的 line-based 模式，传入精确的行号：
 - 单行修改: startLine: ${startLine}, endLine: ${endLine}
 - 多行范围: startLine: ${startLine}, endLine: ${endLine}
 - 必须使用 replaceContent 参数传入新内容
 
 **禁止**:
+- 禁止在解释/分析类请求中调用编辑工具
 - 禁止使用 from/to 位置参数
 - 禁止使用 searchContent 文本搜索模式
 - 禁止获取整个文档内容后再操作` : `**注意**: 此引用内容没有有效的行号信息。如果需要修改，请先使用 get_editor_selection 工具获取当前选中的行号信息。`}

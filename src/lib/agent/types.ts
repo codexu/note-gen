@@ -41,6 +41,7 @@ export interface ConfirmationRecord {
 }
 
 export interface AgentState {
+  activeChatId?: number
   isRunning: boolean
   isThinking: boolean // 是否正在等待 AI 生成新的思考
   currentThought: string

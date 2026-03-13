@@ -183,6 +183,7 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   agentState: {
+    activeChatId: undefined,
     isRunning: false,
     isThinking: false,
     currentThought: '',
@@ -210,6 +211,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     const currentState = get().agentState
     set({
       agentState: {
+        activeChatId: undefined,
         isRunning: false,
         isThinking: false,
         currentThought: '',

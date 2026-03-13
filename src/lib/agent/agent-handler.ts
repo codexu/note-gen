@@ -7,6 +7,7 @@ import { reloadMcpTools } from './tools'
 import OpenAI from 'openai'
 
 export interface AgentHandlerConfig {
+  activeChatId?: number
   onThought?: (thought: string) => void
   onAction?: (action: string, params: Record<string, any>) => void
   onObservation?: (observation: string) => void
@@ -40,7 +41,10 @@ export class AgentHandler {
     const store = useChatStore.getState()
 
     store.resetAgentState()
-    store.setAgentState({ isRunning: true })
+    store.setAgentState({
+      activeChatId: this.config.activeChatId,
+      isRunning: true,
+    })
 
     // 确保 MCP Store 已初始化
     try {

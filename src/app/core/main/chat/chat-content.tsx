@@ -103,9 +103,6 @@ const ChatContent = React.memo(function ChatContent() {
       }) : <ChatEmpty />
     }
 
-    {/* Agent 执行状态 - 在底部实时显示 */}
-    <AgentExecutionStatusWrapper />
-
     {/* Loading 指示器 - 服务器等待时显示 */}
     {shouldShowLoading && (
       <div className="flex w-full min-w-0 -mt-6">
@@ -183,50 +180,12 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
 })
 MessageWrapper.displayName = 'MessageWrapper'
 
-const AgentExecutionStatusWrapper = React.memo(function AgentExecutionStatusWrapper() {
-  const { agentState, loading } = useChatStore()
-
-  // 只在 Agent 运行时或 Final Answer 模式下显示
-  if (!agentState.isRunning && !agentState.isFinalAnswerMode) {
-    return null
-  }
-
-  // Final Answer 模式：同时显示 Markdown 内容 和 步骤历史面板
-  if (agentState.isFinalAnswerMode && agentState.finalAnswerContent) {
-    return (
-      <div className="flex flex-col w-full min-w-0 gap-2">
-        {/* 步骤历史面板 - 始终显示 */}
-        {(agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
-          <div className="flex w-full min-w-0">
-            <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
-              <AgentExecutionStatus />
-            </div>
-          </div>
-        )}
-        {/* Final Answer 内容 */}
-        <div className="flex w-full min-w-0">
-          <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
-            <ChatPreview text={agentState.finalAnswerContent} streaming={loading} />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex w-full min-w-0">
-      <div className='text-sm leading-6 flex-1 wrap-break-word min-w-0 overflow-hidden'>
-        <AgentExecutionStatus />
-      </div>
-    </div>
-  )
-})
-AgentExecutionStatusWrapper.displayName = 'AgentExecutionStatusWrapper'
-
 const Message = React.memo(function Message({ chat }: { chat: Chat }) {
   const t = useTranslations()
-  const { deleteChat, getMcpToolCallsByChatId, loading } = useChatStore()
+  const { deleteChat, getMcpToolCallsByChatId, loading, agentState } = useChatStore()
   const content = chat.content
+  const isActiveAgentMessage = chat.role === 'system' && agentState.activeChatId === chat.id
+  const isLiveAgentVisible = isActiveAgentMessage && (agentState.isRunning || agentState.isFinalAnswerMode)
 
   const handleRemoveClearContext = useCallback(() => {
     deleteChat(chat.id)
@@ -332,7 +291,8 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
         (chat.agentHistory && chat.agentHistory.length > 0) ||
         ragSources.length > 0 ||
         ragSourceDetails.length > 0 ||
-        mcpToolCalls.length > 0
+        mcpToolCalls.length > 0 ||
+        isLiveAgentVisible
       )
 
       // 用户消息或有内容的 AI 消息才渲染
@@ -354,6 +314,20 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
               />
             )}
 
+            {isLiveAgentVisible && (
+              <div className="space-y-2">
+                {(agentState.isRunning || agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
+                  <AgentExecutionStatus />
+                )}
+                {agentState.isFinalAnswerMode && agentState.finalAnswerContent && (
+                  <ChatPreview
+                    text={agentState.finalAnswerContent}
+                    streaming={loading && isActiveAgentMessage}
+                  />
+                )}
+              </div>
+            )}
+
             {/* MCP 工具调用展示 */}
             {mcpToolCalls.length > 0 && (
               <div className="space-y-4">
@@ -364,7 +338,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             )}
 
             <ChatThinking chat={chat} />
-            <ChatPreview text={content || ''} streaming={loading && chat.role === 'system'} />
+            <ChatPreview text={content || ''} streaming={loading && isActiveAgentMessage} />
             <MessageControl chat={chat}>
               <MarkText chat={chat} />
             </MessageControl>

@@ -134,8 +134,13 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 
     if (!placeholderMessage) return
 
+    setAgentState({
+      activeChatId: placeholderMessage.id,
+    })
+
     // 每次都创建新的 AgentHandler，使用当前的 placeholderMessage
     const agentHandler = new AgentHandler({
+      activeChatId: placeholderMessage.id,
       requestConfirmation,
       currentQuote: quoteData
         ? {
@@ -150,6 +155,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
       onFinalAnswerRender: (markdownContent) => {
         // 检测到 Final Answer 时触发渲染
         setAgentState({
+          activeChatId: placeholderMessage.id,
           isFinalAnswerMode: true,
           finalAnswerContent: markdownContent
         })
@@ -203,6 +209,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 
         // 清空 Final Answer 模式状态
         setAgentState({
+          activeChatId: undefined,
           isFinalAnswerMode: false,
           finalAnswerContent: undefined
         })
@@ -232,6 +239,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 
         // 清空 Final Answer 模式状态
         setAgentState({
+          activeChatId: undefined,
           isFinalAnswerMode: false,
           finalAnswerContent: undefined
         })

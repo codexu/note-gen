@@ -1028,10 +1028,12 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     })
     if (!policyCheck.allowed) {
       const blockedMessage = this.getPolicyAdjustmentMessage(toolName, policyCheck.reason || '已调整工具选择')
-      toolCall.status = 'error'
+      const isBenignAdjustment = Boolean(policyCheck.reason?.includes('完整内容已在上下文中'))
+      toolCall.status = isBenignAdjustment ? 'success' : 'error'
       toolCall.result = {
-        success: false,
-        error: `BLOCKED_BY_POLICY: ${policyCheck.reason}`,
+        success: isBenignAdjustment,
+        error: isBenignAdjustment ? undefined : `BLOCKED_BY_POLICY: ${policyCheck.reason}`,
+        message: blockedMessage,
       }
       this.logDebug('tool:blocked', {
         toolName,

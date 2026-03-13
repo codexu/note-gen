@@ -37,9 +37,12 @@ export const MEDIUM_RISK_TOOLS = new Set([
   'update_chats_batch',
   'insert_at_cursor',
   'replace_editor_content',
-  'rename_markdown_file',
-  'move_markdown_file',
-  'copy_markdown_file',
+  'rename_file',
+  'move_file',
+  'copy_file',
+  'rename_files_batch',
+  'move_files_batch',
+  'copy_files_batch',
 ])
 
 export const READ_ONLY_TOOLS = new Set([
@@ -61,7 +64,7 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
   const input = userInput.toLowerCase()
 
   const writePatterns = [
-    /创建|新建|新增|写入|改写|修改|编辑|更新|重写|插入|替换|保存|改|优化|精简|简化|润色|调整|补充|增加|添加|补全|扩写|完善|丰富/,
+    /创建|新建|新增|写入|改写|修改|编辑|更新|重写|插入|替换|保存|改|优化|精简|简化|润色|调整|补充|增加|添加|补全|扩写|完善|丰富|重命名|改名|命名为|移动|复制/,
     /\b(create|write|modify|edit|update|insert|replace|save|rename|move)\b/i,
   ]
   const destructivePatterns = [

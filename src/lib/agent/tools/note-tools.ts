@@ -2,7 +2,7 @@ import { Tool, ToolResult } from '../types'
 import { readTextFile, writeTextFile, remove, rename, copyFile } from '@tauri-apps/plugin-fs'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
-import { getFilePathOptions } from '@/lib/workspace'
+import { getFilePathOptions, normalizeWorkspaceRelativePath } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
@@ -137,6 +137,10 @@ export const createFileTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const normalizedFolderPath = params.folderPath
+        ? await normalizeWorkspaceRelativePath(params.folderPath)
+        : undefined
+
       // 验证内容参数
       if (!params.content || typeof params.content !== 'string') {
         return {
@@ -155,8 +159,8 @@ export const createFileTool: Tool = {
       let filePath = fileName
 
       // 如果指定了文件夹路径，拼接路径
-      if (params.folderPath) {
-        filePath = `${params.folderPath}/${fileName}`
+      if (normalizedFolderPath) {
+        filePath = `${normalizedFolderPath}/${fileName}`
       }
 
       // 统一使用 getFilePathOptions 来处理路径
@@ -192,14 +196,16 @@ export const createFileTool: Tool = {
       // 构建工作区完整路径
       const fullPath = `${workspacePath}/${filePath}`
 
-      // 刷新文件列表
       const articleStore = useArticleStore.getState()
-      await articleStore.loadFileTree()
+      const inserted = articleStore.insertLocalEntry(filePath, false)
+      await articleStore.ensurePathExpanded(filePath)
+      if (!inserted) {
+        await articleStore.loadFileTree()
+      }
 
       // 如果是 Markdown 文件，选中并读取
       if (filePath.endsWith('.md')) {
         await articleStore.setActiveFilePath(filePath)
-        await articleStore.readArticle(filePath)
       }
 
       return {
@@ -286,12 +292,13 @@ export const deleteMarkdownFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
+      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
 
       // 检查是否是当前打开的文件
-      const isCurrentFile = articleStore.activeFilePath === params.filePath
+      const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
 
       // 统一使用 getFilePathOptions 来处理路径
-      const { path, baseDir } = await getFilePathOptions(params.filePath)
+      const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
 
       if (baseDir) {
         await remove(path, { baseDir })
@@ -299,17 +306,21 @@ export const deleteMarkdownFileTool: Tool = {
         await remove(path)
       }
 
-      // 刷新文件列表
-      await articleStore.loadFileTree()
-
       // 删除向量数据库中的记录
-      const filename = params.filePath.split('/').pop() || params.filePath
+      const filename = normalizedFilePath.split('/').pop() || normalizedFilePath
       try {
         const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
         await deleteVectorDocumentsByFilename(filename)
       } catch (error) {
         console.error(`删除文件 ${filename} 的向量数据失败:`, error)
       }
+
+      const removed = articleStore.removeLocalEntry(normalizedFilePath)
+      if (!removed) {
+        await articleStore.loadFileTree()
+      }
+
+      await articleStore.cleanTabsByDeletedFile(normalizedFilePath)
 
       // 如果删除的是当前打开的文件，取消选择并清空内容
       if (isCurrentFile) {
@@ -319,7 +330,7 @@ export const deleteMarkdownFileTool: Tool = {
 
       return {
         success: true,
-        message: `成功删除文件: ${params.filePath}`,
+        message: `成功删除文件: ${normalizedFilePath}`,
       }
     } catch (error) {
       return {
@@ -825,9 +836,10 @@ export const renameFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
+      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
 
       // 检查是否是当前打开的文件
-      const isCurrentFile = articleStore.activeFilePath === params.filePath
+      const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
 
       // 验证新文件名以 .md 结尾
       let newName = params.newName
@@ -836,10 +848,10 @@ export const renameFileTool: Tool = {
       }
 
       // 获取原文件的完整路径信息
-      const { path: oldPath, baseDir } = await getFilePathOptions(params.filePath)
+      const { path: oldPath, baseDir } = await getFilePathOptions(normalizedFilePath)
 
       // 构建新路径（保持原文件夹，只改文件名）
-      const pathParts = params.filePath.split('/')
+      const pathParts = normalizedFilePath.split('/')
       pathParts[pathParts.length - 1] = newName
       const newRelativePath = pathParts.join('/')
 
@@ -865,23 +877,27 @@ export const renameFileTool: Tool = {
         await rename(oldPath, newPath)
       }
 
-      // 刷新文件列表
-      await articleStore.loadFileTree()
+      const moved = articleStore.moveLocalEntry(normalizedFilePath, newRelativePath)
+      await articleStore.ensurePathExpanded(newRelativePath)
+      if (!moved) {
+        await articleStore.loadFileTree()
+      }
+
+      await articleStore.syncOpenTabsForPathChange(normalizedFilePath, newRelativePath)
 
       // 如果重命名的是当前打开的文件，更新 activeFilePath 并重新读取内容
       if (isCurrentFile) {
         await articleStore.setActiveFilePath(newRelativePath)
-        await articleStore.readArticle(newRelativePath)
       }
 
       return {
         success: true,
         data: {
-          oldPath: params.filePath,
+          oldPath: normalizedFilePath,
           newPath: newRelativePath,
           newName,
         },
-        message: `成功将 "${params.filePath}" 重命名为 "${newRelativePath}"`,
+        message: `成功将 "${normalizedFilePath}" 重命名为 "${newRelativePath}"`,
       }
     } catch (error) {
       console.error('[rename_file] 重命名失败', {
@@ -920,21 +936,23 @@ export const moveFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
+      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
+      const normalizedTargetFolderPath = await normalizeWorkspaceRelativePath(params.targetFolderPath)
 
       // 检查是否是当前打开的文件
-      const isCurrentFile = articleStore.activeFilePath === params.filePath
+      const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
 
       // 提取原文件名
-      const fileName = params.filePath.split('/').pop() || params.filePath
+      const fileName = normalizedFilePath.split('/').pop() || normalizedFilePath
 
       // 构建新路径
-      const newRelativePath = params.targetFolderPath
-        ? `${params.targetFolderPath}/${fileName}`
+      const newRelativePath = normalizedTargetFolderPath
+        ? `${normalizedTargetFolderPath}/${fileName}`
         : fileName
 
       // 验证目标文件夹是否存在
       const { exists } = await import('@tauri-apps/plugin-fs')
-      const { path: targetFolderDir, baseDir: targetBaseDir } = await getFilePathOptions(params.targetFolderPath)
+      const { path: targetFolderDir, baseDir: targetBaseDir } = await getFilePathOptions(normalizedTargetFolderPath)
 
       const targetFolderExists = targetBaseDir
         ? await exists(targetFolderDir, { baseDir: targetBaseDir })
@@ -943,12 +961,12 @@ export const moveFileTool: Tool = {
       if (!targetFolderExists) {
         return {
           success: false,
-          error: `目标文件夹 "${params.targetFolderPath}" 不存在，请先创建该文件夹`,
+          error: `目标文件夹 "${normalizedTargetFolderPath}" 不存在，请先创建该文件夹`,
         }
       }
 
       // 获取原文件和新文件的完整路径信息
-      const { path: oldPath, baseDir: oldBaseDir } = await getFilePathOptions(params.filePath)
+      const { path: oldPath, baseDir: oldBaseDir } = await getFilePathOptions(normalizedFilePath)
       const { path: newPath, baseDir: newBaseDir } = await getFilePathOptions(newRelativePath)
 
       // 检查目标位置是否已存在同名文件
@@ -970,22 +988,26 @@ export const moveFileTool: Tool = {
         await rename(oldPath, newPath)
       }
 
-      // 刷新文件列表
-      await articleStore.loadFileTree()
+      const moved = articleStore.moveLocalEntry(normalizedFilePath, newRelativePath)
+      await articleStore.ensurePathExpanded(newRelativePath)
+      if (!moved) {
+        await articleStore.loadFileTree()
+      }
+
+      await articleStore.syncOpenTabsForPathChange(normalizedFilePath, newRelativePath)
 
       // 如果移动的是当前打开的文件，更新 activeFilePath 并重新读取内容
       if (isCurrentFile) {
         await articleStore.setActiveFilePath(newRelativePath)
-        await articleStore.readArticle(newRelativePath)
       }
 
       return {
         success: true,
         data: {
-          oldPath: params.filePath,
+          oldPath: normalizedFilePath,
           newPath: newRelativePath,
         },
-        message: `成功将 "${params.filePath}" 移动到 "${newRelativePath}"`,
+        message: `成功将 "${normalizedFilePath}" 移动到 "${newRelativePath}"`,
       }
     } catch (error) {
       console.error('[move_file] 移动失败', {
@@ -1030,9 +1052,13 @@ export const copyFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
+      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
+      const normalizedTargetFolderPath = params.targetFolderPath
+        ? await normalizeWorkspaceRelativePath(params.targetFolderPath)
+        : undefined
 
       // 提取原文件名
-      const originalFileName = params.filePath.split('/').pop() || params.filePath
+      const originalFileName = normalizedFilePath.split('/').pop() || normalizedFilePath
 
       // 确定新文件名
       let newFileName = params.newName || originalFileName
@@ -1041,14 +1067,14 @@ export const copyFileTool: Tool = {
       }
 
       // 构建新路径
-      let newRelativePath = params.targetFolderPath
-        ? `${params.targetFolderPath}/${newFileName}`
+      let newRelativePath = normalizedTargetFolderPath
+        ? `${normalizedTargetFolderPath}/${newFileName}`
         : newFileName
 
       // 验证目标文件夹是否存在（如果指定了目标文件夹）
-      if (params.targetFolderPath) {
+      if (normalizedTargetFolderPath) {
         const { exists } = await import('@tauri-apps/plugin-fs')
-        const { path: targetFolderDir, baseDir: targetBaseDir } = await getFilePathOptions(params.targetFolderPath)
+        const { path: targetFolderDir, baseDir: targetBaseDir } = await getFilePathOptions(normalizedTargetFolderPath)
 
         const targetFolderExists = targetBaseDir
           ? await exists(targetFolderDir, { baseDir: targetBaseDir })
@@ -1057,13 +1083,13 @@ export const copyFileTool: Tool = {
         if (!targetFolderExists) {
           return {
             success: false,
-            error: `目标文件夹 "${params.targetFolderPath}" 不存在，请先创建该文件夹`,
+            error: `目标文件夹 "${normalizedTargetFolderPath}" 不存在，请先创建该文件夹`,
           }
         }
       }
 
       // 获取原文件和新文件的完整路径信息
-      const { path: oldPath, baseDir: oldBaseDir } = await getFilePathOptions(params.filePath)
+      const { path: oldPath, baseDir: oldBaseDir } = await getFilePathOptions(normalizedFilePath)
       const { path: newPath, baseDir: newBaseDir } = await getFilePathOptions(newRelativePath)
 
       // 检查目标位置是否已存在同名文件
@@ -1078,8 +1104,8 @@ export const copyFileTool: Tool = {
         let counter = 1
         do {
           newFileName = `${baseName} ${counter}.md`
-          newRelativePath = params.targetFolderPath
-            ? `${params.targetFolderPath}/${newFileName}`
+          newRelativePath = normalizedTargetFolderPath
+            ? `${normalizedTargetFolderPath}/${newFileName}`
             : newFileName
 
           const { path: checkPath, baseDir: checkBaseDir } = await getFilePathOptions(newRelativePath)
@@ -1100,17 +1126,20 @@ export const copyFileTool: Tool = {
         await copyFile(oldPath, finalNewPath)
       }
 
-      // 刷新文件列表
-      await articleStore.loadFileTree()
+      const inserted = articleStore.insertLocalEntry(newRelativePath, false)
+      await articleStore.ensurePathExpanded(newRelativePath)
+      if (!inserted) {
+        await articleStore.loadFileTree()
+      }
 
       return {
         success: true,
         data: {
-          sourcePath: params.filePath,
+          sourcePath: normalizedFilePath,
           newPath: newRelativePath,
           newName: newFileName,
         },
-        message: `成功将 "${params.filePath}" 复制为 "${newRelativePath}"`,
+        message: `成功将 "${normalizedFilePath}" 复制为 "${newRelativePath}"`,
       }
     } catch (error) {
       console.error('[copy_file] 复制失败', {

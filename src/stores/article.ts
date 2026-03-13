@@ -68,6 +68,117 @@ export const findFolderInTree = (path: string, tree: DirTree[]): DirTree | null 
   return null
 }
 
+function isLikelyFilePath(path: string): boolean {
+  const name = path.split('/').pop() || path
+  return name.includes('.')
+}
+
+function getFolderPathsToExpand(path: string): string[] {
+  const segments = path.split('/').filter(Boolean)
+  const folderSegments = isLikelyFilePath(path) ? segments.slice(0, -1) : segments
+
+  return folderSegments.map((_, index) => folderSegments.slice(0, index + 1).join('/'))
+}
+
+function createLocalTreeNode(name: string, isDirectory: boolean, parent?: DirTree): DirTree {
+  return {
+    name,
+    isDirectory,
+    isFile: !isDirectory,
+    isSymlink: false,
+    children: isDirectory ? [] : undefined,
+    parent,
+    isEditing: false,
+    isLocale: true,
+    sha: '',
+    createdAt: undefined,
+    modifiedAt: undefined,
+  }
+}
+
+function insertNodeIntoTree(tree: DirTree[], relativePath: string, isDirectory: boolean): boolean {
+  const parentPath = relativePath.split('/').slice(0, -1).join('/')
+  const name = relativePath.split('/').pop() || relativePath
+
+  if (!parentPath) {
+    if (tree.some(item => item.name === name)) {
+      return true
+    }
+    tree.unshift(createLocalTreeNode(name, isDirectory))
+    return true
+  }
+
+  const parentFolder = getCurrentFolder(parentPath, tree)
+  if (!parentFolder || !parentFolder.isDirectory) {
+    return false
+  }
+
+  if (!parentFolder.children) {
+    parentFolder.children = []
+  }
+
+  if (parentFolder.children.some(item => item.name === name)) {
+    return true
+  }
+
+  parentFolder.children.unshift(createLocalTreeNode(name, isDirectory, parentFolder))
+  return true
+}
+
+function removeNodeFromTree(tree: DirTree[], relativePath: string): DirTree | null {
+  const parentPath = relativePath.split('/').slice(0, -1).join('/')
+  const name = relativePath.split('/').pop() || relativePath
+
+  if (!parentPath) {
+    const index = tree.findIndex(item => item.name === name)
+    if (index === -1) {
+      return null
+    }
+    return tree.splice(index, 1)[0] || null
+  }
+
+  const parentFolder = getCurrentFolder(parentPath, tree)
+  if (!parentFolder?.children) {
+    return null
+  }
+
+  const index = parentFolder.children.findIndex(item => item.name === name)
+  if (index === -1) {
+    return null
+  }
+
+  return parentFolder.children.splice(index, 1)[0] || null
+}
+
+function attachNodeToTree(tree: DirTree[], relativePath: string, node: DirTree): boolean {
+  const parentPath = relativePath.split('/').slice(0, -1).join('/')
+  const name = relativePath.split('/').pop() || relativePath
+  node.name = name
+
+  if (!parentPath) {
+    node.parent = undefined
+    if (!tree.some(item => item.name === name)) {
+      tree.unshift(node)
+    }
+    return true
+  }
+
+  const parentFolder = getCurrentFolder(parentPath, tree)
+  if (!parentFolder || !parentFolder.isDirectory) {
+    return false
+  }
+
+  if (!parentFolder.children) {
+    parentFolder.children = []
+  }
+
+  node.parent = parentFolder
+  if (!parentFolder.children.some(item => item.name === name)) {
+    parentFolder.children.unshift(node)
+  }
+  return true
+}
+
 interface NoteState {
   loading: boolean
   setLoading: (loading: boolean) => void
@@ -118,6 +229,11 @@ interface NoteState {
   fileTreeLoading: boolean
   setFileTree: (tree: DirTree[]) => void
   addFile: (file: DirTree) => void
+  ensurePathExpanded: (path: string) => Promise<void>
+  insertLocalEntry: (relativePath: string, isDirectory: boolean) => boolean
+  removeLocalEntry: (relativePath: string) => boolean
+  moveLocalEntry: (oldPath: string, newPath: string) => boolean
+  syncOpenTabsForPathChange: (oldPath: string, newPath: string) => Promise<void>
   loadFileTree: () => Promise<void>
   loadRemoteSyncFiles: () => Promise<void>
   loadCollapsibleFiles: (folderName: string) => Promise<void>
@@ -480,6 +596,79 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   addFile: (file: DirTree) => {
     set({ fileTree: [file, ...get().fileTree] })
+  },
+  ensurePathExpanded: async (path: string) => {
+    const folderPaths = getFolderPathsToExpand(path)
+    if (folderPaths.length === 0) {
+      return
+    }
+
+    const collapsibleList = uniq([...get().collapsibleList, ...folderPaths])
+    const store = await getStore()
+    await store.set('collapsibleList', collapsibleList)
+    set({ collapsibleList })
+  },
+  insertLocalEntry: (relativePath: string, isDirectory: boolean) => {
+    const cacheTree = cloneDeep(get().fileTree)
+    const inserted = insertNodeIntoTree(cacheTree, relativePath, isDirectory)
+
+    if (!inserted) {
+      return false
+    }
+
+    get().setFileTree(cacheTree)
+    return true
+  },
+  removeLocalEntry: (relativePath: string) => {
+    const cacheTree = cloneDeep(get().fileTree)
+    const removed = removeNodeFromTree(cacheTree, relativePath)
+
+    if (!removed) {
+      return false
+    }
+
+    get().setFileTree(cacheTree)
+    return true
+  },
+  moveLocalEntry: (oldPath: string, newPath: string) => {
+    const cacheTree = cloneDeep(get().fileTree)
+    const removedNode = removeNodeFromTree(cacheTree, oldPath)
+
+    if (!removedNode) {
+      return false
+    }
+
+    const attached = attachNodeToTree(cacheTree, newPath, removedNode)
+    if (!attached) {
+      return false
+    }
+
+    get().setFileTree(cacheTree)
+    return true
+  },
+  syncOpenTabsForPathChange: async (oldPath: string, newPath: string) => {
+    const currentTabs = get().openTabs
+    const currentActiveTabId = get().activeTabId
+    const newTabs = currentTabs.map(tab => {
+      if (tab.path !== oldPath) {
+        return tab
+      }
+
+      return {
+        ...tab,
+        path: newPath,
+        name: newPath.split('/').pop() || newPath,
+      }
+    })
+
+    const nextActiveTabId = currentTabs.some(tab => tab.path === oldPath)
+      ? currentActiveTabId
+      : get().activeTabId
+
+    set({ openTabs: newTabs, activeTabId: nextActiveTabId })
+    const store = await getStore()
+    await store.set('openTabs', newTabs)
+    await store.set('activeTabId', nextActiveTabId)
   },
   fileTreeLoading: false,
   updateFileStats: async (basePath: string, tree: DirTree[]) => {

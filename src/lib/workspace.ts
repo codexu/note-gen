@@ -113,3 +113,27 @@ export async function toWorkspaceRelativePath(path: string): Promise<string> {
   // 如果路径已经是相对路径，直接返回
   return path
 }
+
+/**
+ * 规范化相对于工作区的路径
+ * - 自定义工作区: 保持相对路径原样
+ * - 默认工作区(article): 自动移除误传入的 article/ 前缀
+ */
+export async function normalizeWorkspaceRelativePath(relativePath: string): Promise<string> {
+  const workspace = await getWorkspacePath()
+  const normalized = relativePath
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '')
+    .replace(/\/+/g, '/')
+
+  if (workspace.isCustom) {
+    return normalized
+  }
+
+  if (normalized === 'article') {
+    return ''
+  }
+
+  return normalized.replace(/^article\//, '')
+}

@@ -27,6 +27,12 @@ export interface InstallResult {
   alreadyInstalled?: boolean
 }
 
+export interface DependencyInstallRequest {
+  stderr: string
+  command: string
+  workingDirectory: string
+}
+
 /**
  * Module to package name mapping
  * Handles cases where module name differs from package name
@@ -114,13 +120,49 @@ export function parseDependencyError(stderr: string): DependencyInfo | null {
 /**
  * Check if a command exists (for fallback to pip3, npm, etc.)
  */
-async function commandExists(cmd: string): Promise<boolean> {
+export async function commandExists(cmd: string): Promise<boolean> {
   try {
     const result = await Command.create('bash', ['-c', `command -v "${cmd}"`]).execute()
     return result.code === 0
   } catch {
     return false
   }
+}
+
+async function detectNodePackageManager(workingDirectory: string): Promise<'pnpm' | 'npm' | 'yarn' | null> {
+  const candidates: Array<{ lockFile: string; command: 'pnpm' | 'npm' | 'yarn' }> = [
+    { lockFile: 'pnpm-lock.yaml', command: 'pnpm' },
+    { lockFile: 'package-lock.json', command: 'npm' },
+    { lockFile: 'yarn.lock', command: 'yarn' },
+  ]
+
+  for (const candidate of candidates) {
+    if (await exists(`${workingDirectory}/${candidate.lockFile}`) && await commandExists(candidate.command)) {
+      return candidate.command
+    }
+  }
+
+  for (const command of ['pnpm', 'npm', 'yarn'] as const) {
+    if (await commandExists(command)) {
+      return command
+    }
+  }
+
+  return null
+}
+
+async function detectPythonCommand(preferred: string): Promise<string | null> {
+  if (await commandExists(preferred)) {
+    return preferred
+  }
+
+  for (const command of ['python3', 'python'] as const) {
+    if (await commandExists(command)) {
+      return command
+    }
+  }
+
+  return null
 }
 
 /**
@@ -224,4 +266,71 @@ export async function handleDependencyError(stderr: string, targetDir?: string):
   }
 
   return await installDependency(dep, targetDir)
+}
+
+export async function ensureDependencyForCommand(
+  request: DependencyInstallRequest
+): Promise<InstallResult | null> {
+  const dep = parseDependencyError(request.stderr)
+
+  if (!dep) {
+    return null
+  }
+
+  if (dep.type === 'python') {
+    const pythonCommand = await detectPythonCommand(request.command.startsWith('python') ? request.command : 'python3')
+    if (!pythonCommand) {
+      return {
+        success: false,
+        message: `Python interpreter not found. Missing module: ${dep.moduleName}`,
+      }
+    }
+
+    const packageName = dep.installArgs[1]
+    const shellCommand = `cd "${request.workingDirectory}" && ${pythonCommand} -m pip install ${packageName}`
+    const result = await Command.create('bash', ['-c', shellCommand]).execute()
+
+    return result.code === 0
+      ? {
+          success: true,
+          message: `Successfully installed python module '${packageName}'`,
+          installed: packageName,
+        }
+      : {
+          success: false,
+          message: result.stderr || `Failed to install python module '${packageName}'`,
+        }
+  }
+
+  if (dep.type === 'node') {
+    const packageManager = await detectNodePackageManager(request.workingDirectory)
+    if (!packageManager) {
+      return {
+        success: false,
+        message: `No available Node package manager found. Missing module: ${dep.moduleName}`,
+      }
+    }
+
+    const packageName = dep.installArgs[dep.installArgs.length - 1]
+    const installCommands: Record<'pnpm' | 'npm' | 'yarn', string> = {
+      pnpm: `cd "${request.workingDirectory}" && pnpm add ${packageName}`,
+      npm: `cd "${request.workingDirectory}" && npm install ${packageName}`,
+      yarn: `cd "${request.workingDirectory}" && yarn add ${packageName}`,
+    }
+
+    const result = await Command.create('bash', ['-c', installCommands[packageManager]]).execute()
+
+    return result.code === 0
+      ? {
+          success: true,
+          message: `Successfully installed node module '${packageName}' using ${packageManager}`,
+          installed: packageName,
+        }
+      : {
+          success: false,
+          message: result.stderr || `Failed to install node module '${packageName}' using ${packageManager}`,
+        }
+  }
+
+  return null
 }

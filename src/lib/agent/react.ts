@@ -194,6 +194,25 @@ export class ReActAgent {
             finalAnswer = match[1].trim()
           }
         }
+
+        const finalAnswerValidation = this.validateFinalAnswerReadiness(userInput, finalAnswer || '')
+        if (!finalAnswerValidation.ok) {
+          const observation = finalAnswerValidation.reason || '最终答案校验未通过，请继续执行实际工具。'
+          this.config.onObservation?.(observation)
+          this.steps.push({
+            thought,
+            action: undefined,
+            observation,
+          })
+          this.logDebug('run:reject-final-answer', {
+            iteration: this.currentIteration,
+            reason: finalAnswerValidation.reason,
+            preview: finalAnswer.slice(0, 300),
+          })
+          finalAnswer = ''
+          continue
+        }
+
         this.logDebug('run:finish-final-answer', {
           iteration: this.currentIteration,
           reason: 'thought_contains_final_answer',
@@ -1861,5 +1880,63 @@ ${skillsList.join('\n---\n\n')}
     }
 
     return false
+  }
+
+  private isSupportOnlyTool(toolName?: string): boolean {
+    if (!toolName) {
+      return false
+    }
+
+    return toolName === 'select_skill' || toolName === 'load_skill_content'
+  }
+
+  private hasSubstantiveSuccessfulAction(): boolean {
+    return this.steps.some((step) => {
+      const toolName = step.action?.tool
+      if (!toolName || this.isSupportOnlyTool(toolName)) {
+        return false
+      }
+
+      const observation = step.observation || ''
+      if (!observation) {
+        return false
+      }
+
+      return !observation.includes('失败') && !observation.includes('错误') && !observation.includes('阻止')
+    })
+  }
+
+  private validateFinalAnswerReadiness(userInput: string, finalAnswer: string): { ok: boolean; reason?: string } {
+    const normalizedInput = userInput.toLowerCase()
+    const normalizedAnswer = finalAnswer.toLowerCase()
+    const actionLikeRequest = this.intentPolicy.allowWrite || this.intentPolicy.allowExecute || this.intentPolicy.allowDestructive
+    const hasOnlySupportSteps = this.steps.length > 0 && this.steps.every((step) => this.isSupportOnlyTool(step.action?.tool))
+    const claimsExecution = /已生成|已创建|已保存|已完成|已导出|已验证|成功使用|generated|created|saved|exported|verified|completed/.test(finalAnswer)
+    const requestedArtifact = /生成|创建|制作|导出|保存|输出|pptx|pdf|docx|xlsx|文件|演示文稿|generate|create|export|save|file|presentation/.test(normalizedInput)
+
+    if (actionLikeRequest && requestedArtifact && claimsExecution && !this.hasSubstantiveSuccessfulAction()) {
+      return {
+        ok: false,
+        reason: hasOnlySupportSteps
+          ? '仅完成了 Skill 选择或说明读取，尚未真正执行创建/脚本工具，不能宣称文件已生成。请继续执行实际工具。'
+          : '尚未获得真实工具成功结果，不能宣称文件已生成、已保存或已验证。请继续执行实际工具。',
+      }
+    }
+
+    if (this.selectedSkills.size > 0 && claimsExecution && !this.hasSubstantiveSuccessfulAction()) {
+      return {
+        ok: false,
+        reason: '已选择 Skill，但还没有真正完成执行步骤。请先完成 create_file、execute_skill_script 或其他实际工具调用，再给最终答案。',
+      }
+    }
+
+    if (normalizedAnswer.includes('验证通过') && !this.hasSubstantiveSuccessfulAction()) {
+      return {
+        ok: false,
+        reason: '还没有真实执行结果可供验证，不能声称“已验证通过”。请先执行实际工具。',
+      }
+    }
+
+    return { ok: true }
   }
 }

@@ -75,6 +75,11 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
     /执行|运行|命令|脚本|终端|shell|bash|python|node|npm|pnpm/,
     /\b(run|execute|command|script|terminal|shell|bash|python|node|npm|pnpm)\b/i,
   ]
+  const skillExecutionPatterns = [
+    /(用|使用).*(skill|技能).*(生成|导出|转换|制作|渲染|输出)/,
+    /(生成|导出|转换|制作|渲染|输出).*(pptx|pdf|docx|xlsx|图片|演示文稿|文件)/,
+    /\b(use .*skill.*(?:generate|export|convert|render|build))\b/i,
+  ]
   const denyDestructivePatterns = [
     /不要删除|别删除|禁止删除|不删|不要清空|别清空|禁止清空/,
     /\b(do not delete|don't delete|no delete|do not remove|don't remove|do not clear|don't clear)\b/i,
@@ -89,7 +94,8 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
     destructivePatterns.some((pattern) => pattern.test(input)) &&
     !denyDestructivePatterns.some((pattern) => pattern.test(input))
   const allowExecute =
-    executePatterns.some((pattern) => pattern.test(input)) &&
+    (executePatterns.some((pattern) => pattern.test(input)) ||
+      skillExecutionPatterns.some((pattern) => pattern.test(input))) &&
     !denyExecutePatterns.some((pattern) => pattern.test(input))
 
   return {

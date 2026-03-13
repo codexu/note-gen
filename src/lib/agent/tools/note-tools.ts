@@ -1,8 +1,8 @@
 import { Tool, ToolResult } from '../types'
-import { readTextFile, writeTextFile, remove, rename, copyFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, readTextFile, writeTextFile, remove, rename, copyFile } from '@tauri-apps/plugin-fs'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
-import { getFilePathOptions, normalizeWorkspaceRelativePath } from '@/lib/workspace'
+import { getDefaultArticleAbsolutePath, getFilePathOptions, normalizeWorkspaceRelativePath } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
@@ -131,13 +131,13 @@ export const createFileTool: Tool = {
     {
       name: 'folderPath',
       type: 'string',
-      description: 'Optional: subfolder path, defaults to root directory. For scripts to be executed by execute_skill_script, use path like "skills/pptx/scripts"',
+      description: 'Optional: subfolder path, defaults to root directory. For temporary scripts executed by execute_skill_script, prefer paths like "skills/pptx/runtime"',
       required: false,
     },
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      const normalizedFolderPath = params.folderPath
+      let normalizedFolderPath = params.folderPath
         ? await normalizeWorkspaceRelativePath(params.folderPath)
         : undefined
 
@@ -155,6 +155,13 @@ export const createFileTool: Tool = {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
         fileName = `file-${timestamp}.txt`
       }
+      fileName = fileName.trim().replace(/\\/g, '/')
+
+      if (!normalizedFolderPath && fileName.includes('/')) {
+        const parts = fileName.split('/').filter(Boolean)
+        fileName = parts.pop() || fileName
+        normalizedFolderPath = parts.join('/')
+      }
 
       let filePath = fileName
 
@@ -162,16 +169,31 @@ export const createFileTool: Tool = {
       if (normalizedFolderPath) {
         filePath = `${normalizedFolderPath}/${fileName}`
       }
+      const isSpecialSkillPath =
+        filePath.startsWith('skills/') || filePath.startsWith('outputs/')
 
       // 统一使用 getFilePathOptions 来处理路径
-      const { path, baseDir } = await getFilePathOptions(filePath)
+      const specialArticleRelativePath = isSpecialSkillPath
+        ? `article/${filePath}`.replace(/^article\/article\//, 'article/')
+        : undefined
+      const specialAbsolutePath = specialArticleRelativePath
+        ? await getDefaultArticleAbsolutePath(filePath)
+        : undefined
+      const { path, baseDir } = specialArticleRelativePath
+        ? { path: specialArticleRelativePath as string, baseDir: BaseDirectory.AppData }
+        : await getFilePathOptions(filePath)
 
       // 在创建文件前，确保父目录存在
       const parentFolderPath = filePath.substring(0, filePath.lastIndexOf('/'))
       const needsParentFolder = parentFolderPath && parentFolderPath !== filePath
 
       if (needsParentFolder) {
-        const { path: parentPath, baseDir: parentBaseDir } = await getFilePathOptions(parentFolderPath)
+        const specialParentRelativePath = isSpecialSkillPath
+          ? `article/${parentFolderPath}`.replace(/^article\/article\//, 'article/')
+          : undefined
+        const { path: parentPath, baseDir: parentBaseDir } = specialParentRelativePath
+          ? { path: specialParentRelativePath as string, baseDir: BaseDirectory.AppData }
+          : await getFilePathOptions(parentFolderPath)
         const { mkdir } = await import('@tauri-apps/plugin-fs')
         if (parentBaseDir) {
           await mkdir(parentPath, { baseDir: parentBaseDir, recursive: true })

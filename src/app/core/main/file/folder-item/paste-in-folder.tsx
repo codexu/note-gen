@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { BaseDirectory, mkdir, readDir, readTextFile, remove, writeTextFile } from "@tauri-apps/plugin-fs";
 import { FileSymlink } from "lucide-react"
 import { Kbd } from "@/components/ui/kbd"
+import { getPasteTargetDirectory } from "./paste-target";
 
 interface PasteInFolderProps {
   item: DirTree;
@@ -30,10 +31,8 @@ export function PasteInFolder({ item, shortcut }: PasteInFolderProps) {
       const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
       const workspace = await getWorkspacePath()
 
-      // 粘贴目标：当前项的父目录（同级粘贴）
-      // 对于文件夹：粘贴到其父目录（与该文件夹同级）
-      // 对于文件：粘贴到文件所在的目录
-      const targetDir = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
+      // 粘贴目标：当前文件夹
+      const targetDir = getPasteTargetDirectory(path)
 
       // 生成唯一的目标名称（文件或文件夹）
       const targetName = clipboardItem.isDirectory

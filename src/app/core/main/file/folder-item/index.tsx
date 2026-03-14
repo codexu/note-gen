@@ -25,6 +25,7 @@ import { MobileActionMenu, MobileMenuItem, MobileSeparator } from "../mobile-act
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTranslations } from "next-intl"
 import { FolderVectorMenu } from './folder-vector-menu'
+import { getPasteTargetDirectory } from './paste-target'
 import emitter from '@/lib/emitter'
 import { LinkedFolder } from '@/lib/files'
 
@@ -235,8 +236,8 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
 
       const sourcePath = `article/${clipboardItem.path}`
 
-      // 粘贴目标：当前文件夹的父目录（同级粘贴）
-      const targetDir = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
+      // 粘贴目标：当前文件夹
+      const targetDir = getPasteTargetDirectory(path)
 
       // 生成唯一的目标名称（文件或文件夹）
       const targetName = clipboardItem.isDirectory
@@ -686,7 +687,7 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
 
     const handlePasteEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ targetPath: string }>
-      // 粘贴到文件所在目录（同级粘贴）
+      // 粘贴到当前文件夹
       if (customEvent.detail.targetPath === path) {
         handlePasteInFolder()
       }

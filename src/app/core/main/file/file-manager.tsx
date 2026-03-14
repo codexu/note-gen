@@ -2,10 +2,11 @@
 import React, { useEffect, useState, useMemo } from "react"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import useArticleStore, { DirTree } from "@/stores/article"
-import { BaseDirectory, rename, writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
+import { rename, writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
 import { FileItem } from './file-item'
 import { FolderItem } from "./folder-item"
 import { computedParentPath } from "@/lib/path"
+import { writeDroppedFileToRoot } from "./root-drop"
 
 // 递归过滤文件树，移除云端文件（如果 showCloudFiles 为 false）
 function filterFileTree(tree: DirTree[], showCloud: boolean): DirTree[] {
@@ -77,8 +78,8 @@ export function FileManager({ focusSidebar }: { focusSidebar: () => void }) {
       } else {
         // 默认工作区
         await rename(oldPathOptions.path, newPathOptions.path, { 
-          newPathBaseDir: BaseDirectory.AppData, 
-          oldPathBaseDir: BaseDirectory.AppData 
+          newPathBaseDir: newPathOptions.baseDir,
+          oldPathBaseDir: oldPathOptions.baseDir
         })
       }
       
@@ -93,10 +94,16 @@ export function FileManager({ focusSidebar }: { focusSidebar: () => void }) {
         // 接受 markdown 和图片文件
         if (file.name.endsWith('.md')) {
           const text = await file.text()
-          // 处理文件名，将空格替换为下划线以保持一致性
-          const sanitizedFileName = file.name.replace(/\s+/g, '_')
+          const { getFilePathOptions } = await import('@/lib/workspace')
+          const sanitizedFileName = await writeDroppedFileToRoot({
+            fileName: file.name,
+            getFilePathOptions,
+            writeTextFile,
+          }, {
+            kind: 'text',
+            content: text,
+          })
 
-          await writeTextFile(`article/${sanitizedFileName}`, text, { baseDir: BaseDirectory.AppData })
           addFile({
             name: sanitizedFileName,
             isEditing: false,
@@ -109,8 +116,16 @@ export function FileManager({ focusSidebar }: { focusSidebar: () => void }) {
           // 处理图片文件，同样需要处理文件名以保持一致性
           const arrayBuffer = await file.arrayBuffer()
           const uint8Array = new Uint8Array(arrayBuffer)
-          const sanitizedImageFileName = file.name.replace(/\s+/g, '_')
-          await writeFile(`article/${sanitizedImageFileName}`, uint8Array, { baseDir: BaseDirectory.AppData })
+          const { getFilePathOptions } = await import('@/lib/workspace')
+          const sanitizedImageFileName = await writeDroppedFileToRoot({
+            fileName: file.name,
+            getFilePathOptions,
+            writeFile,
+          }, {
+            kind: 'binary',
+            content: uint8Array,
+          })
+
           addFile({
             name: sanitizedImageFileName,
             isEditing: false,

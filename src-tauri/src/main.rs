@@ -15,7 +15,7 @@ mod tray;
 use screenshot::{screenshot};
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
 use keywords::{rank_keywords};
-use backup::{export_app_data, import_app_data};
+use backup::{export_app_data, import_app_data, import_app_data_from_file};
 use skills::import_skill_zip;
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use device::get_device_id;
@@ -55,6 +55,7 @@ fn main() {
             rank_keywords,
             export_app_data,
             import_app_data,
+            import_app_data_from_file,
             import_skill_zip,
             start_mcp_stdio_server,
             stop_mcp_server,

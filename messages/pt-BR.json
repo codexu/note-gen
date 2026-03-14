@@ -1760,7 +1760,7 @@
           "translate": "Modo Traduzir"
         },
         "chatModeSelect": {
-          "chatDescription": "Conversa rápida, modo somente leitura",
+          "chatDescription": "Conversa rápida, foco em análise",
           "agentDescription": "Assistente inteligente, pode executar ações"
         },
         "attachImage": "Anexar imagens",
@@ -1771,6 +1771,10 @@
           "acting": "Agindo",
           "observation": "Observação",
           "toolCalls": "Chamadas de Ferramenta",
+          "autoFinal": {
+            "createNote": "Nota \"{name}\" criada.",
+            "createFile": "Arquivo \"{name}\" criado."
+          },
           "thought": "Pensamento",
           "action": "Ação",
           "confirmation": {

@@ -1696,7 +1696,7 @@
           "translate": "翻訳モード"
         },
         "chatModeSelect": {
-          "chatDescription": "クイック会話、読み取り専用モード",
+          "chatDescription": "クイック会話、分析優先",
           "agentDescription": "スマートアシスタント、アクション実行可能"
         },
         "attachImage": "画像を添付",
@@ -1707,6 +1707,10 @@
           "acting": "実行中",
           "observation": "観察結果",
           "toolCalls": "ツール呼び出し",
+          "autoFinal": {
+            "createNote": "ノート「{name}」を作成しました。",
+            "createFile": "ファイル「{name}」を作成しました。"
+          },
           "thought": "思考",
           "action": "行動",
           "confirmation": {

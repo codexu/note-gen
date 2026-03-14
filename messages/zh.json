@@ -1642,7 +1642,7 @@
           "translate": "翻译模式"
         },
         "chatModeSelect": {
-          "chatDescription": "快速对话，只读模式",
+          "chatDescription": "快速对话，分析优先",
           "agentDescription": "智能助手，可执行操作"
         },
         "attachImage": "附加图片",
@@ -1664,6 +1664,10 @@
           "thought": "思考",
           "action": "行动",
           "toolCalls": "工具调用",
+          "autoFinal": {
+            "createNote": "已创建笔记《{name}》。",
+            "createFile": "已创建文件《{name}》。"
+          },
           "confirmation": {
             "title": "确认操作",
             "description": "Agent 想要执行以下操作，请确认后继续。",
@@ -1672,7 +1676,59 @@
             "cancel": "取消",
             "confirm": "确认",
             "confirmed": "已确认",
-            "cancelled": "已取消"
+            "cancelled": "已取消",
+            "fallback": {
+              "title": "即将执行操作",
+              "description": "请确认这次操作的目标和内容。"
+            },
+            "params": {
+              "filePath": "文件路径",
+              "content": "文件内容",
+              "sourcePath": "来源路径",
+              "targetPath": "目标路径",
+              "files": "文件列表",
+              "newName": "新名称",
+              "scriptName": "脚本名称",
+              "command": "命令"
+            },
+            "tools": {
+              "create_file": {
+                "title": "创建文件",
+                "description": "将在工作区中新建一个文件。"
+              },
+              "create_files_batch": {
+                "title": "批量创建文件",
+                "description": "将在工作区中一次创建多个文件。"
+              },
+              "rename_file": {
+                "title": "重命名文件",
+                "description": "将修改所选文件的名称。"
+              },
+              "move_file": {
+                "title": "移动文件",
+                "description": "将把文件移动到新的位置。"
+              },
+              "copy_file": {
+                "title": "复制文件",
+                "description": "将在目标位置创建该文件的副本。"
+              },
+              "replace_editor_content": {
+                "title": "替换编辑器内容",
+                "description": "将用新内容替换当前编辑器内容。"
+              },
+              "insert_at_cursor": {
+                "title": "在光标处插入内容",
+                "description": "会把内容插入到当前光标位置。"
+              },
+              "delete_markdown_file": {
+                "title": "删除文件",
+                "description": "将永久删除所选文件。"
+              },
+              "execute_skill_script": {
+                "title": "运行脚本",
+                "description": "将执行由 skill 提供的脚本或命令。"
+              }
+            }
           }
         },
         "fileLink": {

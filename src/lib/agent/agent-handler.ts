@@ -14,6 +14,7 @@ export interface AgentHandlerConfig {
   onComplete?: (result: string, steps?: any[], stopped?: boolean) => void
   onError?: (error: string) => void
   onFinalAnswerRender?: (markdownContent: string) => void  // 当检测到 Final Answer 时立即渲染 Markdown
+  formatAutoFinalAnswer?: (key: string, values?: Record<string, string>) => string
   requestConfirmation?: (toolName: string, params: Record<string, any>) => Promise<boolean>
   currentQuote?: {
     fileName: string
@@ -172,6 +173,7 @@ export class AgentHandler {
         // 检测到 Final Answer 时，触发外部渲染
         this.config.onFinalAnswerRender?.(markdownContent)
       },
+      formatAutoFinalAnswer: this.config.formatAutoFinalAnswer,
       requestConfirmation: this.config.requestConfirmation,
       currentQuote: this.config.currentQuote,
     }

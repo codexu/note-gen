@@ -71,6 +71,10 @@ interface ChatState {
   resetAgentState: () => void
   addAgentToolCall: (toolCall: ToolCall) => void
   updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => void
+  agentAutoApproveConversationId: number | null
+  setAgentAutoApproveConversationId: (conversationId: number | null) => void
+  agentAutoApproveRuntimeSkillId: string | null
+  setAgentAutoApproveRuntimeSkillId: (skillId: string | null) => void
 
   // Placeholder 状态
   isPlaceholderEnabled: boolean
@@ -257,6 +261,15 @@ const useChatStore = create<ChatState>((set, get) => ({
         )
       }
     })
+  },
+
+  agentAutoApproveConversationId: null,
+  setAgentAutoApproveConversationId: (conversationId: number | null) => {
+    set({ agentAutoApproveConversationId: conversationId })
+  },
+  agentAutoApproveRuntimeSkillId: null,
+  setAgentAutoApproveRuntimeSkillId: (skillId: string | null) => {
+    set({ agentAutoApproveRuntimeSkillId: skillId })
   },
 
   isPlaceholderEnabled: true,
@@ -681,7 +694,12 @@ const useChatStore = create<ChatState>((set, get) => ({
         await switchConversation(remainingConversations[0].id)
       } else {
         // 没有其他会话了，清空状态，不创建新会话
-        set({ currentConversationId: null, chats: [] })
+        set({
+          currentConversationId: null,
+          chats: [],
+          agentAutoApproveConversationId: null,
+          agentAutoApproveRuntimeSkillId: null
+        })
         get().resetAgentState()
         get().clearMcpToolCalls()
       }
@@ -717,7 +735,12 @@ const useChatStore = create<ChatState>((set, get) => ({
 
     // 清空聊天，不立即创建新会话
     // 等到用户发送第一条消息时才创建会话
-    set({ currentConversationId: null, chats: [] })
+    set({
+      currentConversationId: null,
+      chats: [],
+      agentAutoApproveConversationId: null,
+      agentAutoApproveRuntimeSkillId: null
+    })
     // 清空 Agent 状态
     get().resetAgentState()
     get().clearMcpToolCalls()

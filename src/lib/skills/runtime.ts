@@ -5,6 +5,7 @@ import { skillManager } from './manager'
 import { buildShellCommand, resolveSkillDirectory } from './path-utils'
 import { detectPythonCommand, ensureDependencyForCommand } from './dependency-installer'
 import { getFilePathOptions } from '@/lib/workspace'
+import { classifySkillScriptPath } from './runtime-paths'
 
 export interface SkillRuntimeContext {
   skillId: string
@@ -172,7 +173,8 @@ async function normalizeArg(arg: string, context: SkillRuntimeContext): Promise<
     return arg
   }
 
-  const normalized = arg.replace(/\\/g, '/')
+  const classified = classifySkillScriptPath(arg)
+  const normalized = classified.normalizedArg
 
   if (isSkillBuiltInPath(normalized)) {
     return normalized

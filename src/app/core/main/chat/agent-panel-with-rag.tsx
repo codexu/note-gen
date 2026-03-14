@@ -44,15 +44,24 @@ interface AgentPanelWithRagProps {
   pendingConfirmation?: {
     toolName: string
     params: Record<string, any>
+    originalContent?: string
+    modifiedContent?: string
+    filePath?: string
+    canApproveForSession?: boolean
+    sessionApprovalType?: "write" | "runtime-script-skill"
+    sessionApprovalSkillId?: string
   }
   confirmationHistory?: Array<{
     toolName: string
     params: Record<string, any>
     status: "pending" | "confirmed" | "cancelled"
     timestamp: number
+    scope?: "once" | "conversation"
+    sessionApprovalType?: "write" | "runtime-script-skill"
+    sessionApprovalSkillId?: string
   }>
   currentStepStartTime?: number
-  onConfirm?: () => void
+  onConfirm?: (scope?: "once" | "conversation") => void
   onCancel?: () => void
 }
 

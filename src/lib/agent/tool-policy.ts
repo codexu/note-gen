@@ -6,6 +6,18 @@ export interface IntentPolicy {
   allowExecute: boolean
 }
 
+export interface ToolPolicyEvaluationInput {
+  toolName: string
+  category: string
+  intentPolicy: IntentPolicy
+}
+
+export interface ToolPolicyEvaluationResult {
+  allowed: boolean
+  requiresConfirmation: boolean
+  reason?: string
+}
+
 export const HIGH_RISK_TOOLS = new Set([
   'execute_skill_script',
   'delete_markdown_file',
@@ -64,8 +76,10 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
   const input = userInput.toLowerCase()
 
   const writePatterns = [
-    /创建|新建|新增|写入|改写|修改|编辑|更新|重写|插入|替换|保存|改|优化|精简|简化|润色|调整|补充|增加|添加|补全|扩写|完善|丰富|重命名|改名|命名为|移动|复制/,
-    /\b(create|write|modify|edit|update|insert|replace|save|rename|move)\b/i,
+    /创建|新建|新增|写入|改写|修改|编辑|更新|重写|插入|替换|保存|优化|精简|简化|润色|调整|补充|增加|添加|补全|扩写|完善|丰富|重命名|改名|命名为|移动|复制|草拟|起草|写文章|写内容|生成文章/,
+    /写(一篇|个|篇)?(关于|成|出)?/,
+    /改成|改为/,
+    /\b(create|write|draft|modify|edit|update|insert|replace|save|rename|move|copy)\b/i,
   ]
   const destructivePatterns = [
     /删除|移除|清空|清除/,
@@ -74,6 +88,14 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
   const executePatterns = [
     /执行|运行|命令|脚本|终端|shell|bash|python|node|npm|pnpm/,
     /\b(run|execute|command|script|terminal|shell|bash|python|node|npm|pnpm)\b/i,
+  ]
+  const generativeExecutionPatterns = [
+    /(用|使用).*(skill|技能).*(生成|导出|转换|渲染|构建|产出|输出|保存为)/,
+    /(生成|导出|转换|渲染|构建|产出|输出).*(文件|演示文稿|幻灯片|ppt|pptx|pdf|docx|xlsx)/,
+    /(保存为|输出为|导出为|转换为).*(文件|ppt|pptx|pdf|docx|xlsx)/,
+    /\b(use .*skill.*(?:generate|export|convert|render|build|produce|save))\b/i,
+    /\b(?:generate|export|convert|render|build|produce).*(?:file|presentation|slides|ppt|pptx|pdf|docx|xlsx)\b/i,
+    /\b(?:save as|export as|convert to).*(?:ppt|pptx|pdf|docx|xlsx|file)\b/i,
   ]
   const skillExecutionPatterns = [
     /(用|使用).*(skill|技能).*(生成|导出|转换|制作|渲染|输出)/,
@@ -97,6 +119,7 @@ export function deriveIntentPolicy(userInput: string): IntentPolicy {
     !denyDestructivePatterns.some((pattern) => pattern.test(input))
   const allowExecute =
     (executePatterns.some((pattern) => pattern.test(input)) ||
+      generativeExecutionPatterns.some((pattern) => pattern.test(input)) ||
       skillExecutionPatterns.some((pattern) => pattern.test(input))) &&
     !denyExecutePatterns.some((pattern) => pattern.test(input))
 
@@ -172,4 +195,55 @@ export function getToolRiskLevel(toolName: string, category: string): ToolRiskLe
   }
 
   return 'medium'
+}
+
+export function evaluateIntentAwareToolPolicy(
+  input: ToolPolicyEvaluationInput
+): ToolPolicyEvaluationResult {
+  const { toolName, category, intentPolicy } = input
+  const risk = getToolRiskLevel(toolName, category)
+  const isDestructive = isDestructiveTool(toolName)
+  const isExecute = isExecuteTool(toolName)
+
+  if (isExecute && !intentPolicy.allowExecute) {
+    return {
+      allowed: false,
+      requiresConfirmation: false,
+      reason: '用户未明确要求执行命令或脚本',
+    }
+  }
+
+  if (isDestructive && !intentPolicy.allowDestructive) {
+    return {
+      allowed: false,
+      requiresConfirmation: false,
+      reason: '用户未明确要求删除或清空操作',
+    }
+  }
+
+  if (risk === 'medium') {
+    return {
+      allowed: true,
+      requiresConfirmation: true,
+    }
+  }
+
+  if (risk === 'high' && !isDestructive && !isExecute && !intentPolicy.allowWrite) {
+    return {
+      allowed: false,
+      requiresConfirmation: false,
+      reason: '高风险写入操作需要用户明确修改意图',
+    }
+  }
+
+  return {
+    allowed: true,
+    requiresConfirmation: risk === 'high',
+  }
+}
+
+export function isRecoverableWriteTool(toolName: string, category: string): boolean {
+  const risk = getToolRiskLevel(toolName, category)
+
+  return risk === 'medium' && !isDestructiveTool(toolName) && !isExecuteTool(toolName)
 }

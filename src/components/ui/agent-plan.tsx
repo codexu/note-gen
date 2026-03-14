@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { DiffViewer } from "@/components/ui/diff-viewer";
+import { formatConfirmationPreview } from "@/lib/agent/tool-confirmation-display";
 
 // Type definitions from existing codebase
 interface ToolCall {
@@ -42,6 +43,9 @@ interface ConfirmationRecord {
   params: Record<string, any>;
   status: "pending" | "confirmed" | "cancelled";
   timestamp: number;
+  scope?: "once" | "conversation";
+  sessionApprovalType?: "write" | "runtime-script-skill";
+  sessionApprovalSkillId?: string;
 }
 
 interface ReActStep {
@@ -74,6 +78,9 @@ interface AgentPlanProps {
     originalContent?: string;
     modifiedContent?: string;
     filePath?: string;
+    canApproveForSession?: boolean;
+    sessionApprovalType?: "write" | "runtime-script-skill";
+    sessionApprovalSkillId?: string;
   };
   confirmationHistory?: ConfirmationRecord[];
   currentStepStartTime?: number; // 当前步骤开始时间戳
@@ -82,7 +89,7 @@ interface AgentPlanProps {
   historyJson?: string;
 
   // Callbacks for live mode
-  onConfirm?: () => void;
+  onConfirm?: (scope?: "once" | "conversation") => void;
   onCancel?: () => void;
 
   // i18n namespace (optional, defaults to 'record.chat.input.agent')
@@ -127,6 +134,7 @@ export function AgentPlan({
   embedded = false,
 }: AgentPlanProps) {
   const t = useTranslations(i18nNs);
+  const rootT = useTranslations();
   const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
   const contentRef = React.useRef<HTMLDivElement>(null);
   const thoughtRefs = React.useRef<Map<string, HTMLParagraphElement>>(new Map());
@@ -479,6 +487,42 @@ export function AgentPlan({
     }
   }, [displaySteps.length, currentThought, currentObservation, isRunning, mode]);
 
+  const confirmationPreview = React.useMemo(() => {
+    if (!pendingConfirmation) {
+      return null;
+    }
+
+    return formatConfirmationPreview(
+      pendingConfirmation.toolName,
+      pendingConfirmation.params ?? {}
+    );
+  }, [pendingConfirmation]);
+
+  const translateKey = React.useCallback((key: string, fallback: string) => {
+    return rootT.has(key) ? rootT(key) : fallback;
+  }, [rootT]);
+
+  const formatFieldValue = React.useCallback((value: unknown) => {
+    if (typeof value === "string") {
+      return value;
+    }
+
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      value === null ||
+      value === undefined
+    ) {
+      return String(value);
+    }
+
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }, []);
+
   // Don't render if no content in history mode
   if (mode === "history" && displaySteps.length === 0) {
     return null;
@@ -517,8 +561,8 @@ export function AgentPlan({
   };
 
   // Handle confirmation
-  const handleConfirm = () => {
-    if (onConfirm) onConfirm();
+  const handleConfirm = (scope: "once" | "conversation" = "once") => {
+    if (onConfirm) onConfirm(scope);
   };
 
   const handleCancel = () => {
@@ -814,37 +858,28 @@ export function AgentPlan({
                 <Clock className="size-4.5 text-orange-500 shrink-0 animate-pulse" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <code className="text-sm text-foreground font-mono truncate">
-                      {pendingConfirmation.toolName}
-                    </code>
+                    <span className="text-sm text-foreground font-medium truncate">
+                      {confirmationPreview
+                        ? translateKey(
+                            confirmationPreview.titleKey,
+                            pendingConfirmation.toolName
+                          )
+                        : pendingConfirmation.toolName}
+                    </span>
                     {pendingConfirmation.filePath && (
                       <span className="text-xs text-muted-foreground truncate">
                         {pendingConfirmation.filePath}
                       </span>
                     )}
                   </div>
-                  {/* 显示操作参数 */}
-                  {pendingConfirmation.toolName === 'modify_current_note' && (() => {
-                    const params = pendingConfirmation.params
-                    let operationDesc = ''
-                    if (params.lineEdits) {
-                      const count = Array.isArray(params.lineEdits) ? params.lineEdits.length : 1
-                      operationDesc = `修改 ${count} 处行 (lineEdits)`
-                    } else if (params.searchReplace) {
-                      operationDesc = `搜索替换 "${params.searchReplace.searchPattern}"`
-                    } else if (params.insertLines) {
-                      operationDesc = `在第 ${params.insertLines.afterLine} 行后插入`
-                    } else if (params.deleteLines) {
-                      operationDesc = `删除第 ${params.deleteLines.startLine}-${params.deleteLines.endLine} 行`
-                    } else if (params.content) {
-                      operationDesc = '完整替换内容'
-                    }
-                    return operationDesc ? (
-                      <div className="text-xs text-muted-foreground mt-1 truncate" title={operationDesc}>
-                        {operationDesc}
-                      </div>
-                    ) : null
-                  })()}
+                  {confirmationPreview && (
+                    <div className="text-xs text-muted-foreground mt-1 truncate">
+                      {translateKey(
+                        confirmationPreview.descriptionKey,
+                        t("confirmation.description")
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -881,6 +916,35 @@ export function AgentPlan({
               </div>
             )}
 
+            {!pendingConfirmation.originalContent &&
+              !pendingConfirmation.modifiedContent &&
+              confirmationPreview &&
+              confirmationPreview.fields.length > 0 && (
+                <div className="border-t border-border/50 px-3 py-2 space-y-2">
+                  {confirmationPreview.fields.map((field) => {
+                    const label = translateKey(field.labelKey, field.name);
+                    const formattedValue = formatFieldValue(field.value);
+
+                    return (
+                      <div key={field.name} className="space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          {label}
+                        </div>
+                        {field.displayType === "content" ? (
+                          <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-xs text-foreground">
+                            {formattedValue}
+                          </pre>
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words text-xs text-foreground">
+                            {formattedValue}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
             {/* Confirmation buttons */}
             <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-t border-border/50">
               <Button
@@ -894,11 +958,27 @@ export function AgentPlan({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 w-6 p-0"
-                onClick={handleConfirm}
+                className="h-6 px-2 text-xs"
+                onClick={() => handleConfirm("once")}
               >
                 <CheckCircle className="size-4 text-green-500" />
+                <span className="ml-1">允许这次</span>
               </Button>
+              {pendingConfirmation.canApproveForSession && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => handleConfirm("conversation")}
+                >
+                  <CheckCircle2 className="size-4 text-green-600" />
+                  <span className="ml-1">
+                    {pendingConfirmation.sessionApprovalType === "runtime-script-skill"
+                      ? "本会话允许此 Skill 脚本"
+                      : "本会话都允许"}
+                  </span>
+                </Button>
+              )}
             </div>
           </div>
         </li>

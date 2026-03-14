@@ -4,12 +4,15 @@ import { skillManager } from '@/lib/skills'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
 import {
+  getAutoFinalAnswerDescriptor,
+  shouldRecoverWithAutoFinalAnswer,
+} from './auto-final-answer'
+import { parseActionInputJson } from './parse-action-input'
+import {
   IntentPolicy,
   deriveIntentPolicy,
+  evaluateIntentAwareToolPolicy,
   formatIntentPolicyForPrompt,
-  getToolRiskLevel,
-  isDestructiveTool,
-  isExecuteTool,
 } from './tool-policy'
 import OpenAI from 'openai'
 
@@ -22,6 +25,7 @@ export interface ReActConfig {
   onIterationStart?: () => void
   onSkillsSelected?: (skillIds: string[]) => void  // 当 AI 选择 Skills 时调用
   onFinalAnswerRender?: (markdownContent: string) => void  // 当检测到 Final Answer 时立即渲染 Markdown
+  formatAutoFinalAnswer?: (key: string, values?: Record<string, string>) => string
   requestConfirmation?: (toolName: string, params: Record<string, any>, context?: {
     originalContent?: string
     modifiedContent?: string
@@ -39,17 +43,6 @@ export interface ReActConfig {
 }
 
 export class ReActAgent {
-  private static readonly ESSENTIAL_DEBUG_EVENTS = new Set([
-    'run:start',
-    'run:max-iterations',
-    'tool:blocked',
-    'tool:blocked-no-confirmation-channel',
-    'tool:confirmation-result',
-    'tool:execute-error',
-    'tool:missing',
-    'tool:quoted-insert-applied',
-  ])
-
   private config: ReActConfig
   private steps: ReActStep[] = []
   private currentIteration = 0
@@ -84,30 +77,6 @@ export class ReActAgent {
     return this.stopped
   }
 
-  private logDebug(event: string, payload: Record<string, unknown>) {
-    if (!this.shouldLogDebugEvent(event)) {
-      return
-    }
-
-    console.info(`[Agent Debug] ${event}`, payload)
-  }
-
-  private shouldLogDebugEvent(event: string): boolean {
-    if (ReActAgent.ESSENTIAL_DEBUG_EVENTS.has(event)) {
-      return true
-    }
-
-    if (typeof window === 'undefined') {
-      return false
-    }
-
-    try {
-      return window.localStorage.getItem('agent.debug.verbose') === 'true'
-    } catch {
-      return false
-    }
-  }
-
   async run(
     userInput: string,
     contextOrMessages?: string | OpenAI.Chat.ChatCompletionMessageParam[],
@@ -120,12 +89,6 @@ export class ReActAgent {
     this.selectedSkills.clear()
     this.currentUserInput = userInput
     this.intentPolicy = deriveIntentPolicy(userInput)
-    this.logDebug('run:start', {
-      userInput,
-      intentPolicy: this.intentPolicy,
-      hasImages: !!(imageUrls && imageUrls.length > 0),
-      contextType: Array.isArray(contextOrMessages) ? 'messages' : 'string',
-    })
     // 创建新的 AbortController
     this.abortController = new AbortController()
 
@@ -154,15 +117,24 @@ export class ReActAgent {
       const systemPrompt = await this.buildSystemPrompt()
 
       const thought = await this.think(userInput, contextString, messagesArray, systemPrompt, imageUrls)
-      this.logDebug('run:thought-received', {
-        iteration: this.currentIteration,
-        preview: thought.slice(0, 400),
-      })
 
       // 再次检查是否已停止
       if (this.stopped) {
         // 返回特殊标记表示被用户终止，但保留已产生的步骤
         throw new Error('USER_STOPPED')
+      }
+
+      const lastCompletedStep = this.steps[this.steps.length - 1]
+      if (lastCompletedStep?.action && shouldRecoverWithAutoFinalAnswer(thought)) {
+        const descriptor = getAutoFinalAnswerDescriptor({
+          toolName: lastCompletedStep.action.tool,
+          params: lastCompletedStep.action.params,
+          observation: lastCompletedStep.observation || '',
+        })
+        if (descriptor) {
+          finalAnswer = this.config.formatAutoFinalAnswer?.(descriptor.key, descriptor.values) || descriptor.fallback
+          break
+        }
       }
 
       // 检查是否包含 Final Answer（支持多种格式，包括换行的情况）
@@ -204,20 +176,9 @@ export class ReActAgent {
             action: undefined,
             observation,
           })
-          this.logDebug('run:reject-final-answer', {
-            iteration: this.currentIteration,
-            reason: finalAnswerValidation.reason,
-            preview: finalAnswer.slice(0, 300),
-          })
           finalAnswer = ''
           continue
         }
-
-        this.logDebug('run:finish-final-answer', {
-          iteration: this.currentIteration,
-          reason: 'thought_contains_final_answer',
-          preview: finalAnswer.slice(0, 300),
-        })
         break
       }
 
@@ -228,28 +189,29 @@ export class ReActAgent {
         const thoughtContent = thought.replace(/Thought:\s*/i, '').trim()
         if (thoughtContent.length > 0 && !thoughtContent.includes('Action:')) {
           finalAnswer = thoughtContent
-          this.logDebug('run:finish-thought-only', {
-            iteration: this.currentIteration,
-            reason: 'thought_without_action_after_iteration_1',
-            preview: finalAnswer.slice(0, 300),
-          })
           break
         }
       }
 
       const action = this.parseAction(thought)
       if (!action) {
+        if (thought.includes('Action:')) {
+          const observation = 'Action Input JSON 无法解析。请保持动作不变，并只重新输出一次有效的 JSON 参数。'
+          this.config.onObservation?.(observation)
+          this.steps.push({
+            thought,
+            action: undefined,
+            observation,
+          })
+          continue
+        }
+
         // 无法解析 Action，尝试从 thought 中提取答案
         // 检查是否 AI 想直接回答但忘记使用 Final Answer 格式
         const thoughtContent = thought.replace(/Thought:\s*/i, '').trim()
         if (thoughtContent && thoughtContent.length > 10 && !thoughtContent.includes('Action:')) {
           // 看起来 AI 想直接回答，提取内容作为答案
           finalAnswer = thoughtContent
-          this.logDebug('run:finish-unparsed-answer', {
-            iteration: this.currentIteration,
-            reason: 'parse_action_failed_but_answer_like_content',
-            preview: finalAnswer.slice(0, 300),
-          })
           break
         }
 
@@ -257,29 +219,13 @@ export class ReActAgent {
         // 尝试让 AI 直接回答而不是调用工具
         if (this.currentIteration === 1) {
           finalAnswer = thoughtContent || '抱歉，我不太理解您的需求。您能详细说明一下吗？'
-          this.logDebug('run:finish-first-iteration-fallback', {
-            iteration: this.currentIteration,
-            reason: 'parse_action_failed_first_iteration',
-            preview: finalAnswer.slice(0, 300),
-          })
           break
         }
 
         // 多次迭代后仍然失败，给出提示
         finalAnswer = thoughtContent || '抱歉，我遇到了一些问题。您能换种方式说明一下您的需求吗？'
-        this.logDebug('run:finish-multi-iteration-fallback', {
-          iteration: this.currentIteration,
-          reason: 'parse_action_failed_after_retries',
-          preview: finalAnswer.slice(0, 300),
-        })
         break
       }
-
-      this.logDebug('run:parsed-action', {
-        iteration: this.currentIteration,
-        toolName: action.tool,
-        params: action.params,
-      })
 
       // 检测重复操作
       const lastStep = this.steps[this.steps.length - 1]
@@ -291,11 +237,6 @@ export class ReActAgent {
 
         if (isSameTool && isSameParams) {
           if (lastStepWasPolicyAdjustment) {
-            this.logDebug('run:repeat-blocked-action', {
-              iteration: this.currentIteration,
-              toolName: action.tool,
-              params: action.params,
-            })
           } else {
             // 检测到重复操作，给出警告并结束
             console.warn(`检测到重复操作: ${action.tool}`, action.params)
@@ -356,9 +297,6 @@ export class ReActAgent {
 
     if (!finalAnswer && this.currentIteration >= this.config.maxIterations) {
       finalAnswer = '已达到最大迭代次数，任务可能未完全完成。'
-      this.logDebug('run:max-iterations', {
-        currentIteration: this.currentIteration,
-      })
     }
 
     return finalAnswer || '任务执行完成。'
@@ -728,12 +666,6 @@ Final Answer: Task was terminated by user`
           this.config.onSkillsSelected?.([])
         }
 
-        this.logDebug('think:response', {
-          iteration: this.currentIteration,
-          mode: 'messages',
-          selectedSkillIds: Array.from(this.selectedSkills),
-          preview: response.slice(0, 400),
-        })
         return response
       } catch (error) {
         // 检查是否是因为终止导致的错误
@@ -830,12 +762,6 @@ Final Answer: 任务已被用户终止`
         this.config.onSkillsSelected?.([])
       }
 
-      this.logDebug('think:response', {
-        iteration: this.currentIteration,
-        mode: 'prompt',
-        selectedSkillIds: Array.from(this.selectedSkills),
-        preview: response.slice(0, 400),
-      })
       return response
     } catch (error) {
       // 检查是否是因为终止导致的错误
@@ -868,9 +794,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       const actionMatch = thought.match(/Action:\s*([a-zA-Z0-9_-]+)/i)
 
       if (!actionMatch) {
-        this.logDebug('parse-action:no-action-match', {
-          preview: thought.slice(0, 300),
-        })
         return null
       }
 
@@ -928,86 +851,13 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
           jsonStr = jsonStr.substring(0, jsonEnd)
         }
         
-        try {
-          params = JSON.parse(jsonStr)
-        } catch {
-          // JSON 解析失败，尝试修复
-
-          // 使用栈来跟踪未闭合的结构
-          const stack: string[] = []
-          let inString = false
-          let escapeNext = false
-
-          for (let i = 0; i < jsonStr.length; i++) {
-            const char = jsonStr[i]
-
-            if (escapeNext) {
-              escapeNext = false
-              continue
-            }
-
-            if (char === '\\') {
-              escapeNext = true
-              continue
-            }
-
-            if (char === '"' && !escapeNext) {
-              inString = !inString
-              if (!inString && stack.length > 0 && stack[stack.length - 1] === '"') {
-                stack.pop() // 闭合字符串
-              } else if (inString) {
-                stack.push('"') // 进入字符串
-              }
-              continue
-            }
-
-            if (!inString) {
-              if (char === '{' || char === '[') {
-                stack.push(char)
-              } else if (char === '}') {
-                if (stack.length > 0 && stack[stack.length - 1] === '{') {
-                  stack.pop()
-                }
-              } else if (char === ']') {
-                if (stack.length > 0 && stack[stack.length - 1] === '[') {
-                  stack.pop()
-                }
-              }
-            }
-          }
-
-          // 如果在字符串中，先闭合字符串
-          if (inString) {
-            jsonStr += '"'
-          }
-
-          // 反向闭合栈中的结构
-          while (stack.length > 0) {
-            const open = stack.pop()
-            if (open === '"') {
-              jsonStr += '"'
-            } else if (open === '[') {
-              jsonStr += ']'
-            } else if (open === '{') {
-              jsonStr += '}'
-            }
-          }
-
-          try {
-            params = JSON.parse(jsonStr)
-          } catch (retryError) {
-            console.error('Failed to parse action input after repair:', retryError)
-            console.error('Original JSON:', inputMatch[1])
-            console.error('Repaired JSON:', jsonStr)
-            this.logDebug('parse-action:json-parse-failed', {
-              tool,
-              originalInputPreview: inputMatch[1].slice(0, 200),
-              repairedInputPreview: jsonStr.slice(0, 200),
-            })
-            // 返回 null 而不是空对象，让调用方知道解析失败
-            return null
-          }
+        const parsed = parseActionInputJson(jsonStr)
+        if (!parsed) {
+          // 返回 null 而不是空对象，让调用方知道解析失败
+          return null
         }
+
+        params = parsed
       }
 
       return { tool, params }
@@ -1021,7 +871,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     const tool = getToolByName(toolName)
 
     if (!tool) {
-      this.logDebug('tool:missing', { toolName, params })
       return `错误：未找到工具 "${toolName}"。请使用可用的工具列表中的工具。`
     }
 
@@ -1037,14 +886,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     }
 
     const policyCheck = this.evaluateToolPolicy(toolName, tool, params)
-    this.logDebug('tool:policy-check', {
-      toolName,
-      params,
-      category: tool.category,
-      requiresConfirmation: tool.requiresConfirmation,
-      policyCheck,
-      intentPolicy: this.intentPolicy,
-    })
     if (!policyCheck.allowed) {
       const blockedMessage = this.getPolicyAdjustmentMessage(toolName, policyCheck.reason || '已调整工具选择')
       const isBenignAdjustment = Boolean(policyCheck.reason?.includes('完整内容已在上下文中'))
@@ -1054,11 +895,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         error: isBenignAdjustment ? undefined : `BLOCKED_BY_POLICY: ${policyCheck.reason}`,
         message: blockedMessage,
       }
-      this.logDebug('tool:blocked', {
-        toolName,
-        params,
-        reason: policyCheck.reason,
-      })
       this.config.onToolCall?.(toolCall)
       return blockedMessage
     }
@@ -1080,12 +916,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     // 检查工具是否在当前激活的 Skills 中被授权
     const isAuthorized = this.isToolAuthorized(toolName)
     const requiresConfirmation = policyCheck.requiresConfirmation || (tool.requiresConfirmation && !isAuthorized)
-    this.logDebug('tool:authorization', {
-      toolName,
-      isAuthorized,
-      selectedSkills: Array.from(this.selectedSkills),
-      requiresConfirmation,
-    })
 
     if (requiresConfirmation && !this.config.requestConfirmation) {
       toolCall.status = 'error'
@@ -1093,10 +923,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         success: false,
         error: 'BLOCKED_BY_POLICY: 操作需要确认，但未配置确认回调',
       }
-      this.logDebug('tool:blocked-no-confirmation-channel', {
-        toolName,
-        params,
-      })
       this.config.onToolCall?.(toolCall)
       return '这个操作需要你的确认，当前先不执行。'
     }
@@ -1225,11 +1051,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       }
 
       const confirmed = await this.config.requestConfirmation(toolName, params, confirmContext)
-      this.logDebug('tool:confirmation-result', {
-        toolName,
-        confirmed,
-        hasConfirmContext: !!(confirmContext.filePath || confirmContext.originalContent || confirmContext.modifiedContent),
-      })
 
       if (!confirmed) {
         toolCall.status = 'error'
@@ -1244,21 +1065,9 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
     toolCall.status = 'running'
     this.config.onToolCall?.(toolCall)
-    this.logDebug('tool:execute-start', {
-      toolName,
-      params,
-      thought,
-    })
 
     try {
       const result: ToolResult = await tool.execute(params)
-      this.logDebug('tool:execute-finish', {
-        toolName,
-        success: result.success,
-        error: result.error,
-        hasData: result.data !== undefined,
-        messagePreview: result.message?.slice(0, 200),
-      })
 
       toolCall.status = result.success ? 'success' : 'error'
       toolCall.result = result
@@ -1276,9 +1085,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
 
           // 通知外部选择的 Skills
           this.config.onSkillsSelected?.(selectedSkillIds)
-          this.logDebug('skill:selected', {
-            selectedSkillIds,
-          })
         }
 
         let observation = result.message || `工具 ${toolName} 执行成功。`
@@ -1308,11 +1114,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     } catch (error) {
       toolCall.status = 'error'
       const errorStr = error instanceof Error ? error.message : String(error)
-      this.logDebug('tool:execute-error', {
-        toolName,
-        params,
-        error: errorStr,
-      })
       toolCall.result = {
         success: false,
         error: errorStr,
@@ -1363,14 +1164,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         currentQuote.fullContent
       )
 
-      this.logDebug('tool:quoted-insert-applied', {
-        toolName,
-        directive: insertDirective,
-        originalParams: params,
-        normalizedParams,
-        quoteRange: currentQuote,
-      })
-
       return normalizedParams
     }
 
@@ -1385,13 +1178,6 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     if (normalizedParams.replaceContent !== undefined && normalizedParams.content === undefined) {
       normalizedParams.content = normalizedParams.replaceContent
     }
-
-    this.logDebug('tool:quote-range-applied', {
-      toolName,
-      originalParams: params,
-      normalizedParams,
-      quoteRange: currentQuote,
-    })
 
     return normalizedParams
   }
@@ -1808,9 +1594,6 @@ ${skillsList.join('\n---\n\n')}
     tool: { category: string; requiresConfirmation: boolean },
     params: Record<string, any> = {}
   ): { allowed: boolean; requiresConfirmation: boolean; reason?: string } {
-    const risk = getToolRiskLevel(toolName, tool.category)
-    const isDestructive = isDestructiveTool(toolName)
-    const isExecute = isExecuteTool(toolName)
     const folderPath = typeof params.folderPath === 'string' ? params.folderPath.trim() : ''
 
     if (toolName === 'check_folder_exists' && /\.md$/i.test(folderPath)) {
@@ -1829,42 +1612,11 @@ ${skillsList.join('\n---\n\n')}
       }
     }
 
-    if (isExecute && !this.intentPolicy.allowExecute) {
-      return {
-        allowed: false,
-        requiresConfirmation: false,
-        reason: '用户未明确要求执行命令或脚本',
-      }
-    }
-
-    if (isDestructive && !this.intentPolicy.allowDestructive) {
-      return {
-        allowed: false,
-        requiresConfirmation: false,
-        reason: '用户未明确要求删除或清空操作',
-      }
-    }
-
-    if (risk === 'medium' && !this.intentPolicy.allowWrite) {
-      return {
-        allowed: false,
-        requiresConfirmation: false,
-        reason: '当前是默认只读模式，用户未明确要求修改内容',
-      }
-    }
-
-    if (risk === 'high' && !isDestructive && !isExecute && !this.intentPolicy.allowWrite) {
-      return {
-        allowed: false,
-        requiresConfirmation: false,
-        reason: '高风险写入操作需要用户明确修改意图',
-      }
-    }
-
-    return {
-      allowed: true,
-      requiresConfirmation: risk === 'high',
-    }
+    return evaluateIntentAwareToolPolicy({
+      toolName,
+      category: tool.category,
+      intentPolicy: this.intentPolicy,
+    })
   }
 
   private getPolicyAdjustmentMessage(toolName: string, reason: string): string {
@@ -1877,7 +1629,7 @@ ${skillsList.join('\n---\n\n')}
     }
 
     if (reason.includes('执行命令或脚本')) {
-      return '已保持只读分析模式：不会执行命令或脚本。'
+      return '已保持分析模式：不会执行命令或脚本。'
     }
 
     if (reason.includes('删除或清空')) {
@@ -1885,7 +1637,7 @@ ${skillsList.join('\n---\n\n')}
     }
 
     if (reason.includes('默认只读模式') || reason.includes('修改意图')) {
-      return '已保持只读模式：先分析内容，不直接修改。'
+      return '已保持分析优先：先分析内容，需要修改时再确认。'
     }
 
     return '已调整工具选择，继续采用更合适的处理方式。'

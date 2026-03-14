@@ -13,6 +13,8 @@ import { LinkedResource, isLinkedFolder } from "@/lib/files"
 import { readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { AgentHandler } from "@/lib/agent/agent-handler"
+import { getToolByName } from "@/lib/agent/tools"
+import { getSessionApprovalScope, matchesSessionApproval } from "@/lib/agent/session-approval"
 import { ImageAttachment } from "./image-attachments"
 import type { RagSource } from "@/lib/rag"
 
@@ -38,7 +40,15 @@ interface ChatSendProps {
 export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ inputValue, onSent, linkedResource, attachedImages = [], quoteData = null }, ref) => {
   const { primaryModel } = useSettingStore()
   const { currentTagId } = useTagStore()
-  const { insert, loading, setLoading, saveChat, setAgentState, maybeCondense, linkedResourcePreview } = useChatStore()
+  const {
+    insert,
+    loading,
+    setLoading,
+    saveChat,
+    setAgentState,
+    maybeCondense,
+    linkedResourcePreview,
+  } = useChatStore()
   const { isRagEnabled } = useVectorStore()
   const abortControllerRef = useRef<AbortController | null>(null)
   const agentHandlerRef = useRef<AgentHandler | null>(null)
@@ -156,13 +166,34 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
       filePath?: string
     }
   ): Promise<boolean> => {
+    const tool = getToolByName(toolName)
+    const sessionApprovalScope = getSessionApprovalScope(toolName, tool, params)
+    const canApproveForSession = !!sessionApprovalScope
+
+    const currentChatState = useChatStore.getState()
+    const activeConversationId = currentChatState.currentConversationId
+    const autoApproveConversationId = currentChatState.agentAutoApproveConversationId
+    const autoApproveRuntimeSkillId = currentChatState.agentAutoApproveRuntimeSkillId
+
+    if (matchesSessionApproval(
+      autoApproveConversationId,
+      activeConversationId,
+      autoApproveRuntimeSkillId,
+      sessionApprovalScope
+    )) {
+      return Promise.resolve(true)
+    }
+
     return new Promise((resolve) => {
       // 将确认请求保存到 store，在对话中显示
       setAgentState({
         pendingConfirmation: {
           toolName,
           params,
-          ...context
+          ...context,
+          canApproveForSession,
+          sessionApprovalType: sessionApprovalScope?.type,
+          sessionApprovalSkillId: sessionApprovalScope?.skillId,
         }
       })
       
@@ -219,6 +250,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
           finalAnswerContent: markdownContent
         })
       },
+      formatAutoFinalAnswer: (key, values) => t(key as any, values),
       onComplete: async (result, steps, stopped) => {
         // 获取 Agent 执行历史，保存完整的 ReAct 步骤
         const { agentState } = useChatStore.getState()

@@ -1688,7 +1688,7 @@
           "translate": "翻譯模式"
         },
         "chatModeSelect": {
-          "chatDescription": "快速對話，唯讀模式",
+          "chatDescription": "快速對話，分析優先",
           "agentDescription": "智能助手，可執行操作"
         },
         "attachImage": "附加圖片",
@@ -1708,6 +1708,10 @@
           "acting": "執行中",
           "observation": "觀察結果",
           "toolCalls": "工具調用",
+          "autoFinal": {
+            "createNote": "已建立筆記《{name}》。",
+            "createFile": "已建立檔案《{name}》。"
+          },
           "thought": "思考",
           "action": "行動",
           "confirmation": {

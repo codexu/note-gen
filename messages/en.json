@@ -1727,7 +1727,7 @@
           "translate": "Translate mode"
         },
         "chatModeSelect": {
-          "chatDescription": "Quick conversation, read-only mode",
+          "chatDescription": "Quick conversation, analysis-first",
           "agentDescription": "Smart assistant, can execute actions"
         },
         "attachImage": "Attach images",
@@ -1749,6 +1749,10 @@
           "thought": "Thought",
           "action": "Action",
           "toolCalls": "Tool Calls",
+          "autoFinal": {
+            "createNote": "Created note \"{name}\".",
+            "createFile": "Created file \"{name}\"."
+          },
           "confirmation": {
             "title": "Confirm Action",
             "description": "The agent wants to perform the following action. Please confirm to continue.",
@@ -1757,7 +1761,59 @@
             "cancel": "Cancel",
             "confirm": "Confirm",
             "confirmed": "Confirmed",
-            "cancelled": "Cancelled"
+            "cancelled": "Cancelled",
+            "fallback": {
+              "title": "Review action",
+              "description": "Please confirm the target and content of this action."
+            },
+            "params": {
+              "filePath": "File path",
+              "content": "File content",
+              "sourcePath": "Source path",
+              "targetPath": "Target path",
+              "files": "Files",
+              "newName": "New name",
+              "scriptName": "Script name",
+              "command": "Command"
+            },
+            "tools": {
+              "create_file": {
+                "title": "Create file",
+                "description": "A new file will be created in the workspace."
+              },
+              "create_files_batch": {
+                "title": "Create files",
+                "description": "Multiple new files will be created in the workspace."
+              },
+              "rename_file": {
+                "title": "Rename file",
+                "description": "The selected file will be renamed."
+              },
+              "move_file": {
+                "title": "Move file",
+                "description": "The file will be moved to a new location."
+              },
+              "copy_file": {
+                "title": "Copy file",
+                "description": "A copy of the file will be created at the target location."
+              },
+              "replace_editor_content": {
+                "title": "Replace editor content",
+                "description": "The current editor content will be replaced."
+              },
+              "insert_at_cursor": {
+                "title": "Insert at cursor",
+                "description": "Content will be inserted at the current cursor position."
+              },
+              "delete_markdown_file": {
+                "title": "Delete file",
+                "description": "The selected file will be permanently deleted."
+              },
+              "execute_skill_script": {
+                "title": "Run script",
+                "description": "A skill-provided script or command will be executed."
+              }
+            }
           }
         },
         "fileLink": {

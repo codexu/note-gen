@@ -7,17 +7,35 @@ import { AgentPanelWithRag } from "./agent-panel-with-rag"
  * This component uses AgentPanelWithRag to show both RAG sources and Agent steps together
  */
 export function AgentExecutionStatus() {
-  const { agentState, setAgentState } = useChatStore()
+  const {
+    agentState,
+    setAgentState,
+    currentConversationId,
+    setAgentAutoApproveConversationId,
+    setAgentAutoApproveRuntimeSkillId,
+  } = useChatStore()
 
   // Handle confirmation
-  const handleConfirm = () => {
+  const handleConfirm = (scope: 'once' | 'conversation' = 'once') => {
     if (!agentState.pendingConfirmation) return
 
     const confirmationRecord = {
       toolName: agentState.pendingConfirmation.toolName,
       params: agentState.pendingConfirmation.params,
       status: 'confirmed' as const,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      scope,
+      sessionApprovalType: agentState.pendingConfirmation.sessionApprovalType,
+      sessionApprovalSkillId: agentState.pendingConfirmation.sessionApprovalSkillId,
+    }
+
+    if (scope === 'conversation' && currentConversationId !== null) {
+      setAgentAutoApproveConversationId(currentConversationId)
+      setAgentAutoApproveRuntimeSkillId(
+        agentState.pendingConfirmation.sessionApprovalType === 'runtime-script-skill'
+          ? agentState.pendingConfirmation.sessionApprovalSkillId || null
+          : null
+      )
     }
 
     // Confirm while keeping isRunning: true, only clear pendingConfirmation

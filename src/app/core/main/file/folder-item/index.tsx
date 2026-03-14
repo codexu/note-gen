@@ -91,7 +91,7 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
         // 如果是文件（没有 children）
         if (node.name.endsWith('.md')) {
           totalCount++
-          if (vectorIndexedFiles.has(node.name)) {
+          if (vectorIndexedFiles.has(computedParentPath(node))) {
             indexedCount++
           }
         }
@@ -364,7 +364,7 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
 
         // 删除这些文件的向量数据
         for (const file of filesInFolder) {
-          const filename = file.name
+          const filename = file.relativePath
           try {
             await deleteVectorDocumentsByFilename(filename)
           } catch (error) {
@@ -627,7 +627,7 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
 
     // 获取向量索引状态
     const indexedCount = files.filter(f =>
-      vectorIndexedFiles.has(f.name)
+      vectorIndexedFiles.has(f.path)
     ).length
 
     // 只有在有索引文件时才触发关联事件

@@ -85,7 +85,7 @@ export function DeleteFolder({ item, shortcut }: DeleteFolderProps) {
 
         // 删除这些文件的向量数据
         for (const file of filesInFolder) {
-          const filename = file.name
+          const filename = file.relativePath
           try {
             await deleteVectorDocumentsByFilename(filename)
           } catch (error) {

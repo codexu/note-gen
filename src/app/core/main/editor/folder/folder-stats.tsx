@@ -51,16 +51,12 @@ export function FolderStatsView({ folderPath, folderFiles }: FolderStatsViewProp
 
     try {
       const totalFiles = folderFiles.length
-      const indexedFiles = folderFiles.filter(file => {
-        const filename = file.split('/').pop() || file
-        return vectorIndexedFiles.has(filename)
-      }).length
+      const indexedFiles = folderFiles.filter(file => vectorIndexedFiles.has(file)).length
 
       let totalVectors = 0
       for (const file of folderFiles) {
-        const filename = file.split('/').pop() || file
-        if (vectorIndexedFiles.has(filename)) {
-          const docs = await getVectorDocumentsByFilename(filename)
+        if (vectorIndexedFiles.has(file)) {
+          const docs = await getVectorDocumentsByFilename(file)
           totalVectors += docs.length
         }
       }

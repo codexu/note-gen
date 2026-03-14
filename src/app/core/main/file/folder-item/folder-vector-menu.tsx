@@ -56,7 +56,7 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
       for (const file of markdownFiles) {
         try {
-          const hasVector = await checkFileVectorIndexed(file.name);
+          const hasVector = await checkFileVectorIndexed(file.path);
 
           if (!hasVector) {
             // 设置文件为计算中状态
@@ -82,7 +82,7 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
             // 计算向量 - 直接从 RAG 库导入
             const { processMarkdownFile } = await import('@/lib/rag');
-            await processMarkdownFile(file.name, content);
+            await processMarkdownFile(file.path, content);
 
             // 设置文件为完成状态
             setVectorCalcStatus(file.path, 'completed');
@@ -110,7 +110,7 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
       // 刷新向量索引状态 - 检查所有文件的向量状态
       for (const file of markdownFiles) {
-        await checkFileVectorIndexed(file.name);
+        await checkFileVectorIndexed(file.path);
       }
 
       // 设置文件夹为完成状态
@@ -161,7 +161,7 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
       for (const file of markdownFiles) {
         try {
-          await clearFileVector(file.name);
+          await clearFileVector(file.path);
           successCount++;
         } catch (error) {
           console.error(`删除文件 ${file.name} 向量失败:`, error);

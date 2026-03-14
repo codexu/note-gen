@@ -593,7 +593,7 @@ ${previewLines.join('\n')}
         const files = await collectMarkdownFiles(activeFilePath)
         const { vectorIndexedFiles } = useArticleStore.getState()
         const indexedCount = files.filter(f =>
-          vectorIndexedFiles.has(f.name)
+          vectorIndexedFiles.has(f.path)
         ).length
 
         // 只有在有索引文件时才关联文件夹

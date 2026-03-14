@@ -22,6 +22,7 @@ import { create } from 'zustand'
 import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
 import emitter from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
+import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
 
 // 缓存 Store 实例，避免每次都重新加载
 let storeInstance: Store | null = null
@@ -284,9 +285,9 @@ interface NoteState {
   cancelVectorCalculation: () => void
   triggerVectorCalculation: () => Promise<void> // 手动触发向量计算
   // 向量索引状态
-  vectorIndexedFiles: Map<string, number> // 文件名 -> 向量索引时间戳
-  checkFileVectorIndexed: (filename: string) => Promise<boolean>
-  clearFileVector: (filename: string) => Promise<void>
+  vectorIndexedFiles: Map<string, number> // 工作区相对路径 -> 向量索引时间戳
+  checkFileVectorIndexed: (filePath: string) => Promise<boolean>
+  clearFileVector: (filePath: string) => Promise<void>
   initVectorIndexedFiles: () => Promise<void> // 初始化向量索引状态
   // 向量计算状态更新
   setVectorCalcStatus: (path: string, status: 'idle' | 'calculating' | 'completed') => void
@@ -1795,8 +1796,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 本地内容加载完成，解除加载状态
       get().setLoading(false)
       // 检查文件的向量索引状态
-      const filename = actualPath.split('/').pop() || actualPath
-      get().checkFileVectorIndexed(filename)
+      get().checkFileVectorIndexed(actualPath)
     } catch (error) {
       // 本地文件不存在，检查是否是远程文件
 
@@ -2173,9 +2173,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 执行向量计算
       await vectorStore.processDocument(path, content)
       // 更新向量索引状态
-      const filename = path.split('/').pop() || path
+      const vectorKey = getVectorDocumentKey(path)
       const newMap = new Map(get().vectorIndexedFiles)
-      newMap.set(filename, Date.now())
+      newMap.set(vectorKey, Date.now())
       set({ vectorIndexedFiles: newMap })
 
       // 清除待处理内容和定时器
@@ -2215,34 +2215,36 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   // 检查文件是否已被向量索引
-  checkFileVectorIndexed: async (filename: string) => {
+  checkFileVectorIndexed: async (filePath: string) => {
     const { checkVectorDocumentExists, getVectorDocumentsByFilename } = await import('@/db/vector')
-    const hasVector = await checkVectorDocumentExists(filename)
+    const vectorKey = getVectorDocumentKey(filePath)
+    const hasVector = await checkVectorDocumentExists(vectorKey)
     if (hasVector) {
       // 获取向量文档记录更新时间
-      const docs = await getVectorDocumentsByFilename(filename)
+      const docs = await getVectorDocumentsByFilename(vectorKey)
       if (docs.length > 0) {
         const latestTime = Math.max(...docs.map(d => d.updated_at))
         const newMap = new Map(get().vectorIndexedFiles)
-        newMap.set(filename, latestTime)
+        newMap.set(vectorKey, latestTime)
         set({ vectorIndexedFiles: newMap })
         return true
       }
     }
     // 如果没有向量，从映射中移除
     const newMap = new Map(get().vectorIndexedFiles)
-    newMap.delete(filename)
+    newMap.delete(vectorKey)
     set({ vectorIndexedFiles: newMap })
     return false
   },
 
   // 清除文件的向量数据
-  clearFileVector: async (filename: string) => {
+  clearFileVector: async (filePath: string) => {
     const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
-    await deleteVectorDocumentsByFilename(filename)
+    const vectorKey = getVectorDocumentKey(filePath)
+    await deleteVectorDocumentsByFilename(vectorKey)
     // 从映射中移除
     const newMap = new Map(get().vectorIndexedFiles)
-    newMap.delete(filename)
+    newMap.delete(vectorKey)
     set({ vectorIndexedFiles: newMap })
   },
 
@@ -2253,14 +2255,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const indexedFiles = await getAllVectorDocumentFilenames()
 
       // 构建 vectorIndexedFiles Map
-      const vectorIndexedMap = new Map<string, number>()
+      const vectorIndexedDocs = []
       for (const file of indexedFiles) {
         const docs = await getVectorDocumentsByFilename(file.filename)
-        if (docs.length > 0) {
-          const latestTime = Math.max(...docs.map(d => d.updated_at))
-          vectorIndexedMap.set(file.filename, latestTime)
-        }
+        vectorIndexedDocs.push(...docs)
       }
+
+      const vectorIndexedMap = buildVectorIndexedMap(vectorIndexedDocs)
 
       set({ vectorIndexedFiles: vectorIndexedMap })
     } catch {

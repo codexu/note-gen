@@ -20,6 +20,7 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
   const { clearFileVector, checkFileVectorIndexed, setVectorCalcStatus } = useArticleStore()
   const [autoCalcEnabled, setAutoCalcEnabled] = useState(true)
   const [excludeFromKB, setExcludeFromKB] = useState(false)
+  const filePath = computedParentPath(item)
 
   // 加载向量配置状态
   useEffect(() => {
@@ -27,8 +28,6 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
       const store = await Store.load('store.json')
       const disabledFiles = await store.get<string[]>('vectorAutoCalcDisabled') || []
       const excludedFiles = await store.get<string[]>('vectorExcludedFiles') || []
-      const filePath = computedParentPath(item)
-
       setAutoCalcEnabled(!disabledFiles.includes(filePath))
       setExcludeFromKB(excludedFiles.includes(filePath))
     }
@@ -37,8 +36,6 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
 
   async function handleVectorCalculation() {
     if (!item.isFile) return
-
-    const filePath = computedParentPath(item)
 
     try {
       // 设置为计算中状态
@@ -57,10 +54,10 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
 
       // 直接调用 RAG 库计算向量，与文件夹批量计算保持一致
       const { processMarkdownFile } = await import('@/lib/rag')
-      await processMarkdownFile(item.name, content)
+      await processMarkdownFile(filePath, content)
 
       // 更新向量索引状态
-      await checkFileVectorIndexed(item.name)
+      await checkFileVectorIndexed(filePath)
       onVectorUpdated()
 
       // 设置为完成状态
@@ -79,7 +76,7 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
     if (!item.isFile) return
 
     try {
-      await clearFileVector(item.name)
+      await clearFileVector(filePath)
       onVectorUpdated()
       toast({ title: t('context.vectorDeleted') })
     } catch (error) {
@@ -89,7 +86,6 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
   }
 
   async function handleToggleAutoCalc(checked: boolean) {
-    const filePath = computedParentPath(item)
     const store = await Store.load('store.json')
     const disabledFiles = await store.get<string[]>('vectorAutoCalcDisabled') || []
 
@@ -109,7 +105,6 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
   }
 
   async function handleToggleExcludeFromKB(checked: boolean) {
-    const filePath = computedParentPath(item)
     const store = await Store.load('store.json')
     const excludedFiles = await store.get<string[]>('vectorExcludedFiles') || []
 
@@ -123,7 +118,7 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
         excludedFiles.push(filePath)
       }
       if (hasVector) {
-        await clearFileVector(item.name)
+        await clearFileVector(filePath)
         onVectorUpdated()
       }
     }

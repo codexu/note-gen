@@ -50,10 +50,12 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     return parts.some(part => isSkillsFolder(part))
   }
 
+  const path = computedParentPath(item)
+
   // 向量状态更新回调
   const handleVectorUpdated = useCallback(() => {
-    checkFileVectorIndexed(item.name)
-  }, [item.name, checkFileVectorIndexed])
+    checkFileVectorIndexed(path)
+  }, [path, checkFileVectorIndexed])
 
   // 根据文字大小映射图标大小
   const getIconSize = (textSize: string) => {
@@ -69,13 +71,11 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
 
   const iconSize = getIconSize(fileManagerTextSize)
 
-  const path = computedParentPath(item)
-
   // 检查文件是否被剪切
   const isCut = clipboardOperation === 'cut' && clipboardItem?.path === path
 
   // 检查文件是否已计算向量（skills 文件夹下的文件不显示）
-  const hasVector = item.isFile && !isInSkillsFolder(path) && vectorIndexedFiles.has(item.name)
+  const hasVector = item.isFile && !isInSkillsFolder(path) && vectorIndexedFiles.has(path)
 
   // 向量计算状态图标
   const renderVectorIcon = () => {
@@ -232,10 +232,10 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
         // 删除向量数据库中的记录
         try {
           const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
-          await deleteVectorDocumentsByFilename(item.name)
+          await deleteVectorDocumentsByFilename(path)
           // 从向量索引映射中移除
           const newMap = new Map(vectorIndexedFiles)
-          newMap.delete(item.name)
+          newMap.delete(path)
           setArticleState({ vectorIndexedFiles: newMap })
         } catch (error) {
           console.error(`删除文件 ${item.name} 的向量数据失败:`, error)

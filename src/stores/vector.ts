@@ -161,11 +161,11 @@ const useVectorStore = create<VectorState>((set, get) => ({
   },
 
   // 处理单个文档向量
-  processDocument: async (filename: string, content: string) => {
+  processDocument: async (filePath: string, content: string) => {
     try {
-      await processMarkdownFile(filename, content);
+      await processMarkdownFile(filePath, content);
     } catch (error) {
-      console.error(`处理文档 ${filename} 向量失败:`, error);
+      console.error(`处理文档 ${filePath} 向量失败:`, error);
     }
   },
 

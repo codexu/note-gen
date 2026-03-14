@@ -20,6 +20,7 @@ import { join } from "@tauri-apps/api/path";
 import { Store } from "@tauri-apps/plugin-store";
 import { createHash } from 'crypto';
 import { isSkillsFolder } from './skills/utils';
+import { getVectorDocumentKey } from './vector-document-key';
 
 /**
  * 统一错误处理函数
@@ -473,11 +474,14 @@ export async function processMarkdownFile(
     if (chunks.length === 0) {
       return false;
     }
-    // 文件名（不含路径）
-    const filename = filePath.split('/').pop() || filePath;
+    const vectorDocumentKey = getVectorDocumentKey(filePath);
+    const legacyFilename = filePath.split('/').pop() || filePath;
 
     // 先删除该文件的旧记录
-    await deleteVectorDocumentsByFilename(filename);
+    await deleteVectorDocumentsByFilename(vectorDocumentKey);
+    if (legacyFilename !== vectorDocumentKey) {
+      await deleteVectorDocumentsByFilename(legacyFilename);
+    }
 
     // 处理每个文本块
     for (let i = 0; i < chunks.length; i++) {
@@ -487,13 +491,13 @@ export async function processMarkdownFile(
       const embedding = await fetchEmbedding(chunk);
 
       if (!embedding) {
-        console.error(`无法计算文件 ${filename} 第 ${i+1} 块的向量`);
+        console.error(`无法计算文件 ${vectorDocumentKey} 第 ${i+1} 块的向量`);
         continue;
       }
 
       // 保存到数据库
       await upsertVectorDocument({
-        filename,
+        filename: vectorDocumentKey,
         chunk_id: i,
         content: chunk,
         embedding: JSON.stringify(embedding),
@@ -1274,13 +1278,13 @@ function calculateContentOverlap(content1: string, content2: string): number {
 /**
  * 当文件被更新时处理，更新向量数据库
  */
-export async function handleFileUpdate(filename: string, content: string): Promise<void> {
-  if (!filename.endsWith('.md')) return;
+export async function handleFileUpdate(filePath: string, content: string): Promise<void> {
+  if (!filePath.endsWith('.md')) return;
 
   try {
-    await processMarkdownFile(filename, content);
+    await processMarkdownFile(filePath, content);
   } catch (error) {
-    handleRAGError(error, `更新文件 ${filename} 的向量失败`, false);
+    handleRAGError(error, `更新文件 ${filePath} 的向量失败`, false);
   }
 }
 

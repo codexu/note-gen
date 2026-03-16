@@ -585,12 +585,19 @@
     "audio": {
       "title": "语音设置",
       "desc": "在这里，你可以配置语音相关设置，包括文本转语音（朗读）和语音转文本（录音识别）功能。",
+      "mode": {
+        "title": "运行方式",
+        "auto": "自动（推荐）",
+        "local": "仅本地",
+        "model": "仅模型"
+      },
       "tts": {
         "title": "文本转语音（TTS）",
         "desc": "配置朗读功能，为聊天内容提供语音播放。",
+        "modeDesc": "默认优先使用浏览器和系统自带语音，必要时再使用模型增强体验。",
         "model": {
           "title": "朗读模型",
-          "desc": "选择用于文本转语音的AI模型，支持多种语音类型和参数配置。"
+          "desc": "可选。配置后可在自动模式下作为增强体验或在仅模型模式下使用。"
         },
         "speed": {
           "title": "语速",
@@ -600,15 +607,31 @@
       "stt": {
         "title": "语音转文本（STT）",
         "desc": "配置录音识别功能，将语音转换为文字记录。",
-        "mode": {
-          "title": "识别方式",
-          "desc": "选择使用浏览器内置识别或大模型识别",
-          "builtin": "内置",
-          "model": "大模型"
-        },
+        "modeDesc": "默认优先使用浏览器原生识别，不支持时再回退到模型识别。",
         "model": {
           "title": "识别模型",
-          "desc": "选择用于语音识别的AI模型，支持实时语音转文字。"
+          "desc": "可选。配置后可在自动模式下回退使用，或在仅模型模式下强制使用。"
+        }
+      }
+    },
+    "readAloud": {
+      "title": "朗读",
+      "desc": "配置文本朗读方式，默认优先使用系统语音，模型作为增强能力。",
+      "options": {
+        "mode": {
+          "title": "运行方式",
+          "desc": "自动模式会优先使用系统语音，不可用时再尝试模型。",
+          "auto": "自动（推荐）",
+          "local": "仅本地",
+          "model": "仅模型"
+        },
+        "audioModel": {
+          "title": "朗读模型",
+          "desc": "可选。配置后可在自动模式下作为增强体验，或在仅模型模式下使用。"
+        },
+        "speed": {
+          "title": "语速",
+          "desc": "调整朗读速度，范围从0.5倍到2倍，默认为1倍。"
         }
       }
     },
@@ -2253,11 +2276,18 @@
     "error": "错误",
     "success": "成功",
     "noModelConfigured": "未配置语音识别模型，请先在设置中配置",
+    "speechUnavailable": "当前识别方式不可用，请检查本地语音支持或模型配置",
+    "fallbackToModel": "本地语音识别不可用，已自动切换为模型识别",
     "startError": "无法启动录音",
     "noAudioData": "未录制到音频数据",
     "transcriptionSuccess": "语音识别完成",
     "transcriptionEmpty": "识别结果为空",
     "transcriptionError": "语音识别失败",
+    "configureModel": "配置模型",
+    "retryTranscription": "重新识别",
+    "retrying": "重新识别中...",
+    "retrySuccess": "重新识别完成",
+    "retryError": "重新识别失败",
     "noContentDetected": "未识别到内容",
     "doubleClickToSelectFile": "双击选择音频文件",
     "mode": {

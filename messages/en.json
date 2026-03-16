@@ -617,12 +617,19 @@
     "audio": {
       "title": "Audio Settings",
       "desc": "Here, you can configure audio settings, including text-to-speech (TTS) and speech-to-text (STT) functions.",
+      "mode": {
+        "title": "Mode",
+        "auto": "Auto (Recommended)",
+        "local": "Local only",
+        "model": "Model only"
+      },
       "tts": {
         "title": "Text-to-Speech (TTS)",
         "desc": "Configure read aloud functionality to provide voice playback for chat content.",
+        "modeDesc": "Prefer browser and system voices by default, and use a model only when needed for a better experience.",
         "model": {
           "title": "TTS Model",
-          "desc": "Select the AI model for text-to-speech conversion, supporting various voice types and parameter configurations."
+          "desc": "Optional. Configure a model to enhance auto mode or to power model-only mode."
         },
         "speed": {
           "title": "Speech Rate",
@@ -632,15 +639,31 @@
       "stt": {
         "title": "Speech-to-Text (STT)",
         "desc": "Configure voice recognition to convert speech to text records.",
-        "mode": {
-          "title": "Recognition Mode",
-          "desc": "Choose between browser built-in recognition or AI model recognition",
-          "builtin": "Built-in",
-          "model": "AI Model"
-        },
+        "modeDesc": "Prefer native browser recognition by default, and fall back to a model when local support is unavailable.",
         "model": {
           "title": "STT Model",
-          "desc": "Select the AI model for speech recognition, supporting real-time voice-to-text conversion."
+          "desc": "Optional. Configure a model for auto fallback or for model-only mode."
+        }
+      }
+    },
+    "readAloud": {
+      "title": "Read Aloud",
+      "desc": "Configure read aloud behavior. System voices are preferred by default, with model speech as an enhancement.",
+      "options": {
+        "mode": {
+          "title": "Mode",
+          "desc": "Auto mode prefers system voices and only tries a model when local speech is unavailable.",
+          "auto": "Auto (Recommended)",
+          "local": "Local only",
+          "model": "Model only"
+        },
+        "audioModel": {
+          "title": "Read Aloud Model",
+          "desc": "Optional. Configure a model to enhance auto mode or to power model-only mode."
+        },
+        "speed": {
+          "title": "Speed",
+          "desc": "Adjust read aloud speed from 0.5x to 2x, with 1x as the default rate."
         }
       }
     },
@@ -2351,11 +2374,18 @@
     "error": "Error",
     "success": "Success",
     "noModelConfigured": "Speech recognition model not configured, please configure in settings first",
+    "speechUnavailable": "The current speech recognition mode is unavailable. Check local speech support or model configuration.",
+    "fallbackToModel": "Local speech recognition is unavailable, so the app switched to model transcription automatically.",
     "startError": "Unable to start recording",
     "noAudioData": "No audio data recorded",
     "transcriptionSuccess": "Speech recognition completed",
     "transcriptionEmpty": "Recognition result is empty",
     "transcriptionError": "Speech recognition failed",
+    "configureModel": "Configure model",
+    "retryTranscription": "Retry transcription",
+    "retrying": "Retrying...",
+    "retrySuccess": "Transcription updated",
+    "retryError": "Retry transcription failed",
     "noContentDetected": "No content detected",
     "doubleClickToSelectFile": "Double click to select audio file",
     "mode": {

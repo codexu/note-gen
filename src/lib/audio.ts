@@ -1,4 +1,7 @@
 import useSettingStore from '@/stores/setting'
+import { resolvePreferredSpeechEngine } from '@/lib/speech/runtime.ts'
+import type { SpeechTask } from '@/lib/speech/types.ts'
+import { NO_TRANSCRIPTION_MESSAGE } from '@/lib/speech/transcription-fallback.ts'
 
 /**
  * 使用浏览器原生语音合成API进行朗读
@@ -60,6 +63,17 @@ export interface AudioSpeechRequest {
 
 export interface AudioSpeechResponse {
   audio: ArrayBuffer
+}
+
+export function resolveCurrentSpeechEngine(task: SpeechTask) {
+  const { audioModel, sttModel, textToSpeechMode, speechToTextMode } = useSettingStore.getState()
+
+  return resolvePreferredSpeechEngine(task, {
+    audioModel,
+    sttModel,
+    textToSpeechMode,
+    speechToTextMode,
+  })
 }
 
 /**
@@ -271,10 +285,13 @@ export async function textToSpeechAndPlay(
     throw new Error('文本内容为空')
   }
 
-  const { audioModel } = useSettingStore.getState()
-  
-  // 如果没有配置音频模型，使用系统朗读
-  if (!audioModel) {
+  const resolution = resolveCurrentSpeechEngine('tts')
+
+  if (!resolution.available) {
+    throw new Error('当前朗读模式不可用，请检查本地语音支持或模型配置')
+  }
+
+  if (resolution.engine === 'local') {
     try {
       // 停止当前播放
       stopCurrentAudio()
@@ -312,7 +329,6 @@ export async function textToSpeechAndPlay(
     }
   }
 
-  // 使用AI音频模型
   try {
     // 停止当前播放
     stopCurrentAudio()
@@ -362,6 +378,18 @@ export interface AudioTranscriptionRequest {
  */
 export interface AudioTranscriptionResponse {
   text: string
+}
+
+export { NO_TRANSCRIPTION_MESSAGE }
+
+export async function transcribeRecording(audioBlob: Blob): Promise<string> {
+  const { sttModel } = useSettingStore.getState()
+
+  if (!sttModel) {
+    return ''
+  }
+
+  return fetchAudioTranscription(audioBlob)
 }
 
 /**

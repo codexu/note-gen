@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
-import { fetchAudioTranscription } from '@/lib/audio'
+import { transcribeRecording } from '@/lib/audio'
 import { useRouter } from 'next/navigation'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readFile, writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/plugin-fs'
@@ -18,6 +18,7 @@ import { convertToWav } from '@/lib/audio-converter'
 import { useEffect } from 'react'
 import emitter from '@/lib/emitter'
 import { handleRecordComplete } from '@/lib/record-navigation'
+import { getTranscriptionFallbackMessage } from '@/lib/speech/transcription-fallback.ts'
 
 export function ControlRecording() {
   const t = useTranslations();
@@ -36,7 +37,8 @@ export function ControlRecording() {
     isRecording,
     recordingDuration,
     startRecording,
-    stopRecording
+    stopRecording,
+    cancelRecording,
   } = useRecordingStore()
   
   // 监听快捷键
@@ -64,25 +66,13 @@ export function ControlRecording() {
   
   // 开始录音
   const handleStart = async () => {
-    // 检查是否配置了STT模型
-    if (!sttModel) {
-      toast({
-        title: t('recording.error'),
-        description: t('recording.noModelConfigured'),
-        variant: 'destructive'
-      })
-      // 根据平台跳转到对应的设置页面
-      const settingPath = isMobile ? '/mobile/setting/pages/audio' : '/core/setting/audio'
-      router.push(settingPath)
-      return
-    }
-    
     try {
       await startRecording()
       
       // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
       handleRecordComplete(router)
     } catch (error) {
+      cancelRecording()
       toast({
         title: t('recording.error'),
         description: error instanceof Error ? error.message : t('recording.startError'),
@@ -159,7 +149,10 @@ export function ControlRecording() {
   }
   
   // 后台处理识别
-  const processTranscription = async (audioBlob: Blob, queueId: string) => {
+  const processTranscription = async (
+    audioBlob: Blob,
+    queueId: string,
+  ) => {
     let audioPath = ''
     try {
       // 先验证 Blob 是否有效
@@ -173,14 +166,15 @@ export function ControlRecording() {
       // 调用STT API识别
       let transcription = ''
       try {
-        transcription = await fetchAudioTranscription(audioBlob)
+        transcription = await transcribeRecording(audioBlob)
       } catch (error) {
         console.error('STT识别出错:', error)
       }
       
       // 无论是否识别成功，都保存记录
       const noContent = !transcription || !transcription.trim()
-      const displayContent = noContent ? t('recording.noContentDetected') : transcription
+      const fallbackMessage = getTranscriptionFallbackMessage(sttModel)
+      const displayContent = noContent ? (fallbackMessage || t('recording.noContentDetected')) : transcription
       
       await insertMark({
         tagId: currentTagId,
@@ -210,25 +204,13 @@ export function ControlRecording() {
         description: error instanceof Error ? error.message : t('recording.transcriptionError'),
         variant: 'destructive'
       })
+    } finally {
     }
   }
   
   // 选择音频文件并识别
   const handleFileSelect = async () => {
     try {
-      // 检查是否配置了STT模型
-      if (!sttModel) {
-        toast({
-          title: t('recording.error'),
-          description: t('recording.noModelConfigured'),
-          variant: 'destructive'
-        })
-        // 根据平台跳转到对应的设置页面
-        const settingPath = isMobile ? '/mobile/setting/pages/audio' : '/core/setting/audio'
-        router.push(settingPath)
-        return
-      }
-
       // 移动端使用 HTML5 file input
       if (isMobile) {
         fileInputRef.current?.click()

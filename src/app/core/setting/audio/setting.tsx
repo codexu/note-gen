@@ -6,11 +6,23 @@ import { Slider } from "@/components/ui/slider";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import useSettingStore from "@/stores/setting";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SpeechMode } from '@/lib/speech/types';
 
 export function Setting() {
   const t = useTranslations('settings.audio');
-  const { audioModel, setAiModelList } = useSettingStore();
+  const {
+    audioModel,
+    textToSpeechMode,
+    setAiModelList,
+    setTextToSpeechMode,
+  } = useSettingStore();
   const [speed, setSpeed] = useState(1);
+  const modeOptions: Array<{ value: SpeechMode; label: string }> = [
+    { value: 'auto', label: t('mode.auto') },
+    { value: 'local', label: t('mode.local') },
+    { value: 'model', label: t('mode.model') },
+  ];
 
   // 加载TTS语速设置
   useEffect(() => {
@@ -92,6 +104,26 @@ export function Setting() {
       </div>
 
       <ItemGroup className="gap-4">
+        <Item variant="outline">
+          <ItemMedia variant="icon"><Volume2 className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('mode.title')}</ItemTitle>
+            <ItemDescription>{t('tts.modeDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Select value={textToSpeechMode} onValueChange={(value) => setTextToSpeechMode(value as SpeechMode)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {modeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ItemActions>
+        </Item>
+
         <Item variant="outline">
           <ItemMedia variant="icon"><Volume2 className="size-4" /></ItemMedia>
           <ItemContent>

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Play, Pause, Loader2 } from 'lucide-react';
 import useRecordingStore from '@/stores/recording';
-import useSettingStore from '@/stores/setting';
-import { fetchAudioTranscription } from '@/lib/audio';
+import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from '@/lib/audio';
 import { useTranslations } from 'next-intl';
 import { toast } from '@/hooks/use-toast';
 
@@ -25,8 +23,6 @@ interface RecordingDialogProps {
 
 export function RecordingDialog({ open, onOpenChange, onTranscriptionComplete }: RecordingDialogProps) {
   const t = useTranslations('recording');
-  const router = useRouter();
-  const { sttModel } = useSettingStore();
   const {
     isRecording,
     isPaused,
@@ -47,25 +43,12 @@ export function RecordingDialog({ open, onOpenChange, onTranscriptionComplete }:
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 检查是否配置了STT模型
-  useEffect(() => {
-    if (open && !sttModel) {
-      toast({
-        title: t('error'),
-        description: t('noModelConfigured'),
-        variant: 'destructive',
-      });
-      onOpenChange(false);
-      // 跳转到设置页面
-      router.push('/core/setting/audio');
-    }
-  }, [open, sttModel, router, onOpenChange, t]);
-
   // 开始录音
   const handleStart = async () => {
     try {
       await startRecording();
     } catch (error) {
+      cancelRecording();
       toast({
         title: t('error'),
         description: error instanceof Error ? error.message : t('startError'),
@@ -98,8 +81,7 @@ export function RecordingDialog({ open, onOpenChange, onTranscriptionComplete }:
         return;
       }
 
-      // 调用STT API进行语音识别
-      const transcription = await fetchAudioTranscription(audioBlob);
+      const transcription = await transcribeRecording(audioBlob);
       
       if (transcription) {
         toast({
@@ -111,7 +93,7 @@ export function RecordingDialog({ open, onOpenChange, onTranscriptionComplete }:
       } else {
         toast({
           title: t('error'),
-          description: t('transcriptionEmpty'),
+          description: NO_TRANSCRIPTION_MESSAGE,
           variant: 'destructive',
         });
       }

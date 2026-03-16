@@ -572,12 +572,19 @@
     "audio": {
       "title": "Configurações de Áudio",
       "desc": "Aqui, você pode configurar as definições de áudio, incluindo as funções de conversão de texto em fala (TTS) e fala em texto (STT).",
+      "mode": {
+        "title": "Modo",
+        "auto": "Automático (Recomendado)",
+        "local": "Somente local",
+        "model": "Somente modelo"
+      },
       "tts": {
         "title": "Texto para Fala (TTS)",
         "desc": "Configure a funcionalidade de leitura em voz alta para fornecer reprodução de voz para o conteúdo do chat.",
+        "modeDesc": "Prefere as vozes do navegador e do sistema por padrão e usa um modelo apenas quando necessário para melhorar a experiência.",
         "model": {
           "title": "Modelo TTS",
-          "desc": "Selecione o modelo de IA para conversão de texto em fala, suportando vários tipos de voz e configurações de parâmetros."
+          "desc": "Opcional. Configure um modelo para aprimorar o modo automático ou usar o modo somente modelo."
         },
         "speed": {
           "title": "Velocidade da Fala",
@@ -587,15 +594,31 @@
       "stt": {
         "title": "Fala para Texto (STT)",
         "desc": "Configure o reconhecimento de voz para converter fala em registros de texto.",
-        "mode": {
-          "title": "Modo de Reconhecimento",
-          "desc": "Escolha entre o reconhecimento embutido do navegador ou o reconhecimento por modelo de IA",
-          "builtin": "Embutido",
-          "model": "Modelo de IA"
-        },
+        "modeDesc": "Prefere o reconhecimento nativo do navegador por padrão e usa um modelo como fallback quando o suporte local não estiver disponível.",
         "model": {
           "title": "Modelo STT",
-          "desc": "Selecione o modelo de IA para reconhecimento de fala, suportando conversão de voz em texto em tempo real."
+          "desc": "Opcional. Configure um modelo para fallback automático ou para o modo somente modelo."
+        }
+      }
+    },
+    "readAloud": {
+      "title": "Ler em Voz Alta",
+      "desc": "Configure o comportamento da leitura em voz alta. As vozes do sistema são preferidas por padrão, e a voz de modelo funciona como aprimoramento.",
+      "options": {
+        "mode": {
+          "title": "Modo",
+          "desc": "O modo automático prefere as vozes do sistema e só tenta um modelo quando a fala local não está disponível.",
+          "auto": "Automático (Recomendado)",
+          "local": "Somente local",
+          "model": "Somente modelo"
+        },
+        "audioModel": {
+          "title": "Modelo de Leitura",
+          "desc": "Opcional. Configure um modelo para aprimorar o modo automático ou usar o modo somente modelo."
+        },
+        "speed": {
+          "title": "Velocidade",
+          "desc": "Ajuste a velocidade da leitura entre 0.5x e 2x, com 1x como padrão."
         }
       }
     },
@@ -2334,11 +2357,18 @@
     "error": "Erro",
     "success": "Sucesso",
     "noModelConfigured": "Modelo de reconhecimento de fala não configurado, configure nas configurações primeiro",
+    "speechUnavailable": "O modo atual de reconhecimento de fala não está disponível. Verifique o suporte local ou a configuração do modelo.",
+    "fallbackToModel": "O reconhecimento local não está disponível, então o app mudou automaticamente para a transcrição por modelo.",
     "startError": "Não é possível iniciar a gravação",
     "noAudioData": "Nenhum dado de áudio gravado",
     "transcriptionSuccess": "Reconhecimento de fala concluído",
     "transcriptionEmpty": "Resultado do reconhecimento está vazio",
     "transcriptionError": "Falha no reconhecimento de fala",
+    "configureModel": "Configurar modelo",
+    "retryTranscription": "Transcrever novamente",
+    "retrying": "Transcrevendo novamente...",
+    "retrySuccess": "Transcrição atualizada",
+    "retryError": "Falha ao transcrever novamente",
     "noContentDetected": "Nenhum conteúdo detectado",
     "doubleClickToSelectFile": "Clique duas vezes para selecionar o arquivo de áudio",
     "mode": {

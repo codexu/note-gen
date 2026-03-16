@@ -21,7 +21,7 @@ import { LocalImage } from "@/components/local-image";
 import { fetchAiDesc } from "@/lib/ai/description";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { appDataDir } from "@tauri-apps/api/path";
-import { ImageUp } from "lucide-react";
+import { ImageUp, RefreshCw, Settings2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +34,10 @@ import { markToMarkdown } from "@/lib/mark-to-markdown";
 import useSettingStore from "@/stores/setting";
 import { TodoItemContent } from "./todo-item-content";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { BaseDirectory, readFile } from "@tauri-apps/plugin-fs";
+import { useRouter } from "next/navigation";
+import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
 
 dayjs.extend(relativeTime)
 
@@ -140,14 +144,76 @@ DetailViewer.displayName = 'DetailViewer'
 
 export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
   const t = useTranslations('record.mark.type');
+  const recordingT = useTranslations('recording');
   const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
-  const { recordTextSize } = useSettingStore();
+  const { recordTextSize, sttModel } = useSettingStore();
+  const { fetchMarks } = useMarkStore();
+  const router = useRouter();
+  const isMobile = useIsMobile();
+  const [isRetryingTranscription, setIsRetryingTranscription] = useState(false);
 
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
+  const shouldShowRecordingAction = mark.type === 'recording' && mark.content === NO_TRANSCRIPTION_MESSAGE
 
   const handleCheckboxChange = useCallback(() => {
     toggleMarkSelection(mark.id);
   }, [mark.id, toggleMarkSelection]);
+
+  const handleRecordingAction = useCallback(async () => {
+    if (!sttModel) {
+      router.push(isMobile ? '/mobile/setting/pages/audio' : '/core/setting/audio')
+      return
+    }
+
+    if (!mark.url || isRetryingTranscription) {
+      return
+    }
+
+    try {
+      setIsRetryingTranscription(true)
+      const fileData = await readFile(mark.url, { baseDir: BaseDirectory.AppData })
+      const extension = mark.url.split('.').pop()?.toLowerCase()
+      const mimeType = extension === 'wav' ? 'audio/wav' :
+        extension === 'mp3' ? 'audio/mpeg' :
+        extension === 'm4a' || extension === 'mp4' ? 'audio/mp4' :
+        extension === 'ogg' ? 'audio/ogg' :
+        extension === 'webm' ? 'audio/webm' :
+        'audio/webm'
+      const buffer = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength) as ArrayBuffer
+      const audioBlob = new Blob([buffer], { type: mimeType })
+      const transcription = await transcribeRecording(audioBlob)
+
+      if (!transcription.trim()) {
+        toast({
+          title: recordingT('error'),
+          description: recordingT('transcriptionEmpty'),
+          variant: 'destructive',
+        })
+        return
+      }
+
+      await updateMark({
+        ...mark,
+        desc: transcription.substring(0, 100),
+        content: transcription,
+      })
+      await fetchMarks()
+
+      toast({
+        title: recordingT('success'),
+        description: recordingT('retrySuccess'),
+      })
+    } catch (error) {
+      console.error('重新识别录音失败:', error)
+      toast({
+        title: recordingT('error'),
+        description: error instanceof Error ? error.message : recordingT('retryError'),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsRetryingTranscription(false)
+    }
+  }, [fetchMarks, isMobile, isRetryingTranscription, mark, recordingT, router, sttModel])
 
   const renderContent = () => {
     switch (mark.type) {
@@ -217,6 +283,23 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
               <span className="flex items-center gap-1 bg-red-900 text-white px-1 rounded">
                 {t(mark.type)}
               </span>
+              {shouldShowRecordingAction && (
+                <button
+                  type="button"
+                  className="shrink-0 text-zinc-500 transition-colors hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleRecordingAction}
+                  disabled={isRetryingTranscription}
+                  title={sttModel
+                    ? (isRetryingTranscription ? recordingT('retrying') : recordingT('retryTranscription'))
+                    : recordingT('configureModel')}
+                >
+                  {sttModel ? (
+                    <RefreshCw className={`size-3.5 ${isRetryingTranscription ? 'animate-spin' : ''}`} />
+                  ) : (
+                    <Settings2 className="size-3.5" />
+                  )}
+                </button>
+              )}
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
             <DetailViewer mark={mark} content={mark.content || ''} />

@@ -57,7 +57,7 @@ interface SpeechRecognitionState {
   
   // 控制方法
   startRecognition: (language?: string) => Promise<void>
-  stopRecognition: () => void
+  stopRecognition: () => Promise<string>
   
   // 内部方法
   resetState: () => void
@@ -93,6 +93,8 @@ const useSpeechRecognitionStore = create<SpeechRecognitionState>((set, get) => (
       recognition.interimResults = true // 实时结果
       recognition.lang = language // 语言设置
       recognition.maxAlternatives = 1 // 最多返回1个结果
+
+      let startupPending = true
 
       // 识别结果处理
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -135,20 +137,43 @@ const useSpeechRecognitionStore = create<SpeechRecognitionState>((set, get) => (
         set({ isRecognizing: false })
       }
 
-      // 开始识别
-      try {
-        recognition.start()
-        
+      await new Promise<void>((resolve, reject) => {
         set({
           recognition,
           isRecognizing: true,
           transcript: '',
-          interimTranscript: ''
+          interimTranscript: '',
+          lastError: null,
         })
-      } catch (startError) {
-        console.error('启动识别失败:', startError)
-        throw startError
-      }
+
+        recognition.onstart = () => {
+          startupPending = false
+          resolve()
+        }
+
+        recognition.onerror = (event: any) => {
+          console.error('语音识别错误:', event.error, event)
+
+          get().resetState()
+
+          set({
+            isRecognizing: false,
+            lastError: event.error
+          })
+
+          if (startupPending) {
+            reject(new Error(event.error || 'speech-recognition-error'))
+            return
+          }
+        }
+
+        try {
+          recognition.start()
+        } catch (startError) {
+          console.error('启动识别失败:', startError)
+          reject(startError)
+        }
+      })
 
     } catch (error) {
       console.error('启动语音识别失败:', error)
@@ -156,16 +181,30 @@ const useSpeechRecognitionStore = create<SpeechRecognitionState>((set, get) => (
     }
   },
 
-  stopRecognition: () => {
+  stopRecognition: async () => {
     const { recognition } = get()
-    
-    if (recognition) {
-      recognition.stop()
+
+    if (!recognition) {
+      return `${get().transcript}${get().interimTranscript}`.trim()
     }
-    
-    set({
-      isRecognizing: false,
-      interimTranscript: ''
+
+    return new Promise((resolve) => {
+      const originalOnEnd = recognition.onend
+
+      recognition.onend = () => {
+        originalOnEnd?.()
+
+        const finalTranscript = `${get().transcript}${get().interimTranscript}`.trim()
+
+        set({
+          isRecognizing: false,
+          interimTranscript: ''
+        })
+
+        resolve(finalTranscript)
+      }
+
+      recognition.stop()
     })
   },
 

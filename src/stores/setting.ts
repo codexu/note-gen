@@ -8,6 +8,8 @@ import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { fetch } from '@tauri-apps/plugin-http'
 import { CustomThemeColors } from '@/types/theme'
 import { applyThemeColors, removeThemeColors } from '@/lib/theme-utils'
+import { normalizeSpeechMode } from '@/lib/speech/preferences'
+import type { SpeechMode } from '@/lib/speech/types'
 
 export enum GenTemplateRange {
   All = 'all',
@@ -74,6 +76,12 @@ interface SettingState {
 
   sttModel: string
   setSttModel: (sttModel: string) => Promise<void>
+
+  textToSpeechMode: SpeechMode
+  setTextToSpeechMode: (mode: SpeechMode) => Promise<void>
+
+  speechToTextMode: SpeechMode
+  setSpeechToTextMode: (mode: SpeechMode) => Promise<void>
 
   condenseModel: string
   setCondenseModel: (condenseModel: string) => Promise<void>
@@ -387,6 +395,12 @@ const useSettingStore = create<SettingState>((set, get) => ({
       }
     }
 
+    const currentTextToSpeechMode = await store.get('textToSpeechMode')
+    set({ textToSpeechMode: normalizeSpeechMode(currentTextToSpeechMode) })
+
+    const currentSpeechToTextMode = await store.get('speechToTextMode')
+    set({ speechToTextMode: normalizeSpeechMode(currentSpeechToTextMode) })
+
     // 检查并初始化其他模型类型
     const modelTypes = [
       { storeKey: 'completionModel', modelType: 'chat' },
@@ -635,6 +649,22 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('sttModel', sttModel)
     set({ sttModel })
+  },
+
+  textToSpeechMode: 'auto',
+  setTextToSpeechMode: async (mode) => {
+    const normalizedMode = normalizeSpeechMode(mode)
+    const store = await Store.load('store.json')
+    await store.set('textToSpeechMode', normalizedMode)
+    set({ textToSpeechMode: normalizedMode })
+  },
+
+  speechToTextMode: 'auto',
+  setSpeechToTextMode: async (mode) => {
+    const normalizedMode = normalizeSpeechMode(mode)
+    const store = await Store.load('store.json')
+    await store.set('speechToTextMode', normalizedMode)
+    set({ speechToTextMode: normalizedMode })
   },
 
   condenseModel: '',

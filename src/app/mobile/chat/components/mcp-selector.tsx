@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useEffect, useState } from 'react'
-import { Server, Check, PlugZap, Plug, ChevronRight } from 'lucide-react'
+import { Server, PlugZap, Plug, ChevronRight } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { useTranslations } from 'next-intl'
 import { Label } from '@/components/ui/label'
@@ -14,6 +14,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { cn } from '@/lib/utils'
+import { Switch } from '@/components/ui/switch'
 
 function McpListContent() {
   const t = useTranslations('mcp')
@@ -71,13 +72,16 @@ function McpListContent() {
                   )}
                 </div>
               </div>
-              <div className={cn(
-                "flex items-center justify-center w-5 h-5 rounded border transition-colors shrink-0",
-                isSelected
-                  ? "bg-primary border-primary text-primary-foreground"
-                  : "border-muted-foreground/30"
-              )}>
-                {isSelected && <Check className="size-3.5" />}
+              <div
+                className="shrink-0"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <Switch
+                  checked={isSelected}
+                  aria-label={`${t('selectServers')}: ${server.name}`}
+                  onCheckedChange={() => toggleServerSelection(server.id)}
+                />
               </div>
             </button>
           )

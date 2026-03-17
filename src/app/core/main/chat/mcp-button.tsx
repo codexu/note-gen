@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useState } from 'react'
-import { ServerCrash, Server, Check, Plug, PlugZap } from 'lucide-react'
+import { ServerCrash, Server, Plug, PlugZap } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -17,9 +17,9 @@ import {
 } from '@/components/ui/command'
 import { TooltipButton } from '@/components/tooltip-button'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { useMcpStore } from '@/stores/mcp'
 import { useTranslations } from 'next-intl'
-import { cn } from '@/lib/utils'
 
 export function McpButton() {
   const t = useTranslations('mcp')
@@ -98,12 +98,17 @@ export function McpButton() {
                       {server.type === 'stdio' ? `${server.command} ${server.args?.join(' ') || ''}` : `${server.url}`}
                     </span>
                   </div>
-                  <Check
-                    className={cn(
-                      "ml-2 size-4 shrink-0",
-                      selectedServerIds.includes(server.id) ? "opacity-100" : "opacity-0"
-                    )}
-                  />
+                  <div
+                    className="ml-2 shrink-0"
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <Switch
+                      checked={selectedServerIds.includes(server.id)}
+                      aria-label={`${t('selectServers')}: ${server.name}`}
+                      onCheckedChange={() => toggleServerSelection(server.id)}
+                    />
+                  </div>
                 </CommandItem>
               )
             })}

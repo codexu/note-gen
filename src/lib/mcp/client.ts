@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type {
   MCPServerConfig,
   JSONRPCRequest,
@@ -97,7 +98,6 @@ export class MCPClient {
         return response.tools || []
       } catch {
         // 如果都不支持，返回空数组
-        console.warn('Server does not support tool listing')
         return []
       }
     }
@@ -218,7 +218,7 @@ export class MCPClient {
         }
       }
       
-      const response = await fetch(this.config.url, {
+      const response = await tauriFetch(this.config.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -195,19 +195,6 @@ export class ReActAgent {
     allowExecute: false,
   }
 
-  private summarizeTextForDebug(text: string | undefined, maxLength = 160): string {
-    if (!text) {
-      return ''
-    }
-
-    const normalized = text.replace(/\s+/g, ' ').trim()
-    if (normalized.length <= maxLength) {
-      return normalized
-    }
-
-    return `${normalized.slice(0, maxLength)}...`
-  }
-
   constructor(config: ReActConfig) {
     this.config = config
     if (!this.config.maxIterations) {
@@ -250,16 +237,6 @@ export class ReActAgent {
     const contextString = isMessagesArray ? undefined : contextOrMessages as string | undefined
     const messagesArray = isMessagesArray ? contextOrMessages as OpenAI.Chat.ChatCompletionMessageParam[] : undefined
 
-    console.info('[AgentDebug] run:start', {
-      userInputPreview: this.summarizeTextForDebug(userInput),
-      hasContextString: Boolean(contextString),
-      contextLength: contextString?.length || 0,
-      hasMessagesArray: Boolean(messagesArray?.length),
-      messagesCount: messagesArray?.length || 0,
-      hasImageUrls: Boolean(imageUrls?.length),
-      imageCount: imageUrls?.length || 0,
-    })
-
     while (this.currentIteration < this.config.maxIterations) {
       // 检查是否已停止
       if (this.stopped) {
@@ -276,14 +253,6 @@ export class ReActAgent {
 
       // 每次迭代都重新构建系统提示词，因为 Skills 指令依赖于当前迭代次数
       const systemPrompt = await this.buildSystemPrompt()
-
-      console.info('[AgentDebug] iteration:start', {
-        iteration: this.currentIteration,
-        stepCount: this.steps.length,
-        systemPromptLength: systemPrompt.length,
-        contextLength: contextString?.length || 0,
-        messagesCount: messagesArray?.length || 0,
-      })
 
       const thought = await this.think(userInput, contextString, messagesArray, systemPrompt, imageUrls)
 
@@ -788,22 +757,6 @@ Observation: ${step.observation}
         })
       }
 
-      console.info('[AgentDebug] think:messages', {
-        iteration: this.currentIteration,
-        mode: 'messages',
-        historyLength: historyContext.length,
-        userInputPreview: this.summarizeTextForDebug(userInput),
-        contextLength: context?.length || 0,
-        messagesCount: messagesForAI.length,
-        lastObservationPreview: this.summarizeTextForDebug(this.steps[this.steps.length - 1]?.observation),
-        finalUserMessagePreview: this.summarizeTextForDebug(
-          (() => {
-            const content = messagesForAI[messagesForAI.length - 1]?.content
-            return typeof content === 'string' ? content : undefined
-          })()
-        ),
-      })
-
       // 调用实际的 LLM API
       try {
         const { fetchAiStream } = await import('@/lib/ai')
@@ -891,17 +844,6 @@ ${historyContext}
 
 ${buildIterationUserMessage(this.currentIteration, userInput, lastObservation)}`
     }
-
-    console.info('[AgentDebug] think:prompt', {
-      iteration: this.currentIteration,
-      mode: 'prompt',
-      historyLength: historyContext.length,
-      promptLength: prompt.length,
-      contextLength: context?.length || 0,
-      userInputPreview: this.summarizeTextForDebug(userInput),
-      lastObservationPreview: this.summarizeTextForDebug(this.steps[this.steps.length - 1]?.observation),
-      promptPreview: this.summarizeTextForDebug(prompt, 240),
-    })
 
     // 调用实际的 LLM API
     try {

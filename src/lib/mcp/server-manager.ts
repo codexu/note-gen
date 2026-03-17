@@ -1,4 +1,5 @@
 import { MCPClient } from './client'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useMcpStore } from '@/stores/mcp'
 import type {
   MCPServerConfig,
@@ -81,8 +82,6 @@ export class MCPServerManager {
       
       // 更新最后连接时间
       store.updateServer(config.id, { lastConnected: Date.now() })
-      
-      // 连接成功
     } catch (error) {
       // 静默处理错误，设置错误状态
       store.setServerState(config.id, {
@@ -226,7 +225,7 @@ export class MCPServerManager {
         }
         
         // 发送一个简单的 OPTIONS 请求来测试连接
-        await fetch(config.url, {
+        await tauriFetch(config.url, {
           method: 'OPTIONS',
           headers: {
             'Accept': 'application/json, text/event-stream',

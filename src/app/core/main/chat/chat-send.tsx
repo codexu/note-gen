@@ -364,10 +364,6 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 
       if (articleStore.activeFilePath && articleStore.currentArticle) {
         context = `## 当前打开的笔记\n文件路径: ${articleStore.activeFilePath}\n\n内容:\n${articleStore.currentArticle}\n\n`
-        console.info('[AgentDebug] context:active-file', {
-          activeFilePath: articleStore.activeFilePath,
-          articleLength: articleStore.currentArticle.length,
-        })
       }
 
       // 2. 如果启用 RAG，获取知识库相关上下文
@@ -449,12 +445,6 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
 
           if (linkedFileContent) {
             context += `\n## 关联文件完整内容\n\nThe full content of the linked file "${linkedResource.name}" (${linkedResource.relativePath}) is already included below. Do not call tools to read or check this same file again unless the user explicitly asks to refresh it.\n\n---\n${linkedFileContent}\n---\n`
-            console.info('[AgentDebug] context:linked-file', {
-              linkedName: linkedResource.name,
-              linkedRelativePath: linkedResource.relativePath,
-              linkedContentLength: linkedFileContent.length,
-              linkedPreviewIncluded: Boolean(linkedResourcePreview),
-            })
           }
         } catch (error) {
           console.error('Failed to read linked file in Agent mode:', error)
@@ -540,15 +530,6 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
 
 `
       }
-
-      console.info('[AgentDebug] context:final', {
-        inputPreview: inputValue.replace(/\s+/g, ' ').trim().slice(0, 120),
-        contextLength: context.length,
-        linkedResourceType: linkedResource ? (isLinkedFolder(linkedResource) ? 'folder' : 'file') : 'none',
-        linkedResourcePath: linkedResource?.relativePath || null,
-        ragSourcesCount: ragSources.length,
-        hasQuoteData: Boolean(quoteData),
-      })
 
       // 5. 构建消息数组，包含对话历史（使用压缩摘要替代已压缩的消息）
       const { chats } = useChatStore.getState()

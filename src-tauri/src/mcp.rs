@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use tauri::State;
@@ -10,7 +10,7 @@ use std::os::windows::process::CommandExt;
 
 /// MCP 服务器进程管理器
 pub struct McpServerManager {
-    processes: Mutex<HashMap<String, Child>>,
+    processes: Mutex<HashMap<String, Arc<Mutex<Child>>>>,
 }
 
 impl McpServerManager {
@@ -21,13 +21,37 @@ impl McpServerManager {
     }
 }
 
-fn frame_mcp_message(message: &str) -> Vec<u8> {
-    format!("Content-Length: {}\r\n\r\n{}", message.as_bytes().len(), message).into_bytes()
+fn encode_mcp_message(message: &str) -> Vec<u8> {
+    format!("{}\n", message).into_bytes()
 }
 
 fn read_mcp_message<R: Read>(reader: &mut R) -> Result<String, String> {
     let mut reader = BufReader::new(reader);
+    let mut first_line = String::new();
+    let bytes_read = reader
+        .read_line(&mut first_line)
+        .map_err(|e| format!("Failed to read MCP response: {}", e))?;
+
+    if bytes_read == 0 {
+        return Err("Unexpected EOF while reading MCP response".to_string());
+    }
+
+    let first_line_trimmed = first_line.trim();
+    if first_line_trimmed.starts_with('{') {
+        return Ok(first_line_trimmed.to_string());
+    }
+
     let mut content_length: Option<usize> = None;
+    if let Some((name, value)) = first_line_trimmed.split_once(':') {
+        if name.eq_ignore_ascii_case("Content-Length") {
+            content_length = Some(
+                value
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|e| format!("Invalid Content-Length header: {}", e))?,
+            );
+        }
+    }
 
     loop {
         let mut line = String::new();
@@ -57,7 +81,7 @@ fn read_mcp_message<R: Read>(reader: &mut R) -> Result<String, String> {
     }
 
     let content_length =
-        content_length.ok_or_else(|| "Missing Content-Length header in MCP response".to_string())?;
+        content_length.ok_or_else(|| format!("Unsupported MCP response prelude: {}", first_line_trimmed))?;
     let mut body = vec![0; content_length];
     reader
         .read_exact(&mut body)
@@ -97,18 +121,14 @@ fn find_npx_path() -> Option<String> {
             for path in path_var.split(separator) {
                 let npx_cmd = PathBuf::from(path).join("npx.cmd");
                 if npx_cmd.exists() {
-                    let found = npx_cmd.to_string_lossy().to_string();
-                    println!("Found npx.cmd in PATH: {}", found);
-                    return Some(found);
+                    return Some(npx_cmd.to_string_lossy().to_string());
                 }
             }
             // 如果没找到 .cmd，再查找无扩展名的
             for path in path_var.split(separator) {
                 let npx_path = PathBuf::from(path).join("npx");
                 if npx_path.exists() {
-                    let found = npx_path.to_string_lossy().to_string();
-                    println!("Found npx in PATH: {}", found);
-                    return Some(found);
+                    return Some(npx_path.to_string_lossy().to_string());
                 }
             }
         } else {
@@ -116,9 +136,7 @@ fn find_npx_path() -> Option<String> {
             for path in path_var.split(separator) {
                 let npx_path = PathBuf::from(path).join("npx");
                 if npx_path.exists() {
-                    let found = npx_path.to_string_lossy().to_string();
-                    println!("Found npx in PATH: {}", found);
-                    return Some(found);
+                    return Some(npx_path.to_string_lossy().to_string());
                 }
             }
         }
@@ -158,15 +176,13 @@ pub async fn start_mcp_stdio_server(
     env: HashMap<String, String>,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
-    println!("Starting MCP stdio server: {} with command: {}", server_id, command);
-    
     // 检查是否已经启动，如果已启动则先停止
     {
         let mut processes = manager.processes.lock().unwrap();
-        if let Some(mut old_child) = processes.remove(&server_id) {
-            // 尝试停止旧进程
-            let _ = old_child.kill();
-            println!("Stopped existing MCP server: {}", server_id);
+        if let Some(old_child) = processes.remove(&server_id) {
+            if let Ok(mut old_child) = old_child.lock() {
+                let _ = old_child.kill();
+            }
         }
     }
     
@@ -176,9 +192,6 @@ pub async fn start_mcp_stdio_server(
         let npx_path = find_npx_path();
 
         if let Some(npx) = npx_path {
-            println!("Using npx at: {}", npx);
-            println!("Executing: {} {:?}", npx, args);
-
             // 在 Windows 上，.cmd 和 .bat 文件需要通过 cmd.exe 执行
             #[cfg(target_os = "windows")]
             {
@@ -248,11 +261,12 @@ pub async fn start_mcp_stdio_server(
 
     let child = cmd.spawn()
         .map_err(|e| format!("Failed to spawn process: {}", e))?;
+    let child = child;
     
     // 存储进程
     {
         let mut processes = manager.processes.lock().unwrap();
-        processes.insert(server_id.clone(), child);
+        processes.insert(server_id.clone(), Arc::new(Mutex::new(child)));
     }
     
     Ok(format!("Server {} started", server_id))
@@ -264,13 +278,16 @@ pub async fn stop_mcp_server(
     server_id: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<(), String> {
-    
-    let mut processes = manager.processes.lock().unwrap();
-    
-    if let Some(mut child) = processes.remove(&server_id) {
+    let child = {
+        let mut processes = manager.processes.lock().unwrap();
+        processes.remove(&server_id)
+    };
+
+    if let Some(child) = child {
+        let mut child = child.lock().unwrap();
         child.kill()
             .map_err(|e| format!("Failed to kill process: {}", e))?;
-        
+
         Ok(())
     } else {
         Err(format!("Server {} not found", server_id))
@@ -284,23 +301,27 @@ pub async fn send_mcp_message(
     message: String,
     manager: State<'_, McpServerManager>,
 ) -> Result<String, String> {
-    
-    let mut processes = manager.processes.lock().unwrap();
-    
-    if let Some(child) = processes.get_mut(&server_id) {
+    let child = {
+        let processes = manager.processes.lock().unwrap();
+        processes.get(&server_id).cloned()
+    };
+
+    if let Some(child) = child {
+        let mut child = child.lock().unwrap();
         // 获取 stdin 和 stdout
-        let stdin = child.stdin.as_mut()
-            .ok_or("Failed to get stdin")?;
+        let payload = encode_mcp_message(&message);
+        {
+            let stdin = child.stdin.as_mut()
+                .ok_or("Failed to get stdin")?;
+            stdin.write_all(&payload)
+                .map_err(|e| format!("Failed to write framed MCP message: {}", e))?;
+            
+            stdin.flush()
+                .map_err(|e| format!("Failed to flush stdin: {}", e))?;
+        }
+
         let stdout = child.stdout.as_mut()
             .ok_or("Failed to get stdout")?;
-        
-        let payload = frame_mcp_message(&message);
-        stdin.write_all(&payload)
-            .map_err(|e| format!("Failed to write framed MCP message: {}", e))?;
-        
-        stdin.flush()
-            .map_err(|e| format!("Failed to flush stdin: {}", e))?;
-
         read_mcp_message(stdout)
     } else {
         Err(format!("Server {} not found", server_id))
@@ -309,18 +330,29 @@ pub async fn send_mcp_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{frame_mcp_message, read_mcp_message};
+    use super::{encode_mcp_message, read_mcp_message};
     use std::io::Cursor;
 
     #[test]
-    fn writes_content_length_framed_message() {
+    fn writes_newline_delimited_message() {
         let body = r#"{"jsonrpc":"2.0","id":1}"#;
-        let framed = frame_mcp_message(body);
+        let encoded = encode_mcp_message(body);
 
         assert_eq!(
-            framed,
-            format!("Content-Length: {}\r\n\r\n{}", body.len(), body).into_bytes()
+            encoded,
+            format!("{}\n", body).into_bytes()
         );
+    }
+
+    #[test]
+    fn reads_single_json_line_message() {
+        let body = r#"{"jsonrpc":"2.0","result":{"ok":true}}"#;
+        let payload = format!("{}\n", body);
+        let mut cursor = Cursor::new(payload.into_bytes());
+
+        let read = read_mcp_message(&mut cursor).expect("should parse json line body");
+
+        assert_eq!(read, body);
     }
 
     #[test]
@@ -341,7 +373,7 @@ mod tests {
 
         let error = read_mcp_message(&mut cursor).expect_err("should reject invalid frame");
 
-        assert!(error.contains("Content-Length"));
+        assert!(error.contains("Unsupported MCP response prelude"));
     }
 
     #[test]

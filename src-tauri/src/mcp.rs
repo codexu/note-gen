@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use tauri::State;
 
@@ -19,6 +19,51 @@ impl McpServerManager {
             processes: Mutex::new(HashMap::new()),
         }
     }
+}
+
+fn frame_mcp_message(message: &str) -> Vec<u8> {
+    format!("Content-Length: {}\r\n\r\n{}", message.as_bytes().len(), message).into_bytes()
+}
+
+fn read_mcp_message<R: Read>(reader: &mut R) -> Result<String, String> {
+    let mut reader = BufReader::new(reader);
+    let mut content_length: Option<usize> = None;
+
+    loop {
+        let mut line = String::new();
+        let bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|e| format!("Failed to read MCP header: {}", e))?;
+
+        if bytes_read == 0 {
+            return Err("Unexpected EOF while reading MCP headers".to_string());
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            break;
+        }
+
+        if let Some((name, value)) = trimmed.split_once(':') {
+            if name.eq_ignore_ascii_case("Content-Length") {
+                content_length = Some(
+                    value
+                        .trim()
+                        .parse::<usize>()
+                        .map_err(|e| format!("Invalid Content-Length header: {}", e))?,
+                );
+            }
+        }
+    }
+
+    let content_length =
+        content_length.ok_or_else(|| "Missing Content-Length header in MCP response".to_string())?;
+    let mut body = vec![0; content_length];
+    reader
+        .read_exact(&mut body)
+        .map_err(|e| format!("Unexpected EOF while reading MCP body: {}", e))?;
+
+    String::from_utf8(body).map_err(|e| format!("MCP body is not valid UTF-8: {}", e))
 }
 
 /// 查找 npx 的完整路径
@@ -249,50 +294,63 @@ pub async fn send_mcp_message(
         let stdout = child.stdout.as_mut()
             .ok_or("Failed to get stdout")?;
         
-        // 发送消息（JSON-RPC 通过换行符分隔）
-        writeln!(stdin, "{}", message)
-            .map_err(|e| format!("Failed to write to stdin: {}", e))?;
+        let payload = frame_mcp_message(&message);
+        stdin.write_all(&payload)
+            .map_err(|e| format!("Failed to write framed MCP message: {}", e))?;
         
         stdin.flush()
             .map_err(|e| format!("Failed to flush stdin: {}", e))?;
-        
-        // 读取响应 - 支持 SSE 格式和标准 JSON-RPC 格式
-        let mut reader = BufReader::new(stdout);
-        let mut lines = Vec::new();
-        
-        // 读取直到遇到空行（SSE 消息结束标志）或有效的 JSON
-        loop {
-            let mut line = String::new();
-            reader.read_line(&mut line)
-                .map_err(|e| format!("Failed to read from stdout: {}", e))?;
-            
-            let trimmed = line.trim();
-            
-            // 如果是空行，表示 SSE 消息结束
-            if trimmed.is_empty() {
-                break;
-            }
-            
-            // 如果第一行就是有效的 JSON，直接返回（标准 JSON-RPC）
-            if lines.is_empty() && trimmed.starts_with('{') {
-                return Ok(trimmed.to_string());
-            }
-            
-            lines.push(line);
-        }
-        
-        // 解析 SSE 格式：查找 data: 开头的行
-        for line in &lines {
-            let trimmed = line.trim();
-            if trimmed.starts_with("data: ") {
-                let json_data = trimmed.strip_prefix("data: ").unwrap_or("");
-                return Ok(json_data.to_string());
-            }
-        }
-        
-        // 如果没有找到 data: 行，返回所有行的组合
-        Ok(lines.join("\n").trim().to_string())
+
+        read_mcp_message(stdout)
     } else {
         Err(format!("Server {} not found", server_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{frame_mcp_message, read_mcp_message};
+    use std::io::Cursor;
+
+    #[test]
+    fn writes_content_length_framed_message() {
+        let body = r#"{"jsonrpc":"2.0","id":1}"#;
+        let framed = frame_mcp_message(body);
+
+        assert_eq!(
+            framed,
+            format!("Content-Length: {}\r\n\r\n{}", body.len(), body).into_bytes()
+        );
+    }
+
+    #[test]
+    fn reads_single_framed_message() {
+        let body = r#"{"jsonrpc":"2.0","result":{"ok":true}}"#;
+        let payload = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
+        let mut cursor = Cursor::new(payload.into_bytes());
+
+        let read = read_mcp_message(&mut cursor).expect("should parse framed body");
+
+        assert_eq!(read, body);
+    }
+
+    #[test]
+    fn rejects_missing_content_length_header() {
+        let payload = b"X-Test: 1\r\n\r\n{}".to_vec();
+        let mut cursor = Cursor::new(payload);
+
+        let error = read_mcp_message(&mut cursor).expect_err("should reject invalid frame");
+
+        assert!(error.contains("Content-Length"));
+    }
+
+    #[test]
+    fn rejects_truncated_framed_message() {
+        let payload = b"Content-Length: 10\r\n\r\n{}".to_vec();
+        let mut cursor = Cursor::new(payload);
+
+        let error = read_mcp_message(&mut cursor).expect_err("should reject short body");
+
+        assert!(error.contains("Unexpected EOF"));
     }
 }

@@ -50,7 +50,7 @@ export function ServerConfigDialog({
   const isMobile = useIsMobile() || checkIsMobileDevice()
   const t = useTranslations('settings.mcp')
   const { toast } = useToast()
-  const { addServer, updateServer } = useMcpStore()
+  const { addServer, updateServer, selectedServerIds, setSelectedServers } = useMcpStore()
   
   const [name, setName] = useState('')
   const [type, setType] = useState<MCPServerType>('stdio')
@@ -177,23 +177,39 @@ export function ServerConfigDialog({
     const config = buildConfig()
     
     if (editingServer) {
+      const wasEnabled = editingServer.enabled ?? true
+
+      if (wasEnabled && !config.enabled) {
+        await mcpServerManager.disconnectServer(editingServer.id)
+        if (selectedServerIds.includes(editingServer.id)) {
+          await setSelectedServers(selectedServerIds.filter(id => id !== editingServer.id))
+        }
+      }
+
       await updateServer(editingServer.id, config)
       toast({ description: t('serverUpdated') })
+
+      if (config.enabled) {
+        try {
+          await mcpServerManager.reconnectServer(config)
+        } catch (error) {
+          console.error('Failed to reconnect after save:', error)
+        }
+      }
     } else {
       await addServer(config)
       toast({ description: t('serverAdded') })
-    }
-    
-    onOpenChange(false)
-    
-    // 保存后自动测试连接（如果服务器已启用）
-    if (config.enabled) {
-      try {
-        await mcpServerManager.connectServer(config)
-      } catch (error) {
-        console.error('Failed to auto-connect after save:', error)
+
+      if (config.enabled) {
+        try {
+          await mcpServerManager.connectServer(config)
+        } catch (error) {
+          console.error('Failed to auto-connect after save:', error)
+        }
       }
     }
+
+    onOpenChange(false)
   }
   
   return (

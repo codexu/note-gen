@@ -63,9 +63,10 @@ export function ServerList() {
     setDeleteDialogOpen(true)
   }
   
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (serverToDelete) {
-      deleteServer(serverToDelete)
+      await mcpServerManager.disconnectServer(serverToDelete)
+      await deleteServer(serverToDelete)
       toast({ description: t('serverDeleted') })
       setServerToDelete(null)
     }
@@ -121,14 +122,15 @@ export function ServerList() {
     const enabledServers = servers.filter(s => s.enabled)
     
     try {
-      // 并发测试所有启用的服务器
-      await Promise.allSettled(
-        enabledServers.map(server => mcpServerManager.reconnectServer(server))
-      )
-      
+      const result = await mcpServerManager.testConnections(enabledServers)
+
+      const description = result.failed === 0
+        ? t('testAllCompleted')
+        : `${t('testAllCompleted')} (${result.success}/${result.total})`
+
       toast({ 
-        description: t('testAllCompleted'),
-        variant: 'default'
+        description,
+        variant: result.failed === 0 ? 'default' : 'destructive'
       })
     } catch {
       toast({ 

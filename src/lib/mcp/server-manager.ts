@@ -7,6 +7,16 @@ import type {
   CallToolResult,
 } from './types'
 
+interface MCPBatchTestResult {
+  total: number
+  success: number
+  failed: number
+  results: Array<{
+    serverId: string
+    success: boolean
+  }>
+}
+
 /**
  * MCP 服务器管理器
  * 管理多个 MCP 服务器的连接和工具调用
@@ -29,6 +39,10 @@ export class MCPServerManager {
    */
   async connectServer(config: MCPServerConfig): Promise<void> {
     const store = useMcpStore.getState()
+
+    if (this.clients.has(config.id)) {
+      await this.disconnectServer(config.id)
+    }
     
     // 设置连接中状态
     store.setServerState(config.id, {
@@ -108,6 +122,20 @@ export class MCPServerManager {
   async reconnectServer(config: MCPServerConfig): Promise<void> {
     await this.disconnectServer(config.id)
     await this.connectServer(config)
+  }
+
+  async connectEnabledServers(servers: MCPServerConfig[]): Promise<void> {
+    for (const server of servers) {
+      if (!server.enabled) {
+        continue
+      }
+
+      try {
+        await this.connectServer(server)
+      } catch (error) {
+        console.error(`Failed to connect MCP server ${server.name}:`, error)
+      }
+    }
   }
   
   /**
@@ -209,7 +237,11 @@ export class MCPServerManager {
         return true
       } else {
         // 对于 stdio 服务器，需要实际启动和初始化
-        const client = new MCPClient(config)
+        const testConfig: MCPServerConfig = {
+          ...config,
+          id: `mcp-test-${config.id}-${Date.now()}`,
+        }
+        const client = new MCPClient(testConfig)
         try {
           await client.connect()
           await client.initialize()
@@ -230,6 +262,24 @@ export class MCPServerManager {
     } catch {
       // 静默处理测试失败
       return false
+    }
+  }
+
+  async testConnections(configs: MCPServerConfig[]): Promise<MCPBatchTestResult> {
+    const results = await Promise.all(
+      configs.map(async (config) => ({
+        serverId: config.id,
+        success: await this.testConnection(config),
+      }))
+    )
+
+    const success = results.filter(result => result.success).length
+
+    return {
+      total: results.length,
+      success,
+      failed: results.length - success,
+      results,
     }
   }
 }

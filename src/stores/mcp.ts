@@ -62,13 +62,14 @@ export const useMcpStore = create<MCPState>((set, get) => ({
   deleteServer: async (id: string) => {
     const store = await Store.load('store.json')
     const servers = get().servers.filter(s => s.id !== id)
+    const selectedServerIds = get().selectedServerIds.filter(sid => sid !== id)
     await store.set('mcp.servers', servers)
+    await store.set('mcp.selectedServerIds', selectedServerIds)
     await store.save()
     
     // 同时清理状态和选中
     const serverStates = new Map(get().serverStates)
     serverStates.delete(id)
-    const selectedServerIds = get().selectedServerIds.filter(sid => sid !== id)
     
     set({ servers, serverStates, selectedServerIds })
   },
@@ -151,24 +152,6 @@ export const useMcpStore = create<MCPState>((set, get) => ({
         selectedServerIds: selectedServerIds ?? [],
         initialized: true,
       })
-
-      // 自动连接已启用的服务器
-      if (servers && servers.length > 0) {
-        const { mcpServerManager } = await import('@/lib/mcp/server-manager')
-
-        // 延迟一点时间，确保页面完全加载
-        setTimeout(async () => {
-          for (const server of servers) {
-            if (server.enabled) {
-              try {
-                await mcpServerManager.connectServer(server)
-              } catch (error) {
-                console.error(`Failed to auto-connect server ${server.name}:`, error)
-              }
-            }
-          }
-        }, 500)
-      }
     } catch (error) {
       console.error('Failed to initialize MCP data:', error)
     }

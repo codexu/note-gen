@@ -13,12 +13,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Trash2, MoveRight, CheckSquare, XSquare, Filter, Plus, ListChecks, RotateCcw } from 'lucide-react'
-import useMarkStore from '@/stores/mark'
+import { filterMarks } from '@/app/core/main/mark/mark-filters.mjs'
+import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import { delMark, delMarkForever, Mark, restoreMark, updateMark as updateMarkDb } from '@/db/marks'
 import { insertTag } from '@/db/tags'
+import { cn } from '@/lib/utils'
 
 const TYPE_OPTIONS: Mark['type'][] = ['text', 'recording', 'image', 'link', 'file', 'scan', 'todo']
+const TIME_OPTIONS: RecordTimePreset[] = ['all', 'today', 'last7Days', 'last30Days']
 
 function getMarkPreview(mark: Mark): string {
   if (mark.type === 'text') return mark.content?.trim() || mark.desc?.trim() || ''
@@ -36,11 +39,18 @@ export function MobileRecordStream() {
     queues,
     fetchAllMarks,
     fetchAllTrashMarks,
+    recordFilters,
+    setRecordSearch,
+    toggleRecordType,
+    setRecordTimePreset,
+    setRecordTagId,
+    resetRecordFilters,
+    hasActiveRecordFilters,
+    setVisibleMarkIds,
+    initRecordFilters,
   } = useMarkStore()
   const { tags, fetchTags } = useTagStore()
 
-  const [typeFilters, setTypeFilters] = useState<Set<Mark['type']>>(new Set(TYPE_OPTIONS))
-  const [tagFilter, setTagFilter] = useState<number | 'all'>('all')
   const [multiMode, setMultiMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [createTagOpen, setCreateTagOpen] = useState(false)
@@ -58,6 +68,10 @@ export function MobileRecordStream() {
   const swipingMarkIdRef = useRef<number | null>(null)
   const [swipedMarkId, setSwipedMarkId] = useState<number | null>(null)
   const [swipeDeltaX, setSwipeDeltaX] = useState(0)
+
+  useEffect(() => {
+    initRecordFilters()
+  }, [initRecordFilters])
 
   useEffect(() => {
     fetchTags()
@@ -127,12 +141,8 @@ export function MobileRecordStream() {
   const tagMap = useMemo(() => new Map(tags.map((tag) => [tag.id, tag.name])), [tags])
 
   const filteredRecords = useMemo(() => {
-    return records.filter((mark) => {
-      if (!typeFilters.has(mark.type)) return false
-      if (tagFilter !== 'all' && mark.tagId !== tagFilter) return false
-      return true
-    })
-  }, [records, typeFilters, tagFilter])
+    return filterMarks(records, recordFilters)
+  }, [records, recordFilters])
 
   const groupedRecords = useMemo(() => {
     const groups: Array<{ day: string; list: Mark[] }> = []
@@ -147,6 +157,11 @@ export function MobileRecordStream() {
     })
     return groups
   }, [filteredRecords])
+
+  useEffect(() => {
+    setVisibleMarkIds(filteredRecords.map((mark: Mark) => mark.id))
+    return () => setVisibleMarkIds([])
+  }, [filteredRecords, setVisibleMarkIds])
 
   function getDayLabel(day: string) {
     if (dayjs(day).isSame(dayjs(), 'day')) return t('common.today')
@@ -243,7 +258,7 @@ export function MobileRecordStream() {
   }
 
   async function handleDeleteSelected() {
-    const targets = filteredRecords.filter((item) => selectedIds.has(item.id))
+    const targets = filteredRecords.filter((item: Mark) => selectedIds.has(item.id))
     for (const item of targets) {
       if (trashState) {
         await delMarkForever(item.id)
@@ -256,7 +271,7 @@ export function MobileRecordStream() {
   }
 
   async function handleMoveSelected(targetTagId: number) {
-    const targets = filteredRecords.filter((item) => selectedIds.has(item.id))
+    const targets = filteredRecords.filter((item: Mark) => selectedIds.has(item.id))
     for (const item of targets) {
       await updateMarkDb({ ...item, tagId: targetTagId })
     }
@@ -267,28 +282,31 @@ export function MobileRecordStream() {
   const selectedCount = selectedIds.size
   const isAllSelected = filteredRecords.length > 0 && selectedIds.size === filteredRecords.length
 
-  const tagLabel = tagFilter === 'all' ? t('common.all') : (tags.find((item) => item.id === tagFilter)?.name || t('common.all'))
+  const tagLabel = recordFilters.tagId === 'all' ? t('common.all') : (tags.find((item) => item.id === recordFilters.tagId)?.name || t('common.all'))
 
-  const selectedTypeCount = typeFilters.size
+  const selectedTypeCount = recordFilters.selectedTypes.length
   const canMoveBetweenTags = tags.length >= 2
+  const isFilterActive = hasActiveRecordFilters()
 
   function toggleTypeFilter(type: Mark['type']) {
-    setTypeFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-      if (next.size === 0) {
-        return new Set(TYPE_OPTIONS)
-      }
-      return next
-    })
+    toggleRecordType(type)
   }
 
   function selectAllTypes() {
-    setTypeFilters(new Set(TYPE_OPTIONS))
+    if (recordFilters.selectedTypes.length === TYPE_OPTIONS.length) {
+      TYPE_OPTIONS.forEach((type) => {
+        if (recordFilters.selectedTypes.includes(type)) {
+          toggleRecordType(type)
+        }
+      })
+      return
+    }
+
+    TYPE_OPTIONS.forEach((type) => {
+      if (!recordFilters.selectedTypes.includes(type)) {
+        toggleRecordType(type)
+      }
+    })
   }
 
   async function handleCreateTag() {
@@ -297,9 +315,14 @@ export function MobileRecordStream() {
     const res = await insertTag({ name: value })
     const newTagId = Number(res.lastInsertId)
     await fetchTags()
-    setTagFilter(newTagId)
+    setRecordTagId(newTagId)
     setNewTagName('')
     setCreateTagOpen(false)
+  }
+
+  function handleResetFilters() {
+    resetRecordFilters()
+    setTypeFilterOpen(false)
   }
 
   return (
@@ -309,7 +332,7 @@ export function MobileRecordStream() {
           <div className="flex items-center gap-2 overflow-x-auto">
             {!multiMode ? (
               <>
-                <Select value={String(tagFilter)} onValueChange={(value) => setTagFilter(value === 'all' ? 'all' : Number(value))}>
+                <Select value={String(recordFilters.tagId)} onValueChange={(value) => setRecordTagId(value === 'all' ? 'all' : Number(value))}>
                   <SelectTrigger className="h-9 min-w-0 flex-1">
                     <SelectValue placeholder={tagLabel} />
                   </SelectTrigger>
@@ -327,8 +350,17 @@ export function MobileRecordStream() {
                   <Plus className="size-4" />
                 </Button>
 
-                <Button variant={selectedTypeCount === TYPE_OPTIONS.length ? 'outline' : 'default'} size="icon" className="h-9 w-9 shrink-0" title={t('common.filter')} onClick={() => setTypeFilterOpen(true)}>
+                <Button
+                  variant={isFilterActive ? 'default' : 'outline'}
+                  size="icon"
+                  className="relative h-9 w-9 shrink-0"
+                  title={t('record.mark.toolbar.filter.title')}
+                  onClick={() => setTypeFilterOpen(true)}
+                >
                   <Filter className="size-4" />
+                  {isFilterActive ? (
+                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-background" />
+                  ) : null}
                 </Button>
 
                 <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setMultiMode(true)} title={t('record.mark.toolbar.multiSelect')}>
@@ -342,7 +374,7 @@ export function MobileRecordStream() {
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    onClick={() => setSelectedIds(isAllSelected ? new Set() : new Set(filteredRecords.map((item) => item.id)))}
+                    onClick={() => setSelectedIds(isAllSelected ? new Set() : new Set(filteredRecords.map((item: Mark) => item.id)))}
                     title={t('record.mark.toolbar.selectAll')}
                   >
                     <ListChecks className="size-4" />
@@ -398,7 +430,14 @@ export function MobileRecordStream() {
         )}
 
         {groupedRecords.length === 0 ? (
-          <div className="py-14 text-center text-sm text-muted-foreground">{t('record.mark.empty')}</div>
+          <div className="py-14 text-center">
+            <div className="text-sm text-muted-foreground">{isFilterActive ? t('record.mark.list.emptyFiltered') : t('record.mark.empty')}</div>
+            {isFilterActive ? (
+              <Button variant="ghost" size="sm" className="mt-2" onClick={handleResetFilters}>
+                {t('record.mark.toolbar.filter.clear')}
+              </Button>
+            ) : null}
+          </div>
         ) : (
           groupedRecords.map((group) => (
             <div key={group.day} className="mb-4">
@@ -619,24 +658,82 @@ export function MobileRecordStream() {
       <Sheet open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl">
           <SheetHeader>
-            <SheetTitle>{t('common.filter')}</SheetTitle>
+            <SheetTitle>{t('record.mark.toolbar.filter.title')}</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-3">
-            <label className="flex h-11 items-center gap-3 rounded-xl border px-3">
-              <Checkbox checked={selectedTypeCount === TYPE_OPTIONS.length} onCheckedChange={selectAllTypes} />
-              <span className="text-sm">{t('common.all')}</span>
-            </label>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.search')}</div>
+              <Input
+                value={recordFilters.search}
+                onChange={(event) => setRecordSearch(event.target.value)}
+                placeholder={t('record.mark.toolbar.filter.searchPlaceholder')}
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.time')}</div>
+              <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/35 p-1">
+                {TIME_OPTIONS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRecordTimePreset(preset)}
+                    className={cn(
+                      'h-9 justify-center rounded-lg px-2 text-xs',
+                      recordFilters.timePreset === preset
+                        ? 'bg-background shadow-sm text-foreground hover:bg-background'
+                        : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'
+                    )}
+                  >
+                    {t(`record.mark.toolbar.filter.timeOptions.${preset}`)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.tag')}</div>
+              <Select value={String(recordFilters.tagId)} onValueChange={(value) => setRecordTagId(value === 'all' ? 'all' : Number(value))}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder={t('record.mark.toolbar.filter.allTags')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('record.mark.toolbar.filter.allTags')}</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={String(tag.id)}>
+                      {tag.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.type')}</div>
+              <label className="flex h-11 items-center gap-3 rounded-xl border px-3">
+                <Checkbox checked={selectedTypeCount === TYPE_OPTIONS.length && selectedTypeCount > 0} onCheckedChange={selectAllTypes} />
+                <span className="text-sm">{t('common.all')}</span>
+              </label>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {TYPE_OPTIONS.map((type) => (
                 <label key={type} className="flex h-11 items-center gap-3 rounded-xl border px-3">
-                  <Checkbox checked={typeFilters.has(type)} onCheckedChange={() => toggleTypeFilter(type)} />
+                  <Checkbox checked={recordFilters.selectedTypes.includes(type)} onCheckedChange={() => toggleTypeFilter(type)} />
                   <span className="truncate text-sm">{t(`record.mark.type.${type}`)}</span>
                 </label>
               ))}
             </div>
-            <Button className="h-10 w-full" onClick={() => setTypeFilterOpen(false)}>
-              {t('common.confirm')}
-            </Button>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="h-10 flex-1" onClick={handleResetFilters} disabled={!isFilterActive}>
+                {t('record.mark.toolbar.filter.clear')}
+              </Button>
+              <Button className="h-10 flex-1" onClick={() => setTypeFilterOpen(false)}>
+                {t('common.confirm')}
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

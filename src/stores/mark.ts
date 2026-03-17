@@ -11,6 +11,7 @@ import { getRemoteFileContent } from '@/lib/sync/remote-file';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 import { S3Config } from '@/types/sync'
+import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters.mjs'
 
 export interface MarkQueue {
   queueId: string
@@ -18,6 +19,27 @@ export interface MarkQueue {
   type: Mark["type"]
   progress: string
   startTime: number
+}
+
+export type RecordTimePreset = 'all' | 'today' | 'last7Days' | 'last30Days'
+
+export interface RecordFilters {
+  search: string
+  selectedTypes: Mark["type"][]
+  timePreset: RecordTimePreset
+  tagId: number | 'all'
+}
+
+const DEFAULT_RECORD_FILTERS: RecordFilters = {
+  search: '',
+  selectedTypes: [],
+  timePreset: 'all',
+  tagId: 'all',
+}
+
+async function persistRecordFilters(recordFilters: RecordFilters) {
+  const store = await Store.load('store.json')
+  await store.set('recordFilters', recordFilters)
 }
 
 interface MarkState {
@@ -46,6 +68,17 @@ interface MarkState {
   selectAll: () => void
   isMultiSelectMode: boolean
   setMultiSelectMode: (mode: boolean) => void
+  visibleMarkIds: number[]
+  setVisibleMarkIds: (ids: number[]) => void
+
+  recordFilters: RecordFilters
+  setRecordSearch: (search: string) => void
+  toggleRecordType: (type: Mark["type"]) => void
+  setRecordTimePreset: (preset: RecordTimePreset) => void
+  setRecordTagId: (tagId: number | 'all') => void
+  resetRecordFilters: () => void
+  hasActiveRecordFilters: () => boolean
+  initRecordFilters: () => Promise<void>
 
   // 同步
   syncState: boolean
@@ -171,8 +204,9 @@ const useMarkStore = create<MarkState>((set, get) => ({
     set({ selectedMarkIds: new Set<number>(), isMultiSelectMode: false })
   },
   selectAll: () => {
-    const { marks } = get()
-    const allIds = new Set(marks.map(mark => mark.id))
+    const { marks, visibleMarkIds } = get()
+    const ids = visibleMarkIds.length > 0 ? visibleMarkIds : marks.map(mark => mark.id)
+    const allIds = new Set(ids)
     set({ selectedMarkIds: allIds, isMultiSelectMode: true })
   },
   isMultiSelectMode: false,
@@ -181,6 +215,81 @@ const useMarkStore = create<MarkState>((set, get) => ({
     if (!mode) {
       set({ selectedMarkIds: new Set<number>() })
     }
+  },
+  visibleMarkIds: [],
+  setVisibleMarkIds: (ids) => {
+    set({ visibleMarkIds: ids })
+  },
+
+  recordFilters: DEFAULT_RECORD_FILTERS,
+  setRecordSearch: (search) => {
+    set((state) => {
+      const recordFilters = {
+        ...state.recordFilters,
+        search,
+      }
+      void persistRecordFilters(recordFilters)
+      return { recordFilters }
+    })
+  },
+  toggleRecordType: (type) => {
+    set((state) => {
+      const selectedTypes = state.recordFilters.selectedTypes.includes(type)
+        ? state.recordFilters.selectedTypes.filter((item) => item !== type)
+        : [...state.recordFilters.selectedTypes, type]
+
+      const recordFilters = {
+        ...state.recordFilters,
+        selectedTypes,
+      }
+      void persistRecordFilters(recordFilters)
+
+      return {
+        recordFilters,
+      }
+    })
+  },
+  setRecordTimePreset: (preset) => {
+    set((state) => {
+      const recordFilters = {
+        ...state.recordFilters,
+        timePreset: preset,
+      }
+      void persistRecordFilters(recordFilters)
+      return { recordFilters }
+    })
+  },
+  setRecordTagId: (tagId) => {
+    set((state) => {
+      const recordFilters = {
+        ...state.recordFilters,
+        tagId,
+      }
+      void persistRecordFilters(recordFilters)
+      return { recordFilters }
+    })
+  },
+  resetRecordFilters: () => {
+    void persistRecordFilters(DEFAULT_RECORD_FILTERS)
+    set({
+      recordFilters: DEFAULT_RECORD_FILTERS,
+    })
+  },
+  hasActiveRecordFilters: () => {
+    const { recordFilters } = get()
+    return Boolean(
+      recordFilters.search.trim() ||
+      recordFilters.selectedTypes.length > 0 ||
+      recordFilters.timePreset !== 'all' ||
+      recordFilters.tagId !== 'all'
+    )
+  },
+  initRecordFilters: async () => {
+    const store = await Store.load('store.json')
+    const savedFilters = await store.get<RecordFilters>('recordFilters')
+    set({
+      recordFilters: normalizeRecordFilters(savedFilters),
+    })
   },
 
   // 同步

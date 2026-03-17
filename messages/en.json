@@ -1591,6 +1591,22 @@
       },
       "toolbar": {
         "search": "Search",
+        "filter": {
+          "title": "Filter",
+          "search": "Search",
+          "searchPlaceholder": "Search record text, description, or link",
+          "type": "Type",
+          "time": "Time",
+          "tag": "Tag",
+          "allTags": "All tags",
+          "clear": "Clear filters",
+          "timeOptions": {
+            "all": "All time",
+            "today": "Today",
+            "last7Days": "Last 7 days",
+            "last30Days": "Last 30 days"
+          }
+        },
         "trash": "Trash",
         "restore": "Restore",
         "delete": "Delete",
@@ -1633,7 +1649,18 @@
         "deleteSelectedForever": "Permanently delete selected {count} items"
       },
       "list": {
-        "title": "Records"
+        "title": "Records",
+        "emptyFiltered": "No matching records",
+        "emptyFilteredHint": "Try adjusting the search or filters",
+        "filtered": "Filtered",
+        "filteredByTag": "tag",
+        "filteredByType": "{count} types",
+        "filteredSummary": "Showing {count} results · {filters}",
+        "time": {
+          "today": "Today",
+          "last7Days": "Last 7 days",
+          "last30Days": "Last 30 days"
+        }
       },
       "note": {
         "organizeAs": "Organize as",

@@ -1569,6 +1569,22 @@
       },
       "toolbar": {
         "search": "搜索",
+        "filter": {
+          "title": "筛选",
+          "search": "搜索",
+          "searchPlaceholder": "搜索记录内容、描述或链接",
+          "type": "类型",
+          "time": "时间",
+          "tag": "标签",
+          "allTags": "全部标签",
+          "clear": "清空筛选",
+          "timeOptions": {
+            "all": "全部时间",
+            "today": "今天",
+            "last7Days": "最近7天",
+            "last30Days": "最近30天"
+          }
+        },
         "trash": "回收站",
         "closeTrash": "关闭回收站",
         "organizeNotes": "整理笔记",
@@ -1603,7 +1619,18 @@
         "todo": "待办记录"
       },
       "list": {
-        "title": "记录"
+        "title": "记录",
+        "emptyFiltered": "没有符合条件的记录",
+        "emptyFilteredHint": "试试调整搜索词或筛选条件",
+        "filtered": "已筛选",
+        "filteredByTag": "标签",
+        "filteredByType": "{count} 种类型",
+        "filteredSummary": "当前显示 {count} 条结果 · {filters}",
+        "time": {
+          "today": "今天",
+          "last7Days": "最近7天",
+          "last30Days": "最近30天"
+        }
       }
     },
     "chat": {

@@ -1,9 +1,11 @@
 mod mcp;
+mod mcp_runtime;
 mod device;
 mod backup;
 mod skills;
 
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
+use mcp_runtime::{cancel_mcp_runtime_install, inspect_mcp_runtime, install_mcp_runtime, RuntimeInstallManager};
 use device::get_device_id;
 use backup::{export_app_data, import_app_data, import_app_data_from_file};
 use skills::import_skill_zip;
@@ -19,10 +21,14 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(McpServerManager::new())
+        .manage(RuntimeInstallManager::new())
         .invoke_handler(tauri::generate_handler![
             start_mcp_stdio_server,
             stop_mcp_server,
             send_mcp_message,
+            inspect_mcp_runtime,
+            install_mcp_runtime,
+            cancel_mcp_runtime_install,
             get_device_id,
             export_app_data,
             import_app_data,

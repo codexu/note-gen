@@ -17,6 +17,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -30,7 +31,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useMcpStore } from '@/stores/mcp'
 import type { MCPServerConfig, MCPServerType } from '@/lib/mcp/types'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertTriangle } from 'lucide-react'
 import { mcpServerManager } from '@/lib/mcp/server-manager'
 import { useToast } from '@/hooks/use-toast'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -47,7 +48,8 @@ export function ServerConfigDialog({
   onOpenChange,
   editingServer,
 }: ServerConfigDialogProps) {
-  const isMobile = useIsMobile() || checkIsMobileDevice()
+  const isActualMobile = checkIsMobileDevice()
+  const isMobile = useIsMobile() || isActualMobile
   const t = useTranslations('settings.mcp')
   const { toast } = useToast()
   const { addServer, updateServer, selectedServerIds, setSelectedServers } = useMcpStore()
@@ -90,7 +92,7 @@ export function ServerConfigDialog({
   
   const resetForm = () => {
     setName('')
-    setType('stdio')
+    setType(isActualMobile ? 'http' : 'stdio')
     setCommand('')
     setArgs('')
     setEnv('')
@@ -98,8 +100,15 @@ export function ServerConfigDialog({
     setHeaders('')
     setEnabled(true)
   }
+
+  const isUnsupportedMobileStdio = isActualMobile && type === 'stdio'
   
   const handleTestConnection = async () => {
+    if (isUnsupportedMobileStdio) {
+      toast({ description: t('mobileHttpOnlyDesc'), variant: 'destructive' })
+      return
+    }
+
     setTesting(true)
     try {
       // 使用临时 ID 进行测试
@@ -163,6 +172,11 @@ export function ServerConfigDialog({
       toast({ description: t('nameRequired'), variant: 'destructive' })
       return
     }
+
+    if (isUnsupportedMobileStdio) {
+      toast({ description: t('mobileHttpOnlyDesc'), variant: 'destructive' })
+      return
+    }
     
     if (type === 'stdio' && !command.trim()) {
       toast({ description: t('commandRequired'), variant: 'destructive' })
@@ -211,6 +225,18 @@ export function ServerConfigDialog({
 
     onOpenChange(false)
   }
+
+  const unsupportedMobileSection = isUnsupportedMobileStdio ? (
+    <Card className="p-4 border-dashed">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="size-4 text-amber-500" />
+          <p className="font-medium">{t('mobileHttpOnlyTitle')}</p>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('mobileHttpOnlyDesc')}</p>
+      </div>
+    </Card>
+  ) : null
   
   return (
     <>
@@ -250,19 +276,25 @@ export function ServerConfigDialog({
               {/* 服务器类型 */}
               <div className="space-y-2">
                 <Label htmlFor="type">{t('serverType')}</Label>
-                <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stdio">{t('stdio')}</SelectItem>
-                    <SelectItem value="http">{t('http')}</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isUnsupportedMobileStdio ? (
+                  <Input value={t('stdio')} disabled />
+                ) : (
+                  <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="http">{t('http')}</SelectItem>
+                      {!isActualMobile && <SelectItem value="stdio">{t('stdio')}</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
+              {unsupportedMobileSection}
+
               {/* stdio 配置 */}
-              {type === 'stdio' && (
+              {type === 'stdio' && !isActualMobile && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="command">{t('command')}</Label>
@@ -331,12 +363,12 @@ export function ServerConfigDialog({
               <Button
                 variant="outline"
                 onClick={handleTestConnection}
-                disabled={testing}
+                disabled={testing || isUnsupportedMobileStdio}
               >
                 {testing && <Loader2 className="mr-2 size-4 animate-spin" />}
                 {t('testConnection')}
               </Button>
-              <Button onClick={handleSave}>{t('save')}</Button>
+              <Button onClick={handleSave} disabled={isUnsupportedMobileStdio}>{t('save')}</Button>
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
@@ -376,19 +408,25 @@ export function ServerConfigDialog({
               {/* 服务器类型 */}
               <div className="space-y-2">
                 <Label htmlFor="type">{t('serverType')}</Label>
-                <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stdio">{t('stdio')}</SelectItem>
-                    <SelectItem value="http">{t('http')}</SelectItem>
-                  </SelectContent>
-                </Select>
+                {isUnsupportedMobileStdio ? (
+                  <Input value={t('stdio')} disabled />
+                ) : (
+                  <Select value={type} onValueChange={(v) => setType(v as MCPServerType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="http">{t('http')}</SelectItem>
+                      {!isActualMobile && <SelectItem value="stdio">{t('stdio')}</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
+              {unsupportedMobileSection}
+
               {/* stdio 配置 */}
-              {type === 'stdio' && (
+              {type === 'stdio' && !isActualMobile && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="command">{t('command')}</Label>
@@ -457,16 +495,17 @@ export function ServerConfigDialog({
               <Button
                 variant="outline"
                 onClick={handleTestConnection}
-                disabled={testing}
+                disabled={testing || isUnsupportedMobileStdio}
               >
                 {testing && <Loader2 className="mr-2 size-4 animate-spin" />}
                 {t('testConnection')}
               </Button>
-              <Button onClick={handleSave}>{t('save')}</Button>
+              <Button onClick={handleSave} disabled={isUnsupportedMobileStdio}>{t('save')}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
+
     </>
   )
 }

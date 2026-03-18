@@ -1593,6 +1593,7 @@
         "search": "Search",
         "filter": {
           "title": "Filter",
+          "description": "Instantly narrow records by content, time, and type.",
           "search": "Search",
           "searchPlaceholder": "Search record text, description, or link",
           "type": "Type",
@@ -1600,6 +1601,8 @@
           "tag": "Tag",
           "allTags": "All tags",
           "clear": "Clear filters",
+          "selectAllTypes": "Select all types",
+          "clearTypes": "Clear type selection",
           "timeOptions": {
             "all": "All time",
             "today": "Today",
@@ -1652,10 +1655,12 @@
         "title": "Records",
         "emptyFiltered": "No matching records",
         "emptyFilteredHint": "Try adjusting the search or filters",
+        "filteredLabel": "{count} filtered",
         "filtered": "Filtered",
         "filteredByTag": "tag",
         "filteredByType": "{count} types",
         "filteredSummary": "Showing {count} results · {filters}",
+        "searchChip": "Search: {value}",
         "time": {
           "today": "Today",
           "last7Days": "Last 7 days",

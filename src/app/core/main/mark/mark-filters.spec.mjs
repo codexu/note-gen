@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { filterMarks, normalizeRecordFilters } from './mark-filters.mjs'
+import { buildRecordFilterSummary, filterMarks, normalizeRecordFilters } from './mark-filters.mjs'
 
 const baseMarks = [
   {
@@ -106,5 +106,22 @@ test('normalizes persisted record filters and drops invalid values', () => {
     selectedTypes: ['recording', 'text'],
     timePreset: 'last7Days',
     tagId: 2,
+  })
+})
+
+test('builds a compact summary payload for active filters', () => {
+  const summary = buildRecordFilterSummary({
+    search: '  sync  ',
+    selectedTypes: ['recording', 'text'],
+    timePreset: 'last7Days',
+    tagId: 2,
+  })
+
+  assert.deepEqual(summary, {
+    hasFilters: true,
+    search: 'sync',
+    typeCount: 2,
+    timePreset: 'last7Days',
+    hasTag: true,
   })
 })

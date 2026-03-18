@@ -37,6 +37,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { BaseDirectory, readFile } from "@tauri-apps/plugin-fs";
 import { useRouter } from "next/navigation";
 import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
+import { getMarkTypeListBadgeClasses } from "./mark-type-meta";
 
 dayjs.extend(relativeTime)
 
@@ -220,7 +221,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
     return (
         <div className={`flex-1 overflow-hidden text-${recordTextSize} ${lineHeight} pr-10 md:pr-2`}>
           <div className="flex w-full items-center gap-2 text-zinc-500">
-            <span className={`flex items-center gap-1 bg-cyan-900 text-white px-1 rounded text-${recordTextSize}`}>
+            <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
               {t(mark.type)}
             </span>
             <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
@@ -232,7 +233,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
     return (
         <div className={`flex-1 overflow-hidden text-${recordTextSize} ${lineHeight} pr-10 md:pr-2`}>
           <div className="flex w-full items-center gap-2 text-zinc-500">
-            <span className={`flex items-center gap-1 bg-fuchsia-900 text-white px-1 rounded text-${recordTextSize}`}>
+            <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
               {t(mark.type)}
             </span>
             {mark.url.includes('http') ? <ImageUp className="size-3 text-zinc-400" /> : null}
@@ -245,7 +246,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
     return (
         <div className="flex-1 pr-10 md:pr-0">
           <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-            <span className="flex items-center gap-1 bg-blue-900 text-white px-1 rounded">
+            <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
               {t(mark.type)}
             </span>
             <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
@@ -267,7 +268,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
       return (
           <div className="flex-1 pr-10 md:pr-0">
             <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-              <span className="flex items-center gap-1 bg-lime-900 text-white px-1 rounded">
+              <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
                 {t(mark.type)}
               </span>
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
@@ -279,7 +280,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
       return (
           <div className="flex-1 pr-10 md:pr-0">
             <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-              <span className="flex items-center gap-1 bg-red-900 text-white px-1 rounded">
+              <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
                 {t(mark.type)}
               </span>
               {shouldShowRecordingAction && (
@@ -313,7 +314,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
       return (
           <div className="flex-1 pr-10 md:pr-0">
             <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-              <span className="flex items-center gap-1 bg-orange-800 text-white px-1 rounded">
+              <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
                 {t(mark.type)}
               </span>
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>

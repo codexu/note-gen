@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import useMarkStore from "@/stores/mark"
 import useSettingStore from "@/stores/setting"
 import { Button } from "@/components/ui/button"
+import { getMarkTypeListBadgeClasses } from "./mark-type-meta"
 import {
   Dialog,
   DialogContent,
@@ -128,8 +129,7 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
     <>
       <div className="flex-1 pr-10 md:pr-0 group">
         <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-          {/* 待办标签 */}
-          <span className="flex items-center gap-1.5 bg-indigo-900 text-white px-1.5 py-0.5 rounded text-xs">
+          <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
             {t('record.mark.type.todo')}
           </span>
 

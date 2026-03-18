@@ -12,15 +12,16 @@ import { LocalImage } from '@/components/local-image'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, MoveRight, CheckSquare, XSquare, Filter, Plus, ListChecks, RotateCcw } from 'lucide-react'
+import { Trash2, MoveRight, CheckSquare, XSquare, Filter, Plus, ListChecks, RotateCcw, Search } from 'lucide-react'
 import { filterMarks } from '@/app/core/main/mark/mark-filters.mjs'
+import { getMarkTypeChipClasses, MARK_TYPE_OPTIONS } from '@/app/core/main/mark/mark-type-meta'
 import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import { delMark, delMarkForever, Mark, restoreMark, updateMark as updateMarkDb } from '@/db/marks'
 import { insertTag } from '@/db/tags'
 import { cn } from '@/lib/utils'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-const TYPE_OPTIONS: Mark['type'][] = ['text', 'recording', 'image', 'link', 'file', 'scan', 'todo']
 const TIME_OPTIONS: RecordTimePreset[] = ['all', 'today', 'last7Days', 'last30Days']
 
 function getMarkPreview(mark: Mark): string {
@@ -293,8 +294,8 @@ export function MobileRecordStream() {
   }
 
   function selectAllTypes() {
-    if (recordFilters.selectedTypes.length === TYPE_OPTIONS.length) {
-      TYPE_OPTIONS.forEach((type) => {
+    if (recordFilters.selectedTypes.length === MARK_TYPE_OPTIONS.length) {
+      MARK_TYPE_OPTIONS.forEach((type) => {
         if (recordFilters.selectedTypes.includes(type)) {
           toggleRecordType(type)
         }
@@ -302,7 +303,7 @@ export function MobileRecordStream() {
       return
     }
 
-    TYPE_OPTIONS.forEach((type) => {
+    MARK_TYPE_OPTIONS.forEach((type) => {
       if (!recordFilters.selectedTypes.includes(type)) {
         toggleRecordType(type)
       }
@@ -351,15 +352,15 @@ export function MobileRecordStream() {
                 </Button>
 
                 <Button
-                  variant={isFilterActive ? 'default' : 'outline'}
-                  size="icon"
+                  variant={isFilterActive ? 'secondary' : 'outline'}
+                  size="sm"
                   className="relative h-9 w-9 shrink-0"
                   title={t('record.mark.toolbar.filter.title')}
                   onClick={() => setTypeFilterOpen(true)}
                 >
                   <Filter className="size-4" />
                   {isFilterActive ? (
-                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400 ring-2 ring-background" />
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
                   ) : null}
                 </Button>
 
@@ -660,78 +661,96 @@ export function MobileRecordStream() {
           <SheetHeader>
             <SheetTitle>{t('record.mark.toolbar.filter.title')}</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-4">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.search')}</div>
-              <Input
-                value={recordFilters.search}
-                onChange={(event) => setRecordSearch(event.target.value)}
-                placeholder={t('record.mark.toolbar.filter.searchPlaceholder')}
-                className="h-10"
-              />
-            </div>
+          <div className="mt-4 space-y-3">
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">{t('record.mark.toolbar.filter.title')}</CardTitle>
+                <CardDescription>{t('record.mark.toolbar.filter.description')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.search')}</div>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={recordFilters.search}
+                      onChange={(event) => setRecordSearch(event.target.value)}
+                      placeholder={t('record.mark.toolbar.filter.searchPlaceholder')}
+                      className="h-10 pl-9"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.time')}</div>
-              <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/35 p-1">
-                {TIME_OPTIONS.map((preset) => (
-                  <Button
-                    key={preset}
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRecordTimePreset(preset)}
-                    className={cn(
-                      'h-9 justify-center rounded-lg px-2 text-xs',
-                      recordFilters.timePreset === preset
-                        ? 'bg-background shadow-sm text-foreground hover:bg-background'
-                        : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'
-                    )}
-                  >
-                    {t(`record.mark.toolbar.filter.timeOptions.${preset}`)}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.time')}</div>
+                  <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/35 p-1">
+                    {TIME_OPTIONS.map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRecordTimePreset(preset)}
+                        className={cn(
+                          'h-9 justify-center rounded-lg px-2 text-xs font-medium',
+                          recordFilters.timePreset === preset
+                            ? 'bg-background shadow-sm text-foreground hover:bg-background'
+                            : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'
+                        )}
+                      >
+                        {t(`record.mark.toolbar.filter.timeOptions.${preset}`)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.type')}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MARK_TYPE_OPTIONS.map((type) => (
+                      <Button
+                        key={type}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleTypeFilter(type)}
+                        className={cn(
+                          'h-9 justify-start rounded-lg px-3 text-sm',
+                          getMarkTypeChipClasses(type, recordFilters.selectedTypes.includes(type))
+                        )}
+                      >
+                        {t(`record.mark.type.${type}`)}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-8 px-0 text-xs text-muted-foreground" onClick={selectAllTypes}>
+                    {selectedTypeCount === MARK_TYPE_OPTIONS.length && selectedTypeCount > 0 ? t('record.mark.toolbar.filter.clearTypes') : t('record.mark.toolbar.filter.selectAllTypes')}
                   </Button>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.tag')}</div>
-              <Select value={String(recordFilters.tagId)} onValueChange={(value) => setRecordTagId(value === 'all' ? 'all' : Number(value))}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder={t('record.mark.toolbar.filter.allTags')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('record.mark.toolbar.filter.allTags')}</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag.id} value={String(tag.id)}>
-                      {tag.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.tag')}</div>
+                  <Select value={String(recordFilters.tagId)} onValueChange={(value) => setRecordTagId(value === 'all' ? 'all' : Number(value))}>
+                    <SelectTrigger className="h-10 rounded-lg">
+                      <SelectValue placeholder={t('record.mark.toolbar.filter.allTags')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t('record.mark.toolbar.filter.allTags')}</SelectItem>
+                      {tags.map((tag) => (
+                        <SelectItem key={tag.id} value={String(tag.id)}>
+                          {tag.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">{t('record.mark.toolbar.filter.type')}</div>
-              <label className="flex h-11 items-center gap-3 rounded-xl border px-3">
-                <Checkbox checked={selectedTypeCount === TYPE_OPTIONS.length && selectedTypeCount > 0} onCheckedChange={selectAllTypes} />
-                <span className="text-sm">{t('common.all')}</span>
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {TYPE_OPTIONS.map((type) => (
-                <label key={type} className="flex h-11 items-center gap-3 rounded-xl border px-3">
-                  <Checkbox checked={recordFilters.selectedTypes.includes(type)} onCheckedChange={() => toggleTypeFilter(type)} />
-                  <span className="truncate text-sm">{t(`record.mark.type.${type}`)}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="h-10 flex-1" onClick={handleResetFilters} disabled={!isFilterActive}>
+            <div className="flex justify-end">
+              <Button variant="outline" className="h-9 gap-2" onClick={handleResetFilters} disabled={!isFilterActive}>
+                <RotateCcw className="h-3.5 w-3.5" />
                 {t('record.mark.toolbar.filter.clear')}
-              </Button>
-              <Button className="h-10 flex-1" onClick={() => setTypeFilterOpen(false)}>
-                {t('common.confirm')}
               </Button>
             </div>
           </div>

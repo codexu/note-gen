@@ -3,11 +3,12 @@
 import React from "react"
 import { useTranslations } from "next-intl";
 import type { Mark } from "@/db/marks";
+import { Badge } from "@/components/ui/badge";
 import { MarkItem } from "./mark-item";
 import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
-import { filterMarks } from "./mark-filters.mjs";
+import { buildRecordFilterSummary, filterMarks } from "./mark-filters.mjs";
 
 export const MarkList = React.memo(function MarkList() {
   const t = useTranslations('record.mark.list')
@@ -23,22 +24,7 @@ export const MarkList = React.memo(function MarkList() {
     filterMarks(marks, recordFilters)
   ), [marks, recordFilters])
 
-  const activeFilterText = React.useMemo(() => {
-    const parts: string[] = []
-    if (recordFilters.search.trim()) {
-      parts.push(`"${recordFilters.search.trim()}"`)
-    }
-    if (recordFilters.selectedTypes.length > 0) {
-      parts.push(t('filteredByType', { count: recordFilters.selectedTypes.length }))
-    }
-    if (recordFilters.timePreset !== 'all') {
-      parts.push(t(`time.${recordFilters.timePreset}`))
-    }
-    if (recordFilters.tagId !== 'all') {
-      parts.push(t('filteredByTag'))
-    }
-    return parts.join(' · ')
-  }, [recordFilters, t])
+  const filterSummary = React.useMemo(() => buildRecordFilterSummary(recordFilters), [recordFilters])
 
   React.useEffect(() => {
     setVisibleMarkIds(filteredMarks.map((mark: Mark) => mark.id))
@@ -50,8 +36,32 @@ export const MarkList = React.memo(function MarkList() {
       <div className="px-0">
         <div>
           {hasActiveRecordFilters() ? (
-            <div className="border-b bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-              {t('filteredSummary', { count: filteredMarks.length, filters: activeFilterText || t('filtered') })}
+            <div className="border-b bg-muted/20 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="rounded-full px-2 py-0 text-[11px]">
+                  {t('filteredLabel', { count: filteredMarks.length })}
+                </Badge>
+                {filterSummary.search ? (
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[11px] font-normal">
+                    {t('searchChip', { value: filterSummary.search })}
+                  </Badge>
+                ) : null}
+                {filterSummary.timePreset !== 'all' ? (
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[11px] font-normal">
+                    {t(`time.${filterSummary.timePreset}`)}
+                  </Badge>
+                ) : null}
+                {filterSummary.typeCount > 0 ? (
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[11px] font-normal">
+                    {t('filteredByType', { count: filterSummary.typeCount })}
+                  </Badge>
+                ) : null}
+                {filterSummary.hasTag ? (
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[11px] font-normal">
+                    {t('filteredByTag')}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {

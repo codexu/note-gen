@@ -67,6 +67,23 @@ export function normalizeRecordFilters(filters) {
   }
 }
 
+export function buildRecordFilterSummary(filters) {
+  const normalized = normalizeRecordFilters(filters)
+
+  return {
+    hasFilters: Boolean(
+      normalized.search.trim() ||
+      normalized.selectedTypes.length > 0 ||
+      normalized.timePreset !== 'all' ||
+      normalized.tagId !== 'all'
+    ),
+    search: normalized.search.trim(),
+    typeCount: normalized.selectedTypes.length,
+    timePreset: normalized.timePreset,
+    hasTag: normalized.tagId !== 'all',
+  }
+}
+
 export function filterMarks(marks, filters) {
   const normalizedFilters = normalizeRecordFilters(filters)
   const search = normalizeText(normalizedFilters.search)

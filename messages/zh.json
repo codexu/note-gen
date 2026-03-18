@@ -1571,6 +1571,7 @@
         "search": "搜索",
         "filter": {
           "title": "筛选",
+          "description": "按内容、时间和类型即时过滤记录。",
           "search": "搜索",
           "searchPlaceholder": "搜索记录内容、描述或链接",
           "type": "类型",
@@ -1578,6 +1579,8 @@
           "tag": "标签",
           "allTags": "全部标签",
           "clear": "清空筛选",
+          "selectAllTypes": "选择全部类型",
+          "clearTypes": "清空类型选择",
           "timeOptions": {
             "all": "全部时间",
             "today": "今天",
@@ -1622,10 +1625,12 @@
         "title": "记录",
         "emptyFiltered": "没有符合条件的记录",
         "emptyFilteredHint": "试试调整搜索词或筛选条件",
+        "filteredLabel": "已筛选 {count} 条",
         "filtered": "已筛选",
         "filteredByTag": "标签",
         "filteredByType": "{count} 种类型",
         "filteredSummary": "当前显示 {count} 条结果 · {filters}",
+        "searchChip": "搜索: {value}",
         "time": {
           "today": "今天",
           "last7Days": "最近7天",

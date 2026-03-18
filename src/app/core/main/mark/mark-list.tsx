@@ -9,6 +9,9 @@ import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
 import { buildRecordFilterSummary, filterMarks } from "./mark-filters.mjs";
+import { MarkListDefaultView } from "./mark-list-default-view";
+import { MarkListCompactView } from "./mark-list-compact-view";
+import { MarkListCardView } from "./mark-list-card-view";
 
 export const MarkList = React.memo(function MarkList() {
   const t = useTranslations('record.mark.list')
@@ -16,6 +19,7 @@ export const MarkList = React.memo(function MarkList() {
     marks,
     queues,
     recordFilters,
+    recordViewMode,
     hasActiveRecordFilters,
     setVisibleMarkIds,
   } = useMarkStore()
@@ -30,6 +34,18 @@ export const MarkList = React.memo(function MarkList() {
     setVisibleMarkIds(filteredMarks.map((mark: Mark) => mark.id))
     return () => setVisibleMarkIds([])
   }, [filteredMarks, setVisibleMarkIds])
+
+  const view = (() => {
+    switch (recordViewMode) {
+    case 'compact':
+      return <MarkListCompactView marks={filteredMarks} />
+    case 'cards':
+      return <MarkListCardView marks={filteredMarks} />
+    case 'list':
+    default:
+      return <MarkListDefaultView marks={filteredMarks} />
+    }
+  })()
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -73,9 +89,7 @@ export const MarkList = React.memo(function MarkList() {
           }
           {
             filteredMarks.length ? (
-              filteredMarks.map((mark: Mark) => (
-                <MarkItem key={mark.id} mark={mark} />
-              ))
+              view
             ) : hasActiveRecordFilters() ? (
               <div className="flex flex-col justify-center items-center flex-1 w-full pt-32 text-center">
                 <p className="text-sm text-zinc-500">{t('emptyFiltered')}</p>

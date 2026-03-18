@@ -10,6 +10,7 @@ import useMarkStore from "@/stores/mark"
 import useSettingStore from "@/stores/setting"
 import { Button } from "@/components/ui/button"
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta"
+import { parseTodoMarkContent } from "./mark-list-item-content"
 import {
   Dialog,
   DialogContent,
@@ -35,16 +36,7 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
   const { recordTextSize } = useSettingStore()
 
   const [todoData, setTodoData] = useState<TodoData>(() => {
-    try {
-      return JSON.parse(mark.content || '{}')
-    } catch {
-      return {
-        title: mark.desc || '',
-        description: '',
-        completed: false,
-        priority: 'medium' as Priority
-      }
-    }
+    return parseTodoMarkContent(mark)
   })
 
   // 编辑状态

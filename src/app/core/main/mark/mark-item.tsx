@@ -21,7 +21,7 @@ import { LocalImage } from "@/components/local-image";
 import { fetchAiDesc } from "@/lib/ai/description";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { appDataDir } from "@tauri-apps/api/path";
-import { ImageUp, RefreshCw, Settings2 } from "lucide-react";
+import { CheckSquare, ImageUp, RefreshCw, Settings2, Square } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,7 @@ import { BaseDirectory, readFile } from "@tauri-apps/plugin-fs";
 import { useRouter } from "next/navigation";
 import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta";
+import { getMarkListItemContent } from "./mark-list-item-content";
 
 dayjs.extend(relativeTime)
 
@@ -71,7 +72,7 @@ const getWordCount = (text: string): number => {
   return text.replace(/\s/g, '').length;
 };
 
-const DetailViewer = React.memo(({mark, content, path}: {mark: Mark, content: string, path?: string}) => {
+const DetailViewer = React.memo(({mark, content, path, className}: {mark: Mark, content: string, path?: string, className?: string}) => {
   const [value, setValue] = useState('')
   const [descValue, setDescValue] = useState('')
   const { updateMark } = useMarkStore()
@@ -100,7 +101,7 @@ const DetailViewer = React.memo(({mark, content, path}: {mark: Mark, content: st
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <span className={`line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} break-words cursor-pointer hover:underline`}>{content}</span>
+        <span className={className || `line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} break-words cursor-pointer hover:underline`}>{content}</span>
       </SheetTrigger>
       <SheetContent className="lg:min-w-[800px] w-full mt-[env(safe-area-inset-top)] p-0">
         <SheetHeader className="p-4 border-b">
@@ -142,8 +143,11 @@ const DetailViewer = React.memo(({mark, content, path}: {mark: Mark, content: st
 })
 DetailViewer.displayName = 'DetailViewer'
 
-export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
+export type MarkItemVariant = 'list' | 'compact' | 'cards'
+
+export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, variant?: MarkItemVariant}) => {
   const t = useTranslations('record.mark.type');
+  const todoT = useTranslations('record.mark.todo');
   const recordingT = useTranslations('recording');
   const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
   const { recordTextSize, sttModel } = useSettingStore();
@@ -154,6 +158,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
 
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
   const shouldShowRecordingAction = mark.type === 'recording' && mark.content === NO_TRANSCRIPTION_MESSAGE
+  const itemContent = useMemo(() => getMarkListItemContent(mark), [mark])
 
   const handleCheckboxChange = useCallback(() => {
     toggleMarkSelection(mark.id);
@@ -214,6 +219,84 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
       setIsRetryingTranscription(false)
     }
   }, [fetchMarks, isMobile, isRetryingTranscription, mark, recordingT, router, sttModel])
+
+  if (variant === 'compact') {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        {isMultiSelectMode && (
+          <div className="pr-1">
+            <Checkbox
+              checked={selectedMarkIds.has(mark.id)}
+              onCheckedChange={handleCheckboxChange}
+            />
+          </div>
+        )}
+        <span className={getMarkTypeListBadgeClasses(mark.type, 'xs')}>
+          {t(mark.type)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <DetailViewer
+            mark={mark}
+            content={itemContent.title || itemContent.preview || t(mark.type)}
+            path={mark.type === 'scan' ? 'screenshot' : mark.type === 'image' ? 'image' : undefined}
+            className={`block truncate text-${recordTextSize} font-medium hover:underline`}
+          />
+        </div>
+        <span className="shrink-0 text-xs text-zinc-500">{dayjs(mark.createdAt).format('HH:mm')}</span>
+      </div>
+    )
+  }
+
+  if (variant === 'cards') {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-zinc-500">
+          <span className={getMarkTypeListBadgeClasses(mark.type, 'xs')}>
+            {t(mark.type)}
+          </span>
+          <span className="ml-auto text-xs">{dayjs(mark.createdAt).format('MM-DD HH:mm')}</span>
+        </div>
+        {(mark.type === 'image' || mark.type === 'scan') && mark.url ? (
+          <div className="overflow-hidden rounded-xl bg-zinc-100">
+            <LocalImage
+              src={mark.url.includes('http') ? mark.url : `/${mark.type === 'scan' ? 'screenshot' : 'image'}/${mark.url}`}
+              alt=""
+              className="h-auto max-h-56 w-full object-cover"
+            />
+          </div>
+        ) : null}
+        <div className="space-y-2">
+          <DetailViewer
+            mark={mark}
+            content={itemContent.title || itemContent.preview || t(mark.type)}
+            path={mark.type === 'scan' ? 'screenshot' : mark.type === 'image' ? 'image' : undefined}
+            className={`block break-words text-${recordTextSize} font-semibold hover:underline`}
+          />
+          {itemContent.preview && itemContent.preview !== itemContent.title ? (
+            <p className={`line-clamp-6 text-${recordTextSize} ${lineHeight} text-zinc-600`}>
+              {itemContent.preview}
+            </p>
+          ) : null}
+          {mark.type === 'link' && mark.url ? (
+            <a
+              href={mark.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`block truncate text-xs text-blue-600 hover:underline`}
+            >
+              {mark.url}
+            </a>
+          ) : null}
+          {mark.type === 'todo' && itemContent.todo ? (
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              {itemContent.todo.completed ? <CheckSquare className="size-3.5 text-green-600" /> : <Square className="size-3.5 text-zinc-400" />}
+              <span>{itemContent.todo.completed ? todoT('completed') : todoT('uncompleted')}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
 
   const renderContent = () => {
     switch (mark.type) {
@@ -359,7 +442,7 @@ export const MarkWrapper = React.memo(({mark}: {mark: Mark}) => {
 })
 MarkWrapper.displayName = 'MarkWrapper'
 
-export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
+export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, variant?: MarkItemVariant}) => {
   const t = useTranslations();
   const isMobile = useIsMobile()
   const {
@@ -504,12 +587,18 @@ export const MarkItem = React.memo(({mark}: {mark: Mark}) => {
   const markCard = (
     <div
       data-mark-item="true"
-      className={`border-t relative transition-colors ${isMobile ? 'cursor-default active:bg-accent/40' : 'cursor-move hover:bg-accent/50'}`}
+      className={`relative transition-colors ${
+        variant === 'cards'
+          ? 'rounded-2xl border border-border/70 bg-background shadow-sm'
+          : variant === 'compact'
+            ? 'rounded-xl border border-border/60 bg-background px-3 py-2'
+            : 'rounded-2xl border border-border/60 bg-background shadow-sm'
+      } ${isMobile ? 'cursor-default active:bg-accent/40' : 'cursor-move hover:bg-accent/50'}`}
       draggable={!isMultiSelectMode && !isMobile}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <MarkWrapper mark={mark} />
+      <MarkWrapper mark={mark} variant={variant} />
       <div className="absolute top-2 right-2">
         <MarkMobileActions
           mark={mark}

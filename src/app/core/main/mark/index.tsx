@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import React from "react"
+import { useEffect } from "react"
 import { TagManage } from './tag-manage'
 import { MarkList } from './mark-list'
 import { MarkToolbar } from './mark-toolbar'
@@ -13,8 +14,12 @@ import { filterMarks } from "./mark-filters.mjs";
 
 export function NoteSidebar() {
   const t = useTranslations();
-  const { trashState, marks, setMarks, recordFilters } = useMarkStore()
+  const { trashState, marks, setMarks, recordFilters, initRecordViewMode } = useMarkStore()
   const visibleTrashMarks = React.useMemo(() => filterMarks(marks, recordFilters), [marks, recordFilters])
+
+  useEffect(() => {
+    initRecordViewMode()
+  }, [initRecordViewMode])
 
   async function handleClearTrash() {
     const res = await confirm(t('record.trash.confirm'), {

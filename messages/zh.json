@@ -1917,6 +1917,7 @@
     "view": "查看",
     "logout": "登出",
     "setting": "设置",
+    "activity": "活跃度",
     "files": "笔记",
     "outline": "大纲",
     "showLeftSidebar": "显示左侧边栏",
@@ -1926,6 +1927,42 @@
     "showRightSidebar": "显示右侧边栏",
     "hideRightSidebar": "隐藏右侧边栏",
     "searchPlaceholder": "搜索笔记或记录..."
+  },
+  "activity": {
+    "title": "活跃度日历",
+    "description": "按天查看你的记录、对话和写作活跃情况。第一版基于现有记录、用户对话和笔记修改时间进行统计。",
+    "drawer": {
+      "title": "活跃度",
+      "description": "快速查看今天状态和最近一段时间的活跃趋势。",
+      "today": "今天"
+    },
+    "loading": "正在加载活跃度数据...",
+    "empty": "暂无活跃度数据",
+    "refresh": "刷新",
+    "summary": {
+      "totalCount": "总活跃次数",
+      "activeDays": "活跃天数",
+      "records": "记录次数",
+      "chats": "对话次数",
+      "writing": "写作活跃"
+    },
+    "labels": {
+      "record": "记录",
+      "writing": "写作",
+      "chat": "对话"
+    },
+    "heatmap": {
+      "title": "最近 26 周热力图",
+      "range": "{startDate} - {endDate}",
+      "less": "少",
+      "more": "多",
+      "dayCount": "次活动",
+      "emptyDay": "无活动"
+    },
+    "detail": {
+      "title": "当天明细",
+      "empty": "选择一个日期查看当天的活动明细。"
+    }
   },
   "marks": {
     "types": {

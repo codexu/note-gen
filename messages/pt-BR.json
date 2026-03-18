@@ -1966,6 +1966,7 @@
     "view": "Visualizar",
     "logout": "Sair",
     "setting": "Configurações",
+    "activity": "Atividade",
     "files": "Notas",
     "outline": "Sumário",
     "hideLeftSidebar": "Ocultar Barra Lateral Esquerda",
@@ -1975,6 +1976,42 @@
     "searchPlaceholder": "Pesquisar notas ou registros...",
     "showCenterPanel": "Mostrar editor",
     "hideCenterPanel": "Ocultar editor"
+  },
+  "activity": {
+    "title": "Calendário de Atividade",
+    "description": "Veja seus registros, conversas e atividade de escrita por dia. Esta primeira versão é calculada a partir dos registros existentes, conversas do usuário e horários de modificação das notas.",
+    "drawer": {
+      "title": "Atividade",
+      "description": "Veja rapidamente o status de hoje e a tendência recente da sua atividade.",
+      "today": "Hoje"
+    },
+    "loading": "Carregando dados de atividade...",
+    "empty": "Ainda não há dados de atividade",
+    "refresh": "Atualizar",
+    "summary": {
+      "totalCount": "Atividade Total",
+      "activeDays": "Dias Ativos",
+      "records": "Registros",
+      "chats": "Conversas",
+      "writing": "Escrita"
+    },
+    "labels": {
+      "record": "Registro",
+      "writing": "Escrita",
+      "chat": "Conversa"
+    },
+    "heatmap": {
+      "title": "Últimas 26 Semanas",
+      "range": "{startDate} - {endDate}",
+      "less": "Menos",
+      "more": "Mais",
+      "dayCount": "atividades",
+      "emptyDay": "Sem atividade"
+    },
+    "detail": {
+      "title": "Detalhes do Dia",
+      "empty": "Selecione um dia para ver seus detalhes de atividade."
+    }
   },
   "marks": {
     "types": {

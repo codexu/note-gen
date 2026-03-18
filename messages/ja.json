@@ -1914,6 +1914,7 @@
     "view": "表示",
     "logout": "ログアウト",
     "setting": "設定",
+    "activity": "アクティビティ",
     "files": "ノート",
     "outline": "アウトライン",
     "hideLeftSidebar": "左サイドバーを非表示",
@@ -1923,6 +1924,42 @@
     "searchPlaceholder": "ノートまたは記録を検索...",
     "showCenterPanel": "显示编辑器",
     "hideCenterPanel": "隐藏编辑器"
+  },
+  "activity": {
+    "title": "アクティビティカレンダー",
+    "description": "記録、対話、執筆の活動を日ごとに確認できます。初版では既存の記録、ユーザー対話、ノート更新時刻をもとに集計します。",
+    "drawer": {
+      "title": "アクティビティ",
+      "description": "今日の状態と最近の活動傾向をすばやく確認できます。",
+      "today": "今日"
+    },
+    "loading": "アクティビティデータを読み込み中...",
+    "empty": "まだアクティビティデータがありません",
+    "refresh": "更新",
+    "summary": {
+      "totalCount": "総アクティビティ",
+      "activeDays": "活動日数",
+      "records": "記録回数",
+      "chats": "対話回数",
+      "writing": "執筆活動"
+    },
+    "labels": {
+      "record": "記録",
+      "writing": "執筆",
+      "chat": "対話"
+    },
+    "heatmap": {
+      "title": "直近 26 週間",
+      "range": "{startDate} - {endDate}",
+      "less": "少",
+      "more": "多",
+      "dayCount": "件の活動",
+      "emptyDay": "活動なし"
+    },
+    "detail": {
+      "title": "当日の詳細",
+      "empty": "日付を選択すると当日の活動詳細が表示されます。"
+    }
   },
   "chat": {
     "placeholder": {

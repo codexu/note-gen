@@ -19,6 +19,7 @@ export async function initAllDatabases() {
   const { initVectorDb } = await import('./vector');
   const { initConversationsDb } = await import('./conversations');
   const { initMemoriesDb } = await import('./memories');
+  const { initActivityDb } = await import('./activity');
 
   // 执行初始化（conversations 需要在 chats 之前初始化，因为要迁移数据）
   await initConversationsDb();
@@ -28,4 +29,5 @@ export async function initAllDatabases() {
   await initTagsDb();
   await initVectorDb();
   await initMemoriesDb();
+  await initActivityDb();
 }

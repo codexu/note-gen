@@ -1,5 +1,7 @@
 import { getDb } from "./index"
 import { BaseDirectory, exists, mkdir } from "@tauri-apps/plugin-fs"
+import { insertActivityEvent } from './activity'
+import { truncateActivityText } from '@/lib/activity/events'
 
 export interface Mark {
   id: number
@@ -43,10 +45,23 @@ export async function getMarks(id: number) {
 export async function insertMark(mark: Partial<Mark>) {
   const db = await getDb();
   const createdAt = Date.now();
-  return await db.execute(
+  const result = await db.execute(
     "insert into marks (tagId, type, content, url, desc, createdAt, deleted) values ($1, $2, $3, $4, $5, $6, $7)",
     [mark.tagId, mark.type,  mark.content, mark.url, mark.desc, createdAt, 0]
   )
+
+  const preview = truncateActivityText(mark.desc || mark.content || mark.url || '', 140)
+
+  await insertActivityEvent({
+    source: 'record',
+    title: preview || mark.type || 'record',
+    description: preview || mark.type || '',
+    tagId: mark.tagId ?? null,
+    dedupeKey: result.lastInsertId ? `record:${result.lastInsertId}` : `record:${createdAt}:${mark.type || 'record'}`,
+    createdAt,
+  })
+
+  return result
 }
 
 export async function getAllMarks() {

@@ -2100,6 +2100,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 更新 currentArticle
         set({ currentArticle: saveContent })
 
+        // 记录写作活动（独立事件日志，不受后续删除影响）
+        try {
+          const { recordWritingActivity } = await import('@/db/activity')
+          const fileName = savePath.split('/').pop() || savePath
+          await recordWritingActivity({
+            path: savePath,
+            title: fileName,
+            description: savePath,
+          })
+        } catch (error) {
+          console.error('记录写作活动失败:', error)
+        }
+
         // 通知文件已保存，触发同步推送（除非设置了 skipSyncOnSave）
         const shouldSkipSync = get().skipSyncOnSave
         if (!shouldSkipSync) {

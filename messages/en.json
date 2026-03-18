@@ -1974,6 +1974,7 @@
     "view": "View",
     "logout": "Logout",
     "setting": "Settings",
+    "activity": "Activity",
     "files": "Notes",
     "outline": "Outline",
     "showLeftSidebar": "Show Left Sidebar",
@@ -1983,6 +1984,42 @@
     "showRightSidebar": "Show Right Sidebar",
     "hideRightSidebar": "Hide Right Sidebar",
     "searchPlaceholder": "Search notes or records..."
+  },
+  "activity": {
+    "title": "Activity Calendar",
+    "description": "Review your daily records, chats, and writing activity in one place. This first version is derived from existing records, user chats, and note modification times.",
+    "drawer": {
+      "title": "Activity",
+      "description": "Quickly review today's status and your recent activity trend.",
+      "today": "Today"
+    },
+    "loading": "Loading activity data...",
+    "empty": "No activity data yet",
+    "refresh": "Refresh",
+    "summary": {
+      "totalCount": "Total Activity",
+      "activeDays": "Active Days",
+      "records": "Records",
+      "chats": "Chats",
+      "writing": "Writing"
+    },
+    "labels": {
+      "record": "Record",
+      "writing": "Writing",
+      "chat": "Chat"
+    },
+    "heatmap": {
+      "title": "Last 26 Weeks",
+      "range": "{startDate} - {endDate}",
+      "less": "Less",
+      "more": "More",
+      "dayCount": "activities",
+      "emptyDay": "No activity"
+    },
+    "detail": {
+      "title": "Day Details",
+      "empty": "Select a day to inspect its activity details."
+    }
   },
   "marks": {
     "types": {

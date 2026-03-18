@@ -1924,6 +1924,7 @@
     "view": "查看",
     "logout": "登出",
     "setting": "設置",
+    "activity": "活躍度",
     "files": "筆記",
     "outline": "大綱",
     "hideLeftSidebar": "隱藏左側邊欄",
@@ -1933,6 +1934,42 @@
     "searchPlaceholder": "搜索筆記或記錄...",
     "showCenterPanel": "显示编辑器",
     "hideCenterPanel": "隐藏编辑器"
+  },
+  "activity": {
+    "title": "活躍度日曆",
+    "description": "按天查看你的記錄、對話與寫作活躍情況。第一版基於現有記錄、使用者對話與筆記修改時間進行統計。",
+    "drawer": {
+      "title": "活躍度",
+      "description": "快速查看今天狀態和最近一段時間的活躍趨勢。",
+      "today": "今天"
+    },
+    "loading": "正在載入活躍度資料...",
+    "empty": "暫無活躍度資料",
+    "refresh": "重新整理",
+    "summary": {
+      "totalCount": "總活躍次數",
+      "activeDays": "活躍天數",
+      "records": "記錄次數",
+      "chats": "對話次數",
+      "writing": "寫作活躍"
+    },
+    "labels": {
+      "record": "記錄",
+      "writing": "寫作",
+      "chat": "對話"
+    },
+    "heatmap": {
+      "title": "最近 26 週熱力圖",
+      "range": "{startDate} - {endDate}",
+      "less": "少",
+      "more": "多",
+      "dayCount": "次活動",
+      "emptyDay": "無活動"
+    },
+    "detail": {
+      "title": "當天明細",
+      "empty": "選擇一個日期查看當天的活動明細。"
+    }
   },
   "marks": {
     "types": {

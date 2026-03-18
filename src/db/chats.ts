@@ -1,4 +1,6 @@
 import { getDb } from "./index"
+import { insertActivityEvent } from './activity'
+import { truncateActivityText } from '@/lib/activity/events'
 
 export type Role = 'system' | 'user'
 export type ChatType = 'chat' | 'note' | 'clipboard' | 'clear' | 'condensed'
@@ -165,6 +167,18 @@ export async function insertChat(chat: Omit<Chat, 'id' | 'createdAt'>) {
     "insert into chats (tagId, conversationId, content, role, type, image, images, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
     [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt]
   )
+
+  if (chat.role === 'user' && chat.content?.trim()) {
+    await insertActivityEvent({
+      source: 'chat',
+      title: truncateActivityText(chat.content, 64),
+      description: truncateActivityText(chat.content, 140),
+      tagId: chat.tagId ?? null,
+      dedupeKey: result.lastInsertId ? `chat:${result.lastInsertId}` : `chat:${createdAt}`,
+      createdAt,
+    })
+  }
+
   return result
 }
 

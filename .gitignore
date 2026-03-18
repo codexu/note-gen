@@ -10,7 +10,10 @@ src-tauri/gen/*
 *.local
 target/*
 .claude/*
+.superpowers/*
+.agents/*
 /docs/*/*
+skills-lock.json
 
 /.pnp
 .pnp.*

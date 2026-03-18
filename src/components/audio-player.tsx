@@ -8,9 +8,10 @@ import { readFile, BaseDirectory } from '@tauri-apps/plugin-fs'
 
 interface AudioPlayerProps {
   audioPath: string
+  compact?: boolean
 }
 
-export function AudioPlayer({ audioPath }: AudioPlayerProps) {
+export function AudioPlayer({ audioPath, compact = false }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   
   const [isPlaying, setIsPlaying] = useState(false)
@@ -97,9 +98,63 @@ export function AudioPlayer({ audioPath }: AudioPlayerProps) {
 
   // 如果音频源未加载，显示加载提示
   if (!audioSrc) {
+    if (compact) {
+      return (
+        <Button
+          variant="ghost"
+          size="icon"
+          disabled
+          className="size-5 shrink-0"
+        >
+          <Play className="size-3" />
+        </Button>
+      )
+    }
+
     return (
       <div className="w-full py-1 px-2 bg-muted/30 rounded text-center text-xs text-muted-foreground">
         加载音频中...
+      </div>
+    )
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center">
+        <audio
+          ref={audioRef}
+          src={audioSrc}
+          preload="metadata"
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onLoadedMetadata={(e) => {
+            const duration = e.currentTarget.duration
+            setDuration(duration)
+            setIsReady(true)
+          }}
+          onCanPlay={() => {
+            setIsReady(true)
+          }}
+          onEnded={() => setIsPlaying(false)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onError={(e) => {
+            console.error('音频加载错误:', e.currentTarget.error)
+            setIsReady(false)
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={togglePlay}
+          disabled={!isReady}
+          className="size-5 shrink-0"
+        >
+          {isPlaying ? (
+            <Pause className="size-3" />
+          ) : (
+            <Play className="size-3" />
+          )}
+        </Button>
       </div>
     )
   }

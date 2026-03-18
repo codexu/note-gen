@@ -4,7 +4,6 @@ import React from "react"
 import { useTranslations } from "next-intl";
 import type { Mark } from "@/db/marks";
 import { Badge } from "@/components/ui/badge";
-import { MarkItem } from "./mark-item";
 import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";

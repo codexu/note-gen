@@ -2,9 +2,9 @@
 
 import { LayoutGrid, Rows3, StretchHorizontal } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { Button } from "@/components/ui/button"
 import type { RecordViewMode } from "@/stores/mark"
 import { cn } from "@/lib/utils"
+import { BottomBarIconButton } from "@/components/bottom-bar-icon-button"
 
 type MarkViewModeToggleProps = {
   value: RecordViewMode
@@ -24,28 +24,17 @@ export function MarkViewModeToggle({ value, onChange }: MarkViewModeToggleProps)
   const t = useTranslations('record.mark.toolbar.view')
 
   return (
-    <div className="flex items-center gap-0.5 rounded-md border border-border/70 bg-muted/30 p-0.5">
-      {VIEW_MODE_ITEMS.map(({ mode, icon: Icon }) => {
-        const active = value === mode
-
-        return (
-          <Button
-            key={mode}
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onChange(mode)}
-            className={cn(
-              "h-6 w-6 rounded-sm p-0 text-muted-foreground shadow-none",
-              active && "bg-background text-foreground shadow-sm"
-            )}
-            title={t(mode)}
-            aria-label={t(mode)}
-          >
-            <Icon className="size-3.5" />
-          </Button>
-        )
-      })}
+    <div className="flex items-center gap-1">
+      {VIEW_MODE_ITEMS.map(({ mode, icon: Icon }) => (
+        <BottomBarIconButton
+          key={mode}
+          icon={<Icon className="size-3" />}
+          label={t(mode)}
+          onClick={() => onChange(mode)}
+          active={value === mode}
+          className={cn(value === mode && "text-foreground")}
+        />
+      ))}
     </div>
   )
 }

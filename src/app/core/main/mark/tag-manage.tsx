@@ -22,10 +22,12 @@ import type { Mark } from "@/db/marks"
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
-import { MarkItem } from './mark-item'
 import { MarkLoading } from './mark-loading'
 import { ImageGallery } from './image-gallery'
 import { filterMarks } from './mark-filters.mjs'
+import { MarkListDefaultView } from './mark-list-default-view'
+import { MarkListCompactView } from './mark-list-compact-view'
+import { MarkListCardView } from './mark-list-card-view'
 import emitter from '@/lib/emitter'
 import { EmitterRecordEvents } from '@/config/emitters'
 import {
@@ -176,6 +178,7 @@ export function TagManage() {
     queues,
     fetchMarks,
     recordFilters,
+    recordViewMode,
     hasActiveRecordFilters,
     setVisibleMarkIds,
   } = useMarkStore()
@@ -316,6 +319,41 @@ export function TagManage() {
     return () => setVisibleMarkIds([])
   }, [setVisibleMarkIds, visibleMarkIds])
 
+  const renderTagRecords = React.useCallback((tagId: number) => {
+    const filteredMarks = getFilteredTagMarks(tagId).filter((mark: Mark) => {
+      if (mark.type === 'image' || mark.type === 'scan') {
+        return mark.content && mark.content.trim() !== ''
+      }
+      return true
+    })
+
+    if (filteredMarks.length === 0 && queues.filter(queue => queue.tagId === tagId).length === 0) {
+      return (
+        <Empty className="border-0 py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Inbox />
+            </EmptyMedia>
+            <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
+            <EmptyDescription className="text-xs">
+              {t('record.mark.mark.emptyHint')}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )
+    }
+
+    switch (recordViewMode) {
+    case 'compact':
+      return <MarkListCompactView marks={filteredMarks} />
+    case 'cards':
+      return <MarkListCardView marks={filteredMarks} />
+    case 'list':
+    default:
+      return <MarkListDefaultView marks={filteredMarks} />
+    }
+  }, [getFilteredTagMarks, queues, recordViewMode, t])
+
   return (
     <div className="w-full">
       <DndContext
@@ -418,34 +456,7 @@ export function TagManage() {
                     <ImageGallery marks={getFilteredTagMarks(tag.id)} />
                     
                     {/* 显示已完成的记录 - 过滤掉没有内容的图片记录 */}
-                    {(() => {
-                      const filteredMarks = getFilteredTagMarks(tag.id).filter((mark: Mark) => {
-                        // 如果是图片类型（scan 或 image），只显示有内容或描述的
-                        if (mark.type === 'image' || mark.type === 'scan') {
-                          return mark.content && mark.content.trim() !== ''
-                        }
-                        // 其他类型的记录正常显示
-                        return true
-                      })
-                      
-                      return filteredMarks.length === 0 && queues.filter(queue => queue.tagId === tag.id).length === 0 ? (
-                        <Empty className="border-0 py-8">
-                          <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                              <Inbox />
-                            </EmptyMedia>
-                            <EmptyTitle className="text-sm">{t('record.mark.empty')}</EmptyTitle>
-                            <EmptyDescription className="text-xs">
-                              {t('record.mark.mark.emptyHint')}
-                            </EmptyDescription>
-                          </EmptyHeader>
-                        </Empty>
-                      ) : (
-                        filteredMarks.map((mark: Mark) => (
-                          <MarkItem key={mark.id} mark={mark} />
-                        ))
-                      )
-                    })()}
+                    {renderTagRecords(tag.id)}
                   </AccordionContent>
                 </AccordionItemWrapper>
               </SortableTagItem>

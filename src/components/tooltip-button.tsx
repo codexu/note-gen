@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 export function TooltipButton(
   {
@@ -10,6 +11,7 @@ export function TooltipButton(
     variant = "ghost",
     size = "icon",
     side = "top",
+    buttonClassName,
     ...props 
   }:
   {
@@ -20,13 +22,14 @@ export function TooltipButton(
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null | undefined;
     size?: "icon" | "sm" | "default" | "lg";
     side?: "top" | "right" | "bottom" | "left";
+    buttonClassName?: string;
   })
 {
   return (
     <TooltipProvider>
       <Tooltip {...props}>
         <TooltipTrigger asChild>
-          <Button className="relative" disabled={disabled} size={size} variant={variant} onClick={onClick}>
+          <Button className={cn("relative", buttonClassName)} disabled={disabled} size={size} variant={variant} onClick={onClick}>
             {icon}
           </Button>
         </TooltipTrigger>

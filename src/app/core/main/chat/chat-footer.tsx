@@ -4,6 +4,7 @@ import { BotMessageSquare, BotOff, Drama } from "lucide-react"
 import usePromptStore from "@/stores/prompt"
 import useSettingStore from "@/stores/setting"
 import { useTranslations } from "next-intl"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function ChatFooter() {
   const t = useTranslations('record.chat.header')
@@ -40,27 +41,43 @@ export function ChatFooter() {
   const selectedModel = findSelectedModel()
 
   return (
-    <footer className="h-6 w-full flex items-center justify-between border-t px-2 text-xs">
-      <div className="flex items-center gap-1.5">
-        <Drama className="size-3.5" />
-        <span className="line-clamp-1">{currentPrompt?.title}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        {
-          selectedModel ?
-          <>
-            <BotMessageSquare className="size-3.5" />
-            <span className="line-clamp-1">
-              {selectedModel.model}
-              <span className="ml-1">({selectedModel.configTitle})</span>
-            </span>
-          </> :
-          <>
-            <BotOff className="size-3.5" />
-            <span>{t('noModel')}</span>
-          </>
-        }
-      </div>
-    </footer>
+    <TooltipProvider>
+      <footer className="flex h-6 w-full items-center justify-between border-t border-border bg-background px-2 text-xs text-muted-foreground">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex min-w-0 items-center gap-1">
+              <Drama className="size-3" />
+              <span className="truncate">{currentPrompt?.title}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>{currentPrompt?.title || '-'}</p>
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex min-w-0 items-center gap-1">
+              {selectedModel ? (
+                <>
+                  <BotMessageSquare className="size-3" />
+                  <span className="truncate">
+                    {selectedModel.model}
+                    <span className="ml-1">({selectedModel.configTitle})</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <BotOff className="size-3" />
+                  <span>{t('noModel')}</span>
+                </>
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>{selectedModel ? `${selectedModel.model} (${selectedModel.configTitle})` : t('noModel')}</p>
+          </TooltipContent>
+        </Tooltip>
+      </footer>
+    </TooltipProvider>
   )
 }

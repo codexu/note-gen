@@ -1,11 +1,10 @@
 'use client'
 
-import { Button } from "@/components/ui/button";
 import { ListChecks, SquareCheckBig, XCircle } from "lucide-react";
 import { useTranslations } from 'next-intl';
 import useMarkStore from "@/stores/mark";
-import { useEffect } from "react";
 import { MarkViewModeToggle } from "./mark-view-mode-toggle";
+import { BottomBarIconButton } from "@/components/bottom-bar-icon-button";
 
 export function MarkToolbar() {
   const { 
@@ -19,13 +18,8 @@ export function MarkToolbar() {
     clearSelection,
     recordViewMode,
     setRecordViewMode,
-    initRecordViewMode,
   } = useMarkStore()
   const t = useTranslations('record.mark.toolbar')
-
-  useEffect(() => {
-    initRecordViewMode()
-  }, [initRecordViewMode])
 
   const handleToggleMultiSelect = () => {
     setMultiSelectMode(!isMultiSelectMode)
@@ -47,7 +41,7 @@ export function MarkToolbar() {
   }
 
   return (
-    <div className="flex h-8 items-center justify-between overflow-hidden border-t bg-background px-2">
+    <div className="flex h-6 items-center justify-between overflow-hidden border-t border-border bg-background px-2 text-xs text-muted-foreground">
       <div className="min-w-0">
         {isMultiSelectMode ? (
           <span className="text-xs text-muted-foreground">
@@ -62,37 +56,25 @@ export function MarkToolbar() {
       <div className="flex items-center gap-1">
         {isMultiSelectMode ? (
           <>
-            <Button
-              variant="ghost"
-              size="sm"
+            <BottomBarIconButton
+              icon={<ListChecks className="size-3" />}
+              label={isAllSelected ? t('deselectAll') : t('selectAll')}
               onClick={handleSelectAll}
-              className="size-6"
-              title={isAllSelected ? t('deselectAll') : t('selectAll')}
-            >
-              <ListChecks className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            />
+            <BottomBarIconButton
+              icon={<XCircle className="size-3" />}
+              label={t('exitMultiSelect')}
               onClick={clearSelection}
-              className="size-6"
-              title={t('exitMultiSelect')}
-            >
-              <XCircle className="size-4" />
-            </Button>
+            />
           </>
         ) : (
           <>
             <MarkViewModeToggle value={recordViewMode} onChange={setRecordViewMode} />
-            <Button
-              variant="ghost"
-              size="sm"
+            <BottomBarIconButton
+              icon={<SquareCheckBig className="size-3" />}
+              label={t('multiSelect')}
               onClick={handleToggleMultiSelect}
-              className="size-6"
-              title={t('multiSelect')}
-            >
-              <SquareCheckBig className="size-4" />
-            </Button>
+            />
           </>
         )}
       </div>

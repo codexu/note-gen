@@ -27,6 +27,18 @@ function compactText(value?: string) {
   return value?.replace(/\s+/g, ' ').trim() || ''
 }
 
+function splitTitleAndPreview(value?: string) {
+  const text = compactText(value)
+  if (!text) {
+    return { title: '', preview: '' }
+  }
+
+  const title = text.slice(0, 48).trim()
+  const preview = text.length > 48 ? text.slice(48).trim() : text
+
+  return { title, preview }
+}
+
 export function parseTodoMarkContent(mark: Mark): ParsedTodoMark {
   try {
     const parsed = JSON.parse(mark.content || '{}')
@@ -47,17 +59,19 @@ export function parseTodoMarkContent(mark: Mark): ParsedTodoMark {
 export function getMarkListItemContent(mark: Mark): MarkListItemContent {
   switch (mark.type) {
   case 'text': {
-    const content = compactText(mark.content)
+    const fallback = compactText(mark.desc)
+    const { title, preview } = splitTitleAndPreview(mark.content || mark.desc)
     return {
-      title: content || compactText(mark.desc),
-      preview: content || compactText(mark.desc),
+      title: title || fallback,
+      preview: preview || title || fallback,
     }
   }
   case 'recording': {
-    const title = compactText(mark.desc) || compactText(mark.content)
+    const desc = compactText(mark.desc)
+    const { title, preview } = splitTitleAndPreview(mark.content)
     return {
-      title,
-      preview: compactText(mark.content) || title,
+      title: desc || title,
+      preview: preview || title || desc,
     }
   }
   case 'scan':
@@ -78,10 +92,11 @@ export function getMarkListItemContent(mark: Mark): MarkListItemContent {
     }
   }
   case 'file': {
-    const title = compactText(mark.desc) || compactText(mark.content) || compactText(mark.url)
+    const desc = compactText(mark.desc)
+    const { title, preview } = splitTitleAndPreview(mark.content)
     return {
-      title,
-      preview: compactText(mark.url) || title,
+      title: desc || title || compactText(mark.url),
+      preview: preview || compactText(mark.url) || desc || title,
     }
   }
   case 'todo': {

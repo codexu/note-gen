@@ -4,22 +4,14 @@ import dayjs from "dayjs"
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { updateMark } from "@/db/marks"
 import { useState } from "react"
-import { CheckSquare, Square, Edit2 } from "lucide-react"
+import { CheckSquare, Square } from "lucide-react"
 import { cn } from "@/lib/utils"
 import useMarkStore from "@/stores/mark"
 import useSettingStore from "@/stores/setting"
-import { Button } from "@/components/ui/button"
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta"
 import { parseTodoMarkContent } from "./mark-list-item-content"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { TodoForm, TodoFormData, Priority } from "./todo-form"
+import { TodoEditTrigger } from "./todo-edit-button"
+import { Priority } from "./todo-form"
 
 dayjs.extend(relativeTime)
 
@@ -38,14 +30,6 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
   const [todoData, setTodoData] = useState<TodoData>(() => {
     return parseTodoMarkContent(mark)
   })
-
-  // 编辑状态
-  const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState<TodoFormData>(() => ({
-    title: todoData.title,
-    description: todoData.description,
-    priority: todoData.priority
-  }))
 
   // 根据文字大小映射行高
   const getLineHeight = (textSize: string) => {
@@ -84,65 +68,24 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
     await fetchMarks()
   }
 
-  // 打开编辑对话框
-  const handleOpenEdit = () => {
-    setFormData({
-      title: todoData.title,
-      description: todoData.description,
-      priority: todoData.priority
-    })
-    setIsEditing(true)
-  }
-
-  // 保存编辑
-  const handleSaveEdit = async () => {
-    const newData: TodoData = {
-      ...todoData,
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      priority: formData.priority
-    }
-
-    setTodoData(newData)
-
-    await updateMark({
-      ...mark,
-      desc: formData.title.trim(),
-      content: JSON.stringify(newData)
-    })
-
-    await fetchMarks()
-    setIsEditing(false)
-  }
-
   const priorityDotColor = getPriorityColor(todoData.priority)
 
   return (
     <>
       <div className="flex-1 pr-10 md:pr-0 group">
         <div className={`flex w-full items-center gap-2 text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-          <span className={getMarkTypeListBadgeClasses(mark.type, recordTextSize)}>
+          <span className={getMarkTypeListBadgeClasses(mark.type, 'xs')}>
             {t('record.mark.type.todo')}
           </span>
 
           {/* 优先级圆点 */}
           <span className={cn("w-2 h-2 rounded-full", priorityDotColor)} />
-
-          {/* 编辑按钮 */}
-          <button
-            onClick={handleOpenEdit}
-            className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <Edit2 className="w-3 h-3 text-zinc-400" />
-          </button>
-
           {/* 创建时间 */}
           <span className="ml-auto">{dayjs(mark.createdAt).fromNow()}</span>
         </div>
 
         {/* 待办内容 */}
         <div className="mt-2">
-          {/* 标题行 */}
           <div className="flex items-center gap-3">
             {/* 完成状态复选框 */}
             <button
@@ -156,59 +99,30 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
               )}
             </button>
 
-            {/* 标题 */}
-            <p className={cn(
-              `font-medium text-${recordTextSize}`,
-              todoData.completed && "line-through text-zinc-500"
-            )}>
-              {todoData.title}
-            </p>
-          </div>
-
-          {/* 描述（下一行） */}
-          <div className={cn(
-            "ml-8 mt-1",
-            todoData.completed && "opacity-50"
-          )}>
-            {/* 描述 */}
-            {todoData.description && (
+            <TodoEditTrigger mark={mark} className="min-w-0 flex-1">
               <p className={cn(
-                `text-${recordTextSize} text-zinc-600 line-clamp-2 ${lineHeight}`,
-                todoData.completed && "line-through"
+                `font-medium text-${recordTextSize}`,
+                todoData.completed && "line-through text-zinc-500"
               )}>
-                {todoData.description}
+                {todoData.title}
               </p>
-            )}
+              {todoData.description && (
+                <div className={cn(
+                  "mt-1",
+                  todoData.completed && "opacity-50"
+                )}>
+                  <p className={cn(
+                    `text-${recordTextSize} text-muted-foreground line-clamp-2 ${lineHeight}`,
+                    todoData.completed && "line-through"
+                  )}>
+                    {todoData.description}
+                  </p>
+                </div>
+              )}
+            </TodoEditTrigger>
           </div>
         </div>
       </div>
-
-      {/* 编辑对话框 */}
-      <Dialog open={isEditing} onOpenChange={setIsEditing}>
-        <DialogContent className="min-w-full md:min-w-125">
-          <DialogHeader>
-            <DialogTitle>{t('record.mark.todo.edit')}</DialogTitle>
-            <DialogDescription>
-              {t('record.mark.todo.editDescription')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <TodoForm
-            mode="edit"
-            data={formData}
-            onChange={setFormData}
-          />
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              {t('record.mark.todo.cancel')}
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={!formData.title.trim()}>
-              {t('record.mark.todo.saveEdit')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

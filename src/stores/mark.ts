@@ -12,6 +12,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 import { S3Config } from '@/types/sync'
 import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters.mjs'
+import { normalizeRecordViewMode } from '@/app/core/main/mark/mark-view-mode.mjs'
 
 export interface MarkQueue {
   queueId: string
@@ -22,6 +23,7 @@ export interface MarkQueue {
 }
 
 export type RecordTimePreset = 'all' | 'today' | 'last7Days' | 'last30Days'
+export type RecordViewMode = 'list' | 'compact' | 'cards'
 
 export interface RecordFilters {
   search: string
@@ -40,6 +42,11 @@ const DEFAULT_RECORD_FILTERS: RecordFilters = {
 async function persistRecordFilters(recordFilters: RecordFilters) {
   const store = await Store.load('store.json')
   await store.set('recordFilters', recordFilters)
+}
+
+async function persistRecordViewMode(recordViewMode: RecordViewMode) {
+  const store = await Store.load('store.json')
+  await store.set('recordViewMode', recordViewMode)
 }
 
 interface MarkState {
@@ -79,6 +86,10 @@ interface MarkState {
   resetRecordFilters: () => void
   hasActiveRecordFilters: () => boolean
   initRecordFilters: () => Promise<void>
+
+  recordViewMode: RecordViewMode
+  setRecordViewMode: (mode: RecordViewMode) => void
+  initRecordViewMode: () => Promise<void>
 
   // 同步
   syncState: boolean
@@ -290,6 +301,22 @@ const useMarkStore = create<MarkState>((set, get) => ({
     set({
       recordFilters: normalizeRecordFilters(savedFilters),
     })
+  },
+
+  recordViewMode: 'list',
+  setRecordViewMode: (mode) => {
+    const recordViewMode = normalizeRecordViewMode(mode) as RecordViewMode
+    void persistRecordViewMode(recordViewMode)
+    set({ recordViewMode })
+  },
+  initRecordViewMode: async () => {
+    const store = await Store.load('store.json')
+    const savedRecordViewMode = await store.get<RecordViewMode>('recordViewMode')
+    const recordViewMode = normalizeRecordViewMode(savedRecordViewMode) as RecordViewMode
+    if (savedRecordViewMode !== recordViewMode) {
+      await store.set('recordViewMode', recordViewMode)
+    }
+    set({ recordViewMode })
   },
 
   // 同步

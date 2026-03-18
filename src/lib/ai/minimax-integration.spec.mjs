@@ -7,7 +7,7 @@ const BASE_URL = 'https://api.minimax.io/v1'
 // Skip all integration tests if no API key is set
 const skipReason = API_KEY ? undefined : 'MINIMAX_API_KEY not set'
 
-test('MiniMax chat completion (non-streaming)', { skip: skipReason, timeout: 30000 }, async () => {
+test('MiniMax M2.7 chat completion (non-streaming)', { skip: skipReason, timeout: 30000 }, async () => {
   const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -15,7 +15,7 @@ test('MiniMax chat completion (non-streaming)', { skip: skipReason, timeout: 300
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'MiniMax-M2.5',
+      model: 'MiniMax-M2.7',
       messages: [{ role: 'user', content: 'Say "test passed" and nothing else.' }],
       max_tokens: 20,
       temperature: 0.7,
@@ -29,7 +29,7 @@ test('MiniMax chat completion (non-streaming)', { skip: skipReason, timeout: 300
   assert.ok(data.choices[0].message.content, 'message content should not be empty')
 })
 
-test('MiniMax chat completion (streaming)', { skip: skipReason, timeout: 30000 }, async () => {
+test('MiniMax M2.7 chat completion (streaming)', { skip: skipReason, timeout: 30000 }, async () => {
   const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -37,7 +37,7 @@ test('MiniMax chat completion (streaming)', { skip: skipReason, timeout: 30000 }
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'MiniMax-M2.5',
+      model: 'MiniMax-M2.7',
       messages: [{ role: 'user', content: 'Count 1 to 3.' }],
       max_tokens: 50,
       stream: true,
@@ -68,7 +68,7 @@ test('MiniMax chat completion (streaming)', { skip: skipReason, timeout: 30000 }
   assert.ok(chunks > 1, `expected multiple SSE chunks, got ${chunks}`)
 })
 
-test('MiniMax M2.5-highspeed model works', { skip: skipReason, timeout: 30000 }, async () => {
+test('MiniMax M2.7-highspeed model works', { skip: skipReason, timeout: 30000 }, async () => {
   const response = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -76,7 +76,7 @@ test('MiniMax M2.5-highspeed model works', { skip: skipReason, timeout: 30000 },
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'MiniMax-M2.5-highspeed',
+      model: 'MiniMax-M2.7-highspeed',
       messages: [{ role: 'user', content: 'Say "highspeed ok"' }],
       max_tokens: 20,
       temperature: 0.7,
@@ -85,7 +85,27 @@ test('MiniMax M2.5-highspeed model works', { skip: skipReason, timeout: 30000 },
 
   assert.equal(response.ok, true, `HTTP ${response.status}: ${response.statusText}`)
   const data = await response.json()
-  assert.ok(data.choices[0].message.content, 'highspeed model should return content')
+  assert.ok(data.choices[0].message.content, 'M2.7-highspeed model should return content')
+})
+
+test('MiniMax M2.5 model still works (backward compatibility)', { skip: skipReason, timeout: 30000 }, async () => {
+  const response = await fetch(`${BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'MiniMax-M2.5',
+      messages: [{ role: 'user', content: 'Say "ok"' }],
+      max_tokens: 10,
+      temperature: 0.7,
+    }),
+  })
+
+  assert.equal(response.ok, true, 'M2.5 model should still be accessible')
+  const data = await response.json()
+  assert.ok(data.choices[0].message.content, 'M2.5 should return content')
 })
 
 test('MiniMax handles temperature edge cases', { skip: skipReason, timeout: 30000 }, async () => {
@@ -97,7 +117,7 @@ test('MiniMax handles temperature edge cases', { skip: skipReason, timeout: 3000
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'MiniMax-M2.5',
+      model: 'MiniMax-M2.7',
       messages: [{ role: 'user', content: 'Say "ok"' }],
       max_tokens: 10,
       temperature: 0,

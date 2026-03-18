@@ -1610,9 +1610,15 @@
         "selectAll": "全选",
         "deselectAll": "取消全选",
         "selectedCount": "已选择 {count} 项",
+        "visibleCount": "共 {count} 条记录",
         "moveSelectedTags": "转移选中的 {count} 项",
         "deleteSelected": "删除选中的 {count} 项",
         "deleteSelectedForever": "彻底删除选中的 {count} 项",
+        "view": {
+          "list": "列表视图",
+          "compact": "紧凑视图",
+          "cards": "卡片视图"
+        },
         "text": "记录文本",
         "recording": "录音记录",
         "scan": "扫描图片",

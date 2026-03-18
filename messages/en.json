@@ -1647,9 +1647,15 @@
         "selectAll": "Select All",
         "deselectAll": "Deselect All",
         "selectedCount": "{count} items selected",
+        "visibleCount": "{count} records",
         "moveSelectedTags": "Move selected {count} items",
         "deleteSelected": "Delete selected {count} items",
-        "deleteSelectedForever": "Permanently delete selected {count} items"
+        "deleteSelectedForever": "Permanently delete selected {count} items",
+        "view": {
+          "list": "List view",
+          "compact": "Compact view",
+          "cards": "Card view"
+        }
       },
       "list": {
         "title": "Records",

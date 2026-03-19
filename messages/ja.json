@@ -2164,6 +2164,77 @@
           "title": "ワークスペースを開く",
           "desc": "ワークスペースディレクトリを選択または切り替え"
         }
+      },
+      "onboarding": {
+        "title": "初回ガイド",
+        "subtitle": "この 3 つのタスクで NoteGen の基本フローを体験できます。",
+        "dismiss": "オンボーディングをスキップ",
+        "reopen": "初回ガイドを再表示",
+        "start": "開始",
+        "viewHint": "ヒントを見る",
+        "continue": "次へ進む",
+        "completed": "完了",
+        "allDone": "スタートガイドのタスクはすべて完了しました。NoteGen の基本フローは体験済みです。",
+        "stepLabel": "タスク ({current}/{total})",
+        "stepCompletedLabel": "完了したタスク ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "タスク完了 (2/3)",
+          "description": "記録をノートに整理できました。次は AI Agent を使って、このノートをバイリンガル版に翻訳してみますか？",
+          "confirm": "次へ進む",
+          "cancel": "今はしない"
+        },
+        "agentPrompt": {
+          "label": "サンプルプロンプト",
+          "use": "このプロンプトを使う",
+          "intro": "先ほど整理したこのノートを、中国語と英語のバイリンガル版に直接修正してください。",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "最初の記録を作成",
+            "desc": "サンプル記録を保存して、記録入口を覚えます。"
+          },
+          "organizeNote": {
+            "title": "ノートに整理",
+            "desc": "記録を正式なノートに整理します。"
+          },
+          "aiPolish": {
+            "title": "Agent でバイリンガル翻訳",
+            "desc": "AI Agent を使って、整理したノートをバイリンガル版に変換します。"
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "最初の記録を作成しました",
+            "desc": "クイック記録の入口がどこにあるか分かりました。"
+          },
+          "organize-note": {
+            "title": "記録をノートに整理しました",
+            "desc": "次は AI でノートを編集してみましょう。"
+          },
+          "ai-polish": {
+            "title": "Agent でノートを処理しました",
+            "desc": "記録から整理、さらに Agent による処理まで、NoteGen の基本フローを体験できました。"
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "ここからすぐに記録できます",
+            "desc": "この入口をクリックするとテキスト記録が開き、サンプル内容も自動で入ります。"
+          },
+          "organize-note": {
+            "title": "ここで記録をノートに整理します",
+            "desc": "このボタンで、保存した記録を Markdown ノートにまとめられます。"
+          },
+          "ai-polish": {
+            "title": "ここで今作成したノートを Agent に渡せます",
+            "desc": "サンプルプロンプトをチャットに入れて送信すると、Agent が現在のノートを元にバイリンガル版を生成します。"
+          }
+        }
       }
     },
     "unsupportedFile": {

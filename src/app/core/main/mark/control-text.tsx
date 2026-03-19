@@ -26,7 +26,7 @@ import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { CopySlash } from "lucide-react"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import emitter from "@/lib/emitter"
 import { useRouter } from 'next/navigation'
 import { handleRecordComplete } from '@/lib/record-navigation'
@@ -34,6 +34,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 import { hasText, readText } from 'tauri-plugin-clipboard-api'
 import { Store } from '@tauri-apps/plugin-store'
+import { toast } from '@/hooks/use-toast'
 
 export function ControlText() {
   const t = useTranslations();
@@ -42,6 +43,7 @@ export function ControlText() {
   const [text, setText] = useState('')
   const [autoReadClipboard, setAutoReadClipboard] = useState(true)
   const isMobile = useIsMobile() || checkIsMobileDevice()
+  const onboardingPrefillRef = useRef<string | null>(null)
 
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks } = useMarkStore()
@@ -89,6 +91,11 @@ export function ControlText() {
 
   // 检查剪贴板中的文本
   const checkClipboard = useCallback(async () => {
+    if (onboardingPrefillRef.current) {
+      setText(onboardingPrefillRef.current)
+      return
+    }
+
     // 只有启用自动读取时才检查剪贴板
     if (!autoReadClipboard) {
       return
@@ -108,20 +115,48 @@ export function ControlText() {
   }, [autoReadClipboard])
 
   async function handleSuccess() {
-    const resetText = text.replace(/'/g, '')
-    await insertMark({ tagId: currentTagId, type: 'text', desc: resetText, content: resetText })
-    await fetchMarks()
-    await fetchTags()
-    getCurrentTag()
-    
-    // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
-    handleRecordComplete(router)
-    
-    setText('')
-    setOpen(false)
+    const resetText = text.replace(/'/g, '').trim()
+
+    if (!resetText) {
+      toast({
+        title: t('common.warning'),
+        description: t('record.mark.text.description'),
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      const store = await Store.load('store.json')
+      await store.set('currentTagId', currentTagId)
+      await store.save()
+
+      await insertMark({ tagId: currentTagId, type: 'text', desc: resetText, content: resetText })
+      await fetchMarks()
+      await fetchTags()
+      getCurrentTag()
+      emitter.emit('onboarding-step-complete', { step: 'create-record' })
+      emitter.emit('onboarding-record-prefill-changed', {})
+
+      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
+      handleRecordComplete(router)
+
+      setText('')
+      setOpen(false)
+    } catch (error) {
+      console.error('Failed to save text record:', error)
+      toast({
+        title: t('common.error'),
+        description: error instanceof Error ? error.message : t('common.error'),
+        variant: 'destructive',
+      })
+    }
   }
 
-  const handleOpen = useCallback(async () => {
+  const handleOpen = useCallback(async (payload?: { prefillText?: string }) => {
+    if (payload?.prefillText) {
+      onboardingPrefillRef.current = payload.prefillText
+    }
     setOpen(true)
     await checkClipboard()
   }, [checkClipboard])
@@ -134,11 +169,20 @@ export function ControlText() {
   }, [checkClipboard])
 
   useEffect(() => {
+    const handleOnboardingPrefillChange = (payload?: { prefillText?: string }) => {
+      onboardingPrefillRef.current = payload?.prefillText || null
+    }
+    const handleShortcutOpen = () => {
+      void handleOpen()
+    }
+
     emitter.on('quickRecordTextHandler', handleOpen)
-    emitter.on('toolbar-shortcut-text', handleOpen)
+    emitter.on('toolbar-shortcut-text', handleShortcutOpen)
+    emitter.on('onboarding-record-prefill-changed', handleOnboardingPrefillChange)
     return () => {
       emitter.off('quickRecordTextHandler', handleOpen)
-      emitter.off('toolbar-shortcut-text', handleOpen)
+      emitter.off('toolbar-shortcut-text', handleShortcutOpen)
+      emitter.off('onboarding-record-prefill-changed', handleOnboardingPrefillChange)
     }
   }, [handleOpen])
 
@@ -147,7 +191,7 @@ export function ControlText() {
       {isMobile ? (
         <Drawer open={open} onOpenChange={handleOpenChange}>
           <DrawerTrigger asChild>
-            <TooltipButton icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
+            <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
           </DrawerTrigger>
           <DrawerContent>
             <DrawerHeader>
@@ -188,7 +232,7 @@ export function ControlText() {
       ) : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <TooltipButton icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
+            <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
           </DialogTrigger>
           <DialogContent className="min-w-full md:min-w-[650px]">
             <DialogHeader>
@@ -228,4 +272,3 @@ export function ControlText() {
     </>
   )
 }
-

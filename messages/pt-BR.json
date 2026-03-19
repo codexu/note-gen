@@ -2073,6 +2073,77 @@
           "title": "Abrir Workspace",
           "desc": "Selecionar ou alternar diretório de workspace"
         }
+      },
+      "onboarding": {
+        "title": "Onboarding",
+        "subtitle": "Siga estas três tarefas para conhecer o fluxo principal do NoteGen.",
+        "dismiss": "Pular introducao",
+        "reopen": "Mostrar onboarding novamente",
+        "start": "Começar",
+        "viewHint": "Ver dica",
+        "continue": "Continuar",
+        "completed": "Concluído",
+        "allDone": "Todas as tarefas iniciais foram concluídas. Você já experimentou o fluxo principal do NoteGen.",
+        "stepLabel": "Tarefa ({current}/{total})",
+        "stepCompletedLabel": "Tarefa concluída ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "Tarefa concluída (2/3)",
+          "description": "Seu registro virou uma nota. Quer continuar e usar o AI Agent para transformar essa nota em uma versão bilíngue?",
+          "confirm": "Continuar",
+          "cancel": "Agora não"
+        },
+        "agentPrompt": {
+          "label": "Prompt de exemplo",
+          "use": "Usar este prompt",
+          "intro": "Please directly revise the note I just organized into a bilingual Chinese-English version.",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "Criar o primeiro registro",
+            "desc": "Salve um registro de exemplo e veja onde fica a captura rápida."
+          },
+          "organizeNote": {
+            "title": "Organizar em nota",
+            "desc": "Transforme esse registro em uma nota estruturada."
+          },
+          "aiPolish": {
+            "title": "Usar Agent para tradução bilíngue",
+            "desc": "Use o AI Agent para transformar a nota recém-organizada em uma versão bilíngue."
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "Seu primeiro registro foi criado",
+            "desc": "Agora você já sabe onde fica a captura rápida."
+          },
+          "organize-note": {
+            "title": "Seu registro virou uma nota",
+            "desc": "Agora vale experimentar a IA editando essa nota."
+          },
+          "ai-polish": {
+            "title": "Você usou o Agent na nota",
+            "desc": "Você concluiu o fluxo de captura, organização e processamento com Agent no NoteGen."
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "Aqui fica a captura rápida",
+            "desc": "Clique aqui para abrir o registro em texto. Vamos preencher um exemplo automaticamente para você salvar logo."
+          },
+          "organize-note": {
+            "title": "Este botão organiza registros em uma nota",
+            "desc": "Use-o para transformar o registro salvo em uma nota Markdown completa."
+          },
+          "ai-polish": {
+            "title": "Use o Agent aqui na nota que acabou de criar",
+            "desc": "Insira o prompt de exemplo no chat e envie. O Agent vai gerar uma versão bilíngue com base na nota atual."
+          }
+        }
       }
     },
     "unsupportedFile": {

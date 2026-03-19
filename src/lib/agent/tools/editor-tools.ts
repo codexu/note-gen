@@ -52,7 +52,10 @@ export const getEditorContentTool: Tool = {
 - \`wordCount\`: Number of words
 - \`charCount\`: Number of characters
 - \`totalLines\`: Total number of lines
+- \`numberedLines\`: The current content rendered line by line with 1-based line numbers
 - \`version\`: Version number for content verification (use this when calling replace_editor_content)
+
+**Recommended workflow for document-wide edits:** Read \`numberedLines\`, then call \`replace_editor_content\` with \`startLine: 1\`, \`endLine: totalLines\`, and \`version\`.
 
 **Note:** Use read_markdown_file if you need the saved file content.`,
   category: 'editor',
@@ -61,7 +64,7 @@ export const getEditorContentTool: Tool = {
   execute: async (): Promise<ToolResult> => {
     return new Promise((resolve) => {
       emitter.emit('editor-get-content', {
-        resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => {
+        resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => {
           resolve({
             success: true,
             data: {

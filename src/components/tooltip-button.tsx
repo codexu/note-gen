@@ -12,6 +12,7 @@ export function TooltipButton(
     size = "icon",
     side = "top",
     buttonClassName,
+    buttonId,
     ...props 
   }:
   {
@@ -23,13 +24,14 @@ export function TooltipButton(
     size?: "icon" | "sm" | "default" | "lg";
     side?: "top" | "right" | "bottom" | "left";
     buttonClassName?: string;
+    buttonId?: string;
   })
 {
   return (
     <TooltipProvider>
       <Tooltip {...props}>
         <TooltipTrigger asChild>
-          <Button className={cn("relative", buttonClassName)} disabled={disabled} size={size} variant={variant} onClick={onClick}>
+          <Button id={buttonId} className={cn("relative", buttonClassName)} disabled={disabled} size={size} variant={variant} onClick={onClick}>
             {icon}
           </Button>
         </TooltipTrigger>

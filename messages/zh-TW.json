@@ -2031,6 +2031,77 @@
           "title": "打開工作區",
           "desc": "選擇或切換工作區目錄"
         }
+      },
+      "onboarding": {
+        "title": "新手引導",
+        "subtitle": "跟著這三步體驗 NoteGen 的核心工作流。",
+        "dismiss": "跳過新手引導",
+        "reopen": "重新顯示新手引導",
+        "start": "開始引導",
+        "viewHint": "查看提示",
+        "continue": "繼續下一步",
+        "completed": "已完成",
+        "allDone": "新手任務已全部完成，你已經體驗了 NoteGen 的基礎工作流。",
+        "stepLabel": "任務 ({current}/{total})",
+        "stepCompletedLabel": "已完成任務 ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "已完成任務 (2/3)",
+          "description": "你已經把記錄整理成一篇筆記。要繼續體驗下一步，使用 AI Agent 將這篇筆記翻譯成雙語版本嗎？",
+          "confirm": "繼續下一步",
+          "cancel": "暫時不用"
+        },
+        "agentPrompt": {
+          "label": "示例提示詞",
+          "use": "使用這條提示詞",
+          "intro": "請將我剛剛整理出的這篇筆記直接修改為中英雙語版本。",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "建立第一條記錄",
+            "desc": "先記錄一段示例內容，熟悉記錄入口。"
+          },
+          "organizeNote": {
+            "title": "整理成筆記",
+            "desc": "把剛才的記錄整理成一篇正式筆記。"
+          },
+          "aiPolish": {
+            "title": "用 Agent 翻譯成雙語",
+            "desc": "使用 AI Agent 將剛整理好的筆記翻譯成雙語版本。"
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "你已經建立了第一條記錄",
+            "desc": "現在你已經知道如何快速記錄內容了。"
+          },
+          "organize-note": {
+            "title": "你已經把記錄整理成筆記",
+            "desc": "下一步可以體驗 AI 如何繼續修改這篇筆記。"
+          },
+          "ai-polish": {
+            "title": "你已經用 Agent 處理了筆記",
+            "desc": "你已經體驗了從記錄到整理，再到 Agent 處理內容的完整流程。"
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "這裡可以快速記錄內容",
+            "desc": "點擊這個文字記錄入口，系統會自動帶入一段示例內容，你也可以自己修改。"
+          },
+          "organize-note": {
+            "title": "這裡可以整理記錄",
+            "desc": "點擊這個按鈕，把剛才的記錄整理成一篇正式筆記。"
+          },
+          "ai-polish": {
+            "title": "這裡可以用 Agent 處理剛生成的筆記",
+            "desc": "將示例提示詞填入對話框後送出，Agent 會基於當前筆記生成雙語版本。"
+          }
+        }
       }
     },
     "unsupportedFile": {

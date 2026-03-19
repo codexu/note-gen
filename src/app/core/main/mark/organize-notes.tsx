@@ -31,6 +31,7 @@ import { writeTextFile, exists } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { toast } from "@/hooks/use-toast"
 import emitter from "@/lib/emitter"
+import { shouldEmitOrganizeOnboardingComplete } from "./organize-onboarding"
 
 interface OrganizeNotesProps {
   inputValue?: string;
@@ -139,7 +140,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       }
 
       await loadFileTree()
-      setActiveFilePath(filePath)
+      await setActiveFilePath(filePath)
 
       // Switch to files tab in sidebar
       await setLeftSidebarTab('files')
@@ -269,6 +270,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       const targetFilePath = filePath // 保存目标文件路径
 
       let fullContent = ''
+      let streamFinished = false
       await fetchAiStream(request_content, async (content) => {
         // Check if user switched to a different file - stop writing if so
         const currentActivePath = useArticleStore.getState().activeFilePath
@@ -279,6 +281,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         fullContent = content
         // Update editor content in real-time without reloading file
         setCurrentArticle(content)
+        emitter.emit('external-content-update', content)
         // Also write to file
         if (workspace.isCustom) {
           await writeTextFile(pathOptions.path, content)
@@ -286,6 +289,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
         }
       }, signal)
+      streamFinished = true
 
       // Re-enable sync after AI generation
       setSkipSyncOnSave(false)
@@ -346,6 +350,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         await loadFileTree()
         setActiveFilePath(newFilePath)
         await readArticle(newFilePath, '', true)
+        if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
+          emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath: newFilePath })
+        }
 
         toast({
           description: tMark('toolbar.organizeSuccess', { title: sanitizedTitle }),
@@ -358,6 +365,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           await writeTextFile(pathOptions.path, cleanedContent, { baseDir: pathOptions.baseDir })
         }
         await readArticle(filePath, '', true)
+        if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
+          emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath })
+        }
 
         toast({
           description: tMark('toolbar.organizeSuccess', { title: fileName }),

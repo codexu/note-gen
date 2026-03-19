@@ -56,20 +56,39 @@ export default function RootLayout({
   }, [pathname, router])
 
   useEffect(() => {
-    initSettingData()
-    initMainHosting()
-    initAllDatabases()
-    initShortcut()
-    initVectorDb()
-    initQuickRecordText()
-    initShowWindow()
-    initMcp()
-    // 上报应用启动事件
-    reportAppStart()
-    // 初始化更新检查
-    initUpdateStore().then(() => {
-      checkForUpdates()
-    })
+    let cancelled = false
+
+    const initializeApp = async () => {
+      try {
+        initSettingData()
+        initMainHosting()
+
+        // 先完成数据库和默认工作区初始化，避免首次启动时其他逻辑抢先读取空目录或未建表数据库。
+        await initAllDatabases()
+        if (cancelled) return
+
+        initShortcut()
+        await initVectorDb()
+        if (cancelled) return
+
+        initQuickRecordText()
+        initShowWindow()
+        initMcp()
+        reportAppStart()
+
+        await initUpdateStore()
+        if (cancelled) return
+        checkForUpdates()
+      } catch (error) {
+        console.error('Failed to initialize app core:', error)
+      }
+    }
+
+    void initializeApp()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // 应用界面缩放

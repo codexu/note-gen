@@ -29,6 +29,7 @@ export function MarkActions() {
     <div className="flex items-center gap-1">
       {!trashState && (
         <TooltipButton 
+          buttonId="onboarding-target-organize-notes"
           icon={<Sparkles className="h-4 w-4" />} 
           tooltipText={t('toolbar.organizeNotes')} 
           onClick={handleOrganize}

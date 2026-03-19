@@ -104,6 +104,9 @@ interface ChatState {
   setPendingQuote: (quote: PendingQuote | null) => void
   clearPendingQuote: () => void
 
+  onboardingPromptDraft: string | null
+  setOnboardingPromptDraft: (prompt: string | null) => void
+
   // === 新增：会话管理 ===
   // 当前会话
   currentConversationId: number | null
@@ -309,6 +312,11 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
   clearPendingQuote: () => {
     set({ pendingQuote: null })
+  },
+
+  onboardingPromptDraft: null,
+  setOnboardingPromptDraft: (prompt: string | null) => {
+    set({ onboardingPromptDraft: prompt })
   },
 
   chats: [],

@@ -361,7 +361,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   return (
-    <div className="flex-1 relative w-full h-full flex flex-row">
+    <div id="onboarding-target-editor-content" className="flex-1 relative w-full h-full flex flex-row">
       {/* Pull loading overlay */}
       {isPulling && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">

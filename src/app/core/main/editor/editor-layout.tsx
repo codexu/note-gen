@@ -3,12 +3,40 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
 import emitter from '@/lib/emitter'
+import { Store } from '@tauri-apps/plugin-store'
+import { useTranslations } from 'next-intl'
+import { useSidebarStore } from '@/stores/sidebar'
+import useChatStore from '@/stores/chat'
+import { OnboardingSpotlight } from '@/components/onboarding-spotlight'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
 import { UnsupportedFile } from './unsupported-file'
+import {
+  createDefaultOnboardingProgress,
+  getCompletionFeedbackMode,
+  getActiveOnboardingStep,
+  markOnboardingStepDone,
+  normalizeOnboardingProgress,
+  type OnboardingProgress,
+  type OnboardingStepId,
+} from './onboarding-state'
+import {
+  findRecentOnboardingFile,
+  getOnboardingAgentPrompt,
+  getOnboardingSpotlightTarget,
+  ONBOARDING_SAMPLE_RECORD,
+} from './empty-state-actions'
 
 // 常量：扩展名到类型的映射（避免每次渲染时重新创建）
 const MARKDOWN_EXTENSIONS = new Set([
@@ -19,6 +47,7 @@ const MARKDOWN_EXTENSIONS = new Set([
 ])
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'])
+const ONBOARDING_PROGRESS_STORE_KEY = 'desktopOnboardingProgress'
 
 export function EditorLayout() {
   const {
@@ -34,12 +63,28 @@ export function EditorLayout() {
     initOpenTabs,
     initShowCloudFiles
   } = useArticleStore()
+  const { setLeftSidebarTab, rightSidebarVisible, toggleRightSidebar } = useSidebarStore()
+  const { setOnboardingPromptDraft } = useChatStore()
+  const tOnboarding = useTranslations('article.emptyState.onboarding')
 
   const tabContentsRef = useRef<Record<string, string>>({})
   const [tabs, setLocalTabs] = useState<TabInfo[]>([])
   const [localActiveTabId, setLocalActiveTabId] = useState<string>('')
   const tabsRef = useRef<TabInfo[]>([])
   const isInitializedRef = useRef(false)
+  const currentOnboardingTaskRef = useRef<OnboardingStepId | null>(null)
+  const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress>(createDefaultOnboardingProgress())
+  const [currentOnboardingTask, setCurrentOnboardingTask] = useState<OnboardingStepId | null>(null)
+  const [activeOnboardingStep, setActiveOnboardingStep] = useState<OnboardingStepId | null>(null)
+  const [completedOnboardingStep, setCompletedOnboardingStep] = useState<OnboardingStepId | null>(null)
+  const [showOrganizeNextStepDialog, setShowOrganizeNextStepDialog] = useState(false)
+  const [onboardingResumeFilePath, setOnboardingResumeFilePath] = useState('')
+
+  const persistOnboardingProgress = useCallback(async (progress: OnboardingProgress) => {
+    const store = await Store.load('store.json')
+    await store.set(ONBOARDING_PROGRESS_STORE_KEY, progress)
+    await store.save()
+  }, [])
 
   // Initialize tabs from store on mount
   useEffect(() => {
@@ -49,6 +94,56 @@ export function EditorLayout() {
       initShowCloudFiles()
     }
   }, [initOpenTabs, initShowCloudFiles])
+
+  useEffect(() => {
+    const loadOnboardingProgress = async () => {
+      const store = await Store.load('store.json')
+      const savedProgress = await store.get<OnboardingProgress>(ONBOARDING_PROGRESS_STORE_KEY)
+      setOnboardingProgress(normalizeOnboardingProgress(savedProgress))
+    }
+
+    void loadOnboardingProgress()
+  }, [])
+
+  useEffect(() => {
+    currentOnboardingTaskRef.current = currentOnboardingTask
+  }, [currentOnboardingTask])
+
+  useEffect(() => {
+    const handleOnboardingStepComplete = ({
+      step,
+      filePath,
+    }: { step: OnboardingStepId; filePath?: string }) => {
+      setOnboardingProgress((current) => {
+        if (current.steps[step]) {
+          return current
+        }
+
+        const nextProgress = markOnboardingStepDone(current, step)
+        const feedbackMode = getCompletionFeedbackMode(step, currentOnboardingTaskRef.current)
+
+        if (feedbackMode === 'dialog') {
+          const resumeFilePath = filePath || activeFilePath
+          setOnboardingResumeFilePath(resumeFilePath)
+          setCurrentOnboardingTask(null)
+          setActiveOnboardingStep(null)
+          setCompletedOnboardingStep(null)
+          setShowOrganizeNextStepDialog(true)
+        } else if (currentOnboardingTaskRef.current) {
+          setCurrentOnboardingTask(null)
+          setActiveOnboardingStep(null)
+          setCompletedOnboardingStep(step)
+        }
+        void persistOnboardingProgress(nextProgress)
+        return nextProgress
+      })
+    }
+
+    emitter.on('onboarding-step-complete', handleOnboardingStepComplete)
+    return () => {
+      emitter.off('onboarding-step-complete', handleOnboardingStepComplete)
+    }
+  }, [activeFilePath, persistOnboardingProgress])
 
   // Sync with store
   useEffect(() => {
@@ -202,44 +297,13 @@ export function EditorLayout() {
     }
   }, [setActiveFilePath])
 
-  // Handle new tab (create untitled file)
+  // Handle new tab button - return to empty state without creating a file
   const handleNewTab = useCallback(async () => {
-    try {
-      const { exists, writeTextFile } = await import('@tauri-apps/plugin-fs')
-      const workspace = await import('@/lib/workspace').then(m => m.getWorkspacePath())
-      const { getFilePathOptions } = await import('@/lib/workspace')
-
-      let fileName = 'untitled.md'
-      let counter = 1
-      let filePath = fileName
-
-      while (true) {
-        const pathOptions = await getFilePathOptions(fileName)
-        let fileExists = false
-        if (workspace.isCustom) {
-          fileExists = await exists(pathOptions.path)
-        } else {
-          fileExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-        if (!fileExists) break
-        fileName = `untitled-${counter}.md`
-        filePath = fileName
-        counter++
-      }
-
-      const pathOptions = await getFilePathOptions(filePath)
-      if (workspace.isCustom) {
-        await writeTextFile(pathOptions.path, '')
-      } else {
-        await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
-      }
-
-      setActiveFilePath(filePath)
-      useArticleStore.getState().loadFileTree()
-    } catch (error) {
-      console.error('Create untitled file error:', error)
-    }
-  }, [setActiveFilePath])
+    await Promise.all([
+      setActiveFilePath(''),
+      setActiveTabId(''),
+    ])
+  }, [setActiveFilePath, setActiveTabId])
 
   // Handle close tab
   const handleCloseTab = useCallback((closedPath: string) => {
@@ -334,6 +398,109 @@ export function EditorLayout() {
     })
   }, [removeTab])
 
+  const onboardingAgentPrompt = getOnboardingAgentPrompt({
+    intro: tOnboarding('agentPrompt.intro'),
+    requirements: [
+      tOnboarding('agentPrompt.requirement1'),
+      tOnboarding('agentPrompt.requirement2'),
+      tOnboarding('agentPrompt.requirement3'),
+      tOnboarding('agentPrompt.requirement4'),
+    ],
+    outro: tOnboarding('agentPrompt.outro'),
+  })
+
+  const handleStartOnboardingStep = useCallback(async (step: OnboardingStepId) => {
+    if (onboardingProgress.dismissed) {
+      const nextProgress = {
+        ...onboardingProgress,
+        dismissed: false,
+      }
+      setOnboardingProgress(nextProgress)
+      await persistOnboardingProgress(nextProgress)
+    }
+
+    setCurrentOnboardingTask(step)
+    setActiveOnboardingStep(step)
+    setCompletedOnboardingStep(null)
+    setShowOrganizeNextStepDialog(false)
+
+    if (step === 'create-record') {
+      emitter.emit('onboarding-record-prefill-changed', {
+        prefillText: ONBOARDING_SAMPLE_RECORD,
+      })
+      await setLeftSidebarTab('notes')
+      return
+    }
+
+    if (step === 'organize-note') {
+      await setLeftSidebarTab('notes')
+      return
+    }
+
+    if (step === 'ai-polish') {
+      const candidateResumeFilePath = findRecentOnboardingFile({
+        preferredPath: onboardingResumeFilePath,
+        activeFilePath,
+        openTabPaths: openTabs.map((tab) => tab.path),
+        fileTree,
+      })
+      const resolvedResumeFilePath = candidateResumeFilePath && await checkPathExists(candidateResumeFilePath)
+        ? candidateResumeFilePath
+        : ''
+
+      if (!rightSidebarVisible) {
+        await toggleRightSidebar()
+      }
+      if (resolvedResumeFilePath) {
+        await setActiveFilePath(resolvedResumeFilePath)
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 120))
+      setOnboardingPromptDraft(onboardingAgentPrompt)
+    }
+  }, [activeFilePath, fileTree, onboardingAgentPrompt, onboardingProgress, onboardingResumeFilePath, openTabs, persistOnboardingProgress, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
+
+  const handleDismissOnboarding = useCallback(async () => {
+    const nextProgress = {
+      ...onboardingProgress,
+      dismissed: true,
+    }
+
+    setOnboardingProgress(nextProgress)
+    setCurrentOnboardingTask(null)
+    setActiveOnboardingStep(null)
+    setCompletedOnboardingStep(null)
+    setShowOrganizeNextStepDialog(false)
+    await persistOnboardingProgress(nextProgress)
+  }, [onboardingProgress, persistOnboardingProgress])
+
+  const handleDismissSpotlight = useCallback(() => {
+    setActiveOnboardingStep(null)
+  }, [])
+
+  const handleDismissOrganizeNextStepDialog = useCallback(() => {
+    setShowOrganizeNextStepDialog(false)
+  }, [])
+
+  const handleAcceptOrganizeNextStepDialog = useCallback(async () => {
+    setShowOrganizeNextStepDialog(false)
+    setCompletedOnboardingStep('organize-note')
+    await Promise.all([
+      setActiveFilePath(''),
+      setActiveTabId(''),
+    ])
+  }, [setActiveFilePath, setActiveTabId])
+
+  const handleContinueToNextStep = useCallback(() => {
+    const nextStep = getActiveOnboardingStep(onboardingProgress)
+    setCompletedOnboardingStep(null)
+    if (nextStep) {
+      void handleStartOnboardingStep(nextStep)
+    }
+  }, [handleStartOnboardingStep, onboardingProgress])
+
+  const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''
+  const spotlightDescription = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.desc`) : ''
+
   // Render content panel for a tab
   const renderContentPanel = useCallback((tab: TabInfo, isActive: boolean) => {
     const itemType = getItemType(tab.path)
@@ -364,13 +531,13 @@ export function EditorLayout() {
     )
   }, [getItemType])
 
-  // No tabs - show empty state
-  if (tabs.length === 0) {
+  // No tabs or no active tab - show empty state
+  if (tabs.length === 0 || !activeTabId) {
     return (
       <div className="flex-1 relative w-full h-full flex flex-col overflow-hidden">
         <TabBar
           tabs={tabs}
-          activeTabId=""
+          activeTabId={activeTabId}
           onTabSwitch={handleTabSwitch}
           onNewTab={handleNewTab}
           onCloseTab={handleCloseTab}
@@ -379,7 +546,43 @@ export function EditorLayout() {
           onCloseLeftTabs={handleCloseLeftTabs}
           onCloseRightTabs={handleCloseRightTabs}
         />
-        <EmptyState />
+        <EmptyState
+          onboardingProgress={onboardingProgress}
+          activeOnboardingStep={currentOnboardingTask}
+          visibleOnboardingStep={activeOnboardingStep}
+          completedOnboardingStep={completedOnboardingStep}
+          onStartOnboardingStep={handleStartOnboardingStep}
+          onContinueToNextStep={handleContinueToNextStep}
+          onDismissOnboarding={handleDismissOnboarding}
+        />
+        <OnboardingSpotlight
+          targetId={activeOnboardingStep ? getOnboardingSpotlightTarget(activeOnboardingStep) : null}
+          title={spotlightTitle}
+          description={spotlightDescription}
+          onDismiss={handleDismissSpotlight}
+        />
+        <Dialog open={showOrganizeNextStepDialog} onOpenChange={setShowOrganizeNextStepDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{tOnboarding('afterOrganizeDialog.title')}</DialogTitle>
+              <DialogDescription>{tOnboarding('afterOrganizeDialog.description')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <button
+                onClick={handleDismissOrganizeNextStepDialog}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {tOnboarding('afterOrganizeDialog.cancel')}
+              </button>
+              <button
+                onClick={() => void handleAcceptOrganizeNextStepDialog()}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+              >
+                {tOnboarding('afterOrganizeDialog.confirm')}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
@@ -401,6 +604,34 @@ export function EditorLayout() {
 
       {/* Only render active tab content - improves performance with many tabs */}
       {tabs.filter(tab => tab.id === localActiveTabId).map(tab => renderContentPanel(tab, true))}
+      <OnboardingSpotlight
+        targetId={activeOnboardingStep ? getOnboardingSpotlightTarget(activeOnboardingStep) : null}
+        title={spotlightTitle}
+        description={spotlightDescription}
+        onDismiss={handleDismissSpotlight}
+      />
+      <Dialog open={showOrganizeNextStepDialog} onOpenChange={setShowOrganizeNextStepDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tOnboarding('afterOrganizeDialog.title')}</DialogTitle>
+            <DialogDescription>{tOnboarding('afterOrganizeDialog.description')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              onClick={handleDismissOrganizeNextStepDialog}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {tOnboarding('afterOrganizeDialog.cancel')}
+            </button>
+            <button
+              onClick={() => void handleAcceptOrganizeNextStepDialog()}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+            >
+              {tOnboarding('afterOrganizeDialog.confirm')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

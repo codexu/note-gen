@@ -1169,6 +1169,7 @@ export function TipTapEditor({
         position: finalCoords,
         generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
+      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -1252,6 +1253,7 @@ export function TipTapEditor({
         position: finalCoords,
         generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
+      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -1335,6 +1337,7 @@ export function TipTapEditor({
         position: finalCoords,
         generatedRange: { from: startPosition, to: startPosition + accumulatedResult.length },
       })
+      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         return
@@ -1847,9 +1850,9 @@ export function TipTapEditor({
     }
 
     // Get editor content
-    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => void }) => {
+    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void }) => {
       if (!editor) {
-        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1, version: 0 })
+        resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1, numberedLines: '1 | ', version: 0 })
         return
       }
 
@@ -1858,9 +1861,12 @@ export function TipTapEditor({
       markdown = markdown.replace(/&nbsp;/g, ' ')
       const text = editor.getText()
       const html = editor.getHTML()
-
-      // Calculate total lines by counting newlines
-      const totalLines = (text.match(/\n/g)?.length || 0) + 1
+      const markdownLines = markdown.split('\n')
+      const totalLines = markdownLines.length
+      const lineNumberWidth = String(totalLines).length
+      const numberedLines = markdownLines
+        .map((line, index) => `${String(index + 1).padStart(lineNumberWidth)} | ${line}`)
+        .join('\n')
 
       resolve({
         markdown,
@@ -1869,6 +1875,7 @@ export function TipTapEditor({
         wordCount: text.split(/\s+/).filter(w => w).length,
         charCount: text.length,
         totalLines,
+        numberedLines,
         version: contentVersionRef.current,
       })
     }

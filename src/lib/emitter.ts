@@ -1,5 +1,6 @@
 import mitt from 'mitt'
 import type { QuickPrompt } from '@/lib/ai/placeholder'
+import type { OnboardingStepId } from '@/app/core/main/editor/onboarding-state'
 
 // 定义事件类型
 interface Events {
@@ -14,7 +15,9 @@ interface Events {
   'toolbar-text-number': number;
   'toolbar-reset-selected-text': unknown;
   'quickRecordText': unknown;
-  'quickRecordTextHandler': unknown;
+  'quickRecordTextHandler': { prefillText?: string } | undefined;
+  'onboarding-record-prefill-changed': { prefillText?: string } | undefined;
+  'onboarding-step-complete': { step: OnboardingStepId; filePath?: string };
   'openWindow': unknown;
   'immediate-pull-needed': { type: string; path: string; hash: string; filePath: string } | { type: string; filePath: string } | { filePath: string; isRemoteFile: boolean };
   'getSettingModelList': unknown;
@@ -102,7 +105,7 @@ interface Events {
   'abort-ai-streaming': void;
   // Agent 编辑器工具事件 - 内联定义避免重复
   'editor-get-selection': { resolve: (data: { text: string; from: number; to: number; html?: string; startLine?: number; endLine?: number }) => void };
-  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => void };
+  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void };
   'editor-insert': { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void };
   'editor-undo': void;
   'editor-redo': void;

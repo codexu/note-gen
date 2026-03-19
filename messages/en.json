@@ -2119,6 +2119,77 @@
           "title": "Open Workspace",
           "desc": "Select or switch workspace directory"
         }
+      },
+      "onboarding": {
+        "title": "Onboarding",
+        "subtitle": "Walk through these three tasks to learn the core NoteGen flow.",
+        "dismiss": "Skip onboarding",
+        "reopen": "Show onboarding again",
+        "start": "Start",
+        "viewHint": "Show hint",
+        "continue": "Continue",
+        "completed": "Done",
+        "allDone": "All getting-started tasks are complete. You've already tried the core NoteGen workflow.",
+        "stepLabel": "Task ({current}/{total})",
+        "stepCompletedLabel": "Completed Task ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "Completed Task (2/3)",
+          "description": "You've turned the record into a note. Do you want to continue and use the AI Agent to turn this note into a bilingual version?",
+          "confirm": "Continue",
+          "cancel": "Not now"
+        },
+        "agentPrompt": {
+          "label": "Sample Prompt",
+          "use": "Use This Prompt",
+          "intro": "Please directly revise the note I just organized into a bilingual Chinese-English version.",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "Create your first record",
+            "desc": "Save a sample record and learn where quick capture lives."
+          },
+          "organizeNote": {
+            "title": "Organize it into a note",
+            "desc": "Turn that record into a structured note."
+          },
+          "aiPolish": {
+            "title": "Use Agent for bilingual translation",
+            "desc": "Use the AI Agent to turn the note you just organized into a bilingual version."
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "Your first record is saved",
+            "desc": "You now know where quick capture lives."
+          },
+          "organize-note": {
+            "title": "Your record is now a note",
+            "desc": "Next, try using AI to revise the note."
+          },
+          "ai-polish": {
+            "title": "You used the Agent on the note",
+            "desc": "You've completed the flow from capture to note organization to Agent-assisted processing."
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "This is the quick record entry",
+            "desc": "Click here to open text capture. We'll preload a sample record so you can save it right away."
+          },
+          "organize-note": {
+            "title": "This button organizes records into a note",
+            "desc": "Use it to turn your captured record into a full Markdown note."
+          },
+          "ai-polish": {
+            "title": "Use the Agent on the note you just created here",
+            "desc": "Insert the sample prompt into chat and send it. The Agent will generate a bilingual version based on the current note."
+          }
+        }
       }
     },
     "unsupportedFile": {

@@ -187,7 +187,7 @@ export function TitleBar({ onSearchClick, onActivityClick, activityOpen = false 
         data-tauri-drag-region
       >
         {/* 左侧记录工具栏按钮 */}
-        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+        <div id="onboarding-target-record-toolbar" className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
           <TooltipProvider>
             <DndContext
               sensors={sensors}

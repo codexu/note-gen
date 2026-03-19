@@ -2061,6 +2061,77 @@
           "title": "打开工作区",
           "desc": "选择或切换工作区目录"
         }
+      },
+      "onboarding": {
+        "title": "新手引导",
+        "subtitle": "跟着这三步体验 NoteGen 的核心工作流。",
+        "dismiss": "跳过新手引导",
+        "reopen": "重新显示新手引导",
+        "start": "开始引导",
+        "viewHint": "查看提示",
+        "continue": "继续下一步",
+        "completed": "已完成",
+        "allDone": "新手任务已全部完成，你已经体验了 NoteGen 的基础工作流。",
+        "stepLabel": "任务 ({current}/{total})",
+        "stepCompletedLabel": "已完成任务 ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "已完成任务 (2/3)",
+          "description": "你已经把记录整理成了一篇笔记。要继续体验下一步，用 AI Agent 把这篇笔记翻译成双语版本吗？",
+          "confirm": "继续下一步",
+          "cancel": "暂时不用"
+        },
+        "agentPrompt": {
+          "label": "示例提示词",
+          "use": "使用这条提示词",
+          "intro": "请将我刚刚整理出的这篇笔记直接修改为中英双语版本。",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "创建第一条记录",
+            "desc": "先记录一段示例内容，熟悉记录入口。"
+          },
+          "organizeNote": {
+            "title": "整理成笔记",
+            "desc": "把刚才的记录整理成一篇正式笔记。"
+          },
+          "aiPolish": {
+            "title": "用 Agent 翻译成双语",
+            "desc": "用 AI Agent 将刚整理好的笔记翻译成双语版本。"
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "你已经创建了第一条记录",
+            "desc": "现在你已经知道如何快速记录内容了。"
+          },
+          "organize-note": {
+            "title": "你已经把记录整理成笔记",
+            "desc": "下一步可以体验 AI 如何继续修改这篇笔记。"
+          },
+          "ai-polish": {
+            "title": "你已经用 Agent 处理了笔记",
+            "desc": "你已经体验了从记录到整理，再到 Agent 处理内容的完整流程。"
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "这里可以快速记录内容",
+            "desc": "点击这个文本记录入口，系统会自动带入一段示例内容，你也可以自己改。"
+          },
+          "organize-note": {
+            "title": "这里可以整理记录",
+            "desc": "点击这个按钮，把刚才的记录整理成一篇正式笔记。"
+          },
+          "ai-polish": {
+            "title": "这里可以用 Agent 处理刚生成的笔记",
+            "desc": "把示例提示词填进对话框后发送，Agent 会基于当前笔记生成双语版本。"
+          }
+        }
       }
     },
     "unsupportedFile": {

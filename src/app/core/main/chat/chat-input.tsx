@@ -45,6 +45,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { buildTypingFrames } from './onboarding-typing'
 
 // 可排序的工具栏项组件 - 定义在外部以避免每次 ChatInput re-render 时重新创建
 interface SortableToolbarItemProps {
@@ -108,6 +109,8 @@ export const ChatInput = React.memo(function ChatInput() {
     loading,
     setLinkedResource: setChatLinkedResource,
     setLinkedResourcePreview,
+    onboardingPromptDraft,
+    setOnboardingPromptDraft,
     pendingQuote,
     setPendingQuote,
     clearPendingQuote,
@@ -128,6 +131,22 @@ export const ChatInput = React.memo(function ChatInput() {
   const placeholderTimerRef = useRef<NodeJS.Timeout | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const isMobileDevice_ = isMobileDevice()
+  const onboardingAgentPromptArmedRef = useRef(false)
+  const onboardingTypingTimerRefs = useRef<number[]>([])
+
+  const applyTypedText = useCallback((value: string) => {
+    setText(value)
+
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+    window.requestAnimationFrame(() => {
+      textarea.style.height = 'auto'
+      const newHeight = Math.min(textarea.scrollHeight, 240)
+      textarea.style.height = `${newHeight}px`
+    })
+  }, [])
 
   // 拖拽传感器配置（仅桌面端）
   const sensors = useSensors(
@@ -310,6 +329,10 @@ export const ChatInput = React.memo(function ChatInput() {
 
   // 处理发送后的清理工作
   function handleSent() {
+    if (onboardingAgentPromptArmedRef.current) {
+      onboardingAgentPromptArmedRef.current = false
+      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
+    }
     addToHistory(text)
     setText('')
     setHistoryIndex(-1)
@@ -436,6 +459,8 @@ export const ChatInput = React.memo(function ChatInput() {
       }
     })
     return () => {
+      onboardingTypingTimerRefs.current.forEach((timerId) => window.clearTimeout(timerId))
+      onboardingTypingTimerRefs.current = []
       emitter.off('revertChat')
       emitter.off('fileSelected')
       emitter.off('folderSelected')
@@ -444,6 +469,32 @@ export const ChatInput = React.memo(function ChatInput() {
       emitter.off('ai-placeholder-generated')
     }
   }, [debouncedGenPlaceholder, setPendingQuote])
+
+  useEffect(() => {
+    if (!onboardingPromptDraft) {
+      return
+    }
+
+    onboardingAgentPromptArmedRef.current = true
+    onboardingTypingTimerRefs.current.forEach((timerId) => window.clearTimeout(timerId))
+    onboardingTypingTimerRefs.current = []
+    setText('')
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 50)
+
+    const frames = buildTypingFrames(onboardingPromptDraft, 2)
+    frames.forEach((frame, index) => {
+      const timerId = window.setTimeout(() => {
+        applyTypedText(frame)
+        if (index === frames.length - 1) {
+          onboardingTypingTimerRefs.current = []
+          setOnboardingPromptDraft(null)
+        }
+      }, 160 + index * 42)
+      onboardingTypingTimerRefs.current.push(timerId)
+    })
+  }, [applyTypedText, onboardingPromptDraft, setOnboardingPromptDraft])
 
   // 生成文件的行号预览（用于 AI 对话）
   async function generateFilePreview(filePath: string, isCustom: boolean): Promise<string> {
@@ -589,7 +640,7 @@ ${previewLines.join('\n')}
   }, [linkedResource, debouncedGenPlaceholder])
 
   return (
-    <footer className="flex flex-col w-full p-1 justify-between items-center">
+    <footer id="onboarding-target-chat-input" className="flex flex-col w-full p-1 justify-between items-center">
       {/* 移动端图片选择 */}
       {isMobileDevice_ && (
         <input

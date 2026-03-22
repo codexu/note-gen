@@ -3,6 +3,8 @@ import useSettingStore from "@/stores/setting";
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes'
 import MarkdownIt from 'markdown-it';
+import katex from '@traptitech/markdown-it-katex';
+import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -61,12 +63,14 @@ export default function ChatPreview({text, streaming = false}: ChatPreviewProps)
             '</code></pre>';
           } catch {}
         }
-        // 使用通用高亮
         const themeClass = mdTheme === 'dark' ? 'hljs-dark' : 'hljs-light';
         return `<pre class="hljs ${themeClass}"><code>` +
           (md.current ? md.current.utils.escapeHtml(str) : str) +
           '</code></pre>';
       }
+    }).use(katex, {
+      throwOnError: false,
+      errorColor: '#cc0000'
     });
 
     md.current.renderer.rules.link_open = function (tokens, idx, options, _env, self) {

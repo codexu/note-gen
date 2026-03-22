@@ -89,6 +89,7 @@
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
     "@tiptap/suggestion": "^3.19.0",
+    "@traptitech/markdown-it-katex": "^3.6.0",
     "@types/lodash-es": "^4.17.12",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

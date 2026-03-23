@@ -227,6 +227,13 @@ const baseAiConfig: AiConfig[] = [
     icon: 'https://s2.loli.net/2025/09/15/ih7aTnGPvELFsVc.png',
     apiKeyUrl: 'https://ai.gitee.com/'
   },
+  {
+    key: 'minimax',
+    title: 'MiniMax',
+    baseURL: 'https://api.minimax.io/v1',
+    icon: 'https://filecdn.minimax.chat/public/c5b4442f-ab8b-4d97-9119-8504670b0097.png',
+    apiKeyUrl: 'https://platform.minimaxi.com/'
+  },
 ]
 
 export { baseAiConfig }

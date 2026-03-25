@@ -1612,6 +1612,8 @@
         "copyLink": "リンクをコピー",
         "copied": "クリップボードにコピーしました！",
         "regenerateDesc": "説明を再生成",
+        "reconvertStt": "音声を再認識",
+        "reconvertSttProcessing": "音声を再認識中...",
         "viewFolder": "フォルダで表示",
         "viewFile": "元ファイルを表示",
         "deleteForever": "完全に削除",

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NoteGen System Diagram</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b1020;
+      --panel: #141b34;
+      --card: #1c2547;
+      --text: #dbe4ff;
+      --muted: #95a3d8;
+      --line: #3f4f88;
+      --accent: #7ea1ff;
+    }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .title {
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+    .arrow {
+      text-align: center;
+      color: var(--accent);
+      font-size: 20px;
+      line-height: 1;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>NoteGen System Diagram</h1>
+    <p>Flow: src/app → src/stores → src/lib → (src/db and src-tauri commands)</p>
+
+    <div class="grid">
+      <section class="card">
+        <div class="title">UI and Routing (src/app)</div>
+        <ul>
+          <li>page.tsx chooses desktop or mobile path</li>
+          <li>core/* for desktop features</li>
+          <li>mobile/* for mobile features</li>
+        </ul>
+      </section>
+
+      <div class="arrow">↓</div>
+
+      <section class="card">
+        <div class="title">State (src/stores)</div>
+        <ul>
+          <li>setting/article/chat/sync/vector stores</li>
+          <li>Coordinates user state and feature behavior</li>
+        </ul>
+      </section>
+
+      <div class="arrow">↓</div>
+
+      <section class="card">
+        <div class="title">Services (src/lib)</div>
+        <ul>
+          <li>ai/*, sync/*, mcp/*, skills/*</li>
+          <li>search/rag/pdf/ocr/audio utilities</li>
+        </ul>
+      </section>
+
+      <div class="arrow">↓</div>
+
+      <div class="split">
+        <section class="card">
+          <div class="title">Local Data (src/db)</div>
+          <ul>
+            <li>SQLite note.db</li>
+            <li>chats, marks, notes, tags, vector tables</li>
+          </ul>
+        </section>
+
+        <section class="card">
+          <div class="title">Native Layer (src-tauri/src)</div>
+          <ul>
+            <li>Rust Tauri command handlers</li>
+            <li>webdav, mcp, backup, device, skills modules</li>
+          </ul>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="title">Bundled Standalone Projects</div>
+        <ul>
+          <li>machinelearning-samples/</li>
+          <li>YoloDotNet/</li>
+          <li>Independent from main NoteGen runtime</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

@@ -1602,6 +1602,8 @@
         "copyLink": "复制链接",
         "copied": "已复制到剪切板！",
         "regenerateDesc": "重新生成描述",
+        "reconvertStt": "重新语音识别",
+        "reconvertSttProcessing": "重新语音识别中...",
         "viewFolder": "查看目录",
         "viewFile": "查看原文件",
         "deleteForever": "彻底删除",

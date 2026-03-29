@@ -57,14 +57,14 @@ export const getEditorContentTool: Tool = {
 
 **Recommended workflow for document-wide edits:** Read \`numberedLines\`, then call \`replace_editor_content\` with \`startLine: 1\`, \`endLine: totalLines\`, and \`version\`.
 
-**Note:** Use read_markdown_file if you need the saved file content.`,
+**Note:** Prefer this tool for the currently open file. Use read_markdown_file only when you specifically need the saved on-disk content of another file.`,
   category: 'editor',
   requiresConfirmation: false,
   parameters: [],
   execute: async (): Promise<ToolResult> => {
     return new Promise((resolve) => {
       emitter.emit('editor-get-content', {
-        resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => {
+        resolve: (data: { markdown: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => {
           resolve({
             success: true,
             data: {
@@ -130,10 +130,17 @@ export const replaceEditorContentTool: Tool = {
   name: 'replace_editor_content',
   description: `📝 **Editor Operation**: Replace content in the specified range with new content.
 
+**IMPORTANT - Editing Priority**:
+For the currently open document, prefer these modes in order:
+1. Position-based (\`from\`/\`to\`) when the user provided an exact quoted selection
+2. Line-based (\`startLine\`/\`endLine\`) for section/list/block edits in the current editor content
+3. Text-based search (\`searchContent\`) only as a fallback when line numbers are unavailable and the target text is short and unique
+
 **IMPORTANT - Prefer Exact Quoted Range**:
 When the user quotes content from the editor and exact selection positions are provided, you MUST use position-based mode (\`from\`/\`to\`) so that only the quoted selection is replaced.
 - If quote context includes \`from\` and \`to\`, use them directly
-- Only use line-based mode (\`startLine\`/\`endLine\`) when exact positions are not available
+- For current-document structural edits without exact positions, use line-based mode (\`startLine\`/\`endLine\`)
+- Only use text-based search when exact positions and line numbers are both unavailable
 - NEVER expand a quoted edit to the whole document
 
 **Use Cases:**
@@ -148,7 +155,7 @@ When the user quotes content from the editor and exact selection positions are p
 - \`endLine\`: End line number (1-based, required for line-based mode)
 - \`replaceContent\`: New content to replace with
 
-**Mode 2: Text-based search**
+**Mode 2: Text-based search (fallback only)**
 - \`searchContent\`: Text to search for (must match exactly)
 - \`replaceContent\`: New content to replace with
 - \`occurrence\`: Which occurrence to replace (1-based, default: 1)

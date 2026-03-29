@@ -161,6 +161,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
     toolName: string,
     params: Record<string, any>,
     context?: {
+      previewParams?: Record<string, any>
       originalContent?: string
       modifiedContent?: string
       filePath?: string
@@ -190,6 +191,7 @@ export const ChatSend = forwardRef<{ sendChat: () => void }, ChatSendProps>(({ i
         pendingConfirmation: {
           toolName,
           params,
+          previewParams: context?.previewParams,
           ...context,
           canApproveForSession,
           sessionApprovalType: sessionApprovalScope?.type,

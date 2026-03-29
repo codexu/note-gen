@@ -1,12 +1,13 @@
 import { Tool, ToolResult } from '../types'
-import { BaseDirectory, readTextFile, writeTextFile, remove, rename, copyFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, readTextFile, writeTextFile, remove, rename, copyFile, stat } from '@tauri-apps/plugin-fs'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
-import { getFilePathOptions, normalizeWorkspaceRelativePath } from '@/lib/workspace'
+import { ensureSafeWorkspaceRelativePath, getFilePathOptions } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
 import emitter from '@/lib/emitter'
+import { getVectorDocumentKey } from '@/lib/vector-document-key'
 
 function normalizeLinkedCandidate(candidate: unknown): string {
   return typeof candidate === 'string' ? candidate.trim() : ''
@@ -58,6 +59,61 @@ function getBatchLinkedFileReadPlan(
   }
 }
 
+function joinRelativePath(folderPath: string | undefined, fileName: string): string {
+  return folderPath ? `${folderPath}/${fileName}` : fileName
+}
+
+async function mirrorVectorDocuments(sourcePath: string, targetPath: string): Promise<number | null> {
+  const { getVectorDocumentsByFilename, upsertVectorDocument } = await import('@/db/vector')
+  const sourceKey = getVectorDocumentKey(sourcePath)
+  const targetKey = getVectorDocumentKey(targetPath)
+  const sourceDocs = await getVectorDocumentsByFilename(sourceKey)
+
+  if (sourceDocs.length === 0) {
+    return null
+  }
+
+  let latestUpdatedAt = 0
+  for (const doc of sourceDocs) {
+    await upsertVectorDocument({
+      filename: targetKey,
+      chunk_id: doc.chunk_id,
+      content: doc.content,
+      embedding: doc.embedding,
+      updated_at: doc.updated_at,
+    })
+    latestUpdatedAt = Math.max(latestUpdatedAt, doc.updated_at)
+  }
+
+  return latestUpdatedAt
+}
+
+async function removeVectorDocumentsForPath(filePath: string): Promise<void> {
+  const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
+  const vectorKey = getVectorDocumentKey(filePath)
+  const legacyFilename = filePath.split('/').pop() || filePath
+
+  await deleteVectorDocumentsByFilename(vectorKey)
+  if (legacyFilename !== vectorKey) {
+    await deleteVectorDocumentsByFilename(legacyFilename)
+  }
+}
+
+function updateVectorIndexedState(oldPath: string | null, newPath: string | null, updatedAt?: number | null) {
+  const articleState = useArticleStore.getState()
+  const nextMap = new Map(articleState.vectorIndexedFiles)
+
+  if (oldPath) {
+    nextMap.delete(getVectorDocumentKey(oldPath))
+  }
+
+  if (newPath && updatedAt) {
+    nextMap.set(getVectorDocumentKey(newPath), updatedAt)
+  }
+
+  useArticleStore.setState({ vectorIndexedFiles: nextMap })
+}
+
 export const listMarkdownFilesTool: Tool = {
   name: 'list_markdown_files',
   description: 'List all Markdown files in the workspace.',
@@ -87,25 +143,25 @@ export const listMarkdownFilesTool: Tool = {
   },
 }
 
-// ⚠️ DEPRECATED: Use get_editor_content from editor-tools.ts instead
-// This tool reads from disk, but since content is saved in real-time,
-// get_editor_content provides the same result with better performance.
-// @deprecated since content is saved in real-time, use get_editor_content instead
+// Read the saved on-disk content for a note file.
+// Prefer get_editor_content for the currently open note so unsaved/runtime state is included.
 export const readMarkdownFileTool: Tool = {
   name: 'read_markdown_file',
-  description: 'DEPRECATED: Use `get_editor_content` instead. Read content of a Markdown file by path.',
+  description: 'Read the saved on-disk content of a Markdown note by path. Prefer `get_editor_content` for the currently open note.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'filePath',
       type: 'string',
-      description: 'Path of the Markdown file (relative or absolute path, e.g., "folder/note.md")',
+      description: 'Path of the Markdown file whose saved content should be read (relative path, e.g., "folder/note.md")',
       required: true,
     },
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
+
       // 检查是否已关联该文件到对话中（避免重复读取）
       const chatStore = useChatStore.getState()
       const { linkedResource } = chatStore
@@ -113,14 +169,14 @@ export const readMarkdownFileTool: Tool = {
       // 如果有关联的文件（非文件夹），且路径匹配，则提示内容已在上下文中
       if (linkedResource && !isLinkedFolder(linkedResource)) {
         // 提取文件名进行比较，支持相对路径和绝对路径的匹配
-        const requestedFileName = params.filePath.split('/').pop() || params.filePath
+        const requestedFileName = normalizedFilePath.split('/').pop() || normalizedFilePath
         const linkedFileName = linkedResource.relativePath.split('/').pop() || linkedResource.relativePath
 
         if (requestedFileName === linkedFileName) {
           return {
             success: true,
             data: {
-              filePath: params.filePath,
+              filePath: normalizedFilePath,
               content: `[该文件内容已在对话上下文中] 文件 "${linkedResource.name}" (${linkedResource.relativePath}) 已关联到当前对话，其完整内容已在上下文中，无需再次读取。请直接使用上下文中已有的文件内容。`,
               alreadyInContext: true,
             },
@@ -132,7 +188,7 @@ export const readMarkdownFileTool: Tool = {
       let content = ''
 
       // 统一使用 getFilePathOptions 来处理路径，无论是自定义工作区还是默认工作区
-      const { path, baseDir } = await getFilePathOptions(params.filePath)
+      const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
 
       if (baseDir) {
         content = await readTextFile(path, { baseDir })
@@ -142,8 +198,8 @@ export const readMarkdownFileTool: Tool = {
 
       return {
         success: true,
-        data: { filePath: params.filePath, content },
-        message: `成功读取文件: ${params.filePath}`,
+        data: { filePath: normalizedFilePath, content },
+        message: `成功读取文件: ${normalizedFilePath}`,
       }
     } catch (error) {
       console.error('[read_markdown_file] 读取失败', {
@@ -188,7 +244,7 @@ export const createFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       let normalizedFolderPath = params.folderPath
-        ? await normalizeWorkspaceRelativePath(params.folderPath)
+        ? await ensureSafeWorkspaceRelativePath(params.folderPath)
         : undefined
 
       // 验证内容参数
@@ -210,15 +266,12 @@ export const createFileTool: Tool = {
       if (!normalizedFolderPath && fileName.includes('/')) {
         const parts = fileName.split('/').filter(Boolean)
         fileName = parts.pop() || fileName
-        normalizedFolderPath = parts.join('/')
+        normalizedFolderPath = parts.length > 0
+          ? await ensureSafeWorkspaceRelativePath(parts.join('/'))
+          : undefined
       }
 
-      let filePath = fileName
-
-      // 如果指定了文件夹路径，拼接路径
-      if (normalizedFolderPath) {
-        filePath = `${normalizedFolderPath}/${fileName}`
-      }
+      const filePath = await ensureSafeWorkspaceRelativePath(joinRelativePath(normalizedFolderPath, fileName))
       const isSpecialSkillPath =
         filePath.startsWith('skills/') || filePath.startsWith('outputs/')
 
@@ -233,6 +286,18 @@ export const createFileTool: Tool = {
       // 在创建文件前，确保父目录存在
       const parentFolderPath = filePath.substring(0, filePath.lastIndexOf('/'))
       const needsParentFolder = parentFolderPath && parentFolderPath !== filePath
+
+      const { exists } = await import('@tauri-apps/plugin-fs')
+      const fileAlreadyExists = baseDir
+        ? await exists(path, { baseDir })
+        : await exists(path)
+
+      if (fileAlreadyExists) {
+        return {
+          success: false,
+          error: `文件已存在: ${filePath}。create_file 只能创建新文件，请改用 update_markdown_file 或编辑器工具`,
+        }
+      }
 
       if (needsParentFolder) {
         const specialParentRelativePath = isSpecialSkillPath
@@ -296,7 +361,7 @@ export const createFileTool: Tool = {
 
 export const updateMarkdownFileTool: Tool = {
   name: 'update_markdown_file',
-  description: 'Update the content of a Markdown note file',
+  description: 'Update the content of a Markdown note file. Optionally provide `expectedModifiedAt` to avoid overwriting a file that changed since it was last read.',
   category: 'note',
   requiresConfirmation: true,
   parameters: [
@@ -312,11 +377,47 @@ export const updateMarkdownFileTool: Tool = {
       description: 'New content (Markdown format)',
       required: true,
     },
+    {
+      name: 'expectedModifiedAt',
+      type: 'string',
+      description: 'Optional ISO timestamp of the file\'s last known modified time. If the on-disk file changed since then, the update will be rejected.',
+      required: false,
+    },
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
+
       // 统一使用 getFilePathOptions 来处理路径
-      const { path, baseDir } = await getFilePathOptions(params.filePath)
+      const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
+
+      if (params.expectedModifiedAt) {
+        const expectedModifiedAt = new Date(params.expectedModifiedAt)
+        if (Number.isNaN(expectedModifiedAt.getTime())) {
+          return {
+            success: false,
+            error: `expectedModifiedAt 无效: ${params.expectedModifiedAt}`,
+          }
+        }
+
+        const currentStat = baseDir
+          ? await stat(path, { baseDir })
+          : await stat(path)
+        const currentModifiedAt = currentStat.mtime
+
+        if (currentModifiedAt && currentModifiedAt.getTime() !== expectedModifiedAt.getTime()) {
+          return {
+            success: false,
+            error: `文件已在磁盘上发生变化，已取消更新: ${normalizedFilePath}`,
+            data: {
+              filePath: normalizedFilePath,
+              conflict: true,
+              expectedModifiedAt: expectedModifiedAt.toISOString(),
+              currentModifiedAt: currentModifiedAt.toISOString(),
+            },
+          }
+        }
+      }
 
       if (baseDir) {
         await writeTextFile(path, params.content, { baseDir })
@@ -327,14 +428,22 @@ export const updateMarkdownFileTool: Tool = {
       // 如果更新的是当前打开的文件，通过 saveCurrentArticle 刷新编辑器内容
       // 注意：不要使用 setCurrentArticle，因为它会触发 clearStack 清空撤销历史
       const articleStore = useArticleStore.getState()
-      if (articleStore.activeFilePath === params.filePath) {
+      if (articleStore.activeFilePath === normalizedFilePath) {
         // 使用 emitter 通知编辑器内容已从外部更新
         emitter.emit('external-content-update', params.content)
       }
 
+      const updatedStat = baseDir
+        ? await stat(path, { baseDir })
+        : await stat(path)
+
       return {
         success: true,
-        message: `成功更新文件: ${params.filePath}`,
+        data: {
+          filePath: normalizedFilePath,
+          modifiedAt: updatedStat.mtime?.toISOString(),
+        },
+        message: `成功更新文件: ${normalizedFilePath}`,
       }
     } catch (error) {
       return {
@@ -361,7 +470,7 @@ export const deleteMarkdownFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
-      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
 
       // 检查是否是当前打开的文件
       const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
@@ -447,6 +556,10 @@ Use folderPath to limit scope to a specific folder.`,
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const normalizedFolderPath = params.folderPath
+        ? await ensureSafeWorkspaceRelativePath(params.folderPath)
+        : undefined
+
       // RAG 模式：调用 RAG 搜索
       if (params.mode === 'rag') {
         const { getContextForQuery, getContextForQueryInFolder } = await import('@/lib/rag')
@@ -455,8 +568,8 @@ Use folderPath to limit scope to a specific folder.`,
         const keywords = [{ text: params.query, weight: 1 }]
 
         // 根据是否指定文件夹选择不同的 RAG 方法
-        const ragResult = params.folderPath
-          ? await getContextForQueryInFolder(keywords, params.folderPath)
+        const ragResult = normalizedFolderPath
+          ? await getContextForQueryInFolder(keywords, normalizedFolderPath)
           : await getContextForQuery(keywords)
 
         // 获取所有文件列表，用于补全路径（向量数据库只存文件名，需要补全相对路径）
@@ -493,15 +606,15 @@ Use folderPath to limit scope to a specific folder.`,
         return {
           success: true,
           data: formattedResults,
-          message: `RAG 搜索找到 ${ragResult.sources.length} 个相关笔记${params.folderPath ? `（文件夹：${params.folderPath}）` : ''}`,
+          message: `RAG 搜索找到 ${ragResult.sources.length} 个相关笔记${normalizedFolderPath ? `（文件夹：${normalizedFolderPath}）` : ''}`,
         }
       }
 
       // 关键词模式：原有的精确匹配搜索
       // 如果指定了文件夹路径，先过滤文件列表
       let allFiles = await getAllMarkdownFiles()
-      if (params.folderPath) {
-        allFiles = allFiles.filter(file => file.relativePath.startsWith(params.folderPath))
+      if (normalizedFolderPath) {
+        allFiles = allFiles.filter(file => file.relativePath.startsWith(normalizedFolderPath))
       }
 
       const results: Array<{
@@ -563,7 +676,7 @@ Use folderPath to limit scope to a specific folder.`,
       return {
         success: true,
         data: results,
-        message: `找到 ${results.length} 个匹配的文件${params.folderPath ? `（文件夹：${params.folderPath}）` : ''}`,
+        message: `找到 ${results.length} 个匹配的文件${normalizedFolderPath ? `（文件夹：${normalizedFolderPath}）` : ''}`,
       }
     } catch (error) {
       return {
@@ -594,14 +707,14 @@ export const modifyCurrentNoteTool: Tool = {
 
 export const readMarkdownFilesBatchTool: Tool = {
   name: 'read_markdown_files_batch',
-  description: 'Batch read multiple Markdown note file contents to avoid loop calls. Use for scenarios requiring multiple files to be read at once.',
+  description: 'Batch read the saved on-disk contents of multiple Markdown notes. Prefer `get_editor_content` for any note that is currently open in the editor.',
   category: 'note',
   requiresConfirmation: false,
   parameters: [
     {
       name: 'filePaths',
       type: 'array',
-      description: 'Array of Markdown file paths',
+      description: 'Array of Markdown file paths whose saved contents should be read',
       required: true,
     },
   ],
@@ -634,7 +747,8 @@ export const readMarkdownFilesBatchTool: Tool = {
           let content = ''
 
           // 统一使用 getFilePathOptions 来处理路径
-          const { path, baseDir } = await getFilePathOptions(filePath)
+          const normalizedFilePath = await ensureSafeWorkspaceRelativePath(filePath)
+          const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
 
           if (baseDir) {
             content = await readTextFile(path, { baseDir })
@@ -642,7 +756,7 @@ export const readMarkdownFilesBatchTool: Tool = {
             content = await readTextFile(path)
           }
 
-          results.push({ filePath, content })
+          results.push({ filePath: normalizedFilePath, content })
         } catch (error) {
           errors.push({ filePath, error: String(error) })
         }
@@ -705,12 +819,14 @@ export const deleteMarkdownFilesBatchTool: Tool = {
 
       for (const filePath of params.filePaths) {
         try {
-          if (articleStore.activeFilePath === filePath) {
+          const normalizedFilePath = await ensureSafeWorkspaceRelativePath(filePath)
+
+          if (articleStore.activeFilePath === normalizedFilePath) {
             currentFileDeleted = true
           }
 
           // 统一使用 getFilePathOptions 来处理路径
-          const { path, baseDir } = await getFilePathOptions(filePath)
+          const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
 
           if (baseDir) {
             await remove(path, { baseDir })
@@ -718,7 +834,7 @@ export const deleteMarkdownFilesBatchTool: Tool = {
             await remove(path)
           }
 
-          results.push(filePath)
+          results.push(normalizedFilePath)
         } catch (error) {
           errors.push({ filePath, error: String(error) })
         }
@@ -919,7 +1035,7 @@ export const renameFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
-      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
 
       // 检查是否是当前打开的文件
       const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
@@ -958,6 +1074,14 @@ export const renameFileTool: Tool = {
         await rename(oldPath, newPath, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir })
       } else {
         await rename(oldPath, newPath)
+      }
+
+      const migratedVectorUpdatedAt = await mirrorVectorDocuments(normalizedFilePath, newRelativePath)
+      if (migratedVectorUpdatedAt !== null) {
+        await removeVectorDocumentsForPath(normalizedFilePath)
+        updateVectorIndexedState(normalizedFilePath, newRelativePath, migratedVectorUpdatedAt)
+      } else {
+        updateVectorIndexedState(normalizedFilePath, null)
       }
 
       const moved = articleStore.moveLocalEntry(normalizedFilePath, newRelativePath)
@@ -1019,8 +1143,8 @@ export const moveFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
-      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
-      const normalizedTargetFolderPath = await normalizeWorkspaceRelativePath(params.targetFolderPath)
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
+      const normalizedTargetFolderPath = await ensureSafeWorkspaceRelativePath(params.targetFolderPath)
 
       // 检查是否是当前打开的文件
       const isCurrentFile = articleStore.activeFilePath === normalizedFilePath
@@ -1069,6 +1193,14 @@ export const moveFileTool: Tool = {
         await rename(oldPath, newPath, { oldPathBaseDir: oldBaseDir, newPathBaseDir: oldBaseDir })
       } else {
         await rename(oldPath, newPath)
+      }
+
+      const migratedVectorUpdatedAt = await mirrorVectorDocuments(normalizedFilePath, newRelativePath)
+      if (migratedVectorUpdatedAt !== null) {
+        await removeVectorDocumentsForPath(normalizedFilePath)
+        updateVectorIndexedState(normalizedFilePath, newRelativePath, migratedVectorUpdatedAt)
+      } else {
+        updateVectorIndexedState(normalizedFilePath, null)
       }
 
       const moved = articleStore.moveLocalEntry(normalizedFilePath, newRelativePath)
@@ -1135,9 +1267,9 @@ export const copyFileTool: Tool = {
   execute: async (params): Promise<ToolResult> => {
     try {
       const articleStore = useArticleStore.getState()
-      const normalizedFilePath = await normalizeWorkspaceRelativePath(params.filePath)
+      const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
       const normalizedTargetFolderPath = params.targetFolderPath
-        ? await normalizeWorkspaceRelativePath(params.targetFolderPath)
+        ? await ensureSafeWorkspaceRelativePath(params.targetFolderPath)
         : undefined
 
       // 提取原文件名
@@ -1209,6 +1341,11 @@ export const copyFileTool: Tool = {
         await copyFile(oldPath, finalNewPath)
       }
 
+      const copiedVectorUpdatedAt = await mirrorVectorDocuments(normalizedFilePath, newRelativePath)
+      if (copiedVectorUpdatedAt !== null) {
+        updateVectorIndexedState(null, newRelativePath, copiedVectorUpdatedAt)
+      }
+
       const inserted = articleStore.insertLocalEntry(newRelativePath, false)
       await articleStore.ensurePathExpanded(newRelativePath)
       if (!inserted) {
@@ -1268,8 +1405,8 @@ export const moveFilesBatchTool: Tool = {
 
       for (const file of params.files) {
         try {
-          const filePath = file.filePath
-          const targetFolderPath = file.targetFolderPath
+          const filePath = await ensureSafeWorkspaceRelativePath(file.filePath)
+          const targetFolderPath = await ensureSafeWorkspaceRelativePath(file.targetFolderPath)
 
           // 检查是否是当前打开的文件
           if (articleStore.activeFilePath === filePath) {
@@ -1316,6 +1453,14 @@ export const moveFilesBatchTool: Tool = {
             await rename(oldPath, newPath, { oldPathBaseDir: oldBaseDir, newPathBaseDir: oldBaseDir })
           } else {
             await rename(oldPath, newPath)
+          }
+
+          const migratedVectorUpdatedAt = await mirrorVectorDocuments(filePath, newRelativePath)
+          if (migratedVectorUpdatedAt !== null) {
+            await removeVectorDocumentsForPath(filePath)
+            updateVectorIndexedState(filePath, newRelativePath, migratedVectorUpdatedAt)
+          } else {
+            updateVectorIndexedState(filePath, null)
           }
 
           results.push({ oldPath: filePath, newPath: newRelativePath })
@@ -1386,8 +1531,10 @@ export const copyFilesBatchTool: Tool = {
 
       for (const file of params.files) {
         try {
-          const filePath = file.filePath
+          const filePath = await ensureSafeWorkspaceRelativePath(file.filePath)
           const targetFolderPath = file.targetFolderPath
+            ? await ensureSafeWorkspaceRelativePath(file.targetFolderPath)
+            : undefined
           const newName = file.newName
 
           // 提取原文件名
@@ -1457,6 +1604,11 @@ export const copyFilesBatchTool: Tool = {
             await copyFile(oldPath, finalNewPath)
           }
 
+          const copiedVectorUpdatedAt = await mirrorVectorDocuments(filePath, newRelativePath)
+          if (copiedVectorUpdatedAt !== null) {
+            updateVectorIndexedState(null, newRelativePath, copiedVectorUpdatedAt)
+          }
+
           results.push({
             sourcePath: filePath,
             newPath: newRelativePath,
@@ -1521,7 +1673,7 @@ export const renameFilesBatchTool: Tool = {
 
       for (const file of params.files) {
         try {
-          const filePath = file.filePath
+          const filePath = await ensureSafeWorkspaceRelativePath(file.filePath)
           let newName = file.newName
 
           // 验证新文件名以 .md 结尾
@@ -1560,6 +1712,14 @@ export const renameFilesBatchTool: Tool = {
             await rename(oldPath, newPath, { oldPathBaseDir: baseDir, newPathBaseDir: baseDir })
           } else {
             await rename(oldPath, newPath)
+          }
+
+          const migratedVectorUpdatedAt = await mirrorVectorDocuments(filePath, newRelativePath)
+          if (migratedVectorUpdatedAt !== null) {
+            await removeVectorDocumentsForPath(filePath)
+            updateVectorIndexedState(filePath, newRelativePath, migratedVectorUpdatedAt)
+          } else {
+            updateVectorIndexedState(filePath, null)
           }
 
           results.push({
@@ -1614,6 +1774,7 @@ export const noteTools: Tool[] = [
   listMarkdownFilesTool,
   readMarkdownFileTool,
   createFileTool,
+  updateMarkdownFileTool,
   deleteMarkdownFileTool,
   searchMarkdownFilesTool,
   // modifyCurrentNoteTool: DEPRECATED - use replace_editor_content from editor-tools.ts instead

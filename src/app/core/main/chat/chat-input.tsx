@@ -497,8 +497,46 @@ export const ChatInput = React.memo(function ChatInput() {
   }, [applyTypedText, onboardingPromptDraft, setOnboardingPromptDraft])
 
   // 生成文件的行号预览（用于 AI 对话）
-  async function generateFilePreview(filePath: string, isCustom: boolean): Promise<string> {
+  async function generateFilePreview(filePath: string, isCustom: boolean, preferEditorContent: boolean = false): Promise<string> {
     try {
+      if (preferEditorContent) {
+        const editorContent = await new Promise<{
+          markdown: string
+          totalLines?: number
+          numberedLines?: string
+          version: number
+        } | null>((resolve) => {
+          emitter.emit('editor-get-content', {
+            resolve: (data: { markdown: string; totalLines?: number; numberedLines?: string; version: number }) => {
+              resolve(data)
+            },
+          })
+
+          window.setTimeout(() => resolve(null), 300)
+        })
+
+        if (editorContent?.numberedLines) {
+          const numberedLines = editorContent.numberedLines.split('\n')
+          const previewLines = numberedLines.slice(0, 100)
+          const totalLines = editorContent.totalLines || numberedLines.length
+          const truncatedNote = totalLines > 100 ? `\n... (共 ${totalLines} 行，后 ${totalLines - 100} 行省略)` : ''
+
+          return `已关联当前编辑器文件：${filePath.split('/').pop() || filePath}
+你可以直接基于下面的行号和版本使用 replace_editor_content。
+
+编辑器版本：v${editorContent.version}
+行号预览：
+\`\`\`
+${previewLines.join('\n')}
+\`\`\`${truncatedNote}
+
+优先使用：
+- 修改某个区块/列表：replace_editor_content({startLine: 4, endLine: 5, replaceContent: "新内容", version: ${editorContent.version}})
+- 仅在有精确选区位置时才使用 from/to
+`
+        }
+      }
+
       // 检查文件是否存在
       const fileExists = isCustom
         ? await exists(filePath)
@@ -579,7 +617,7 @@ ${previewLines.join('\n')}
         setChatLinkedResource(resource)
 
         // 生成并设置文件预览
-        const preview = await generateFilePreview(fullPath, workspace.isCustom)
+        const preview = await generateFilePreview(fullPath, workspace.isCustom, activeFilePath === resource.relativePath)
         setLinkedResourcePreview(preview)
       } else if (!activeFilePath.includes('.')) {
         // 文件夹关联逻辑 - 只有当路径不包含 . 时才可能是文件夹

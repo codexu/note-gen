@@ -500,7 +500,7 @@ export function AgentPlan({
 
     return formatConfirmationPreview(
       pendingConfirmation.toolName,
-      pendingConfirmation.params ?? {}
+      pendingConfirmation.previewParams ?? pendingConfirmation.params ?? {}
     );
   }, [pendingConfirmation]);
 

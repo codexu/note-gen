@@ -23,7 +23,6 @@ import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import UniqueId from '@tiptap/extension-unique-id'
 import { Extension, nodeInputRule } from '@tiptap/core'
 import { Plugin, TextSelection } from '@tiptap/pm/state'
-import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
@@ -38,6 +37,7 @@ import { convertImageByWorkspace } from '@/lib/utils'
 import { resolveImagePathFromMarkdown } from '@/lib/markdown-image-path'
 import { isMobileDevice } from '@/lib/check'
 import { useTranslations } from 'next-intl'
+import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
@@ -70,40 +70,6 @@ import { OUTLINE_PANEL_PADDING_CLASS } from '@/lib/outline-styles'
 import './style.css'
 
 const lowlight = createLowlight(common)
-
-// Helper function to convert 1-based line number to document position
-function lineToPosition(doc: ProseMirrorNode, line: number): number {
-  if (line <= 1) {
-    return 0
-  }
-
-  let pos = doc.content.size
-  let currentLine = 1
-
-  doc.descendants((node, nodePos) => {
-    if (!node.isTextblock) {
-      return true
-    }
-
-    if (currentLine === line) {
-      pos = nodePos + 1
-      return false
-    }
-
-    const blockText = node.textContent || ''
-    const lineBreaks = blockText.split('\n').length - 1
-    currentLine += lineBreaks + 1
-
-    if (currentLine === line) {
-      pos = nodePos + 1
-      return false
-    }
-
-    return true
-  })
-
-  return pos
-}
 
 // 自定义扩展：处理粘贴 Markdown 文本
 const PasteMarkdown = Extension.create({
@@ -2098,7 +2064,7 @@ export function TipTapEditor({
     }
 
     // Get editor content
-    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void }) => {
+    const handleGetContent = ({ resolve }: { resolve: (data: { markdown: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void }) => {
       if (!editor) {
         resolve({ markdown: '', text: '', wordCount: 0, charCount: 0, totalLines: 1, numberedLines: '1 | ', version: 0 })
         return
@@ -2108,7 +2074,6 @@ export function TipTapEditor({
       // 修复表格空单元格中的 &nbsp; 问题 - 替换为空格
       markdown = markdown.replace(/&nbsp;/g, ' ')
       const text = editor.getText()
-      const html = editor.getHTML()
       const markdownLines = markdown.split('\n')
       const totalLines = markdownLines.length
       const lineNumberWidth = String(totalLines).length
@@ -2118,7 +2083,6 @@ export function TipTapEditor({
 
       resolve({
         markdown,
-        html,
         text,
         wordCount: text.split(/\s+/).filter(w => w).length,
         charCount: text.length,
@@ -2189,6 +2153,7 @@ export function TipTapEditor({
 
       try {
         let { from, to } = editor.state.selection
+        let replacementMode: 'range' | 'line' = 'range'
 
         // Mode 1: Position-based (use current selection if not specified)
         if (range) {
@@ -2247,10 +2212,7 @@ export function TipTapEditor({
         }
         // Mode 3: Line-based
         else if (startLine !== undefined && endLine !== undefined) {
-          const doc = editor.state.doc
-          // Convert 1-based line numbers to positions
-          from = lineToPosition(doc, startLine)
-          to = lineToPosition(doc, endLine + 1)
+          replacementMode = 'line'
         }
         // Fallback: use current selection (only if content is provided)
         else if (content) {
@@ -2265,11 +2227,24 @@ export function TipTapEditor({
         // Delete old content and insert new content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         setTimeout(() => {
-          editor.chain()
-            .focus()
-            .deleteRange({ from, to })
-            .insertContent(newContent, { contentType: 'markdown' })
-            .run()
+          if (replacementMode === 'line' && startLine !== undefined && endLine !== undefined) {
+            let currentMarkdown = editor.getMarkdown()
+            currentMarkdown = currentMarkdown.replace(/&nbsp;/g, ' ')
+            const updatedMarkdown = replaceLinesInRange(
+              currentMarkdown,
+              startLine,
+              endLine,
+              newContent.split('\n')
+            )
+
+            editor.commands.setContent(updatedMarkdown, { contentType: 'markdown' })
+          } else {
+            editor.chain()
+              .focus()
+              .deleteRange({ from, to })
+              .insertContent(newContent, { contentType: 'markdown' })
+              .run()
+          }
 
           // Increment version after successful replacement
           contentVersionRef.current++

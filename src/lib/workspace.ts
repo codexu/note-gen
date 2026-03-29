@@ -152,3 +152,26 @@ export async function normalizeWorkspaceRelativePath(relativePath: string): Prom
 
   return normalized.replace(/^article\//, '')
 }
+
+/**
+ * 确保路径是安全的、相对于工作区的路径。
+ * Agent 文件工具应在执行读写前调用此函数，避免越过工作区根目录。
+ */
+export async function ensureSafeWorkspaceRelativePath(relativePath: string): Promise<string> {
+  const normalized = await normalizeWorkspaceRelativePath(relativePath)
+
+  if (!normalized) {
+    throw new Error('路径不能为空')
+  }
+
+  if (normalized.startsWith('/')) {
+    throw new Error('不允许使用绝对路径')
+  }
+
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.some(segment => segment === '..')) {
+    throw new Error('路径不能包含 ..')
+  }
+
+  return normalized
+}

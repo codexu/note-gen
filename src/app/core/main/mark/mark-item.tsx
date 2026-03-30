@@ -20,8 +20,9 @@ import useTagStore from "@/stores/tag";
 import { LocalImage } from "@/components/local-image";
 import { fetchAiDesc } from "@/lib/ai/description";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { appDataDir } from "@tauri-apps/api/path";
-import { CheckSquare, ImageUp, LoaderCircle, RefreshCw, Settings2, Square } from "lucide-react";
+import { CheckSquare, ImageUp, LoaderCircle, RefreshCw, Settings2, Sparkles, Square } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { open } from "@tauri-apps/plugin-shell";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta";
 import { getMarkListItemContent } from "./mark-list-item-content";
 import { TodoEditTrigger } from "./todo-edit-button";
+import emitter from "@/lib/emitter";
 
 dayjs.extend(relativeTime)
 
@@ -161,6 +163,13 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
   const shouldShowRecordingAction = mark.type === 'recording' && mark.content === NO_TRANSCRIPTION_MESSAGE
   const itemContent = useMemo(() => getMarkListItemContent(mark), [mark])
+  const isReconvertingStt = useMemo(() => {
+    return queues.some(queue =>
+      queue.type === 'recording' &&
+      queue.tagId === mark.tagId &&
+      queue.queueId.startsWith(`reconvert-stt-${mark.id}-`)
+    )
+  }, [queues, mark.id, mark.tagId])
 
   const todoPriorityDotClass = itemContent.todo
     ? itemContent.todo.priority === 'high'
@@ -337,14 +346,6 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
       </div>
     )
   }
-
-  const isReconvertingStt = useMemo(() => {
-    return queues.some(queue =>
-      queue.type === 'recording' &&
-      queue.tagId === mark.tagId &&
-      queue.queueId.startsWith(`reconvert-stt-${mark.id}-`)
-    )
-  }, [queues, mark.id, mark.tagId])
 
   const renderContent = () => {
     switch (mark.type) {
@@ -679,6 +680,16 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
     }
   }, [mark, isReconvertSttLoading, sttModel, t, fetchMarks, addQueue, removeQueue])
 
+  const handleOrganizeThisRecording = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+
+    if (mark.type !== 'recording') {
+      return
+    }
+
+    emitter.emit('open-organize-notes', { marks: [mark] })
+  }, [mark])
+
   const handelShowInFolder = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
     const appDir = await appDataDir()
@@ -727,6 +738,32 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
       onDragEnd={handleDragEnd}
     >
       <MarkWrapper mark={mark} variant={variant} />
+      {mark.type === 'recording' && mark.url ? (
+        <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={handleOrganizeThisRecording}
+            disabled={isMultiSelectMode}
+          >
+            <Sparkles className="mr-1 size-3.5" />
+            {t('record.mark.toolbar.organizeThisRecording')}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={handleReconvertStt}
+            disabled={isMultiSelectMode || isReconvertSttLoading}
+          >
+            <RefreshCw className={`mr-1 size-3.5 ${isReconvertSttLoading ? 'animate-spin' : ''}`} />
+            {isReconvertSttLoading ? t('record.mark.toolbar.reconvertSttProcessing') : t('record.mark.toolbar.reconvertStt')}
+          </Button>
+        </div>
+      ) : null}
       <div className="absolute top-2 right-2">
         <MarkMobileActions
           mark={mark}
@@ -738,6 +775,7 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
           onTransfer={handleTransfer}
           onCopyLink={handleCopyLink}
           onRegenerateDesc={regenerateDesc}
+          onOrganizeMark={handleOrganizeThisRecording}
           onReconvertStt={handleReconvertStt}
           isReconvertSttLoading={isReconvertSttLoading}
           onShowInFolder={handelShowInFolder}
@@ -793,6 +831,14 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
         </ContextMenuItem>
         <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc} menuType="record">
           {t('record.mark.toolbar.regenerateDesc')}
+        </ContextMenuItem>
+        <ContextMenuItem
+          inset
+          disabled={isMultiSelectMode || mark.type !== 'recording'}
+          onClick={handleOrganizeThisRecording}
+          menuType="record"
+        >
+          {t('record.mark.toolbar.organizeThisRecording')}
         </ContextMenuItem>
         <ContextMenuItem
           inset

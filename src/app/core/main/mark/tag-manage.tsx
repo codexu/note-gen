@@ -373,9 +373,19 @@ export function TagManage() {
   }, [highlightedMarkId, setHighlightedMarkId])
 
   React.useEffect(() => {
-    setVisibleMarkIds(visibleMarkIds)
-    return () => setVisibleMarkIds([])
+    const currentVisibleMarkIds = useMarkStore.getState().visibleMarkIds
+    const hasSameLength = currentVisibleMarkIds.length === visibleMarkIds.length
+    const hasSameValues = hasSameLength && currentVisibleMarkIds.every((id, index) => id === visibleMarkIds[index])
+
+    if (!hasSameValues) {
+      setVisibleMarkIds(visibleMarkIds)
+    }
+
   }, [setVisibleMarkIds, visibleMarkIds])
+
+  React.useEffect(() => {
+    return () => setVisibleMarkIds([])
+  }, [setVisibleMarkIds])
 
   const renderTagRecords = React.useCallback((tagId: number) => {
     const filteredMarks = getFilteredTagMarks(tagId).filter((mark: Mark) => {

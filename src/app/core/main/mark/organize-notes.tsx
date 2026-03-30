@@ -1,4 +1,5 @@
 "use client"
+import { Mark } from "@/db/marks"
 import useSettingStore, { GenTemplate, GenTemplateRange } from "@/stores/setting"
 import useMarkStore from "@/stores/mark"
 import useArticleStore from "@/stores/article"
@@ -37,15 +38,21 @@ interface OrganizeNotesProps {
   inputValue?: string;
 }
 
-export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNotesProps>(({ inputValue }, ref) => {
+export interface OrganizeNotesHandle {
+  openOrganize: () => void;
+  openOrganizeWithMarks: (marks: Mark[]) => void;
+}
+
+export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>(({ inputValue }, ref) => {
   const [open, setOpen] = useState(false)
+  const [selectedMarkIds, setSelectedMarkIds] = useState<number[] | null>(null)
   const { primaryModel } = useSettingStore()
   const { fetchMarks, marks } = useMarkStore()
   const { currentTag } = useTagStore()
   const { setActiveFilePath, loadFileTree, readArticle, setCurrentArticle, setSkipSyncOnSave, setAiGeneratingFilePath, setAiTerminateFn } = useArticleStore()
   const { setLeftSidebarTab } = useSidebarStore()
   const router = useRouter()
-  const [tab, setTab] = useState('0')
+  const [tab, setTab] = useState('')
   const [genTemplate, setGenTemplate] = useState<GenTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -53,11 +60,16 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const t = useTranslations('record.chat.note')
   const tMark = useTranslations('record.mark')
 
-  async function initGenTemplates() {
+  const noteText = useCallback((key: string, fallback: string) => {
+    const translated = t(key)
+    return translated === `record.chat.note.${key}` ? fallback : translated
+  }, [t])
+
+  const initGenTemplates = useCallback(async () => {
     const store = await Store.load('store.json')
     const template = await store.get<GenTemplate[]>('templateList') || []
     setGenTemplate(template)
-  }
+  }, [])
 
   // 使用 useMemo 优化过滤的记录
   const marksByRange = useMemo(() => {
@@ -89,20 +101,33 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     return marks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
   }, [marks, genTemplate, tab])
 
-  // 使用 useMemo 优化分类记录
-  const categorizedMarks = useMemo(() => {
-    return {
-      scanMarks: marksByRange.filter(item => item.type === 'scan'),
-      textMarks: marksByRange.filter(item => item.type === 'text'),
-      imageMarks: marksByRange.filter(item => item.type === 'image'),
-      linkMarks: marksByRange.filter(item => item.type === 'link'),
-      fileMarks: marksByRange.filter(item => item.type === 'file')
+  const organizeSourceMarks = useMemo(() => {
+    if (!selectedMarkIds) {
+      return marksByRange
     }
-  }, [marksByRange])
+
+    return marks.filter(item => selectedMarkIds.includes(item.id))
+  }, [marks, marksByRange, selectedMarkIds])
 
   // 使用 useMemo 优化选中的模板
   const selectedTemplate = useMemo(() => {
     return genTemplate.find(item => item.id === tab)
+  }, [genTemplate, tab])
+
+  const isScopedSelection = (selectedMarkIds?.length || 0) > 0
+  const isSingleSelection = (selectedMarkIds?.length || 0) === 1
+
+  useEffect(() => {
+    if (genTemplate.length === 0) {
+      if (tab !== '') {
+        setTab('')
+      }
+      return
+    }
+
+    if (!genTemplate.some(item => item.id === tab)) {
+      setTab(genTemplate[0].id)
+    }
   }, [genTemplate, tab])
 
   const terminateGeneration = useCallback(() => {
@@ -114,9 +139,16 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   }, [])
 
   const openOrganize = useCallback(() => {
+    setSelectedMarkIds(null)
     setOpen(true)
-    initGenTemplates()
-  }, [])
+    void initGenTemplates()
+  }, [initGenTemplates])
+
+  const openOrganizeWithMarks = useCallback((sourceMarks: Mark[]) => {
+    setSelectedMarkIds(sourceMarks.map(item => item.id))
+    setOpen(true)
+    void initGenTemplates()
+  }, [initGenTemplates])
 
   const handleOrganize = useCallback(async () => {
     setOpen(false)
@@ -139,11 +171,18 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
       }
 
+      const sidebarState = useSidebarStore.getState()
+
+      if (!sidebarState.leftSidebarVisible) {
+        await sidebarState.toggleLeftSidebar()
+      }
+      if (!sidebarState.centerPanelVisible) {
+        await sidebarState.toggleCenterPanel()
+      }
+      await setLeftSidebarTab('notes')
+
       await loadFileTree()
       await setActiveFilePath(filePath)
-
-      // Switch to files tab in sidebar
-      await setLeftSidebarTab('files')
 
       await new Promise(resolve => setTimeout(resolve, 500))
 
@@ -178,12 +217,15 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           subtractDate = dayjs().subtract(99, 'year')
           break
       }
-      const marksByRange = latestMarks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
+      const marksByRange = selectedMarkIds
+        ? latestMarks.filter(item => selectedMarkIds.includes(item.id))
+        : latestMarks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
 
       // Calculate categorizedMarks with latest marks
       const categorizedMarks = {
         scanMarks: marksByRange.filter(item => item.type === 'scan'),
         textMarks: marksByRange.filter(item => item.type === 'text'),
+        recordingMarks: marksByRange.filter(item => item.type === 'recording'),
         imageMarks: marksByRange.filter(item => item.type === 'image'),
         linkMarks: marksByRange.filter(item => item.type === 'link'),
         fileMarks: marksByRange.filter(item => item.type === 'file')
@@ -207,6 +249,8 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         ${categorizedMarks.scanMarks.map((item, index) => `Record ${index + 1}: ${item.content}. Created at ${dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss')}`).join(';\n\n')}.
         Here are text fragments copied and recorded:
         ${categorizedMarks.textMarks.map((item, index) => `Record ${index + 1}: ${item.content}. Created at ${dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss')}`).join(';\n\n')}.
+        Here are speech-to-text transcripts from audio recordings:
+        ${categorizedMarks.recordingMarks.map((item, index) => `Recording ${index + 1}: ${item.content}. Created at ${dayjs(item.createdAt).format('YYYY-MM-DD HH:mm:ss')}`).join(';\n\n')}.
         Here are image record descriptions:
         ${processedImageMarks.map(item => `
           Description: ${item.content},
@@ -395,11 +439,28 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         targetFilePath: filePath
       })
     }
-  }, [primaryModel, categorizedMarks, selectedTemplate, inputValue, fetchMarks, loadFileTree, setActiveFilePath, setLeftSidebarTab, setCurrentArticle, readArticle, tMark, t, open])
+  }, [primaryModel, selectedTemplate, inputValue, fetchMarks, loadFileTree, setActiveFilePath, setLeftSidebarTab, setCurrentArticle, readArticle, tMark, t, selectedMarkIds, terminateGeneration, setSkipSyncOnSave, setAiGeneratingFilePath, setAiTerminateFn])
 
   useImperativeHandle(ref, () => ({
-    openOrganize
-  }))
+    openOrganize,
+    openOrganizeWithMarks
+  }), [openOrganize, openOrganizeWithMarks])
+
+  useEffect(() => {
+    const handleOpenOrganize = (payload?: { marks?: Mark[] }) => {
+      if (payload?.marks?.length) {
+        openOrganizeWithMarks(payload.marks)
+        return
+      }
+
+      openOrganize()
+    }
+
+    emitter.on('open-organize-notes', handleOpenOrganize)
+    return () => {
+      emitter.off('open-organize-notes', handleOpenOrganize)
+    }
+  }, [openOrganize, openOrganizeWithMarks])
 
   // Listen for abort event from editor
   useEffect(() => {
@@ -438,11 +499,20 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   }, [router])
 
   return (
-    <AlertDialog onOpenChange={setOpen} open={open}>
+    <AlertDialog onOpenChange={(nextOpen) => {
+      if (open === nextOpen) {
+        return
+      }
+
+      setOpen(nextOpen)
+      if (!nextOpen) {
+        setSelectedMarkIds(null)
+      }
+    }} open={open}>
       <AlertDialogContent onKeyDown={handleDialogKeyDown}>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t('organizeAs')}</AlertDialogTitle>
-          <Tabs defaultValue={tab} onValueChange={value => setTab(value)}>
+          <AlertDialogTitle>{isSingleSelection ? noteText('organizeSingleAs', '整理此录音') : noteText('organizeAllAs', '整理当前标签')}</AlertDialogTitle>
+          <Tabs value={tab} onValueChange={value => setTab(value)}>
             <TabsList>
               {
                 genTemplate.map(item => (
@@ -455,10 +525,16 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         <div className="flex flex-col gap-4">
           <div className="space-y-1">
             <div className="flex items-center justify-between mb-2">
-              <Label htmlFor="name">{t('templateContent')}</Label>
+              <Label htmlFor="name">{noteText('templateContent', '模板内容')}</Label>
               <div className="flex items-center gap-2">
-                <Label className="text-muted-foreground">{tMark('toolbar.currentTag')}: {currentTag?.name || '-'}</Label>
-                <Label>{t('recordRange')}: { selectedTemplate?.range }</Label>
+                <Label className="text-muted-foreground">
+                  {isScopedSelection
+                    ? (isSingleSelection
+                      ? noteText('selectedRecording', '当前范围: 单条录音')
+                      : tMark('toolbar.selectedCount', { count: selectedMarkIds?.length || 0 }))
+                    : `${noteText('currentScope', '当前范围')}: ${currentTag?.name || '-'}`}
+                </Label>
+                {!isScopedSelection ? <Label>{noteText('recordRange', '记录选择范围')}: { selectedTemplate?.range }</Label> : null}
               </div>
             </div>
             <ScrollArea className="h-32 w-full p-2 rounded-md border">
@@ -469,13 +545,15 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           </div>
           <div className="flex items-center gap-2">
             <Checkbox id="remove-thinking" checked={isRemoveThinking} onCheckedChange={(checked) => setIsRemoveThinking(checked === true)} />
-            <Label htmlFor="remove-thinking">{t('filterThinkingContent')}</Label>
+            <Label htmlFor="remove-thinking">{noteText('filterThinkingContent', '移除记录中的思考')}</Label>
           </div>
         </div>
         <AlertDialogFooter>
-          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>{t('manageTemplate')}</Button>
-          <Button variant={"outline"} onClick={() => setOpen(false)}>{t('cancel')}</Button>
-          <Button onClick={handleOrganize} disabled={!marks || marks.length === 0 || loading}>{t('startOrganize')}</Button>
+          <Button variant={"ghost"} disabled={loading} onClick={handleSetting}>{noteText('manageTemplate', '管理模板')}</Button>
+          <Button variant={"outline"} onClick={() => setOpen(false)}>{noteText('cancel', '取消')}</Button>
+          <Button onClick={handleOrganize} disabled={organizeSourceMarks.length === 0 || loading}>
+            {isSingleSelection ? noteText('startOrganizeSingle', '开始整理此录音') : noteText('startOrganizeAll', '开始整理当前标签')}
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

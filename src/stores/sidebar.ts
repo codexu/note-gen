@@ -137,6 +137,10 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   },
   leftSidebarTab: 'files',
   setLeftSidebarTab: async (tab: 'files' | 'notes') => {
+    if (get().leftSidebarTab === tab) {
+      return
+    }
+
     set({ leftSidebarTab: tab })
     localStorage.setItem('leftSidebarTab', tab)
     const store = await Store.load('store.json')

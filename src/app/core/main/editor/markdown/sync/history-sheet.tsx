@@ -15,6 +15,7 @@ import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useTranslations } from 'next-intl'
 
 interface CommitInfo {
   sha: string
@@ -32,6 +33,7 @@ interface HistorySheetProps {
 }
 
 export function HistorySheet({ editor }: HistorySheetProps) {
+  const t = useTranslations('article.footer.history')
   const { activeFilePath } = useArticleStore()
   const [isOpen, setIsOpen] = useState(false)
   const [history, setHistory] = useState<CommitInfo[]>([])
@@ -257,19 +259,19 @@ export function HistorySheet({ editor }: HistorySheetProps) {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          className={cn(
-            'p-0.5 rounded transition-colors hover:bg-[hsl(var(--muted))]',
-            isOpen && 'bg-[hsl(var(--muted))]'
-          )}
-          title="历史记录"
-        >
-          <History size={14} />
-        </button>
-      </PopoverTrigger>
+          <button
+            className={cn(
+              'p-0.5 rounded transition-colors hover:bg-[hsl(var(--muted))]',
+              isOpen && 'bg-[hsl(var(--muted))]'
+            )}
+            title={t('historyRecords')}
+          >
+            <History size={14} />
+          </button>
+        </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-90 max-h-100 overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold text-sm">提交历史</div>
+          <div className="font-semibold text-sm">{t('historyRecords')}</div>
           {activeFilePath && provider && repoInfo.repo && (
             <a
               href={(() => {
@@ -294,11 +296,11 @@ export function HistorySheet({ editor }: HistorySheetProps) {
         <div className="flex-1 overflow-y-auto pr-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              加载中...
+              {t('loading')}
             </div>
           ) : history.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
-              暂无提交记录
+              {t('noHistory')}
             </div>
           ) : (
             <ul className="space-y-2">

@@ -24,7 +24,7 @@ import useMarkStore from "@/stores/mark"
 import useChatStore from "@/stores/chat"
 import { MarkLoading } from './mark-loading'
 import { ImageGallery } from './image-gallery'
-import { filterMarks } from './mark-filters.mjs'
+import { filterMarks } from './mark-filters'
 import { MarkListDefaultView } from './mark-list-default-view'
 import { MarkListCompactView } from './mark-list-compact-view'
 import { MarkListCardView } from './mark-list-card-view'

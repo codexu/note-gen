@@ -34,6 +34,10 @@ import { toast } from "@/hooks/use-toast"
 import emitter from "@/lib/emitter"
 import { shouldEmitOrganizeOnboardingComplete } from "./organize-onboarding"
 
+function shouldAutoSyncOnInitialRead(options?: { isNewFile?: boolean }) {
+  return options?.isNewFile !== true
+}
+
 interface OrganizeNotesProps {
   inputValue?: string;
 }
@@ -56,6 +60,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
   const [genTemplate, setGenTemplate] = useState<GenTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const organizingRef = useRef(false)
   const [isRemoveThinking, setIsRemoveThinking] = useState(true)
   const t = useTranslations('record.chat.note')
   const tMark = useTranslations('record.mark')
@@ -69,7 +74,13 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
     const store = await Store.load('store.json')
     const template = await store.get<GenTemplate[]>('templateList') || []
     setGenTemplate(template)
-  }, [])
+    setTab((currentTab) => {
+      if (template.some((item) => item.id === currentTab)) {
+        return currentTab
+      }
+      return template[0]?.id ?? '0'
+    })
+  }
 
   // 使用 useMemo 优化过滤的记录
   const marksByRange = useMemo(() => {
@@ -142,18 +153,17 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
     setSelectedMarkIds(null)
     setOpen(true)
     void initGenTemplates()
-  }, [initGenTemplates])
-
-  const openOrganizeWithMarks = useCallback((sourceMarks: Mark[]) => {
-    setSelectedMarkIds(sourceMarks.map(item => item.id))
-    setOpen(true)
-    void initGenTemplates()
-  }, [initGenTemplates])
+  }, [])
 
   const handleOrganize = useCallback(async () => {
-    setOpen(false)
+    if (loading || organizingRef.current) {
+      return
+    }
+
     if (!primaryModel) return
 
+    organizingRef.current = true
+    setOpen(false)
     setLoading(true)
 
     // Prepare file path outside try block for access in finally
@@ -396,7 +406,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         // Update file tree and active file
         await loadFileTree()
         setActiveFilePath(newFilePath)
-        await readArticle(newFilePath, '', true)
+        await readArticle(newFilePath, '', shouldAutoSyncOnInitialRead({ isNewFile: true }))
         if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
           emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath: newFilePath })
         }
@@ -411,7 +421,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         } else {
           await writeTextFile(pathOptions.path, cleanedContent, { baseDir: pathOptions.baseDir })
         }
-        await readArticle(filePath, '', true)
+        await readArticle(filePath, '', shouldAutoSyncOnInitialRead())
         if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
           emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath })
         }
@@ -430,6 +440,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         })
       }
     } finally {
+      organizingRef.current = false
       abortControllerRef.current = null
       setLoading(false)
       // Re-enable sync in case of termination
@@ -442,7 +453,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         targetFilePath: filePath
       })
     }
-  }, [primaryModel, selectedTemplate, inputValue, fetchMarks, loadFileTree, setActiveFilePath, setLeftSidebarTab, setCurrentArticle, readArticle, tMark, t, selectedMarkIds, terminateGeneration, setSkipSyncOnSave, setAiGeneratingFilePath, setAiTerminateFn])
+  }, [primaryModel, categorizedMarks, selectedTemplate, inputValue, fetchMarks, loadFileTree, setActiveFilePath, setLeftSidebarTab, setCurrentArticle, readArticle, tMark, loading])
 
   useImperativeHandle(ref, () => ({
     openOrganize,
@@ -481,12 +492,6 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
   const handleDialogKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!open || e.nativeEvent.isComposing) return
 
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleOrganize()
-      return
-    }
-
     if (e.key === 'Escape') {
       e.preventDefault()
       if (loading) {
@@ -495,7 +500,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         setOpen(false)
       }
     }
-  }, [open, loading, handleOrganize, terminateGeneration])
+  }, [open, loading, terminateGeneration])
 
   const handleSetting = useCallback(() => {
     router.push('/core/setting/template')
@@ -514,7 +519,7 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
     }} open={open}>
       <AlertDialogContent onKeyDown={handleDialogKeyDown}>
         <AlertDialogHeader>
-          <AlertDialogTitle>{isSingleSelection ? noteText('organizeSingleAs', '整理此录音') : noteText('organizeAllAs', '整理当前标签')}</AlertDialogTitle>
+          <AlertDialogTitle>{t('organizeAs')}</AlertDialogTitle>
           <Tabs value={tab} onValueChange={value => setTab(value)}>
             <TabsList>
               {

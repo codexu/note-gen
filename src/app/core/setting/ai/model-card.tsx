@@ -18,7 +18,7 @@ import ModelSelect from "./modelSelect"
 import { useState, useRef } from "react"
 import { createOpenAIClient } from "@/lib/ai/utils"
 import { toast } from "@/hooks/use-toast"
-import { fetch } from "@tauri-apps/plugin-http"
+import { blobToBytes, invokeAiBinary, invokeAiJson, invokeAiMultipart } from "@/lib/ai/tauri-client"
 
 interface ModelCardProps {
   modelConfig: ModelConfig
@@ -78,25 +78,20 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
         case 'rerank':
           const query = 'Apple'
           const documents = ["apple","banana","fruit","vegetable"]
-          const response = await fetch(aiConfig.baseURL + '/rerank', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
+          const rerankData = await invokeAiJson<any>({
+            config: {
+              baseUrl: aiConfig.baseURL,
+              apiKey: aiConfig.apiKey,
+              customHeaders: aiConfig.customHeaders,
             },
-            body: JSON.stringify({
+            path: '/rerank',
+            method: 'POST',
+            body: {
               model: model.model,
               query,
               documents
-            }),
-            signal
-          })
-          if (!response.ok) {
-            throw new Error(`重排序请求失败: ${response.status} ${response.statusText}`)
-          }
-          const rerankData = await response.json()
+            }
+          }, signal)
           if (!rerankData || !rerankData.results) {
             throw new Error('重排序结果格式不正确')
           }
@@ -104,25 +99,20 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
         case 'embedding':
           const testText = '测试文本'
-          const embeddingData = await fetch(aiConfig.baseURL + '/embeddings', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
+          const embeddingDataJson = await invokeAiJson<any>({
+            config: {
+              baseUrl: aiConfig.baseURL,
+              apiKey: aiConfig.apiKey,
+              customHeaders: aiConfig.customHeaders,
             },
-            body: JSON.stringify({
+            path: '/embeddings',
+            method: 'POST',
+            body: {
               model: model.model,
               input: testText,
               encoding_format: 'float'
-            }),
-            signal
-          })
-          if (!embeddingData.ok) {
-            throw new Error(`嵌入请求失败: ${embeddingData.status} ${embeddingData.statusText}`)
-          }
-          const embeddingDataJson = await embeddingData.json()
+            }
+          }, signal)
           if (!embeddingDataJson || !embeddingDataJson.data || !embeddingDataJson.data[0] || !embeddingDataJson.data[0].embedding) {
             throw new Error('嵌入结果格式不正确')
           }
@@ -130,57 +120,51 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
         case 'tts':
           const testAudioText = '测试音频生成'
-          const ttsResponse = await fetch(aiConfig.baseURL + '/audio/speech', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
+          const ttsBuffer = await invokeAiBinary({
+            config: {
+              baseUrl: aiConfig.baseURL,
+              apiKey: aiConfig.apiKey,
+              customHeaders: aiConfig.customHeaders,
             },
-            body: JSON.stringify({
+            path: '/audio/speech',
+            method: 'POST',
+            body: {
               model: model.model,
               input: testAudioText,
               voice: model.voice || 'alloy'
-            }),
-            signal
-          })
-          if (!ttsResponse.ok) {
-            throw new Error(`TTS请求失败: ${ttsResponse.status} ${ttsResponse.statusText}`)
-          }
-          const ttsContentType = ttsResponse.headers.get('content-type')
-          if (!ttsContentType || !ttsContentType.includes('audio')) {
+            }
+          }, signal)
+          if (!ttsBuffer.byteLength) {
             throw new Error('TTS模型返回格式不正确')
           }
           return true
 
         case 'stt':
-          // STT 测试：只检查 API 端点连通性
-          // 发送一个简单的测试请求，不验证具体返回内容
-          // 因为空音频文件可能导致服务器ffmpeg解析失败，但这不代表模型不可用
           const testAudioBlob = new Blob([new Uint8Array(100)], { type: 'audio/webm' })
-          const sttFormData = new FormData()
-          sttFormData.append('file', testAudioBlob, 'test.webm')
-          sttFormData.append('model', model.model)
-          
-          const sttResponse = await fetch(aiConfig.baseURL + '/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              ...(aiConfig.customHeaders || {})
-            },
-            body: sttFormData,
-            signal
-          })
-          
-          // 对于STT，只要API响应了（即使是400错误），就认为连接成功
-          // 400错误通常是因为测试音频无效，但说明API端点是可达的
-          if (sttResponse.status === 401 || sttResponse.status === 403) {
-            // 认证错误才是真正的失败
-            throw new Error(`STT认证失败 (${sttResponse.status})`)
+          try {
+            await invokeAiMultipart({
+              config: {
+                baseUrl: aiConfig.baseURL,
+                apiKey: aiConfig.apiKey,
+                customHeaders: aiConfig.customHeaders,
+              },
+              path: '/audio/transcriptions',
+              fileFieldName: 'file',
+              fields: {
+                model: model.model
+              },
+              file: {
+                bytes: await blobToBytes(testAudioBlob),
+                fileName: 'test.webm',
+                contentType: 'audio/webm',
+              }
+            }, signal)
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            if (message.includes('401') || message.includes('403')) {
+              throw new Error(message)
+            }
           }
-          
-          // 其他情况（包括200成功和400音频解析失败）都认为连接成功
           return true
 
         default:
@@ -191,7 +175,6 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
               role: 'user' as const,
               content: 'Hello'
             }],
-            stream: model.enableStream !== false,
           })
           return true
       }

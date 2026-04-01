@@ -786,9 +786,17 @@
       "isPrimaryBackup": "當前 {type} 為主要圖床",
       "setPrimaryBackup": "設為主要圖床",
       "smms": {
+        "title": "S.EE 圖床",
+        "description": "使用 S.EE 上傳和管理圖片",
+        "status": "連接狀態",
+        "connected": "已連接",
+        "connecting": "檢測中",
+        "disconnected": "未連接",
         "token": {
-          "desc": "請創建並輸入 SM.MS Token。",
-          "createToken": "創建 Token"
+          "desc": "請創建並輸入 S.EE Token。",
+          "createToken": "打開 S.EE 開發者頁面",
+          "helper": "請輸入 S.EE API Token，現有配置可繼續沿用。",
+          "placeholder": "輸入 S.EE API Token"
         },
         "disk": "磁碟使用情況",
         "error": "獲取失敗，請檢查網路或 Token 是否正確。"
@@ -1203,8 +1211,8 @@
       },
       "assets": {
         "title": "寫作資源路徑",
-        "desc": "設置寫作資源的保存路徑，例如圖片、影片、文件等，與當前編輯的 markdown 文件同級。",
-        "select": "請設置寫作資源路徑，例如：assets"
+        "desc": "設置寫作資源目錄名稱。編輯器本地插入圖片時會使用該目錄名，例如 assets 或 images。",
+        "select": "請設置資源目錄名稱，例如：assets"
       }
     },
     "shortcuts": {
@@ -1627,6 +1635,7 @@
         "viewFile": "查看原文件",
         "deleteForever": "徹底刪除",
         "multiSelect": "多選",
+        "multiSelectMode": "多選模式",
         "exitMultiSelect": "退出多選",
         "selectAll": "全選",
         "deselectAll": "取消全選",

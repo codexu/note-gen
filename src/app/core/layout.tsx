@@ -25,6 +25,7 @@ import { TextSizeProvider } from "@/contexts/text-size-context"
 import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
 import { applyThemeColors } from "@/lib/theme-utils"
 import emitter from "@/lib/emitter"
+import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
 
 export default function RootLayout({
   children,
@@ -142,21 +143,15 @@ export default function RootLayout({
 
       // 如果按下 Backspace 键，且不在可编辑元素中
       if (e.key === 'Backspace') {
-        const target = e.target as HTMLElement
-        const isEditable =
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable ||
-          target.getAttribute('contenteditable') === 'true'
-
-        // 如果在可编辑元素中，允许正常删除
-        if (isEditable) {
+        const editableTarget = isEditableKeyboardTarget(e.target)
+        if (editableTarget) {
           return
         }
 
         // 否则阻止默认的后退行为
         e.preventDefault()
       }
+
     }
 
     window.addEventListener('keydown', handleKeyDown)

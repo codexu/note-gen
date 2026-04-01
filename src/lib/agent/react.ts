@@ -2,6 +2,7 @@ import { ReActStep, ToolCall, ToolResult } from './types'
 import { getToolByName, getToolDescriptions } from './tools'
 import { skillManager } from '@/lib/skills'
 import useChatStore from '@/stores/chat'
+import useArticleStore from '@/stores/article'
 import { isLinkedFolder } from '@/lib/files'
 import {
   getAutoFinalAnswerDescriptor,
@@ -127,6 +128,20 @@ function isSuccessfulObservation(observation?: string): boolean {
     !observation.includes('阻止')
 }
 
+type CheckboxTargetState = 'checked' | 'unchecked'
+
+function getCheckboxTargetState(userInput: string): CheckboxTargetState | null {
+  if (/未完成|取消勾选|取消完成|unchecked|not completed|todo|待办/.test(userInput)) {
+    return 'unchecked'
+  }
+
+  if (/已完成|勾选|打勾|checked|completed|完成状态/.test(userInput)) {
+    return 'checked'
+  }
+
+  return null
+}
+
 function shouldBlockRepeatedNoteExploration(
   toolName: string,
   params: Record<string, any>,
@@ -165,6 +180,7 @@ export interface ReActConfig {
   onFinalAnswerRender?: (markdownContent: string) => void  // 当检测到 Final Answer 时立即渲染 Markdown
   formatAutoFinalAnswer?: (key: string, values?: Record<string, string>) => string
   requestConfirmation?: (toolName: string, params: Record<string, any>, context?: {
+    previewParams?: Record<string, any>
     originalContent?: string
     modifiedContent?: string
     filePath?: string
@@ -528,7 +544,9 @@ Before using any tools, you MUST understand the difference between these three c
 ### Decision Guide:
 | User Request | Concept | Tools to Use |
 |--------------|---------|--------------|
-| "List my notes" / "Read note files" | Note (file) | list_markdown_files, read_markdown_file |
+| "List my notes" | Note (file) | list_markdown_files |
+| "Read another saved note file" | Note (file) | read_markdown_file |
+| "Read the note currently open in the editor" | Note (file) | get_editor_content |
 | "Create a new note file" | Note (file) | create_file |
 | "Find/create tags" | Tag | list_tags, create_tag |
 | "List records in inbox" / "Create a bookmark" | Mark | read_marks, create_mark |
@@ -600,7 +618,12 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 - Do NOT infer missing files from conversation history or your own assumptions
 - If uncertain, first use a read-only check tool or ask the user for the exact file/path
 - If the user asks to summarize/analyze a note and the exact file is unclear, prefer asking a clarifying question over inventing a missing-file reason
-- If the target path ends with \`.md\`, treat it as a note file: use \`read_markdown_file\` or \`read_markdown_files_batch\`, not \`check_folder_exists\`
+- If the user needs the currently open note, use \`get_editor_content\` so you read the live editor state instead of saved disk content
+- If the target path ends with \`.md\` and it is not the current editor note, treat it as a note file: use \`read_markdown_file\` or \`read_markdown_files_batch\`, not \`check_folder_exists\`
+- If you are updating a saved note file after reading its metadata or content, include \`expectedModifiedAt\` with \`update_markdown_file\` whenever you know the file's last modified time
+- When editing the currently open note with \`replace_editor_content\`, prefer \`startLine\`/\`endLine\` + \`version\` for section/list/block edits; use \`from\`/\`to\` only when exact quoted positions are available, and keep \`searchContent\` as a fallback of last resort
+- If \`replace_editor_content\` fails because \`searchContent\` cannot be found, do not stop and do not claim success. Continue by getting fresh editor content and retrying with \`startLine\`/\`endLine\` + \`version\`
+- For checkbox/task-list edits in the current document: "已完成/勾选" means target state \`- [x]\`; "未完成/取消勾选" means target state \`- [ ]\`. Words like "改回" / "还是" / "恢复为" describe the desired target state, not the current state
 - Only use \`check_folder_exists\` for actual folders, never for Markdown note paths
 - If context already includes the full content of the linked file, do not call read/check tools for that same file again. Answer directly from context.
 
@@ -631,13 +654,19 @@ Final Answer: Done! I created a note called "React Knowledge Summary" which incl
 ✅ **Correct**: Understand Skill guidance, use actual tools (like Action: create_file) and follow Skill requirements in content
 
 ❌ **Error 5**: Treat any quoted content as an edit request and call replace_editor_content for explanation/analysis tasks
-✅ **Correct**: For explanation/summary/analysis requests, answer directly from the quoted content. For explicit edit requests, if quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Only fall back to startLine/endLine when exact positions are unavailable
+✅ **Correct**: For explanation/summary/analysis requests, answer directly from the quoted content. For explicit edit requests, if quoted context provides \`from\` and \`to\`, use them directly with replace_editor_content. Otherwise prefer startLine/endLine + version for current-document edits, and use searchContent only as a last resort
 
 ❌ **Error 6**: Ignore the previous operation result and repeat the same action
 ✅ **Correct**: Always base your next action on the PREVIOUS observation result - if the result shows the task is complete, give Final Answer; if it shows a different required next step, continue with that next step
 
 ❌ **Error 7**: Reconsider the original user request in every iteration instead of building on previous results
 ✅ **Correct**: Focus on the PREVIOUS step's result - the context shows what you just did and what happened
+
+❌ **Error 9**: After \`replace_editor_content\` fails to find \`searchContent\`, stop early or claim the edit already succeeded
+✅ **Correct**: Treat this as a recoverable failure. Read fresh editor content, then retry with \`startLine\`/\`endLine\` + \`version\` for the current document
+
+❌ **Error 10**: For checkbox edits, misread "改回未完成/还是未完成状态" as "no change needed"
+✅ **Correct**: Infer the target checkbox state from the user's words. If the document still shows the opposite state after \`get_editor_content\`, you MUST call \`replace_editor_content\` to change it
 
 ❌ **Error 8**: Use search tools when user is just asking a question without explicitly requesting search
 ✅ **Correct**: Only use search_markdown_files when user explicitly says "搜索", "查找", "帮我找". For regular questions like "What is React?", give Final Answer directly without searching
@@ -1060,10 +1089,74 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
     if (requiresConfirmation && this.config.requestConfirmation) {
       // 准备确认上下文信息（原始内容、修改后内容、文件路径）
       const confirmContext: {
+        previewParams?: Record<string, any>
         originalContent?: string
         modifiedContent?: string
         filePath?: string
       } = {}
+
+      if (toolName === 'delete_markdown_file' && typeof params.filePath === 'string') {
+        confirmContext.filePath = params.filePath
+        confirmContext.previewParams = {
+          filePath: params.filePath,
+        }
+      }
+
+      if (toolName === 'delete_markdown_files_batch' && Array.isArray(params.filePaths)) {
+        const filePaths = params.filePaths.filter((value): value is string => typeof value === 'string')
+        confirmContext.previewParams = {
+          count: filePaths.length,
+          filesPreview: filePaths.slice(0, 10),
+        }
+      }
+
+      if (toolName === 'delete_folder' && typeof params.folderPath === 'string') {
+        try {
+          const { getAllMarkdownFiles } = await import('@/lib/files')
+          const folderPath = params.folderPath.replace(/\/+$/, '')
+          const files = (await getAllMarkdownFiles())
+            .map((file) => file.relativePath)
+            .filter((path) => path === folderPath || path.startsWith(`${folderPath}/`))
+
+          confirmContext.filePath = folderPath
+          confirmContext.previewParams = {
+            folderPath,
+            fileCount: files.length,
+            filesPreview: files.slice(0, 10),
+          }
+        } catch (error) {
+          console.error('[Agent] Failed to prepare delete folder preview:', error)
+          confirmContext.previewParams = {
+            folderPath: params.folderPath,
+          }
+        }
+      }
+
+      if (toolName === 'delete_folders_batch' && Array.isArray(params.folderPaths)) {
+        try {
+          const { getAllMarkdownFiles } = await import('@/lib/files')
+          const folderPaths = params.folderPaths.filter((value): value is string => typeof value === 'string')
+          const files = (await getAllMarkdownFiles()).map((file) => file.relativePath)
+          const normalizedFolders = folderPaths.map((folderPath) => folderPath.replace(/\/+$/, ''))
+          const affectedFiles = files.filter((filePath) =>
+            normalizedFolders.some((folderPath) => filePath === folderPath || filePath.startsWith(`${folderPath}/`))
+          )
+
+          confirmContext.previewParams = {
+            count: normalizedFolders.length,
+            fileCount: affectedFiles.length,
+            foldersPreview: normalizedFolders.slice(0, 10),
+            filesPreview: affectedFiles.slice(0, 10),
+          }
+        } catch (error) {
+          console.error('[Agent] Failed to prepare delete folders batch preview:', error)
+          const folderPaths = params.folderPaths.filter((value): value is string => typeof value === 'string')
+          confirmContext.previewParams = {
+            count: folderPaths.length,
+            foldersPreview: folderPaths.slice(0, 10),
+          }
+        }
+      }
 
       // 对于 modify_current_note 工具，获取原始内容和修改后的内容用于 diff 显示
       if (toolName === 'modify_current_note') {
@@ -1203,7 +1296,7 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
       toolCall.result = result
       this.config.onToolCall?.(toolCall)
 
-      if (result.success) {
+        if (result.success) {
         // 特殊处理 select_skill 工具
         if (toolName === 'select_skill' && result.data?.selected_skills) {
           const selectedSkillIds: string[] = result.data.selected_skills
@@ -1220,7 +1313,7 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
         let observation = result.message || `工具 ${toolName} 执行成功。`
 
         // 如果有数据，根据数据类型进行格式化
-        if (result.data) {
+          if (result.data) {
           // 特殊处理 MCP 搜索结果（category 为 'mcp' 的工具）
           if (tool.category === 'mcp') {
             // 从思考内容中提取简短标题
@@ -1236,9 +1329,32 @@ Final Answer: 无法完成任务，请稍后重试或检查 AI 配置`
           }
         }
 
+        const previousObservation = this.steps[this.steps.length - 1]?.observation || ''
+        if (
+          toolName === 'get_editor_content' &&
+          previousObservation.includes('replace_editor_content 执行失败') &&
+          previousObservation.includes('找不到文本')
+        ) {
+          const checkboxTargetState = getCheckboxTargetState(this.currentUserInput)
+          if (checkboxTargetState === 'unchecked') {
+            observation += '\n\n这是一个复选框状态修改请求。用户的目标状态是未完成，也就是 `- [ ]`。如果当前文档里该项仍是 `- [x]`，下一步必须使用 replace_editor_content(startLine/endLine + version) 完成修改，不能直接结束。'
+          } else if (checkboxTargetState === 'checked') {
+            observation += '\n\n这是一个复选框状态修改请求。用户的目标状态是已完成，也就是 `- [x]`。如果当前文档里该项仍是 `- [ ]`，下一步必须使用 replace_editor_content(startLine/endLine + version) 完成修改，不能直接结束。'
+          }
+        }
+
         return observation
       } else {
         const errorMsg = result.error || '未知错误'
+        if (
+          toolName === 'replace_editor_content' &&
+          typeof result.error === 'string' &&
+          result.error.includes('找不到文本')
+        ) {
+          return `工具 ${toolName} 执行失败：${errorMsg}
+
+下一步不要直接结束，也不要声称编辑已完成。请先使用 get_editor_content 获取最新的 numberedLines 和 version，再用 startLine/endLine + version 重试当前编辑。`
+        }
         return `工具 ${toolName} 执行失败：${errorMsg}`
       }
     } catch (error) {
@@ -1626,7 +1742,7 @@ ${skillsList.join('\n---\n\n')}
 2. **Understand Skill requirements, then apply directly to your work**
 3. **Don't ask user for confirmation** - Execute tasks directly following Skill guidance
 4. **Don't try to read additional files** - Skills already contain all necessary information
-5. **Use actual tools to complete tasks** - Like create_file, modify_current_note, etc.
+5. **Use actual tools to complete tasks** - Like create_file, update_markdown_file, replace_editor_content, etc.
 
 **⚠️ Important Reminders**:
 - Strictly follow above Skill requirements to execute tasks
@@ -1725,13 +1841,43 @@ ${skillsList.join('\n---\n\n')}
     params: Record<string, any> = {}
   ): { allowed: boolean; requiresConfirmation: boolean; reason?: string } {
     const folderPath = typeof params.folderPath === 'string' ? params.folderPath.trim() : ''
+    const filePath = typeof params.filePath === 'string' ? params.filePath.trim() : ''
     const { linkedResource } = useChatStore.getState()
+    const articleStore = useArticleStore.getState()
 
     if (toolName === 'check_folder_exists' && /\.md$/i.test(folderPath)) {
       return {
         allowed: false,
         requiresConfirmation: false,
         reason: 'Markdown 文件路径应使用 read_markdown_file，而不是 check_folder_exists',
+      }
+    }
+
+    if (toolName === 'update_markdown_file' && filePath && articleStore.activeFilePath === filePath) {
+      return {
+        allowed: false,
+        requiresConfirmation: false,
+        reason: '当前打开的文件应使用 replace_editor_content 进行修改，以避免覆盖编辑器中的实时内容',
+      }
+    }
+
+    if ((toolName === 'read_markdown_file' || toolName === 'read_markdown_files_batch') && articleStore.activeFilePath) {
+      const activePath = articleStore.activeFilePath
+
+      if (toolName === 'read_markdown_file' && filePath === activePath) {
+        return {
+          allowed: false,
+          requiresConfirmation: false,
+          reason: '当前打开的文件应使用 get_editor_content 读取，以避免读取到过时的磁盘内容',
+        }
+      }
+
+      if (toolName === 'read_markdown_files_batch' && Array.isArray(params.filePaths) && params.filePaths.includes(activePath)) {
+        return {
+          allowed: false,
+          requiresConfirmation: false,
+          reason: '批量读取包含当前打开的文件时，应先使用 get_editor_content 获取实时内容，再单独读取其他文件',
+        }
       }
     }
 
@@ -1781,6 +1927,14 @@ ${skillsList.join('\n---\n\n')}
 
     if (reason.includes('已经获得足够的笔记文件内容')) {
       return '已避免重复探索：你已经拿到足够的笔记内容，请直接基于已读取内容继续整理，并给出 Final Answer。'
+    }
+
+    if (reason.includes('replace_editor_content')) {
+      return '已切换到编辑器写入路径：当前打开的文件请使用 replace_editor_content，而不是直接覆盖磁盘文件。'
+    }
+
+    if (reason.includes('get_editor_content')) {
+      return '已切换到编辑器读取路径：当前打开的文件请使用 get_editor_content，而不是读取可能过时的磁盘内容。'
     }
 
     if (reason.includes('执行命令或脚本')) {
@@ -1842,13 +1996,43 @@ ${skillsList.join('\n---\n\n')}
     })
   }
 
+  private isMutationTool(toolName?: string): boolean {
+    if (!toolName || this.isSupportOnlyTool(toolName)) {
+      return false
+    }
+
+    if (toolName === 'replace_editor_content' || toolName === 'insert_at_cursor') {
+      return true
+    }
+
+    return /^(create_|update_|delete_|rename_|move_|copy_)/.test(toolName)
+  }
+
+  private hasSuccessfulMutationAction(): boolean {
+    return this.steps.some((step) => {
+      const toolName = step.action?.tool
+      if (!this.isMutationTool(toolName)) {
+        return false
+      }
+
+      const observation = step.observation || ''
+      if (!observation) {
+        return false
+      }
+
+      return !observation.includes('失败') && !observation.includes('错误') && !observation.includes('阻止')
+    })
+  }
+
   private validateFinalAnswerReadiness(userInput: string, finalAnswer: string): { ok: boolean; reason?: string } {
     const normalizedInput = userInput.toLowerCase()
     const normalizedAnswer = finalAnswer.toLowerCase()
     const actionLikeRequest = this.intentPolicy.allowWrite || this.intentPolicy.allowExecute || this.intentPolicy.allowDestructive
     const hasOnlySupportSteps = this.steps.length > 0 && this.steps.every((step) => this.isSupportOnlyTool(step.action?.tool))
     const claimsExecution = /已生成|已创建|已保存|已完成|已导出|已验证|成功使用|generated|created|saved|exported|verified|completed/.test(finalAnswer)
+    const claimsEditApplied = /已修改|已更新|已改为|已改回|已删除|已移动|已重命名|已复制|现在为|已经是|updated|changed|modified|deleted|moved|renamed|copied/.test(finalAnswer)
     const requestedArtifact = /生成|创建|制作|导出|保存|输出|pptx|pdf|docx|xlsx|文件|演示文稿|generate|create|export|save|file|presentation/.test(normalizedInput)
+    const requestedEdit = /修改|编辑|改成|改为|改回|替换|删除|移动|重命名|复制|插入|rewrite|edit|modify|change|replace|delete|move|rename|copy|insert/.test(normalizedInput)
 
     if (actionLikeRequest && requestedArtifact && claimsExecution && !this.hasSubstantiveSuccessfulAction()) {
       return {
@@ -1870,6 +2054,13 @@ ${skillsList.join('\n---\n\n')}
       return {
         ok: false,
         reason: '还没有真实执行结果可供验证，不能声称“已验证通过”。请先执行实际工具。',
+      }
+    }
+
+    if (actionLikeRequest && requestedEdit && claimsEditApplied && !this.hasSuccessfulMutationAction()) {
+      return {
+        ok: false,
+        reason: '还没有成功的写入/编辑工具结果，不能声称内容已修改。请继续执行实际编辑工具，再给最终答案。',
       }
     }
 

@@ -3,6 +3,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http';
 import { fetch as encodeFetch } from './encode-fetch'
+import { buildRepoContentPath } from './remote-file'
 import { 
   GiteaInstanceType, 
   GiteaRepositoryInfo, 
@@ -361,10 +362,12 @@ export async function deleteFile({ path, sha, repo }: { path: string; sha?: stri
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
+    const encodedPath = buildRepoContentPath({ path, preserveWhitespace: true })
+
     // 如果没有 sha，先获取文件信息
     let fileSha = sha;
     if (!fileSha) {
-      const fileUrl = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${path}`;
+      const fileUrl = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}`;
       const fileResponse = await fetch(fileUrl, {
         method: 'GET',
         headers,
@@ -377,7 +380,7 @@ export async function deleteFile({ path, sha, repo }: { path: string; sha?: stri
       }
     }
 
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${path}`;
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}`;
     
     const response = await fetch(url, {
       method: 'DELETE',

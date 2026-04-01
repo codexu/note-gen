@@ -2,7 +2,8 @@
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { PhotoProvider, PhotoView } from "react-photo-view"
+import { PhotoView } from "react-photo-view"
+import { PhotoPreviewProvider } from "@/components/photo-preview-provider"
 
 export interface ImageAttachment {
   id: string
@@ -20,7 +21,7 @@ export function ImageAttachments({ images, onRemove }: ImageAttachmentsProps) {
   if (images.length === 0) return null
 
   return (
-    <PhotoProvider>
+    <PhotoPreviewProvider>
       <div className="flex flex-wrap gap-2 p-1">
         {images.map((image) => (
           <div
@@ -51,6 +52,6 @@ export function ImageAttachments({ images, onRemove }: ImageAttachmentsProps) {
           </div>
         ))}
       </div>
-    </PhotoProvider>
+    </PhotoPreviewProvider>
   )
 }

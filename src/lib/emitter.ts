@@ -90,6 +90,10 @@ interface Events {
     suggestedText: string;
     position: { top: number; left: number; right: number; bottom: number };
   };
+  'update-ai-thinking-content': {
+    thinkingText: string;
+    position: { top: number; left: number; right: number; bottom: number };
+  };
   'ai-streaming-complete': {
     originalText: string;
     suggestedText: string;
@@ -107,10 +111,11 @@ interface Events {
   'abort-ai-streaming': void;
   // Agent 编辑器工具事件 - 内联定义避免重复
   'editor-get-selection': { resolve: (data: { text: string; from: number; to: number; html?: string; startLine?: number; endLine?: number }) => void };
-  'editor-get-content': { resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void };
+  'editor-get-content': { resolve: (data: { markdown: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number }) => void };
   'editor-insert': { content: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void };
   'editor-undo': void;
   'editor-redo': void;
+  'mobile-editor-toggle-outline': void;
   'editor-can-undo-redo': { resolve: (can: { undo: boolean; redo: boolean }) => void };
   'editor-undo-redo-changed': { undo: boolean; redo: boolean };
   'editor-replace': {

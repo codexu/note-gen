@@ -7,6 +7,7 @@ import useArticleStore from "@/stores/article"
 import useClipboardStore from "@/stores/clipboard"
 import { isMobileDevice } from "@/lib/check"
 import { platform } from "@tauri-apps/plugin-os"
+import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -46,22 +47,6 @@ function useFileManagerShortcuts() {
     }
   }, [currentPlatform])
 
-  const isEditableTarget = useCallback((target: EventTarget | null): boolean => {
-    if (!(target instanceof HTMLElement)) {
-      return false
-    }
-
-    if (target.isContentEditable) {
-      return true
-    }
-
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
-      return true
-    }
-
-    return !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
-  }, [])
-
   // 获取当前激活的 item（文件或文件夹）
   const getActiveItem = useCallback((): { path: string; isDirectory: boolean; isLocale: boolean; name: string; sha?: string } | null => {
     if (!activeFilePath) return null
@@ -99,7 +84,8 @@ function useFileManagerShortcuts() {
       return
     }
 
-    if (isEditableTarget(e.target)) {
+    const editableTarget = isEditableKeyboardTarget(e.target)
+    if (editableTarget) {
       return
     }
 
@@ -178,7 +164,7 @@ function useFileManagerShortcuts() {
       window.dispatchEvent(event)
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, setClipboardItem, isEditableTarget])
+  }, [isFocused, getActiveItem, isModKey, currentPlatform, setClipboardItem])
 
   // 注册全局快捷键
   useEffect(() => {

@@ -784,9 +784,17 @@
       "isPrimaryBackup": "現在の {type} 主要バックアップ方法",
       "setPrimaryBackup": "主要バックアップ方法として設定",
       "smms": {
+        "title": "S.EE 画像ホスティング",
+        "description": "S.EE を使って画像をアップロードおよび管理します",
+        "status": "接続状態",
+        "connected": "接続済み",
+        "connecting": "確認中",
+        "disconnected": "未接続",
         "token": {
-          "desc": "SM.MS Token を入力してください。",
-          "createToken": "Token を作成"
+          "desc": "S.EE Token を入力してください。",
+          "createToken": "S.EE 開発者ページを開く",
+          "helper": "S.EE API Token を入力してください。既存の設定はそのまま再利用できます。",
+          "placeholder": "S.EE API Token を入力"
         },
         "disk": "磁盘使用",
         "error": "取得失敗、ネットワークや Token の正しさを確認してください。"
@@ -1209,8 +1217,8 @@
       },
       "assets": {
         "title": "アセット",
-        "desc": "執筆中のリソース（例：画像、ビデオ、ファイル等）の保存パスを設定します。現在編集中の markdown ファイルと同じレベルに保存されます。",
-        "select": "執筆中のリソースの保存パスを設定してください"
+        "desc": "アセットディレクトリ名を設定します。エディタでローカル画像を挿入すると、このディレクトリ名（assets や images など）が使われます。",
+        "select": "アセットディレクトリ名を設定してください。例: assets"
       }
     },
     "shortcuts": {
@@ -1628,6 +1636,7 @@
         "viewFile": "元ファイルを表示",
         "deleteForever": "完全に削除",
         "multiSelect": "複数選択",
+        "multiSelectMode": "複数選択モード",
         "exitMultiSelect": "複数選択を終了",
         "selectAll": "すべて選択",
         "deselectAll": "すべて選択解除",

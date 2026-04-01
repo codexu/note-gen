@@ -11,7 +11,7 @@ import { getRemoteFileContent } from '@/lib/sync/remote-file';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 import { S3Config } from '@/types/sync'
-import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters.mjs'
+import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters'
 import { normalizeRecordViewMode } from '@/app/core/main/mark/mark-view-mode.mjs'
 
 export interface MarkQueue {
@@ -66,9 +66,31 @@ async function persistRecordViewMode(recordViewMode: RecordViewMode) {
   await store.set('recordViewMode', recordViewMode)
 }
 
+async function fetchVisibleMarks(trashState: boolean) {
+  if (trashState) {
+    const res = await getAllMarks()
+    return res.map(item => ({
+      ...item,
+      content: item.content || ''
+    })).filter((item) => item.deleted === 1)
+  }
+
+  const store = await Store.load('store.json')
+  const currentTagId = await store.get<number>('currentTagId')
+  if (!currentTagId) {
+    return []
+  }
+
+  const res = await getMarks(currentTagId)
+  return res.map(item => ({
+    ...item,
+    content: item.content || ''
+  })).filter((item) => item.deleted === 0)
+}
+
 interface MarkState {
   trashState: boolean
-  setTrashState: (flag: boolean) => void
+  setTrashState: (flag: boolean) => Promise<void>
 
   marks: Mark[]
   updateMark: (mark: Mark) => Promise<void>
@@ -123,14 +145,10 @@ interface MarkState {
 
 const useMarkStore = create<MarkState>((set, get) => ({
   trashState: false,
-  setTrashState: (flag) => {
-    set((state) => {
-      if (state.trashState === flag) {
-        return state
-      }
-
-      return { trashState: flag }
-    })
+  setTrashState: async (flag) => {
+    set({ trashState: flag, marks: [] })
+    const marks = await fetchVisibleMarks(flag)
+    set({ marks })
   },
 
   marks: [],
@@ -154,28 +172,11 @@ const useMarkStore = create<MarkState>((set, get) => ({
     set({ marks })
   },
   fetchMarks: async () => {
-    const store = await Store.load('store.json');
-    const currentTagId = await store.get<number>('currentTagId')
-    if (!currentTagId) {
-      return
-    }
-    const res = await getMarks(currentTagId)
-    const decodeRes = res.map(item => {
-      return {
-        ...item,
-        content: item.content || ''
-      }
-    }).filter((item) => item.deleted === 0)
+    const decodeRes = await fetchVisibleMarks(false)
     set({ marks: decodeRes })
   },
   fetchAllTrashMarks: async () => {
-    const res = await getAllMarks()
-    const decodeRes = res.map(item => {
-      return {
-        ...item,
-        content: item.content || ''
-      }
-    }).filter((item) => item.deleted === 1)
+    const decodeRes = await fetchVisibleMarks(true)
     set({ marks: decodeRes })
   },
 

@@ -18,14 +18,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import useSettingStore from "@/stores/setting"
+import { getNormalizedImageHosting } from "@/lib/image-hosting-config"
 
 export default function ImageHostingPage() {
   const t = useTranslations();
   const { mainImageHosting, setMainImageHosting } = useImageStore()
   const { useImageRepo } = useSettingStore()
+  const normalizedImageHosting = getNormalizedImageHosting(mainImageHosting)
 
-  // 使用 mainImageHosting 作为受控值
-  const currentValue = mainImageHosting || 'github'
+  // 使用真实存在且已归一化的图床值作为受控值
+  const currentValue = normalizedImageHosting.value
 
   const handleValueChange = async (value: string) => {
     await setMainImageHosting(value)
@@ -36,8 +38,11 @@ export default function ImageHostingPage() {
     const init = async () => {
       const store = await Store.load('store.json');
       const imageHosting = await store.get<string>('mainImageHosting')
-      if (imageHosting) {
-        await setMainImageHosting(imageHosting)
+      const normalized = getNormalizedImageHosting(imageHosting)
+      await setMainImageHosting(normalized.value)
+      if (normalized.shouldPersist) {
+        await store.set('mainImageHosting', normalized.value)
+        await store.save()
       }
     }
     init()
@@ -55,7 +60,7 @@ export default function ImageHostingPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="github">Github</SelectItem>
-              <SelectItem value="smms">SM.MS</SelectItem>
+              <SelectItem value="smms">S.EE</SelectItem>
               <SelectItem value="picgo">PicGo</SelectItem>
               <SelectItem value="s3">S3</SelectItem>
             </SelectContent>

@@ -1,8 +1,40 @@
 import { Tool, ToolResult } from '../types'
 import { mkdir, remove, exists, readDir } from '@tauri-apps/plugin-fs'
-import { getWorkspacePath, getFilePathOptions, normalizeWorkspaceRelativePath } from '@/lib/workspace'
+import { ensureSafeWorkspaceRelativePath, getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { join } from '@tauri-apps/api/path'
 import useArticleStore from '@/stores/article'
+import { getVectorDocumentKey } from '@/lib/vector-document-key'
+
+async function getMarkdownFilesForFolder(folderPath: string): Promise<string[]> {
+  const { collectMarkdownFiles } = await import('@/lib/files')
+  const files = await collectMarkdownFiles(folderPath)
+  return files.map(file => file.path)
+}
+
+async function deleteVectorDocumentsForFiles(filePaths: string[]): Promise<void> {
+  const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
+
+  for (const filePath of filePaths) {
+    const vectorKey = getVectorDocumentKey(filePath)
+    const legacyFilename = filePath.split('/').pop() || filePath
+
+    try {
+      await deleteVectorDocumentsByFilename(vectorKey)
+      if (legacyFilename !== vectorKey) {
+        await deleteVectorDocumentsByFilename(legacyFilename)
+      }
+    } catch (error) {
+      console.error(`删除文件 ${filePath} 的向量数据失败:`, error)
+    }
+  }
+
+  const articleState = useArticleStore.getState()
+  const nextMap = new Map(articleState.vectorIndexedFiles)
+  for (const filePath of filePaths) {
+    nextMap.delete(getVectorDocumentKey(filePath))
+  }
+  useArticleStore.setState({ vectorIndexedFiles: nextMap })
+}
 
 export const checkFolderExistsTool: Tool = {
   name: 'check_folder_exists',
@@ -19,7 +51,7 @@ export const checkFolderExistsTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      const normalizedFolderPath = await normalizeWorkspaceRelativePath(params.folderPath)
+      const normalizedFolderPath = await ensureSafeWorkspaceRelativePath(params.folderPath)
       const workspace = await getWorkspacePath()
 
       let fullPath = ''
@@ -82,7 +114,7 @@ export const createFolderTool: Tool = {
         }
       }
 
-      const normalizedFolderPath = await normalizeWorkspaceRelativePath(params.folderPath)
+      const normalizedFolderPath = await ensureSafeWorkspaceRelativePath(params.folderPath)
 
       const workspace = await getWorkspacePath()
 
@@ -166,7 +198,8 @@ export const deleteFolderTool: Tool = {
         }
       }
 
-      const normalizedFolderPath = await normalizeWorkspaceRelativePath(params.folderPath)
+      const normalizedFolderPath = await ensureSafeWorkspaceRelativePath(params.folderPath)
+      const filePathsInFolder = await getMarkdownFilesForFolder(normalizedFolderPath)
 
       const workspace = await getWorkspacePath()
 
@@ -208,6 +241,8 @@ export const deleteFolderTool: Tool = {
         await articleStore.loadFileTree()
       }
 
+      await deleteVectorDocumentsForFiles(filePathsInFolder)
+
       await articleStore.cleanTabsByDeletedFolder(normalizedFolderPath)
 
       if (articleStore.activeFilePath && articleStore.activeFilePath.startsWith(`${normalizedFolderPath}/`)) {
@@ -245,10 +280,14 @@ export const listFoldersTool: Tool = {
     try {
       const workspace = await getWorkspacePath()
 
+      const normalizedFolderPath = params.folderPath
+        ? await ensureSafeWorkspaceRelativePath(params.folderPath)
+        : ''
+
       if (workspace.isCustom) {
         // 自定义工作区：使用绝对路径
-        const fullPath = params.folderPath
-          ? await join(workspace.path, params.folderPath)
+        const fullPath = normalizedFolderPath
+          ? await join(workspace.path, normalizedFolderPath)
           : workspace.path
 
         // 检查路径是否存在
@@ -257,7 +296,7 @@ export const listFoldersTool: Tool = {
         if (!pathExists) {
           return {
             success: false,
-            error: `路径不存在: ${params.folderPath || '根目录'}`,
+            error: `路径不存在: ${normalizedFolderPath || '根目录'}`,
           }
         }
 
@@ -269,7 +308,7 @@ export const listFoldersTool: Tool = {
           .filter(entry => entry.isDirectory)
           .map(entry => ({
             name: entry.name,
-            path: params.folderPath ? `${params.folderPath}/${entry.name}` : entry.name,
+            path: normalizedFolderPath ? `${normalizedFolderPath}/${entry.name}` : entry.name,
           }))
 
         return {
@@ -279,7 +318,7 @@ export const listFoldersTool: Tool = {
         }
       } else {
         // 默认工作区：使用 baseDir
-        const { path, baseDir } = await getFilePathOptions(params.folderPath || '')
+        const { path, baseDir } = await getFilePathOptions(normalizedFolderPath)
 
         // 检查路径是否存在
         const pathExists = await exists(path, { baseDir })
@@ -287,7 +326,7 @@ export const listFoldersTool: Tool = {
         if (!pathExists) {
           return {
             success: false,
-            error: `路径不存在: ${params.folderPath || '根目录'}`,
+            error: `路径不存在: ${normalizedFolderPath || '根目录'}`,
           }
         }
 
@@ -299,7 +338,7 @@ export const listFoldersTool: Tool = {
           .filter(entry => entry.isDirectory)
           .map(entry => ({
             name: entry.name,
-            path: params.folderPath ? `${params.folderPath}/${entry.name}` : entry.name,
+            path: normalizedFolderPath ? `${normalizedFolderPath}/${entry.name}` : entry.name,
           }))
 
         return {
@@ -350,24 +389,26 @@ export const createFoldersBatchTool: Tool = {
 
       for (const folderPath of params.folderPaths) {
         try {
+          const normalizedFolderPath = await ensureSafeWorkspaceRelativePath(folderPath)
+
           if (workspace.isCustom) {
-            const fullPath = await join(workspace.path, folderPath)
+            const fullPath = await join(workspace.path, normalizedFolderPath)
             const folderExists = await exists(fullPath)
             if (folderExists) {
-              skipped.push({ path: folderPath, reason: '文件夹已存在' })
+              skipped.push({ path: normalizedFolderPath, reason: '文件夹已存在' })
               continue
             }
             await mkdir(fullPath, { recursive: true })
           } else {
-            const { path, baseDir } = await getFilePathOptions(folderPath)
+            const { path, baseDir } = await getFilePathOptions(normalizedFolderPath)
             const folderExists = await exists(path, { baseDir })
             if (folderExists) {
-              skipped.push({ path: folderPath, reason: '文件夹已存在' })
+              skipped.push({ path: normalizedFolderPath, reason: '文件夹已存在' })
               continue
             }
             await mkdir(path, { baseDir, recursive: true })
           }
-          created.push(folderPath)
+          created.push(normalizedFolderPath)
         } catch (error) {
           errors.push({ path: folderPath, error: String(error) })
         }
@@ -423,35 +464,49 @@ export const deleteFoldersBatchTool: Tool = {
       }
 
       const workspace = await getWorkspacePath()
+      const articleStore = useArticleStore.getState()
       const results = []
       const errors = []
+      const filePathsByFolder = new Map<string, string[]>()
 
       for (const folderPath of params.folderPaths) {
         try {
+          const normalizedFolderPath = await ensureSafeWorkspaceRelativePath(folderPath)
+          filePathsByFolder.set(normalizedFolderPath, await getMarkdownFilesForFolder(normalizedFolderPath))
+
           if (workspace.isCustom) {
-            const fullPath = await join(workspace.path, folderPath)
+            const fullPath = await join(workspace.path, normalizedFolderPath)
             const folderExists = await exists(fullPath)
             if (!folderExists) {
-              errors.push({ path: folderPath, error: '文件夹不存在' })
+              errors.push({ path: normalizedFolderPath, error: '文件夹不存在' })
               continue
             }
             await remove(fullPath, { recursive: true })
           } else {
-            const { path, baseDir } = await getFilePathOptions(folderPath)
+            const { path, baseDir } = await getFilePathOptions(normalizedFolderPath)
             const folderExists = await exists(path, { baseDir })
             if (!folderExists) {
-              errors.push({ path: folderPath, error: '文件夹不存在' })
+              errors.push({ path: normalizedFolderPath, error: '文件夹不存在' })
               continue
             }
             await remove(path, { baseDir, recursive: true })
           }
-          results.push(folderPath)
+          results.push(normalizedFolderPath)
         } catch (error) {
           errors.push({ path: folderPath, error: String(error) })
         }
       }
 
-      const articleStore = useArticleStore.getState()
+      for (const deletedFolderPath of results) {
+        await deleteVectorDocumentsForFiles(filePathsByFolder.get(deletedFolderPath) || [])
+        await articleStore.cleanTabsByDeletedFolder(deletedFolderPath)
+
+        if (articleStore.activeFilePath && articleStore.activeFilePath.startsWith(`${deletedFolderPath}/`)) {
+          await articleStore.setActiveFilePath('')
+          articleStore.setCurrentArticle('')
+        }
+      }
+
       await articleStore.loadFileTree()
 
       // 只要有任何文件夹删除失败，就标记为失败状态

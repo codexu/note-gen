@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import useSettingStore from "@/stores/setting";
 import { Input } from "@/components/ui/input";
 import { createOpenAIClient } from "@/lib/ai/utils";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,7 @@ export default function ModelSelect(
       
       if (requestId !== currentRequestIdRef.current) return null;
       
-      const uniqueModels = models.data.filter((model, index) => models.data.findIndex(m => m.id === model.id) === index)
+      const uniqueModels = models.data.filter((model: OpenAI.Models.Model, index: number) => models.data.findIndex((m: OpenAI.Models.Model) => m.id === model.id) === index)
       return uniqueModels
     } catch {
       return []

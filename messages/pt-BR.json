@@ -831,9 +831,17 @@
       "isPrimaryBackup": "Método principal atual de hospedagem de imagens: {type}",
       "setPrimaryBackup": "Definir como Hospedagem de Imagem Principal",
       "smms": {
+        "title": "Hospedagem de Imagens S.EE",
+        "description": "Use o S.EE para enviar e gerenciar imagens",
+        "status": "Status da Conexão",
+        "connected": "Conectado",
+        "connecting": "Verificando",
+        "disconnected": "Desconectado",
         "token": {
-          "desc": "Por favor, crie e insira o Token SM.MS.",
-          "createToken": "Criar Token"
+          "desc": "Por favor, crie e insira o Token S.EE.",
+          "createToken": "Abrir página de desenvolvedor do S.EE",
+          "helper": "Insira o token da API do S.EE. A configuração existente pode continuar sendo reutilizada.",
+          "placeholder": "Insira o token da API do S.EE"
         },
         "disk": "Uso do Disco",
         "error": "Falha ao obter, por favor, verifique a rede ou se o Token está correto."
@@ -1260,8 +1268,8 @@
       },
       "assets": {
         "title": "Caminho dos Recursos",
-        "desc": "Defina o caminho onde os recursos (ex: imagens, vídeos, arquivos, etc.) usados na escrita serão salvos. Os recursos serão salvos no mesmo nível do arquivo markdown atualmente editado.",
-        "select": "Defina o caminho onde os recursos usados na escrita serão salvos"
+        "desc": "Defina o nome do diretório de recursos. A inserção local de imagens no editor usará esse nome de diretório, como `assets` ou `images`.",
+        "select": "Defina o nome do diretório de recursos, por exemplo: assets"
       }
     },
     "shortcuts": {
@@ -1658,6 +1666,7 @@
         "processingVectors": "Processando Dados Vetoriais",
         "calculateVectors": "Calcular Vetores de Documento",
         "multiSelect": "Seleção Múltipla",
+        "multiSelectMode": "Modo de Seleção Múltipla",
         "exitMultiSelect": "Sair da Seleção Múltipla",
         "selectAll": "Selecionar Tudo",
         "deselectAll": "Desmarcar Tudo",

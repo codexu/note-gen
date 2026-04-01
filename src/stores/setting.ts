@@ -8,6 +8,7 @@ import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { fetch } from '@tauri-apps/plugin-http'
 import { CustomThemeColors } from '@/types/theme'
 import { applyThemeColors, removeThemeColors } from '@/lib/theme-utils'
+import { getNormalizedImageHosting } from '@/lib/image-hosting-config'
 import { normalizeSpeechMode } from '@/lib/speech/preferences'
 import type { SpeechMode } from '@/lib/speech/types'
 
@@ -747,6 +748,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ useImageRepo })
     const store = await Store.load('store.json');
     await store.set('useImageRepo', useImageRepo)
+    if (useImageRepo) {
+      const normalizedImageHosting = getNormalizedImageHosting(await store.get<string>('mainImageHosting'))
+      if (normalizedImageHosting.shouldPersist) {
+        await store.set('mainImageHosting', normalizedImageHosting.value)
+      }
+    }
+    await store.save()
   },
 
   autoSync: 'disabled',

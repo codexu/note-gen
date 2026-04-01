@@ -28,6 +28,17 @@ fn normalized(s: &str) -> String {
     .replace("|", "-")
 }
 
+pub fn cleanup_temp_screenshot_dir(app: &AppHandle) {
+    if let Ok(temp_screenshot_folder) = app
+        .path()
+        .resolve("temp_screenshot", BaseDirectory::AppData)
+    {
+        if std::fs::metadata(&temp_screenshot_folder).is_ok() {
+            let _ = std::fs::remove_dir_all(&temp_screenshot_folder);
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[tauri::command]
 pub fn screenshot(app: AppHandle) -> Vec<ScreenshotImage> {
@@ -43,9 +54,7 @@ pub fn screenshot(app: AppHandle) -> Vec<ScreenshotImage> {
         .path()
         .resolve("temp_screenshot", BaseDirectory::AppData)
         .unwrap();
-    if std::fs::metadata(&temp_screenshot_folder).is_ok() {
-        std::fs::remove_dir_all(&temp_screenshot_folder).unwrap();
-    }
+    cleanup_temp_screenshot_dir(&app);
     std::fs::create_dir(&temp_screenshot_folder).unwrap();
 
     let mut files: Vec<ScreenshotImage> = Vec::new();

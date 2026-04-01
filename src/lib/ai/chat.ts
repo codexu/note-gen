@@ -17,7 +17,7 @@ export async function fetchAi(
     const aiConfig = await getAISettings(modelType)
 
     // 验证AI服务
-    if (validateAIService(aiConfig?.baseURL) === null) return ''
+    if (await validateAIService(aiConfig?.baseURL) === null) return ''
 
     // 准备消息
     const prepared = await prepareMessages(text, messages)

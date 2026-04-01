@@ -598,7 +598,7 @@ export function FolderItem({ item, focusSidebar }: { item: DirTree; focusSidebar
   useEffect(() => {
     if (item.isEditing) {
       setIsEditing(true)
-      setName(name)
+      setName(item.name)
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [item])

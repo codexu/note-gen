@@ -19,14 +19,15 @@ import {
 import Image from "next/image";
 
 import { SettingType, FormItem } from "../components/setting-base";
-import { AiConfig, ModelConfig, baseAiConfig } from "../config";
+import { AiConfig, ModelConfig, builtinProviderTemplates } from "../config";
 import useSettingStore from "@/stores/setting";
 import { noteGenModelKeys } from "@/app/model-config";
-import { BotMessageSquare, Copy, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
+import { BotMessageSquare, Copy, Eye, EyeOff, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { OpenBroswer } from "@/components/open-broswer";
 import DefaultModelsSection from "./default-models";
 import ModelCard from "./model-card";
 import CreateConfig from "./create";
+import { getCachedProviderTemplates, getProviderTemplateMatch, loadProviderTemplates } from "@/lib/ai/provider-templates-runtime";
 
 
 export default function AiPage() {
@@ -41,12 +42,15 @@ export default function AiPage() {
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
   const [headerPairs, setHeaderPairs] = useState<Array<{key: string, value: string, id: string}>>([])
   const [expandedModels, setExpandedModels] = useState<string[]>([])
+  const [providerTemplates, setProviderTemplates] = useState<AiConfig[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(true)
   
   // 使用 useLocalStorage 记录当前选择的AI配置
   const [selectedAiConfig, setSelectedAiConfig] = useLocalStorage<string>('ai-config-selected', '')
   
   // 当前选中的AI配置
   const currentConfig = userCustomModels.find(model => model.key === selectedAiConfig)
+  const currentProviderTemplate = getProviderTemplateMatch(currentConfig, providerTemplates)
   
   const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
     return Object.entries(headers).map(([key, value]) => ({
@@ -227,6 +231,18 @@ export default function AiPage() {
     async function init() {
       const store = await Store.load('store.json');
       const aiModelList = await store.get<AiConfig[]>('aiModelList')
+      try {
+        const cachedTemplates = await getCachedProviderTemplates()
+        if (cachedTemplates.length > 0) {
+          setProviderTemplates(cachedTemplates)
+          setLoadingTemplates(false)
+        }
+
+        const templates = await loadProviderTemplates(builtinProviderTemplates)
+        setProviderTemplates(templates)
+      } finally {
+        setLoadingTemplates(false)
+      }
       
       if (aiModelList) {
         // 迁移旧配置
@@ -318,12 +334,12 @@ export default function AiPage() {
           {currentConfig && (
             <>
               {/* 供应商模板配置信息显示 */}
-              {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+              {currentProviderTemplate && (
                 <FormItem title={t('providerInfo')}>
                     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon && (
+                      {currentProviderTemplate.icon && (
                         <Image 
-                          src={baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon || ''} 
+                          src={currentProviderTemplate.icon || ''} 
                           alt={currentConfig.title}
                           width={32}
                           height={32}
@@ -337,9 +353,17 @@ export default function AiPage() {
                     </div>
                 </FormItem>
               )}
+              {loadingTemplates && currentConfig?.templateSource === 'remote' && !currentProviderTemplate && (
+                <FormItem title={t('providerInfo')}>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <LoaderCircle className="size-4 animate-spin" />
+                    <span>正在获取供应商模板信息...</span>
+                  </div>
+                </FormItem>
+              )}
 
               {/* 配置名称 - 只有非供应商模板配置才显示 */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+              {!currentProviderTemplate && (
                 <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
                     <Input 
                       value={currentConfig.title} 
@@ -349,7 +373,7 @@ export default function AiPage() {
               )}
 
               {/* BaseURL - 只有非供应商模板配置才显示 */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+              {!currentProviderTemplate && (
                 <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
                     <Input 
                       value={currentConfig.baseURL || ''} 
@@ -370,10 +394,10 @@ export default function AiPage() {
                     <Button variant="outline" size="icon" onClick={() => setApiKeyVisible(!apiKeyVisible)}>
                       {apiKeyVisible ? <Eye /> : <EyeOff />}
                     </Button>
-                    {baseAiConfig.find(item => item.baseURL === currentConfig.baseURL)?.apiKeyUrl && (
+                    {currentProviderTemplate?.apiKeyUrl && (
                       <OpenBroswer
                         type="button"
-                        url={baseAiConfig.find(item => item.baseURL === currentConfig.baseURL)?.apiKeyUrl || ''}
+                        url={currentProviderTemplate.apiKeyUrl || ''}
                         title={t('apiKeyUrl')}
                       />
                     )}
@@ -381,7 +405,7 @@ export default function AiPage() {
               </FormItem>
 
               {/* 自定义Headers */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
+              {!currentProviderTemplate && (
                 <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
                     <div className="space-y-2">
                       {headerPairs.map((pair, index) => (

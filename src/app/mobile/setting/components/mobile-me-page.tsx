@@ -3,11 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { Store } from '@tauri-apps/plugin-store'
 
 import { ActivityHeatmap } from '@/components/activity/activity-heatmap'
 import { Button } from '@/components/ui/button'
 import { loadActivityCalendarData } from '@/lib/activity'
 import type { ActivityCalendarData, ActivityDaySummary } from '@/lib/activity/types'
+import { SyncStateEnum, type UserInfo } from '@/lib/sync/github.types'
+import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { testS3Connection } from '@/lib/sync/s3'
+import { testWebDAVConnection } from '@/lib/sync/webdav'
+import type { S3Config, WebDAVConfig } from '@/types/sync'
 import useSettingStore from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
 import { MobileMeActivityDrawer } from './mobile-me-activity-drawer'
@@ -64,6 +70,194 @@ export function MobileMePage() {
   useEffect(() => {
     refreshActivity()
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSyncProfile() {
+      const store = await Store.load('store.json')
+      const syncState = useSyncStore.getState()
+      const settingState = useSettingStore.getState()
+
+      try {
+        switch (primaryBackupMethod) {
+          case 'github': {
+            const accessToken = await store.get<string>('accessToken')
+            if (!accessToken) return
+
+            syncState.setSyncRepoState(SyncStateEnum.checking)
+
+            const [{ getUserInfo, checkSyncRepoState }, repoName] = await Promise.all([
+              import('@/lib/sync/github'),
+              getSyncRepoName('github'),
+            ])
+
+            const user = await getUserInfo()
+            const githubUser = user && typeof user === 'object' && 'data' in user
+              ? user.data as UserInfo
+              : undefined
+
+            if (!cancelled && githubUser) {
+              syncState.setUserInfo(githubUser)
+              await settingState.setGithubUsername(githubUser.login)
+            }
+
+            const repo = await checkSyncRepoState(repoName)
+            if (cancelled) return
+
+            if (repo) {
+              syncState.setSyncRepoInfo(repo)
+              syncState.setSyncRepoState(SyncStateEnum.success)
+            } else {
+              syncState.setSyncRepoInfo(undefined)
+              syncState.setSyncRepoState(SyncStateEnum.fail)
+            }
+            return
+          }
+          case 'gitee': {
+            const accessToken = await store.get<string>('giteeAccessToken')
+            if (!accessToken) return
+
+            syncState.setGiteeSyncRepoState(SyncStateEnum.checking)
+
+            const [{ getUserInfo, checkSyncRepoState }, repoName] = await Promise.all([
+              import('@/lib/sync/gitee'),
+              getSyncRepoName('gitee'),
+            ])
+
+            const user = await getUserInfo()
+            if (!cancelled && user) {
+              syncState.setGiteeUserInfo(user)
+            }
+
+            const repo = await checkSyncRepoState(repoName)
+            if (cancelled) return
+
+            if (repo) {
+              syncState.setGiteeSyncRepoInfo(repo)
+              syncState.setGiteeSyncRepoState(SyncStateEnum.success)
+            } else {
+              syncState.setGiteeSyncRepoInfo(undefined)
+              syncState.setGiteeSyncRepoState(SyncStateEnum.fail)
+            }
+            return
+          }
+          case 'gitlab': {
+            const accessToken = await store.get<string>('gitlabAccessToken')
+            if (!accessToken) return
+
+            syncState.setGitlabSyncProjectState(SyncStateEnum.checking)
+
+            const [{ getUserInfo, checkSyncProjectState }, repoName] = await Promise.all([
+              import('@/lib/sync/gitlab'),
+              getSyncRepoName('gitlab'),
+            ])
+
+            const user = await getUserInfo()
+            if (!cancelled && user) {
+              syncState.setGitlabUserInfo(user)
+              await settingState.setGitlabUsername(user.username)
+            }
+
+            const project = await checkSyncProjectState(repoName)
+            if (cancelled) return
+
+            if (project) {
+              syncState.setGitlabSyncProjectInfo(project)
+              syncState.setGitlabSyncProjectState(SyncStateEnum.success)
+            } else {
+              syncState.setGitlabSyncProjectInfo(undefined)
+              syncState.setGitlabSyncProjectState(SyncStateEnum.fail)
+            }
+            return
+          }
+          case 'gitea': {
+            const accessToken = await store.get<string>('giteaAccessToken')
+            if (!accessToken) return
+
+            syncState.setGiteaSyncRepoState(SyncStateEnum.checking)
+
+            const [{ getUserInfo, checkSyncRepoState }, repoName] = await Promise.all([
+              import('@/lib/sync/gitea'),
+              getSyncRepoName('gitea'),
+            ])
+
+            const user = await getUserInfo()
+            if (!cancelled && user) {
+              syncState.setGiteaUserInfo(user)
+              await settingState.setGiteaUsername(user.login)
+            }
+
+            const repo = await checkSyncRepoState(repoName)
+            if (cancelled) return
+
+            if (repo) {
+              syncState.setGiteaSyncRepoInfo(repo)
+              syncState.setGiteaSyncRepoState(SyncStateEnum.success)
+            } else {
+              syncState.setGiteaSyncRepoInfo(undefined)
+              syncState.setGiteaSyncRepoState(SyncStateEnum.fail)
+            }
+            return
+          }
+          case 's3': {
+            const s3Config = await store.get<S3Config>('s3SyncConfig')
+            if (!s3Config?.bucket) return
+
+            const connected = await testS3Connection(s3Config).catch(() => false)
+            if (!cancelled) {
+              syncState.setS3Connected(connected)
+            }
+            return
+          }
+          case 'webdav': {
+            const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
+            if (!webdavConfig?.url || !webdavConfig?.username || !webdavConfig?.password) return
+
+            const connected = await testWebDAVConnection(webdavConfig).catch(() => false)
+            if (!cancelled) {
+              syncState.setWebDAVConnected(connected)
+            }
+            return
+          }
+          default:
+            return
+        }
+      } catch (error) {
+        if (cancelled) return
+        console.error('[MobileMePage] Failed to load sync profile:', error)
+
+        switch (primaryBackupMethod) {
+          case 'github':
+            syncState.setSyncRepoState(SyncStateEnum.fail)
+            break
+          case 'gitee':
+            syncState.setGiteeSyncRepoState(SyncStateEnum.fail)
+            break
+          case 'gitlab':
+            syncState.setGitlabSyncProjectState(SyncStateEnum.fail)
+            break
+          case 'gitea':
+            syncState.setGiteaSyncRepoState(SyncStateEnum.fail)
+            break
+          case 's3':
+            syncState.setS3Connected(false)
+            break
+          case 'webdav':
+            syncState.setWebDAVConnected(false)
+            break
+          default:
+            break
+        }
+      }
+    }
+
+    loadSyncProfile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [primaryBackupMethod])
 
   useEffect(() => {
     if (restoredScrollRef.current) return

@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { appDataDir } from "@tauri-apps/api/path";
 import { CheckSquare, ImageUp, LoaderCircle, RefreshCw, Settings2, Sparkles, Square } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { open } from "@tauri-apps/plugin-shell";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Textarea } from "@/components/ui/textarea";
 import { AudioPlayer } from "@/components/audio-player";
 import { ImageViewer } from "@/components/image-viewer";
@@ -41,7 +41,7 @@ import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta";
 import { getMarkListItemContent } from "./mark-list-item-content";
 import { TodoEditTrigger } from "./todo-edit-button";
-import emitter from "@/lib/emitter";
+import { canOpenMarkSource, getMarkOpenAction } from "./mark-open-path";
 
 dayjs.extend(relativeTime)
 
@@ -692,21 +692,40 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
 
   const handelShowInFolder = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
-    const appDir = await appDataDir()
-    const path = mark.type === 'scan' ? 'screenshot' : 'image'
-    open(`${appDir}/${path}`)
-  }, [mark.type])
+    try {
+      const appDir = await appDataDir()
+      const action = getMarkOpenAction(mark, appDir, 'folder')
+
+      if (!action?.path) {
+        return
+      }
+
+      if (action.mode === 'reveal') {
+        await revealItemInDir(action.path)
+        return
+      }
+
+      await openPath(action.path)
+    } catch (error) {
+      console.error('Failed to open source folder:', error)
+    }
+  }, [mark])
 
   const handelShowInFile = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
-    const appDir = await appDataDir()
-    const path = mark.type === 'scan' ? 'screenshot' : 'image'
-    let filename = mark.url
-    if (mark.url.includes('http')) {
-      filename = mark.url.split('/').pop() || '';
+    try {
+      const appDir = await appDataDir()
+      const action = getMarkOpenAction(mark, appDir, 'file')
+
+      if (!action?.path) {
+        return
+      }
+
+      await openPath(action.path)
+    } catch (error) {
+      console.error('Failed to open source file:', error)
     }
-    open(`${appDir}/${path}/${filename}`)
-  }, [mark.type, mark.url])
+  }, [mark])
 
   const handleCopyLink = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -849,10 +868,10 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
           {isReconvertSttLoading ? t('record.mark.toolbar.reconvertSttProcessing') : t('record.mark.toolbar.reconvertStt')}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFolder} menuType="record">
+        <ContextMenuItem inset disabled={isMultiSelectMode || !canOpenMarkSource(mark)} onClick={handelShowInFolder} menuType="record">
           {t('record.mark.toolbar.viewFolder')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={handelShowInFile} menuType="record">
+        <ContextMenuItem inset disabled={isMultiSelectMode || !canOpenMarkSource(mark)} onClick={handelShowInFile} menuType="record">
           {t('record.mark.toolbar.viewFile')}
         </ContextMenuItem>
         {

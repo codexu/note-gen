@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Cropper, CropperRef } from 'react-advanced-cropper'
+import { Cropper, CropperRef, Priority } from 'react-advanced-cropper'
 import 'react-advanced-cropper/dist/style.css'
 import { Button } from '@/components/ui/button'
 import { 
@@ -28,8 +28,21 @@ interface ImageEditorProps {
   filePath: string
 }
 
+interface CropperLayoutState {
+  boundary: {
+    width: number
+    height: number
+  }
+  imageSize: {
+    width: number
+    height: number
+  }
+}
+
 export function ImageEditor({ filePath }: ImageEditorProps) {
   const cropperRef = useRef<CropperRef>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const cropperContainerRef = useRef<HTMLDivElement>(null)
   const [imageSrc, setImageSrc] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [hasChanges, setHasChanges] = useState(false)
@@ -37,11 +50,37 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
   const [cropMode, setCropMode] = useState(false)
   const [imageWidth, setImageWidth] = useState<number>(0)
   const [imageHeight, setImageHeight] = useState<number>(0)
+  const [previewScale, setPreviewScale] = useState(1)
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const { loadFileTree } = useArticleStore()
+
+  const MIN_PREVIEW_SCALE = 0.25
+  const MAX_PREVIEW_SCALE = 4
+  const PREVIEW_SCALE_STEP = 0.25
 
   useEffect(() => {
     loadImage()
   }, [filePath])
+
+  useEffect(() => {
+    const element = viewportRef.current
+    if (!element || loading || !imageSrc) return
+
+    const updateViewportSize = () => {
+      setViewportSize({
+        width: element.clientWidth,
+        height: element.clientHeight,
+      })
+    }
+
+    updateViewportSize()
+    const observer = new ResizeObserver(updateViewportSize)
+    observer.observe(element)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [loading, imageSrc])
 
   async function loadImage() {
     if (!filePath) return
@@ -64,6 +103,7 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
       const url = URL.createObjectURL(blob)
       setImageSrc(url)
       setHasChanges(false)
+      setPreviewScale(1)
       
       // 加载图片尺寸
       const img = new Image()
@@ -110,6 +150,7 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
       const url = URL.createObjectURL(blob)
       setImageSrc(url)
       setHasChanges(true)
+      setPreviewScale(1)
       
       // 更新图片尺寸
       setImageWidth(canvas.width)
@@ -150,15 +191,21 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
   }
 
   const handleZoomIn = () => {
-    if (cropperRef.current) {
+    if (cropMode && cropperRef.current) {
       cropperRef.current.zoomImage(1.2)
+      return
     }
+
+    setPreviewScale((scale) => Math.min(MAX_PREVIEW_SCALE, Number((scale + PREVIEW_SCALE_STEP).toFixed(2))))
   }
 
   const handleZoomOut = () => {
-    if (cropperRef.current) {
+    if (cropMode && cropperRef.current) {
       cropperRef.current.zoomImage(0.8)
+      return
     }
+
+    setPreviewScale((scale) => Math.max(MIN_PREVIEW_SCALE, Number((scale - PREVIEW_SCALE_STEP).toFixed(2))))
   }
 
   const handleReset = () => {
@@ -168,6 +215,7 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
       setImageSrc(url)
       setHasChanges(false)
       setCropMode(false)
+      setPreviewScale(1)
     }
   }
 
@@ -251,10 +299,53 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
       
       setHasChanges(true)
       setCropMode(false)
+      setPreviewScale(1)
     } catch (error) {
       console.error('Failed to crop image:', error)
     }
   }
+
+  const cropperViewportStyle = (() => {
+    if (!imageWidth || !imageHeight || !viewportSize.width || !viewportSize.height) {
+      return { width: '100%', height: '100%' }
+    }
+
+    const horizontalPadding = 32
+    const verticalPadding = 32
+    const maxWidth = Math.max(0, viewportSize.width - horizontalPadding)
+    const maxHeight = Math.max(0, viewportSize.height - verticalPadding)
+
+    if (!maxWidth || !maxHeight) {
+      return { width: '100%', height: '100%' }
+    }
+
+    const imageAspectRatio = imageWidth / imageHeight
+    const viewportAspectRatio = maxWidth / maxHeight
+
+    if (imageAspectRatio > viewportAspectRatio) {
+      return {
+        width: `${maxWidth}px`,
+        height: `${maxWidth / imageAspectRatio}px`,
+      }
+    }
+
+    return {
+      width: `${maxHeight * imageAspectRatio}px`,
+      height: `${maxHeight}px`,
+    }
+  })()
+
+  const getInitialCropSize = ({ boundary }: CropperLayoutState) => ({
+    width: boundary.width * 0.8,
+    height: boundary.height * 0.8,
+  })
+
+  const getInitialVisibleArea = ({ imageSize }: CropperLayoutState) => ({
+    left: 0,
+    top: 0,
+    width: imageSize.width,
+    height: imageSize.height,
+  })
 
   if (loading) {
     return (
@@ -273,7 +364,7 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-background">
       {/* Toolbar */}
       <div className="h-12 flex items-center gap-2 px-2 border-b bg-background">
         <Toggle
@@ -355,16 +446,21 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
       </div>
 
       {/* Image Display / Cropper */}
-      <div className="flex-1 overflow-auto relative bg-background flex items-center justify-center">
+      <div ref={viewportRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-4">
         {cropMode ? (
           <div 
-            className="w-full h-full"
+            ref={cropperContainerRef}
+            className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden"
+            style={cropperViewportStyle}
             onDoubleClick={handleCropComplete}
           >
             <Cropper
               ref={cropperRef}
               src={imageSrc}
-              className="h-full w-full"
+              className="h-full w-full min-h-0 min-w-0"
+              defaultSize={getInitialCropSize}
+              defaultVisibleArea={getInitialVisibleArea}
+              priority={Priority.visibleArea}
               stencilProps={{
                 movable: true,
                 resizable: true,
@@ -377,20 +473,23 @@ export function ImageEditor({ filePath }: ImageEditorProps) {
             />
           </div>
         ) : (
-          <NextImage 
-            src={imageSrc} 
-            alt="Preview"
-            width={imageWidth}
-            height={imageHeight}
-            style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
-              objectFit: 'contain',
-              imageRendering: 'auto'
-            }}
-            unoptimized
-          />
-        )}
+            <NextImage 
+              src={imageSrc} 
+              alt="Preview"
+              width={imageWidth}
+              height={imageHeight}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                imageRendering: 'auto',
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'center center',
+                transition: 'transform 120ms ease-out'
+              }}
+              unoptimized
+            />
+          )}
       </div>
 
       {/* Footer */}

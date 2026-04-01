@@ -1,34 +1,39 @@
-function normalizeSegment(segment: string) {
-  return segment.replace(/\s/g, '_')
+function normalizeSegment(segment: string, preserveWhitespace = false) {
+  return preserveWhitespace ? segment : segment.replace(/\s/g, '_')
 }
 
-function encodePath(path: string) {
+function encodePath(path: string, preserveWhitespace = false) {
   return path
     .split('/')
     .filter(Boolean)
-    .map(segment => encodeURIComponent(normalizeSegment(segment)))
+    .map(segment => encodeURIComponent(normalizeSegment(segment, preserveWhitespace)))
     .join('/')
 }
 
 export function buildRepoContentPath({
   path,
   filename,
+  preserveWhitespace = false,
 }: {
   path?: string
   filename?: string
+  preserveWhitespace?: boolean
 }) {
   const normalizedPath = path?.replace(/^\/+|\/+$/g, '') || ''
-  const normalizedFilename = filename ? normalizeSegment(filename) : ''
+  const normalizedFilename = filename ? normalizeSegment(filename, preserveWhitespace) : ''
 
   if (!normalizedPath) {
-    return normalizedFilename ? encodePath(normalizedFilename) : ''
+    return normalizedFilename ? encodePath(normalizedFilename, preserveWhitespace) : ''
   }
 
   if (!normalizedFilename) {
-    return encodePath(normalizedPath)
+    return encodePath(normalizedPath, preserveWhitespace)
   }
 
-  const segments = normalizedPath.split('/').filter(Boolean).map(normalizeSegment)
+  const segments = normalizedPath
+    .split('/')
+    .filter(Boolean)
+    .map(segment => normalizeSegment(segment, preserveWhitespace))
   if (segments[segments.length - 1] !== normalizedFilename) {
     segments.push(normalizedFilename)
   }

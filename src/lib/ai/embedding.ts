@@ -1,7 +1,7 @@
 import { Store } from "@tauri-apps/plugin-store";
 import { AiConfig } from "@/app/core/setting/config";
-import { fetch } from "@tauri-apps/plugin-http";
 import { handleAIError } from "./utils";
+import { invokeAiJson } from "./tauri-client";
 
 // 嵌入请求响应类型
 interface EmbeddingResponse {
@@ -120,24 +120,20 @@ export async function checkRerankModelAvailable(): Promise<boolean> {
     ];
     
     // 发送测试请求
-    const response = await fetch(baseURL + '/rerank', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+    const data = await invokeAiJson<any>({
+      config: {
+        baseUrl: baseURL,
+        apiKey: apiKey || undefined,
+        customHeaders: modelInfo.customHeaders,
       },
-      body: JSON.stringify({
-        model: model,
+      path: '/rerank',
+      method: 'POST',
+      body: {
+        model,
         query: testQuery,
-        documents: testDocuments
-      })
+        documents: testDocuments,
+      }
     });
-    
-    if (!response.ok) {
-      return false;
-    }
-    
-    const data = await response.json();
     return !!(data && data.results);
   } catch (error) {
     console.error('重排序模型检查失败:', error);
@@ -166,25 +162,20 @@ export async function fetchEmbedding(text: string): Promise<number[] | null> {
       }
       
       // 发送嵌入请求
-      const response = await fetch(baseURL + '/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'Origin': ""
+      const data = await invokeAiJson<EmbeddingResponse>({
+        config: {
+          baseUrl: baseURL,
+          apiKey: apiKey || undefined,
+          customHeaders: modelInfo.customHeaders,
         },
-        body: JSON.stringify({
-          model: model,
+        path: '/embeddings',
+        method: 'POST',
+        body: {
+          model,
           input: text,
           encoding_format: 'float'
-        })
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`嵌入请求失败: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json() as EmbeddingResponse;
       if (!data || !data.data || !data.data[0] || !data.data[0].embedding) {
         throw new Error('嵌入结果格式不正确');
       }
@@ -227,25 +218,20 @@ export async function rerankDocuments(
 
     const passages = documents.map(doc => doc.content);
 
-    const response = await fetch(baseURL + '/rerank', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Origin': ""
+    const data = await invokeAiJson<any>({
+      config: {
+        baseUrl: baseURL,
+        apiKey: apiKey || undefined,
+        customHeaders: modelInfo.customHeaders,
       },
-      body: JSON.stringify({
-        model: model,
-        query: query,
+      path: '/rerank',
+      method: 'POST',
+      body: {
+        model,
+        query,
         documents: passages
-      })
+      }
     });
-
-    if (!response.ok) {
-      throw new Error(`重排序请求失败: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
 
     if (!data || !data.results) {
       throw new Error('重排序结果格式不正确');

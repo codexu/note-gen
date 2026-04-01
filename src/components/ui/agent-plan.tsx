@@ -75,6 +75,7 @@ interface AgentPlanProps {
   pendingConfirmation?: {
     toolName: string;
     params: Record<string, any>;
+    previewParams?: Record<string, any>;
     originalContent?: string;
     modifiedContent?: string;
     filePath?: string;
@@ -500,7 +501,7 @@ export function AgentPlan({
 
     return formatConfirmationPreview(
       pendingConfirmation.toolName,
-      pendingConfirmation.params ?? {}
+      pendingConfirmation.previewParams ?? pendingConfirmation.params ?? {}
     );
   }, [pendingConfirmation]);
 

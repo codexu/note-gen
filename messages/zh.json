@@ -873,9 +873,17 @@
       "isPrimaryBackup": "当前 {type} 为主要图床",
       "setPrimaryBackup": "设为主要图床",
       "smms": {
+        "title": "S.EE 图床",
+        "description": "使用 S.EE 上传和管理图片",
+        "status": "连接状态",
+        "connected": "已连接",
+        "connecting": "检测中",
+        "disconnected": "未连接",
         "token": {
-          "desc": "请创建并输入 SM.MS Token。",
-          "createToken": "创建 Token"
+          "desc": "请创建并输入 S.EE Token。",
+          "createToken": "打开 S.EE 开发者页面",
+          "helper": "请输入 S.EE API Token，现有配置可继续复用。",
+          "placeholder": "输入 S.EE API Token"
         },
         "disk": "磁盘使用情况",
         "error": "获取失败，请检查网络或 Token 是否正确。"
@@ -1289,8 +1297,8 @@
       },
       "assets": {
         "title": "写作资源路径",
-        "desc": "设置写作资源的保存路径，例如图片、视频、文件等，与当前编辑的 markdown 文件同级。",
-        "select": "请设置写作资源路径，例如：assets"
+        "desc": "设置写作资源目录名称。编辑器本地插入图片时会使用该目录名，例如 assets 或 images。",
+        "select": "请设置资源目录名称，例如：assets"
       }
     },
     "shortcuts": {
@@ -1313,7 +1321,7 @@
   },
   "record": {
     "trash": {
-      "title": "清空回收站",
+      "title": "回收站",
       "confirm": "确定清空回收站吗？",
       "records": "共 {count} 条记录可还原",
       "empty": "清空",
@@ -1620,6 +1628,7 @@
         "viewFile": "查看原文件",
         "deleteForever": "彻底删除",
         "multiSelect": "多选",
+        "multiSelectMode": "多选模式",
         "exitMultiSelect": "退出多选",
         "selectAll": "全选",
         "deselectAll": "取消全选",

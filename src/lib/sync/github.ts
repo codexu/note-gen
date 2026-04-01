@@ -3,6 +3,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { GithubError, GithubRepoInfo, OctokitResponse } from './github.types';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
+import { buildRepoContentPath, buildRepoContentsEndpoint } from './remote-file'
 export { decodeBase64ToString } from './remote-file';
 
 export function uint8ArrayToBase64(data: Uint8Array) {
@@ -204,15 +205,8 @@ export async function deleteFile(
       proxy
     };
 
-    // 分离路径和文件名，只对路径部分进行编码，保留文件名的原始字符
-    const lastSlashIndex = path.lastIndexOf('/')
-    const dirPath = lastSlashIndex > 0 ? path.substring(0, lastSlashIndex) : ''
-    const fileName = lastSlashIndex > 0 ? path.substring(lastSlashIndex + 1) : path
-
-    // 对目录路径进行编码，但保留文件名不变
-    const encodedPath = dirPath ? encodeURIComponent(dirPath) + '/' + fileName : fileName
-
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodedPath}`;
+    const encodedPath = buildRepoContentPath({ path, preserveWhitespace: true })
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(encodedPath)}`;
     const response = await fetch(url, requestOptions);
     
     if (response.status >= 200 && response.status < 300) {

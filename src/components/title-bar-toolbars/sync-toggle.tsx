@@ -311,6 +311,15 @@ interface ProviderInfo {
   status: ProviderStatus
 }
 
+const DEFAULT_PROVIDER_LIST: ProviderInfo[] = [
+  { platform: 'github', name: 'GitHub', status: 'unconfigured' },
+  { platform: 'gitee', name: 'Gitee', status: 'unconfigured' },
+  { platform: 'gitlab', name: 'GitLab', status: 'unconfigured' },
+  { platform: 'gitea', name: 'Gitea', status: 'unconfigured' },
+  { platform: 's3', name: 'S3', status: 'unconfigured' },
+  { platform: 'webdav', name: 'WebDAV', status: 'unconfigured' },
+]
+
 interface SyncToggleProps {
   presentation?: 'popover' | 'drawer'
 }
@@ -322,7 +331,7 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [open, setOpen] = useState(false)
-  const [providers, setProviders] = useState<ProviderInfo[]>([])
+  const [providers, setProviders] = useState<ProviderInfo[]>(DEFAULT_PROVIDER_LIST)
 
   const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
   const {
@@ -508,7 +517,9 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
   // 获取当前方案的显示文本
   const getCurrentProviderDisplay = () => {
     const current = providers.find(p => p.platform === primaryBackupMethod)
-    if (!current) return ''
+    if (!current) {
+      return DEFAULT_PROVIDER_LIST.find((provider) => provider.platform === primaryBackupMethod)?.name || ''
+    }
 
     // 已配置时只显示名称，未配置时显示名称 + "未配置"
     if (current.status === 'unconfigured') {

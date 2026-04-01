@@ -27,7 +27,7 @@ export async function fetchCompletion(context: string, abortSignal?: AbortSignal
     const aiConfig = await getAISettings('completionModel')
 
     // 验证AI服务
-    if (validateAIService(aiConfig?.baseURL) === null) return ''
+    if (await validateAIService(aiConfig?.baseURL) === null) return ''
 
     const openai = await createOpenAIClient(aiConfig)
 
@@ -79,7 +79,7 @@ export async function fetchCompletionStream(
     const aiConfig = await getAISettings('completionModel')
 
     // 验证AI服务
-    if (validateAIService(aiConfig?.baseURL) === null) return
+    if (await validateAIService(aiConfig?.baseURL) === null) return
 
     const openai = await createOpenAIClient(aiConfig)
 

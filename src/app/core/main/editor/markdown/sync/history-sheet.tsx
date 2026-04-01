@@ -15,7 +15,8 @@ import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { useTranslations } from 'next-intl'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
+import { isMobileDevice } from '@/lib/check'
 
 interface CommitInfo {
   sha: string
@@ -41,6 +42,7 @@ export function HistorySheet({ editor }: HistorySheetProps) {
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
   const [provider, setProvider] = useState<SyncProvider | null>(null)
   const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string }>({})
+  const isMobile = isMobileDevice()
 
   // Get the sync provider
   const getProvider = useCallback(async (): Promise<SyncProvider | null> => {
@@ -256,98 +258,126 @@ export function HistorySheet({ editor }: HistorySheetProps) {
 
   if (!activeFilePath) return null
 
+  const trigger = (
+    <button
+      className={cn(
+        'p-0.5 rounded transition-colors hover:bg-[hsl(var(--muted))]',
+        isOpen && 'bg-[hsl(var(--muted))]'
+      )}
+      title="历史记录"
+    >
+      <History size={14} />
+    </button>
+  )
+
+  const content = (
+    <>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-semibold text-sm">提交历史</div>
+        {activeFilePath && provider && repoInfo.repo && (
+          <a
+            href={(() => {
+              switch (provider) {
+                case 'github': return `https://github.com/${repoInfo.username}/${repoInfo.repo}/blob/main/${activeFilePath}`
+                case 'gitee': return `https://gitee.com/${repoInfo.username}/${repoInfo.repo}/blob/master/${activeFilePath}`
+                case 'gitlab': return `https://gitlab.com/${repoInfo.projectId?.split('/').pop()}/-/blob/main/${activeFilePath}`
+                case 'gitea': return `${repoInfo.baseUrl?.replace('/api/v1', '')}/${repoInfo.username}/${repoInfo.repo}/src/branch/main/${activeFilePath}`
+                default: return '#'
+              }
+            })()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+            title="在仓库中打开"
+          >
+            <ExternalLink size={10} />
+            <span className="truncate max-w-30">{activeFilePath.split('/').pop()}</span>
+          </a>
+        )}
+      </div>
+      <div className="flex-1 overflow-y-auto pr-1">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            加载中...
+          </div>
+        ) : history.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            暂无提交记录
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {history.map((commit, index) => (
+              <li
+                key={commit.sha + index}
+                className="p-2 border rounded hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <a
+                    href={commit.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-mono text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                  >
+                    {commit.sha}
+                    <ExternalLink size={10} />
+                  </a>
+                  <span className="text-xs text-muted-foreground">
+                    {commit.date.toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-sm truncate" title={commit.message}>
+                  {commit.message}
+                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {commit.author}
+                  </p>
+                  <button
+                    onClick={() => restoreVersion(commit.fullSha || commit.sha)}
+                    disabled={restoringSha === commit.sha}
+                    className={cn(
+                      'text-xs text-blue-500 hover:text-blue-600 inline-flex items-center gap-1',
+                      restoringSha === commit.sha && 'opacity-50'
+                    )}
+                    title="恢复此版本"
+                  >
+                    <RotateCcw size={12} />
+                    {restoringSha === commit.sha ? '恢复中...' : '恢复'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <Drawer open={isOpen} onOpenChange={setIsOpen}>
+        <DrawerTrigger asChild>
+          {trigger}
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle>提交历史</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 overflow-hidden">
+            {content}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-          <button
-            className={cn(
-              'p-0.5 rounded transition-colors hover:bg-[hsl(var(--muted))]',
-              isOpen && 'bg-[hsl(var(--muted))]'
-            )}
-            title={t('historyRecords')}
-          >
-            <History size={14} />
-          </button>
-        </PopoverTrigger>
+        {trigger}
+      </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-90 max-h-100 overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold text-sm">{t('historyRecords')}</div>
-          {activeFilePath && provider && repoInfo.repo && (
-            <a
-              href={(() => {
-                switch (provider) {
-                  case 'github': return `https://github.com/${repoInfo.username}/${repoInfo.repo}/blob/main/${activeFilePath}`
-                  case 'gitee': return `https://gitee.com/${repoInfo.username}/${repoInfo.repo}/blob/master/${activeFilePath}`
-                  case 'gitlab': return `https://gitlab.com/${repoInfo.projectId?.split('/').pop()}/-/blob/main/${activeFilePath}`
-                  case 'gitea': return `${repoInfo.baseUrl?.replace('/api/v1', '')}/${repoInfo.username}/${repoInfo.repo}/src/branch/main/${activeFilePath}`
-                  default: return '#'
-                }
-              })()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
-              title="在仓库中打开"
-            >
-              <ExternalLink size={10} />
-              <span className="truncate max-w-30">{activeFilePath.split('/').pop()}</span>
-            </a>
-          )}
-        </div>
-        <div className="flex-1 overflow-y-auto pr-1">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              {t('loading')}
-            </div>
-          ) : history.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              {t('noHistory')}
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {history.map((commit, index) => (
-                <li
-                  key={commit.sha + index}
-                  className="p-2 border rounded hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <a
-                      href={commit.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-mono text-muted-foreground hover:text-primary inline-flex items-center gap-1"
-                    >
-                      {commit.sha}
-                      <ExternalLink size={10} />
-                    </a>
-                    <span className="text-xs text-muted-foreground">
-                      {commit.date.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm truncate" title={commit.message}>
-                    {commit.message}
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-muted-foreground">
-                      {commit.author}
-                    </p>
-                    <button
-                      onClick={() => restoreVersion(commit.fullSha || commit.sha)}
-                      disabled={restoringSha === commit.sha}
-                      className={cn(
-                        'text-xs text-blue-500 hover:text-blue-600 inline-flex items-center gap-1',
-                        restoringSha === commit.sha && 'opacity-50'
-                      )}
-                      title="恢复此版本"
-                    >
-                      <RotateCcw size={12} />
-                      {restoringSha === commit.sha ? '恢复中...' : '恢复'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {content}
       </PopoverContent>
     </Popover>
   )

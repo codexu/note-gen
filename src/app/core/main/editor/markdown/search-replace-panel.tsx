@@ -6,6 +6,9 @@ import { useState, useCallback, useEffect } from 'react'
 import { Search, X, ChevronDown, ChevronUp, Replace, ReplaceAll } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { isMobileDevice } from '@/lib/check'
 
 // 搜索替换存储类型
 interface SearchAndReplaceStorage {
@@ -176,10 +179,11 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [resultCount, setResultCount] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const isMobile = isMobileDevice()
 
   // 更新搜索结果计数
   const updateResults = useCallback(() => {
-    if (!editor || !searchText) {
+    if (!editor) {
       setResultCount(0)
       setCurrentIndex(0)
       return
@@ -187,9 +191,17 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
 
     const storage = getSearchAndReplaceStorage(editor)
     const results = storage?.results || []
+    const activeSearchTerm = storage?.searchTerm || ''
+
+    if (!activeSearchTerm) {
+      setResultCount(0)
+      setCurrentIndex(0)
+      return
+    }
+
     setResultCount(results.length)
     setCurrentIndex(storage?.resultIndex || 0)
-  }, [editor, searchText])
+  }, [editor])
 
   // 监听编辑器状态变化
   useEffect(() => {
@@ -251,7 +263,9 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
     } else if (editor) {
       setSearchTerm(editor, '')
     }
-    updateResults()
+    setTimeout(() => {
+      updateResults()
+    }, 0)
   }, [editor, updateResults])
 
   // 替换文本变化
@@ -275,136 +289,142 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
     updateResults()
   }, [editor, caseSensitive, searchText, updateResults])
 
-  // 打开面板时聚焦搜索输入框
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => {
-        const input = document.getElementById('searchAndReplace-replace-input')
-        input?.focus()
-      }, 100)
-    }
-  }, [open])
-
   if (!open) return null
+
+  const panelContent = (
+    <>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            id="searchAndReplace-replace-input"
+            placeholder="搜索..."
+            value={searchText}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                  handlePrev()
+                } else {
+                  handleNext()
+                }
+              } else if (e.key === 'Escape') {
+                handleClose()
+              }
+            }}
+            className="pl-8 pr-16"
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-muted-foreground">
+            {resultCount > 0 ? (
+              <span>
+                {currentIndex + 1}/{resultCount}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={handlePrev}
+          disabled={resultCount === 0}
+          title="上一个 (Shift+Enter)"
+        >
+          <ChevronUp className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={handleNext}
+          disabled={resultCount === 0}
+          title="下一个 (Enter)"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={handleClose}
+          title="关闭 (Esc)"
+        >
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2">
+        <div className="relative flex-1">
+          <Replace className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="替换为..."
+            value={replaceText}
+            onChange={(e) => handleReplaceChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (e.shiftKey) {
+                  handleReplaceAll()
+                } else {
+                  handleReplace()
+                }
+              }
+            }}
+            className="pl-8 pr-8"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReplace}
+          disabled={resultCount === 0}
+          title="替换当前 (Enter)"
+        >
+          <Replace className="w-3 h-3 mr-1" />
+          替换
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReplaceAll}
+          disabled={resultCount === 0}
+          title="替换全部 (Shift+Enter)"
+        >
+          <ReplaceAll className="w-3 h-3 mr-1" />
+          全部
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2 pt-1">
+        <label className="flex items-center gap-2 rounded-md px-1 py-1 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50">
+          <Checkbox
+            checked={caseSensitive}
+            onCheckedChange={handleCaseSensitiveToggle}
+          />
+          <span>区分大小写</span>
+        </label>
+      </div>
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="max-h-[80vh]">
+          <DrawerHeader>
+            <DrawerTitle>搜索和替换</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-6">
+            {panelContent}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
 
   return (
     <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50">
       <div className="bg-background border border-border rounded-lg shadow-lg p-3 min-w-96">
-        {/* 搜索行 */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              id="searchAndReplace-replace-input"
-              placeholder="搜索..."
-              value={searchText}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (e.shiftKey) {
-                    handlePrev()
-                  } else {
-                    handleNext()
-                  }
-                } else if (e.key === 'Escape') {
-                  handleClose()
-                }
-              }}
-              className="pl-8 pr-16"
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-muted-foreground">
-              {resultCount > 0 ? (
-                <span>
-                  {currentIndex + 1}/{resultCount}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={handlePrev}
-            disabled={resultCount === 0}
-            title="上一个 (Shift+Enter)"
-          >
-            <ChevronUp className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={handleNext}
-            disabled={resultCount === 0}
-            title="下一个 (Enter)"
-          >
-            <ChevronDown className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={handleClose}
-            title="关闭 (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {/* 替换行 */}
-        <div className="flex items-center gap-2 mt-2">
-          <div className="relative flex-1">
-            <Replace className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="替换为..."
-              value={replaceText}
-              onChange={(e) => handleReplaceChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (e.shiftKey) {
-                    handleReplaceAll()
-                  } else {
-                    handleReplace()
-                  }
-                }
-              }}
-              className="pl-8 pr-8"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleReplace}
-            disabled={resultCount === 0}
-            title="替换当前 (Enter)"
-          >
-            <Replace className="w-3 h-3 mr-1" />
-            替换
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleReplaceAll}
-            disabled={resultCount === 0}
-            title="替换全部 (Shift+Enter)"
-          >
-            <ReplaceAll className="w-3 h-3 mr-1" />
-            全部
-          </Button>
-        </div>
-
-        {/* 选项行 */}
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={caseSensitive}
-              onChange={handleCaseSensitiveToggle}
-              className="w-3.5 h-3.5"
-            />
-            区分大小写
-          </label>
-        </div>
+        {panelContent}
       </div>
     </div>
   )

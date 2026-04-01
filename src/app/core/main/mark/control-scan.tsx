@@ -2,7 +2,7 @@
 import { TooltipButton } from "@/components/tooltip-button"
 import { useTranslations } from 'next-intl'
 import { invoke } from "@tauri-apps/api/core"
-import { ScanText } from "lucide-react"
+import { Check, ScanText } from "lucide-react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import {
   Dialog,
@@ -20,9 +20,10 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { useRef } from "react";
 import { ScreenshotImage } from "note-gen/screenshot"
-import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs"
+import { BaseDirectory, exists, remove, writeFile } from "@tauri-apps/plugin-fs"
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
+import './crop.css'
 import Image from 'next/image'
 import useTagStore from "@/stores/tag"
 import useMarkStore from "@/stores/mark"
@@ -34,34 +35,50 @@ import { insertMark } from "@/db/marks"
 import emitter from '@/lib/emitter'
 import { useRouter } from 'next/navigation'
 import { handleRecordComplete } from '@/lib/record-navigation'
+import { Button } from "@/components/ui/button"
 
 export function ControlScan() {
   const t = useTranslations();
   const router = useRouter();
   const [open, setOpen] = useState(false)
-  const [image, setImage] = useState<HTMLImageElement>();
+  const [selectedImageSrc, setSelectedImageSrc] = useState('')
   const [files, setFiles] = useState<ScreenshotImage[]>([])
   const cropperRef = useRef<Cropper | null>(null);
+  const cropBoxRef = useRef<Element | null>(null)
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const { fetchMarks, addQueue, removeQueue, setQueue } = useMarkStore()
   const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
 
-  function initCropper() {
-    if (cropperRef.current) {
-      cropperRef.current.destroy()
+  const cleanupTempScreenshots = useCallback(async () => {
+    try {
+      const tempDirExists = await exists('temp_screenshot', { baseDir: BaseDirectory.AppData })
+      if (tempDirExists) {
+        await remove('temp_screenshot', { baseDir: BaseDirectory.AppData, recursive: true })
+      }
+    } catch (error) {
+      console.error('Failed to cleanup temp screenshots:', error)
     }
+  }, [])
+
+  function initCropper() {
+    cropperRef.current?.destroy()
+    cropperRef.current = null
+    cropBoxRef.current?.removeEventListener('dblclick', cropEnd)
+    cropBoxRef.current = null
     const image = document.getElementById('cropper') as HTMLImageElement;
     if (!image) return
-    // 绑定双击事件
     cropperRef.current = new Cropper(image, {
       background: false,
       viewMode: 1,
+      responsive: true,
+      autoCropArea: 1,
       toggleDragModeOnDblclick: false
     });
-    setTimeout(() => {
-      document.querySelector('.cropper-crop-box')?.addEventListener('dblclick', () => {
-        cropEnd()
-      })
+    window.setTimeout(() => {
+      const cropBox = document.querySelector('.cropper-crop-box')
+      if (!cropBox) return
+      cropBox.addEventListener('dblclick', cropEnd)
+      cropBoxRef.current = cropBox
     }, 100)
   }
 
@@ -75,16 +92,14 @@ export function ControlScan() {
     })
     setFiles(convertedFiles)
     if (convertedFiles.length > 0) {
-      const image = new window.Image();
-      image.src = convertedFiles[0].path;
-      setImage(image)
+      setSelectedImageSrc(convertedFiles[0].path)
+    } else {
+      setSelectedImageSrc('')
     }
   }
 
   function selectImage(file: ScreenshotImage) {
-    const image = new window.Image();
-    image.src = file.path;
-    setImage(image)
+    setSelectedImageSrc(file.path)
   }
 
   async function cropEnd() {
@@ -136,10 +151,16 @@ export function ControlScan() {
   };
 
   useEffect(() => {
-    if (open) {
-      initCropper()
+    if (!open) {
+      cropperRef.current?.destroy()
+      cropperRef.current = null
+      cropBoxRef.current?.removeEventListener('dblclick', cropEnd)
+      cropBoxRef.current = null
+      setFiles([])
+      setSelectedImageSrc('')
+      void cleanupTempScreenshots()
     }
-  }, [image, open])
+  }, [cleanupTempScreenshots, cropEnd, open])
 
   const handleScan = useCallback(() => {
     createScreenShot()
@@ -153,45 +174,75 @@ export function ControlScan() {
     }
   }, [handleScan])
 
+  const handleCropperImageLoad = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      if (open) {
+        initCropper()
+      }
+    })
+  }, [open])
+
   return (
     <div className="hidden md:block">
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <TooltipButton icon={<ScanText />} tooltipText={t('record.mark.type.screenshot')} onClick={createScreenShot} />
         </DialogTrigger>
-        <DialogContent className="max-w-screen h-screen text-white bg-black border-none flex flex-col items-center justify-center overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            {
-              image && (
-                <Image id="cropper" className="size-full object-contain" width={0} height={0} src={image.src} alt="" />
-              )
-            }
+        <DialogContent className="left-0 top-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 border-none bg-black p-4 pt-14 text-white sm:rounded-none">
+          <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/80 p-2">
+              {selectedImageSrc ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    id="cropper"
+                    key={selectedImageSrc}
+                    src={selectedImageSrc}
+                    alt=""
+                    className="block max-h-full max-w-full"
+                    onLoad={handleCropperImageLoad}
+                  />
+                </>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                className="bg-white/10 text-white hover:bg-white/20"
+                onClick={cropEnd}
+                disabled={!selectedImageSrc}
+              >
+                <Check className="h-4 w-4" />
+                {t('common.confirm')}
+              </Button>
+            </div>
+            <Carousel
+              opts={{
+                align: "start",
+              }}
+              orientation="horizontal"
+              className="h-24 w-full shrink-0"
+            >
+              <CarouselContent>
+                {files.map((file, index) => (
+                  <CarouselItem key={index} className="pt-1 md:basis-1/5">
+                    <Card
+                      className={`size-24 cursor-pointer overflow-hidden border-2 border-black ${selectedImageSrc === file.path ? 'border-white' : ''}`}
+                      onClick={() => selectImage(file)}
+                    >
+                      <CardContent className="relative flex size-full flex-col items-center justify-center overflow-hidden p-0">
+                        <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
+                        <p className="absolute bottom-0 left-0 right-0 line-clamp-1 bg-black bg-opacity-50 text-center text-xs text-white">{file.name}</p>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="border-white bg-black text-white" />
+              <CarouselNext className="border-white bg-black text-white" />
+            </Carousel>
           </div>
-          <Carousel
-            opts={{
-              align: "start",
-            }}
-            orientation="horizontal"
-            className="w-full max-w-xl h-24"
-          >
-            <CarouselContent>
-              {files.map((file, index) => (
-                <CarouselItem key={index} className="pt-1 md:basis-1/5">
-                  <Card
-                    className={`size-24 overflow-hidden cursor-pointer border-2 border-black ${image?.src === file.path ? 'border-white' : ''}`}
-                    onClick={() => selectImage(file)}
-                  >
-                    <CardContent className="flex relative items-center justify-center p-0 overflow-hidden size-full flex-col">
-                      <Image className="size-full object-cover" src={file.path} alt="" width={200} height={200} />
-                      <p className="text-xs text-white line-clamp-1 text-center absolute bottom-0 left-0 right-0 bg-black bg-opacity-50">{file.name}</p>
-                    </CardContent>
-                  </Card>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious className="text-white bg-black border-white" />
-            <CarouselNext className="text-white bg-black border-white" />
-          </Carousel>
         </DialogContent>
       </Dialog>
     </div>

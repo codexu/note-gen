@@ -312,7 +312,7 @@ export async function deleteFile({ path, sha, repo }: { path: string, sha: strin
       proxy
     };
     
-    const normalizedPath = buildRepoContentPath({ path });
+    const normalizedPath = buildRepoContentPath({ path, preserveWhitespace: true });
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(normalizedPath)}`;
     
     const response = await fetch(url, requestOptions);

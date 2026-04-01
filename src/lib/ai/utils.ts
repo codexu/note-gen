@@ -1,8 +1,9 @@
 import { toast } from "@/hooks/use-toast";
 import { Store } from "@tauri-apps/plugin-store";
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { AiConfig } from "@/app/core/setting/config";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { createTauriOpenAIClient, type OpenAICompatibleClient } from "./tauri-client";
 
 /**
  * 获取当前的prompt内容
@@ -261,35 +262,20 @@ export async function prepareMessages(
 /**
  * 创建OpenAI客户端，适用于所有AI类型
  */
-export async function createOpenAIClient(AiConfig?: AiConfig) {
+export async function createOpenAIClient(AiConfig?: AiConfig): Promise<OpenAICompatibleClient> {
   const store = await Store.load('store.json')
-  let baseURL
-  let apiKey
-  if (AiConfig) {
-    baseURL = AiConfig.baseURL
-    apiKey = AiConfig.apiKey
-  } else {
-    baseURL = await store.get<string>('baseURL')
-    apiKey = await store.get<string>('apiKey')
-  }
-  const proxyUrl = await store.get<string>('proxy')
 
-  // 创建OpenAI客户端
-  return new OpenAI({
-    apiKey: apiKey || '',
-    baseURL: baseURL,
-    dangerouslyAllowBrowser: true,
-    defaultHeaders:{
-      "x-stainless-arch": null,
-      "x-stainless-lang": null,
-      "x-stainless-os": null,
-      "x-stainless-package-version": null,
-      "x-stainless-retry-count": null,
-      "x-stainless-runtime": null,
-      "x-stainless-runtime-version": null,
-      "x-stainless-timeout": null,
-      ...(AiConfig?.customHeaders || {})
-    },
-    ...(proxyUrl ? { httpAgent: proxyUrl } : {})
+  if (AiConfig) {
+    return createTauriOpenAIClient(AiConfig)
+  }
+
+  const baseURL = await store.get<string>('baseURL')
+  const apiKey = await store.get<string>('apiKey')
+
+  return createTauriOpenAIClient({
+    key: 'runtime',
+    title: 'Runtime',
+    baseURL,
+    apiKey,
   })
 }

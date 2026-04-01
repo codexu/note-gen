@@ -503,28 +503,33 @@ function findSlashMatch(config: {
   const { $position } = config
   const $pos = $position
 
-  // Check if we're at the start of a text node or have text directly before position
-  const nodeBefore = $pos.nodeBefore
-  const text = nodeBefore?.isText && nodeBefore.text
+  const parent = $pos.parent
+  if (!parent?.isTextblock) {
+    return null
+  }
 
+  const text = parent.textBetween(0, $pos.parentOffset, undefined, '\uFFFC')
   if (!text) {
     return null
   }
 
-  const textFrom = $pos.pos - text.length
-  const slashIndex = text.lastIndexOf('/')
-
-  if (slashIndex === -1) {
+  // Slash command should only activate when the slash is at the start of the
+  // current text block or after whitespace / sentence punctuation, and the
+  // cursor is still directly after the query text.
+  const match = /(?:^|[\s([{'"`<>]|[.,!?;:，。！？；：（）【】《》、])\/([^\s/]*)$/.exec(text)
+  if (!match) {
     return null
   }
 
-  const from = textFrom + slashIndex
+  const fullMatch = match[0]
+  const slashOffset = text.length - fullMatch.length + fullMatch.lastIndexOf('/')
+  const from = $pos.start() + slashOffset
   const to = $pos.pos
 
   return {
     range: { from, to },
-    query: text.slice(slashIndex + 1),
-    text: text.slice(slashIndex),
+    query: match[1] || '',
+    text: text.slice(slashOffset),
   }
 }
 

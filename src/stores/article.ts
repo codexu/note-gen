@@ -55,6 +55,12 @@ export interface Article {
   path: string
 }
 
+export interface EditorViewState {
+  selectionFrom: number
+  selectionTo: number
+  scrollTop: number
+}
+
 // 查找文件夹节点
 export const findFolderInTree = (path: string, tree: DirTree[]): DirTree | null => {
   for (const item of tree) {
@@ -199,6 +205,11 @@ interface NoteState {
   setActiveTabId: (id: string) => void
   addTab: (tab: { id: string; path: string; name: string; isFolder: boolean }) => void
   removeTab: (id: string) => void
+  editorViewStates: Record<string, EditorViewState>
+  setEditorViewState: (path: string, state: EditorViewState) => void
+  getEditorViewState: (path: string) => EditorViewState | null
+  removeEditorViewState: (path: string) => void
+  moveEditorViewState: (oldPath: string, newPath: string) => void
   cleanTabsByDeletedFile: (deletedPath: string) => Promise<void>
   cleanTabsByDeletedFolder: (deletedFolderPath: string) => Promise<void>
   clearTabs: () => void
@@ -240,7 +251,7 @@ interface NoteState {
   syncOpenTabsForPathChange: (oldPath: string, newPath: string) => Promise<void>
   loadFileTree: (options?: { skipRemoteSync?: boolean }) => Promise<void>
   loadRemoteSyncFiles: () => Promise<void>
-  loadCollapsibleFiles: (folderName: string) => Promise<void>
+  loadCollapsibleFiles: (folderName: string, options?: { force?: boolean }) => Promise<void>
   loadFolderRemoteFiles: (folderName: string) => Promise<void>
   newFolder: () => void
   newFile: () => void
@@ -457,8 +468,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
   // Tabs initialization - load from store
   openTabs: [],
   activeTabId: '',
+  editorViewStates: {},
   setOpenTabs: async (tabs) => {
-    set({ openTabs: tabs })
+    const keptPaths = new Set(tabs.map(tab => tab.path))
+    const nextEditorViewStates = Object.fromEntries(
+      Object.entries(get().editorViewStates).filter(([path]) => keptPaths.has(path))
+    )
+    set({ openTabs: tabs, editorViewStates: nextEditorViewStates })
     const store = await getStore();
     await store.set('openTabs', tabs)
   },
@@ -481,10 +497,53 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   removeTab: async (id) => {
     const currentTabs = get().openTabs
+    const removedTab = currentTabs.find(t => t.id === id)
     const newTabs = currentTabs.filter(t => t.id !== id)
-    set({ openTabs: newTabs })
+    const nextEditorViewStates = { ...get().editorViewStates }
+    if (removedTab) {
+      delete nextEditorViewStates[removedTab.path]
+    }
+    set({ openTabs: newTabs, editorViewStates: nextEditorViewStates })
     const store = await getStore();
     await store.set('openTabs', newTabs)
+  },
+  setEditorViewState: (path, state) => {
+    if (!path) {
+      return
+    }
+    set(current => ({
+      editorViewStates: {
+        ...current.editorViewStates,
+        [path]: state,
+      }
+    }))
+  },
+  getEditorViewState: (path) => {
+    if (!path) {
+      return null
+    }
+    return get().editorViewStates[path] || null
+  },
+  removeEditorViewState: (path) => {
+    if (!path) {
+      return
+    }
+    const nextEditorViewStates = { ...get().editorViewStates }
+    delete nextEditorViewStates[path]
+    set({ editorViewStates: nextEditorViewStates })
+  },
+  moveEditorViewState: (oldPath, newPath) => {
+    if (!oldPath || !newPath || oldPath === newPath) {
+      return
+    }
+    const currentState = get().editorViewStates[oldPath]
+    if (!currentState) {
+      return
+    }
+    const nextEditorViewStates = { ...get().editorViewStates }
+    delete nextEditorViewStates[oldPath]
+    nextEditorViewStates[newPath] = currentState
+    set({ editorViewStates: nextEditorViewStates })
   },
 
   // 清理已被删除的文件对应的 tabs（根据路径匹配）
@@ -512,7 +571,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
         newActiveFilePath = ''
       }
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
+      const nextEditorViewStates = { ...get().editorViewStates }
+      delete nextEditorViewStates[deletedPath]
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '', editorViewStates: nextEditorViewStates })
       const store = await getStore();
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
@@ -546,7 +607,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
         newActiveFilePath = ''
       }
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
+      const nextEditorViewStates = { ...get().editorViewStates }
+      Object.keys(nextEditorViewStates).forEach(path => {
+        if (path.startsWith(folderPrefix)) {
+          delete nextEditorViewStates[path]
+        }
+      })
+      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '', editorViewStates: nextEditorViewStates })
       const store = await getStore();
       await store.set('openTabs', newTabs)
       await store.set('activeTabId', newActiveTabId)
@@ -555,7 +622,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   clearTabs: async () => {
-    set({ openTabs: [], activeTabId: '' })
+    set({ openTabs: [], activeTabId: '', editorViewStates: {} })
     const store = await getStore();
     await store.set('openTabs', [])
     await store.set('activeTabId', '')
@@ -678,7 +745,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
       ? currentActiveTabId
       : get().activeTabId
 
-    set({ openTabs: newTabs, activeTabId: nextActiveTabId })
+    const nextEditorViewStates = { ...get().editorViewStates }
+    if (nextEditorViewStates[oldPath]) {
+      nextEditorViewStates[newPath] = nextEditorViewStates[oldPath]
+      delete nextEditorViewStates[oldPath]
+    }
+
+    set({ openTabs: newTabs, activeTabId: nextActiveTabId, editorViewStates: nextEditorViewStates })
     const store = await getStore()
     await store.set('openTabs', newTabs)
     await store.set('activeTabId', nextActiveTabId)
@@ -1132,7 +1205,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   }
 },
   // 加载文件夹内部的本地和远程文件（按需加载）
-  loadCollapsibleFiles: async (fullpath: string) => {
+  loadCollapsibleFiles: async (fullpath: string, options?: { force?: boolean }) => {
     const cacheTree: DirTree[] = get().fileTree
     const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
@@ -1146,7 +1219,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     // 如果已经加载过子内容，则跳过
-    if (currentFolder.children && currentFolder.children.length > 0) {
+    if (!options?.force && currentFolder.children && currentFolder.children.length > 0) {
       // 仅异步更新远程同步状态
       get().loadFolderRemoteFiles(fullpath)
       return
@@ -1240,8 +1313,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
 
-    // 设置子节点（可能为空）
-    currentFolder.children = children
+    // 设置子节点（可能为空），并按当前文件树规则排序
+    currentFolder.children = get().sortFileTree(children)
     set({ fileTree: [...cacheTree] })
     
     // 异步加载远程同步文件状态（不阻塞界面）

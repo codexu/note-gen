@@ -876,9 +876,17 @@
       "isPrimaryBackup": "Current {type} primary image hosting method",
       "setPrimaryBackup": "Set as Primary Image Hosting",
       "smms": {
+        "title": "S.EE Image Hosting",
+        "description": "Use S.EE to upload and manage images",
+        "status": "Connection Status",
+        "connected": "Connected",
+        "connecting": "Checking",
+        "disconnected": "Disconnected",
         "token": {
-          "desc": "Please create and input SM.MS Token.",
-          "createToken": "Create Token"
+          "desc": "Please create and input S.EE Token.",
+          "createToken": "Open S.EE Developer Page",
+          "helper": "Enter your S.EE API Token. Existing configuration can continue to be reused.",
+          "placeholder": "Enter S.EE API Token"
         },
         "disk": "Disk Usage",
         "error": "Failed to get, please check network or Token is correct."
@@ -1301,8 +1309,8 @@
       },
       "assets": {
         "title": "Assets Path",
-        "desc": "Set the path where resources (e.g. images, videos, files etc.) used in writing will be saved. Resources will be saved at the same level as the currently edited markdown file.",
-        "select": "Set the path where resources used in writing will be saved"
+        "desc": "Set the asset directory name. Local image insertion in the editor will use this directory name, such as `assets` or `images`.",
+        "select": "Set the asset directory name, for example: assets"
       }
     },
     "shortcuts": {
@@ -1643,6 +1651,7 @@
         "processingVectors": "Processing Vector Data",
         "calculateVectors": "Calculate Document Vectors",
         "multiSelect": "Multi Select",
+        "multiSelectMode": "Multi Select Mode",
         "exitMultiSelect": "Exit Multi Select",
         "organizeNotes": "Organize Notes",
         "organizeSuccess": "Notes organized successfully: {title}",

@@ -12,8 +12,9 @@ mod mcp_runtime;
 mod device;
 mod skills;
 mod tray;
+mod ai;
 
-use screenshot::{screenshot};
+use screenshot::{cleanup_temp_screenshot_dir, screenshot};
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
 use keywords::{rank_keywords};
 use backup::{export_app_data, import_app_data, import_app_data_from_file};
@@ -21,6 +22,7 @@ use skills::import_skill_zip;
 use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
 use mcp_runtime::{cancel_mcp_runtime_install, inspect_mcp_runtime, install_mcp_runtime, RuntimeInstallManager};
 use device::get_device_id;
+use ai::{ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multipart_request, cancel_ai_request, AiRequestManager};
 
 fn main() {
     tauri::Builder::default()
@@ -33,6 +35,7 @@ fn main() {
         // MCP 服务器管理器
         .manage(McpServerManager::new())
         .manage(RuntimeInstallManager::new())
+        .manage(AiRequestManager::new())
 
         // 系统级插件
         .plugin(tauri_plugin_process::init())
@@ -67,6 +70,11 @@ fn main() {
             install_mcp_runtime,
             cancel_mcp_runtime_install,
             get_device_id,
+            ai_json_request,
+            ai_binary_request,
+            ai_multipart_request,
+            ai_chat_completion_stream,
+            cancel_ai_request,
         ])
 
         // 应用设置 - 在所有插件和命令注册后
@@ -74,10 +82,13 @@ fn main() {
 
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app_handle, event| match event {
+        .run(|app_handle, event| match event {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { has_visible_windows, .. } => {
-                window::handle_macos_reopen(&_app_handle, has_visible_windows);
+                window::handle_macos_reopen(&app_handle, has_visible_windows);
+            }
+            tauri::RunEvent::Exit => {
+                cleanup_temp_screenshot_dir(&app_handle);
             }
             _ => {}
         });

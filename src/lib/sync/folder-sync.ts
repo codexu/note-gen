@@ -4,6 +4,7 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { collectMarkdownFiles } from '@/lib/files'
 import { RepoNames } from './github.types'
+import { getSyncRepoName } from './repo-utils'
 import { getGiteaApiBaseUrl } from './gitea'
 import { s3Upload } from './s3'
 import { webdavUpload } from './webdav'
@@ -18,6 +19,8 @@ export interface FolderSyncResult {
   message: string
   errors?: string[]
 }
+
+type GitProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
 export class FolderSync {
   private platform: string = 'github'
@@ -78,30 +81,33 @@ export class FolderSync {
       // 3. 根据平台执行批量提交
       const message = `Sync folder: ${localFolderPath} - ${new Date().toLocaleString('zh-CN')}`
       let success = false
+      const repoName = this.platform === 's3' || this.platform === 'webdav'
+        ? RepoNames.sync
+        : await getSyncRepoName(this.platform as GitProvider)
 
       switch (this.platform) {
         case 'github': {
           // GitHub 批量提交
-          success = await this._githubBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._githubBatchCommit(repoName, filesToUpload, message)
           break
         }
         case 'gitee': {
           // 先获取远程文件 SHA（用于覆盖）
-          const giteeFiles = await this._getGiteeFiles(RepoNames.sync)
+          const giteeFiles = await this._getGiteeFiles(repoName)
           for (const file of filesToUpload) {
             if (giteeFiles[file.path]) {
               file.sha = giteeFiles[file.path].sha
             }
           }
           // Gitee: 逐个上传，带 SHA 可以覆盖
-          success = await this._giteeBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._giteeBatchCommit(repoName, filesToUpload, message)
           break
         }
         case 'gitlab':
-          success = await this._gitlabBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._gitlabBatchCommit(repoName, filesToUpload, message)
           break
         case 'gitea':
-          success = await this._giteaBatchCommit(RepoNames.sync, filesToUpload)
+          success = await this._giteaBatchCommit(repoName, filesToUpload)
           break
         case 's3':
           success = await this._s3BatchUpload(filesToUpload)

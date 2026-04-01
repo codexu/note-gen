@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import useMarkStore from "@/stores/mark";
 import { MarkLoading } from "./mark-loading";
 import MarkEmpty from "./mark-empty";
-import { buildRecordFilterSummary, filterMarks } from "./mark-filters.mjs";
+import { buildRecordFilterSummary, filterMarks, getTrashRecordFilters } from "./mark-filters";
 import { MarkListDefaultView } from "./mark-list-default-view";
 import { MarkListCompactView } from "./mark-list-compact-view";
 import { MarkListCardView } from "./mark-list-card-view";
@@ -17,17 +17,22 @@ export const MarkList = React.memo(function MarkList() {
   const {
     marks,
     queues,
+    trashState,
     recordFilters,
     recordViewMode,
     hasActiveRecordFilters,
     setVisibleMarkIds,
   } = useMarkStore()
 
-  const filteredMarks = React.useMemo(() => (
-    filterMarks(marks, recordFilters)
-  ), [marks, recordFilters])
+  const effectiveFilters = React.useMemo(() => (
+    trashState ? getTrashRecordFilters() : recordFilters
+  ), [trashState, recordFilters])
 
-  const filterSummary = React.useMemo(() => buildRecordFilterSummary(recordFilters), [recordFilters])
+  const filteredMarks = React.useMemo(() => (
+    filterMarks(marks, effectiveFilters)
+  ), [marks, effectiveFilters])
+
+  const filterSummary = React.useMemo(() => buildRecordFilterSummary(effectiveFilters), [effectiveFilters])
 
   React.useEffect(() => {
     const nextVisibleMarkIds = filteredMarks.map((mark: Mark) => mark.id)
@@ -60,7 +65,7 @@ export const MarkList = React.memo(function MarkList() {
     <div className="flex-1 overflow-y-auto">
       <div className="px-0">
         <div>
-          {hasActiveRecordFilters() ? (
+          {!trashState && hasActiveRecordFilters() ? (
             <div className="border-b bg-muted/20 px-3 py-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="rounded-full px-2 py-0 text-[11px]">
@@ -99,7 +104,7 @@ export const MarkList = React.memo(function MarkList() {
           {
             filteredMarks.length ? (
               view
-            ) : hasActiveRecordFilters() ? (
+            ) : !trashState && hasActiveRecordFilters() ? (
               <div className="flex flex-col justify-center items-center flex-1 w-full pt-32 text-center">
                 <p className="text-sm text-zinc-500">{t('emptyFiltered')}</p>
                 <p className="mt-1 text-xs text-zinc-400">{t('emptyFilteredHint')}</p>

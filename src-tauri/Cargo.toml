@@ -33,6 +33,9 @@ percent-encoding = "2.3.0"
 fuzzy-matcher = "0.3.7"
 rayon = "1.8.0"
 tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", features = ["json", "multipart", "stream", "rustls-tls"] }
+futures-util = "0.3"
 url = "2.5"
 reqwest_dav = "=0.2.1"
 tauri-plugin-opener = "2.4.0"

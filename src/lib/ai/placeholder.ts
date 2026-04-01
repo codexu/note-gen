@@ -1,5 +1,6 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import useSettingStore from '@/stores/setting';
+import { createOpenAIClient } from './utils';
 
 export interface QuickPrompt {
   id: string
@@ -70,11 +71,7 @@ export async function fetchAiPlaceholder(text: string): Promise<string | false> 
       { role: 'user', content: placeholderPrompt }
     ]
 
-    const openai = new OpenAI({
-      baseURL: defaultConfig.baseURL,
-      apiKey: defaultConfig.apiKey,
-      dangerouslyAllowBrowser: true,
-    })
+    const openai = await createOpenAIClient(defaultConfig)
 
     const completion = await openai.chat.completions.create({
       model: chatModel.model || '',
@@ -129,11 +126,7 @@ Content: ${text || 'General note-taking'}`
       { role: 'user', content: prompt }
     ]
 
-    const openai = new OpenAI({
-      baseURL: config.baseURL,
-      apiKey: config.apiKey,
-      dangerouslyAllowBrowser: true,
-    })
+    const openai = await createOpenAIClient(config)
 
     const completion = await openai.chat.completions.create({
       model: chatModel.model || '',
@@ -226,11 +219,7 @@ Content: ${text || 'No content provided'}`
       { role: 'user', content: prompt }
     ]
 
-    const openai = new OpenAI({
-      baseURL: config.baseURL,
-      apiKey: config.apiKey,
-      dangerouslyAllowBrowser: true,
-    })
+    const openai = await createOpenAIClient(config)
 
     const completion = await openai.chat.completions.create({
       model: chatModel.model || '',

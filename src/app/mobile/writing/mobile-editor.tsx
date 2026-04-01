@@ -3,13 +3,18 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { TipTapEditor } from '@/app/core/main/editor/markdown/tiptap-editor'
+import type { Editor } from '@tiptap/react'
 import { Loader2 } from 'lucide-react'
 import useArticleStore from '@/stores/article'
 import emitter from '@/lib/emitter'
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 
-export function MobileEditor() {
+interface MobileEditorProps {
+  onEditorReady?: (editor: Editor | null) => void
+}
+
+export function MobileEditor({ onEditorReady }: MobileEditorProps) {
   const tEditor = useTranslations('editor')
   const { setCurrentArticle, activeFilePath } = useArticleStore()
 
@@ -123,11 +128,12 @@ export function MobileEditor() {
   // 清理定时器
   useEffect(() => {
     return () => {
+      onEditorReady?.(null)
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [])
+  }, [onEditorReady])
 
   // 显示加载状态
   if (isLoading) {
@@ -147,6 +153,7 @@ export function MobileEditor() {
         activeFilePath={activeFilePath}
         onQuoteToChat={handleQuoteToChat}
         onReady={handleEditorReady}
+        onEditorReady={onEditorReady as ((editor: any) => void) | undefined}
       />
     </div>
   )

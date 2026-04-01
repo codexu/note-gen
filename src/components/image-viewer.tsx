@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { PhotoProvider, PhotoView } from "react-photo-view";
+import { PhotoView } from "react-photo-view";
 import { LocalImage } from "./local-image";
 import { convertImage } from "@/lib/utils";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { PhotoPreviewProvider } from "@/components/photo-preview-provider";
 
 export function ImageViewer({url, path, imageClassName}: {url: string, path?: string, imageClassName?: string}) {
   const [src, setSrc] = useState('')
@@ -18,7 +19,7 @@ export function ImageViewer({url, path, imageClassName}: {url: string, path?: st
   }, [])
 
   return (
-    <PhotoProvider>
+    <PhotoPreviewProvider>
       <PhotoView src={src}>
         <div>
           <LocalImage
@@ -28,6 +29,6 @@ export function ImageViewer({url, path, imageClassName}: {url: string, path?: st
           />
         </div>
       </PhotoView>
-    </PhotoProvider>
+    </PhotoPreviewProvider>
   )
 }

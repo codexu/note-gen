@@ -10,12 +10,12 @@ import useMarkStore from "@/stores/mark"
 import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
 import { confirm } from '@tauri-apps/plugin-dialog';
-import { filterMarks } from "./mark-filters.mjs";
+import { filterMarks, getTrashRecordFilters } from "./mark-filters";
 
 export function NoteSidebar() {
   const t = useTranslations();
-  const { trashState, marks, setMarks, recordFilters, initRecordViewMode } = useMarkStore()
-  const visibleTrashMarks = React.useMemo(() => filterMarks(marks, recordFilters), [marks, recordFilters])
+  const { trashState, marks, setMarks, initRecordViewMode } = useMarkStore()
+  const visibleTrashMarks = React.useMemo(() => filterMarks(marks, getTrashRecordFilters()), [marks])
 
   useEffect(() => {
     initRecordViewMode()

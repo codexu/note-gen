@@ -7,7 +7,7 @@ import { Outline } from './outline'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import emitter from '@/lib/emitter'
-import { DEFAULT_OUTLINE_POSITION, isOutlineOnLeft, normalizeOutlinePosition, type OutlinePosition } from '@/lib/outline-preferences'
+import { DEFAULT_OUTLINE_POSITION, normalizeOutlinePosition, type OutlinePosition } from '@/lib/outline-preferences'
 import { Store } from '@tauri-apps/plugin-store'
 
 interface MdEditorProps {
@@ -374,7 +374,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
   }
 
   return (
-    <div id="onboarding-target-editor-content" className="flex-1 relative w-full h-full flex flex-row">
+    <div id="onboarding-target-editor-content" className="flex-1 relative w-full h-full">
       {/* Pull loading overlay */}
       {isPulling && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -391,23 +391,16 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         </div>
       )}
 
-      {outlineOpen && !isPulling && editorReady && editorInstance && isOutlineOnLeft(outlinePosition) && (
-        <Outline
-          editor={editorInstance}
-          isOpen={outlineOpen}
-          position={outlinePosition}
-        />
-      )}
-
       {/* Editor - initialContent only set once on mount */}
       <TipTapEditor
         initialContent={initialContent || ''}
         onChange={handleContentChange}
         placeholder={tEditor('placeholder')}
-        activeFilePath={activeFilePath}
+        activeFilePath={filePath}
         onQuoteToChat={handleQuoteToChat}
         onEditorReady={handleEditorReady}
         outlineOpen={outlineOpen}
+        outlinePosition={outlinePosition}
         onToggleOutline={() => setOutlineOpen(prev => !prev)}
         editable={!isPulling && !aiStreaming}
         autoScroll={aiStreaming}
@@ -422,11 +415,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
         }
       />
 
-      {outlineOpen && !isPulling && editorReady && editorInstance && !isOutlineOnLeft(outlinePosition) && (
+      {outlineOpen && !isPulling && editorReady && editorInstance && (
         <Outline
           editor={editorInstance}
           isOpen={outlineOpen}
           position={outlinePosition}
+          floating
         />
       )}
     </div>

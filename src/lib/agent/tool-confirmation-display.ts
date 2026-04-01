@@ -64,6 +64,24 @@ const TOOL_CONFIRMATION_DISPLAY: Record<string, ToolConfirmationDisplayConfig> =
     descriptionKey: 'record.chat.input.agent.confirmation.tools.delete_markdown_file.description',
     summaryFields: ['filePath'],
   },
+  delete_markdown_files_batch: {
+    titleKey: 'record.chat.input.agent.confirmation.tools.delete_markdown_file.title',
+    descriptionKey: 'record.chat.input.agent.confirmation.tools.delete_markdown_file.description',
+    summaryFields: ['count', 'filesPreview'],
+    contentFields: ['filesPreview'],
+  },
+  delete_folder: {
+    titleKey: 'record.chat.input.agent.confirmation.fallback.title',
+    descriptionKey: 'record.chat.input.agent.confirmation.fallback.description',
+    summaryFields: ['folderPath', 'fileCount', 'filesPreview'],
+    contentFields: ['filesPreview'],
+  },
+  delete_folders_batch: {
+    titleKey: 'record.chat.input.agent.confirmation.fallback.title',
+    descriptionKey: 'record.chat.input.agent.confirmation.fallback.description',
+    summaryFields: ['count', 'fileCount', 'foldersPreview', 'filesPreview'],
+    contentFields: ['foldersPreview', 'filesPreview'],
+  },
   execute_skill_script: {
     titleKey: 'record.chat.input.agent.confirmation.tools.execute_skill_script.title',
     descriptionKey: 'record.chat.input.agent.confirmation.tools.execute_skill_script.description',

@@ -1,22 +1,10 @@
 import { Store } from "@tauri-apps/plugin-store";
 import { fetch } from "@tauri-apps/plugin-http";
 
-const BASE_URL = 'https://sm.ms/api/v2'
+const BASE_URL = 'https://s.ee/api/v1/file'
 
 export interface SMMSImageHostingSetting {
   token: string
-}
-
-export interface SMMSUserInfo {
-  disk_limit: string
-  disk_limit_raw: number
-  disk_usage: string
-  disk_usage_raw: number
-  email: string
-  email_verified: number
-  group_expire: string
-  role: string
-  username: number
 }
 
 export async function uploadImageBySmms(file: File) {
@@ -46,19 +34,24 @@ export async function uploadImageBySmms(file: File) {
   }
 }
 
-// 获取用户基本信息
+// 使用 S.EE 文件域名接口校验 Token 是否可用
 export async function getUserInfo() {
   const store = await Store.load('store.json');
   const config = await store.get<SMMSImageHostingSetting>('smms')
   if (!config) return
   const token = config.token
 
-  const response = await fetch(`${BASE_URL}/profile`, {
-    method: 'POST',
+  const response = await fetch(`${BASE_URL}/domains`, {
+    method: 'GET',
     headers: {
       'Authorization': token,
+      'Accept': 'application/json'
     }
   })
-  const data = await response.json()
-  return data.data as SMMSUserInfo
+
+  if (response.status < 200 || response.status >= 300) {
+    return undefined
+  }
+
+  return response.json()
 }

@@ -11,6 +11,37 @@ import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { S3Config, WebDAVConfig } from '@/types/sync'
 
+function isSameTag(left?: Tag, right?: Tag) {
+  if (!left && !right) {
+    return true
+  }
+
+  if (!left || !right) {
+    return false
+  }
+
+  return (
+    left.id === right.id &&
+    left.name === right.name &&
+    left.isLocked === right.isLocked &&
+    left.isPin === right.isPin &&
+    left.sortOrder === right.sortOrder &&
+    left.total === right.total
+  )
+}
+
+function areTagsEqual(left: Tag[], right: Tag[]) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((tag, index) => isSameTag(tag, right[index]))
+}
+
+function resolveCurrentTag(tags: Tag[], currentTagId: number) {
+  return tags.find((tag) => tag.id === currentTagId)
+}
+
 interface TagState {
   currentTagId: number
   setCurrentTagId: (id: number) => Promise<void>
@@ -37,38 +68,85 @@ const useTagStore = create<TagState>((set, get) => ({
   // 当前选择的 tag
   currentTagId: 1,
   setCurrentTagId: async(currentTagId: number) => {
-    set({ currentTagId })
+    const nextCurrentTag = resolveCurrentTag(get().tags, currentTagId)
+
+    set((state) => {
+      if (state.currentTagId === currentTagId && isSameTag(state.currentTag, nextCurrentTag)) {
+        return state
+      }
+
+      return {
+        currentTagId,
+        currentTag: nextCurrentTag,
+      }
+    })
+
     const store = await Store.load('store.json');
     await store.set('currentTagId', currentTagId)
   },
   initTags: async () => {
     const store = await Store.load('store.json');
     const currentTagId = await store.get<number>('currentTagId')
-    if (currentTagId) set({ currentTagId })
-    get().getCurrentTag()
+
+    if (!currentTagId) {
+      get().getCurrentTag()
+      return
+    }
+
+    set((state) => {
+      const nextCurrentTag = resolveCurrentTag(state.tags, currentTagId)
+
+      if (state.currentTagId === currentTagId && isSameTag(state.currentTag, nextCurrentTag)) {
+        return state
+      }
+
+      return {
+        currentTagId,
+        currentTag: nextCurrentTag,
+      }
+    })
   },
 
   currentTag: undefined,
   getCurrentTag: () => {
-    const tags = get().tags
-    const getcurrentTagId = get().currentTagId
-    const currentTag = tags.find((tag) => tag.id === getcurrentTagId)
-    if (currentTag) {
-      set({ currentTag })
-    }
+    const { tags, currentTagId } = get()
+    const currentTag = resolveCurrentTag(tags, currentTagId)
+
+    set((state) => {
+      if (isSameTag(state.currentTag, currentTag)) {
+        return state
+      }
+
+      return { currentTag }
+    })
   },
 
   // 所有 tag
   tags: [],
   fetchTags: async () => {
     const tags = await getTags()
-    set({ tags })
+    set((state) => {
+      const currentTag = resolveCurrentTag(tags, state.currentTagId)
+
+      if (areTagsEqual(state.tags, tags) && isSameTag(state.currentTag, currentTag)) {
+        return state
+      }
+
+      return {
+        tags,
+        currentTag,
+      }
+    })
   },
 
   deleteTag: async (id: number) => {
     await delTag(id)
     await get().fetchTags()
-    await get().setCurrentTagId(get().tags[0].id)
+
+    const nextTag = get().tags[0]
+    if (nextTag) {
+      await get().setCurrentTagId(nextTag.id)
+    }
   },
 
   // 同步

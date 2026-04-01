@@ -203,6 +203,19 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
     const isThisFile = currentArticlePathRef.current === filePath || storeActivePath === filePath
 
     if (currentArticle && currentArticle.length > 0 && currentArticle !== initialContent && isThisFile) {
+      if (aiStreaming && activeFilePath === filePath) {
+        if (tabContentsRef.current) {
+          tabContentsRef.current[filePath] = currentArticle
+        }
+
+        if (isLoadingRef.current) {
+          setIsLoading(false)
+          isLoadingRef.current = false
+        }
+
+        return
+      }
+
       // Bug fix: Set expected content BEFORE updating initialContent
       // This ensures handleContentChange knows what to expect
       expectedContentRef.current = currentArticle
@@ -233,7 +246,7 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       // Mark as initialized for empty files so user can start typing
       contentInitializedRef.current = true
     }
-  }, [currentArticle, filePath, tabContentsRef, initialContent, justPulledFile])
+  }, [activeFilePath, aiStreaming, currentArticle, filePath, tabContentsRef, initialContent, justPulledFile])
 
   // Handle content changes - only save if this is the active file
   const handleContentChange = useCallback((content: string) => {

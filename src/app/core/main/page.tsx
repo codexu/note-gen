@@ -6,7 +6,7 @@ import { EditorLayout } from './editor/editor-layout'
 import Chat from './chat'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 import { invoke } from "@tauri-apps/api/core"
@@ -90,12 +90,12 @@ function ResizableWrapper() {
 
   // 初始化侧边栏状态
   useEffect(() => {
-    initSidebarState()
+    void initSidebarState()
     calculateMinSizes()
     
     window.addEventListener('resize', calculateMinSizes)
     return () => window.removeEventListener('resize', calculateMinSizes)
-  }, [])
+  }, [initSidebarState])
 
   // 当面板可见性变化时，控制面板的折叠和展开
   useEffect(() => {
@@ -148,11 +148,14 @@ function ResizableWrapper() {
   
   const actualLayout = getActualLayout()
   
-  const onLayout = (sizes: number[]) => {
+  const onLayout = useCallback((sizes: number[]) => {
     // 保存当前面板布局
     const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
-    localStorage.setItem(storageKey, JSON.stringify(sizes));
-  };
+    const nextLayout = JSON.stringify(sizes)
+    if (localStorage.getItem(storageKey) !== nextLayout) {
+      localStorage.setItem(storageKey, nextLayout)
+    }
+  }, [layoutKey])
 
   // 根据可见面板数量动态构建布局
   const renderLayout = () => {

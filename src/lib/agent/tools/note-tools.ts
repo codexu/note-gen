@@ -329,7 +329,10 @@ export const updateMarkdownFileTool: Tool = {
       const articleStore = useArticleStore.getState()
       if (articleStore.activeFilePath === params.filePath) {
         // 使用 emitter 通知编辑器内容已从外部更新
-        emitter.emit('external-content-update', params.content)
+        emitter.emit('external-content-update', {
+          content: params.content,
+          targetFilePath: params.filePath,
+        })
       }
 
       return {

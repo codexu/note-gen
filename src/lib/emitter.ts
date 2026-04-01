@@ -11,7 +11,7 @@ interface Events {
   'editor-input': unknown;
   'editor:ready': unknown;
   'editor-mode-changed': string;
-  'external-content-update': string;
+  'external-content-update': string | { content: string; targetFilePath?: string };
   'editor-content-from-remote': { content: string };
   'toolbar-text-number': number;
   'toolbar-reset-selected-text': unknown;

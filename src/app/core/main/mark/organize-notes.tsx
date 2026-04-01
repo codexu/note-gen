@@ -325,7 +325,10 @@ export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>
         fullContent = content
         // Update editor content in real-time without reloading file
         setCurrentArticle(content)
-        emitter.emit('external-content-update', content)
+        emitter.emit('external-content-update', {
+          content,
+          targetFilePath,
+        })
         // Also write to file
         if (workspace.isCustom) {
           await writeTextFile(pathOptions.path, content)

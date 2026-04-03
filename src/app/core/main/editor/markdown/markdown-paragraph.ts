@@ -12,8 +12,26 @@ declare module '@tiptap/core' {
   }
 }
 
-const EMPTY_PARAGRAPH_MARKDOWN = '&nbsp;'
+export const EMPTY_PARAGRAPH_MARKDOWN = '&nbsp;'
 const NBSP_CHAR = '\u00A0'
+const TABLE_MARKDOWN_LINE = /^\|(?:[^|\n]*\|)+\s*$/
+
+export function normalizeMarkdownPlaceholders(markdown: string): string {
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (line.trim() === EMPTY_PARAGRAPH_MARKDOWN) {
+        return line
+      }
+
+      if (TABLE_MARKDOWN_LINE.test(line)) {
+        return line.replace(/&nbsp;/g, ' ')
+      }
+
+      return line
+    })
+    .join('\n')
+}
 
 export const MarkdownParagraph = Node.create<MarkdownParagraphOptions>({
   name: 'paragraph',

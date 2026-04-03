@@ -27,6 +27,14 @@
   height: 0;
 }
 
+.tiptap-editor .tiptap.ProseMirror > p {
+  margin: 0;
+}
+
+.tiptap-editor .tiptap.ProseMirror > p:not(.is-empty) + p:not(.is-empty) {
+  margin-top: 0.85em;
+}
+
 /* 基础样式覆盖 */
 .tiptap-editor .ProseMirror h1 {
   font-size: 2em;

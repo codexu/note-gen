@@ -102,7 +102,7 @@ export function ControlScan() {
     setSelectedImageSrc(file.path)
   }
 
-  async function cropEnd() {
+  const cropEnd = useCallback(async () => {
     setOpen(false)
     const queueId = uuid()
     if (!cropperRef.current) return
@@ -148,7 +148,20 @@ export function ControlScan() {
       await fetchTags()
       getCurrentTag()
     })
-  };
+  }, [
+    addQueue,
+    currentTagId,
+    enableImageRecognition,
+    fetchMarks,
+    fetchTags,
+    getCurrentTag,
+    primaryImageMethod,
+    primaryModel,
+    removeQueue,
+    router,
+    setQueue,
+    t,
+  ])
 
   useEffect(() => {
     if (!open) {
@@ -156,8 +169,8 @@ export function ControlScan() {
       cropperRef.current = null
       cropBoxRef.current?.removeEventListener('dblclick', cropEnd)
       cropBoxRef.current = null
-      setFiles([])
-      setSelectedImageSrc('')
+      setFiles((currentFiles) => (currentFiles.length > 0 ? [] : currentFiles))
+      setSelectedImageSrc((currentSrc) => (currentSrc ? '' : currentSrc))
       void cleanupTempScreenshots()
     }
   }, [cleanupTempScreenshots, cropEnd, open])

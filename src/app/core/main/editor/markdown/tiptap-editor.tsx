@@ -53,7 +53,7 @@ import { AISuggestion } from './ai-suggestion'
 import { AISuggestionFloating } from './ai-suggestion-floating'
 import emitter from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
-import { MarkdownParagraph } from './markdown-paragraph'
+import { MarkdownParagraph, normalizeMarkdownPlaceholders } from './markdown-paragraph'
 import { StableCodeBlockLowlight } from './code-block-extension'
 import useSettingStore from '@/stores/setting'
 import useChatStore from '@/stores/chat'
@@ -421,9 +421,7 @@ export function TipTapEditor({
       // Bug fix: Only trigger onChange if editor is ready (not during initialization)
       // Using counter to handle rapid successive updates
       if (externalUpdateCounterRef.current === 0 && isReadyRef.current) {
-        let markdown = editor.getMarkdown()
-        // 修复表格空单元格中的 &nbsp; 问题 - 替换为空格
-        markdown = markdown.replace(/&nbsp;/g, ' ')
+        const markdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
         onChange?.(markdown)
         // Mark that we've processed the first update
         isFirstUpdateRef.current = false
@@ -2102,9 +2100,7 @@ export function TipTapEditor({
         return
       }
 
-      let markdown = editor.getMarkdown()
-      // 修复表格空单元格中的 &nbsp; 问题 - 替换为空格
-      markdown = markdown.replace(/&nbsp;/g, ' ')
+      const markdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
       const text = editor.getText()
       const markdownLines = markdown.split('\n')
       const totalLines = markdownLines.length
@@ -2260,8 +2256,7 @@ export function TipTapEditor({
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         setTimeout(() => {
           if (replacementMode === 'line' && startLine !== undefined && endLine !== undefined) {
-            let currentMarkdown = editor.getMarkdown()
-            currentMarkdown = currentMarkdown.replace(/&nbsp;/g, ' ')
+            const currentMarkdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
             const updatedMarkdown = replaceLinesInRange(
               currentMarkdown,
               startLine,

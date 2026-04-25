@@ -229,8 +229,9 @@ export function Outline({
     const scrollTop = editorElement.scrollTop
     const viewportTop = scrollTop + 100 // Add some offset for better UX
 
-    // Find the first heading that is above or near the viewport top
-    for (const heading of headings) {
+    // Find the last heading that is above or near the viewport top (iterate in reverse)
+    for (let i = headings.length - 1; i >= 0; i--) {
+      const heading = headings[i]
       const domNode = editor.view.nodeDOM(heading.pos) as HTMLElement | undefined
       if (domNode) {
         const rect = domNode.getBoundingClientRect()
@@ -296,10 +297,15 @@ export function Outline({
       // Then set the selection to the heading position
       editor.commands.setTextSelection(targetPos)
 
-      // Then scroll into view
+      // Then scroll into view, centering the heading in the editor
       // Use setTimeout to ensure the selection is applied first
       setTimeout(() => {
-        editor.commands.scrollIntoView()
+        const domNode = editor.view.nodeDOM(targetPos) as HTMLElement | undefined
+        if (domNode) {
+          domNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else {
+          editor.commands.scrollIntoView()
+        }
       }, 0)
 
       onHeadingSelect?.()

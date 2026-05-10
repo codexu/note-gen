@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::fs;
+use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle, Manager};
 use zip::ZipArchive;
 
@@ -54,56 +54,78 @@ pub async fn import_skill_zip(app_handle: AppHandle, zip_path: String) -> Result
         }
     }
 
-    // 查找解压后的目录
-    let entries = fs::read_dir(&temp_dir)
-        .map_err(|e| format!("Failed to read temp directory: {}", e))?;
-
-    let mut skill_name = String::new();
-
-    // 查找包含 SKILL.md 的目录
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            // 检查是否包含 SKILL.md
-            let skill_md = path.join("SKILL.md");
-            if skill_md.exists() {
-                skill_name = path.file_name()
-                    .and_then(|n| n.to_str())
-                    .ok_or("Failed to get skill directory name")?
-                    .to_string();
-
-                let dest_path = skills_dir.join(&skill_name);
-
-                // 如果目标目录已存在，先删除
-                if dest_path.exists() {
-                    fs::remove_dir_all(&dest_path)
-                        .map_err(|e| format!("Failed to remove existing skill directory: {}", e))?;
-                }
-
-                // 移动目录到 skills 目录
-                fs::rename(&path, &dest_path)
-                    .or_else(|_| {
-                        // 如果 rename 失败（可能跨文件系统），尝试复制
-                        copy_dir_recursive(&path, &dest_path)
-                    })
-                    .map_err(|e| format!("Failed to move skill directory: {}", e))?;
-
-                break;
-            }
+    let skill_root = match find_skill_root(&temp_dir)? {
+        Some(path) => path,
+        None => {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err("No valid skill found in zip file. A valid skill must contain a SKILL.md file.".to_string());
         }
+    };
+
+    let skill_name = if skill_root == temp_dir {
+        Path::new(&zip_path)
+            .file_stem()
+            .and_then(|n| n.to_str())
+            .filter(|n| !n.trim().is_empty())
+            .ok_or("Failed to get skill directory name from zip file")?
+            .to_string()
+    } else {
+        skill_root.file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("Failed to get skill directory name")?
+            .to_string()
+    };
+
+    let dest_path = skills_dir.join(&skill_name);
+    if dest_path.exists() {
+        fs::remove_dir_all(&dest_path)
+            .map_err(|e| format!("Failed to remove existing skill directory: {}", e))?;
+    }
+
+    if skill_root == temp_dir {
+        copy_dir_recursive(&skill_root, &dest_path)
+            .map_err(|e| format!("Failed to copy skill directory: {}", e))?;
+    } else {
+        fs::rename(&skill_root, &dest_path)
+            .or_else(|_| copy_dir_recursive(&skill_root, &dest_path))
+            .map_err(|e| format!("Failed to move skill directory: {}", e))?;
     }
 
     // 清理临时目录
     fs::remove_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
 
-    if skill_name.is_empty() {
-        return Err("No valid skill found in zip file. A valid skill must contain a SKILL.md file.".to_string());
+    Ok(skill_name)
+}
+
+fn find_skill_root(root: &Path) -> Result<Option<PathBuf>, String> {
+    if root.join("SKILL.md").is_file() {
+        return Ok(Some(root.to_path_buf()));
     }
 
-    Ok(skill_name)
+    let entries = fs::read_dir(root)
+        .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        if !path.is_dir() || is_ignored_zip_metadata_dir(&path) {
+            continue;
+        }
+
+        if let Some(skill_root) = find_skill_root(&path)? {
+            return Ok(Some(skill_root));
+        }
+    }
+
+    Ok(None)
+}
+
+fn is_ignored_zip_metadata_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|name| name == "__MACOSX")
+        .unwrap_or(false)
 }
 
 // 递归复制目录的辅助函数

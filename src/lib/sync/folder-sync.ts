@@ -9,7 +9,7 @@ import { getGiteaApiBaseUrl } from './gitea'
 import { s3Upload } from './s3'
 import { webdavUpload } from './webdav'
 import { S3Config, WebDAVConfig } from '@/types/sync'
-import { buildGithubTreeEntries, buildGitlabCommitActions } from './folder-sync-payload'
+import { buildGithubCreateTreePayload, buildGitlabCommitActions } from './folder-sync-payload'
 
 export interface FolderSyncResult {
   success: boolean
@@ -206,23 +206,36 @@ export class FolderSync {
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    // 构建 tree
-    // 注意：GitHub API 不允许同时提供 sha 和 content
-    // 只提供 content，让 GitHub 自动处理（新文件创建 blob，已存在文件也会创建新的 blob）
-    const tree = buildGithubTreeEntries(files)
-
     const headers = new Headers()
     headers.append('Authorization', `Bearer ${accessToken}`)
     headers.append('Accept', 'application/vnd.github+json')
     headers.append('X-GitHub-Api-Version', '2022-11-28')
     headers.append('Content-Type', 'application/json')
 
-    // 1. 创建 tree
+    // 1. 获取当前 commit 和对应的 tree，后续提交必须基于它，避免覆盖仓库其他目录
+    const refUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/ref/heads/main`
+    const refResponse = await fetch(refUrl, { method: 'GET', headers, proxy })
+    if (!refResponse.ok) return false
+    const refData = await refResponse.json()
+    const parentCommitSha = refData.object.sha
+
+    const parentCommitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits/${parentCommitSha}`
+    const parentCommitResponse = await fetch(parentCommitUrl, { method: 'GET', headers, proxy })
+    if (!parentCommitResponse.ok) return false
+    const parentCommitData = await parentCommitResponse.json()
+    const baseTreeSha = parentCommitData.tree?.sha
+
+    if (!baseTreeSha) {
+      console.error('获取 GitHub base tree 失败')
+      return false
+    }
+
+    // 2. 基于当前 tree 创建新 tree，只覆盖本次同步的文件
     const createTreeUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/trees`
     const treeResponse = await fetch(createTreeUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ tree }),
+      body: JSON.stringify(buildGithubCreateTreePayload(files, baseTreeSha)),
       proxy,
     })
 
@@ -232,13 +245,6 @@ export class FolderSync {
     }
 
     const treeData = await treeResponse.json()
-
-    // 2. 获取当前 commit SHA
-    const refUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/ref/heads/main`
-    const refResponse = await fetch(refUrl, { method: 'GET', headers, proxy })
-    if (!refResponse.ok) return false
-    const refData = await refResponse.json()
-    const parentCommitSha = refData.object.sha
 
     // 3. 创建 commit
     const commitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits`
@@ -267,7 +273,7 @@ export class FolderSync {
       headers,
       body: JSON.stringify({
         sha: commitData.sha,
-        force: true,
+        force: false,
       }),
       proxy,
     })

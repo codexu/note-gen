@@ -11,6 +11,11 @@ export interface GithubTreeEntry {
   content: string
 }
 
+export interface GithubCreateTreePayload {
+  base_tree: string
+  tree: GithubTreeEntry[]
+}
+
 export interface GitlabCommitAction {
   action: 'create' | 'update'
   file_path: string
@@ -25,6 +30,16 @@ export function buildGithubTreeEntries(files: FolderSyncFilePayload[]): GithubTr
     type: 'blob',
     content: file.content,
   }))
+}
+
+export function buildGithubCreateTreePayload(
+  files: FolderSyncFilePayload[],
+  baseTreeSha: string
+): GithubCreateTreePayload {
+  return {
+    base_tree: baseTreeSha,
+    tree: buildGithubTreeEntries(files),
+  }
 }
 
 export function buildGitlabCommitActions(files: FolderSyncFilePayload[]): GitlabCommitAction[] {

@@ -3,6 +3,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import type OpenAI from 'openai';
 import { AiConfig } from "@/app/core/setting/config";
 import { readFile } from "@tauri-apps/plugin-fs";
+import { platform } from "@tauri-apps/plugin-os";
 import { createTauriOpenAIClient, type OpenAICompatibleClient } from "./tauri-client";
 
 /**
@@ -101,31 +102,28 @@ export async function convertImageToBase64(imageUrl: string): Promise<string | n
     if (imageUrl.startsWith('data:image')) {
       return imageUrl
     }
-    
-    // 从 Tauri URL 中提取文件路径
-    // convertFileSrc 生成的 URL 格式类似: tauri://localhost/path 或 asset://localhost/path
+
+    // 从 convertFileSrc 生成的 URL 中提取文件路径
     let filePath = imageUrl
-    
-    // 移除 tauri:// 或 asset:// 协议前缀
-    if (imageUrl.startsWith('tauri://localhost/')) {
-      filePath = imageUrl.replace('tauri://localhost/', '')
-    } else if (imageUrl.startsWith('asset://localhost/')) {
-      filePath = imageUrl.replace('asset://localhost/', '')
-    } else if (imageUrl.startsWith('http://tauri.localhost/')) {
-      filePath = imageUrl.replace('http://tauri.localhost/', '')
+
+    try {
+      const url = new URL(imageUrl)
+      filePath = decodeURIComponent(url.pathname)
+      if (platform() === 'windows' && filePath.startsWith('/')) {
+        filePath = filePath.substring(1)
+      }
+    } catch {
+      filePath = imageUrl
     }
-    
-    // URL 解码
-    filePath = decodeURIComponent(filePath)
-    
+
     // 读取文件
     const fileData = await readFile(filePath)
-    
+
     // 转换为 base64
     const base64 = btoa(
       new Uint8Array(fileData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     )
-    
+
     // 根据文件扩展名确定 MIME 类型
     let mimeType = 'image/png'
     if (filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg')) {
@@ -135,7 +133,7 @@ export async function convertImageToBase64(imageUrl: string): Promise<string | n
     } else if (filePath.toLowerCase().endsWith('.webp')) {
       mimeType = 'image/webp'
     }
-    
+
     return `data:${mimeType};base64,${base64}`
   } catch (error) {
     console.error('Failed to convert image to base64:', error)

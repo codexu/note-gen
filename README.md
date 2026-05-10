@@ -35,20 +35,20 @@
 
 💬 Join [WeChat/QQ Group](https://github.com/codexu/note-gen/discussions/110), [Discord](https://discord.gg/SXyVZGpbpk), [Telegram](https://t.me/notegen)
 
-NoteGen is a cross-platform `Markdown` note-taking application dedicated to using AI to bridge recording and writing, organizing fragmented knowledge into a readable note.
+NoteGen is an open-source, cross-platform `Markdown` note app built for messy thinking: capture first, organize later, and let AI turn fragments into readable notes.
 
 ![](https://s2.loli.net/2025/12/22/jlpEP2c6ogwHhIA.png)
 
 ## Features
 
-- 🚀 Lightweight (25MB), free, no ads.
-- 🌐 Cross-platform support.
-- 🆓 Free AI and sync solutions.
-- 📦 Out-of-the-box RAG support.
-- 🔌 MCP support for AI tool integration.
-- 🤖 Intelligent agents for automated note processing.
-- ✍️ Quick note-taking for fragmented information.
-- 📝 Native Markdown storage format.
+- ✍️ Capture first, organize later: turn scattered inputs into structured notes without breaking your flow.
+- 🤖 AI-native writing workflow: chat, rewrite, translate, and polish notes right beside your editor.
+- 🖼️ Image workflow: capture, recognize, describe, host, and reuse images in your notes.
+- 📝 Native Markdown storage: keep your notes portable, local-first, and future-proof.
+- 📦 Built-in knowledge base: RAG, vector indexing, and hybrid retrieval out of the box.
+- 🔌 Extensible AI stack: supports MCP, custom models, prompts, memories, and agent workflows.
+- 🔄 Flexible sync: works with GitHub, Gitee, GitLab, Gitea, S3, and WebDAV.
+- 🌐 Cross-platform: available on Windows, macOS, Linux, Android, and iOS.
 
 ## Download
 
@@ -61,13 +61,13 @@ NoteGen is a cross-platform `Markdown` note-taking application dedicated to usin
 
 ## From Recording to Writing
 
-Traditional note-taking apps typically don't offer note-taking functionality, but NoteGen makes it easier for you to record scattered knowledge points and avoid disrupting your train of thought while taking notes.
+Most note apps are good at storing finished content, but weak at capturing messy thinking. NoteGen is designed for the earlier stage: record fragmented inputs first, then turn them into readable, reusable notes with Markdown and AI.
 
-NoteGen is divided into three parts: Recording, Notes, and AI Dialogue. They have the following features: 
+NoteGen is built around three connected spaces:
 
-- You don't need to consider the order and logic of recording, AI will help you organize the notes into well-organized and coherent ones.
-- AI Dialogue is a feature that allows you to interact with AI in real-time, helping you to better understand and remember the content you are recording.
-- The note-taking feature can help you optimize the details of your notes independently.
+- `Recording`: capture scattered thoughts, screenshots, links, clips, and temporary inputs without breaking your flow.
+- `Notes`: refine everything in a Markdown editor with tables, diagrams, math, export tools, and structured writing support.
+- `AI Dialogue`: chat with your notes and knowledge base, reuse memory and context, and let AI help you organize, rewrite, and extend content.
 
 ## Contribute
 

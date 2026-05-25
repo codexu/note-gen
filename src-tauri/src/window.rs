@@ -58,6 +58,8 @@ pub fn handle_single_instance(app: &AppHandle, _argv: Vec<String>, _cwd: String)
             let _ = window.set_always_on_top(false);
         }
     }
+
+    crate::file_open::handle_single_instance_open_files(app, _argv);
 }
 
 #[cfg(target_os = "macos")]

@@ -21,11 +21,16 @@ import { ActivityDrawer } from "@/components/activity/activity-drawer"
 import { reportAppStart } from "@/lib/event-report"
 import { TitleBar } from "@/components/title-bar"
 import { Store } from '@tauri-apps/plugin-store'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 import { TextSizeProvider } from "@/contexts/text-size-context"
 import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
 import { applyThemeColors } from "@/lib/theme-utils"
 import emitter from "@/lib/emitter"
 import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
+import useArticleStore from "@/stores/article"
+import { resolveOpenedMarkdownPath } from "@/lib/opened-files"
+import { useToast } from "@/hooks/use-toast"
 
 export default function RootLayout({
   children,
@@ -40,8 +45,68 @@ export default function RootLayout({
   const { initUpdateStore, checkForUpdates } = useUpdateStore()
   const router = useRouter()
   const pathname = usePathname()
+  const { toast } = useToast()
   const [searchOpen, setSearchOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    let unlistenOpenFiles: (() => void) | undefined
+
+    const openMarkdownFiles = async (paths: string[]) => {
+      if (paths.length === 0) {
+        return
+      }
+
+      const articleStore = useArticleStore.getState()
+      let openedCount = 0
+
+      for (const path of paths) {
+        const resolvedPath = await resolveOpenedMarkdownPath(path)
+        if (!resolvedPath) {
+          continue
+        }
+
+        await articleStore.setActiveFilePath(resolvedPath)
+        openedCount += 1
+      }
+
+      if (openedCount > 0 && pathname !== '/core/main') {
+        router.replace('/core/main')
+      }
+
+      if (openedCount === 0) {
+        toast({
+          title: '无法打开文件',
+          description: '请选择存在的 Markdown 文件',
+          variant: 'destructive',
+        })
+      }
+    }
+
+    const registerOpenFileListener = async () => {
+      const window = getCurrentWindow()
+      const unlisten = await window.listen<string[]>('open-files', (event) => {
+        void openMarkdownFiles(event.payload)
+      })
+
+      if (cancelled) {
+        unlisten()
+        return
+      }
+      unlistenOpenFiles = unlisten
+
+      const pendingPaths = await invoke<string[]>('drain_pending_open_files')
+      await openMarkdownFiles(pendingPaths)
+    }
+
+    void registerOpenFileListener()
+
+    return () => {
+      cancelled = true
+      unlistenOpenFiles?.()
+    }
+  }, [pathname, router, toast])
 
   // 重定向旧路径到新的 /core/main
   useEffect(() => {

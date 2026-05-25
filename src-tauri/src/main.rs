@@ -13,6 +13,7 @@ mod device;
 mod skills;
 mod tray;
 mod ai;
+mod file_open;
 
 use screenshot::{cleanup_temp_screenshot_dir, screenshot};
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
@@ -33,6 +34,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(window::handle_single_instance))
 
         // MCP 服务器管理器
+        .manage(file_open::PendingOpenFiles::default())
         .manage(McpServerManager::new())
         .manage(RuntimeInstallManager::new())
         .manage(AiRequestManager::new())
@@ -75,6 +77,7 @@ fn main() {
             ai_multipart_request,
             ai_chat_completion_stream,
             cancel_ai_request,
+            file_open::drain_pending_open_files,
         ])
 
         // 应用设置 - 在所有插件和命令注册后
@@ -86,6 +89,10 @@ fn main() {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { has_visible_windows, .. } => {
                 window::handle_macos_reopen(&app_handle, has_visible_windows);
+            }
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            tauri::RunEvent::Opened { urls } => {
+                file_open::handle_opened_urls(&app_handle, urls);
             }
             tauri::RunEvent::Exit => {
                 cleanup_temp_screenshot_dir(&app_handle);

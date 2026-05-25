@@ -4,6 +4,7 @@ use tauri::Manager;
 use crate::screenshot::cleanup_temp_screenshot_dir;
 use crate::window;
 use crate::tray::create_tray;
+use crate::file_open;
 
 pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let app_handle = app.handle();
@@ -24,6 +25,8 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     // 创建系统托盘
     let _tray = create_tray(&app_handle)?;
+
+    file_open::handle_initial_open_files(&app_handle);
 
     Ok(())
 }

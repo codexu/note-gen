@@ -2,6 +2,14 @@ import { BaseDirectory } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 
+function normalizeFsPath(path: string): string {
+  return path.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
+}
+
+export function isAbsoluteFsPath(path: string): boolean {
+  return path.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\')
+}
+
 /**
  * 获取当前工作区路径
  * 如果设置了自定义工作区，则返回自定义路径
@@ -33,6 +41,10 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
  * @returns 包含文件路径和baseDir的选项
  */
 export async function getFilePathOptions(relativePath: string): Promise<{ path: string, baseDir?: BaseDirectory }> {
+  if (isAbsoluteFsPath(relativePath)) {
+    return { path: relativePath }
+  }
+
   const workspace = await getWorkspacePath()
 
   if (workspace.isCustom) {
@@ -118,9 +130,14 @@ export async function toWorkspaceRelativePath(path: string): Promise<string> {
   }
   
   // 如果是自定义工作区，移除工作区路径前缀
-  if (workspace.isCustom && path.startsWith(workspace.path)) {
+  const normalizedPath = normalizeFsPath(path)
+  const normalizedWorkspacePath = normalizeFsPath(workspace.path).replace(/\/$/, '')
+  if (workspace.isCustom && (
+    normalizedPath === normalizedWorkspacePath ||
+    normalizedPath.startsWith(`${normalizedWorkspacePath}/`)
+  )) {
     // 确保路径分隔符处理正确
-    const relativePath = path.substring(workspace.path.length)
+    const relativePath = normalizedPath.substring(normalizedWorkspacePath.length)
     // 移除开头的斜杠（如果有）
     return relativePath.startsWith('/') ? relativePath.substring(1) : relativePath
   }

@@ -19,7 +19,7 @@ import { BaseDirectory, DirEntry, exists, mkdir, readDir, readTextFile, writeTex
 import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
-import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
+import { getFilePathOptions, getWorkspacePath, isAbsoluteFsPath, toWorkspaceRelativePath } from '@/lib/workspace'
 import emitter from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
 import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
@@ -1785,9 +1785,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     try {
-      const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(actualPath)
-      if (workspace.isCustom) {
+      if (!pathOptions.baseDir) {
         localContent = await readTextFile(pathOptions.path)
       } else {
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
@@ -1847,7 +1846,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 本地内容加载完成，解除加载状态
       get().setLoading(false)
       // 检查文件的向量索引状态
-      get().checkFileVectorIndexed(actualPath)
+      if (!isAbsoluteFsPath(actualPath)) {
+        get().checkFileVectorIndexed(actualPath)
+      }
     } catch (error) {
       // 本地文件不存在，检查是否是远程文件
 
@@ -1902,11 +1903,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } else if (isFileNotFound) {
         // 本地文件，创建空白文件
         await ensureDirectoryExists(actualPath)
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(actualPath)
 
         try {
-          if (workspace.isCustom) {
+          if (!pathOptions.baseDir) {
             await writeTextFile(pathOptions.path, '')
           } else {
             await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
@@ -1925,7 +1925,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // 异步检查远程更新（使用新的 SyncManager）
     // 只有当当前读取的文件路径仍然是 actualPath 时才执行同步
     // 同时检查 activeFilePath 是否仍然匹配，防止竞态条件
-    if (autoSync && await hasNetworkConnection()) {
+    if (autoSync && !isAbsoluteFsPath(actualPath) && await hasNetworkConnection()) {
       try {
         // 在执行同步前检查路径是否仍然匹配
         const currentReadPath = get().readFilePath
@@ -2020,9 +2020,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 清除标志
         get().setJustPulledFile(false)
         // 只保存本地文件，不触发同步推送
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-        if (workspace.isCustom) {
+        if (!pathOptions.baseDir) {
           await writeTextFile(pathOptions.path, content)
         } else {
           await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
@@ -2058,12 +2057,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 执行实际保存操作
         const savePath = path
         const saveContent = debouncedContent
-        const workspace = await getWorkspacePath()
-
         // 检查文件是否存在
         let isLocale = false
         const pathOptions = await getFilePathOptions(savePath)
-        if (workspace.isCustom) {
+        if (!pathOptions.baseDir) {
           isLocale = await exists(pathOptions.path)
         } else {
           isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
@@ -2077,13 +2074,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
             dir += `${dirPath[index]}/`
             const dirOptions = await getFilePathOptions(dir)
             let dirExists = false
-            if (workspace.isCustom) {
+            if (!dirOptions.baseDir) {
               dirExists = await exists(dirOptions.path)
             } else {
               dirExists = await exists(dirOptions.path, { baseDir: dirOptions.baseDir })
             }
             if (!dirExists) {
-              if (workspace.isCustom) {
+              if (!dirOptions.baseDir) {
                 await mkdir(dirOptions.path)
               } else {
                 await mkdir(dirOptions.path, { baseDir: dirOptions.baseDir })
@@ -2093,7 +2090,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
 
         // 保存文件内容
-        if (workspace.isCustom) {
+        if (!pathOptions.baseDir) {
           await writeTextFile(pathOptions.path, saveContent)
         } else {
           await writeTextFile(pathOptions.path, saveContent, { baseDir: pathOptions.baseDir })
@@ -2120,7 +2117,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
                 const parentOptions = await getFilePathOptions(parentPath)
                 let parentExists = false
                 try {
-                  if (workspace.isCustom) {
+                  if (!parentOptions.baseDir) {
                     parentExists = await exists(parentOptions.path)
                   } else {
                     parentExists = await exists(parentOptions.path, { baseDir: parentOptions.baseDir })
@@ -2144,7 +2141,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
 
         // 触发防抖向量计算
-        if (savePath.endsWith('.md')) {
+        if (!isAbsoluteFsPath(savePath) && savePath.endsWith('.md')) {
           get().scheduleVectorCalculation(savePath, saveContent)
         }
 
@@ -2166,7 +2163,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
         // 通知文件已保存，触发同步推送（除非设置了 skipSyncOnSave）
         const shouldSkipSync = get().skipSyncOnSave
-        if (!shouldSkipSync) {
+        if (!shouldSkipSync && !isAbsoluteFsPath(savePath)) {
           emitter.emit('article-saved', { path: savePath, content: saveContent })
         }
       }, 500)

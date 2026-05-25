@@ -155,13 +155,12 @@ export function MdEditor({ tabContentsRef, filePath }: MdEditorProps) {
       setIsLoading(true)
       try {
         const { readTextFile } = await import('@tauri-apps/plugin-fs')
-        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
+        const { getFilePathOptions } = await import('@/lib/workspace')
 
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(filePath)
 
         let content = ''
-        if (workspace.isCustom) {
+        if (!pathOptions.baseDir) {
           content = await readTextFile(pathOptions.path)
         } else {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })

@@ -1,5 +1,5 @@
 import { stat } from '@tauri-apps/plugin-fs'
-import { getWorkspacePath, isAbsoluteFsPath, toWorkspaceRelativePath } from '@/lib/workspace'
+import { getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
 
 const OPENABLE_EXTENSIONS = new Set(['md', 'markdown'])
 

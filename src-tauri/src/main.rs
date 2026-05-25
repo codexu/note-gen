@@ -27,11 +27,13 @@ use ai::{ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multi
 
 fn main() {
     tauri::Builder::default()
-        // 核心插件 - 最先加载
+        // 单实例插件必须最先加载，避免 Windows 文件关联二次启动时继续初始化托盘等资源。
+        .plugin(tauri_plugin_single_instance::init(window::handle_single_instance))
+
+        // 核心插件
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(window::handle_single_instance))
 
         // MCP 服务器管理器
         .manage(file_open::PendingOpenFiles::default())

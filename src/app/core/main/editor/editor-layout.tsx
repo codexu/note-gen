@@ -266,7 +266,7 @@ export function EditorLayout() {
   useEffect(() => {
     if (!activeFilePath) return
 
-    const name = activeFilePath.split('/').pop() || activeFilePath
+    const name = activeFilePath.split(/[\\/]/).pop() || activeFilePath
     const isFolder = isFolderPath(activeFilePath)
 
     // Check if tab already exists

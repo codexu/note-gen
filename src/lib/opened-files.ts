@@ -28,5 +28,5 @@ export async function resolveOpenedMarkdownPath(path: string): Promise<string | 
     }
   }
 
-  return isAbsoluteFsPath(path) ? path : normalizedPath
+  return normalizedPath
 }

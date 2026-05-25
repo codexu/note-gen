@@ -1760,7 +1760,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
     // 处理文件名兼容性问题
     let actualPath = path
-    if (hasInvalidFileNameChars(path)) {
+    if (!isAbsoluteFsPath(path) && hasInvalidFileNameChars(path)) {
       actualPath = sanitizeFilePath(path)
       // 更新活动文件路径为清理后的路径
       await get().setActiveFilePath(actualPath)

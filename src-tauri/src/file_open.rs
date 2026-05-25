@@ -80,12 +80,16 @@ where
 }
 
 fn argument_to_path(value: String) -> Option<PathBuf> {
+    let value = value.trim().trim_matches('"');
+
     if value.starts_with('-') {
         return None;
     }
 
-    if let Ok(url) = url::Url::parse(&value) {
-        return url.to_file_path().ok();
+    if let Ok(url) = url::Url::parse(value) {
+        if url.scheme() == "file" {
+            return url.to_file_path().ok();
+        }
     }
 
     Some(PathBuf::from(value))

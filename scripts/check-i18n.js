@@ -12,17 +12,6 @@ const SRC_DIR = path.join(__dirname, '..', 'src');
 const ALLOWLIST = new Set([
   '简体中文',
   '日本語',
-  'Français',
-  '한국어',
-  'Português',
-  'বাংলা',
-  'Italiano',
-  'فارسی',
-  'Русский',
-  'Čeština',
-  'Qwen/Qwen3-8B',
-  'BAAI/bge-m3',
-  'OpenGVLab/InternVL2-8B',
 ]);
 
 // Extensions to scan
@@ -49,17 +38,39 @@ const violations = [];
 function scanFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
+  let inBlockComment = false;
   lines.forEach((line, idx) => {
+    // Track block comment state
+    if (inBlockComment) {
+      if (line.includes('*/')) {
+        inBlockComment = false;
+      }
+      return;
+    }
+    if (line.includes('/*')) {
+      inBlockComment = !line.includes('*/');
+      if (inBlockComment) return;
+    }
+
     // Skip import lines that load messages JSON (those contain locale codes, not UI)
     if (line.includes('messages/') && line.includes('import')) return;
     // Skip comment-only lines
-    if (line.trim().startsWith('//') || line.trim().startsWith('*') || line.trim().startsWith('/*')) return;
+    if (line.trim().startsWith('//')) return;
 
     const strings = extractStringLiterals(line);
     for (const str of strings) {
       if (!hasChinese(str)) continue;
       if (ALLOWLIST.has(str)) continue;
       violations.push(`${filePath}:${idx + 1}: ${str.slice(0, 60)}`);
+    }
+
+    // Also catch raw JSX text nodes (e.g. <span>保存</span>)
+    const jsxTextRegex = />\s*([^<]*[\u4e00-\u9fff][^<]*)\s*</g;
+    let jsxMatch;
+    while ((jsxMatch = jsxTextRegex.exec(line)) !== null) {
+      const text = jsxMatch[1].trim();
+      if (ALLOWLIST.has(text)) continue;
+      violations.push(`${filePath}:${idx + 1}: ${text.slice(0, 60)}`);
     }
   });
 }

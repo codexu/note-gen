@@ -2077,16 +2077,22 @@ export function TipTapEditor({
     // user edits (e.g., when switching back to a previously edited tab)
     // Bug fix: Also check that we're initializing for the correct file path
     if (!isInitializedRef.current) {
+      isInitializedRef.current = true
+      isReadyRef.current = false
+
       // Use setTimeout to avoid flushSync conflict during React render
       setTimeout(() => {
         // Check if the file path is still the same (handle race condition)
         if (activeFilePath !== currentPath) return
 
         if (initialContent) {
+          externalUpdateCounterRef.current++
           editor.commands.setContent(initialContent || '', { contentType: 'markdown' })
+          setTimeout(() => {
+            externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
+          }, 100)
         }
-        // Mark as initialized to allow subsequent content updates
-        isInitializedRef.current = true
+
         // Bug fix: Mark editor as ready AFTER content is set
         // This prevents onUpdate from firing with empty content during init
         isReadyRef.current = true
@@ -2358,7 +2364,14 @@ export function TipTapEditor({
 
   // Handle external content updates (e.g., from Agent tools)
   useEffect(() => {
-    const handleExternalUpdate = (newContent: string) => {
+    const handleExternalUpdate = (payload: string | { content: string; targetFilePath?: string }) => {
+      const newContent = typeof payload === 'string' ? payload : payload.content
+      const targetFilePath = typeof payload === 'string' ? undefined : payload.targetFilePath
+
+      if (targetFilePath && targetFilePath !== activeFilePath) {
+        return
+      }
+
       if (editor && externalUpdateCounterRef.current === 0) {
         // Bug fix: Skip if content hasn't actually changed
         const currentContent = editor.getMarkdown()
@@ -2386,7 +2399,7 @@ export function TipTapEditor({
     return () => {
       emitter.off('external-content-update', handleExternalUpdate as any)
     }
-  }, [editor])
+  }, [editor, activeFilePath])
 
   // Set editable state
   useEffect(() => {

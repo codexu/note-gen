@@ -34,6 +34,7 @@ interface HistorySheetProps {
 }
 
 export function HistorySheet({ editor }: HistorySheetProps) {
+  const t = useTranslations('article.footer.history')
   const { activeFilePath } = useArticleStore()
   const [isOpen, setIsOpen] = useState(false)
   const [history, setHistory] = useState<CommitInfo[]>([])

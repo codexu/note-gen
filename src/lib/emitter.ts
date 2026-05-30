@@ -1,6 +1,7 @@
 import mitt from 'mitt'
 import type { QuickPrompt } from '@/lib/ai/placeholder'
 import type { OnboardingStepId } from '@/app/core/main/editor/onboarding-state'
+import type { Mark } from '@/db/marks'
 
 // 定义事件类型
 interface Events {
@@ -10,7 +11,7 @@ interface Events {
   'editor-input': unknown;
   'editor:ready': unknown;
   'editor-mode-changed': string;
-  'external-content-update': string;
+  'external-content-update': string | { content: string; targetFilePath?: string };
   'editor-content-from-remote': { content: string };
   'toolbar-text-number': number;
   'toolbar-reset-selected-text': unknown;
@@ -69,6 +70,7 @@ interface Events {
   'toolbar-question': unknown;
   'toolbar-translation': unknown;
   'toolbar-organize': unknown;
+  'open-organize-notes': { marks?: Mark[] } | undefined;
   'screenshot-shortcut-register': unknown;
   'text-shortcut-register': unknown;
   'window-pin-register': unknown;

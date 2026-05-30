@@ -5,13 +5,13 @@ import { Trash2, XCircle, Sparkles } from "lucide-react"
 import { useTranslations } from "next-intl"
 import useMarkStore from "@/stores/mark"
 import { OrganizeNotes } from "./organize-notes"
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { MarkFilterPopover } from "./mark-filter-popover"
+import emitter from "@/lib/emitter"
 
 export function MarkActions() {
   const t = useTranslations('record.mark')
   const { trashState, setTrashState, initRecordFilters } = useMarkStore()
-  const organizeRef = useRef<{ openOrganize: () => void }>(null)
 
   useEffect(() => {
     initRecordFilters()
@@ -22,7 +22,7 @@ export function MarkActions() {
   }
 
   const handleOrganize = () => {
-    organizeRef.current?.openOrganize()
+    emitter.emit('open-organize-notes', undefined)
   }
 
   return (
@@ -31,7 +31,7 @@ export function MarkActions() {
         <TooltipButton 
           buttonId="onboarding-target-organize-notes"
           icon={<Sparkles className="h-4 w-4" />} 
-          tooltipText={t('toolbar.organizeNotes')} 
+          tooltipText={t('toolbar.organizeCurrentTag')} 
           onClick={handleOrganize}
           variant="ghost"
           side="bottom"
@@ -45,7 +45,7 @@ export function MarkActions() {
         variant={trashState ? "default" : "ghost"}
         side="bottom"
       />
-      <OrganizeNotes ref={organizeRef} />
+      <OrganizeNotes />
     </div>
   )
 }

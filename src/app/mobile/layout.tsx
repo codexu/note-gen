@@ -35,20 +35,34 @@ export default function RootLayout({
   const { initSettingData, customThemeColors } = useSettingStore()
   const { initMainHosting } = useImageStore()
   const { currentLocale } = useI18n()
-  useEffect(() => {
-    initSettingData()
-    initMainHosting()
-    initAllDatabases()
-    initMcp()
-    // 上报应用启动事件
-    reportAppStart()
-  }, [])
-
   const { initVectorDb } = useVectorStore()
-  
-  // 初始化向量数据库
+
   useEffect(() => {
-    initVectorDb()
+    let cancelled = false
+
+    const initializeApp = async () => {
+      try {
+        initSettingData()
+        initMainHosting()
+
+        await initAllDatabases()
+        if (cancelled) return
+
+        await initVectorDb()
+        if (cancelled) return
+
+        initMcp()
+        reportAppStart()
+      } catch (error) {
+        console.error('Failed to initialize mobile app core:', error)
+      }
+    }
+
+    void initializeApp()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {

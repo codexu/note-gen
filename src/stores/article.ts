@@ -445,6 +445,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   activeFilePath: '',
   setActiveFilePath: async (path: string) => {
+    const state = get()
+    if (state.activeFilePath === path && (state.currentArticle !== '' || state.readFilePath === path)) {
+      return
+    }
+
     // 切换文件时，先清空 currentArticle，避免内容覆盖
     set({ currentArticle: '', activeFilePath: path })
     const store = await getStore();
@@ -1972,7 +1977,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
   vectorIndexedFiles: new Map<string, number>(), // 文件名 -> 向量索引时间戳
 
   setCurrentArticle: (content: string) => {
-    set({ currentArticle: content })
+    set((state) => {
+      if (state.currentArticle === content) {
+        return state
+      }
+
+      return { currentArticle: content }
+    })
   },
 
   setIsPulling: (pulling: boolean) => {
@@ -1984,15 +1995,33 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   setSkipSyncOnSave: (skip: boolean) => {
-    set({ skipSyncOnSave: skip })
+    set((state) => {
+      if (state.skipSyncOnSave === skip) {
+        return state
+      }
+
+      return { skipSyncOnSave: skip }
+    })
   },
 
   setAiGeneratingFilePath: (path: string | null) => {
-    set({ aiGeneratingFilePath: path })
+    set((state) => {
+      if (state.aiGeneratingFilePath === path) {
+        return state
+      }
+
+      return { aiGeneratingFilePath: path }
+    })
   },
 
   setAiTerminateFn: (fn: (() => void) | null) => {
-    set({ aiTerminateFn: fn })
+    set((state) => {
+      if (state.aiTerminateFn === fn) {
+        return state
+      }
+
+      return { aiTerminateFn: fn }
+    })
   },
 
   // 更新文件 sha 状态（推送成功后调用）

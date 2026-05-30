@@ -39,6 +39,23 @@ const DEFAULT_RECORD_FILTERS: RecordFilters = {
   tagId: 'all',
 }
 
+function areArraysEqual<T>(left: T[], right: T[]) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((value, index) => value === right[index])
+}
+
+function areRecordFiltersEqual(left: RecordFilters, right: RecordFilters) {
+  return (
+    left.search === right.search &&
+    left.timePreset === right.timePreset &&
+    left.tagId === right.tagId &&
+    areArraysEqual(left.selectedTypes, right.selectedTypes)
+  )
+}
+
 async function persistRecordFilters(recordFilters: RecordFilters) {
   const store = await Store.load('store.json')
   await store.set('recordFilters', recordFilters)
@@ -240,15 +257,33 @@ const useMarkStore = create<MarkState>((set, get) => ({
   },
   visibleMarkIds: [],
   setVisibleMarkIds: (ids) => {
-    set({ visibleMarkIds: ids })
+    set((state) => {
+      if (areArraysEqual(state.visibleMarkIds, ids)) {
+        return state
+      }
+
+      return { visibleMarkIds: ids }
+    })
   },
   pendingScrollMarkId: null,
   setPendingScrollMarkId: (id) => {
-    set({ pendingScrollMarkId: id })
+    set((state) => {
+      if (state.pendingScrollMarkId === id) {
+        return state
+      }
+
+      return { pendingScrollMarkId: id }
+    })
   },
   highlightedMarkId: null,
   setHighlightedMarkId: (id) => {
-    set({ highlightedMarkId: id })
+    set((state) => {
+      if (state.highlightedMarkId === id) {
+        return state
+      }
+
+      return { highlightedMarkId: id }
+    })
   },
 
   recordFilters: DEFAULT_RECORD_FILTERS,
@@ -317,14 +352,25 @@ const useMarkStore = create<MarkState>((set, get) => ({
   initRecordFilters: async () => {
     const store = await Store.load('store.json')
     const savedFilters = await store.get<RecordFilters>('recordFilters')
-    set({
-      recordFilters: normalizeRecordFilters(savedFilters),
+    const normalizedFilters = normalizeRecordFilters(savedFilters)
+    set((state) => {
+      if (areRecordFiltersEqual(state.recordFilters, normalizedFilters)) {
+        return state
+      }
+
+      return {
+        recordFilters: normalizedFilters,
+      }
     })
   },
 
   recordViewMode: 'list',
   setRecordViewMode: (mode) => {
     const recordViewMode = normalizeRecordViewMode(mode) as RecordViewMode
+    if (get().recordViewMode === recordViewMode) {
+      return
+    }
+
     void persistRecordViewMode(recordViewMode)
     set({ recordViewMode })
   },
@@ -335,7 +381,13 @@ const useMarkStore = create<MarkState>((set, get) => ({
     if (savedRecordViewMode !== recordViewMode) {
       await store.set('recordViewMode', recordViewMode)
     }
-    set({ recordViewMode })
+    set((state) => {
+      if (state.recordViewMode === recordViewMode) {
+        return state
+      }
+
+      return { recordViewMode }
+    })
   },
 
   // 同步

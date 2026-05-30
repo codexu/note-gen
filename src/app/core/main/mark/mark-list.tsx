@@ -35,9 +35,19 @@ export const MarkList = React.memo(function MarkList() {
   const filterSummary = React.useMemo(() => buildRecordFilterSummary(effectiveFilters), [effectiveFilters])
 
   React.useEffect(() => {
-    setVisibleMarkIds(filteredMarks.map((mark: Mark) => mark.id))
-    return () => setVisibleMarkIds([])
+    const nextVisibleMarkIds = filteredMarks.map((mark: Mark) => mark.id)
+    const currentVisibleMarkIds = useMarkStore.getState().visibleMarkIds
+    const hasSameLength = currentVisibleMarkIds.length === nextVisibleMarkIds.length
+    const hasSameValues = hasSameLength && currentVisibleMarkIds.every((id, index) => id === nextVisibleMarkIds[index])
+
+    if (!hasSameValues) {
+      setVisibleMarkIds(nextVisibleMarkIds)
+    }
   }, [filteredMarks, setVisibleMarkIds])
+
+  React.useEffect(() => {
+    return () => setVisibleMarkIds([])
+  }, [setVisibleMarkIds])
 
   const view = (() => {
     switch (recordViewMode) {

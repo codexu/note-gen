@@ -33,12 +33,14 @@ import { cn } from '@/lib/utils'
 import emitter from '@/lib/emitter'
 import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
 import { useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 
 // 初始化 dayjs 插件
 dayjs.extend(relativeTime)
 
 export function SyncConfirmDialog() {
   const { currentLocale } = useI18n()
+  const t = useTranslations('article.syncConfirm')
   const isMobile = useIsMobile() || checkIsMobileDevice()
   const {
     isOpen,
@@ -146,7 +148,7 @@ export function SyncConfirmDialog() {
                   {commitInfo && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">最新提交信息</h4>
+                        <h4 className="text-sm font-medium">{t('commitInfo')}</h4>
                         <Badge variant="outline" className="text-xs">
                           {commitInfo.sha.slice(0, 7)}
                         </Badge>
@@ -154,7 +156,7 @@ export function SyncConfirmDialog() {
 
                       <div className="bg-muted/30 p-4 rounded-lg space-y-3">
                         <div>
-                          <p className="text-sm font-medium mb-1">提交消息</p>
+                          <p className="text-sm font-medium mb-1">{t('commitMessage')}</p>
                           <p className="text-sm">{commitInfo.message}</p>
                         </div>
 
@@ -221,16 +223,16 @@ export function SyncConfirmDialog() {
                 <div className="space-y-4 px-4 overflow-y-auto">
                   {commitInfo && (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">远程版本信息</h4>
-                        <Badge variant="outline" className="text-xs">
-                          {commitInfo.sha.slice(0, 7)}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium">{t('commitInfo')}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {commitInfo.sha.slice(0, 7)}
+                          </Badge>
                       </div>
 
                       <div className="bg-muted/30 p-4 rounded-lg space-y-2">
                         <div>
-                          <p className="text-sm font-medium mb-1">提交消息</p>
+                          <p className="text-sm font-medium mb-1">{t('commitMessage')}</p>
                           <p className="text-sm">{commitInfo.message}</p>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -346,7 +348,7 @@ export function SyncConfirmDialog() {
                   {commitInfo && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">最新提交信息</h4>
+                        <h4 className="text-sm font-medium">{t('commitInfo')}</h4>
                         <Badge variant="outline" className="text-xs">
                           {commitInfo.sha.slice(0, 7)}
                         </Badge>
@@ -354,7 +356,7 @@ export function SyncConfirmDialog() {
 
                       <div className="bg-muted/30 p-4 rounded-lg space-y-3">
                         <div>
-                          <p className="text-sm font-medium mb-1">提交消息</p>
+                          <p className="text-sm font-medium mb-1">{t('commitMessage')}</p>
                           <p className="text-sm">{commitInfo.message}</p>
                         </div>
 
@@ -421,16 +423,16 @@ export function SyncConfirmDialog() {
                 <div className="space-y-4 py-4">
                   {commitInfo && (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">远程版本信息</h4>
-                        <Badge variant="outline" className="text-xs">
-                          {commitInfo.sha.slice(0, 7)}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-medium">{t('commitInfo')}</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {commitInfo.sha.slice(0, 7)}
+                          </Badge>
                       </div>
 
                       <div className="bg-muted/30 p-4 rounded-lg space-y-2">
                         <div>
-                          <p className="text-sm font-medium mb-1">提交消息</p>
+                          <p className="text-sm font-medium mb-1">{t('commitMessage')}</p>
                           <p className="text-sm">{commitInfo.message}</p>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">

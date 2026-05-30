@@ -137,6 +137,10 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   },
   leftSidebarTab: 'files',
   setLeftSidebarTab: async (tab: 'files' | 'notes') => {
+    if (get().leftSidebarTab === tab) {
+      return
+    }
+
     set({ leftSidebarTab: tab })
     localStorage.setItem('leftSidebarTab', tab)
     const store = await Store.load('store.json')
@@ -149,20 +153,21 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     const centerState = await store.get<boolean>('centerPanelVisible')
     const rightState = await store.get<boolean>('rightSidebarVisible')
     const leftTab = await store.get<'files' | 'notes'>('leftSidebarTab')
+    const currentState = get()
     
-    if (leftState !== null && leftState !== undefined) {
+    if (leftState !== null && leftState !== undefined && currentState.leftSidebarVisible !== leftState) {
       set({ leftSidebarVisible: leftState })
       localStorage.setItem('leftSidebarVisible', String(leftState))
     }
-    if (centerState !== null && centerState !== undefined) {
+    if (centerState !== null && centerState !== undefined && currentState.centerPanelVisible !== centerState) {
       set({ centerPanelVisible: centerState })
       localStorage.setItem('centerPanelVisible', String(centerState))
     }
-    if (rightState !== null && rightState !== undefined) {
+    if (rightState !== null && rightState !== undefined && currentState.rightSidebarVisible !== rightState) {
       set({ rightSidebarVisible: rightState })
       localStorage.setItem('rightSidebarVisible', String(rightState))
     }
-    if (leftTab) {
+    if (leftTab && currentState.leftSidebarTab !== leftTab) {
       set({ leftSidebarTab: leftTab })
       localStorage.setItem('leftSidebarTab', leftTab)
     }

@@ -66,4 +66,39 @@ test('all provider entries in baseAiConfig have required fields', () => {
   assert.ok(minimaxBlock.includes('baseURL:'), 'MiniMax should have baseURL field')
   assert.ok(minimaxBlock.includes('icon:'), 'MiniMax should have icon field')
   assert.ok(minimaxBlock.includes('apiKeyUrl:'), 'MiniMax should have apiKeyUrl field')
+  assert.ok(minimaxBlock.includes('models:'), 'MiniMax should have models field')
+})
+
+test('MiniMax has MiniMax-M3 set as default (first in models list)', () => {
+  const minimaxIdx = configSource.indexOf("key: 'minimax'")
+  const blockStart = configSource.lastIndexOf('{', minimaxIdx)
+  // Match the MiniMax block by finding the matching closing brace
+  let depth = 0
+  let blockEnd = -1
+  for (let i = blockStart; i < configSource.length; i++) {
+    if (configSource[i] === '{') depth++
+    else if (configSource[i] === '}') {
+      depth--
+      if (depth === 0) { blockEnd = i; break }
+    }
+  }
+  const minimaxBlock = configSource.substring(blockStart, blockEnd + 1)
+
+  // Verify models list contains M3, M2.7, M2.7-highspeed
+  assert.ok(minimaxBlock.includes("'MiniMax-M3'"), 'M3 should be in models list')
+  assert.ok(minimaxBlock.includes("'MiniMax-M2.7'"), 'M2.7 should be in models list')
+  assert.ok(minimaxBlock.includes("'MiniMax-M2.7-highspeed'"), 'M2.7-highspeed should be in models list')
+
+  // Verify M3 is the first model (default)
+  const m3Idx = minimaxBlock.indexOf("'MiniMax-M3'")
+  const m27Idx = minimaxBlock.indexOf("'MiniMax-M2.7'")
+  assert.ok(m3Idx > -1, 'M3 should exist in MiniMax block')
+  assert.ok(m27Idx > -1, 'M2.7 should exist in MiniMax block')
+  assert.ok(m3Idx < m27Idx, 'M3 should appear before M2.7 (M3 is default)')
+
+  // Verify M2.5 is NOT present
+  assert.ok(!minimaxBlock.includes("'MiniMax-M2.5'"), 'M2.5 should be removed')
+  assert.ok(!minimaxBlock.includes("'MiniMax-M2.1'"), 'M2.1 should be removed')
+  assert.ok(!minimaxBlock.includes("'MiniMax-M2'"), 'M2 should be removed')
+  assert.ok(!minimaxBlock.includes("'MiniMax-M1'"), 'M1 should be removed')
 })

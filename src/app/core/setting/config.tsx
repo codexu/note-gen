@@ -232,7 +232,12 @@ const baseAiConfig: AiConfig[] = [
     title: 'MiniMax',
     baseURL: 'https://api.minimax.io/v1',
     icon: 'https://filecdn.minimax.chat/public/c5b4442f-ab8b-4d97-9119-8504670b0097.png',
-    apiKeyUrl: 'https://platform.minimaxi.com/'
+    apiKeyUrl: 'https://platform.minimaxi.com/',
+    models: [
+      { id: 'minimax-MiniMax-M3', model: 'MiniMax-M3', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
+      { id: 'minimax-MiniMax-M2.7', model: 'MiniMax-M2.7', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
+      { id: 'minimax-MiniMax-M2.7-highspeed', model: 'MiniMax-M2.7-highspeed', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
+    ],
   },
 ]
 

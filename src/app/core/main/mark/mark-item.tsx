@@ -74,7 +74,7 @@ const getWordCount = (text: string): number => {
   return text.replace(/\s/g, '').length;
 };
 
-const DetailViewer = React.memo(({mark, content, path, className}: {mark: Mark, content: string, path?: string, className?: string}) => {
+const DetailViewer = React.memo(({mark, content, path, className, interactive = true}: {mark: Mark, content: string, path?: string, className?: string, interactive?: boolean}) => {
   const [value, setValue] = useState('')
   const [descValue, setDescValue] = useState('')
   const { updateMark } = useMarkStore()
@@ -100,6 +100,11 @@ const DetailViewer = React.memo(({mark, content, path, className}: {mark: Mark, 
     setValue(mark.content || '')
     setDescValue(mark.desc?.trim() || '')
   }, [mark])
+
+  if (!interactive) {
+    return <span className={className || `line-clamp-2 ${lineHeight} mt-2 text-${recordTextSize} break-words`}>{content}</span>
+  }
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -147,7 +152,7 @@ DetailViewer.displayName = 'DetailViewer'
 
 export type MarkItemVariant = 'list' | 'compact' | 'cards'
 
-export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, variant?: MarkItemVariant}) => {
+export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = true}: {mark: Mark, variant?: MarkItemVariant, interactive?: boolean}) => {
   const t = useTranslations('record.mark.type');
   const todoT = useTranslations('record.mark.todo');
   const recordingT = useTranslations('recording');
@@ -233,7 +238,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
   if (variant === 'compact') {
     return (
       <div className="flex min-w-0 items-center gap-2">
-        {isMultiSelectMode && (
+        {interactive && isMultiSelectMode && (
           <div className="pr-1">
             <Checkbox
               checked={selectedMarkIds.has(mark.id)}
@@ -248,16 +253,21 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
           <span className={`size-2 shrink-0 rounded-full ${todoPriorityDotClass}`} />
         ) : null}
         <div className="min-w-0 flex-1">
-          {mark.type === 'todo' ? (
+          {mark.type === 'todo' ? interactive ? (
             <TodoEditTrigger mark={mark} className={`block truncate text-${recordTextSize} font-medium hover:underline`}>
               {itemContent.title || itemContent.preview || t(mark.type)}
             </TodoEditTrigger>
+          ) : (
+            <span className={`block truncate text-${recordTextSize} font-medium`}>
+              {itemContent.title || itemContent.preview || t(mark.type)}
+            </span>
           ) : (
             <DetailViewer
               mark={mark}
               content={itemContent.title || itemContent.preview || t(mark.type)}
               path={mark.type === 'scan' ? 'screenshot' : mark.type === 'image' ? 'image' : undefined}
-              className={`block truncate text-${recordTextSize} font-medium hover:underline`}
+              className={`block truncate text-${recordTextSize} font-medium ${interactive ? 'hover:underline' : ''}`}
+              interactive={interactive}
             />
           )}
         </div>
@@ -289,20 +299,26 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               url={mark.url}
               path={mark.type === 'scan' ? 'screenshot' : 'image'}
               imageClassName="h-auto max-h-56 w-full object-cover"
+              interactive={interactive}
             />
           </div>
         ) : null}
         <div className="space-y-1.5">
-          {mark.type === 'todo' ? (
+          {mark.type === 'todo' ? interactive ? (
             <TodoEditTrigger mark={mark} className={`block truncate text-${recordTextSize} font-semibold hover:underline`}>
               {itemContent.title || itemContent.preview || t(mark.type)}
             </TodoEditTrigger>
+          ) : (
+            <span className={`block truncate text-${recordTextSize} font-semibold`}>
+              {itemContent.title || itemContent.preview || t(mark.type)}
+            </span>
           ) : (
             <DetailViewer
               mark={mark}
               content={itemContent.title || itemContent.preview || t(mark.type)}
               path={mark.type === 'scan' ? 'screenshot' : mark.type === 'image' ? 'image' : undefined}
-              className={`block truncate text-${recordTextSize} font-semibold hover:underline`}
+              className={`block truncate text-${recordTextSize} font-semibold ${interactive ? 'hover:underline' : ''}`}
+              interactive={interactive}
             />
           )}
           {!isImageCard && itemContent.preview ? (
@@ -310,7 +326,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               {itemContent.preview}
             </p>
           ) : null}
-          {!isImageCard && mark.type === 'link' && mark.url ? (
+          {!isImageCard && mark.type === 'link' && mark.url ? interactive ? (
             <a
               href={mark.url}
               target="_blank"
@@ -319,6 +335,10 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
             >
               {mark.url}
             </a>
+          ) : (
+            <span className={`block truncate text-xs text-blue-600`}>
+              {mark.url}
+            </span>
           ) : null}
           {!isImageCard && mark.type === 'todo' && itemContent.todo ? (
             <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -349,7 +369,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
             </span>
             <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
-          <DetailViewer mark={mark} content={mark.desc || ''} path="screenshot" />
+          <DetailViewer mark={mark} content={mark.desc || ''} path="screenshot" interactive={interactive} />
         </div>
     )
     case 'image':
@@ -362,7 +382,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
             {mark.url.includes('http') ? <ImageUp className="size-3 text-zinc-400" /> : null}
             <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
-          <DetailViewer mark={mark} content={mark.desc || ''} path="image" />
+          <DetailViewer mark={mark} content={mark.desc || ''} path="image" interactive={interactive} />
         </div>
     )
     case 'link':
@@ -374,16 +394,22 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
             </span>
             <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
-          <DetailViewer mark={mark} content={mark.desc || ''} />
+          <DetailViewer mark={mark} content={mark.desc || ''} interactive={interactive} />
           <div className="mt-1">
-            <a 
-              href={mark.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className={`text-${recordTextSize} text-blue-500 hover:underline truncate block`}
-            >
-              {mark.url}
-            </a>
+            {interactive ? (
+              <a
+                href={mark.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`text-${recordTextSize} text-blue-500 hover:underline truncate block`}
+              >
+                {mark.url}
+              </a>
+            ) : (
+              <span className={`text-${recordTextSize} text-blue-500 truncate block`}>
+                {mark.url}
+              </span>
+            )}
           </div>
         </div>
     )
@@ -396,7 +422,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               </span>
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
-            <DetailViewer mark={mark} content={mark.content || ''} />
+            <DetailViewer mark={mark} content={mark.content || ''} interactive={interactive} />
           </div>
       )
     case 'recording':
@@ -406,7 +432,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               <span className={getMarkTypeListBadgeClasses(mark.type, 'xs')}>
                 {t(mark.type)}
               </span>
-              {shouldShowRecordingAction && (
+              {interactive && shouldShowRecordingAction && (
                 <button
                   type="button"
                   className="shrink-0 text-zinc-500 transition-colors hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -425,7 +451,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               )}
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
-            <DetailViewer mark={mark} content={mark.content || ''} />
+            <DetailViewer mark={mark} content={mark.content || ''} interactive={interactive} />
             {mark.url && (
               <div className="mt-2">
                 <AudioPlayer audioPath={mark.url} />
@@ -442,7 +468,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
               </span>
               <span className={`ml-auto text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
-            <DetailViewer mark={mark} content={mark.content || ''} />
+            <DetailViewer mark={mark} content={mark.content || ''} interactive={interactive} />
             {mark.url && (
               <div className="mt-1">
                 <span className={`text-${recordTextSize}`}>
@@ -453,7 +479,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
           </div>
       )
     case 'todo':
-      return <TodoItemContent mark={mark} />
+      return <TodoItemContent mark={mark} interactive={interactive} />
     default:
       return null
     }
@@ -461,7 +487,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
 
   return (
     <div className="flex p-2 items-start">
-      {isMultiSelectMode && (
+      {interactive && isMultiSelectMode && (
         <div className="pr-2 flex items-start pt-1">
           <Checkbox
             checked={selectedMarkIds.has(mark.id)}
@@ -474,7 +500,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
       </div>
       {(mark.type === 'scan' || mark.type === 'image') && (
         <div className="bg-zinc-900 flex items-center justify-center ml-2">
-          <ImageViewer url={mark.url} path={mark.type === 'scan' ? 'screenshot' : 'image'} />
+          <ImageViewer url={mark.url} path={mark.type === 'scan' ? 'screenshot' : 'image'} interactive={interactive} />
         </div>
       )}
     </div>
@@ -482,7 +508,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list'}: {mark: Mark, va
 })
 MarkWrapper.displayName = 'MarkWrapper'
 
-export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, variant?: MarkItemVariant}) => {
+export const MarkItem = React.memo(({mark, variant = 'list', interactive = true}: {mark: Mark, variant?: MarkItemVariant, interactive?: boolean}) => {
   const t = useTranslations();
   const isMobile = useIsMobile()
   const {
@@ -498,7 +524,7 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
 
   const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    if (isMultiSelectMode) {
+    if (!interactive || isMultiSelectMode) {
       e.preventDefault()
       return
     }
@@ -512,7 +538,7 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = '0.5'
     }
-  }, [isMultiSelectMode, mark]);
+  }, [interactive, isMultiSelectMode, mark]);
 
   const handleDragEnd = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     if (e.currentTarget instanceof HTMLElement) {
@@ -654,34 +680,36 @@ export const MarkItem = React.memo(({mark, variant = 'list'}: {mark: Mark, varia
           : variant === 'compact'
             ? 'rounded-md border border-border/60 bg-background px-3 py-2'
             : 'rounded-lg border border-border/60 bg-background'
-      } ${highlightedMarkId === mark.id ? 'record-search-highlight border-amber-400/80 bg-amber-50/80 dark:border-amber-400/70 dark:bg-amber-500/10' : ''} ${isMobile ? 'cursor-default active:bg-accent/40' : 'cursor-move hover:bg-accent/50'}`}
-      draggable={!isMultiSelectMode && !isMobile}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      } ${highlightedMarkId === mark.id ? 'record-search-highlight border-amber-400/80 bg-amber-50/80 dark:border-amber-400/70 dark:bg-amber-500/10' : ''} ${interactive ? (isMobile ? 'cursor-default active:bg-accent/40' : 'cursor-move hover:bg-accent/50') : 'cursor-default'}`}
+      draggable={interactive && !isMultiSelectMode && !isMobile}
+      onDragStart={interactive ? handleDragStart : undefined}
+      onDragEnd={interactive ? handleDragEnd : undefined}
     >
-      <MarkWrapper mark={mark} variant={variant} />
-      <div className="absolute top-2 right-2">
-        <MarkMobileActions
-          mark={mark}
-          tags={tags}
-          currentTagId={currentTagId}
-          trashState={trashState}
-          isMultiSelectMode={isMultiSelectMode}
-          selectedMarkIds={selectedMarkIds}
-          onTransfer={handleTransfer}
-          onCopyLink={handleCopyLink}
-          onRegenerateDesc={regenerateDesc}
-          onShowInFolder={handelShowInFolder}
-          onShowInFile={handelShowInFile}
-          onRestore={handleRestore}
-          onDelete={handleDelMark}
-          onDeleteForever={handleDelForever}
-        />
-      </div>
+      <MarkWrapper mark={mark} variant={variant} interactive={interactive} />
+      {interactive ? (
+        <div className="absolute top-2 right-2">
+          <MarkMobileActions
+            mark={mark}
+            tags={tags}
+            currentTagId={currentTagId}
+            trashState={trashState}
+            isMultiSelectMode={isMultiSelectMode}
+            selectedMarkIds={selectedMarkIds}
+            onTransfer={handleTransfer}
+            onCopyLink={handleCopyLink}
+            onRegenerateDesc={regenerateDesc}
+            onShowInFolder={handelShowInFolder}
+            onShowInFile={handelShowInFile}
+            onRestore={handleRestore}
+            onDelete={handleDelMark}
+            onDeleteForever={handleDelForever}
+          />
+        </div>
+      ) : null}
     </div>
   )
 
-  if (isMobile) {
+  if (isMobile || !interactive) {
     return markCard
   }
 

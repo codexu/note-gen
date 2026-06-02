@@ -22,7 +22,7 @@ interface TodoData {
   priority: Priority
 }
 
-export function TodoItemContent({ mark }: { mark: Mark }) {
+export function TodoItemContent({ mark, interactive = true }: { mark: Mark, interactive?: boolean }) {
   const t = useTranslations()
   const { fetchMarks } = useMarkStore()
   const { recordTextSize } = useSettingStore()
@@ -57,6 +57,8 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
 
   // 切换完成状态
   const handleToggleComplete = async () => {
+    if (!interactive) return
+
     const newData = { ...todoData, completed: !todoData.completed }
     setTodoData(newData)
 
@@ -90,7 +92,8 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
             {/* 完成状态复选框 */}
             <button
               onClick={handleToggleComplete}
-              className="flex-shrink-0 hover:scale-110 transition-transform"
+              disabled={!interactive}
+              className={cn("flex-shrink-0 transition-transform", interactive && "hover:scale-110")}
             >
               {todoData.completed ? (
                 <CheckSquare className="w-5 h-5 text-green-600" />
@@ -99,27 +102,51 @@ export function TodoItemContent({ mark }: { mark: Mark }) {
               )}
             </button>
 
-            <TodoEditTrigger mark={mark} className="min-w-0 flex-1">
-              <p className={cn(
-                `font-medium text-${recordTextSize}`,
-                todoData.completed && "line-through text-zinc-500"
-              )}>
-                {todoData.title}
-              </p>
-              {todoData.description && (
-                <div className={cn(
-                  "mt-1",
-                  todoData.completed && "opacity-50"
+            {interactive ? (
+              <TodoEditTrigger mark={mark} className="min-w-0 flex-1">
+                <p className={cn(
+                  `font-medium text-${recordTextSize}`,
+                  todoData.completed && "line-through text-zinc-500"
                 )}>
-                  <p className={cn(
-                    `text-${recordTextSize} text-muted-foreground line-clamp-2 ${lineHeight}`,
-                    todoData.completed && "line-through"
+                  {todoData.title}
+                </p>
+                {todoData.description && (
+                  <div className={cn(
+                    "mt-1",
+                    todoData.completed && "opacity-50"
                   )}>
-                    {todoData.description}
-                  </p>
-                </div>
-              )}
-            </TodoEditTrigger>
+                    <p className={cn(
+                      `text-${recordTextSize} text-muted-foreground line-clamp-2 ${lineHeight}`,
+                      todoData.completed && "line-through"
+                    )}>
+                      {todoData.description}
+                    </p>
+                  </div>
+                )}
+              </TodoEditTrigger>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <p className={cn(
+                  `font-medium text-${recordTextSize}`,
+                  todoData.completed && "line-through text-zinc-500"
+                )}>
+                  {todoData.title}
+                </p>
+                {todoData.description && (
+                  <div className={cn(
+                    "mt-1",
+                    todoData.completed && "opacity-50"
+                  )}>
+                    <p className={cn(
+                      `text-${recordTextSize} text-muted-foreground line-clamp-2 ${lineHeight}`,
+                      todoData.completed && "line-through"
+                    )}>
+                      {todoData.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

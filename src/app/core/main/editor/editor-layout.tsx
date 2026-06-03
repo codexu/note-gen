@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import useArticleStore, { findFolderInTree } from '@/stores/article'
+import useMarkStore from '@/stores/mark'
 import emitter from '@/lib/emitter'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
@@ -22,6 +23,8 @@ import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
 import { UnsupportedFile } from './unsupported-file'
+import { MarkDetailPanel } from '../mark/mark-detail-panel'
+import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
 import {
   createDefaultOnboardingProgress,
   getCompletionFeedbackMode,
@@ -65,6 +68,8 @@ export function EditorLayout() {
   } = useArticleStore()
   const { setLeftSidebarTab, rightSidebarVisible, toggleRightSidebar } = useSidebarStore()
   const { setOnboardingPromptDraft } = useChatStore()
+  const setActiveMarkId = useMarkStore((state) => state.setActiveMarkId)
+  const clearActiveMark = useMarkStore((state) => state.clearActiveMark)
   const tOnboarding = useTranslations('article.emptyState.onboarding')
 
   const tabContentsRef = useRef<Record<string, string>>({})
@@ -258,6 +263,14 @@ export function EditorLayout() {
     return checkInTree(fileTree)
   }, [fileTree])
 
+  const isRecordEditorTab = useCallback((tab: TabInfo): boolean => {
+    return tab.kind === 'record' || isRecordTabPath(tab.path)
+  }, [])
+
+  const getRecordIdForTab = useCallback((tab: TabInfo): number | null => {
+    return tab.markId ?? getRecordIdFromTabPath(tab.path)
+  }, [])
+
   // Clean up tabs that no longer exist
   useEffect(() => {
     const cleanupTabs = async () => {
@@ -267,6 +280,11 @@ export function EditorLayout() {
       let hasInvalid = false
 
       for (const tab of tabs) {
+        if (isRecordEditorTab(tab)) {
+          validTabs.push(tab)
+          continue
+        }
+
         if (tab.isFolder) {
           // Check if folder exists in fileTree
           if (isFolderInTree(tab.path)) {
@@ -292,41 +310,64 @@ export function EditorLayout() {
     }
 
     cleanupTabs()
-  }, [fileTree, tabs.length, isFolderInTree, isFileInTree, checkPathExists, setOpenTabs])
+  }, [fileTree, tabs.length, isFolderInTree, isFileInTree, checkPathExists, isRecordEditorTab, setOpenTabs])
 
   // Initialize and update tabs when active path changes
   useEffect(() => {
     if (!activeFilePath) return
+    if (isRecordTabPath(activeFilePath)) return
 
     const name = activeFilePath.split(/[\\/]/).pop() || activeFilePath
     const isFolder = isFolderPath(activeFilePath)
+    clearActiveMark()
 
     // Check if tab already exists
     const existingTab = tabsRef.current.find(tab => tab.path === activeFilePath)
 
     if (existingTab) {
       // Set as active
-      if (activeTabId !== existingTab.id) {
-        setActiveTabId(existingTab.id)
-      }
+      setActiveTabId(existingTab.id)
     } else {
       // Add new tab
       const newTab: TabInfo = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         path: activeFilePath,
         name: name,
-        isFolder: isFolder
+        isFolder: isFolder,
+        kind: 'file',
       }
       addTab(newTab)
     }
-  }, [activeFilePath, activeTabId, isFolderPath, addTab, setActiveTabId])
+  }, [activeFilePath, isFolderPath, addTab, setActiveTabId, clearActiveMark])
+
+  const activateTab = useCallback((tab?: TabInfo | null) => {
+    if (!tab) {
+      clearActiveMark()
+      setActiveTabId('')
+      setActiveFilePath('')
+      return
+    }
+
+    setActiveTabId(tab.id)
+
+    if (isRecordEditorTab(tab)) {
+      const markId = getRecordIdForTab(tab)
+      setActiveMarkId(markId)
+      setActiveFilePath('')
+      return
+    }
+
+    clearActiveMark()
+    setActiveFilePath(tab.path)
+  }, [clearActiveMark, getRecordIdForTab, isRecordEditorTab, setActiveFilePath, setActiveMarkId, setActiveTabId])
 
   // Handle tab switch
   const handleTabSwitch = useCallback((path: string) => {
-    if (path) {
-      setActiveFilePath(path)
+    const tab = tabsRef.current.find(item => item.path === path)
+    if (tab) {
+      activateTab(tab)
     }
-  }, [setActiveFilePath])
+  }, [activateTab])
 
   // Handle new tab button - return to empty state without creating a file
   const handleNewTab = useCallback(async () => {
@@ -334,7 +375,8 @@ export function EditorLayout() {
       setActiveFilePath(''),
       setActiveTabId(''),
     ])
-  }, [setActiveFilePath, setActiveTabId])
+    clearActiveMark()
+  }, [clearActiveMark, setActiveFilePath, setActiveTabId])
 
   // Handle close tab
   const handleCloseTab = useCallback((closedPath: string) => {
@@ -348,6 +390,7 @@ export function EditorLayout() {
 
     // Save the current tabs count before removing
     const tabsCountBeforeRemove = tabsRef.current.length
+    const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
 
     // Remove the tab
     removeTab(closedTab.id)
@@ -359,17 +402,14 @@ export function EditorLayout() {
         const remainingTabs = tabsRef.current.filter(t => t.id !== closedTab.id)
         if (remainingTabs.length > 0) {
           // Try to select the tab to the left, otherwise select the last one
-          const currentIndex = tabsRef.current.findIndex(t => t.id === closedTab.id)
           const targetTab = remainingTabs[Math.max(0, currentIndex - 1)] || remainingTabs[remainingTabs.length - 1]
-          setActiveTabId(targetTab.id)
-          setActiveFilePath(targetTab.path)
+          activateTab(targetTab)
         }
       } else {
-        setActiveTabId('')
-        setActiveFilePath('')
+        activateTab(null)
       }
     }
-  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+  }, [activateTab, localActiveTabId, removeTab])
 
   // Handle close other tabs
   const handleCloseOtherTabs = useCallback((keepPath: string) => {
@@ -383,10 +423,9 @@ export function EditorLayout() {
     // Update active tab if needed
     const keptTab = tabsRef.current.find(t => t.path === keepPath)
     if (keptTab && localActiveTabId !== keptTab.id) {
-      setActiveTabId(keptTab.id)
-      setActiveFilePath(keptTab.path)
+      activateTab(keptTab)
     }
-  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+  }, [activateTab, localActiveTabId, removeTab])
 
   // Handle close all tabs
   const handleCloseAllTabs = useCallback(() => {
@@ -394,9 +433,8 @@ export function EditorLayout() {
       delete tabContentsRef.current[tab.path]
       removeTab(tab.id)
     })
-    setActiveTabId('')
-    setActiveFilePath('')
-  }, [removeTab, setActiveTabId, setActiveFilePath])
+    activateTab(null)
+  }, [activateTab, removeTab])
 
   // Handle close left tabs
   const handleCloseLeftTabs = useCallback((rightPath: string) => {
@@ -412,22 +450,26 @@ export function EditorLayout() {
     if (rightIndex > 0) {
       const rightTab = tabsRef.current[rightIndex]
       if (rightTab && localActiveTabId !== rightTab.id) {
-        setActiveTabId(rightTab.id)
-        setActiveFilePath(rightTab.path)
+        activateTab(rightTab)
       }
     }
-  }, [localActiveTabId, removeTab, setActiveTabId, setActiveFilePath])
+  }, [activateTab, localActiveTabId, removeTab])
 
   // Handle close right tabs
   const handleCloseRightTabs = useCallback((leftPath: string) => {
     const leftIndex = tabsRef.current.findIndex(t => t.path === leftPath)
+    const leftTab = tabsRef.current[leftIndex]
     const tabsToRemove = tabsRef.current.slice(leftIndex + 1)
+    const shouldActivateLeftTab = tabsToRemove.some(tab => tab.id === localActiveTabId)
 
     tabsToRemove.forEach(tab => {
       delete tabContentsRef.current[tab.path]
       removeTab(tab.id)
     })
-  }, [removeTab])
+    if (shouldActivateLeftTab) {
+      activateTab(leftTab)
+    }
+  }, [activateTab, localActiveTabId, removeTab])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -472,7 +514,7 @@ export function EditorLayout() {
       const candidateResumeFilePath = findRecentOnboardingFile({
         preferredPath: onboardingResumeFilePath,
         activeFilePath,
-        openTabPaths: openTabs.map((tab) => tab.path),
+        openTabPaths: openTabs.filter((tab) => !isRecordEditorTab(tab)).map((tab) => tab.path),
         fileTree,
       })
       const resolvedResumeFilePath = candidateResumeFilePath && await checkPathExists(candidateResumeFilePath)
@@ -488,7 +530,7 @@ export function EditorLayout() {
       await new Promise((resolve) => window.setTimeout(resolve, 120))
       setOnboardingPromptDraft(onboardingAgentPrompt)
     }
-  }, [activeFilePath, fileTree, onboardingAgentPrompt, onboardingProgress, onboardingResumeFilePath, openTabs, persistOnboardingProgress, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
+  }, [activeFilePath, fileTree, isRecordEditorTab, onboardingAgentPrompt, onboardingProgress, onboardingResumeFilePath, openTabs, persistOnboardingProgress, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
 
   const handleDismissOnboarding = useCallback(async () => {
     const nextProgress = {
@@ -519,7 +561,8 @@ export function EditorLayout() {
       setActiveFilePath(''),
       setActiveTabId(''),
     ])
-  }, [setActiveFilePath, setActiveTabId])
+    clearActiveMark()
+  }, [clearActiveMark, setActiveFilePath, setActiveTabId])
 
   const handleContinueToNextStep = useCallback(() => {
     const nextStep = getActiveOnboardingStep(onboardingProgress)
@@ -534,6 +577,24 @@ export function EditorLayout() {
 
   // Render content panel for a tab
   const renderContentPanel = useCallback((tab: TabInfo, isActive: boolean) => {
+    if (isRecordEditorTab(tab)) {
+      const markId = getRecordIdForTab(tab)
+
+      return (
+        <div
+          key={tab.id}
+          className="flex min-h-0 flex-1 overflow-hidden"
+          style={{ display: isActive ? 'flex' : 'none' }}
+        >
+          {markId !== null ? (
+            <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(tab.path)} />
+          ) : (
+            <UnsupportedFile filePath={tab.path} />
+          )}
+        </div>
+      )
+    }
+
     const itemType = getItemType(tab.path)
 
     return (
@@ -561,7 +622,7 @@ export function EditorLayout() {
         )}
       </div>
     )
-  }, [getItemType])
+  }, [getItemType, getRecordIdForTab, handleCloseTab, isRecordEditorTab])
 
   // No tabs or no active tab - show empty state
   if (tabs.length === 0 || !activeTabId) {

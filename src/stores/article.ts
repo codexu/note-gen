@@ -24,6 +24,7 @@ import emitter from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
 import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
 import { buildRemotePathsToLoad } from './article-remote-sync'
+import type { Mark } from '@/db/marks'
 
 // 缓存 Store 实例，避免每次都重新加载
 let storeInstance: Store | null = null
@@ -59,6 +60,32 @@ export interface EditorViewState {
   selectionFrom: number
   selectionTo: number
   scrollTop: number
+}
+
+export type EditorTabKind = 'file' | 'record'
+
+export interface OpenTabInfo {
+  id: string
+  path: string
+  name: string
+  isFolder: boolean
+  kind?: EditorTabKind
+  markId?: number
+  markType?: Mark['type']
+}
+
+const RECORD_TAB_PATH_PREFIX = 'record://mark/'
+
+function isRecordOpenTabPath(path: string): boolean {
+  return path.startsWith(RECORD_TAB_PATH_PREFIX)
+}
+
+function isRecordOpenTab(tab?: OpenTabInfo | null): boolean {
+  return !!tab && (tab.kind === 'record' || isRecordOpenTabPath(tab.path))
+}
+
+function getActiveFilePathForTab(tab?: OpenTabInfo | null): string {
+  return tab && !isRecordOpenTab(tab) ? tab.path : ''
 }
 
 // 查找文件夹节点
@@ -199,11 +226,11 @@ interface NoteState {
   setReadFilePath: (path: string) => void
 
   // Tabs for multi-file editing
-  openTabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>
-  setOpenTabs: (tabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>) => void
+  openTabs: OpenTabInfo[]
+  setOpenTabs: (tabs: OpenTabInfo[]) => void
   activeTabId: string
   setActiveTabId: (id: string) => void
-  addTab: (tab: { id: string; path: string; name: string; isFolder: boolean }) => void
+  addTab: (tab: OpenTabInfo) => void
   removeTab: (id: string) => void
   editorViewStates: Record<string, EditorViewState>
   setEditorViewState: (path: string, state: EditorViewState) => void
@@ -445,18 +472,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   activeFilePath: '',
   setActiveFilePath: async (path: string) => {
+    const nextPath = isRecordOpenTabPath(path) ? '' : path
     // 切换文件时，先清空 currentArticle，避免内容覆盖
-    set({ currentArticle: '', activeFilePath: path })
+    set({ currentArticle: '', activeFilePath: nextPath })
     const store = await getStore();
-    await store.set('activeFilePath', path)
+    await store.set('activeFilePath', nextPath)
     // 触发事件，让推送队列重置计时器
-    emitter.emit('article-opened', { path })
+    emitter.emit('article-opened', { path: nextPath })
 
     // 触发读取文件内容（包括远程拉取）
     // 需要确保是文件而不是文件夹
-    const fileName = path.split('/').pop() || ''
+    const fileName = nextPath.split('/').pop() || ''
     if (fileName && fileName.includes('.')) {
-      get().readArticle(path)
+      get().readArticle(nextPath)
     }
   },
 
@@ -481,7 +509,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
   addTab: async (tab) => {
     const currentTabs = get().openTabs
     // Check if tab already exists
-    if (currentTabs.find(t => t.path === tab.path)) {
+    const existingTab = currentTabs.find(t => t.path === tab.path)
+    if (existingTab) {
+      await get().setActiveTabId(existingTab.id)
       return
     }
     const newTabs = [...currentTabs, tab].slice(-10) // Limit to 10 tabs
@@ -559,7 +589,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 选择最后一个 tab
         const targetTab = newTabs[newTabs.length - 1]
         newActiveTabId = targetTab.id
-        newActiveFilePath = targetTab.path
+        newActiveFilePath = getActiveFilePathForTab(targetTab)
       } else if (deletedTab && currentActiveTabId === deletedTab.id) {
         // 没有其他 tab 了
         newActiveTabId = ''
@@ -595,7 +625,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 选择最后一个 tab
         const targetTab = newTabs[newTabs.length - 1]
         newActiveTabId = targetTab.id
-        newActiveFilePath = targetTab.path
+        newActiveFilePath = getActiveFilePathForTab(targetTab)
       } else if (deletedTab && currentActiveTabId === deletedTab.id) {
         // 没有其他 tab 了
         newActiveTabId = ''
@@ -654,7 +684,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   // Initialize open tabs from store
   initOpenTabs: async () => {
     const store = await getStore();
-    const tabs = await store.get<Array<{ id: string; path: string; name: string; isFolder: boolean }>>('openTabs')
+    const tabs = await store.get<OpenTabInfo[]>('openTabs')
     const activeTabId = await store.get<string>('activeTabId')
     set({ openTabs: tabs || [], activeTabId: activeTabId || '' })
   },
@@ -737,6 +767,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const currentTabs = get().openTabs
     const currentActiveTabId = get().activeTabId
     const newTabs = currentTabs.map(tab => {
+      if (isRecordOpenTab(tab)) {
+        return tab
+      }
+
       const nextPath = mapMovedPath(tab.path)
       if (nextPath === tab.path) {
         return tab
@@ -1673,7 +1707,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       collapsibleListInitialized: true
     })
 
-    if (activeFilePath) {
+    if (activeFilePath && !isRecordOpenTabPath(activeFilePath)) {
       set({ activeFilePath })
 
       // 检查是否是文件夹（所有支持的文件扩展名都是文件，不是文件夹）

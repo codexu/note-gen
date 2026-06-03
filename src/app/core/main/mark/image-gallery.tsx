@@ -12,6 +12,7 @@ import { appDataDir } from "@tauri-apps/api/path"
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { toast } from "@/hooks/use-toast"
 import { fetchAiDesc } from "@/lib/ai/description"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -33,9 +34,19 @@ interface ImageGalleryProps {
 // 单个图片项组件
 function ImageItem({ mark }: { mark: Mark }) {
   const t = useTranslations()
-  const { fetchMarks } = useMarkStore()
+  const {
+    marks,
+    fetchMarks,
+    isMultiSelectMode,
+    selectedMarkIds,
+    toggleMarkSelection,
+    clearSelection,
+  } = useMarkStore()
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
   const [photoSrc, setPhotoSrc] = useState('')
+  const isSelected = selectedMarkIds.has(mark.id)
+  const isBatchOperation = isMultiSelectMode && selectedMarkIds.size > 0
+  const filteredTags = tags.filter(tag => tag.id !== currentTagId)
   const imagePath = mark.type === 'scan' 
     ? `/screenshot/${mark.url}`
     : `/image/${mark.url}`
@@ -54,7 +65,15 @@ function ImageItem({ mark }: { mark: Mark }) {
 
   async function handleDelMark(e?: React.MouseEvent) {
     e?.stopPropagation()
-    await delMark(mark.id)
+    if (isBatchOperation) {
+      const selectedMarks = Array.from(selectedMarkIds)
+      for (const markId of selectedMarks) {
+        await delMark(markId)
+      }
+      clearSelection()
+    } else {
+      await delMark(mark.id)
+    }
     await fetchMarks()
     await fetchTags()
     getCurrentTag()
@@ -62,7 +81,18 @@ function ImageItem({ mark }: { mark: Mark }) {
 
   async function handleTransfer(tagId: number, e?: React.MouseEvent) {
     e?.stopPropagation()
-    await updateMark({ ...mark, tagId })
+    if (isBatchOperation) {
+      const selectedMarks = Array.from(selectedMarkIds)
+      for (const markId of selectedMarks) {
+        const existingMark = marks.find((item: Mark) => item.id === markId)
+        if (existingMark) {
+          await updateMark({ ...existingMark, tagId })
+        }
+      }
+      clearSelection()
+    } else {
+      await updateMark({ ...mark, tagId })
+    }
     await fetchTags()
     getCurrentTag()
     fetchMarks()
@@ -106,41 +136,83 @@ function ImageItem({ mark }: { mark: Mark }) {
     })
   }
 
+  function handleToggleSelection(e?: { preventDefault: () => void; stopPropagation: () => void }) {
+    e?.preventDefault()
+    e?.stopPropagation()
+    toggleMarkSelection(mark.id)
+  }
+
+  const imageContent = (
+    <div
+      className={cn(
+        "relative aspect-square cursor-pointer overflow-hidden rounded bg-zinc-900",
+        isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background"
+      )}
+    >
+      {isMultiSelectMode ? (
+        <div className="absolute left-1 top-1 z-10">
+          <Checkbox
+            checked={isSelected}
+            onClick={(e) => e.stopPropagation()}
+            onCheckedChange={() => toggleMarkSelection(mark.id)}
+            className="bg-background/90 shadow-sm"
+          />
+        </div>
+      ) : null}
+      {mark.url.includes('http') ? (
+        <Image
+          src={mark.url}
+          alt=""
+          width={0}
+          height={0}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <LocalImage
+          src={imagePath}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      )}
+    </div>
+  )
+
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <PhotoPreviewProvider>
-          <PhotoView src={photoSrc}>
-            <div className="aspect-square overflow-hidden rounded cursor-pointer bg-zinc-900">
-              {mark.url.includes('http') ? (
-                <Image
-                  src={mark.url}
-                  alt=""
-                  width={0}
-                  height={0}
-
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <LocalImage
-                  src={imagePath}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-          </PhotoView>
-        </PhotoPreviewProvider>
+        {isMultiSelectMode ? (
+          <div
+            role="button"
+            tabIndex={0}
+            className="block w-full focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            onClick={handleToggleSelection}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                handleToggleSelection(e)
+              }
+            }}
+          >
+            {imageContent}
+          </div>
+        ) : (
+          <PhotoPreviewProvider>
+            <PhotoView src={photoSrc}>
+              {imageContent}
+            </PhotoView>
+          </PhotoPreviewProvider>
+        )}
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuSub>
           <ContextMenuSubTrigger inset>
-            {t('record.mark.toolbar.moveTag')}
+            {isBatchOperation
+              ? t('record.mark.toolbar.moveSelectedTags', { count: selectedMarkIds.size })
+              : t('record.mark.toolbar.moveTag')
+            }
           </ContextMenuSubTrigger>
           <ContextMenuSubContent>
-            {tags.map((tag) => (
+            {filteredTags.map((tag) => (
               <ContextMenuItem 
-                disabled={tag.id === currentTagId} 
                 key={tag.id} 
                 onClick={() => handleTransfer(tag.id)}
               >
@@ -152,22 +224,25 @@ function ImageItem({ mark }: { mark: Mark }) {
         <ContextMenuItem inset disabled={true}>
           {t('record.mark.toolbar.convertTo', { type: mark.type === 'scan' ? t('record.mark.type.image') : t('record.mark.type.screenshot') })}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={!mark.url} onClick={handleCopyLink}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || !mark.url} onClick={handleCopyLink}>
           {t('record.mark.toolbar.copyLink')}
         </ContextMenuItem>
-        <ContextMenuItem inset onClick={regenerateDesc}>
+        <ContextMenuItem inset disabled={isMultiSelectMode} onClick={regenerateDesc}>
           {t('record.mark.toolbar.regenerateDesc')}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem inset disabled={!getMarkOpenAction(mark, '', 'folder')?.path} onClick={handelShowInFolder}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || !getMarkOpenAction(mark, '', 'folder')?.path} onClick={handelShowInFolder}>
           {t('record.mark.toolbar.viewFolder')}
         </ContextMenuItem>
-        <ContextMenuItem inset disabled={!getMarkOpenAction(mark, '', 'file')?.path} onClick={handelShowInFile}>
+        <ContextMenuItem inset disabled={isMultiSelectMode || !getMarkOpenAction(mark, '', 'file')?.path} onClick={handelShowInFile}>
           {t('record.mark.toolbar.viewFile')}
         </ContextMenuItem>
         <ContextMenuItem inset onClick={handleDelMark}>
           <span className="text-red-900">
-            {t('record.mark.toolbar.delete')}
+            {isBatchOperation
+              ? t('record.mark.toolbar.deleteSelected', { count: selectedMarkIds.size })
+              : t('record.mark.toolbar.delete')
+            }
           </span>
         </ContextMenuItem>
       </ContextMenuContent>
@@ -178,12 +253,32 @@ function ImageItem({ mark }: { mark: Mark }) {
 export function ImageGallery({ marks }: ImageGalleryProps) {
   const t = useTranslations()
   const [isExpanded, setIsExpanded] = useState(false)
+  const { isMultiSelectMode, selectedMarkIds, setSelectedMarkIds } = useMarkStore()
 
   // 筛选出没有内容的图片记录（包括 scan 和 image 类型）
   const emptyImageMarks = marks.filter(mark => 
     (mark.type === 'image' || mark.type === 'scan') && 
     (!mark.content || mark.content.trim() === '')
   )
+  const selectedImageCount = emptyImageMarks.filter(mark => selectedMarkIds.has(mark.id)).length
+  const isAllImagesSelected = emptyImageMarks.length > 0 && selectedImageCount === emptyImageMarks.length
+  const imageGroupSelectionState = isAllImagesSelected
+    ? true
+    : selectedImageCount > 0
+      ? 'indeterminate'
+      : false
+
+  function handleToggleImageGroupSelection() {
+    const nextSelectedIds = new Set(selectedMarkIds)
+
+    if (isAllImagesSelected) {
+      emptyImageMarks.forEach(mark => nextSelectedIds.delete(mark.id))
+    } else {
+      emptyImageMarks.forEach(mark => nextSelectedIds.add(mark.id))
+    }
+
+    setSelectedMarkIds(nextSelectedIds)
+  }
 
   // 如果没有无内容的图片，不显示组件
   if (emptyImageMarks.length === 0) {
@@ -197,12 +292,20 @@ export function ImageGallery({ marks }: ImageGalleryProps) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
+          {isMultiSelectMode ? (
+            <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={imageGroupSelectionState}
+                onCheckedChange={handleToggleImageGroupSelection}
+              />
+            </div>
+          ) : null}
           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
             <span className="text-xs font-medium">
               图片组
             </span>
             <span className="text-xs opacity-70">
-              {emptyImageMarks.length}
+              {isMultiSelectMode ? `${selectedImageCount}/${emptyImageMarks.length}` : emptyImageMarks.length}
             </span>
           </div>
         </div>

@@ -13,6 +13,7 @@ export interface SidebarState {
   toggleLeftSidebar: () => Promise<void>
   centerPanelVisible: boolean
   toggleCenterPanel: () => Promise<void>
+  showCenterPanel: () => Promise<void>
   rightSidebarVisible: boolean
   toggleRightSidebar: () => Promise<void>
   leftSidebarTab: 'files' | 'notes'
@@ -86,6 +87,17 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     await store.save()
   },
   centerPanelVisible: initialState.center,
+  showCenterPanel: async () => {
+    if (get().centerPanelVisible) {
+      return
+    }
+
+    set({ centerPanelVisible: true })
+    localStorage.setItem('centerPanelVisible', 'true')
+    const store = await Store.load('store.json')
+    await store.set('centerPanelVisible', true)
+    await store.save()
+  },
   toggleCenterPanel: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
     

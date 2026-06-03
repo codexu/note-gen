@@ -68,10 +68,10 @@ export function getMarkListItemContent(mark: Mark): MarkListItemContent {
   }
   case 'recording': {
     const desc = compactText(mark.desc)
-    const { title, preview } = splitTitleAndPreview(mark.content)
+    const { title } = splitTitleAndPreview(mark.content)
     return {
       title: desc || title,
-      preview: preview || title || desc,
+      preview: '',
     }
   }
   case 'scan':

@@ -15,17 +15,19 @@ import css from 'highlight.js/lib/languages/css';
 import 'highlight.js/styles/github.min.css';
 import './chat.css';
 import { advanceStreamingSmoother } from './streaming-smoother';
+import { cn } from "@/lib/utils";
 
 type ThemeType = 'light' | 'dark' | 'system';
 
 type ChatPreviewProps = {
   text: string;
   streaming?: boolean; // 是否为流式内容
+  containerClassName?: string;
 };
 
 const MIN_RENDER_INTERVAL_MS = 33;
 
-export default function ChatPreview({text, streaming = false}: ChatPreviewProps) {
+export default function ChatPreview({text, streaming = false, containerClassName}: ChatPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme()
   const [mdTheme, setMdTheme] = useState<ThemeType>('light')
@@ -316,7 +318,7 @@ export default function ChatPreview({text, streaming = false}: ChatPreviewProps)
   }
 
   return (
-    <div className="flex-1 max-w-[calc(100vw-30px)] md:max-w-[calc(100vw-440px)]">
+    <div className={cn("flex-1 max-w-[calc(100vw-30px)] md:max-w-[calc(100vw-440px)]", containerClassName)}>
       <div 
         ref={previewRef}
         className={getThemeClass()}

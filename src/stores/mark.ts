@@ -103,6 +103,9 @@ interface MarkState {
   setPendingScrollMarkId: (id: number | null) => void
   highlightedMarkId: number | null
   setHighlightedMarkId: (id: number | null) => void
+  activeMarkId: number | null
+  setActiveMarkId: (id: number | null) => void
+  clearActiveMark: () => void
 
   recordFilters: RecordFilters
   setRecordSearch: (search: string) => void
@@ -146,7 +149,16 @@ const useMarkStore = create<MarkState>((set, get) => ({
             }
           }
           return item
-        })
+        }),
+        allMarks: state.allMarks.map(item => {
+          if (item.id === mark.id) {
+            return {
+              ...item,
+              ...mark
+            }
+          }
+          return item
+        }),
       }
     })
     await updateMark(mark)
@@ -249,6 +261,13 @@ const useMarkStore = create<MarkState>((set, get) => ({
   highlightedMarkId: null,
   setHighlightedMarkId: (id) => {
     set({ highlightedMarkId: id })
+  },
+  activeMarkId: null,
+  setActiveMarkId: (id) => {
+    set({ activeMarkId: id })
+  },
+  clearActiveMark: () => {
+    set({ activeMarkId: null })
   },
 
   recordFilters: DEFAULT_RECORD_FILTERS,

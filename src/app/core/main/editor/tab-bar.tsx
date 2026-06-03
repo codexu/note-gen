@@ -32,12 +32,17 @@ import {
 } from '@/components/ui/enhanced-context-menu'
 import { platform } from '@tauri-apps/plugin-os'
 import useSettingStore from '@/stores/setting'
+import type { Mark } from '@/db/marks'
+import { isRecordTabPath } from '../mark/mark-record-tab'
 
 export interface TabInfo {
   id: string
   path: string
   name: string
   isFolder: boolean
+  kind?: 'file' | 'record'
+  markId?: number
+  markType?: Mark['type']
 }
 
 interface TabBarProps {
@@ -93,10 +98,14 @@ function SortableTabWithMenu({
   }
 
   const t = useTranslations('tabContext')
+  const recordTypeT = useTranslations('record.mark.type')
   const currentIndex = tabs.findIndex(t => t.id === tab.id)
   const canCloseLeft = currentIndex > 0
   const canCloseRight = currentIndex < tabs.length - 1
   const hasOthers = tabs.length > 1
+  const isRecordTab = tab.kind === 'record' || isRecordTabPath(tab.path)
+  const recordTypeLabel = isRecordTab ? recordTypeT(tab.markType || 'text') : ''
+  const tabTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.path
 
   const handleAction = (action: 'close' | 'closeOthers' | 'closeAll' | 'closeLeft' | 'closeRight') => {
     switch (action) {
@@ -131,12 +140,19 @@ function SortableTabWithMenu({
               ? 'text-foreground font-medium'
               : 'text-muted-foreground hover:text-foreground'
           )}
-          title={tab.path}
+          title={tabTitle}
           onClick={() => onTabSwitch(tab.path)}
           {...attributes}
           {...listeners}
         >
-          {tab.isFolder ? (
+          {isRecordTab ? (
+            <span className={cn(
+              'shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground',
+              isActive && 'border-primary/30 bg-primary/10 text-primary'
+            )}>
+              {recordTypeLabel}
+            </span>
+          ) : tab.isFolder ? (
             <Folder className="w-4 h-4 shrink-0 text-amber-500" />
           ) : (
             <FileText className={cn('w-4 h-4 shrink-0', isActive ? 'text-primary' : '')} />
@@ -216,6 +232,10 @@ export function TabBar({
   onCloseRightTabs,
 }: TabBarProps) {
   const { showEditorUndoRedo } = useSettingStore()
+  const activeTab = tabs.find(tab => tab.id === activeTabId)
+  const activeTabIsRecord = activeTab
+    ? activeTab.kind === 'record' || isRecordTabPath(activeTab.path)
+    : false
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
@@ -386,7 +406,7 @@ export function TabBar({
       <div className="relative tab-scrollbar-wrapper">
         <div className="flex items-center h-12 bg-background border-b">
           {/* Undo/Redo buttons - fixed on the left */}
-          {showEditorUndoRedo && (
+          {showEditorUndoRedo && !activeTabIsRecord && (
             <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
               <TooltipButton
                 icon={<Undo2 className="w-4 h-4" />}

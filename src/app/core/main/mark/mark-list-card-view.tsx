@@ -6,11 +6,11 @@ import { MarkItem } from "./mark-item"
 export function MarkListCardView({ marks }: { marks: Mark[] }) {
   return (
     <div
-      className="columns-auto gap-3 px-3 py-3"
+      className="w-full min-w-0 max-w-full columns-auto gap-3 overflow-hidden px-3 py-3"
       style={{ columnWidth: '15rem' }}
     >
       {marks.map((mark) => (
-        <div key={mark.id} className="mb-3 break-inside-avoid">
+        <div key={mark.id} className="mb-3 min-w-0 max-w-full break-inside-avoid overflow-hidden">
           <MarkItem mark={mark} variant="cards" />
         </div>
       ))}

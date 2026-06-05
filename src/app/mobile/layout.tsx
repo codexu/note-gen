@@ -25,6 +25,7 @@ import { ControlRecording } from "@/app/core/main/mark/control-recording"
 import { ControlImage } from "@/app/core/main/mark/control-image"
 import { ControlLink } from "@/app/core/main/mark/control-link"
 import { ControlFile } from "@/app/core/main/mark/control-file"
+import { initAutoDataSyncRuntime } from "@/lib/sync/auto-data-sync-queue"
 
 export default function RootLayout({
   children,
@@ -36,12 +37,28 @@ export default function RootLayout({
   const { initMainHosting } = useImageStore()
   const { currentLocale } = useI18n()
   useEffect(() => {
-    initSettingData()
-    initMainHosting()
-    initAllDatabases()
-    initMcp()
-    // 上报应用启动事件
-    reportAppStart()
+    let cancelled = false
+
+    const initializeApp = async () => {
+      try {
+        initSettingData()
+        initMainHosting()
+        await initAllDatabases()
+        if (cancelled) return
+        await initAutoDataSyncRuntime()
+        if (cancelled) return
+        initMcp()
+        reportAppStart()
+      } catch (error) {
+        console.error('Failed to initialize mobile app:', error)
+      }
+    }
+
+    void initializeApp()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const { initVectorDb } = useVectorStore()

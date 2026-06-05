@@ -53,9 +53,7 @@ const useTagStore = create<TagState>((set, get) => ({
     const tags = get().tags
     const getcurrentTagId = get().currentTagId
     const currentTag = tags.find((tag) => tag.id === getcurrentTagId)
-    if (currentTag) {
-      set({ currentTag })
-    }
+    set({ currentTag })
   },
 
   // 所有 tag
@@ -244,8 +242,20 @@ const useTagStore = create<TagState>((set, get) => ({
       result = JSON.parse(configJson)
     }
     if (result.length > 0) {
-      await deleteAllTags()
-      await insertTags(result)
+      const { setAutoDataSyncApplyingRemote } = await import('@/lib/sync/auto-data-sync-queue')
+      setAutoDataSyncApplyingRemote(true)
+      try {
+        await deleteAllTags()
+        await insertTags(result)
+        await get().fetchTags()
+        const tags = get().tags
+        if (tags.length > 0 && !tags.some(tag => tag.id === get().currentTagId)) {
+          await get().setCurrentTagId(tags[0].id)
+        }
+        get().getCurrentTag()
+      } finally {
+        setAutoDataSyncApplyingRemote(false)
+      }
     }
     set({ syncState: false })
     return result

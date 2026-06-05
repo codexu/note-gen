@@ -22,6 +22,7 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { CheckSquare, ImageUp, RefreshCw, Settings2, Square } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { AudioPlayer } from "@/components/audio-player";
 import { ImageViewer } from "@/components/image-viewer";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -705,6 +706,12 @@ export const MarkItem = React.memo(({mark, variant = 'list', interactive = true}
 
   const handleDelForever = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()
+    const accepted = await confirm(`${t('record.mark.toolbar.deleteForever')}?\n${t('record.trash.syncWarning')}`, {
+      title: t('record.trash.title'),
+      kind: 'warning',
+    })
+    if (!accepted) return
+
     if (isMultiSelectMode && selectedMarkIds.size > 0) {
       // 多选永久删除
       const selectedMarks = Array.from(selectedMarkIds)
@@ -720,7 +727,7 @@ export const MarkItem = React.memo(({mark, variant = 'list', interactive = true}
     if (shouldClearActiveMark()) {
       clearActiveMark()
     }
-  }, [isMultiSelectMode, selectedMarkIds, clearSelection, fetchAllTrashMarks, mark.id, shouldClearActiveMark, clearActiveMark])
+  }, [isMultiSelectMode, selectedMarkIds, clearSelection, fetchAllTrashMarks, mark.id, shouldClearActiveMark, clearActiveMark, t])
 
   const handleRestore = useCallback(async (e?: React.MouseEvent) => {
     e?.stopPropagation()

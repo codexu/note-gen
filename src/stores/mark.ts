@@ -557,8 +557,15 @@ const useMarkStore = create<MarkState>((set, get) => ({
       result = JSON.parse(configJson)
     }
     if (result.length > 0) {
-      await deleteAllMarks()
-      await insertMarks(result)
+      const { setAutoDataSyncApplyingRemote } = await import('@/lib/sync/auto-data-sync-queue')
+      setAutoDataSyncApplyingRemote(true)
+      try {
+        await deleteAllMarks()
+        await insertMarks(result)
+        await get().fetchMarks()
+      } finally {
+        setAutoDataSyncApplyingRemote(false)
+      }
     }
     set({ syncState: false })
     return result

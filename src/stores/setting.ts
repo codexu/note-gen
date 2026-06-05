@@ -12,6 +12,8 @@ import { getNormalizedImageHosting } from '@/lib/image-hosting-config'
 import { normalizeSpeechMode } from '@/lib/speech/preferences'
 import type { SpeechMode } from '@/lib/speech/types'
 import { applyNoteGenDefaultConfig, loadNoteGenDefaultConfig } from '@/lib/ai/notegen-default-models-runtime'
+import { enqueueAutoDataSync, isAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
+import { shouldExcludeFromSync } from '@/config/sync-exclusions'
 
 export enum GenTemplateRange {
   All = 'all',
@@ -121,6 +123,12 @@ interface SettingState {
 
   autoSync: string
   setAutoSync: (autoSync: string) => Promise<void>
+
+  autoDataSyncEnabled: boolean
+  setAutoDataSyncEnabled: (enabled: boolean) => Promise<void>
+
+  excludeSensitiveConfig: boolean
+  setExcludeSensitiveConfig: (enabled: boolean) => Promise<void>
 
   // 自动拉取相关设置
   autoPullOnOpen: boolean
@@ -269,6 +277,60 @@ export interface RecordToolbarItem {
   id: string
   enabled: boolean
   order: number
+}
+
+let settingAutoSyncReady = false
+let settingAutoSyncSubscriptionInitialized = false
+
+function getChangedSyncableSettingKeys(current: SettingState, previous: SettingState): string[] {
+  const currentRecord = current as unknown as Record<string, unknown>
+  const previousRecord = previous as unknown as Record<string, unknown>
+  const excludeSensitiveConfig = current.excludeSensitiveConfig !== false
+
+  return Object.keys(currentRecord).filter((key) => {
+    if (typeof currentRecord[key] === 'function') {
+      return false
+    }
+
+    if (shouldExcludeFromSync(key, { excludeSensitiveConfig })) {
+      return false
+    }
+
+    return currentRecord[key] !== previousRecord[key]
+  })
+}
+
+function initSettingAutoSyncSubscription() {
+  if (settingAutoSyncSubscriptionInitialized) {
+    return
+  }
+
+  settingAutoSyncSubscriptionInitialized = true
+
+  useSettingStore.subscribe((current, previous) => {
+    if (!settingAutoSyncReady || isAutoDataSyncApplyingRemote()) {
+      return
+    }
+
+    const changedKeys = getChangedSyncableSettingKeys(current, previous)
+    if (changedKeys.length === 0) {
+      return
+    }
+
+    void persistChangedSyncableSettings(current, changedKeys)
+  })
+}
+
+async function persistChangedSyncableSettings(state: SettingState, changedKeys: string[]) {
+  const store = await Store.load('store.json')
+  const stateRecord = state as unknown as Record<string, unknown>
+
+  for (const key of changedKeys) {
+    await store.set(key, stateRecord[key])
+  }
+
+  await store.save()
+  enqueueAutoDataSync('settings', `settings:${changedKeys.join(',')}`)
 }
 
 
@@ -500,7 +562,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
       console.debug('NoteGen API service unavailable, skipping limited models:', error)
     }
 
-    Object.entries(get()).forEach(async ([key, value]) => {
+    await Promise.all(Object.entries(get()).map(async ([key, value]) => {
       const res = await store.get(key)
 
       if (typeof value === 'function') return
@@ -567,7 +629,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
       } else {
         await store.set(key, value)
       }
-    })
+    }))
+
+    initSettingAutoSyncSubscription()
+    settingAutoSyncReady = true
   },
 
   version: '',
@@ -764,6 +829,26 @@ const useSettingStore = create<SettingState>((set, get) => ({
     set({ autoSync })
     const store = await Store.load('store.json');
     await store.set('autoSync', autoSync)
+  },
+
+  autoDataSyncEnabled: true,
+  setAutoDataSyncEnabled: async (autoDataSyncEnabled: boolean) => {
+    set({ autoDataSyncEnabled })
+    const store = await Store.load('store.json')
+    await store.set('autoDataSyncEnabled', autoDataSyncEnabled)
+    await store.save()
+  },
+
+  excludeSensitiveConfig: true,
+  setExcludeSensitiveConfig: async (excludeSensitiveConfig: boolean) => {
+    set({ excludeSensitiveConfig })
+    const store = await Store.load('store.json')
+    await store.set('excludeSensitiveConfig', excludeSensitiveConfig)
+    await store.save()
+
+    if (!isAutoDataSyncApplyingRemote()) {
+      enqueueAutoDataSync('settings', 'settings:exclude-sensitive-config')
+    }
   },
 
   // 自动拉取相关设置 - 默认关闭

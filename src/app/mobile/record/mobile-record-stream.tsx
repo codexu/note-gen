@@ -199,6 +199,11 @@ export function MobileRecordStream() {
 
   async function handleDelete(mark: Mark) {
     if (trashState) {
+      const accepted = await confirm(`${t('record.mark.toolbar.deleteForever')}?\n${t('record.trash.syncWarning')}`, {
+        title: t('record.trash.title'),
+        kind: 'warning',
+      })
+      if (!accepted) return
       await delMarkForever(mark.id)
     } else {
       await delMark(mark.id)
@@ -212,7 +217,7 @@ export function MobileRecordStream() {
   }
 
   async function handleClearTrash() {
-    const accepted = await confirm(t('record.trash.confirm'), {
+    const accepted = await confirm(`${t('record.trash.confirm')}\n${t('record.trash.syncWarning')}`, {
       title: t('record.trash.title'),
       kind: 'warning',
     })
@@ -286,6 +291,13 @@ export function MobileRecordStream() {
 
   async function handleDeleteSelected() {
     const targets = filteredRecords.filter((item: Mark) => selectedIds.has(item.id))
+    if (trashState && targets.length > 0) {
+      const accepted = await confirm(`${t('record.mark.toolbar.deleteSelectedForever', { count: targets.length })}\n${t('record.trash.syncWarning')}`, {
+        title: t('record.trash.title'),
+        kind: 'warning',
+      })
+      if (!accepted) return
+    }
     for (const item of targets) {
       if (trashState) {
         await delMarkForever(item.id)

@@ -1,5 +1,5 @@
 'use client';
-import { FileUp, FileDown, Files } from "lucide-react"
+import { FileUp, FileDown, Files, ShieldCheck, UploadCloud } from "lucide-react"
 import { useTranslations } from 'next-intl';
 import { GithubSync } from "./github-sync";
 import { GiteeSync } from "./gitee-sync";
@@ -13,11 +13,22 @@ import { Loader2, RefreshCcw } from "lucide-react"
 import useSettingStore from "@/stores/setting";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { SYNC_PLATFORMS, SyncPlatform } from "@/types/sync";
 import { Item, ItemContent, ItemTitle, ItemDescription, ItemActions, ItemMedia } from "@/components/ui/item";
 import useSyncStore from "@/stores/sync";
 import { SyncStateEnum } from "@/lib/sync/github.types";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
+import useMarkStore from "@/stores/mark";
+import useTagStore from "@/stores/tag";
+import useChatStore from "@/stores/chat";
+import {
+  downloadAutoDataSyncNow,
+  uploadAutoDataSyncNow,
+} from "@/lib/sync/auto-data-sync-queue";
 
 export default function SyncPage() {
   const t = useTranslations();
@@ -26,15 +37,24 @@ export default function SyncPage() {
     setPrimaryBackupMethod,
     autoSync,
     setAutoSync,
+    autoDataSyncEnabled,
+    setAutoDataSyncEnabled,
+    excludeSensitiveConfig,
+    setExcludeSensitiveConfig,
     autoPullOnOpen,
     setAutoPullOnOpen,
     autoPullOnSwitch,
     setAutoPullOnSwitch,
   } = useSettingStore()
   const { syncRepoState, giteeSyncRepoState, gitlabSyncProjectState, giteaSyncRepoState, s3Connected, webdavConnected } = useSyncStore()
+  const { fetchMarks } = useMarkStore()
+  const { fetchTags, currentTagId } = useTagStore()
+  const { init } = useChatStore()
 
   const [tab, setTab] = useState<SyncPlatform>(primaryBackupMethod)
   const [isLoading, setIsLoading] = useState(true)
+  const [initialSyncChoiceVisible, setInitialSyncChoiceVisible] = useState(false)
+  const [initialSyncBusy, setInitialSyncBusy] = useState<'upload' | 'download' | 'later' | null>(null)
 
   useEffect(() => {
     const init = async () => {
@@ -83,6 +103,22 @@ export default function SyncPage() {
 
   const currentSyncState = getCurrentSyncState()
   const isAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
+  const shouldShowInitialSyncChoice = autoDataSyncEnabled && currentSyncState === SyncStateEnum.success && initialSyncChoiceVisible
+
+  useEffect(() => {
+    async function loadInitialChoiceState() {
+      if (!autoDataSyncEnabled || currentSyncState !== SyncStateEnum.success) {
+        setInitialSyncChoiceVisible(false)
+        return
+      }
+
+      const store = await Store.load('store.json')
+      const confirmed = await store.get<boolean>(getInitialSyncChoiceKey(primaryBackupMethod))
+      setInitialSyncChoiceVisible(confirmed !== true)
+    }
+
+    void loadInitialChoiceState()
+  }, [autoDataSyncEnabled, currentSyncState, primaryBackupMethod])
 
   if (isLoading) {
     return (
@@ -114,6 +150,73 @@ export default function SyncPage() {
     }
   }
 
+  function getInitialSyncChoiceKey(platform: SyncPlatform) {
+    return `autoDataSyncInitialChoice:${platform}`
+  }
+
+  async function finishInitialSyncChoice() {
+    const store = await Store.load('store.json')
+    await store.set(getInitialSyncChoiceKey(primaryBackupMethod), true)
+    await store.save()
+    setInitialSyncChoiceVisible(false)
+  }
+
+  async function handleInitialUpload() {
+    setInitialSyncBusy('upload')
+    try {
+      await uploadAutoDataSyncNow()
+      await finishInitialSyncChoice()
+      toast({ description: t('settings.sync.autoDataSyncInitialSuccess') })
+    } catch (error) {
+      console.error('Initial upload failed:', error)
+      toast({ description: t('settings.sync.autoDataSyncInitialFailed'), variant: 'destructive' })
+    } finally {
+      setInitialSyncBusy(null)
+    }
+  }
+
+  async function handleInitialDownload() {
+    setInitialSyncBusy('download')
+    try {
+      const ok = await downloadAutoDataSyncNow()
+      if (!ok) {
+        throw new Error('Failed to download remote data')
+      }
+
+      await fetchTags()
+      await fetchMarks()
+      init(currentTagId)
+      await finishInitialSyncChoice()
+      toast({ description: t('settings.sync.autoDataSyncInitialSuccess') })
+    } catch (error) {
+      console.error('Initial download failed:', error)
+      toast({ description: t('settings.sync.autoDataSyncInitialFailed'), variant: 'destructive' })
+    } finally {
+      setInitialSyncBusy(null)
+    }
+  }
+
+  async function handleInitialLater() {
+    setInitialSyncBusy('later')
+    try {
+      await finishInitialSyncChoice()
+    } finally {
+      setInitialSyncBusy(null)
+    }
+  }
+
+  async function handleExcludeSensitiveConfigChange(checked: boolean) {
+    if (!checked) {
+      const accepted = await confirm(t('settings.sync.autoDataSyncPrivacyDisableConfirm'), {
+        title: t('settings.sync.autoDataSyncPrivacyTitle'),
+        kind: 'warning',
+      })
+      if (!accepted) return
+    }
+
+    await setExcludeSensitiveConfig(checked)
+  }
+
   return (
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
       {/* 平台选择器 */}
@@ -135,6 +238,31 @@ export default function SyncPage() {
 
       {/* 同步平台内容 */}
       {renderSyncContent()}
+
+      {shouldShowInitialSyncChoice && (
+        <Alert className="mt-4">
+          <ShieldCheck />
+          <AlertTitle>{t('settings.sync.autoDataSyncInitialTitle')}</AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-col gap-3">
+              <p>{t('settings.sync.autoDataSyncInitialDesc')}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={handleInitialUpload} disabled={initialSyncBusy !== null}>
+                  {initialSyncBusy === 'upload' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t('settings.sync.autoDataSyncInitialUploadLocal')}
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleInitialDownload} disabled={initialSyncBusy !== null}>
+                  {initialSyncBusy === 'download' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t('settings.sync.autoDataSyncInitialPullRemote')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleInitialLater} disabled={initialSyncBusy !== null}>
+                  {t('settings.sync.autoDataSyncInitialLater')}
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* 全局自动同步设置 */}
       <div className="mt-4">
@@ -166,6 +294,35 @@ export default function SyncPage() {
                 <SelectItem value="120">{t('settings.sync.autoSyncOptions.2m')}</SelectItem>
               </SelectContent>
             </Select>
+          </ItemActions>
+        </Item>
+
+        {/* 记录和配置自动同步 */}
+        <Item variant="outline" className="mt-2">
+          <ItemMedia variant="icon"><UploadCloud className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoDataSync')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoDataSyncDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoDataSyncEnabled}
+              onCheckedChange={setAutoDataSyncEnabled}
+            />
+          </ItemActions>
+        </Item>
+
+        <Item variant="outline" className="mt-2">
+          <ItemMedia variant="icon"><ShieldCheck className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoDataSyncPrivacyTitle')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoDataSyncPrivacyDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={excludeSensitiveConfig}
+              onCheckedChange={handleExcludeSensitiveConfigChange}
+            />
           </ItemActions>
         </Item>
 

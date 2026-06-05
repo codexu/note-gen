@@ -133,7 +133,7 @@ export function TagManage() {
   const [isAdding, setIsAdding] = React.useState(false)
   const [editingTagId, setEditingTagId] = React.useState<number | null>(null)
   const [editingName, setEditingName] = React.useState<string>("")
-  const [expandedTagId, setExpandedTagId] = React.useState<string | undefined>(undefined)
+  const [expandedTagId, setExpandedTagId] = React.useState("")
   const [hasInitialized, setHasInitialized] = React.useState(false)
   const { init } = useChatStore()
   const textSize = getContextMenuTextSize('record')
@@ -430,8 +430,8 @@ export function TagManage() {
             collapsible 
             value={expandedTagId} 
             onValueChange={(value) => {
-              // 直接设置展开状态，允许折叠（value 为 undefined）
-              setExpandedTagId(value)
+              // 直接设置展开状态，允许折叠（折叠时 value 为空字符串）
+              setExpandedTagId(value || "")
             }}
             className="w-full"
           >

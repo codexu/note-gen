@@ -10,6 +10,16 @@ export interface Tag {
   total?: number
 }
 
+function enqueueRecordsAutoSync(reason: string) {
+  void import('@/lib/sync/auto-data-sync-queue')
+    .then(({ enqueueAutoDataSync }) => {
+      enqueueAutoDataSync('records', reason)
+    })
+    .catch((error) => {
+      console.error('Error enqueueing records auto sync:', error)
+    })
+}
+
 // 创建 tags 表
 export async function initTagsDb() {
   const db = await getDb()
@@ -66,23 +76,29 @@ export async function getTags() {
 
 export async function insertTag(tag: Partial<Tag>) {
   const db = await getDb();
-  return await db.execute(
+  const result = await db.execute(
     "insert into tags (name) values ($1)",
     [tag.name]
   )
+  enqueueRecordsAutoSync('tag:insert')
+  return result
 }
 
 export async function updateTag(tag: Tag) {
   const db = await getDb();
-  return await db.execute(
+  const result = await db.execute(
     "update tags set name = $1, isLocked = $2, isPin = $3, sortOrder = $4 where id = $5",
     [tag.name, tag.isLocked, tag.isPin, tag.sortOrder, tag.id]
   )
+  enqueueRecordsAutoSync('tag:update')
+  return result
 }
 
 export async function delTag(id: number) {
   const db = await getDb();
-  return await db.execute("delete from tags where id = $1", [id])
+  const result = await db.execute("delete from tags where id = $1", [id])
+  enqueueRecordsAutoSync('tag:delete')
+  return result
 }
 
 export async function deleteAllTags() {
@@ -107,6 +123,7 @@ export async function insertTags(tags: Tag[]) {
       )
     }
   }
+  enqueueRecordsAutoSync('tag:bulk-insert')
   return true;
 }
 
@@ -118,5 +135,6 @@ export async function updateTagsOrder(tags: { id: number; sortOrder: number }[])
       [tag.sortOrder, tag.id]
     )
   }
+  enqueueRecordsAutoSync('tag:reorder')
   return true;
 }

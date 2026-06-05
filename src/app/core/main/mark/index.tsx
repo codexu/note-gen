@@ -22,7 +22,7 @@ export function NoteSidebar() {
   }, [initRecordViewMode])
 
   async function handleClearTrash() {
-    const res = await confirm(t('record.trash.confirm'), {
+    const res = await confirm(`${t('record.trash.confirm')}\n${t('record.trash.syncWarning')}`, {
       title: t('record.trash.title'),
       kind: 'warning',
     })

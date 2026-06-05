@@ -7,6 +7,7 @@ import { DownloadCloud, Loader2, UploadCloud, CloudSync, Download, Upload } from
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Popover,
   PopoverContent,
@@ -104,6 +105,14 @@ import { invoke } from "@tauri-apps/api/core"
 import { SyncStateEnum } from "@/lib/sync/github.types"
 import dayjs from "dayjs"
 import { isMobileDevice } from "@/lib/check"
+import {
+  downloadAutoDataSyncNow,
+  getAutoDataSyncState,
+  retryAutoDataSync,
+  subscribeAutoDataSyncState,
+  uploadAutoDataSyncNow,
+  type AutoDataSyncState,
+} from "@/lib/sync/auto-data-sync-queue"
 
 // ============ 通用辅助函数 ============
 function encodePath(path: string, filename?: string): string {
@@ -332,8 +341,9 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
   const [importing, setImporting] = useState(false)
   const [open, setOpen] = useState(false)
   const [providers, setProviders] = useState<ProviderInfo[]>(DEFAULT_PROVIDER_LIST)
+  const [autoDataSyncState, setAutoDataSyncState] = useState<AutoDataSyncState>(getAutoDataSyncState())
 
-  const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
+  const { primaryBackupMethod, setPrimaryBackupMethod, autoDataSyncEnabled } = useSettingStore()
   const {
     syncRepoState,
     giteeSyncRepoState,
@@ -351,6 +361,15 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
   const { loadFileTree, loadRemoteSyncFiles } = useArticleStore()
 
   const isMobile = isMobileDevice()
+  const cloudSyncing = syncing || autoDataSyncState.isSyncing
+  const busy = cloudSyncing || exporting || importing
+  const currentProvider = providers.find((provider) => provider.platform === primaryBackupMethod)
+  const currentProviderStatus = currentProvider?.status || 'unconfigured'
+  const shouldShowWaitingProvider = autoDataSyncEnabled && currentProviderStatus === 'unconfigured'
+
+  useEffect(() => {
+    return subscribeAutoDataSyncState(setAutoDataSyncState)
+  }, [])
 
   // 加载各平台状态并自动检测
   useEffect(() => {
@@ -528,6 +547,53 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
     return current.name
   }
 
+  function getAutoDataSyncStatusText() {
+    if (!autoDataSyncEnabled) {
+      return t('settings.sync.autoDataSyncStatusOff')
+    }
+
+    if (shouldShowWaitingProvider || autoDataSyncState.status === 'waiting_provider') {
+      return t('settings.sync.autoDataSyncStatusWaitingProvider')
+    }
+
+    switch (autoDataSyncState.status) {
+      case 'queued':
+        return t('settings.sync.autoDataSyncStatusQueued')
+      case 'syncing':
+        return autoDataSyncState.syncMode === 'manual'
+          ? t('settings.sync.autoDataSyncStatusManualSyncing')
+          : t('settings.sync.autoDataSyncStatusSyncing')
+      case 'failed':
+        return t('settings.sync.autoDataSyncStatusFailed')
+      default:
+        return t('settings.sync.autoDataSyncStatusIdle')
+    }
+  }
+
+  function getAutoDataSyncBadgeVariant() {
+    if (autoDataSyncState.status === 'failed') {
+      return 'destructive' as const
+    }
+
+    if (autoDataSyncState.status === 'syncing' || autoDataSyncState.status === 'queued') {
+      return 'secondary' as const
+    }
+
+    return 'outline' as const
+  }
+
+  function getLastCompletedText() {
+    return autoDataSyncState.lastCompletedAt
+      ? dayjs(autoDataSyncState.lastCompletedAt).format('YYYY-MM-DD HH:mm')
+      : t('settings.sync.autoDataSyncNever')
+  }
+
+  function openSyncSettings() {
+    const settingPath = isMobile ? '/mobile/setting/pages/sync' : '/core/setting?anchor=sync'
+    setOpen(false)
+    router.push(settingPath)
+  }
+
   // 获取状态图标
   const getStatusIcon = (status: ProviderStatus) => {
     if (status === 'connected') {
@@ -585,133 +651,19 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
     setSyncing(true)
 
     try {
-      const tagRes = await uploadTags()
-      const markRes = await uploadMarks()
-
-      const path = '.settings'
-      const filename = 'store.json'
-
-      const store = await Store.load('store.json');
-      const allSettings: Record<string, any> = {}
-      const entries = await store.entries()
-      for (const [key, value] of entries) {
-        allSettings[key] = value
-      }
-
-      const syncableSettings = filterSyncData(allSettings)
-      const filteredContent = JSON.stringify(syncableSettings, null, 2)
-      const file = new TextEncoder().encode(filteredContent)
-
-      const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
-      const accessToken = await store.get<string>('accessToken')
-      const giteeAccessToken = await store.get<string>('giteeAccessToken')
-      const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
-      const giteaAccessToken = await store.get<string>('giteaAccessToken')
-      const githubUsername = await store.get<string>('githubUsername')
-      const giteeUsername = await store.get<string>('giteeUsername')
-      const giteaUsername = await store.get<string>('giteaUsername')
-      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
-      let settingsRes;
-
-      switch (primaryBackupMethod) {
-        case 'github': {
-          const githubRepo = await getSyncRepoName('github')
-          const existingFile = await githubGetFile({ path: `${path}/${filename}`, repo: githubRepo, accessToken: accessToken!, githubUsername: githubUsername! })
-          settingsRes = await githubUpload({
-            file: uint8ArrayToBase64(file),
-            path,
-            filename,
-            sha: existingFile?.sha,
-            repo: githubRepo,
-            accessToken: accessToken!,
-            githubUsername: githubUsername!,
-          })
-          break;
-        }
-        case 'gitee': {
-          const giteeRepo = await getSyncRepoName('gitee')
-          const existingFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: giteeAccessToken!, giteeUsername: giteeUsername! })
-          settingsRes = await giteeUpload({
-            file: uint8ArrayToBase64(file),
-            path,
-            filename,
-            sha: existingFile?.sha,
-            repo: giteeRepo,
-            accessToken: giteeAccessToken!,
-            giteeUsername: giteeUsername!,
-          })
-          break;
-        }
-        case 'gitlab': {
-          console.log('[uploadAll] GitLab - path:', path, 'filename:', filename, 'projectId:', gitlabProjectId)
-          const existingFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: gitlabAccessToken!, projectId: gitlabProjectId! })
-          console.log('[uploadAll] GitLab existingFile:', existingFile)
-          settingsRes = await gitlabUpload({
-            file: uint8ArrayToBase64(file),
-            path,
-            filename,
-            sha: existingFile?.sha,
-            accessToken: gitlabAccessToken!,
-            projectId: gitlabProjectId!,
-          })
-          break;
-        }
-        case 'gitea': {
-          const giteaRepo = await getSyncRepoName('gitea')
-          const existingFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: giteaAccessToken!, giteaUsername: giteaUsername! })
-          settingsRes = await giteaUpload({
-            file: uint8ArrayToBase64(file),
-            path,
-            filename,
-            sha: existingFile?.sha,
-            repo: giteaRepo,
-            accessToken: giteaAccessToken!,
-            giteaUsername: giteaUsername!,
-          })
-          break;
-        }
-        case 's3': {
-          const s3Config = await store.get<S3Config>('s3SyncConfig')
-          if (s3Config) {
-            const s3Key = `${path}/${filename}`
-            const existingFile = await s3HeadObject(s3Config, s3Key)
-            if (existingFile) {
-              await s3Delete(s3Config, s3Key)
-            }
-            const result = await s3Upload(s3Config, s3Key, filteredContent)
-            settingsRes = result ? { success: true } : null
-          }
-          break;
-        }
-        case 'webdav': {
-          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-          if (webdavConfig) {
-            const webdavKey = `${path}/${filename}`
-            const existingFile = await webdavHeadObject(webdavConfig, webdavKey)
-            if (existingFile) {
-              await webdavDelete(webdavConfig, webdavKey)
-            }
-            const result = await webdavUpload(webdavConfig, webdavKey, filteredContent)
-            settingsRes = result ? { success: true } : null
-          }
-          break;
-        }
-      }
-
-      if (tagRes && markRes && settingsRes) {
-        toast({
-          description: t('record.mark.uploadSuccess'),
-        })
-      }
+      await uploadAutoDataSyncNow()
+      toast({
+        description: t('record.mark.uploadSuccess'),
+      })
     } catch (error) {
       console.error('Upload failed:', error)
       toast({
         description: t('common.error'),
         variant: 'destructive'
       })
+    } finally {
+      setSyncing(false)
     }
-
-    setSyncing(false)
   }
 
   // 从云端下载
@@ -721,98 +673,20 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
     setSyncing(true)
 
     try {
-      const tagRes = await downloadTags()
-      const markRes = await downloadMarks()
+      const ok = await downloadAutoDataSyncNow()
 
-      if (tagRes && markRes) {
+      if (ok) {
         await fetchTags()
         await fetchMarks()
         init(currentTagId)
-      }
-
-      const path = '.settings'
-      const filename = 'store.json'
-      const store = await Store.load('store.json');
-
-      const localSettings: Record<string, any> = {}
-      const entries = await store.entries()
-      for (const [key, value] of entries) {
-        localSettings[key] = value
-      }
-
-      const primaryBackupMethod = await store.get<string>('primaryBackupMethod')
-      const accessToken = await store.get<string>('accessToken')
-      const giteeAccessToken = await store.get<string>('giteeAccessToken')
-      const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
-      const giteaAccessToken = await store.get<string>('giteaAccessToken')
-      const githubUsername = await store.get<string>('githubUsername')
-      const giteeUsername = await store.get<string>('giteeUsername')
-      const giteaUsername = await store.get<string>('giteaUsername')
-      const gitlabProjectId = await store.get<string>(`gitlab_${await getSyncRepoName('gitlab')}_project_id`)
-      let remoteFile;
-
-      switch (primaryBackupMethod) {
-        case 'github': {
-          const githubRepo = await getSyncRepoName('github')
-          remoteFile = await githubGetFile({ path: `${path}/${filename}`, repo: githubRepo, accessToken: accessToken!, githubUsername: githubUsername! })
-          break;
-        }
-        case 'gitee': {
-          const giteeRepo = await getSyncRepoName('gitee')
-          remoteFile = await giteeGetFile({ path: `${path}/${filename}`, repo: giteeRepo, accessToken: giteeAccessToken!, giteeUsername: giteeUsername! })
-          break;
-        }
-        case 'gitlab': {
-          remoteFile = await gitlabGetFile({ path: `${path}/${filename}`, accessToken: gitlabAccessToken!, projectId: gitlabProjectId! })
-          break;
-        }
-        case 'gitea': {
-          const giteaRepo = await getSyncRepoName('gitea')
-          remoteFile = await giteaGetFile({ path: `${path}/${filename}`, repo: giteaRepo, accessToken: giteaAccessToken!, giteaUsername: giteaUsername! })
-          break;
-        }
-        case 's3': {
-          const s3Config = await store.get<S3Config>('s3SyncConfig')
-          if (s3Config) {
-            const s3Key = `${path}/${filename}`
-            const content = await s3Download(s3Config, s3Key)
-            if (content) {
-              remoteFile = { content }
-            }
-          }
-          break;
-        }
-        case 'webdav': {
-          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-          if (webdavConfig) {
-            const webdavKey = `${path}/${filename}`
-            const content = await webdavDownload(webdavConfig, webdavKey)
-            if (content) {
-              remoteFile = { content }
-            }
-          }
-          break;
-        }
-      }
-
-      if (remoteFile) {
-        let remoteSettings: Record<string, any>
-        if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-          const s3Content = (remoteFile as any).content?.content
-          remoteSettings = JSON.parse(s3Content)
-        } else {
-          const configJson = decodeBase64ToString(getRemoteFileContent(remoteFile, `${path}/${filename}`))
-          remoteSettings = JSON.parse(configJson)
-        }
-
-        const mergedSettings = mergeSyncData(localSettings, remoteSettings)
-
-        const keys = Object.keys(mergedSettings)
-        await Promise.allSettled(keys.map(async key => await store.set(key, mergedSettings[key])))
-        await store.save()
 
         toast({
           description: t('record.mark.downloadSuccess') + t('common.restartToApply'),
+        })
+      } else {
+        toast({
+          description: t('common.error'),
+          variant: 'destructive'
         })
       }
     } catch (error) {
@@ -821,9 +695,9 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
         description: t('common.error'),
         variant: 'destructive'
       })
+    } finally {
+      setSyncing(false)
     }
-
-    setSyncing(false)
   }
 
   // 导出本地备份
@@ -930,9 +804,9 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
       variant="ghost"
       size="icon"
       className="h-8 w-8"
-      disabled={syncing || exporting || importing}
+      disabled={busy}
     >
-      {syncing || exporting || importing ? (
+      {busy ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (
         <CloudSync className="h-4 w-4" />
@@ -977,23 +851,69 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
         </Select>
       </div>
 
+      <div className="rounded-md border p-3 text-xs">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="font-medium">{t('settings.sync.autoDataSyncStatusTitle')}</span>
+          <Badge variant={getAutoDataSyncBadgeVariant()}>{getAutoDataSyncStatusText()}</Badge>
+        </div>
+        <div className="flex flex-col gap-1 text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <span>{t('settings.sync.autoDataSyncStatusProvider')}</span>
+            <span>{getCurrentProviderDisplay()}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>{t('settings.sync.autoDataSyncStatusPending')}</span>
+            <span>{autoDataSyncState.pendingCount}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>{t('settings.sync.autoDataSyncStatusLastSuccess')}</span>
+            <span>{getLastCompletedText()}</span>
+          </div>
+        </div>
+        {autoDataSyncState.lastError && (
+          <p className="mt-2 break-words text-destructive">
+            {t('settings.sync.autoDataSyncStatusError')}: {autoDataSyncState.lastError}
+          </p>
+        )}
+        {(autoDataSyncState.status === 'failed' || shouldShowWaitingProvider) && (
+          <div className="mt-3 flex gap-2">
+            {autoDataSyncState.status === 'failed' && (
+              <Button variant="outline" size="sm" onClick={() => void retryAutoDataSync()} disabled={cloudSyncing}>
+                {t('settings.sync.autoDataSyncRetry')}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={openSyncSettings}>
+              {t('settings.sync.autoDataSyncOpenSettings')}
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={uploadAll}
-          disabled={syncing}
+          disabled={cloudSyncing}
         >
-          <UploadCloud className="mr-2 h-4 w-4" />
+          {cloudSyncing ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <UploadCloud className="mr-2 h-4 w-4" />
+          )}
           {t('settings.sync.uploadRecords')}
         </Button>
         <Button
           variant="outline"
           size="sm"
           onClick={downloadAll}
-          disabled={syncing}
+          disabled={cloudSyncing}
         >
-          <DownloadCloud className="mr-2 h-4 w-4" />
+          {cloudSyncing ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <DownloadCloud className="mr-2 h-4 w-4" />
+          )}
           {t('settings.sync.downloadConfig')}
         </Button>
       </div>

@@ -60,11 +60,15 @@ export async function uploadFile(
   } : undefined
   
   try {
-    // 构建路径，将空格转换成下划线
-    const _path = path ? `/${path.replace(/\s/g, '_')}` : ''
-
-    // 对 URL 路径进行编码（保留中文字符的 UTF-8 编码）
-    const urlPath = _path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    const contentPath = buildRepoContentPath({ path, filename })
+    console.debug('[github sync] upload target resolved', {
+      repo,
+      path,
+      filename,
+      contentPath,
+      hasSha: Boolean(sha),
+      contentLength: file.length,
+    })
 
     // 将内容转换为 Base64（GitHub API 要求）
     const base64Content = Buffer.from(file, 'utf-8').toString('base64')
@@ -87,7 +91,7 @@ export async function uploadFile(
       proxy
     };
 
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${urlPath}`;
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(contentPath)}`;
     const response = await fetch(url, requestOptions);
 
     if (response.status >= 200 && response.status < 300) {

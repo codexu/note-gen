@@ -78,6 +78,16 @@ async function deleteMarkLocalAssets(marks: Pick<Mark, 'type' | 'url'>[]) {
   }
 }
 
+function enqueueRecordsAutoSync(reason: string) {
+  void import('@/lib/sync/auto-data-sync-queue')
+    .then(({ enqueueAutoDataSync }) => {
+      enqueueAutoDataSync('records', reason)
+    })
+    .catch((error) => {
+      console.error('Error enqueueing records auto sync:', error)
+    })
+}
+
 
 // 创建 marks 表
 export async function initMarksDb() {
@@ -137,6 +147,8 @@ export async function insertMark(mark: Partial<Mark>) {
     createdAt,
   })
 
+  enqueueRecordsAutoSync('mark:insert')
+
   return result
 }
 
@@ -151,16 +163,19 @@ export async function updateMark(mark: Mark) {
     "update marks set tagId = $1, url = $2, desc = $3, content = $4, createdAt = $5 where id = $6",
     [mark.tagId, mark.url, mark.desc, mark.content, mark.createdAt, mark.id]
   )
+  enqueueRecordsAutoSync('mark:update')
   return res 
 }
 
 export async function restoreMark(id: number) {
   const db = await getDb();
   const createdAt = Date.now();
-  return await db.execute(
+  const result = await db.execute(
     "update marks set deleted = $1, createdAt = $2 where id = $3",
     [0, createdAt, id]
   )
+  enqueueRecordsAutoSync('mark:restore')
+  return result
 }
 
 export async function delMark(id: number) {
@@ -171,10 +186,12 @@ export async function delMark(id: number) {
     await db.execute("alter table marks add column deleted integer default 0")
   }
   const createdAt = Date.now();
-  return await db.execute(
+  const result = await db.execute(
     "update marks set deleted = $1, createdAt = $2 where id = $3",
     [1, createdAt, id]
   )
+  enqueueRecordsAutoSync('mark:delete')
+  return result
 }
 
 export async function deleteAllMarks() {
@@ -191,6 +208,7 @@ export async function insertMarks(marks: Partial<Mark>[]) {
         [mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted]
       );
     }
+    enqueueRecordsAutoSync('mark:bulk-insert')
   } catch (error) {
     console.error('Error inserting marks:', error);
     throw error;
@@ -201,14 +219,18 @@ export async function delMarkForever(id: number) {
   const db = await getDb();
   const marks = await db.select<Mark[]>("select type, url from marks where id = $1", [id])
   await deleteMarkLocalAssets(marks)
-  return await db.execute("delete from marks where id = $1", [id])
+  const result = await db.execute("delete from marks where id = $1", [id])
+  enqueueRecordsAutoSync('mark:delete-forever')
+  return result
 }
 
 export async function clearTrash() {
   const db = await getDb();
   const marks = await db.select<Mark[]>("select type, url from marks where deleted = $1", [1])
   await deleteMarkLocalAssets(marks)
-  return await db.execute("delete from marks where deleted = $1", [1])
+  const result = await db.execute("delete from marks where deleted = $1", [1])
+  enqueueRecordsAutoSync('mark:clear-trash')
+  return result
 }
 
 export async function updateMarks(marks: Mark[]) {
@@ -220,6 +242,7 @@ export async function updateMarks(marks: Mark[]) {
         [mark.tagId, mark.url, mark.desc, mark.content, mark.createdAt, mark.id]
       );
     }
+    enqueueRecordsAutoSync('mark:bulk-update')
   } catch (error) {
     console.error('Error updating marks:', error);
     throw error;
@@ -236,6 +259,7 @@ export async function deleteMarks(ids: number[]) {
         [1, createdAt, id]
       );
     }
+    enqueueRecordsAutoSync('mark:bulk-delete')
   } catch (error) {
     console.error('Error deleting marks:', error);
     throw error;
@@ -252,6 +276,7 @@ export async function restoreMarks(ids: number[]) {
         [0, createdAt, id]
       );
     }
+    enqueueRecordsAutoSync('mark:bulk-restore')
   } catch (error) {
     console.error('Error restoring marks:', error);
     throw error;

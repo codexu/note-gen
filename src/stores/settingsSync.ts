@@ -7,6 +7,49 @@ import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles } from '@/li
 import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles } from '@/lib/sync/gitea'
 import { getRemoteFileContent } from '@/lib/sync/remote-file'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { s3Download, s3Upload } from '@/lib/sync/s3'
+import { webdavDownload, webdavUpload } from '@/lib/sync/webdav'
+import { setAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
+import type { S3Config, WebDAVConfig } from '@/types/sync'
+
+type SettingsSyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav'
+type GitSettingsSyncProvider = Exclude<SettingsSyncProvider, 's3' | 'webdav'>
+type RemoteFileEntry = {
+  name?: string
+  path?: string
+  type?: string
+  sha?: string
+}
+const SETTINGS_SYNC_LOG_PREFIX = '[settings-sync]'
+
+function debugSettingsSync(message: string, details?: Record<string, unknown>) {
+  if (details) {
+    console.debug(`${SETTINGS_SYNC_LOG_PREFIX} ${message}`, details)
+    return
+  }
+
+  console.debug(`${SETTINGS_SYNC_LOG_PREFIX} ${message}`)
+}
+
+function isRemoteFileEntry(value: unknown): value is RemoteFileEntry {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getRemoteFileSha(file: unknown, filename: string): string | undefined {
+  if (Array.isArray(file)) {
+    return file.find((entry: unknown) => (
+      isRemoteFileEntry(entry) &&
+      entry.name === filename &&
+      typeof entry.sha === 'string'
+    ))?.sha
+  }
+
+  if (isRemoteFileEntry(file) && typeof file.sha === 'string') {
+    return file.sha
+  }
+
+  return undefined
+}
 
 interface SettingsSyncState {
   syncState: boolean
@@ -33,10 +76,15 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
   uploadSettings: async () => {
     try {
       const store = await Store.load('store.json')
-      const primaryBackupMethod = await store.get<'github' | 'gitee' | 'gitlab' | 'gitea'>('primaryBackupMethod') || 'github'
+      const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
+      const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
+      debugSettingsSync('upload started', {
+        provider: primaryBackupMethod,
+        excludeSensitiveConfig,
+      })
       
       // 获取所有配置项
-      const allSettings: Record<string, any> = {}
+      const allSettings: Record<string, unknown> = {}
       const entries = await store.entries()
       
       for (const [key, value] of entries) {
@@ -44,40 +92,95 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       }
       
       // 过滤掉不应同步的字段
-      const syncableSettings = filterSyncData(allSettings)
+      const syncableSettings = filterSyncData(allSettings, { excludeSensitiveConfig })
+      debugSettingsSync('settings filtered for upload', {
+        totalKeys: Object.keys(allSettings).length,
+        syncableKeys: Object.keys(syncableSettings).length,
+        path: '.data/settings.json',
+      })
       
       // 转换为 JSON 字符串
       const content = JSON.stringify(syncableSettings, null, 2)
       
-      // 转换为 base64
-      const base64Content = btoa(unescape(encodeURIComponent(content)))
-      
+      if (primaryBackupMethod === 's3') {
+        const config = await store.get<S3Config>('s3SyncConfig')
+        if (!config) {
+          return false
+        }
+
+        const result = await s3Upload(config, '.data/settings.json', content)
+        debugSettingsSync('s3 upload result', { success: Boolean(result) })
+        if (result) {
+          set({ lastSyncTime: new Date().toISOString() })
+          return true
+        }
+
+        return false
+      }
+
+      if (primaryBackupMethod === 'webdav') {
+        const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (!config) {
+          return false
+        }
+
+        const result = await webdavUpload(config, '.data/settings.json', content)
+        debugSettingsSync('webdav upload result', { success: Boolean(result) })
+        if (result) {
+          set({ lastSyncTime: new Date().toISOString() })
+          return true
+        }
+
+        return false
+      }
+
       // 获取仓库名称
-      const repoName = await getSyncRepoName(primaryBackupMethod)
+      const repoName = await getSyncRepoName(primaryBackupMethod as GitSettingsSyncProvider)
       
       // 根据主要备份方式选择上传函数
       let uploadFile: typeof uploadGithubFile
+      let getFiles: typeof githubGetFiles
       
       switch (primaryBackupMethod) {
         case 'gitee':
           uploadFile = uploadGiteeFile
+          getFiles = giteeGetFiles
           break
         case 'gitlab':
           uploadFile = uploadGitlabFile
+          getFiles = gitlabGetFiles
           break
         case 'gitea':
           uploadFile = uploadGiteaFile
+          getFiles = giteaGetFiles
           break
         default:
           uploadFile = uploadGithubFile
+          getFiles = githubGetFiles
       }
       
       // 上传到远程仓库
+      const settingsPath = '.data/settings.json'
+      const existingFile = await getFiles({
+        path: settingsPath,
+        repo: repoName,
+      })
+      const existingSha = getRemoteFileSha(existingFile, 'settings.json')
+      debugSettingsSync('git upload target resolved', {
+        provider: primaryBackupMethod,
+        path: settingsPath,
+        hasExistingSha: Boolean(existingSha),
+      })
       const result = await uploadFile({
-        file: base64Content,
+        file: content,
         filename: 'settings.json',
         repo: repoName,
-        path: '.data'
+        path: settingsPath,
+        sha: existingSha,
+      })
+      debugSettingsSync('git upload result', {
+        provider: primaryBackupMethod,
+        success: Boolean(result),
       })
       
       if (result) {
@@ -90,6 +193,9 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       return false
     } catch (error) {
       console.error('Failed to upload settings:', error)
+      debugSettingsSync('upload failed', {
+        message: error instanceof Error ? error.message : 'unknown error',
+      })
       return false
     }
   },
@@ -101,22 +207,59 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
   downloadSettings: async () => {
     try {
       const store = await Store.load('store.json')
-      const primaryBackupMethod = await store.get<'github' | 'gitee' | 'gitlab' | 'gitea'>('primaryBackupMethod') || 'github'
+      const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
+      const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
+      debugSettingsSync('download started', {
+        provider: primaryBackupMethod,
+        excludeSensitiveConfig,
+      })
       
       // 获取本地配置（用于保留排除字段）
-      const localSettings: Record<string, any> = {}
+      const localSettings: Record<string, unknown> = {}
       const entries = await store.entries()
       
       for (const [key, value] of entries) {
         localSettings[key] = value
       }
       
+      let remoteSettings: Record<string, unknown> | null = null
+
+      if (primaryBackupMethod === 's3') {
+        const config = await store.get<S3Config>('s3SyncConfig')
+        if (!config) {
+          return false
+        }
+
+        const file = await s3Download(config, '.data/settings.json')
+        debugSettingsSync('s3 download result', { success: Boolean(file) })
+        if (!file) {
+          return false
+        }
+
+        remoteSettings = JSON.parse(file.content)
+      } else if (primaryBackupMethod === 'webdav') {
+        const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+        if (!config) {
+          return false
+        }
+
+        const file = await webdavDownload(config, '.data/settings.json')
+        debugSettingsSync('webdav download result', { success: Boolean(file) })
+        if (!file) {
+          return false
+        }
+
+        remoteSettings = JSON.parse(file.content)
+      }
+
       // 获取仓库名称
-      const repoName = await getSyncRepoName(primaryBackupMethod)
-      
+      const repoName = primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav'
+        ? ''
+        : await getSyncRepoName(primaryBackupMethod as GitSettingsSyncProvider)
+
       // 根据主要备份方式选择获取函数
       let getFiles: typeof githubGetFiles
-      
+
       switch (primaryBackupMethod) {
         case 'gitee':
           getFiles = giteeGetFiles
@@ -132,28 +275,52 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       }
       
       // 从远程仓库获取配置文件
-      const files = await getFiles({
-        path: '.data/settings.json',
-        repo: repoName
-      })
-      
-      if (!files) {
-        console.warn('No settings file found in remote repository')
+      if (!remoteSettings) {
+        const files = await getFiles({
+          path: '.data/settings.json',
+          repo: repoName
+        })
+
+        if (!files) {
+          console.warn('No settings file found in remote repository')
+          debugSettingsSync('git download result', {
+            provider: primaryBackupMethod,
+            success: false,
+          })
+          return false
+        }
+        debugSettingsSync('git download result', {
+          provider: primaryBackupMethod,
+          success: true,
+        })
+
+        // 解码 base64 内容
+        const content = decodeBase64ToString(getRemoteFileContent(files, '.data/settings.json'))
+        remoteSettings = JSON.parse(content)
+      }
+
+      if (!remoteSettings) {
         return false
       }
       
-      // 解码 base64 内容
-      const content = decodeBase64ToString(getRemoteFileContent(files, '.data/settings.json'))
-      const remoteSettings = JSON.parse(content)
-      
       // 合并配置：使用远程配置，但保留本地的排除字段
-      const mergedSettings = mergeSyncData(localSettings, remoteSettings)
+      const mergedSettings = mergeSyncData(localSettings, remoteSettings, { excludeSensitiveConfig })
+      debugSettingsSync('settings merged from remote', {
+        localKeys: Object.keys(localSettings).length,
+        remoteKeys: Object.keys(remoteSettings).length,
+        mergedKeys: Object.keys(mergedSettings).length,
+      })
       
       // 保存合并后的配置到本地
-      for (const [key, value] of Object.entries(mergedSettings)) {
-        await store.set(key, value)
+      setAutoDataSyncApplyingRemote(true)
+      try {
+        for (const [key, value] of Object.entries(mergedSettings)) {
+          await store.set(key, value)
+        }
+        await store.save()
+      } finally {
+        setAutoDataSyncApplyingRemote(false)
       }
-      await store.save()
       
       // 更新最后同步时间
       const now = new Date().toISOString()
@@ -162,6 +329,9 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       return true
     } catch (error) {
       console.error('Failed to download settings:', error)
+      debugSettingsSync('download failed', {
+        message: error instanceof Error ? error.message : 'unknown error',
+      })
       return false
     }
   }

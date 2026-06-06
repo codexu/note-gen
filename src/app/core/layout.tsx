@@ -7,6 +7,7 @@ import { initAllDatabases } from "@/db"
 import dayjs from "dayjs"
 import zh from "dayjs/locale/zh-cn";
 import en from "dayjs/locale/en";
+import vi from "dayjs/locale/vi";
 import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import useImageStore from "@/stores/imageHosting"
@@ -179,6 +180,9 @@ export default function RootLayout({
         break;
       case 'en':
         dayjs.locale(en);
+        break;
+      case 'vi':
+        dayjs.locale(vi);
         break;
       default:
         break;

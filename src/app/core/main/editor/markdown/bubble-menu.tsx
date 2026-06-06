@@ -34,6 +34,8 @@ const POPULAR_LANGUAGES = [
   { name: 'Português', code: 'Portuguese', i18nKey: 'languages.Portuguese' },
   { name: 'Русский', code: 'Russian', i18nKey: 'languages.Russian' },
   { name: 'العربية', code: 'Arabic', i18nKey: 'languages.Arabic' },
+  { name: 'Tiếng Việt', code: 'Vietnamese', i18nKey: 'languages.Vietnamese' },
+
 ]
 
 interface BubbleMenuProps {

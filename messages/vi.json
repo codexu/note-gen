@@ -1,0 +1,2491 @@
+{
+  "app": {
+    "title": "Note Generator",
+    "description": "Trợ lý ghi chú hỗ trợ bởi AI của bạn"
+  },
+  "common": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "delete": "Xóa",
+    "edit": "Chỉnh sửa",
+    "create": "Tạo",
+    "theme": "Giao diện",
+    "light": "Sáng",
+    "dark": "Tối",
+    "system": "Hệ thống",
+    "pin": "Ghim",
+    "unpin": "Bỏ ghim",
+    "settings": "Cài đặt",
+    "back": "Quay lại",
+    "sync": "Đồng bộ",
+    "language": "Ngôn ngữ",
+    "confirm": "Xác nhận",
+    "selectPrompt": "Chọn Prompt",
+    "prompt": "Prompt",
+    "success": "Thành công",
+    "error": "Thất bại",
+    "defaultFileName": "Chưa có tiêu đề",
+    "restartToApply": ", vui lòng khởi động lại ứng dụng để cấu hình có hiệu lực",
+    "unsaved": "Chưa lưu",
+    "saving": "Đang lưu...",
+    "close": "Đóng",
+    "open": "Mở",
+    "add": "Thêm",
+    "remove": "Xóa bỏ",
+    "search": "Tìm kiếm",
+    "filter": "Lọc",
+    "sort": "Sắp xếp",
+    "export": "Xuất",
+    "import": "Nhập",
+    "refresh": "Làm mới",
+    "loading": "Đang tải...",
+    "warning": "Cảnh báo",
+    "info": "Thông tin",
+    "configureSync": "Cấu hình đồng bộ"
+  },
+  "settings": {
+    "defaultModels": {
+      "title": "Mô hình mặc định"
+    },
+    "others": "Nâng cao",
+    "general": {
+      "title": "Cài đặt chung",
+      "desc": "Tại đây, bạn có thể cấu hình các cài đặt cơ bản của ứng dụng, bao gồm giao diện, ngôn ngữ và các tùy chọn khác.",
+      "interface": {
+        "title": "Cài đặt giao diện",
+        "theme": {
+          "title": "Chủ đề",
+          "desc": "Chọn diện mạo cho ứng dụng",
+          "options": {
+            "light": "Sáng",
+            "dark": "Tối",
+            "system": "Hệ thống"
+          }
+        },
+        "language": {
+          "title": "Ngôn ngữ",
+          "desc": "Chọn ngôn ngữ hiển thị của ứng dụng"
+        },
+        "scale": {
+          "title": "Tỉ lệ giao diện",
+          "desc": "Điều chỉnh tỉ lệ tổng thể của giao diện ứng dụng",
+          "placeholder": "Chọn tỉ lệ"
+        },
+        "contentTextScale": {
+          "title": "Tỉ lệ nội dung",
+          "desc": "Điều chỉnh kích thước văn bản trong trình soạn thảo và nội dung Markdown"
+        },
+        "fileManagerTextSize": {
+          "title": "Kích thước chữ Quản lý tệp",
+          "desc": "Điều chỉnh kích thước chữ của danh sách tệp và thư mục"
+        },
+        "recordTextSize": {
+          "title": "Kích thước chữ Bản ghi",
+          "desc": "Điều chỉnh kích thước chữ của các mục trong danh sách bản ghi"
+        },
+        "customCss": {
+          "title": "CSS tùy chỉnh",
+          "desc": "Thêm các kiểu CSS tùy chỉnh để ghi đè phong cách mặc định của ứng dụng",
+          "button": "Chỉnh sửa CSS",
+          "dialogTitle": "CSS tùy chỉnh",
+          "dialogDesc": "Nhập mã CSS vào bên dưới để thay đổi giao diện. Nhấn lưu để áp dụng.",
+          "placeholder": "Nhập mã CSS tại đây",
+          "save": "Lưu",
+          "cancel": "Hủy"
+        },
+        "customTheme": {
+          "title": "Màu sắc chủ đề tùy chỉnh",
+          "desc": "Tùy chỉnh màu sắc ứng dụng bao gồm nền, chữ, viền, v.v.",
+          "button": "Chỉnh sửa màu sắc",
+          "dialogTitle": "Màu sắc chủ đề tùy chỉnh",
+          "dialogDesc": "Cấu hình màu sắc chủ đề. Các thay đổi được lưu và áp dụng theo thời gian thực.",
+          "close": "Đóng",
+          "reset": "Đặt lại tất cả",
+          "tabs": {
+            "custom": "Tùy chỉnh",
+            "presets": "Cài đặt sẵn",
+            "importExport": "Nhập/Xuất"
+          },
+          "export": {
+            "title": "Xuất bảng màu",
+            "button": "Tạo mã xuất",
+            "placeholder": "Nhấn nút tạo để xuất bảng màu hiện tại dưới dạng mã"
+          },
+          "import": {
+            "title": "Nhập bảng màu",
+            "button": "Nhập bảng màu",
+            "placeholder": "Dán mã JSON của bảng màu vào đây"
+          },
+          "colors": {
+            "background": "Nền",
+            "foreground": "Chữ (Chính)",
+            "card": "Nền thẻ",
+            "cardForeground": "Chữ trên thẻ",
+            "primary": "Chủ đạo",
+            "primaryForeground": "Chữ trên màu chủ đạo",
+            "secondary": "Phụ",
+            "secondaryForeground": "Chữ trên màu phụ",
+            "third": "Bậc ba",
+            "thirdForeground": "Chữ trên màu bậc ba",
+            "muted": "Làm mờ",
+            "mutedForeground": "Chữ làm mờ",
+            "accent": "Nhấn mạnh",
+            "accentForeground": "Chữ nhấn mạnh",
+            "border": "Viền",
+            "shadow": "Đổ bóng"
+          },
+          "presets": {
+            "apply": "Áp dụng",
+            "reset": {
+              "name": "Khôi phục mặc định"
+            },
+            "default": {
+              "name": "Trắng mặc định"
+            },
+            "ocean": {
+              "name": "Xanh đại dương"
+            },
+            "forest": {
+              "name": "Xanh lá rừng"
+            },
+            "sunset": {
+              "name": "Đỏ hoàng hôn"
+            },
+            "lavender": {
+              "name": "Tím oải hương"
+            },
+            "midnight": {
+              "name": "Đen nửa đêm"
+            },
+            "deepSea": {
+              "name": "Biển sâu"
+            },
+            "darkForest": {
+              "name": "Rừng tối"
+            },
+            "darkViolet": {
+              "name": "Tím đậm"
+            },
+            "coralWarm": {
+              "name": "San hô ấm"
+            },
+            "slateGray": {
+              "name": "Xám đá phiến"
+            },
+            "darkGold": {
+              "name": "Vàng tối"
+            },
+            "beigeWarm": {
+              "name": "Be ấm"
+            },
+            "beigeDark": {
+              "name": "Be tối"
+            }
+          }
+        },
+        "tray": {
+          "enabled": {
+            "title": "Bật khay hệ thống",
+            "desc": "Thu nhỏ xuống khay hệ thống hoặc đóng ứng dụng khi đóng cửa sổ"
+          }
+        }
+      },
+      "tools": {
+        "title": "Cài đặt công cụ",
+        "desc": "Cấu hình hiển thị và sắp xếp các nút trên thanh công cụ",
+        "chatToolbar": {
+          "title": "Thanh công cụ Chat",
+          "desc": "Tùy chỉnh thứ tự hiển thị và khả năng hiển thị của các nút chat",
+          "button": "Cấu hình",
+          "dialogTitle": "Cấu hình thanh công cụ Chat",
+          "dialogDesc": "Kéo các công cụ để điều chỉnh thứ tự, sử dụng công tắc để hiện/ẩn",
+          "groups": {
+            "pc": "Máy tính",
+            "mobile": "Di động",
+            "bottom": "Thanh dưới",
+            "topLeft": "Thanh trên - Trái",
+            "topRight": "Thanh trên - Phải"
+          }
+        },
+        "recordToolbar": {
+          "title": "Thanh công cụ Bản ghi",
+          "desc": "Tùy chỉnh thứ tự hiển thị và khả năng hiển thị của các nút bản ghi",
+          "button": "Cấu hình",
+          "dialogTitle": "Cấu hình thanh công cụ Bản ghi",
+          "dialogDesc": "Kéo các công cụ để điều chỉnh thứ tự, sử dụng công tắc để hiện/ẩn"
+        }
+      }
+    },
+    "rag": {
+      "title": "Cơ sở tri thức",
+      "desc": "Tại đây, bạn có thể cấu hình các cài đặt liên quan đến cơ sở tri thức dựa trên công nghệ RAG, sử dụng mô hình Embedding để chuyển đổi văn bản thành vector, từ đó tìm kiếm thông minh và trả lời dựa trên dữ liệu.",
+      "settingsTitle": "Cài đặt tham số",
+      "settingsDesc": "Bằng cách điều chỉnh tham số, bạn có thể kiểm soát chính xác hơn hiệu quả truy xuất của cơ sở tri thức.",
+      "deleteVectorConfirm": "Bạn có chắc chắn muốn xóa sạch cơ sở tri thức không?",
+      "deleteVectorSuccess": "Xóa cơ sở tri thức thành công",
+      "enable": "Bật tìm kiếm cơ sở tri thức",
+      "enableDesc": "Khi bật, AI sẽ tìm kiếm trong ghi chú của bạn khi trả lời để cung cấp thông tin chính xác hơn.",
+      "chunkSize": "Kích thước đoạn (Chunk size)",
+      "chunkSizeDesc": "Số ký tự tối đa cho mỗi đoạn văn bản. Đoạn lớn hơn chứa nhiều ngữ cảnh hơn nhưng tăng độ phức tạp khi tính toán.",
+      "chunkOverlap": "Độ chồng lấp (Chunk overlap)",
+      "chunkOverlapDesc": "Số ký tự chồng lên nhau giữa các đoạn văn bản để duy trì tính liên tục của ngữ cảnh.",
+      "resultCount": "Số lượng kết quả",
+      "resultCountDesc": "Số lượng tài liệu liên quan được trả về khi tìm kiếm. Càng nhiều tài liệu thì thông tin càng phong phú nhưng có thể gây nhiễu.",
+      "similarityThreshold": "Ngưỡng tương đồng",
+      "similarityThresholdDesc": "Ngưỡng tối thiểu để tài liệu được coi là liên quan. Giá trị từ 0.0-1.0, càng cao thì yêu cầu càng khắt khe.",
+      "resetToDefaults": "Đặt lại mặc định",
+      "deleteVector": "Xóa cơ sở tri thức",
+      "topPDesc": "Tham số Top P kiểm soát sự đa dạng của văn bản được tạo. Giá trị nhỏ làm đầu ra tập trung hơn, giá trị lớn làm đầu ra đa dạng hơn."
+    },
+    "mcp": {
+      "title": "MCP",
+      "desc": "Giao thức Ngữ cảnh Mô hình (Model Context Protocol) cho phép AI gọi các công cụ bên ngoài và truy cập tài nguyên.",
+      "enableTitle": "Bật MCP",
+      "enableDesc": "Khi bật, AI có thể gọi các công cụ được cung cấp bởi các máy chủ MCP đã cấu hình.",
+      "servers": "Danh sách máy chủ",
+      "serversDesc": "Quản lý cấu hình máy chủ MCP. Mỗi máy chủ có thể cung cấp các công cụ khác nhau.",
+      "addServer": "Thêm máy chủ",
+      "addFirstServer": "Thêm máy chủ đầu tiên",
+      "editServer": "Sửa máy chủ",
+      "serverName": "Tên máy chủ",
+      "serverNamePlaceholder": "VD: File System Server",
+      "serverEnabled": "Bật máy chủ",
+      "serverEnabledDesc": "Khi bật, máy chủ này sẽ tự động kết nối và cung cấp công cụ.",
+      "serverType": "Loại máy chủ",
+      "stdio": "Lệnh cục bộ (stdio)",
+      "http": "Dịch vụ HTTP",
+      "command": "Lệnh",
+      "args": "Đối số",
+      "argsDesc": "Đối số dòng lệnh, phân cách bằng dấu cách",
+      "env": "Biến môi trường",
+      "envDesc": "Cấu hình biến môi trường định dạng JSON",
+      "url": "URL dịch vụ",
+      "headers": "Tiêu đề yêu cầu",
+      "headersDesc": "Tiêu đề HTTP định dạng JSON",
+      "testConnection": "Kiểm tra kết nối",
+      "test": "Thử nghiệm",
+      "testSuccess": "Kiểm tra kết nối thành công",
+      "testFailed": "Kiểm tra kết nối thất bại",
+      "connected": "Đã kết nối",
+      "connecting": "Đang kết nối",
+      "disconnected": "Đã ngắt kết nối",
+      "error": "Lỗi",
+      "tools": "Công cụ",
+      "noServers": "Dịch vụ MCP chưa được bật",
+      "noServersFound": "Không tìm thấy máy chủ phù hợp",
+      "serverAdded": "Đã thêm máy chủ thành công",
+      "serverUpdated": "Đã cập nhật máy chủ thành công",
+      "serverDeleted": "Đã xóa máy chủ thành công",
+      "deleteServerTitle": "Xóa máy chủ",
+      "deleteServerDesc": "Bạn có chắc muốn xóa máy chủ này? Hành động này không thể hoàn tác.",
+      "nameRequired": "Vui lòng nhập tên máy chủ",
+      "commandRequired": "Vui lòng nhập lệnh",
+      "urlRequired": "Vui lòng nhập URL dịch vụ",
+      "toolBrowser": "Trình duyệt công cụ",
+      "searchTools": "Tìm kiếm công cụ...",
+      "noToolsFound": "Không tìm thấy công cụ",
+      "parameters": "Tham số",
+      "testAll": "Kiểm tra tất cả kết nối",
+      "testAllCompleted": "Đã hoàn tất kiểm tra toàn bộ kết nối",
+      "testAllFailed": "Kiểm tra kết nối thất bại",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "delete": "Xóa",
+      "importJson": "Nhập JSON",
+      "jsonImportTitle": "Nhập cấu hình máy chủ từ JSON",
+      "jsonImportDesc": "Dán định dạng cấu hình mcpServers cho máy chủ MCP",
+      "jsonInput": "Cấu hình JSON",
+      "jsonInputHelp": "Hỗ trợ định dạng mcpServers, tự động lấy tên máy chủ làm khóa",
+      "jsonRequired": "Vui lòng nhập cấu hình JSON",
+      "jsonEmpty": "Cấu hình JSON không được để trống",
+      "jsonInvalidJson": "Định dạng JSON không hợp lệ",
+      "jsonInvalidFormat": "Định dạng cấu hình không hợp lệ, phải chứa trường name và type",
+      "jsonInvalidType": "Loại máy chủ phải là stdio hoặc http",
+      "jsonMissingCommand": "Máy chủ loại stdio phải có lệnh (command)",
+      "jsonMissingUrl": "Máy chủ loại http phải có url",
+      "jsonImportSuccess": "Đã nhập thành công {count} máy chủ",
+      "jsonImportSkipped": "Đã bỏ qua {count} máy chủ đã tồn tại",
+      "jsonImportNoServers": "Không có máy chủ nào được nhập",
+      "import": "Nhập"
+    },
+    "skills": {
+      "title": "Kỹ năng (Skills)",
+      "desc": "Kỹ năng là các gói khả năng AI có thể tái sử dụng, giúp trợ lý tự động áp dụng các mô hình hành vi cụ thể dựa trên nhiệm vụ.",
+      "enable": "Bật Kỹ năng",
+      "enableDesc": "Khi bật, AI có thể sử dụng các Kỹ năng đã cấu hình",
+      "autoMatch": "Tự động khớp Kỹ năng",
+      "autoMatchDesc": "Tự động chọn Kỹ năng phù hợp dựa trên nội dung nhập của người dùng",
+      "project": "Kỹ năng không gian làm việc",
+      "global": "Kỹ năng toàn cục",
+      "globalPath": "Vị trí lưu trữ Kỹ năng toàn cục",
+      "openInFileManager": "Mở trong trình quản lý tệp",
+      "createSkill": "Tạo Kỹ năng",
+      "editSkill": "Sửa Kỹ năng",
+      "deleteSkill": "Xóa Kỹ năng",
+      "exportSkill": "Xuất Kỹ năng",
+      "importSkill": "Nhập Kỹ năng",
+      "selectSkillZip": "Chọn tệp zip Kỹ năng",
+      "importSuccess": "Nhập thành công",
+      "importError": "Nhập thất bại",
+      "imported": "đã nhập",
+      "importing": "Đang nhập...",
+      "skillName": "Tên Kỹ năng",
+      "skillDescription": "Mô tả",
+      "skillVersion": "Phiên bản",
+      "skillAuthor": "Tác giả",
+      "allowedTools": "Công cụ được cho phép",
+      "userInvocable": "Hiển thị trong Menu lệnh (/)",
+      "instructions": "Hướng dẫn (Instructions)",
+      "instructionsPlaceholder": "Nhập hướng dẫn chi tiết cho AI...",
+      "importHelp": "Hỗ trợ nhập Kỹ năng định dạng zip. Tệp zip phải chứa tệp SKILL.md.",
+      "metadata": "Metadata",
+      "content": "Hướng dẫn",
+      "noSkills": "Chưa có Kỹ năng nào",
+      "noSkillsDesc": "Tạo hoặc nhập Kỹ năng để bắt đầu",
+      "noSkillsGlobal": "Chưa có Kỹ năng toàn cục",
+      "noSkillsGlobalDesc": "Tạo hoặc nhập Kỹ năng để dùng trên tất cả dự án",
+      "emptyWorkspace": "Không có Kỹ năng trong không gian làm việc",
+      "emptyWorkspaceDesc": "Tạo tệp SKILL.md trong thư mục skills để thêm Kỹ năng",
+      "basicSettings": "Cài đặt cơ bản",
+      "installedGlobalSkills": "Kỹ năng toàn cục đã cài đặt",
+      "nameRequired": "Vui lòng nhập tên Kỹ năng",
+      "descriptionRequired": "Vui lòng nhập mô tả",
+      "namePlaceholder": "sap-xep-ghi-chu",
+      "versionPlaceholder": "1.0.0",
+      "descriptionPlaceholder": "Tự động sắp xếp và tối ưu cấu trúc ghi chú...",
+      "authorPlaceholder": "Tên của bạn",
+      "descriptionHelp": "Được AI sử dụng để khớp, mô tả chức năng và tình huống sử dụng",
+      "allowedToolsHelp": "Các công cụ này có thể được sử dụng mà không cần người dùng xác nhận",
+      "userInvocableHelp": "Người dùng có thể kích hoạt thủ công qua lệnh /ten-ky-nang",
+      "instructionsHelp": "Hướng dẫn chi tiết cho AI, hỗ trợ định dạng Markdown",
+      "deleteSkillTitle": "Xóa Kỹ năng",
+      "deleteSkillDesc": "Bạn có chắc muốn xóa Kỹ năng này? Hành động này không thể hoàn tác.",
+      "skillDeleted": "Đã xóa Kỹ năng thành công"
+    },
+    "editor": {
+      "title": "Cài đặt trình soạn thảo",
+      "interfaceSettings": "Cài đặt giao diện",
+      "desc": "Tại đây, bạn có thể tùy chỉnh trình soạn thảo để tạo ra trải nghiệm viết lách phù hợp nhất.",
+      "typewriterMode": "Chế độ máy đánh chữ",
+      "typewriterModeDesc": "Trình soạn thảo sẽ mô phỏng hiệu ứng máy đánh chữ, giúp bạn tập trung hơn vào việc viết.",
+      "outlineEnable": "Bật dàn ý mặc định",
+      "outlineEnableDesc": "Khi bật, bảng dàn ý sẽ hiển thị theo mặc định.",
+      "outlinePosition": "Vị trí dàn ý",
+      "outlinePositionDesc": "Đặt vị trí bảng dàn ý.",
+      "outlinePositionOptions": {
+        "left": "Bên trái",
+        "right": "Bên phải"
+      },
+      "pageView": "Chế độ xem trang",
+      "pageViewDesc": "Chế độ đắm chìm sẽ để trống hai bên, chế độ toàn cảnh sẽ chiếm toàn bộ khu vực chỉnh sửa.",
+      "pageViewOptions": {
+        "immersiveView": "Chế độ đắm chìm",
+        "panoramaView": "Chế độ toàn cảnh"
+      },
+      "enableLineNumber": "Hiện số dòng",
+      "enableLineNumberDesc": "Khi bật, số dòng sẽ hiển thị trong các khối mã.",
+      "completion": {
+        "title": "Tự động hoàn thành",
+        "model": {
+          "title": "Mô hình hoàn thành nhanh",
+          "desc": "Chọn mô hình cho tính năng gợi ý AI nội dòng (inline completion)"
+        }
+      },
+      "commit": {
+        "title": "Thông điệp Commit tự động",
+        "model": {
+          "title": "Mô hình Commit",
+          "desc": "Dùng để tự động tạo thông điệp Git commit dựa trên thay đổi của tệp"
+        }
+      },
+      "mermaid": {
+        "title": "Biểu đồ",
+        "rendering": "Đang dựng hình...",
+        "renderError": "Lỗi dựng hình",
+        "clickToEdit": "Nhấn để sửa nguồn",
+        "clickToAdd": "Nhấn để thêm biểu đồ",
+        "placeholder": "Nhập mã biểu đồ Mermaid...",
+        "preview": "Xem trước",
+        "done": "Xong",
+        "diagramTypes": {
+          "flowchart": "Lưu đồ",
+          "sequence": "Biểu đồ tuần tự",
+          "classDiagram": "Biểu đồ lớp",
+          "stateDiagram": "Biểu đồ trạng thái",
+          "er": "Biểu đồ ER",
+          "gantt": "Biểu đồ Gantt",
+          "pie": "Biểu đồ tròn",
+          "journey": "Hành trình người dùng"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[Bắt đầu] --> B[Xử lý]\n    B --> C[Kết thúc]",
+          "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Xin chào\n    Bob-->>Alice: Trả lời",
+          "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+          "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+          "gantt": "gantt\n    title Kế hoạch dự án\n    dateFormat YYYY-MM-DD\n    section Giai đoạn 1\n    Task1 :a1, 2024-01-01, 30d\n    section Giai đoạn 2\n    Task2 :after a1, 20d",
+          "pie": "pie title Phân bổ tài nguyên\n    \"CPU\" : 45\n    \"Bộ nhớ\" : 30\n    \"Lưu trữ\" : 25",
+          "journey": "journey\n    title Công việc hàng ngày\n    section Buổi sáng\n    Đi làm : 7:00, 5\n    Làm việc : 9:00, 8"
+        }
+      }
+    },
+    "record": {
+      "title": "Cài đặt bản ghi",
+      "desc": "Cấu hình các cài đặt liên quan đến bản ghi, bao gồm mô tả bản ghi và thanh công cụ.",
+      "model": {
+        "title": "Cài đặt mô hình",
+        "markDesc": {
+          "title": "Mô tả bản ghi",
+          "desc": "Dùng để xử lý các bản ghi nhận diện qua OCR và tạo mô tả"
+        }
+      },
+      "toolbar": {
+        "title": "Cài đặt thanh công cụ",
+        "recordToolbar": {
+          "title": "Thanh công cụ Bản ghi",
+          "desc": "Tùy chỉnh hiện/ẩn và thứ tự của các nút trên thanh bản ghi",
+          "button": "Cấu hình",
+          "text": {
+            "desc": "Nội dung văn bản ghi lại"
+          },
+          "recording": {
+            "desc": "Chức năng ghi âm giọng nói"
+          },
+          "scan": {
+            "desc": "Quét và nhận diện văn bản từ hình ảnh"
+          },
+          "image": {
+            "desc": "Tải ảnh lên ghi chú"
+          },
+          "link": {
+            "desc": "Lưu các liên kết web"
+          },
+          "file": {
+            "desc": "Tải tệp lên ghi chú"
+          },
+          "todo": {
+            "desc": "Tạo danh sách việc cần làm"
+          }
+        }
+      }
+    },
+    "uploadStore": {
+      "uploadConfirm": "Khi tải cấu hình lên, hãy đảm bảo kho lưu trữ đồng bộ là Riêng tư, nếu không dữ liệu sẽ bị rò rỉ!",
+      "downloadConfirm": "Tải cấu hình xuống sẽ ghi đè cấu hình hiện tại và khởi động lại ứng dụng!",
+      "uploadSuccess": "Tải lên thành công",
+      "downloadSuccess": "Tải xuống thành công",
+      "upload": "Tải lên",
+      "download": "Tải xuống"
+    },
+    "about": {
+      "title": "Giới thiệu",
+      "desc": "Trợ lý ghi chú tập trung vào việc ghi lại và viết lách.",
+      "version": "NoteGen v{version}",
+      "checkReleases": "Kiểm tra lịch sử phiên bản",
+      "language": "Ngôn ngữ",
+      "checkUpdate": "Kiểm tra cập nhật",
+      "checkError": "Kiểm tra cập nhật thất bại",
+      "updateAvailable": "Cập nhật phiên bản mới",
+      "updateDownloading": "Đang tải cập nhật {downloaded} / {contentLength}",
+      "updateInstalled": "Khởi động lại ứng dụng",
+      "noUpdate": "Bạn đang dùng phiên bản mới nhất",
+      "ignoreVersion": "Bỏ qua phiên bản này",
+      "ignoreVersionSuccess": "Đã bỏ qua cập nhật phiên bản này",
+      "items": {
+        "home": {
+          "title": "Trang chủ",
+          "buttonName": "Mở",
+          "desc": "Truy cập trang web để tìm hiểu thêm về NoteGen."
+        },
+        "guide": {
+          "title": "Hướng dẫn",
+          "buttonName": "Mở",
+          "desc": "Xem hướng dẫn cấu hình, cách thiết lập mô hình, đồng bộ, v.v."
+        },
+        "github": {
+          "title": "GitHub",
+          "buttonName": "Xem",
+          "desc": "Nếu NoteGen giúp ích cho bạn, hãy tặng một ngôi sao để khích lệ!"
+        },
+        "releases": {
+          "title": "Nhật ký cập nhật",
+          "buttonName": "Xem",
+          "desc": "Xem nhật ký các thay đổi của NoteGen."
+        },
+        "issues": {
+          "title": "Phản hồi lỗi",
+          "buttonName": "Phản hồi",
+          "desc": "Nếu bạn gặp lỗi, vui lòng phản hồi tại đây."
+        },
+        "discussions": {
+          "title": "Thảo luận",
+          "buttonName": "Thảo luận",
+          "desc": "Tham luận với tác giả hoặc người dùng khác."
+        }
+      }
+    },
+    "memories": {
+      "title": "Quản lý ký ức",
+      "desc": "Tính năng bộ nhớ dài hạn của AI giúp ghi nhớ sở thích viết lách, trải nghiệm và thói quen ghi chú của bạn.",
+      "stats": {
+        "total": "Tổng số ký ức",
+        "preferences": "Sở thích",
+        "memories": "Ký ức"
+      },
+      "form": {
+        "title": "Thêm ký ức mới",
+        "categoryDescription": "Ký ức được chia thành hai loại:",
+        "preferenceDescription": "Sở thích: Ngôn ngữ, định dạng, phong cách - luôn được nạp trong hội thoại",
+        "memoryDescription": "Ký ức: Sự kiện, kinh nghiệm, chuyên môn - được khớp thông minh dựa trên ngữ cảnh",
+        "contentLabel": "Nội dung ký ức",
+        "contentPlaceholder": "VD: Tôi thích trả lời bằng tiếng Việt, tôi là chuyên gia React...",
+        "categoryLabel": "Loại",
+        "preferenceLabel": "Sở thích",
+        "memoryLabel": "Ký ức",
+        "preferenceDesc": "Ngôn ngữ, định dạng, phong cách, v.v.",
+        "memoryDesc": "Sự thật, kinh nghiệm, chuyên môn, v.v.",
+        "save": "Lưu ký ức",
+        "saving": "Đang lưu..."
+      },
+      "listTitle": "Ký ức của tôi",
+      "addMemory": "Thêm ký ức",
+      "empty": "Chưa có ký ức nào, hãy thêm ký ức đầu tiên!",
+      "emptyHint": "Bạn có thể thêm ký ức thủ công hoặc dùng các cụm từ như \"hãy nhớ rằng\" hoặc \"nhớ điều này\" trong khi chat để AI tự động tạo ký ức.",
+      "preference": "Sở thích",
+      "memory": "Ký ức",
+      "replaced": "Đã thay thế",
+      "accessCount": "Đã truy cập {count} lần",
+      "tabs": {
+        "all": "Tất cả",
+        "preference": "Sở thích",
+        "memory": "Ký ức"
+      },
+      "success": "Thành công",
+      "saved": "Đã lưu ký ức",
+      "updated": "Đã cập nhật ký ức (thay thế ký ức tương tự)",
+      "deleted": "Đã xóa ký ức",
+      "cleared": "Đã xóa sạch ký ức",
+      "found": "Tìm thấy {count} ký ức",
+      "error": "Lỗi",
+      "errorEmpty": "Vui lòng nhập nội dung ký ức",
+      "errorSave": "Lưu thất bại",
+      "errorDelete": "Xóa thất bại",
+      "errorList": "Lấy danh sách ký ức thất bại",
+      "errorEmbedding": "Tạo embedding thất bại, vui lòng kiểm tra cấu hình mô hình",
+      "errorClear": "Xóa sạch thất bại"
+    },
+    "defaultModel": {
+      "title": "Mô hình mặc định",
+      "desc": "Tại đây, bạn có thể chỉ định các mô hình khác nhau cho từng tình huống để tăng hiệu quả và giảm chi phí.",
+      "tooltip": "Sử dụng mô hình chính",
+      "noModel": "Không sử dụng",
+      "placeholder": "Vui lòng chọn hoặc tìm kiếm mô hình",
+      "main": "Mô hình chính",
+      "options": {
+        "primaryModel": {
+          "title": "Mô hình chính",
+          "desc": "Mô hình mặc định cho tất cả các tình huống nếu không có lựa chọn riêng biệt."
+        },
+        "markDesc": {
+          "title": "Mô tả bản ghi",
+          "desc": "Sử dụng để xử lý bản ghi sau khi nhận diện OCR."
+        },
+        "placeholder": {
+          "title": "Gợi ý AI",
+          "desc": "Mô hình gợi ý câu hỏi để hiển thị trong trang bản ghi."
+        },
+        "completion": {
+          "title": "Hoàn thành nhanh",
+          "desc": "Gợi ý viết tiếp nội dung trong trình soạn thảo Markdown (giống GitHub Copilot)."
+        },
+        "commit": {
+          "title": "Tạo thông điệp Commit",
+          "desc": "Tự động tạo nội dung commit Git dựa trên thay đổi tệp."
+        },
+        "embedding": {
+          "title": "Mô hình Embedding",
+          "desc": "Sử dụng để chuyển văn bản thành vector cho tìm kiếm ngữ nghĩa."
+        },
+        "reranking": {
+          "title": "Mô hình Reranking",
+          "desc": "Dùng để xếp hạng lại và tối ưu kết quả tìm kiếm."
+        },
+        "condense": {
+          "title": "Mô hình Tóm tắt",
+          "desc": "Dùng để nén lịch sử hội thoại nhằm tiết kiệm token."
+        }
+      },
+      "mainModel": "Mô hình chính"
+    },
+    "audio": {
+      "title": "Cài đặt âm thanh",
+      "desc": "Cấu hình các chức năng chuyển văn bản thành giọng nói (TTS) và giọng nói thành văn bản (STT).",
+      "tts": {
+        "title": "Văn bản thành Giọng nói (TTS)",
+        "desc": "Cấu hình chức năng đọc tin nhắn trong chat.",
+        "model": {
+          "title": "Mô hình TTS",
+          "desc": "Chọn mô hình AI để chuyển đổi văn bản sang giọng nói."
+        },
+        "speed": {
+          "title": "Tốc độ nói",
+          "desc": "Điều chỉnh tốc độ phát từ 0.5x đến 2x."
+        }
+      },
+      "stt": {
+        "title": "Giọng nói thành Văn bản (STT)",
+        "desc": "Cấu hình nhận diện giọng nói để lưu bản ghi.",
+        "mode": {
+          "title": "Chế độ nhận diện",
+          "desc": "Chọn nhận diện qua trình duyệt hoặc qua mô hình AI",
+          "builtin": "Tích hợp sẵn",
+          "model": "Mô hình AI"
+        },
+        "model": {
+          "title": "Mô hình STT",
+          "desc": "Chọn mô hình AI để chuyển giọng nói thành văn bản thời gian thực."
+        }
+      }
+    },
+    "prompt": {
+      "title": "Prompt",
+      "promptTitle": "Tiêu đề Prompt",
+      "desc": "Quản lý các mẫu prompt để giúp AI hiểu nhu cầu của bạn tốt hơn.",
+      "addPrompt": "Thêm Prompt",
+      "selectPrompt": "Chọn Prompt",
+      "configPrompt": "Cấu hình Prompt",
+      "noContent": "Không có nội dung",
+      "addPromptDesc": "Nhập tên và nội dung prompt.",
+      "promptTitlePlaceholder": "Nhập tiêu đề prompt",
+      "promptContentPlaceholder": "Nhập nội dung prompt",
+      "promptContent": "Nội dung Prompt",
+      "optimizePrompt": "Tối ưu hóa Prompt",
+      "optimizing": "Đang tối ưu...",
+      "optimizeSuccess": "Tối ưu hóa prompt thành công",
+      "optimizeFailed": "Tối ưu hóa thất bại, vui lòng thử lại sau",
+      "noContentToOptimize": "Vui lòng nhập nội dung prompt trước"
+    },
+    "sync": {
+      "title": "Đồng bộ",
+      "desc": "Cấu hình kho lưu trữ để đồng bộ bản ghi, tệp markdown và cấu hình hệ thống.",
+      "selectPlatform": "Chọn nền tảng đồng bộ",
+      "platformSettings": "Chọn nền tảng",
+      "settings": "Cài đặt đồng bộ",
+      "platformDesc": "Cấu hình Token và thông tin kho lưu trữ",
+      "moreSettings": "Cài đặt thêm",
+      "repoStatus": "Trạng thái kho lưu trữ",
+      "syncRepo": "Kho lưu trữ đồng bộ",
+      "syncRepoDesc": "Đồng bộ các tệp markdown",
+      "imageRepo": "Kho lưu trữ hình ảnh",
+      "imageRepoDesc": "Đồng bộ ảnh lên kho, sử dụng jsdelivr để tăng tốc",
+      "private": "Riêng tư",
+      "public": "Công khai",
+      "createdAt": "Đã tạo {time}",
+      "updatedAt": "Cập nhật lần cuối {time}",
+      "newToken": "Tạo Access Token",
+      "newTokenDesc": "Khi tạo token mới, hãy nhớ chọn quyền 'repo'. Sau khi cấu hình, ứng dụng sẽ tự động tạo kho lưu trữ.",
+      "giteeTokenDesc": "Token Gitee cần quyền đọc/ghi kho lưu trữ.",
+      "imageRepoSetting": "Bật lưu trữ ảnh",
+      "imageRepoSettingDesc": "Bạn đã cấu hình kho ảnh, bạn có thể chọn dùng kho ảnh hoặc lưu trữ cục bộ.",
+      "jsdelivrSetting": "jsDelivr",
+      "autoSyncDesc": "Khi bật, trình soạn thảo sẽ tự động đồng bộ lên GitHub sau 10 giây ngừng nhập",
+      "giteeAutoSyncDesc": "Khi bật, trình soạn thảo sẽ tự động đồng bộ lên Gitee sau 10 giây ngừng nhập",
+      "customSyncRepo": "Tên kho đồng bộ tùy chỉnh",
+      "customSyncRepoDesc": "Để trống để dùng tên mặc định",
+      "customImageRepo": "Tên kho ảnh tùy chỉnh",
+      "customImageRepoDesc": "Để trống để dùng tên mặc định",
+      "backupMethod": "Phương thức sao lưu",
+      "backupMethodDesc": "Sau khi đặt làm phương thức sao lưu chính, mọi chức năng đồng bộ sẽ dùng phương thức này.",
+      "createRepo": "Tạo kho lưu trữ",
+      "creating": "Đang tạo",
+      "checkRepo": "Kiểm tra kho lưu trữ",
+      "checking": "Đang kiểm tra",
+      "enterToken": "Vui lòng nhập Access Token",
+      "enterTokenHint": "Vui lòng nhập Access Token trước để kiểm tra trạng thái kho",
+      "defaultRepoName": "Mặc định: {name}",
+      "gitlabInstanceType": "Loại thực thể GitLab",
+      "gitlabInstanceTypeDesc": "Chọn loại thực thể GitLab muốn kết nối",
+      "gitlabInstanceTypePlaceholder": "Chọn loại GitLab",
+      "gitlabInstanceTypeOptions": {
+        "selfHosted": "Thực thể tự lưu trữ",
+        "selfHostedDesc": "Nhập địa chỉ máy chủ GitLab của bạn (VD: https://gitlab.example.com)"
+      },
+      "gitlabAccessTokenDesc": "Tạo token truy cập cá nhân tại {instanceDisplayName}, yêu cầu quyền 'api'",
+      "giteaInstanceType": "Loại thực thể Gitea",
+      "giteaInstanceTypeDesc": "Chọn loại thực thể Gitea muốn kết nối",
+      "giteaInstanceTypePlaceholder": "Chọn loại Gitea",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "Thực thể tự lưu trữ",
+        "selfHostedDesc": "Nhập địa chỉ máy chủ Gitea của bạn (VD: https://gitea.example.com)"
+      },
+      "giteaAccessTokenDesc": "Tạo token tại {instanceDisplayName}, yêu cầu đầy đủ quyền kho lưu trữ",
+      "autoSync": "Tự động đồng bộ",
+      "autoSyncOptions": {
+        "placeholder": "Chọn thời gian tự động đồng bộ",
+        "disabled": "Đã tắt",
+        "2s": "2 giây",
+        "3s": "3 giây",
+        "5s": "5 giây",
+        "10s": "10 giây",
+        "20s": "20 giây",
+        "30s": "30 giây",
+        "1m": "1 phút",
+        "2m": "2 phút"
+      },
+      "exclusions": {
+        "title": "Loại trừ đồng bộ",
+        "desc": "Các cài đặt sau sẽ không được đồng bộ vì chúng phụ thuộc vào thiết bị cụ thể",
+        "workspacePath": "Đường dẫn không gian làm việc",
+        "workspaceHistory": "Lịch sử không gian làm việc",
+        "assetsPath": "Đường dẫn tài nguyên",
+        "uiScale": "Tỉ lệ giao diện",
+        "contentTextScale": "Tỉ lệ văn bản nội dung",
+        "customCss": "CSS tùy chỉnh",
+        "reason": "Các cài đặt này có thể khác nhau giữa các máy, loại trừ chúng giúp tránh lỗi đường dẫn."
+      },
+      "settingsSync": {
+        "uploadSuccess": "Tải lên cài đặt thành công",
+        "uploadFailed": "Tải lên cài đặt thất bại",
+        "downloadSuccess": "Tải xuống cài đặt thành công",
+        "downloadFailed": "Tải xuống cài đặt thất bại",
+        "autoSync": "Cài đặt sẽ tự động được đồng bộ khi tải lên/tải xuống (trừ các cài đặt đặc thù thiết bị)"
+      },
+      "jsdelivrSettingDesc": "Sử dụng jsdelivr để tăng tốc truy cập hình ảnh."
+    },
+    "imageHosting": {
+      "title": "Lưu trữ hình ảnh",
+      "desc": "Cấu hình dịch vụ lưu trữ hình ảnh để quản lý các tệp ảnh của bạn.",
+      "type": "Chọn nền tảng",
+      "typeDesc": "Chọn nhà cung cấp dịch vụ lưu trữ ảnh",
+      "customRepoName": "Tên kho tùy chỉnh",
+      "customRepoNameDesc": "Để trống để dùng mặc định",
+      "isPrimaryBackup": "Phương thức lưu trữ ảnh chính hiện tại: {type}",
+      "setPrimaryBackup": "Đặt làm kho ảnh chính",
+      "smms": {
+        "token": {
+          "desc": "Vui lòng nhập Token SM.MS.",
+          "createToken": "Tạo Token"
+        },
+        "disk": "Sử dụng dung lượng",
+        "error": "Lấy thông tin thất bại, vui lòng kiểm tra mạng hoặc Token."
+      },
+      "picgo": {
+        "desc": "URL máy chủ PicGo",
+        "ok": "Dịch vụ đang chạy.",
+        "error": "Dịch vụ không chạy, vui lòng mở PicGo (v2.2.0+)."
+      },
+      "github": {
+        "title": "GitHub Image Hosting",
+        "description": "Dùng kho GitHub làm dịch vụ lưu trữ ảnh",
+        "repoStatus": "Trạng thái kho",
+        "repoExists": "Kho lưu trữ tồn tại",
+        "repoNotExists": "Không tìm thấy kho",
+        "checking": "Đang kiểm tra",
+        "creating": "Đang tạo",
+        "manualCreateTitle": "Yêu cầu tạo kho thủ công",
+        "manualCreateDesc": "Vui lòng làm theo các bước để tạo kho lưu trữ ảnh:",
+        "createSteps": {
+          "step1": "Truy cập GitHub và đăng nhập",
+          "step2": "Nhấn nút \"+\" ở góc trên bên phải, chọn \"New repository\"",
+          "step3": "Đặt tên kho là:",
+          "step4": "Nên đặt là kho Riêng tư (Private)",
+          "step5": "Nhấn \"Create repository\"",
+          "step6": "Sau đó nhấn nút \"Kiểm tra lại\" bên dưới"
+        },
+        "createNewRepo": "Tạo kho lưu trữ mới",
+        "recheckRepo": "Kiểm tra lại",
+        "recheckingRepo": "Đang kiểm tra...",
+        "createRepo": "Tạo kho lưu trữ",
+        "creatingRepo": "Đang tạo..."
+      },
+      "s3": {
+        "title": "Lưu trữ đối tượng S3",
+        "description": "Cấu hình AWS S3 hoặc dịch vụ tương thích S3",
+        "status": "Trạng thái kết nối",
+        "connected": "Đã kết nối",
+        "connecting": "Đang kết nối",
+        "disconnected": "Đã ngắt kết nối",
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdPlaceholder": "Nhập Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "secretAccessKeyPlaceholder": "Nhập Secret Access Key",
+        "region": "Vùng (Region)",
+        "bucket": "Thùng chứa (Bucket)",
+        "bucketPlaceholder": "Nhập tên bucket",
+        "advancedSettings": "Cài đặt nâng cao",
+        "endpoint": "Endpoint tùy chỉnh",
+        "endpointDesc": "Để trống nếu dùng AWS S3, hoặc nhập endpoint dịch vụ tương thích S3",
+        "customDomain": "Tên miền tùy chỉnh",
+        "customDomainDesc": "Tùy chọn, tên miền truy cập ảnh",
+        "pathPrefix": "Tiền tố đường dẫn",
+        "pathPrefixDesc": "Tùy chọn, thư mục con lưu ảnh",
+        "save": "Lưu cấu hình",
+        "test": "Thử nghiệm kết nối",
+        "setAsPrimary": "Đặt làm chính",
+        "error": "Lỗi cấu hình",
+        "requiredFields": "Vui lòng điền đủ: Access Key ID, Secret Access Key, Region và Bucket",
+        "saveSuccess": "Đã lưu cấu hình",
+        "saveSuccessDesc": "Cấu hình S3 đã được lưu",
+        "saveError": "Lưu cấu hình thất bại",
+        "testSuccess": "Kết nối thành công",
+        "testSuccessDesc": "Kết nối S3 hoạt động tốt",
+        "testFailed": "Kết nối thất bại",
+        "testFailedDesc": "Vui lòng kiểm tra lại cấu hình và mạng",
+        "testFirstDesc": "Vui lòng thử nghiệm kết nối thành công trước khi đặt làm mặc định",
+        "setPrimarySuccess": "Thiết lập thành công",
+        "setPrimarySuccessDesc": "S3 đã được đặt làm kho ảnh chính"
+      }
+    },
+    "imageMethod": {
+      "title": "Nhận diện hình ảnh",
+      "desc": "Cấu hình nhận diện ảnh qua OCR hoặc mô hình VLM.",
+      "enable": {
+        "title": "Bật nhận diện hình ảnh",
+        "desc": "Khi bật, ảnh chụp màn hình hoặc ảnh tải lên sẽ tự động được nhận diện văn bản."
+      },
+      "setPrimary": "Đặt làm mặc định",
+      "isPrimary": "{type} đã được đặt làm mặc định",
+      "ocr": {
+        "title": "OCR",
+        "languagePacks": "Gói ngôn ngữ",
+        "checkModels": "Tìm kiếm các mô hình tại đây",
+        "modelInstruction": "Phân cách bằng dấu phẩy, VD: eng,chi_sim,vie"
+      },
+      "vlm": {
+        "title": "Mô hình thị giác (VLM)",
+        "desc": "Sử dụng mô hình ngôn ngữ thị giác để hiểu nội dung ảnh."
+      }
+    },
+    "backupSync": {
+      "title": "Sao lưu dữ liệu",
+      "desc": "Sử dụng các phương thức khác để sao lưu định kỳ, đảm bảo an toàn dữ liệu.",
+      "webdav": {
+        "connectionState": {
+          "success": "Đã kết nối",
+          "checking": "Đang kết nối",
+          "failed": "Không thể kết nối"
+        },
+        "description": "WebDAV chỉ dùng để sao lưu, không hỗ trợ đồng bộ tự động hoặc lịch sử phiên bản.",
+        "backupTo": "Sao lưu lên WebDAV",
+        "syncFrom": "Tải về từ WebDAV",
+        "serverUrl": "URL máy chủ WebDAV",
+        "serverUrlDesc": "Nhập địa chỉ máy chủ, không bao gồm đường dẫn, VD: https://dav.example.com",
+        "serverUrlPlaceholder": "https://dav.example.com",
+        "username": "Tên đăng nhập",
+        "usernameDesc": "Tên đăng nhập WebDAV",
+        "usernamePlaceholder": "Username",
+        "password": "Mật khẩu",
+        "passwordDesc": "Mật khẩu WebDAV",
+        "passwordPlaceholder": "Password",
+        "backupPath": "Đường dẫn sao lưu",
+        "backupPathDesc": "Đường dẫn trên máy chủ, VD: /backup/notes",
+        "backupPathPlaceholder": "/backup/notes",
+        "backupSuccess": "Sao lưu thành công",
+        "backupSuccessDesc": "Đã sao lưu {count} tệp lên WebDAV.",
+        "syncSuccess": "Đồng bộ thành công",
+        "syncSuccessDesc": "Đã tải {count} tệp từ WebDAV về máy.",
+        "syncFailed": "Đồng bộ thất bại",
+        "backupFailed": "Sao lưu thất bại",
+        "directoryCreated": "Đã tạo thư mục",
+        "directoryCreatedDesc": "Thư mục {path} đã được tạo thành công.",
+        "createDir": "Tạo thư mục",
+        "success": "Thành công",
+        "failed": "Thất bại",
+        "error": {
+          "pathNotFound": "Đường dẫn không tồn tại hoặc máy chủ không thể truy cập.",
+          "createDirFailed": "Tạo thư mục thất bại",
+          "connectionTimeOut": "Kết nối quá hạn, vui lòng kiểm tra mạng."
+        }
+      },
+      "localBackup": {
+        "tabTitle": "Sao lưu cục bộ",
+        "export": {
+          "title": "Xuất sao lưu",
+          "desc": "Đóng gói dữ liệu ứng dụng vào tệp .zip.",
+          "button": "Chọn vị trí và Xuất",
+          "simpleButton": "Xuất",
+          "exporting": "Đang xuất..."
+        },
+        "import": {
+          "title": "Nhập sao lưu",
+          "desc": "Khôi phục dữ liệu từ tệp .zip (sẽ ghi đè dữ liệu hiện tại).",
+          "button": "Chọn tệp và Nhập",
+          "importing": "Đang nhập...",
+          "warning": "Hành động này sẽ ghi đè toàn bộ dữ liệu hiện có!"
+        },
+        "exportDialog": {
+          "title": "Chọn vị trí lưu tệp sao lưu"
+        },
+        "importDialog": {
+          "title": "Chọn tệp sao lưu để nhập"
+        },
+        "exportSuccess": "Xuất sao lưu thành công!",
+        "exportError": "Xuất sao lưu thất bại",
+        "importSuccess": "Nhập sao lưu thành công! Ứng dụng sẽ khởi động lại.",
+        "importError": "Nhập sao lưu thất bại",
+        "restartConfirm": "Nhập hoàn tất! Khởi động lại ứng dụng ngay?"
+      }
+    },
+    "template": {
+      "title": "Mẫu (Template)",
+      "desc": "Tạo các mẫu sắp xếp tùy chỉnh để AI tổ chức nội dung bản ghi theo ý bạn.",
+      "customTemplate": "Mẫu tùy chỉnh",
+      "addTemplate": "Thêm mẫu tùy chỉnh",
+      "deleteConfirm": "Bạn có chắc muốn xóa mẫu này?",
+      "status": "Trạng thái",
+      "name": "Tên",
+      "content": "Nội dung",
+      "scope": "Phạm vi",
+      "selectScope": "Chọn phạm vi",
+      "addTemplateDesc": "Nhập tên và nội dung mẫu.",
+      "editTemplate": "Sửa mẫu tùy chỉnh",
+      "noContent": "Không có nội dung",
+      "range": {
+        "all": "Tất cả",
+        "today": "Hôm nay",
+        "week": "Tuần qua",
+        "month": "Tháng qua",
+        "threeMonth": "3 tháng qua",
+        "year": "Năm qua"
+      }
+    },
+    "shortcut": {
+      "title": "Phím tắt",
+      "screenshot": "Chụp màn hình",
+      "link": "Lưu liên kết",
+      "textRecord": "Ghi văn bản",
+      "windowPin": "Ghim cửa sổ"
+    },
+    "theme": {
+      "title": "Cài đặt chủ đề",
+      "desc": "Tùy chỉnh màu sắc ứng dụng",
+      "appTheme": "Bảng màu ứng dụng",
+      "previewTheme": "Chủ đề nội dung xem trước",
+      "codeTheme": "Chủ đề làm nổi bật mã",
+      "selectTheme": "Chọn chủ đề"
+    },
+    "dev": {
+      "title": "Nhà phát triển",
+      "desc": "Cấu hình tùy chọn nhà phát triển, proxy, xóa dữ liệu.",
+      "clearData": "Xóa dữ liệu",
+      "clearDataConfirm": "Bạn có chắc muốn xóa dữ liệu?",
+      "proxy": "Proxy dùng để giải quyết vấn đề mạng. Cần khởi động lại sau khi cấu hình.",
+      "proxyPlaceholder": "Nhập địa chỉ proxy",
+      "proxyTitle": "Proxy mạng",
+      "clearDataTitle": "Xóa dữ liệu",
+      "clearDataDesc": "Xóa toàn bộ cấu hình hệ thống và cơ sở dữ liệu (bao gồm bản ghi).",
+      "clearFileTitle": "Xóa tệp",
+      "clearFileDesc": "Xóa các tệp hình ảnh và bài viết.",
+      "clearButton": "Xóa",
+      "configFileTitle": "Quản lý tệp cấu hình",
+      "configFileDesc": "Nhập/Xuất tệp cấu hình. Việc nhập sẽ ghi đè cấu hình hiện tại.",
+      "importConfigTitle": "Nhập tệp cấu hình",
+      "exportConfigTitle": "Xuất tệp cấu hình",
+      "importConfigSuccessMobile": "Tải cấu hình thành công, vui lòng khởi động lại thủ công",
+      "exportConfigSuccess": "Xuất thành công",
+      "importButton": "Nhập",
+      "exportButton": "Xuất"
+    },
+    "chat": {
+      "title": "Cài đặt Chat",
+      "desc": "Cấu hình các cài đặt liên quan đến hội thoại và tóm tắt.",
+      "primaryModel": {
+        "title": "Mô hình chính",
+        "model": {
+          "title": "Mô hình Chat chính",
+          "desc": "Chọn mô hình AI mặc định cho hội thoại hàng ngày"
+        }
+      },
+      "toolbar": {
+        "title": "Cài đặt thanh công cụ",
+        "chatToolbar": {
+          "title": "Thanh công cụ Chat",
+          "desc": "Tùy chỉnh hiện/ẩn và thứ tự nút công cụ chat",
+          "button": "Cấu hình",
+          "modelSelect": {
+            "desc": "Chuyển đổi mô hình AI"
+          },
+          "promptSelect": {
+            "desc": "Chọn prompt có sẵn"
+          },
+          "chatLanguage": {
+            "desc": "Đặt ngôn ngữ hội thoại"
+          },
+          "chatLink": {
+            "title": "Gắn thẻ liên kết",
+            "desc": "Liên kết nội dung ghi chú của thẻ hiện tại vào ngữ cảnh chat"
+          },
+          "fileLink": {
+            "desc": "Liên kết tệp hoặc thư mục vào ngữ cảnh chat"
+          },
+          "mcpButton": {
+            "desc": "Kết nối máy chủ MCP để dùng công cụ ngoài"
+          },
+          "ragSwitch": {
+            "title": "Cơ sở tri thức",
+            "desc": "Bật truy xuất từ cơ sở tri thức vector"
+          },
+          "clipboardMonitor": {
+            "title": "Giám sát clipboard",
+            "desc": "Tự động theo dõi thay đổi nội dung bộ nhớ tạm"
+          },
+          "newChat": {
+            "desc": "Bắt đầu hội thoại mới"
+          },
+          "clearContext": {
+            "desc": "Xóa ngữ cảnh hội thoại, giữ lại lịch sử chat"
+          },
+          "clearChat": {
+            "desc": "Xóa toàn bộ lịch sử chat"
+          }
+        }
+      },
+      "condense": {
+        "title": "Tóm tắt hội thoại",
+        "enable": {
+          "title": "Bật tóm tắt",
+          "desc": "Tự động nén hội thoại dài để tiết kiệm token"
+        },
+        "model": {
+          "title": "Mô hình tóm tắt",
+          "desc": "Chọn mô hình để tạo tóm tắt",
+          "placeholder": "Dùng mô hình chính"
+        },
+        "threshold": {
+          "title": "Ngưỡng kích hoạt",
+          "desc": "Nén khi số tin nhắn AI vượt quá ngưỡng này"
+        },
+        "minToken": {
+          "title": "Số token tối thiểu",
+          "desc": "Chỉ nén tin nhắn vượt quá số token này"
+        },
+        "keepLatest": {
+          "title": "Giữ lại tin nhắn mới nhất",
+          "desc": "Giữ N tin nhắn AI cuối cùng không bị nén"
+        },
+        "maxLength": {
+          "title": "Độ dài tóm tắt tối đa",
+          "desc": "Kiểm soát số từ tối đa của bản tóm tắt"
+        },
+        "prompt": {
+          "title": "Prompt tóm tắt tùy chỉnh",
+          "desc": "Tùy chỉnh mẫu prompt để tạo tóm tắt",
+          "label": "Mẫu Prompt",
+          "placeholder": "Nhập prompt tùy chỉnh...",
+          "help": "Dùng {content} làm trình giữ chỗ cho nội dung gốc",
+          "save": "Lưu",
+          "reset": "Đặt lại mặc định"
+        }
+      },
+      "conversationTitle": {
+        "title": "Tiêu đề hội thoại",
+        "model": {
+          "title": "Mô hình tạo tiêu đề",
+          "desc": "Chọn mô hình để tự động tạo tiêu đề cho đoạn chat"
+        }
+      },
+      "inspiration": {
+        "title": "Mô hình gợi ý",
+        "model": {
+          "title": "Bộ tạo gợi ý nhanh",
+          "desc": "Tạo các gợi ý nhanh giúp người dùng bắt đầu hội thoại"
+        }
+      }
+    },
+    "ai": {
+      "title": "Quản lý mô hình",
+      "desc": "Thêm và quản lý các dịch vụ mô hình AI tùy chỉnh. Sau khi cấu hình, bạn có thể dùng các tính năng AI.",
+      "modelTitle": "Tên tùy chỉnh",
+      "modelConfigTitle": "Cấu hình mô hình",
+      "modelConfigDesc": "Mỗi cấu hình tương ứng với một dịch vụ AI.",
+      "providerInfo": "Thông tin nhà cung cấp",
+      "providerInfoDesc": "Cấu hình này được tạo từ mẫu của nhà cung cấp.",
+      "create": "Tạo",
+      "createDesc": "Chọn một cấu hình trống hoặc tạo mới từ mẫu.",
+      "createSection": {
+        "title": "Cấu hình mô hình tùy chỉnh",
+        "descWithoutModels": "Thêm các cấu hình AI tùy chỉnh để sử dụng dịch vụ mạnh mẽ hơn."
+      },
+      "config": "Cấu hình",
+      "custom": "Tùy chỉnh",
+      "addCustomModel": "Tùy chỉnh",
+      "deleteCustomModel": "Xóa",
+      "deleteCustomModelConfirm": "Bạn có chắc muốn xóa mô hình này?",
+      "copyConfig": "Sao chép",
+      "builtin": "Tích hợp sẵn",
+      "modelSupport": "Chỉ hỗ trợ các mô hình tương thích giao thức OpenAI",
+      "apiKeyUrl": "Tạo API Key",
+      "modelType": {
+        "title": "Loại mô hình",
+        "desc": "Chọn loại mô hình dựa trên khả năng của nó",
+        "chat": "Chat",
+        "image": "Hình ảnh",
+        "video": "Video",
+        "tts": "Chuyển văn bản thành giọng nói",
+        "stt": "Chuyển giọng nói thành văn bản",
+        "embedding": "Embedding (Vector)",
+        "rerank": "Xếp hạng lại"
+      },
+      "modelList": {
+        "error": {
+          "title": "Lấy danh sách mô hình thất bại",
+          "description": "Vui lòng kiểm tra API Key hoặc mạng"
+        }
+      },
+      "selectModel": "Vui lòng chọn một mô hình",
+      "modelProviderDesc": "Mô hình tùy chỉnh chỉ hỗ trợ giao thức OpenAI.",
+      "modelTitleDesc": "Tên gợi nhớ, không được trùng lặp.",
+      "modelBaseUrlDesc": "Chỉ cần cấu hình URL cơ sở, VD: https://api.openai.com/v1.",
+      "modelDesc": "Một số mô hình hỗ trợ tự lấy danh sách, nếu không hãy nhập thủ công.",
+      "temperatureDesc": "Kiểm soát tính ngẫu nhiên. Thấp = tập trung hơn, Cao = sáng tạo hơn.",
+      "topPDesc": "Phương pháp lấy mẫu hạt nhân. 0.1 nghĩa là chỉ cân nhắc 10% kết quả xác suất cao nhất.",
+      "customHeaders": "Tiêu đề tùy chỉnh",
+      "customHeadersDesc": "Thêm các tiêu đề HTTP tùy chỉnh (key-value).",
+      "headerKey": "Khóa",
+      "headerValue": "Giá trị",
+      "addHeader": "Thêm tiêu đề",
+      "connectionSuccess": "Kiểm tra kết nối AI thành công",
+      "voice": "Loại giọng nói",
+      "voiceDesc": "Chỉ định giọng nói cho TTS, VD: 'alloy', 'echo', 'fable'...",
+      "voicePlaceholder": "Nhập loại giọng, VD: alloy",
+      "defaultModels": {
+        "title": "Mô hình miễn phí mặc định",
+        "desc": "NoteGen cung cấp sẵn một số mô hình miễn phí để bạn trải nghiệm nhanh.",
+        "chatModel": {
+          "name": "Qwen/Qwen3-8B",
+          "type": "Mô hình Chat",
+          "desc": "Phù hợp hội thoại hàng ngày và viết lách"
+        },
+        "embeddingModel": {
+          "name": "BAAI/bge-m3",
+          "type": "Mô hình Embedding",
+          "desc": "Dùng cho tìm kiếm ngữ nghĩa"
+        },
+        "visionModel": {
+          "name": "OpenGVLab/InternVL2-8B",
+          "type": "Mô hình Thị giác",
+          "desc": "Hỗ trợ hiểu ảnh và hỏi đáp thị giác"
+        },
+        "completionModel": {
+          "name": "Hoàn thành nhanh",
+          "type": "Mô hình hoàn thành",
+          "desc": "Gợi ý viết tiếp nội dung trong trình soạn thảo Markdown"
+        },
+        "poweredBy": "Cung cấp bởi SiliconFlow"
+      },
+      "connectionFailed": "Kết nối thất bại",
+      "enableStream": "Phản hồi dạng luồng (Stream)",
+      "enableStreamDesc": "Hiển thị nội dung ngay khi nó đang được tạo.",
+      "selectConfig": "Vui lòng chọn một cấu hình",
+      "models": "Danh sách mô hình",
+      "modelsDesc": "Quản lý các mô hình thuộc cấu hình hiện tại.",
+      "addModel": "Thêm mô hình",
+      "newModel": "Mô hình mới",
+      "checkConnection": "Thử kết nối",
+      "model": "Mô hình"
+    },
+    "ocr": {
+      "title": "OCR",
+      "languagePacks": "Gói ngôn ngữ",
+      "checkModels": "Xem toàn bộ mô hình tại đây",
+      "modelInstruction": "Phân cách bằng dấu phẩy, VD: eng,chi_sim,vie"
+    },
+    "file": {
+      "title": "Cài đặt tệp",
+      "desc": "Quản lý không gian làm việc và các tùy chọn liên quan đến tệp.",
+      "workspace": {
+        "title": "Cấu hình không gian làm việc",
+        "desc": "Đặt thư mục lưu trữ các tệp của ứng dụng",
+        "current": "Đường dẫn hiện tại",
+        "defaultPath": "Mặc định",
+        "default": "Đang dùng đường dẫn mặc định",
+        "custom": "Đang dùng đường dẫn tùy chỉnh",
+        "select": "Chọn thư mục không gian làm việc",
+        "reset": "Đặt lại về mặc định",
+        "history": "Lịch sử đường dẫn",
+        "selectFromHistory": "Chọn từ lịch sử",
+        "clearHistory": "Xóa lịch sử",
+        "actions": "Hành động",
+        "searchPlaceholder": "Tìm đường dẫn...",
+        "noResults": "Không tìm thấy kết quả"
+      },
+      "info": {
+        "title": "Thông tin không gian làm việc",
+        "desc": "Sau khi thay đổi, bạn cần khởi động lại ứng dụng để có hiệu lực."
+      },
+      "toast": {
+        "updated": "Đã cập nhật không gian làm việc",
+        "updatedDesc": "Đường dẫn mới: {path}",
+        "reset": "Đã đặt lại không gian làm việc",
+        "resetDesc": "Đã quay về thư mục mặc định",
+        "error": "Chọn thư mục thất bại",
+        "errorDesc": "Không thể chọn thư mục, vui lòng thử lại",
+        "resetError": "Đặt lại thất bại",
+        "resetErrorDesc": "Không thể quay về thư mục mặc định"
+      },
+      "assets": {
+        "title": "Đường dẫn tài nguyên",
+        "desc": "Đặt vị trí lưu ảnh, video, tệp đính kèm. Thường lưu cùng cấp với tệp markdown.",
+        "select": "Chọn đường dẫn lưu tài nguyên"
+      }
+    },
+    "shortcuts": {
+      "title": "Phím tắt",
+      "desc": "Cấu hình phím tắt để sử dụng NoteGen nhanh hơn.",
+      "resetDefaults": "Đặt lại",
+      "clear": "Xóa",
+      "noShortcut": "Chưa đặt",
+      "shortcuts": {
+        "openWindow": {
+          "title": "Mở/Ẩn cửa sổ chính",
+          "desc": "Mở hoặc thu nhỏ cửa sổ ứng dụng."
+        },
+        "quickRecordText": {
+          "title": "Ghi nhanh văn bản",
+          "desc": "Mở nhanh ứng dụng và chuyển tới mục ghi văn bản."
+        }
+      }
+    }
+  },
+  "record": {
+    "trash": {
+      "title": "Dọn sạch thùng rác",
+      "confirm": "Bạn có chắc chắn muốn dọn sạch thùng rác?",
+      "records": "Có {count} bản ghi có thể khôi phục",
+      "empty": "Trống",
+      "close": "Đóng thùng rác"
+    },
+    "queue": {
+      "ocr": "Đang nhận diện OCR",
+      "ai": "Đang phân tích nội dung AI",
+      "upload": "Đang tải lên kho ảnh",
+      "jsdelivr": "Đang báo bộ nhớ đệm jsdelivr",
+      "save": "Lưu",
+      "recording": "Đang ghi âm...",
+      "recorded": "Đã ghi xong",
+      "record": "Ghi lại",
+      "detected": "Đã phát hiện"
+    },
+    "mark": {
+      "empty": "Chưa có bản ghi nào",
+      "loading": "Đang tải...",
+      "createdAt": "Đã tạo lúc",
+      "type": {
+        "scan": "Quét văn bản",
+        "image": "Hình ảnh",
+        "screenshot": "Chụp màn hình",
+        "text": "Văn bản",
+        "recording": "Ghi âm",
+        "file": "Tệp tin",
+        "link": "Liên kết",
+        "todo": "Việc cần làm",
+        "pdf": "PDF",
+        "upload": "Tải bản ghi lên",
+        "download": "Tải bản ghi về",
+        "uploadTo": "Đồng bộ từ máy lên {provider}",
+        "downloadFrom": "Đồng bộ từ {provider} về máy"
+      },
+      "uploadSuccess": "Tải bản ghi lên thành công",
+      "downloadSuccess": "Tải bản ghi về thành công",
+      "desc": "Mô tả",
+      "content": "Nội dung",
+      "progress": {
+        "cacheImage": "Đang lưu tạm ảnh",
+        "ocr": "Đang nhận diện OCR",
+        "aiAnalysis": "AI đang phân tích",
+        "uploadImage": "Đang tải ảnh lên kho",
+        "jsdelivrCache": "Đang cập nhật jsdelivr",
+        "cacheFile": "Đang lưu tạm tệp",
+        "cacheScreenshot": "Đang lưu ảnh chụp màn hình",
+        "textAnalysis": "Đang phân tích văn bản",
+        "save": "Đang lưu",
+        "saveImage": "Đang lưu ảnh",
+        "newToken": "Tạo access token",
+        "newTokenDesc": "Token mới cần quyền repo để tự động tạo kho tệp và kho ảnh."
+      },
+      "imageGallery": {
+        "expand": "Mở rộng",
+        "collapse": "Thu gọn"
+      },
+      "text": {
+        "title": "Ghi văn bản",
+        "description": "Lưu lại một đoạn văn bản, nội dung sẽ được sắp xếp vào vị trí phù hợp khi tạo bài viết.",
+        "characterCount": "{count} ký tự",
+        "save": "Lưu",
+        "autoReadClipboard": "Tự động đọc văn bản từ clipboard"
+      },
+      "link": {
+        "title": "Lưu liên kết",
+        "description": "Nhập liên kết web, hệ thống sẽ tự động lấy nội dung trang web đó",
+        "save": "Lưu",
+        "autoReadClipboard": "Tự động đọc liên kết từ clipboard"
+      },
+      "todo": {
+        "title": "Việc cần làm",
+        "description": "Tạo các đầu mục công việc để quản lý nhiệm vụ",
+        "titlePlaceholder": "Tiêu đề việc cần làm...",
+        "descriptionPlaceholder": "Mô tả chi tiết (tùy chọn)",
+        "priority": "Độ ưu tiên",
+        "priorityLow": "Thấp",
+        "priorityMedium": "Trung bình",
+        "priorityHigh": "Cao",
+        "dateRange": "Khoảng thời gian",
+        "dateRangePlaceholder": "Chọn khoảng thời gian",
+        "dueDate": "Hạn chót",
+        "dueDatePlaceholder": "Chọn ngày",
+        "save": "Tạo nhiệm vụ",
+        "saveEdit": "Lưu",
+        "edit": "Sửa nhiệm vụ",
+        "editDescription": "Thay đổi chi tiết nhiệm vụ",
+        "cancel": "Hủy",
+        "selectTag": "Chọn thẻ",
+        "completed": "Đã xong",
+        "uncompleted": "Chưa xong"
+      },
+      "clipboard": {
+        "detectedImage": "Phát hiện ảnh trong clipboard",
+        "detectedText": "Phát hiện văn bản trong clipboard"
+      },
+      "tag": {
+        "searchPlaceholder": "Tạo hoặc tìm thẻ...",
+        "noResults": "Không tìm thấy thẻ nào",
+        "quickAdd": "Tạo nhanh",
+        "pinned": "Đã ghim",
+        "others": "Khác",
+        "rename": "Đổi tên",
+        "delete": "Xóa",
+        "pin": "Ghim",
+        "unpin": "Bỏ ghim",
+        "newTag": "Thẻ mới",
+        "newTagPlaceholder": "Nhập tên thẻ...",
+        "add": "Thêm"
+      },
+      "mark": {
+        "empty": "Không có bản ghi",
+        "emptyHint": "Sử dụng thanh công cụ để tạo bản ghi đầu tiên!",
+        "type": {
+          "text": "Văn bản"
+        },
+        "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Tác nhân (Agent)"
+          },
+          "agent": {
+            "running": "Agent đang chạy",
+            "thinking": "Đang suy nghĩ",
+            "acting": "Đang thực hiện",
+            "observation": "Quan sát",
+            "thought": "Suy nghĩ",
+            "action": "Hành động",
+            "toolCalls": "Gọi công cụ",
+            "confirmation": {
+              "title": "Xác nhận hành động",
+              "description": "Agent muốn thực hiện hành động sau. Vui lòng xác nhận.",
+              "tool": "Công cụ",
+              "parameters": "Tham số",
+              "cancel": "Hủy",
+              "confirm": "Xác nhận",
+              "confirmed": "Đã xác nhận",
+              "cancelled": "Đã hủy"
+            }
+          },
+          "placeholder": {
+            "default": "Hỏi đáp hoặc nhờ AI sắp xếp bản ghi thành bài viết...",
+            "noApiKey": "Chưa cấu hình API Key, tính năng chat AI chưa khả dụng...",
+            "on": "Bật gợi ý AI",
+            "off": "Tắt gợi ý AI"
+          },
+          "header": {
+            "configApiKey": "Cấu hình API KEY",
+            "clearChat": "Xóa đoạn chat",
+            "configPrompt": "Cấu hình Prompt",
+            "selectPrompt": "Chọn Prompt"
+          },
+          "clipboard": {
+            "image": {
+              "detected": "Phát hiện ảnh trong clipboard:",
+              "recording": "Đang ghi...",
+              "recorded": "Đã ghi",
+              "record": "Ghi lại"
+            },
+            "text": {
+              "detected": "Phát hiện văn bản trong clipboard:",
+              "recorded": "Đã ghi",
+              "record": "Ghi lại"
+            }
+          },
+          "messageControl": {
+            "words": "từ",
+            "summary": "Tóm tắt"
+          },
+          "mcp": {
+            "maxIterationsReached": "Đã đạt giới hạn lặp lại của công cụ",
+            "toolCall": "Máy chủ MCP",
+            "params": "Tham số",
+            "result": "Kết quả",
+            "copy": "Sao chép",
+            "paramsCopied": "Đã sao chép tham số",
+            "resultCopied": "Đã sao chép kết quả",
+            "calling": "Đang gọi",
+            "success": "Đã hoàn tất",
+            "error": "Lỗi"
+          },
+          "empty": {
+            "title": "Bắt đầu hội thoại với AI",
+            "subtitle": "Sử dụng chế độ Chat hoặc Agent",
+            "currentModel": "Mô hình hiện tại",
+            "currentPrompt": "Prompt hiện tại",
+            "currentMode": "Chế độ hội thoại",
+            "noModel": "Chưa đặt mô hình",
+            "noPrompt": "Chưa đặt prompt",
+            "configureModel": "Cấu hình mô hình",
+            "recentConversations": "Hội thoại gần đây",
+            "deleteConversation": "Xóa hội thoại",
+            "conversationHistory": "Lịch sử",
+            "viewMore": "Xem thêm",
+            "messages": "tin nhắn",
+            "searchPlaceholder": "Tìm hội thoại...",
+            "noMatchingConversations": "Không tìm thấy hội thoại nào",
+            "noConversationHistory": "Chưa có lịch sử hội thoại",
+            "quickPrompts": {
+              "title": "Bắt đầu nhanh",
+              "writeNote": "Giúp tôi viết một ghi chú",
+              "summarize": "Tóm tắt nội dung này",
+              "brainstorm": "Gợi ý các ý tưởng",
+              "explain": "Giải thích khái niệm này"
+            },
+            "modeHint": "Nhấn nút",
+            "modeHintSuffix": "ở bên trái ô nhập để đổi chế độ"
+          },
+          "content": {
+            "organize": "Sắp xếp bản ghi của bạn thành bài viết:"
+          },
+          "note": {
+            "writing": "Viết",
+            "convert": "Chuyển thành bài viết",
+            "description": "Ghi chú này do AI tạo ra và không thể sửa trực tiếp. Hãy chuyển thành bài viết (tạo tệp cục bộ) để chỉnh sửa kỹ hơn.",
+            "filename": "Tên tệp",
+            "selectFolder": "Chọn thư mục",
+            "rootDirectory": "Thư mục gốc",
+            "deleteTag": "Xóa thẻ, bản ghi và ghi chú này (có thể khôi phục từ thùng rác)",
+            "warning": "Sau khi chuyển đổi, bạn sẽ được đưa tới trang viết lách.",
+            "convert_button": "Chuyển đổi"
+          },
+          "mark": {
+            "recorded": "Đã ghi",
+            "record": "Ghi lại"
+          },
+          "send": "Gửi"
+        },
+        "text": {
+          "title": "Ghi văn bản",
+          "description": "Lưu lại một đoạn văn bản.",
+          "characterCount": "{count} ký tự",
+          "save": "Lưu"
+        },
+        "clipboard": {
+          "detectedImage": "Phát hiện ảnh trong clipboard",
+          "detectedText": "Phát hiện văn bản trong clipboard"
+        },
+        "tag": {
+          "searchPlaceholder": "Tạo hoặc tìm thẻ...",
+          "noResults": "Không tìm thấy thẻ nào",
+          "quickAdd": "Tạo nhanh",
+          "pinned": "Đã ghim",
+          "others": "Khác",
+          "rename": "Đổi tên",
+          "delete": "Xóa",
+          "pin": "Ghim",
+          "unpin": "Bỏ ghim"
+        },
+        "progress": {
+          "cacheImage": "Đang lưu tạm ảnh",
+          "ocr": "Đang nhận diện OCR",
+          "aiAnalysis": "AI đang phân tích",
+          "uploadImage": "Đang tải ảnh lên kho",
+          "jsdelivrCache": "Đang cập nhật jsdelivr",
+          "cacheFile": "Đang lưu tạm tệp",
+          "cacheScreenshot": "Đang lưu ảnh màn hình",
+          "textAnalysis": "Đang phân tích văn bản",
+          "save": "Đang lưu",
+          "saveImage": "Đang lưu ảnh"
+        }
+      },
+      "toolbar": {
+        "search": "Tìm kiếm",
+        "trash": "Thùng rác",
+        "restore": "Khôi phục",
+        "delete": "Xóa",
+        "deleteConfirm": "Bạn có chắc chắn muốn xóa?",
+        "moveTag": "Di chuyển thẻ",
+        "convertTo": "Chuyển thành {type}",
+        "copyLink": "Sao chép liên kết",
+        "copied": "Đã sao chép vào clipboard!",
+        "regenerateDesc": "Tạo lại mô tả",
+        "viewFolder": "Xem thư mục",
+        "viewFile": "Xem tệp gốc",
+        "deleteForever": "Xóa vĩnh viễn",
+        "sortByName": "Xếp theo tên",
+        "sortByCreated": "Xếp theo ngày tạo",
+        "sortByModified": "Xếp theo ngày sửa",
+        "sortAsc": "Sắp xếp tăng dần",
+        "sortDesc": "Sắp xếp giảm dần",
+        "sort": "Sắp xếp",
+        "processingVectors": "Đang xử lý dữ liệu Vector",
+        "calculateVectors": "Tính toán vector tài liệu",
+        "multiSelect": "Chọn nhiều",
+        "exitMultiSelect": "Thoát chọn nhiều",
+        "organizeNotes": "Sắp xếp ghi chú",
+        "organizeSuccess": "Sắp xếp thành công: {title}",
+        "organizeError": "Sắp xếp thất bại",
+        "currentTag": "Thẻ hiện tại",
+        "text": "Ghi văn bản",
+        "recording": "Bản ghi âm",
+        "scan": "Quét hình ảnh",
+        "image": "Tải ảnh lên",
+        "link": "Lưu liên kết",
+        "file": "Tải tệp lên",
+        "todo": "Việc cần làm",
+        "closeTrash": "Đóng thùng rác",
+        "selectAll": "Chọn tất cả",
+        "deselectAll": "Bỏ chọn tất cả",
+        "selectedCount": "Đã chọn {count} mục",
+        "moveSelectedTags": "Di chuyển {count} mục",
+        "deleteSelected": "Xóa {count} mục",
+        "deleteSelectedForever": "Xóa vĩnh viễn {count} mục"
+      },
+      "list": {
+        "title": "Các bản ghi"
+      },
+      "note": {
+        "organizeAs": "Sắp xếp dưới dạng",
+        "template": "Mẫu",
+        "setting": "Cài đặt",
+        "confirm": "Xác nhận",
+        "cancel": "Hủy",
+        "removeThinking": "Loại bỏ quá trình suy nghĩ",
+        "stop": "Dừng"
+      }
+    },
+    "chat": {
+      "condensing": "Đang nén ngữ cảnh...",
+      "condensed": {
+        "message": "Đã nén {count} tin nhắn lịch sử"
+      },
+      "empty": {
+        "features": [
+          {
+            "chat": "Chat với bot AI"
+          },
+          {
+            "linked": "Liên kết với bản ghi hoặc ghi chú của bạn"
+          },
+          {
+            "clipboard": "Nhận diện bản ghi hoặc ảnh từ clipboard"
+          },
+          {
+            "organize": "Tổ chức bản ghi thành bài viết hoàn chỉnh"
+          }
+        ],
+        "title": "Bắt đầu chat với AI",
+        "subtitle": "Tương tác bằng chế độ Chat hoặc Agent",
+        "currentModel": "Mô hình",
+        "currentPrompt": "Prompt",
+        "currentMode": "Chế độ",
+        "noModel": "Chưa đặt mô hình",
+        "noPrompt": "Chưa đặt prompt",
+        "configureModel": "Cấu hình mô hình",
+        "recentConversations": "Hội thoại gần đây",
+        "deleteConversation": "Xóa đoạn chat",
+        "conversationHistory": "Lịch sử",
+        "viewMore": "Xem thêm",
+        "messages": "tin nhắn",
+        "searchPlaceholder": "Tìm hội thoại...",
+        "noMatchingConversations": "Không tìm thấy đoạn chat phù hợp",
+        "noConversationHistory": "Chưa có lịch sử hội thoại",
+        "quickPrompts": {
+          "title": "Bắt đầu nhanh",
+          "writeNote": "Giúp tôi viết một ghi chú",
+          "summarize": "Tóm tắt nội dung này",
+          "brainstorm": "Gợi ý các ý tưởng",
+          "explain": "Giải thích khái niệm này"
+        }
+      },
+      "newChat": "Chat mới với Thẻ mới",
+      "removeChat": "Xóa Chat của Thẻ hiện tại",
+      "confirmNew": "Tạo Thẻ mới",
+      "confirmNewDescription": "Bạn có chắc muốn tạo thẻ mới để bắt đầu hội thoại không?",
+      "confirmRemove": "Xóa Thẻ",
+      "confirmRemoveDescription": "Lưu ý: Xóa thẻ này cũng sẽ xóa toàn bộ bản ghi bên trong nó. Vui lòng xác nhận lại.",
+      "content": {
+        "organize": "Tổ chức bản ghi thành bài viết:"
+      },
+      "quote": {
+        "lineSingle": "Trích từ {fileName} dòng {line}",
+        "lineRange": "Trích từ {fileName} dòng {startLine}-{endLine}",
+        "noLine": "Trích từ {fileName}"
+      },
+      "note": {
+        "organize": "Tổ chức",
+        "writing": "Viết",
+        "convert": "Chuyển thành bài viết",
+        "description": "Ghi chú này do AI tạo ra. Hãy chuyển thành bài viết (tệp .md cục bộ) để chỉnh sửa.",
+        "filename": "Tên tệp",
+        "selectFolder": "Chọn thư mục",
+        "rootDirectory": "Thư mục gốc",
+        "deleteTag": "Xóa thẻ hiện tại và các bản ghi (có thể khôi phục từ thùng rác)",
+        "warning": "Bạn sẽ được chuyển sang trang viết lách sau khi hoàn tất.",
+        "convert_button": "Chuyển đổi",
+        "organizeAs": "Tổ chức bản ghi của bạn thành bài viết:",
+        "templateContent": "Nội dung mẫu",
+        "recordRange": "Phạm vi bản ghi",
+        "filterThinkingContent": "Loại bỏ phần suy nghĩ khỏi bản ghi",
+        "startOrganize": "Bắt đầu tổ chức",
+        "manageTemplate": "Quản lý mẫu",
+        "cancel": "Hủy",
+        "stop": "Dừng"
+      },
+      "mark": {
+        "recorded": "Đã ghi",
+        "record": "Ghi lại"
+      },
+      "input": {
+        "organize": "Tổ chức",
+        "chat": "Chat",
+        "placeholder": {
+          "default": "Nhập tin nhắn...",
+          "noApiKey": "Chưa có API Key, không thể chat AI...",
+          "on": "Đang bật gợi ý AI",
+          "off": "Đang tắt gợi ý AI",
+          "noPrimaryModel": "Chưa cấu hình mô hình chính..."
+        },
+        "translate": {
+          "tooltip": "Dịch",
+          "translating": "Đang dịch...",
+          "showOriginal": "Hiện bản gốc",
+          "alreadyTranslated": "Đã dịch sang"
+        },
+        "clipboardMonitor": {
+          "enable": "Giám sát clipboard (Bật)",
+          "disable": "Giám sát clipboard (Tắt)"
+        },
+        "send": "Gửi",
+        "stop": "Dừng",
+        "stopped": "Đã dừng hội thoại",
+        "terminate": "Chấm dứt",
+        "tagLink": {
+          "on": "Đã liên kết với thẻ",
+          "off": "Chưa liên kết với thẻ"
+        },
+        "modelSelect": {
+          "tooltip": "Chọn mô hình AI",
+          "placeholder": "Tìm mô hình AI",
+          "noModel": "Không thấy mô hình"
+        },
+        "promptSelect": {
+          "tooltip": "Chọn prompt",
+          "placeholder": "Tìm prompt"
+        },
+        "newChat": "Hội thoại mới",
+        "mcp": {
+          "tooltip": "Máy chủ MCP"
+        },
+        "chatLanguage": {
+          "tooltip": "Chọn ngôn ngữ chat",
+          "placeholder": "Tìm ngôn ngữ"
+        },
+        "rag": {
+          "notSupported": "Không hỗ trợ mô hình vector",
+          "enabled": "Tìm kiếm cơ sở tri thức (Bật)",
+          "disabled": "Tìm kiếm cơ sở tri thức (Tắt)"
+        },
+        "modeSelect": {
+          "tooltip": "Chọn chế độ",
+          "chat": "Chế độ Chat",
+          "gen": "Chế độ Tổ chức",
+          "translate": "Chế độ Dịch"
+        },
+        "chatModeSelect": {
+          "chatDescription": "Hội thoại nhanh, chế độ chỉ đọc",
+          "agentDescription": "Trợ lý thông minh, có thể thực hiện hành động"
+        },
+        "attachImage": "Đính kèm ảnh",
+        "imageSelector": {
+          "title": "Chọn hình ảnh",
+          "local": "Tệp cục bộ",
+          "records": "Từ bản ghi",
+          "selectFiles": "Chọn ảnh từ máy",
+          "noRecords": "Không có bản ghi ảnh nào",
+          "cancel": "Hủy",
+          "confirm": "Xác nhận"
+        },
+        "agent": {
+          "running": "Agent đang chạy",
+          "thinking": "Đang suy nghĩ",
+          "analyzingRequest": "Agent đang phân tích yêu cầu...",
+          "acting": "Đang thực hiện",
+          "observation": "Quan sát",
+          "thought": "Suy nghĩ",
+          "action": "Hành động",
+          "toolCalls": "Gọi công cụ",
+          "confirmation": {
+            "title": "Xác nhận hành động",
+            "description": "Agent muốn thực hiện hành động. Vui lòng xác nhận.",
+            "tool": "Công cụ",
+            "parameters": "Tham số",
+            "cancel": "Hủy",
+            "confirm": "Xác nhận",
+            "confirmed": "Đã xác nhận",
+            "cancelled": "Đã hủy"
+          }
+        },
+        "fileLink": {
+          "tooltip": "Liên kết tệp",
+          "selectFile": "Chọn tệp",
+          "linkedFile": "Tệp đã liên kết",
+          "searchPlaceholder": "Tìm tệp...",
+          "noFiles": "Không tìm thấy tệp",
+          "loading": "Đang tải..."
+        }
+      },
+      "header": {
+        "configApiKey": "Cấu hình API KEY",
+        "clearChat": "Xóa chat",
+        "selectPrompt": "Chọn Prompt",
+        "noModel": "Chưa chọn mô hình AI",
+        "configPrompt": "Cấu hình Prompt"
+      },
+      "clipboard": {
+        "image": {
+          "detected": "Ảnh trong clipboard:",
+          "recording": "Đang ghi...",
+          "recorded": "Đã ghi",
+          "record": "Ghi lại"
+        },
+        "text": {
+          "detected": "Văn bản trong clipboard:",
+          "recorded": "Đã ghi",
+          "record": "Ghi lại"
+        }
+      },
+      "messageControl": {
+        "words": "từ",
+        "summary": "Tóm tắt",
+        "readAloud": "Đọc to",
+        "playing": "Đang phát",
+        "loading": "Đang tải",
+        "stop": "Dừng phát",
+        "copy": "Sao chép",
+        "copied": "Đã sao chép"
+      },
+      "ragSources": {
+        "label": "Tìm thấy {count} ghi chú trong cơ sở tri thức",
+        "openFile": "Mở tệp"
+      },
+      "preview": {
+        "close": "Đóng",
+        "copy": "Sao chép",
+        "copied": "Đã sao chép!"
+      },
+      "control": {
+        "edit": "Sửa",
+        "save": "Lưu",
+        "cancel": "Hủy",
+        "delete": "Xóa",
+        "deleteConfirm": "Bạn có chắc muốn xóa tin nhắn này?"
+      }
+    },
+    "tag": {
+      "add": "Thêm thẻ",
+      "edit": "Sửa thẻ",
+      "delete": "Xóa thẻ",
+      "deleteConfirm": "Bạn có chắc muốn xóa thẻ này?",
+      "placeholder": "Nhập tên thẻ"
+    }
+  },
+  "search": {
+    "placeholder": "Tìm kiếm ghi chú và bài viết...",
+    "results": "{count} kết quả",
+    "noResults": "Không tìm thấy kết quả",
+    "tryDifferentKeywords": "Thử từ khóa khác",
+    "mode": {
+      "fuzzy": "Mờ",
+      "exact": "Chính xác"
+    },
+    "item": {
+      "record": "Bản ghi",
+      "article": "Bài viết",
+      "matches": "{count} kết quả khớp",
+      "scanType": "quét"
+    }
+  },
+  "image": {
+    "root": "Kho hình ảnh",
+    "noData": {
+      "title": "Chưa bật tính năng đồng bộ",
+      "desc": "Vui lòng vào cài đặt để cấu hình đồng bộ Github.",
+      "goToSettings": "Đi tới Cài đặt",
+      "howToUse": "Cách dùng tính năng đồng bộ?"
+    }
+  },
+  "navigation": {
+    "chat": "Chat",
+    "record": "Bản ghi",
+    "quickRecord": "Ghi nhanh",
+    "write": "Viết lách",
+    "search": "Tìm kiếm",
+    "githubImageHosting": "Kho ảnh Github",
+    "login": "Đăng nhập",
+    "loading": "Đang tải",
+    "view": "Xem",
+    "logout": "Đăng xuất",
+    "setting": "Cài đặt",
+    "files": "Ghi chú",
+    "outline": "Dàn ý",
+    "showLeftSidebar": "Hiện thanh trái",
+    "hideLeftSidebar": "Ẩn thanh trái",
+    "showCenterPanel": "Hiện trình soạn thảo",
+    "hideCenterPanel": "Ẩn trình soạn thảo",
+    "showRightSidebar": "Hiện thanh phải",
+    "hideRightSidebar": "Ẩn thanh phải",
+    "searchPlaceholder": "Tìm ghi chú hoặc bản ghi..."
+  },
+  "marks": {
+    "types": {
+      "screenshot": "Ảnh màn hình",
+      "text": "Văn bản",
+      "image": "Hình ảnh"
+    }
+  },
+  "tags": {
+    "inspiration": "Cảm hứng"
+  },
+  "sync": {
+    "status": "Trạng thái kho đồng bộ",
+    "imageRepo": "Kho ảnh",
+    "articleRepo": "Kho bài viết"
+  },
+  "ai": {
+    "thinking": "Đang suy nghĩ",
+    "error": {
+      "title": "Lỗi AI",
+      "noAddress": "Vui lòng thiết lập địa chỉ AI trước"
+    }
+  },
+  "article": {
+    "sync": {
+      "syncingRemote": "Đang lấy tệp từ máy chủ...",
+      "syncComplete": "Đồng bộ hoàn tất",
+      "pullingRemote": "Đang lấy nội dung mới nhất từ máy chủ..."
+    },
+    "syncConfirm": {
+      "title": "Phát hiện cập nhật từ máy chủ",
+      "description": "Tệp {fileName} có bản cập nhật mới",
+      "commitInfo": "Thông tin Commit mới nhất",
+      "commitMessage": "Thông điệp",
+      "author": "Tác giả",
+      "changes": "Thay đổi",
+      "confirmMessage": "Bạn có chắc muốn ghi đè tệp cục bộ bằng bản từ máy chủ không? Hành động này không thể hoàn tác.",
+      "cancel": "Hủy",
+      "confirmPull": "Xác nhận Pull"
+    },
+    "emptyState": {
+      "title": "Bắt đầu sáng tạo",
+      "subtitle": "Chọn một tệp hoặc tạo ghi chú mới",
+      "tip": "💡 Mẹo: Bạn có thể chọn tệp ở thanh bên trái",
+      "actions": {
+        "newNote": {
+          "title": "Tạo ghi chú",
+          "desc": "Tạo ghi chú Markdown mới"
+        },
+        "newRecord": {
+          "title": "Tạo bản ghi",
+          "desc": "Mở tính năng ghi văn bản"
+        },
+        "globalSearch": {
+          "title": "Tìm kiếm toàn cục",
+          "desc": "Tìm nội dung nhanh chóng"
+        },
+        "openWorkspace": {
+          "title": "Mở không gian làm việc",
+          "desc": "Chuyển thư mục làm việc"
+        }
+      }
+    },
+    "unsupportedFile": {
+      "title": "Không thể xem tệp này",
+      "fileName": "Tên tệp",
+      "filePath": "Đường dẫn",
+      "fileSize": "Kích thước",
+      "modifiedTime": "Sửa đổi lúc",
+      "createdTime": "Tạo lúc",
+      "pathCopied": "Đã sao chép đường dẫn",
+      "openExternal": "Mở bằng ứng dụng ngoài",
+      "openDirectory": "Mở thư mục tệp"
+    },
+    "file": {
+      "toolbar": {
+        "accessRepo": "Truy cập kho lưu trữ",
+        "loadingSync": "Đang tải thông tin đồng bộ",
+        "configSync": "Cấu hình đồng bộ",
+        "newArticle": "Bài viết mới",
+        "newFolder": "Thư mục mới",
+        "refresh": "Làm mới",
+        "toggleFolders": "Ẩn/Hiện thư mục",
+        "expandAll": "Mở rộng tất cả",
+        "collapseAll": "Thu gọn tất cả",
+        "sortByName": "Theo tên",
+        "sortByCreated": "Theo ngày tạo",
+        "sortByModified": "Theo ngày sửa",
+        "sortAsc": "Tăng dần",
+        "sortDesc": "Giảm dần",
+        "sort": "Sắp xếp",
+        "hideCloudFiles": "Ẩn tệp đám mây",
+        "showCloudFiles": "Hiện tệp đám mây",
+        "processingVectors": "Đang xử lý dữ liệu vector",
+        "calculateVectors": "Tính toán cơ sở tri thức (Toàn bộ)",
+        "importMarkdown": "Nhập",
+        "importing": "Đang nhập...",
+        "importSuccess": "Nhập thành công",
+        "importSuccessDesc": "Đã nhập {count} tệp thành công",
+        "importError": "Nhập thất bại"
+      },
+      "sync": {
+        "syncingRemote": "Đang lấy tệp từ máy chủ...",
+        "syncComplete": "Đồng bộ hoàn tất",
+        "pullingRemote": "Đang lấy nội dung mới nhất...",
+        "pullComplete": "Đã lấy về xong"
+      },
+      "context": {
+        "viewDirectory": "Xem thư mục",
+        "cut": "Cắt",
+        "copy": "Sao chép",
+        "paste": "Dán",
+        "rename": "Đổi tên",
+        "deleteSyncFile": "Xóa tệp đồng bộ",
+        "deleteLocalFile": "Xóa tệp cục bộ",
+        "delete": "Xóa",
+        "confirmDelete": "Bạn có chắc muốn xóa thư mục \"{name}\" và toàn bộ nội dung bên trong?",
+        "deleteSuccess": "Đã xóa thành công",
+        "deleteFailed": "Xóa thất bại",
+        "newFile": "Tệp mới",
+        "newFolder": "Thư mục mới",
+        "syncFolder": "Đồng bộ thư mục",
+        "syncFolderDesc": "Đồng bộ toàn bộ tệp Markdown trong thư mục này",
+        "syncFolderSuccess": "Đồng bộ thư mục thành công",
+        "syncFolderError": "Lỗi đồng bộ thư mục",
+        "syncFolderProgress": "Đang đồng bộ thư mục...",
+        "deleteSyncFileSuccess": "Xóa tệp đồng bộ thành công",
+        "deleteSyncFileError": "Lỗi xóa tệp đồng bộ",
+        "knowledgeBase": "Cơ sở tri thức",
+        "calculateVectors": "Tính toán vector",
+        "updateVectors": "Cập nhật vector",
+        "deleteVectors": "Xóa vector",
+        "includeInKB": "Bao gồm trong Cơ sở tri thức",
+        "includeInKBFile": "Thêm vào Cơ sở tri thức",
+        "autoVectorCalc": "Tự động tính vector",
+        "vectorCalculated": "Vector đã cập nhật",
+        "vectorCalcCompleted": "Tính toán vector hoàn tất",
+        "vectorCalcFailed": "Tính toán vector thất bại",
+        "vectorDeleted": "Đã xóa vector",
+        "vectorDeleteFailed": "Xóa vector thất bại",
+        "batchCalcSuccess": "Đã tính vector cho {count} tệp",
+        "batchCalcPartial": "Hoàn tất: {success} thành công, {failed} thất bại",
+        "batchCalcFailed": "Tính vector hàng loạt thất bại",
+        "batchDeleteSuccess": "Đã xóa vector của {count} tệp",
+        "batchDeletePartial": "Đã xóa: {success} thành công, {failed} thất bại",
+        "batchDeleteFailed": "Xóa vector hàng loạt thất bại",
+        "noMarkdownFiles": "Không có tệp Markdown trong thư mục",
+        "includedInKB": "Đã thêm vào Cơ sở tri thức",
+        "excludedFromKB": "Đã loại khỏi Cơ sở tri thức",
+        "autoCalcEnabled": "Đã bật tự động tính vector",
+        "autoCalcDisabled": "Đã tắt tự động tính vector",
+        "settingFailed": "Cài đặt thất bại",
+        "confirmDeleteVectors": "Bạn có chắc muốn xóa vector của {count} tệp?"
+      },
+      "folderView": {
+        "vectorDbNotEnabled": "Chưa bật cơ sở dữ liệu vector",
+        "calculateVectors": "Tính toán vector",
+        "indexed": "Đã lập chỉ mục",
+        "vectorCount": "Số lượng vector",
+        "databaseSize": "Kích thước DB",
+        "lastCalculated": "Lần cuối tính",
+        "never": "Chưa bao giờ",
+        "calculating": "Đang tính...",
+        "failed": "Thất bại",
+        "recalculateVectors": "Tính toán lại",
+        "skills": "Kỹ năng",
+        "skillNotFound": "Không thấy kỹ năng",
+        "skillNotFoundDesc": "Không tìm thấy kỹ năng có ID {id}",
+        "loadingSkills": "Đang tải các kỹ năng...",
+        "loadingSkill": "Đang tải kỹ năng...",
+        "globalSkills": "Kỹ năng toàn cục",
+        "workspaceSkills": "Kỹ năng không gian làm việc",
+        "instructions": "Hướng dẫn",
+        "examples": "Ví dụ",
+        "scripts": "Mã (Scripts)",
+        "references": "Tham chiếu",
+        "assets": "Tài nguyên"
+      },
+      "error": {
+        "fileExists": "Tên tệp đã tồn tại"
+      },
+      "clipboard": {
+        "copied": "Đã sao chép vào clipboard",
+        "cut": "Đã cắt vào clipboard",
+        "pasted": "Đã dán thành công",
+        "pasteFailed": "Dán thất bại",
+        "empty": "Clipboard trống",
+        "confirmOverwrite": "Tệp đã tồn tại, bạn có muốn ghi đè?",
+        "mark": {
+          "title": "Bản ghi",
+          "tooltip": "Dùng bản ghi",
+          "description": "Chuyển các bản ghi thành nội dung chèn vào bài.",
+          "noRecords": "Không có bản ghi",
+          "ocrNoContent": "OCR không nhận diện được nội dung nào"
+        },
+        "question": {
+          "tooltip": "Hỏi đáp",
+          "selectContent": "Vui lòng chọn nội dung trước",
+          "promptTemplate": "Văn bản tham khảo: \n{content}\nDựa trên câu hỏi: \n{question}\nhãy trả lời trực tiếp nội dung."
+        },
+        "continue": {
+          "tooltip": "Viết tiếp",
+          "promptTemplate": "Dựa trên văn bản trước đó: \n{content}\nhãy viết tiếp nội dung không quá 100 từ.\nBạn có thể tham khảo đoạn sau: \n{endContent}\nnhưng tránh lặp lại."
+        },
+        "polish": {
+          "tooltip": "Trau chuốt",
+          "selectContent": "Vui lòng chọn nội dung trước",
+          "promptTemplate": "Hãy trau chuốt đoạn văn này: \n{content}\ngiữ nguyên ngôn ngữ, sửa lỗi chính tả và ngữ pháp, trả về kết quả trực tiếp."
+        },
+        "eraser": {
+          "tooltip": "Rút gọn",
+          "selectContent": "Vui lòng chọn nội dung trước",
+          "promptTemplate": "Hãy rút gọn đoạn văn này: \n{content}\nNó quá dài dòng, hãy giảm ít nhất một nửa số từ nhưng giữ nguyên ý chính và ngôn ngữ."
+        },
+        "expansion": {
+          "tooltip": "Mở rộng",
+          "selectContent": "Vui lòng chọn nội dung trước",
+          "promptTemplate": "Hãy mở rộng đoạn văn này: \n{content}\nNó quá ngắn, hãy tăng số từ thêm ít nhất một nửa, giữ nguyên ngôn ngữ và phong cách."
+        },
+        "translation": {
+          "tooltip": "Dịch",
+          "description": "Dịch văn bản đã chọn",
+          "selectContent": "Vui lòng chọn nội dung trước",
+          "promptTemplate": "Hãy dịch văn bản này: \n{content}\nsang {language}, trả về kết quả trực tiếp."
+        },
+        "notSupported": "Hành động không được hỗ trợ"
+      },
+      "deleteConfirm": "Bạn có chắc muốn xóa tệp này?"
+    },
+    "editor": {
+      "copySuccess": "Sao chép thành công",
+      "copySuccessDescription": "Đã sao chép vào clipboard",
+      "search": {
+        "placeholder": "Tìm trong tài liệu",
+        "replacePlaceholder": "Thay thế bằng",
+        "caseSensitive": "Khớp chữ hoa/thường",
+        "replace": "Thay thế",
+        "replaceAll": "Thay thế tất cả",
+        "findPrev": "Trước",
+        "findNext": "Sau"
+      },
+      "floatbar": {
+        "quote": {
+          "tooltip": "Trích dẫn"
+        },
+        "readAloud": {
+          "start": "Đọc to",
+          "stop": "Dừng đọc",
+          "loading": "Đang tải..."
+        }
+      },
+      "toolbar": {
+        "organize": {
+          "tooltip": "Sắp xếp ghi chú"
+        },
+        "mark": {
+          "title": "Bản ghi",
+          "tooltip": "Các bản ghi",
+          "description": "Chuyển bản ghi thành nội dung bài viết.",
+          "noRecords": "Không có bản ghi",
+          "ocrNoContent": "OCR không nhận diện được nội dung"
+        },
+        "question": {
+          "tooltip": "Hỏi đáp",
+          "selectContent": "Chọn nội dung trước",
+          "promptTemplate": "Văn bản tham khảo: \n{content}\nCâu hỏi: \n{question}\nTrả lời trực tiếp."
+        },
+        "continue": {
+          "tooltip": "Viết tiếp",
+          "promptTemplate": "Dựa trên: \n{content}\nviết tiếp < 100 từ."
+        },
+        "polish": {
+          "tooltip": "Trau chuốt",
+          "selectContent": "Chọn nội dung trước",
+          "promptTemplate": "Trau chuốt lại văn bản: \n{content}"
+        },
+        "eraser": {
+          "tooltip": "Rút gọn",
+          "selectContent": "Chọn nội dung trước",
+          "promptTemplate": "Rút gọn văn bản: \n{content}"
+        },
+        "expansion": {
+          "tooltip": "Mở rộng",
+          "selectContent": "Chọn nội dung trước",
+          "promptTemplate": "Mở rộng văn bản: \n{content}"
+        },
+        "translation": {
+          "tooltip": "Dịch",
+          "description": "Dịch văn bản đã chọn",
+          "selectContent": "Chọn nội dung trước",
+          "promptTemplate": "Dịch văn bản này: \n{content}\nsang {language}",
+          "fail": "Dịch thất bại",
+          "failNoSelection": "Chọn văn bản cần dịch",
+          "translating": "Đang dịch",
+          "translatingTo": "Đang dịch sang {language}...",
+          "success": "Dịch hoàn tất",
+          "successTo": "Đã dịch sang {language}",
+          "customLanguage": "Ngôn ngữ khác...",
+          "customLanguagePlaceholder": "Nhập ngôn ngữ đích (VD: Tiếng Anh, Tiếng Nhật...)",
+          "customLanguageEmpty": "Vui lòng nhập ngôn ngữ đích",
+          "customLanguageExample": "VD: Tiếng Anh, Tiếng Pháp, Tiếng Trung..."
+        }
+      },
+      "upload": {
+        "error": "Tải lên thất bại",
+        "needToken": "Cần cấu hình accessToken để tải ảnh",
+        "uploading": "Đang tải ảnh lên"
+      },
+      "saveDialog": {
+        "title": "Lưu tệp",
+        "emptyContent": "Nội dung trống",
+        "emptyContentDesc": "Vui lòng nhập nội dung trước khi lưu",
+        "success": "Lưu thành công",
+        "successDesc": "Đã lưu tệp thành công",
+        "error": "Lưu thất bại",
+        "errorDesc": "Không thể lưu tệp, vui lòng thử lại"
+      }
+    },
+    "footer": {
+      "wordCount": "Số từ",
+      "pull": {
+        "pull": "Lấy về (Pull)",
+        "checking": "Đang kiểm tra cập nhật...",
+        "noUpdate": "Không có bản cập nhật trên máy chủ",
+        "clickToPull": "Nhấn để lấy bản cập nhật mới",
+        "pullSuccess": "Lấy về thành công",
+        "pullFailed": "Lấy về thất bại",
+        "ignored": "Đã bỏ qua",
+        "ignoreUpdate": "Bỏ qua bản này"
+      },
+      "sync": {
+        "push": "Đẩy lên (Push)",
+        "pushed": "Đã đẩy lên",
+        "syncing": "Đang đẩy lên",
+        "syncFailed": "Đẩy lên thất bại",
+        "checkNetworkOrToken": "Kiểm tra mạng hoặc token",
+        "quickSync": "Đồng bộ nhanh"
+      },
+      "history": {
+        "loadingHistory": "Đang tải lịch sử",
+        "historyRecords": "Bản ghi lịch sử",
+        "noHistory": "Không có lịch sử",
+        "loading": "Đang tải",
+        "recordsCount": "bản ghi",
+        "filterQuickSync": "Lọc đồng bộ nhanh",
+        "committedAt": "đã commit lúc",
+        "pull": "Lấy về",
+        "quickSync": "Đồng bộ nhanh"
+      },
+      "vectorCalc": {
+        "tooltip": {
+          "default": "Trạng thái chỉ mục vector",
+          "none": "Nhấn để bắt đầu tính vector",
+          "indexed": "Đã lập chỉ mục",
+          "pending": "Đang chờ cập nhật, nhấn để tính ngay",
+          "calculating": "Đang tính..."
+        },
+        "status": {
+          "calculating": "Đang tính"
+        }
+      }
+    }
+  },
+  "mobile": {
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Cài đặt Chat"
+        },
+        "tools": {
+          "title": "Công cụ",
+          "newChat": "Chat mới",
+          "start": "Bắt đầu"
+        },
+        "attachments": {
+          "title": "Đính kèm",
+          "gallery": "Thư viện",
+          "camera": "Máy ảnh",
+          "file": "Tệp tin",
+          "linkNote": "Liên kết ghi chú"
+        }
+      }
+    }
+  },
+  "mcp": {
+    "selectServers": "Máy chủ MCP",
+    "searchServers": "Tìm máy chủ...",
+    "noServers": "Chưa bật dịch vụ MCP",
+    "noServersFound": "Không thấy máy chủ phù hợp",
+    "addServer": "Thêm máy chủ...",
+    "goToSettings": "Đến Cài đặt",
+    "close": "Đóng",
+    "navigate": "Chọn",
+    "confirm": "Xác nhận",
+    "tools": "công cụ",
+    "connecting": "Đang kết nối",
+    "disconnected": "Đã ngắt kết nối"
+  },
+  "recording": {
+    "title": "Ghi âm giọng nói",
+    "description": "Nhấn nút micro để bắt đầu, hệ thống sẽ tự động chuyển giọng nói thành văn bản",
+    "recording": "Đang ghi âm",
+    "paused": "Đã tạm dừng",
+    "ready": "Sẵn sàng",
+    "processing": "Đang xử lý...",
+    "cancel": "Hủy",
+    "error": "Lỗi",
+    "success": "Thành công",
+    "noModelConfigured": "Chưa cấu hình mô hình nhận diện giọng nói",
+    "startError": "Không thể bắt đầu ghi âm",
+    "noAudioData": "Không có dữ liệu âm thanh",
+    "transcriptionSuccess": "Nhận diện giọng nói hoàn tất",
+    "transcriptionEmpty": "Kết quả nhận diện trống",
+    "transcriptionError": "Nhận diện giọng nói thất bại",
+    "noContentDetected": "Không phát hiện nội dung",
+    "doubleClickToSelectFile": "Nhấp đúp để chọn tệp âm thanh",
+    "mode": {
+      "builtin": "Nhận diện trình duyệt",
+      "builtinDesc": "Miễn phí, thời gian thực",
+      "model": "Nhận diện qua AI",
+      "modelDesc": "Cần mô hình STT, độ chính xác cao hơn"
+    }
+  },
+  "footer": {
+    "wordCount": "Từ",
+    "sync": {
+      "sync": "Đồng bộ",
+      "synced": "Đã đồng bộ",
+      "syncing": "Đang đồng bộ",
+      "syncFailed": "Đồng bộ thất bại",
+      "checkNetworkOrToken": "Kiểm tra mạng hoặc token",
+      "quickSync": "Đồng bộ nhanh"
+    },
+    "history": {
+      "loadingHistory": "Đang tải lịch sử",
+      "historyRecords": "Lịch sử bản ghi",
+      "noHistory": "Không có lịch sử",
+      "loading": "Đang tải",
+      "recordsCount": "bản ghi",
+      "filterQuickSync": "Lọc đồng bộ nhanh",
+      "committedAt": "commit lúc",
+      "pull": "Lấy về",
+      "quickSync": "Đồng bộ nhanh"
+    },
+    "vectorCalc": {
+      "tooltip": "Tính toán Vector: Tự động tính sau 30s sửa đổi, hoặc nhấn để tính ngay",
+      "calculating": "Đang tính",
+      "pending": "Chờ xử lý {progress}%",
+      "synced": "Đã đồng bộ"
+    }
+  },
+  "quickRecord": {
+    "description": "Chọn công cụ ghi để tạo bản ghi nhanh"
+  },
+  "editor": {
+    "placeholder": "Gõ / để mở menu, hoặc bắt đầu viết...",
+    "outline": {
+      "title": "Dàn ý",
+      "open": "Mở dàn ý",
+      "close": "Đóng dàn ý"
+    },
+    "translation": {
+      "fail": "Dịch thất bại",
+      "failNoSelection": "Vui lòng chọn văn bản",
+      "translating": "Đang dịch...",
+      "translatingTo": "Đang dịch sang {language}...",
+      "success": "Dịch hoàn tất",
+      "successTo": "Đã dịch sang {language}",
+      "customLanguageEmpty": "Nhập ngôn ngữ đích",
+      "customLanguageExample": "VD: Tiếng Anh, Tiếng Nhật..."
+    },
+    "quoteDisplay": {
+      "fromFile": "Trích từ {fileName}",
+      "line": "Trích từ {fileName} dòng {line}",
+      "lines": "Trích từ {fileName} dòng {start}-{end}"
+    },
+    "bubbleMenu": {
+      "ai": "AI",
+      "polish": "Trau chuốt",
+      "concise": "Rút gọn",
+      "expand": "Mở rộng",
+      "translate": "Dịch",
+      "translateSubtitle": "Dịch sang",
+      "quoteToChat": "Trích dẫn vào Chat",
+      "link": "Liên kết",
+      "linkPlaceholder": "Nhập URL",
+      "confirm": "Xác nhận",
+      "cancel": "Hủy",
+      "bold": "Đậm",
+      "italic": "Nghiêng",
+      "strike": "Gạch ngang",
+      "underline": "Gạch chân",
+      "inlineCode": "Mã nội dòng",
+      "highlight": "Làm nổi bật",
+      "blockquote": "Trích dẫn",
+      "bulletList": "Danh sách dấu chấm",
+      "orderedList": "Danh sách số",
+      "taskList": "Danh sách công việc",
+      "codeBlock": "Khối mã",
+      "languages": {
+        "English": "Tiếng Anh",
+        "Japanese": "Tiếng Nhật",
+        "Korean": "Tiếng Hàn",
+        "French": "Tiếng Pháp",
+        "German": "Tiếng Đức",
+        "Spanish": "Tiếng Tây Ban Nha",
+        "Portuguese": "Tiếng Bồ Đào Nha",
+        "Russian": "Tiếng Nga",
+        "Arabic": "Tiếng Ả Rập",
+        "Vietnamese": "Tiếng Việt"
+      },
+      "customLanguagePlaceholder": "Ngôn ngữ khác..."
+    },
+    "aiSuggestion": {
+      "accept": "Chấp nhận",
+      "reject": "Từ chối",
+      "generating": "Đang tạo...",
+      "abort": "Hủy bỏ"
+    },
+    "image": {
+      "insert": "Chèn ảnh",
+      "uploading": "Đang tải lên...",
+      "uploadSuccess": "Đã tải ảnh lên kho ảnh",
+      "saveSuccess": "Đã lưu ảnh cục bộ",
+      "uploadFailed": "Chèn ảnh thất bại",
+      "sizeSmall": "Nhỏ (25%)",
+      "sizeMedium": "Trung bình (50%)",
+      "sizeLarge": "Lớn (75%)",
+      "sizeOriginal": "Kích thước gốc",
+      "editAlt": "Sửa chú thích ảnh",
+      "editSrc": "Sửa URL",
+      "altPlaceholder": "Nhập chú thích (alt text)...",
+      "srcPlaceholder": "Nhập URL ảnh...",
+      "delete": "Xóa ảnh",
+      "confirm": "Xác nhận",
+      "cancel": "Hủy"
+    },
+    "mermaid": {
+      "rendering": "Đang dựng hình...",
+      "renderError": "Lỗi dựng hình",
+      "clickToEdit": "Nhấn để sửa",
+      "clickToAdd": "Nhấn để thêm biểu đồ",
+      "placeholder": "Nhập mã Mermaid...",
+      "preview": "Xem trước",
+      "done": "Xong",
+      "diagramTypes": {
+        "flowchart": "Lưu đồ",
+        "sequence": "Tuần tự",
+        "classDiagram": "Sơ đồ lớp",
+        "stateDiagram": "Trạng thái",
+        "er": "Thực thể ER",
+        "gantt": "Gantt",
+        "pie": "Biểu đồ tròn",
+        "journey": "Hành trình"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[Bắt đầu] --> B[Xử lý]\n    B --> C[Kết thúc]",
+        "sequence": "sequenceDiagram\n    participant Alice\n    participant Bob\n    Alice->>Bob: Xin chào\n    Bob-->>Alice: Trả lời",
+        "classDiagram": "classDiagram\n    Animal <|-- Duck\n    Animal <|-- Fish\n    Animal : +int age\n    Animal : +String gender",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Active\n    Active --> [*]",
+        "er": "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--o{ DELIVERY-ADDRESS : uses",
+        "gantt": "gantt\n    title Kế hoạch\n    dateFormat YYYY-MM-DD\n    section Gđ 1\n    Task1 :a1, 2024-01-01, 30d\n    section Gđ 2\n    Task2 :after a1, 20d",
+        "pie": "pie title Phân bổ\n    \"CPU\" : 45\n    \"Memory\" : 30\n    \"Storage\" : 25",
+        "journey": "journey\n    title Công việc\n    section Sáng\n    Đi làm : 7:00, 5\n    Làm việc : 9:00, 8"
+      }
+    },
+    "slashCommand": {
+      "groups": {
+        "ai": "AI",
+        "heading": "Tiêu đề",
+        "list": "Danh sách",
+        "block": "Khối",
+        "align": "Căn lề",
+        "embed": "Nhúng",
+        "math": "Toán học",
+        "chart": "Biểu đồ"
+      },
+      "items": {
+        "continue": "Viết tiếp",
+        "continueDesc": "AI tiếp tục viết nội dung",
+        "heading1": "Tiêu đề 1",
+        "heading1Desc": "Tiêu đề lớn",
+        "heading2": "Tiêu đề 2",
+        "heading2Desc": "Tiêu đề vừa",
+        "heading3": "Tiêu đề 3",
+        "heading3Desc": "Tiêu đề nhỏ",
+        "bulletList": "Danh sách dấu chấm",
+        "bulletListDesc": "Danh sách liệt kê đơn giản",
+        "orderedList": "Danh sách số",
+        "orderedListDesc": "Danh sách theo thứ tự",
+        "taskList": "Việc cần làm",
+        "taskListDesc": "Danh sách công việc có ô chọn",
+        "image": "Hình ảnh",
+        "imageDesc": "Chèn ảnh cục bộ hoặc từ link",
+        "table": "Bảng",
+        "tableDesc": "Chèn bảng dữ liệu",
+        "blockquote": "Trích dẫn",
+        "blockquoteDesc": "Khối nội dung trích dẫn",
+        "codeBlock": "Khối mã",
+        "codeBlockDesc": "Chèn đoạn mã lập trình",
+        "divider": "Đường kẻ",
+        "dividerDesc": "Đường kẻ ngang phân cách",
+        "inlineMath": "Toán nội dòng",
+        "inlineMathDesc": "Công thức LaTeX trên dòng",
+        "blockMath": "Khối toán học",
+        "blockMathDesc": "Khối công thức LaTeX lớn",
+        "flowchart": "Lưu đồ",
+        "flowchartDesc": "Chèn sơ đồ quy trình",
+        "sequence": "Sơ đồ tuần tự",
+        "sequenceDesc": "Chèn sơ đồ tương tác",
+        "gantt": "Biểu đồ Gantt",
+        "ganttDesc": "Chèn biểu đồ tiến độ",
+        "classDiagram": "Sơ đồ lớp",
+        "classDiagramDesc": "Chèn sơ đồ lớp OOP",
+        "stateDiagram": "Sơ đồ trạng thái",
+        "stateDiagramDesc": "Chèn sơ đồ trạng thái",
+        "pie": "Biểu đồ tròn",
+        "pieDesc": "Chèn biểu đồ tròn",
+        "erDiagram": "Sơ đồ ER",
+        "erDiagramDesc": "Chèn sơ đồ quan hệ thực thể",
+        "journey": "Hành trình người dùng",
+        "journeyDesc": "Chèn bản đồ hành trình"
+      },
+      "imageUpload": {
+        "success": "Tải lên thành công",
+        "saveSuccess": "Lưu thành công",
+        "savePath": "Lưu tại: {path}",
+        "failed": "Chèn ảnh thất bại"
+      }
+    }
+  },
+  "tabContext": {
+    "close": "Đóng",
+    "closeOthers": "Đóng các tab khác",
+    "closeAll": "Đóng tất cả",
+    "closeLeft": "Đóng các tab bên trái",
+    "closeRight": "Đóng các tab bên phải"
+  }
+}

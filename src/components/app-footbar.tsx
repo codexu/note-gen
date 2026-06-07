@@ -18,6 +18,13 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { MobileRecordTools } from '@/components/mobile-record-tools'
+import {
+  getAutoDataSyncState,
+  subscribeAutoDataSyncState,
+  type AutoDataSyncState,
+} from '@/lib/sync/auto-data-sync-queue'
+
+type MobileSyncIndicator = 'none' | 'syncing' | 'warning' | 'attention'
 
 // 普通导航按钮组件
 interface NormalNavButtonProps {
@@ -27,10 +34,25 @@ interface NormalNavButtonProps {
     icon: React.ComponentType<{ className?: string }>
   }
   isActive: boolean
+  syncIndicator?: MobileSyncIndicator
   onClick: () => void
 }
 
-function NormalNavButton({ item, isActive, onClick }: NormalNavButtonProps) {
+function getSyncIndicatorClassName(indicator: MobileSyncIndicator) {
+  switch (indicator) {
+    case 'attention':
+      return 'bg-destructive'
+    case 'warning':
+      return 'bg-amber-500'
+    case 'syncing':
+      return 'bg-primary animate-pulse'
+    case 'none':
+    default:
+      return ''
+  }
+}
+
+function NormalNavButton({ item, isActive, syncIndicator = 'none', onClick }: NormalNavButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -41,6 +63,9 @@ function NormalNavButton({ item, isActive, onClick }: NormalNavButtonProps) {
     >
       <item.icon className="h-5 w-5" />
       <span className="text-xs mt-0.5">{item.title}</span>
+      {syncIndicator !== 'none' ? (
+        <span className={cn('absolute right-4 top-1 size-2 rounded-full', getSyncIndicatorClassName(syncIndicator))} />
+      ) : null}
       {isActive && (
         <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-primary" />
       )}
@@ -56,10 +81,11 @@ interface AvatarNavButtonProps {
   }
   isActive: boolean
   avatarUrl: string
+  syncIndicator?: MobileSyncIndicator
   onClick: () => void
 }
 
-function AvatarNavButton({ item, isActive, avatarUrl, onClick }: AvatarNavButtonProps) {
+function AvatarNavButton({ item, isActive, avatarUrl, syncIndicator = 'none', onClick }: AvatarNavButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -69,15 +95,20 @@ function AvatarNavButton({ item, isActive, avatarUrl, onClick }: AvatarNavButton
       )}
     >
       <div className="flex flex-col items-center">
-        <Avatar className="h-6 w-6">
-          <AvatarImage 
-            src={avatarUrl} 
-            alt="Profile" 
-          />
-          <AvatarFallback>
-            <User className="h-4 w-4" />
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-6 w-6">
+            <AvatarImage
+              src={avatarUrl}
+              alt="Profile"
+            />
+            <AvatarFallback>
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          {syncIndicator !== 'none' ? (
+            <span className={cn('absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-background', getSyncIndicatorClassName(syncIndicator))} />
+          ) : null}
+        </div>
         <span className="text-xs mt-0.5">{item.title}</span>
         {isActive && (
           <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-primary" />
@@ -87,11 +118,40 @@ function AvatarNavButton({ item, isActive, avatarUrl, onClick }: AvatarNavButton
   )
 }
 
+function getMobileSyncIndicator(
+  autoDataSyncEnabled: boolean,
+  autoDataSyncState: AutoDataSyncState
+): MobileSyncIndicator {
+  if (!autoDataSyncEnabled) {
+    return 'none'
+  }
+
+  if (autoDataSyncState.phase === 'failed' || autoDataSyncState.phase === 'conflict') {
+    return 'attention'
+  }
+
+  if (autoDataSyncState.phase === 'waiting_provider') {
+    return 'warning'
+  }
+
+  if (
+    autoDataSyncState.isSyncing ||
+    autoDataSyncState.phase === 'checking_remote' ||
+    autoDataSyncState.phase === 'uploading' ||
+    autoDataSyncState.phase === 'downloading'
+  ) {
+    return 'syncing'
+  }
+
+  return 'none'
+}
+
 export function AppFootbar() {
   const pathname = usePathname()
   const router = useRouter()
   const { toggleFileSidebar } = useSidebarStore()
   const [quickRecordOpen, setQuickRecordOpen] = useState(false)
+  const [autoDataSyncState, setAutoDataSyncState] = useState<AutoDataSyncState>(getAutoDataSyncState())
   const { 
     githubUsername,
     accessToken,
@@ -99,6 +159,7 @@ export function AppFootbar() {
     giteeAccessToken,
     gitlabAccessToken,
     giteaAccessToken,
+    autoDataSyncEnabled,
     setGithubUsername,
     setGitlabUsername,
     setGiteaUsername,
@@ -124,6 +185,7 @@ export function AppFootbar() {
   const hasGitlabAccount = Boolean(gitlabAccessToken)
   const hasGiteaAccount = Boolean(giteaAccessToken)
   const showAvatar = hasGithubAccount || hasGiteeAccount || hasGitlabAccount || hasGiteaAccount
+  const syncIndicator = getMobileSyncIndicator(autoDataSyncEnabled, autoDataSyncState)
 
   // 获取当前主要备份方式的用户信息
   async function handleGetUserInfo() {
@@ -263,6 +325,8 @@ export function AppFootbar() {
     }
   }, [accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod])
 
+  useEffect(() => subscribeAutoDataSyncState(setAutoDataSyncState), [])
+
   return (
     <div className="w-full border-t bg-background h-14 relative">
       <div className="flex h-full items-center justify-around">
@@ -303,6 +367,7 @@ export function AppFootbar() {
           
           // 头像按钮（最后一项且有头像）
           const isAvatarButton = index === items.length - 1 && showAvatar && avatarUrl
+          const itemSyncIndicator = item.url === '/mobile/setting' ? syncIndicator : 'none'
           if (isAvatarButton) {
             return (
               <AvatarNavButton
@@ -310,6 +375,7 @@ export function AppFootbar() {
                 item={item}
                 isActive={pathname === item.url}
                 avatarUrl={avatarUrl}
+                syncIndicator={itemSyncIndicator}
                 onClick={() => menuHandler(item)}
               />
             )
@@ -321,6 +387,7 @@ export function AppFootbar() {
               key={index}
               item={item}
               isActive={pathname === item.url}
+              syncIndicator={itemSyncIndicator}
               onClick={() => menuHandler(item)}
             />
           )

@@ -20,6 +20,7 @@ import { reportAppStart } from "@/lib/event-report"
 import { MobileStatusBar } from "@/components/mobile-statusbar"
 import { TextSizeProvider } from "@/contexts/text-size-context"
 import { SyncConfirmDialog } from "@/components/sync-confirm-dialog"
+import { AutoDataSyncConflictDialog } from "@/components/auto-data-sync-conflict-dialog"
 import { ControlText } from "@/app/core/main/mark/control-text"
 import { ControlRecording } from "@/app/core/main/mark/control-recording"
 import { ControlImage } from "@/app/core/main/mark/control-image"
@@ -114,6 +115,7 @@ export default function RootLayout({
           </div>
         </TooltipProvider>
         <SyncConfirmDialog />
+        <AutoDataSyncConflictDialog />
       </TextSizeProvider>
     </ThemeProvider>
   );

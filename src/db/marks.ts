@@ -203,6 +203,23 @@ export async function insertMarks(marks: Partial<Mark>[]) {
   const db = await getDb();
   try {
     for (const mark of marks) {
+      if (mark.id) {
+        const exists = await db.select<Mark[]>("select * from marks where id = $1", [mark.id])
+        if (exists.length > 0) {
+          await db.execute(
+            "update marks set tagId = $1, type = $2, content = $3, url = $4, desc = $5, createdAt = $6, deleted = $7 where id = $8",
+            [mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted, mark.id]
+          );
+          continue
+        }
+
+        await db.execute(
+          "insert into marks (id, tagId, type, content, url, desc, createdAt, deleted) values ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [mark.id, mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted]
+        );
+        continue
+      }
+
       await db.execute(
         "insert into marks (tagId, type, content, url, desc, createdAt, deleted) values ($1, $2, $3, $4, $5, $6, $7)",
         [mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted]

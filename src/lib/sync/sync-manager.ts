@@ -68,8 +68,8 @@ export interface SyncConfig {
 export const defaultSyncConfig: SyncConfig = {
   autoSync: true,
   autoPushOnSave: true,
-  autoPullOnOpen: false,      // 默认关闭
-  autoPullOnSwitch: false,    // 默认关闭
+  autoPullOnOpen: true,       // 默认开启
+  autoPullOnSwitch: true,     // 默认开启
   conflictPolicy: 'ask'
 }
 

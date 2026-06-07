@@ -556,6 +556,10 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
       return t('settings.sync.autoDataSyncStatusWaitingProvider')
     }
 
+    if (autoDataSyncState.phase === 'conflict') {
+      return t('settings.sync.autoDataSyncStatusConflict')
+    }
+
     switch (autoDataSyncState.status) {
       case 'queued':
         return t('settings.sync.autoDataSyncStatusQueued')
@@ -571,7 +575,7 @@ export function SyncToggle({ presentation = 'popover' }: SyncToggleProps) {
   }
 
   function getAutoDataSyncBadgeVariant() {
-    if (autoDataSyncState.status === 'failed') {
+    if (autoDataSyncState.status === 'failed' || autoDataSyncState.phase === 'conflict') {
       return 'destructive' as const
     }
 

@@ -18,9 +18,10 @@ import { filterMarks, getTrashRecordFilters } from '@/app/core/main/mark/mark-fi
 import { getMarkTypeChipClasses, MARK_TYPE_OPTIONS } from '@/app/core/main/mark/mark-type-meta'
 import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
-import { clearTrash, delMark, delMarkForever, initMarksDb, Mark, restoreMark, restoreMarks, updateMark as updateMarkDb } from '@/db/marks'
+import { clearTrash, delMark, deleteMarks, delMarkForever, initMarksDb, Mark, restoreMark, restoreMarks, updateMark as updateMarkDb } from '@/db/marks'
 import { insertTag } from '@/db/tags'
 import { cn } from '@/lib/utils'
+import { RecordSyncStatusBanner } from '@/components/record-sync-status-banner'
 
 const TIME_OPTIONS: RecordTimePreset[] = ['all', 'today', 'last7Days', 'last30Days']
 
@@ -298,12 +299,12 @@ export function MobileRecordStream() {
       })
       if (!accepted) return
     }
-    for (const item of targets) {
-      if (trashState) {
+    if (trashState) {
+      for (const item of targets) {
         await delMarkForever(item.id)
-      } else {
-        await delMark(item.id)
       }
+    } else {
+      await deleteMarks(targets.map((item) => item.id))
     }
     setSelectedIds(new Set())
     await refreshRecords()
@@ -459,6 +460,8 @@ export function MobileRecordStream() {
           )}
         </div>
       </div>
+
+      <RecordSyncStatusBanner settingsHref="/mobile/setting/pages/sync" compact />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {!trashState && queues.length > 0 && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { Mark, delMark, updateMark } from "@/db/marks"
+import { Mark, delMark, deleteMarks, updateMark } from "@/db/marks"
 import { useState, useEffect } from "react"
 import { cn, convertImage } from "@/lib/utils"
 import { PhotoView } from "react-photo-view"
@@ -67,9 +67,7 @@ function ImageItem({ mark }: { mark: Mark }) {
     e?.stopPropagation()
     if (isBatchOperation) {
       const selectedMarks = Array.from(selectedMarkIds)
-      for (const markId of selectedMarks) {
-        await delMark(markId)
-      }
+      await deleteMarks(selectedMarks)
       clearSelection()
     } else {
       await delMark(mark.id)

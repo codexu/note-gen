@@ -193,7 +193,8 @@ const useTagStore = create<TagState>((set, get) => ({
     const filename = 'tags.json'
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    let result = []
+    let result: Tag[] = []
+    let hasRemoteData = false
     let files;
     switch (primaryBackupMethod) {
       case 'github':
@@ -220,6 +221,7 @@ const useTagStore = create<TagState>((set, get) => ({
           if (s3Result) {
             // S3 返回的 content 是字符串，直接解析
             result = JSON.parse(s3Result.content)
+            hasRemoteData = true
           }
         }
         break;
@@ -231,6 +233,7 @@ const useTagStore = create<TagState>((set, get) => ({
           const webdavResult = await webdavDownload(webdavConfig, webdavKey)
           if (webdavResult) {
             result = JSON.parse(webdavResult.content)
+            hasRemoteData = true
           }
         }
         break;
@@ -240,8 +243,9 @@ const useTagStore = create<TagState>((set, get) => ({
     if (files) {
       const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
       result = JSON.parse(configJson)
+      hasRemoteData = true
     }
-    if (result.length > 0) {
+    if (hasRemoteData) {
       const { setAutoDataSyncApplyingRemote } = await import('@/lib/sync/auto-data-sync-queue')
       setAutoDataSyncApplyingRemote(true)
       try {

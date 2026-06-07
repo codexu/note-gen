@@ -70,6 +70,9 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'autoDataSyncDirtyDomains',
   'autoDataSyncLastLocalUploadMetaUpdatedAtMs',
   'autoDataSyncLastAppliedRemoteMetaUpdatedAtMs',
+  'autoDataSyncLastLocalUploadMeta',
+  'autoDataSyncLastAppliedRemoteMeta',
+  'autoDataSyncRecordSnapshots',
 ]
 
 export const SENSITIVE_SYNC_EXCLUDED_FIELDS: string[] = [

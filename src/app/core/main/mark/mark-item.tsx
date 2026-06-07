@@ -1,6 +1,6 @@
 'use client'
 import React from "react"
-import { delMark, delMarkForever, Mark, restoreMark, updateMark } from "@/db/marks";
+import { delMark, deleteMarks, delMarkForever, Mark, restoreMark, updateMark } from "@/db/marks";
 import { useTranslations } from 'next-intl';
 import {
   ContextMenu,
@@ -688,9 +688,7 @@ export const MarkItem = React.memo(({mark, variant = 'list', interactive = true}
     if (isMultiSelectMode && selectedMarkIds.size > 0) {
       // 多选删除
       const selectedMarks = Array.from(selectedMarkIds)
-      for (const markId of selectedMarks) {
-        await delMark(markId)
-      }
+      await deleteMarks(selectedMarks)
       clearSelection()
     } else {
       // 单个删除

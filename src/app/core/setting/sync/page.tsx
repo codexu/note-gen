@@ -239,34 +239,9 @@ export default function SyncPage() {
       {/* 同步平台内容 */}
       {renderSyncContent()}
 
-      {shouldShowInitialSyncChoice && (
-        <Alert className="mt-4">
-          <ShieldCheck />
-          <AlertTitle>{t('settings.sync.autoDataSyncInitialTitle')}</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-col gap-3">
-              <p>{t('settings.sync.autoDataSyncInitialDesc')}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={handleInitialUpload} disabled={initialSyncBusy !== null}>
-                  {initialSyncBusy === 'upload' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t('settings.sync.autoDataSyncInitialUploadLocal')}
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleInitialDownload} disabled={initialSyncBusy !== null}>
-                  {initialSyncBusy === 'download' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t('settings.sync.autoDataSyncInitialPullRemote')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleInitialLater} disabled={initialSyncBusy !== null}>
-                  {t('settings.sync.autoDataSyncInitialLater')}
-                </Button>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* 全局自动同步设置 */}
+      {/* 笔记设置 */}
       <div className="mt-4">
-        <h3 className="text-sm mb-2 font-bold">{t('settings.sync.moreSettings')}</h3>
+        <h3 className="text-sm mb-2 font-bold">{t('settings.sync.noteSettings')}</h3>
         <Item variant="outline">
           <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
           <ItemContent>
@@ -294,35 +269,6 @@ export default function SyncPage() {
                 <SelectItem value="120">{t('settings.sync.autoSyncOptions.2m')}</SelectItem>
               </SelectContent>
             </Select>
-          </ItemActions>
-        </Item>
-
-        {/* 记录和配置自动同步 */}
-        <Item variant="outline" className="mt-2">
-          <ItemMedia variant="icon"><UploadCloud className="size-4" /></ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t('settings.sync.autoDataSync')}</ItemTitle>
-            <ItemDescription>{t('settings.sync.autoDataSyncDesc')}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              checked={autoDataSyncEnabled}
-              onCheckedChange={setAutoDataSyncEnabled}
-            />
-          </ItemActions>
-        </Item>
-
-        <Item variant="outline" className="mt-2">
-          <ItemMedia variant="icon"><ShieldCheck className="size-4" /></ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t('settings.sync.autoDataSyncPrivacyTitle')}</ItemTitle>
-            <ItemDescription>{t('settings.sync.autoDataSyncPrivacyDesc')}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              checked={excludeSensitiveConfig}
-              onCheckedChange={handleExcludeSensitiveConfigChange}
-            />
           </ItemActions>
         </Item>
 
@@ -354,6 +300,65 @@ export default function SyncPage() {
               checked={autoPullOnSwitch}
               onCheckedChange={setAutoPullOnSwitch}
               disabled={isAutoSyncDisabled}
+            />
+          </ItemActions>
+        </Item>
+      </div>
+
+      {/* 记录与配置设置 */}
+      <div className="mt-4">
+        <h3 className="text-sm mb-2 font-bold">{t('settings.sync.recordConfigSettings')}</h3>
+
+        {/* 记录和配置自动同步 */}
+        <Item variant="outline">
+          <ItemMedia variant="icon"><UploadCloud className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoDataSync')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoDataSyncDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoDataSyncEnabled}
+              onCheckedChange={setAutoDataSyncEnabled}
+            />
+          </ItemActions>
+        </Item>
+
+        {shouldShowInitialSyncChoice && (
+          <Alert className="mt-2">
+            <ShieldCheck />
+            <AlertTitle>{t('settings.sync.autoDataSyncInitialTitle')}</AlertTitle>
+            <AlertDescription>
+              <div className="flex flex-col gap-3">
+                <p>{t('settings.sync.autoDataSyncInitialDesc')}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={handleInitialUpload} disabled={initialSyncBusy !== null}>
+                    {initialSyncBusy === 'upload' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t('settings.sync.autoDataSyncInitialUploadLocal')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleInitialDownload} disabled={initialSyncBusy !== null}>
+                    {initialSyncBusy === 'download' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t('settings.sync.autoDataSyncInitialPullRemote')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleInitialLater} disabled={initialSyncBusy !== null}>
+                    {t('settings.sync.autoDataSyncInitialLater')}
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Item variant="outline" className="mt-2">
+          <ItemMedia variant="icon"><ShieldCheck className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoDataSyncPrivacyTitle')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoDataSyncPrivacyDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={excludeSensitiveConfig}
+              onCheckedChange={handleExcludeSensitiveConfigChange}
             />
           </ItemActions>
         </Item>

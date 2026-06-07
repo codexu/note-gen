@@ -824,7 +824,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.save()
   },
 
-  autoSync: 'disabled',
+  autoSync: '5',
   setAutoSync: async (autoSync: string) => {
     set({ autoSync })
     const store = await Store.load('store.json');
@@ -851,8 +851,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
     }
   },
 
-  // 自动拉取相关设置 - 默认关闭
-  autoPullOnOpen: false,
+  // 自动拉取相关设置 - 默认开启
+  autoPullOnOpen: true,
   setAutoPullOnOpen: async (autoPullOnOpen: boolean) => {
     set({ autoPullOnOpen })
     const store = await Store.load('store.json');
@@ -868,7 +868,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     }
   },
 
-  autoPullOnSwitch: false,
+  autoPullOnSwitch: true,
   setAutoPullOnSwitch: async (autoPullOnSwitch: boolean) => {
     set({ autoPullOnSwitch })
     const store = await Store.load('store.json');

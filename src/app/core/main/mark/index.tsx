@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { filterMarks, getTrashRecordFilters } from "./mark-filters";
+import { RecordSyncStatusBanner } from "@/components/record-sync-status-banner"
 
 export function NoteSidebar() {
   const t = useTranslations();
@@ -34,6 +35,7 @@ export function NoteSidebar() {
 
   return (
     <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
+      <RecordSyncStatusBanner settingsHref="/core/setting/sync" />
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">

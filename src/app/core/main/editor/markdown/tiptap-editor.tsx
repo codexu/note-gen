@@ -616,6 +616,7 @@ export function TipTapEditor({
         link: false,
         paragraph: false,
         underline: false,
+        dropcursor: false,
       }),
       MarkdownParagraph,
       Placeholder.configure({

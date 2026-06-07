@@ -1,6 +1,5 @@
 'use client'
 
-import dayjs from 'dayjs'
 import { FileDown, Files, FileUp, Loader2, RefreshCcw, ShieldCheck, UploadCloud } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
@@ -13,7 +12,6 @@ import { GiteaSync } from '@/app/core/setting/sync/gitea-sync'
 import { S3Sync } from '@/app/core/setting/sync/s3-sync'
 import { WebDAVSync } from '@/app/core/setting/sync/webdav-sync'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -21,11 +19,7 @@ import { Switch } from '@/components/ui/switch'
 import { toast } from '@/hooks/use-toast'
 import { SyncStateEnum } from '@/lib/sync/github.types'
 import {
-  AutoDataSyncState,
   downloadAutoDataSyncNow,
-  getAutoDataSyncState,
-  retryAutoDataSync,
-  subscribeAutoDataSyncState,
   uploadAutoDataSyncNow,
 } from '@/lib/sync/auto-data-sync-queue'
 import useChatStore from '@/stores/chat'
@@ -65,12 +59,8 @@ export default function SyncPage() {
 
   const [tab, setTab] = useState<SyncPlatform>(primaryBackupMethod)
   const [isLoading, setIsLoading] = useState(true)
-  const [manualSyncing, setManualSyncing] = useState<'upload' | 'download' | null>(null)
   const [initialSyncChoiceVisible, setInitialSyncChoiceVisible] = useState(false)
   const [initialSyncBusy, setInitialSyncBusy] = useState<'upload' | 'download' | 'later' | null>(null)
-  const [autoDataSyncState, setAutoDataSyncState] = useState<AutoDataSyncState>(getAutoDataSyncState())
-
-  useEffect(() => subscribeAutoDataSyncState(setAutoDataSyncState), [])
 
   useEffect(() => {
     async function loadPrimaryBackupMethod() {
@@ -93,8 +83,6 @@ export default function SyncPage() {
 
   const currentSyncState = getCurrentSyncState(tab)
   const isFileAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
-  const cloudSyncing = manualSyncing !== null || autoDataSyncState.isSyncing
-  const shouldShowWaitingProvider = autoDataSyncEnabled && currentSyncState !== SyncStateEnum.success
   const shouldShowInitialSyncChoice = autoDataSyncEnabled && currentSyncState === SyncStateEnum.success && initialSyncChoiceVisible
 
   useEffect(() => {
@@ -137,47 +125,6 @@ export default function SyncPage() {
 
   function getProviderLabel(platform: SyncPlatform) {
     return platform.charAt(0).toUpperCase() + platform.slice(1)
-  }
-
-  function getAutoDataSyncStatusText() {
-    if (!autoDataSyncEnabled) {
-      return t('settings.sync.autoDataSyncStatusOff')
-    }
-
-    if (shouldShowWaitingProvider || autoDataSyncState.status === 'waiting_provider') {
-      return t('settings.sync.autoDataSyncStatusWaitingProvider')
-    }
-
-    switch (autoDataSyncState.status) {
-      case 'queued':
-        return t('settings.sync.autoDataSyncStatusQueued')
-      case 'syncing':
-        return autoDataSyncState.syncMode === 'manual'
-          ? t('settings.sync.autoDataSyncStatusManualSyncing')
-          : t('settings.sync.autoDataSyncStatusSyncing')
-      case 'failed':
-        return t('settings.sync.autoDataSyncStatusFailed')
-      default:
-        return t('settings.sync.autoDataSyncStatusIdle')
-    }
-  }
-
-  function getAutoDataSyncBadgeVariant() {
-    if (autoDataSyncState.status === 'failed') {
-      return 'destructive' as const
-    }
-
-    if (autoDataSyncState.status === 'syncing' || autoDataSyncState.status === 'queued') {
-      return 'secondary' as const
-    }
-
-    return 'outline' as const
-  }
-
-  function getLastCompletedText() {
-    return autoDataSyncState.lastCompletedAt
-      ? dayjs(autoDataSyncState.lastCompletedAt).format('YYYY-MM-DD HH:mm')
-      : t('settings.sync.autoDataSyncNever')
   }
 
   async function handleTabChange(value: string) {
@@ -255,43 +202,6 @@ export default function SyncPage() {
     await setExcludeSensitiveConfig(checked)
   }
 
-  async function handleUploadAll() {
-    const accepted = await confirm(t('settings.uploadStore.uploadConfirm'))
-    if (!accepted) return
-
-    setManualSyncing('upload')
-    try {
-      await uploadAutoDataSyncNow()
-      toast({ description: t('record.mark.uploadSuccess') })
-    } catch (error) {
-      console.error('Upload failed:', error)
-      toast({ description: t('common.error'), variant: 'destructive' })
-    } finally {
-      setManualSyncing(null)
-    }
-  }
-
-  async function handleDownloadAll() {
-    const accepted = await confirm(t('settings.uploadStore.downloadConfirm'))
-    if (!accepted) return
-
-    setManualSyncing('download')
-    try {
-      const ok = await downloadAutoDataSyncNow()
-      if (!ok) {
-        throw new Error('Failed to download remote data')
-      }
-
-      await refreshDownloadedData()
-      toast({ description: t('record.mark.downloadSuccess') + t('common.restartToApply') })
-    } catch (error) {
-      console.error('Download failed:', error)
-      toast({ description: t('common.error'), variant: 'destructive' })
-    } finally {
-      setManualSyncing(null)
-    }
-  }
-
   function renderSyncContent() {
     switch (tab) {
       case 'github':
@@ -349,7 +259,7 @@ export default function SyncPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold">{t('settings.sync.moreSettings')}</h2>
+        <h2 className="text-sm font-semibold">{t('settings.sync.noteSettings')}</h2>
 
         <Item variant="outline">
           <ItemMedia variant="icon"><RefreshCcw className="size-4" /></ItemMedia>
@@ -384,6 +294,40 @@ export default function SyncPage() {
         </Item>
 
         <Item variant="outline">
+          <ItemMedia variant="icon"><FileDown className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoPullOnOpen')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoPullOnOpenDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoPullOnOpen}
+              onCheckedChange={setAutoPullOnOpen}
+              disabled={isFileAutoSyncDisabled}
+            />
+          </ItemActions>
+        </Item>
+
+        <Item variant="outline">
+          <ItemMedia variant="icon"><Files className="size-4" /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('settings.sync.autoPullOnSwitch')}</ItemTitle>
+            <ItemDescription>{t('settings.sync.autoPullOnSwitchDesc')}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              checked={autoPullOnSwitch}
+              onCheckedChange={setAutoPullOnSwitch}
+              disabled={isFileAutoSyncDisabled}
+            />
+          </ItemActions>
+        </Item>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold">{t('settings.sync.recordConfigSettings')}</h2>
+
+        <Item variant="outline">
           <ItemMedia variant="icon"><UploadCloud className="size-4" /></ItemMedia>
           <ItemContent>
             <ItemTitle>{t('settings.sync.autoDataSync')}</ItemTitle>
@@ -396,57 +340,6 @@ export default function SyncPage() {
             />
           </ItemActions>
         </Item>
-
-        <div className="rounded-md border p-3 text-xs">
-          <div className="flex items-start justify-between gap-2">
-            <span className="font-medium">{t('settings.sync.autoDataSyncStatusTitle')}</span>
-            <Badge variant={getAutoDataSyncBadgeVariant()}>{getAutoDataSyncStatusText()}</Badge>
-          </div>
-          <div className="mt-2 flex flex-col gap-1 text-muted-foreground">
-            <div className="flex items-center justify-between gap-3">
-              <span>{t('settings.sync.autoDataSyncStatusProvider')}</span>
-              <span>{getProviderLabel(tab)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>{t('settings.sync.autoDataSyncStatusPending')}</span>
-              <span>{autoDataSyncState.pendingCount}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>{t('settings.sync.autoDataSyncStatusLastSuccess')}</span>
-              <span>{getLastCompletedText()}</span>
-            </div>
-          </div>
-          {autoDataSyncState.lastError && (
-            <p className="mt-2 break-words text-destructive">
-              {t('settings.sync.autoDataSyncStatusError')}: {autoDataSyncState.lastError}
-            </p>
-          )}
-          <div className="mt-3 flex flex-col gap-2">
-            {autoDataSyncState.status === 'failed' && (
-              <Button variant="outline" size="sm" onClick={() => void retryAutoDataSync()} disabled={cloudSyncing}>
-                {t('settings.sync.autoDataSyncRetry')}
-              </Button>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" onClick={handleUploadAll} disabled={cloudSyncing}>
-                {manualSyncing === 'upload' || autoDataSyncState.isSyncing ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <UploadCloud className="mr-2 size-4" />
-                )}
-                {t('settings.sync.uploadRecords')}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadAll} disabled={cloudSyncing}>
-                {manualSyncing === 'download' ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <FileDown className="mr-2 size-4" />
-                )}
-                {t('settings.sync.downloadConfig')}
-              </Button>
-            </div>
-          </div>
-        </div>
 
         {shouldShowInitialSyncChoice && (
           <Alert>
@@ -483,36 +376,6 @@ export default function SyncPage() {
             <Switch
               checked={excludeSensitiveConfig}
               onCheckedChange={handleExcludeSensitiveConfigChange}
-            />
-          </ItemActions>
-        </Item>
-
-        <Item variant="outline">
-          <ItemMedia variant="icon"><FileDown className="size-4" /></ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t('settings.sync.autoPullOnOpen')}</ItemTitle>
-            <ItemDescription>{t('settings.sync.autoPullOnOpenDesc')}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              checked={autoPullOnOpen}
-              onCheckedChange={setAutoPullOnOpen}
-              disabled={isFileAutoSyncDisabled}
-            />
-          </ItemActions>
-        </Item>
-
-        <Item variant="outline">
-          <ItemMedia variant="icon"><Files className="size-4" /></ItemMedia>
-          <ItemContent>
-            <ItemTitle>{t('settings.sync.autoPullOnSwitch')}</ItemTitle>
-            <ItemDescription>{t('settings.sync.autoPullOnSwitchDesc')}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              checked={autoPullOnSwitch}
-              onCheckedChange={setAutoPullOnSwitch}
-              disabled={isFileAutoSyncDisabled}
             />
           </ItemActions>
         </Item>

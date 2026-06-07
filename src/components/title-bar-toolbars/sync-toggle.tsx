@@ -71,11 +71,8 @@ async function getGitlabApiBaseUrl(): Promise<string> {
   const store = await Store.load('store.json')
   const instanceType = await store.get<GitlabInstanceType>('gitlabInstanceType') || GitlabInstanceType.OFFICIAL
 
-  console.log('[getGitlabApiBaseUrl] instanceType:', instanceType)
-
   if (instanceType === GitlabInstanceType.SELF_HOSTED) {
     let customUrl = await store.get<string>('gitlabCustomUrl') || ''
-    console.log('[getGitlabApiBaseUrl] customUrl:', customUrl)
     customUrl = customUrl.replace(/\/+$/, '').trim()
 
     if (!customUrl) {
@@ -84,13 +81,11 @@ async function getGitlabApiBaseUrl(): Promise<string> {
 
     // 用户使用 http://localhost:8080/ 这种本地地址，不需要添加 https://
     const baseUrl = `${customUrl}/api/v4`
-    console.log('[getGitlabApiBaseUrl] Self-hosted baseUrl:', baseUrl)
     return baseUrl
   }
 
   const instance = GITLAB_INSTANCES[instanceType]
   if (!instance) {
-    console.log('[getGitlabApiBaseUrl] Unknown instanceType, using OFFICIAL')
     // 未知类型，默认使用官方 GitLab
     return `${GITLAB_INSTANCES[GitlabInstanceType.OFFICIAL].baseUrl}/api/v4`
   }
@@ -169,11 +164,6 @@ async function requestGitLab(method: string, url: string, body?: object) {
   const store = await Store.load('store.json')
   const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
 
-  console.log('[requestGitLab] URL:', url)
-  console.log('[requestGitLab] Method:', method)
-  console.log('[requestGitLab] Token exists:', !!gitlabAccessToken)
-  console.log('[requestGitLab] Token prefix:', gitlabAccessToken?.substring(0, 10))
-
   const headers = new Headers()
   headers.append('PRIVATE-TOKEN', gitlabAccessToken as string)
   headers.append('Content-Type', 'application/json')
@@ -182,15 +172,12 @@ async function requestGitLab(method: string, url: string, body?: object) {
   const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
   const response = await tauriFetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
 
-  console.log('[requestGitLab] Status:', response.status)
-
   if (response.status >= 200 && response.status < 300) {
     return method === 'GET' ? await response.json() : await response.json()
   }
   if (method === 'GET') return null
 
   const errorData = await response.json()
-  console.log('[requestGitLab] Error:', errorData)
   throw { status: response.status, message: errorData.message || 'Request failed' }
 }
 

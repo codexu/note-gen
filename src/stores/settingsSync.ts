@@ -3,9 +3,9 @@ import { create } from 'zustand'
 import { filterSyncData, mergeSyncData } from '@/config/sync-exclusions'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
-import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles } from '@/lib/sync/gitlab'
-import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles } from '@/lib/sync/gitea'
-import { getRemoteFileContent } from '@/lib/sync/remote-file'
+import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab'
+import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea'
+import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3Download, s3Upload } from '@/lib/sync/s3'
 import { webdavDownload, webdavUpload } from '@/lib/sync/webdav'
@@ -20,15 +20,12 @@ type RemoteFileEntry = {
   type?: string
   sha?: string
 }
-const SETTINGS_SYNC_LOG_PREFIX = '[settings-sync]'
-
+interface SettingsDownloadOptions {
+  allowMissingRemote?: boolean
+}
 function debugSettingsSync(message: string, details?: Record<string, unknown>) {
-  if (details) {
-    console.debug(`${SETTINGS_SYNC_LOG_PREFIX} ${message}`, details)
-    return
-  }
-
-  console.debug(`${SETTINGS_SYNC_LOG_PREFIX} ${message}`)
+  void message
+  void details
 }
 
 function isRemoteFileEntry(value: unknown): value is RemoteFileEntry {
@@ -59,7 +56,7 @@ interface SettingsSyncState {
   setLastSyncTime: (lastSyncTime: string) => void
   
   uploadSettings: () => Promise<boolean>
-  downloadSettings: () => Promise<boolean>
+  downloadSettings: (options?: SettingsDownloadOptions) => Promise<boolean>
 }
 
 const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
@@ -204,7 +201,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
    * 从远程仓库下载配置
    * 会保留本地的排除字段（如工作区路径等）
    */
-  downloadSettings: async () => {
+  downloadSettings: async (options: SettingsDownloadOptions = {}) => {
     try {
       const store = await Store.load('store.json')
       const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
@@ -233,7 +230,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
         const file = await s3Download(config, '.data/settings.json')
         debugSettingsSync('s3 download result', { success: Boolean(file) })
         if (!file) {
-          return false
+          return Boolean(options.allowMissingRemote)
         }
 
         remoteSettings = JSON.parse(file.content)
@@ -246,7 +243,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
         const file = await webdavDownload(config, '.data/settings.json')
         debugSettingsSync('webdav download result', { success: Boolean(file) })
         if (!file) {
-          return false
+          return Boolean(options.allowMissingRemote)
         }
 
         remoteSettings = JSON.parse(file.content)
@@ -276,26 +273,39 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       
       // 从远程仓库获取配置文件
       if (!remoteSettings) {
-        const files = await getFiles({
-          path: '.data/settings.json',
-          repo: repoName
-        })
+        const settingsPath = '.data/settings.json'
+        const files = primaryBackupMethod === 'gitlab'
+          ? await gitlabGetFileContent({ path: settingsPath, ref: 'main', repo: repoName })
+          : primaryBackupMethod === 'gitea'
+          ? await giteaGetFileContent({ path: settingsPath, ref: 'main', repo: repoName })
+          : await getFiles({
+              path: settingsPath,
+              repo: repoName,
+            })
 
         if (!files) {
-          console.warn('No settings file found in remote repository')
           debugSettingsSync('git download result', {
             provider: primaryBackupMethod,
             success: false,
+            skippedMissingRemote: Boolean(options.allowMissingRemote),
           })
-          return false
+          return Boolean(options.allowMissingRemote)
         }
+
+        if (options.allowMissingRemote && hasEmptyRemoteFileContent(files)) {
+          debugSettingsSync('download skipped because remote settings file is empty or missing', {
+            provider: primaryBackupMethod,
+          })
+          return true
+        }
+
         debugSettingsSync('git download result', {
           provider: primaryBackupMethod,
           success: true,
         })
 
         // 解码 base64 内容
-        const content = decodeBase64ToString(getRemoteFileContent(files, '.data/settings.json'))
+        const content = decodeBase64ToString(getRemoteFileContent(files, settingsPath))
         remoteSettings = JSON.parse(content)
       }
 
@@ -328,9 +338,17 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       
       return true
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error'
+      if (options.allowMissingRemote && isMissingRemoteFileError(message)) {
+        debugSettingsSync('download skipped because remote settings file is missing', {
+          message,
+        })
+        return true
+      }
+
       console.error('Failed to download settings:', error)
       debugSettingsSync('download failed', {
-        message: error instanceof Error ? error.message : 'unknown error',
+        message,
       })
       return false
     }

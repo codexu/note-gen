@@ -61,14 +61,6 @@ export async function uploadFile(
   
   try {
     const contentPath = buildRepoContentPath({ path, filename })
-    console.debug('[github sync] upload target resolved', {
-      repo,
-      path,
-      filename,
-      contentPath,
-      hasSha: Boolean(sha),
-      contentLength: file.length,
-    })
 
     // 将内容转换为 Base64（GitHub API 要求）
     const base64Content = Buffer.from(file, 'utf-8').toString('base64')

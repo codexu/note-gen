@@ -85,7 +85,6 @@ export async function uploadFile({
   repo: string;
   path?: string;
 }) {
-  console.log('[gitlab uploadFile] file length:', file.length, 'filename:', filename, 'path:', path, 'sha:', sha)
   try {
     const store = await Store.load('store.json');
     const gitlabUsername = await store.get<string>('gitlabUsername');
@@ -107,8 +106,6 @@ export async function uploadFile({
     const pathParts = _path.split('/').filter(p => p); // 去掉空字符串
     const encodedPath = pathParts.slice(0, -1).map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/');
     const normalizedPath = pathParts.length > 1 ? `${encodedPath}/${_filename}` : (pathParts.length === 1 ? `${pathParts[0]}/${_filename}` : _filename);
-
-    console.log('[gitlab uploadFile] path:', path, '_path:', _path, 'pathParts:', pathParts, 'normalizedPath:', normalizedPath)
 
     // 将内容转换为 Base64（GitLab API 要求）
     const base64Content = Buffer.from(file, 'utf-8').toString('base64')
@@ -161,8 +158,6 @@ export async function uploadFile({
       actions: commitActions
     };
 
-    console.log('[gitlab uploadFile] Trying Commits API to create file, url:', commitsApiUrl)
-
     const commitResponse = await fetch(commitsApiUrl, {
       method: 'POST',
       headers,
@@ -170,18 +165,14 @@ export async function uploadFile({
       proxy
     });
 
-    console.log('[gitlab uploadFile] Commits API status:', commitResponse.status)
-
     if (commitResponse.status >= 200 && commitResponse.status < 300) {
       const data = await commitResponse.json();
-      console.log('[gitlab uploadFile] Commits API success:', data)
       return { data } as GitlabResponse<any>;
     }
 
     // 如果是 400 错误，可能文件已存在，尝试用 PUT 更新
     if (commitResponse.status === 400) {
       const commitErrorData = await commitResponse.json();
-      console.log('[gitlab uploadFile] Commits API error:', commitErrorData)
 
       // 检查是否是文件已存在的错误
       if (commitErrorData.error && commitErrorData.error.includes('already exists')) {
@@ -215,8 +206,6 @@ export async function uploadFile({
           proxy
         });
 
-        console.log('[gitlab uploadFile] PUT status:', putResponse.status)
-
         if (putResponse.status >= 200 && putResponse.status < 300) {
           const data = await putResponse.json();
           return { data } as GitlabResponse<any>;
@@ -237,7 +226,6 @@ export async function uploadFile({
 
     // 其他错误
     const commitErrorData = await commitResponse.json();
-    console.log('[gitlab uploadFile] Commits API error:', commitErrorData)
     throw {
       status: commitResponse.status,
       message: commitErrorData.error || commitErrorData.message || '同步失败'
@@ -258,24 +246,20 @@ export async function uploadFile({
  * @param params 查询参数
  */
 export async function getFiles({ path, repo }: { path: string; repo: string }) {
-  console.log('[gitlab getFiles] path:', path, 'repo:', repo)
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
-    console.log('[gitlab getFiles] projectId:', projectId)
 
     if (!projectId) {
       throw new Error('项目 ID 未配置');
     }
 
     const baseUrl = await getGitlabApiBaseUrl();
-    console.log('[gitlab getFiles] baseUrl:', baseUrl)
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
     // 先尝试获取单个文件信息
     const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}?ref=main`;
-    console.log('[gitlab getFiles] fileUrl:', fileUrl)
 
     try {
       const fileResponse = await fetch(fileUrl, {
@@ -283,7 +267,6 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
         headers,
         proxy
       });
-      console.log('[gitlab getFiles] fileResponse status:', fileResponse.status)
 
       if (fileResponse.status >= 200 && fileResponse.status < 300) {
         const fileData = await fileResponse.json();
@@ -295,25 +278,21 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
           size: fileData.size,
         };
       }
-    } catch (e) {
-      console.log('[gitlab getFiles] file fetch error:', e)
+    } catch {
       // 如果获取单个文件失败，继续尝试获取目录列表
     }
 
     // 如果不是单个文件，尝试获取目录列表
     const url = `${baseUrl}/projects/${projectId}/repository/tree?path=${path}`;
-    console.log('[gitlab getFiles] treeUrl:', url)
 
     const response = await fetch(url, {
       method: 'GET',
       headers,
       proxy
     });
-    console.log('[gitlab getFiles] treeResponse status:', response.status)
 
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json() as GitlabRepositoryFile[];
-      console.log('[gitlab getFiles] tree data:', data)
       return data.map(item => {
         return {
           name: item.name,

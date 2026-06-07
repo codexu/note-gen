@@ -6,10 +6,14 @@ import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileConten
 import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
 import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { getRemoteFileContent } from '@/lib/sync/remote-file'
+import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { S3Config, WebDAVConfig } from '@/types/sync'
+
+interface RecordDataDownloadOptions {
+  allowMissingRemote?: boolean
+}
 
 interface TagState {
   currentTagId: number
@@ -30,7 +34,7 @@ interface TagState {
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
   uploadTags: () => Promise<boolean>
-  downloadTags: () => Promise<Tag[]>
+  downloadTags: (options?: RecordDataDownloadOptions) => Promise<Tag[]>
 }
 
 const useTagStore = create<TagState>((set, get) => ({
@@ -124,8 +128,8 @@ const useTagStore = create<TagState>((set, get) => ({
               filename: '.gitkeep',
               sha: '',
             })
-          } catch (e) {
-            console.log('[tag store] GitLab create .gitkeep error:', e)
+          } catch {
+            // Ignore .gitkeep creation failures; the main upload path reports errors below.
           }
           // 重新获取文件列表
           files = await gitlabGetFiles({ path, repo: gitlabRepo })
@@ -188,7 +192,7 @@ const useTagStore = create<TagState>((set, get) => ({
     set({ syncState: false })
     return result
   },
-  downloadTags: async () => {
+  downloadTags: async (options: RecordDataDownloadOptions = {}) => {
     const path = '.data'
     const filename = 'tags.json'
     const store = await Store.load('store.json');
@@ -241,9 +245,18 @@ const useTagStore = create<TagState>((set, get) => ({
     }
     // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
-      const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-      result = JSON.parse(configJson)
-      hasRemoteData = true
+      try {
+        if (!options.allowMissingRemote || !hasEmptyRemoteFileContent(files)) {
+          const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
+          result = JSON.parse(configJson)
+          hasRemoteData = true
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown error'
+        if (!options.allowMissingRemote || !isMissingRemoteFileError(message)) {
+          throw error
+        }
+      }
     }
     if (hasRemoteData) {
       const { setAutoDataSyncApplyingRemote } = await import('@/lib/sync/auto-data-sync-queue')

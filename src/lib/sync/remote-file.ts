@@ -56,13 +56,23 @@ type RemoteDirectoryEntry = {
   sha?: string
 }
 
+function isFileEntry(entry: RemoteDirectoryEntry) {
+  return entry.type === 'file' || entry.type === 'blob'
+}
+
 export function pickNestedFileEntry(entries: RemoteDirectoryEntry[], requestedPath: string) {
-  const files = entries.filter(entry => entry.type === 'file' && typeof entry.path === 'string')
+  const files = entries.filter(entry => isFileEntry(entry) && typeof entry.path === 'string')
   if (files.length === 0) {
     return null
   }
 
   const expectedName = requestedPath.split('/').filter(Boolean).pop()?.replace(/\s/g, '_')
+  const normalizedRequestedPath = requestedPath.replace(/\s/g, '_')
+  const pathMatch = files.find(entry => entry.path === normalizedRequestedPath)
+  if (pathMatch) {
+    return pathMatch
+  }
+
   if (expectedName) {
     const namedMatch = files.find(entry => entry.name === expectedName)
     if (namedMatch) {
@@ -88,6 +98,19 @@ export function getRemoteFileContent(file: unknown, path: string) {
   }
 
   return content
+}
+
+export function isMissingRemoteFileError(message: string) {
+  return message.includes('远程文件不存在') || message.includes('远程路径指向的是目录')
+}
+
+export function hasEmptyRemoteFileContent(file: unknown) {
+  if (typeof file !== 'object' || file === null || Array.isArray(file)) {
+    return false
+  }
+
+  const content = (file as { content?: unknown }).content
+  return typeof content === 'string' && content.trim().length === 0
 }
 
 export function decodeBase64ToString(content: unknown) {

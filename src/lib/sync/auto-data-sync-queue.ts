@@ -85,7 +85,6 @@ const AUTO_DATA_SYNC_TAGS_PATH = '.data/tags.json'
 const AUTO_DATA_SYNC_MARKS_PATH = '.data/marks.json'
 const AUTO_DATA_SYNC_SETTINGS_PATH = '.data/settings.json'
 const AUTO_DATA_SYNC_DOMAINS: AutoDataSyncDomain[] = ['records', 'settings']
-const AUTO_DATA_SYNC_LOG_PREFIX = '[auto-data-sync]'
 const AUTO_DATA_SYNC_DIRTY_DOMAINS_KEY = 'autoDataSyncDirtyDomains'
 const AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_MS_KEY = 'autoDataSyncLastLocalUploadMetaUpdatedAtMs'
 const AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY = 'autoDataSyncLastAppliedRemoteMetaUpdatedAtMs'
@@ -275,12 +274,8 @@ function mergeMarksById(
 }
 
 function debugAutoDataSync(message: string, details?: Record<string, unknown>) {
-  if (details) {
-    console.debug(`${AUTO_DATA_SYNC_LOG_PREFIX} ${message}`, details)
-    return
-  }
-
-  console.debug(`${AUTO_DATA_SYNC_LOG_PREFIX} ${message}`)
+  void message
+  void details
 }
 
 function updateState(next: Partial<AutoDataSyncState>) {
@@ -515,9 +510,9 @@ export async function downloadAutoDataSyncNow(
       import('@/stores/setting'),
     ])
 
-    const tagResult = await useTagStore.getState().downloadTags()
-    const markResult = await useMarkStore.getState().downloadMarks()
-    const settingsResult = await useSettingsSyncStore.getState().downloadSettings()
+    const tagResult = await useTagStore.getState().downloadTags({ allowMissingRemote: true })
+    const markResult = await useMarkStore.getState().downloadMarks({ allowMissingRemote: true })
+    const settingsResult = await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
     debugAutoDataSync('download domain results', {
       tags: tagResult,
       marks: markResult,
@@ -704,9 +699,9 @@ async function mergeAutoDataSyncConflict(): Promise<boolean> {
       tagsDb.getTags(),
       marksDb.getAllMarks(),
     ])
-    const remoteTags = await useTagStore.getState().downloadTags()
-    const remoteMarks = await useMarkStore.getState().downloadMarks()
-    const settingsResult = await useSettingsSyncStore.getState().downloadSettings()
+    const remoteTags = await useTagStore.getState().downloadTags({ allowMissingRemote: true })
+    const remoteMarks = await useMarkStore.getState().downloadMarks({ allowMissingRemote: true })
+    const settingsResult = await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
 
     if (!settingsResult) {
       throw new Error('Failed to merge remote settings')

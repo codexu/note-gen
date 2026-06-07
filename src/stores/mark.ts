@@ -7,12 +7,16 @@ import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
 import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
 import { WebDAVConfig } from '@/types/sync'
 import { getSyncRepoName } from '@/lib/sync/repo-utils';
-import { getRemoteFileContent } from '@/lib/sync/remote-file';
+import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 import { S3Config } from '@/types/sync'
 import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters'
 import { normalizeRecordViewMode } from '@/app/core/main/mark/mark-view-mode.mjs'
+
+interface RecordDataDownloadOptions {
+  allowMissingRemote?: boolean
+}
 
 export interface MarkQueue {
   queueId: string
@@ -126,7 +130,7 @@ interface MarkState {
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
   uploadMarks: () => Promise<boolean>
-  downloadMarks: () => Promise<Mark[]>
+  downloadMarks: (options?: RecordDataDownloadOptions) => Promise<Mark[]>
 }
 
 const useMarkStore = create<MarkState>((set, get) => ({
@@ -371,10 +375,8 @@ const useMarkStore = create<MarkState>((set, get) => ({
     const path = '.data'
     const filename = 'marks.json'
     const marks = await getAllMarks()
-    console.log('[mark store] uploadMarks - marks count:', marks.length)
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    console.log('[mark store] uploadMarks - primaryBackupMethod:', primaryBackupMethod)
     let result = false
     let files: any;
     let res;
@@ -411,17 +413,14 @@ const useMarkStore = create<MarkState>((set, get) => ({
         break;
       case 'gitlab': {
         const gitlabRepoName = await getSyncRepoName('gitlab')
-        console.log('[mark store] GitLab upload - path:', path, 'filename:', filename, 'repo:', gitlabRepoName)
         try {
           files = await gitlabGetFiles({ path, repo: gitlabRepoName })
         } catch (e) {
           console.error('[mark store] GitLab getFiles error:', e)
         }
-        console.log('[mark store] GitLab files:', files)
 
         // 如果目录不存在（files 为 null），先创建目录标记文件
         if (!files) {
-          console.log('[mark store] GitLab directory does not exist, creating .gitkeep')
           try {
             await uploadGitlabFile({
               file: '',
@@ -430,8 +429,8 @@ const useMarkStore = create<MarkState>((set, get) => ({
               filename: '.gitkeep',
               sha: '',
             })
-          } catch (e) {
-            console.log('[mark store] GitLab create .gitkeep error:', e)
+          } catch {
+            // Ignore .gitkeep creation failures; the main upload path reports errors below.
           }
           // 重新获取文件列表
           files = await gitlabGetFiles({ path, repo: gitlabRepoName })
@@ -440,7 +439,6 @@ const useMarkStore = create<MarkState>((set, get) => ({
         const markFile = Array.isArray(files)
           ? files.find(file => file.name === filename)
           : (files?.name === filename ? files : undefined)
-        console.log('[mark store] GitLab markFile:', markFile)
         try {
           res = await uploadGitlabFile({
             file: JSON.stringify(marks),
@@ -452,7 +450,6 @@ const useMarkStore = create<MarkState>((set, get) => ({
         } catch (e) {
           console.error('[mark store] GitLab uploadFile error:', e)
         }
-        console.log('[mark store] GitLab upload result:', res)
         break;
       }
       case 'gitea':
@@ -503,7 +500,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
     set({ syncState: false })
     return result
   },
-  downloadMarks: async () => {
+  downloadMarks: async (options: RecordDataDownloadOptions = {}) => {
     const path = '.data'
     const filename = 'marks.json'
     const store = await Store.load('store.json');
@@ -556,9 +553,18 @@ const useMarkStore = create<MarkState>((set, get) => ({
     }
     // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
-      const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-      result = JSON.parse(configJson)
-      hasRemoteData = true
+      try {
+        if (!options.allowMissingRemote || !hasEmptyRemoteFileContent(files)) {
+          const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
+          result = JSON.parse(configJson)
+          hasRemoteData = true
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown error'
+        if (!options.allowMissingRemote || !isMissingRemoteFileError(message)) {
+          throw error
+        }
+      }
     }
     if (hasRemoteData) {
       const { setAutoDataSyncApplyingRemote } = await import('@/lib/sync/auto-data-sync-queue')

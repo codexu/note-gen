@@ -31,6 +31,7 @@ skills-lock.json
 
 # testing
 /coverage
+/tmp/
 *.test.*
 
 # next.js

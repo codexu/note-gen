@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Doubao Input Debug</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background: Canvas;
+        color: CanvasText;
+      }
+
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+        padding-bottom: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      p {
+        margin: 6px 0 0;
+        color: color-mix(in srgb, CanvasText 62%, transparent);
+        font-size: 14px;
+      }
+
+      button {
+        border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        padding: 8px 12px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        margin-top: 20px;
+      }
+
+      label,
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      textarea,
+      input,
+      [contenteditable] {
+        border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 400;
+        padding: 10px;
+      }
+
+      textarea,
+      [contenteditable] {
+        min-height: 128px;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 12px;
+        margin-top: 20px;
+        table-layout: fixed;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+        word-break: break-word;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        background: Canvas;
+      }
+
+      .log-wrap {
+        border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+        border-radius: 6px;
+        margin-top: 12px;
+        max-height: 46vh;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Doubao Input Debug</h1>
+          <p>Plain DOM receiver probe for Tauri/WKWebView.</p>
+        </div>
+        <div>
+          <button id="clear" type="button">Clear</button>
+          <button id="copy" type="button">Copy logs</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <label>
+          Raw textarea
+          <textarea id="raw-textarea" name="raw-textarea" rows="6"></textarea>
+        </label>
+
+        <label>
+          Plain input
+          <input id="plain-input" name="plain-input" />
+        </label>
+
+        <div class="field">
+          Content editable
+          <div id="contenteditable" contenteditable="true" role="textbox"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Event log</h2>
+        <div class="log-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 52px">#</th>
+                <th style="width: 120px">event</th>
+                <th style="width: 180px">target</th>
+                <th style="width: 160px">inputType/key</th>
+                <th>value</th>
+              </tr>
+            </thead>
+            <tbody id="logs"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const eventTypes = [
+        "focus",
+        "beforeinput",
+        "input",
+        "change",
+        "compositionstart",
+        "compositionupdate",
+        "compositionend",
+        "keydown",
+        "keyup",
+        "paste",
+      ];
+      const logBody = document.getElementById("logs");
+      const logs = [];
+      let nextId = 1;
+      const collectorUrl = "http://127.0.0.1:45678/input-log";
+
+      function describeTarget(target) {
+        if (!(target instanceof HTMLElement)) return "unknown";
+        const id = target.id ? "#" + target.id : "";
+        const name = target.getAttribute("name");
+        return target.tagName.toLowerCase() + id + (name ? '[name="' + name + '"]' : "");
+      }
+
+      function readValue(target) {
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+          return target.value;
+        }
+        if (target instanceof HTMLElement && target.isContentEditable) {
+          return target.textContent || "";
+        }
+        return "";
+      }
+
+      function eventData(event) {
+        if (event instanceof InputEvent) {
+          return {
+            data: event.data || "",
+            inputType: event.inputType || "",
+            isComposing: event.isComposing,
+          };
+        }
+        if (event instanceof CompositionEvent) {
+          return { data: event.data || "", inputType: "", isComposing: undefined };
+        }
+        if (event instanceof KeyboardEvent) {
+          return { data: event.key || "", inputType: "", isComposing: event.isComposing };
+        }
+        return { data: "", inputType: "", isComposing: undefined };
+      }
+
+      function render() {
+        logBody.innerHTML = logs
+          .slice()
+          .reverse()
+          .map((log) => {
+            const detail = [log.inputType, log.data, log.isComposing ? "composing" : ""]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              "<tr>" +
+              "<td>" + log.id + "</td>" +
+              "<td>" + log.type + "</td>" +
+              "<td>" + log.target + "</td>" +
+              "<td>" + detail + "</td>" +
+              "<td>" + log.value + "</td>" +
+              "</tr>"
+            );
+          })
+          .join("");
+      }
+
+      function reportLog(log) {
+        const img = new Image();
+        img.referrerPolicy = "no-referrer";
+        img.src = collectorUrl + "?entry=" + encodeURIComponent(JSON.stringify(log));
+      }
+
+      function appendLog(event) {
+        const detail = eventData(event);
+        const log = {
+          id: nextId++,
+          time: new Date().toISOString(),
+          type: event.type,
+          target: describeTarget(event.target),
+          value: readValue(event.target),
+          data: detail.data,
+          inputType: detail.inputType,
+          isComposing: detail.isComposing,
+        };
+        logs.push(log);
+        if (logs.length > 200) logs.shift();
+        reportLog(log);
+        render();
+      }
+
+      for (const type of eventTypes) {
+        document.addEventListener(type, appendLog, true);
+      }
+
+      document.getElementById("clear").addEventListener("click", () => {
+        logs.length = 0;
+        nextId = 1;
+        document.getElementById("raw-textarea").value = "";
+        document.getElementById("plain-input").value = "";
+        document.getElementById("contenteditable").textContent = "";
+        render();
+      });
+
+      document.getElementById("copy").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(JSON.stringify(logs, null, 2));
+      });
+
+      window.addEventListener("DOMContentLoaded", () => {
+        const rawTextarea = document.getElementById("raw-textarea");
+        if (rawTextarea instanceof HTMLTextAreaElement) {
+          rawTextarea.focus();
+        }
+      });
+    </script>
+  </body>
+</html>

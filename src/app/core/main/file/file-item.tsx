@@ -32,6 +32,7 @@ import { VectorKnowledgeMenu } from "./vector-knowledge-menu";
 import { isSkillsFolder } from "@/lib/skills/utils";
 import { exportMarkdownFile, type MarkdownExportFormat } from "../editor/markdown/markdown-export";
 import { setFileManagerDragData } from "./file-dnd";
+import { preserveFileNameInputValue, sanitizeFileNameOnCommit } from "./file-name-input";
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -48,7 +49,7 @@ function buildFileRenamePlan({
   currentPath: string
   enteredName: string
 }) {
-  const sanitizedName = enteredName.replace(/\s+/g, '_')
+  const sanitizedName = sanitizeFileNameOnCommit(enteredName)
   const needsMarkdownSuffix = originalName === '' && !sanitizedName.endsWith('.md')
   const displayName = needsMarkdownSuffix ? `${sanitizedName}.md` : sanitizedName
   const parentPath = currentPath.split('/').slice(0, -1).join('/')
@@ -71,7 +72,6 @@ function showPdfExportStartToast() {
 export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?: () => void }) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
-  const [isComposing, setIsComposing] = useState(false) // 追踪输入法合成状态
   const inputRef = useRef<HTMLInputElement>(null)
   const { activeFilePath, setActiveFilePath, readArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed, cleanTabsByDeletedFile, cleanTabsByDeletedFolder } = useArticleStore()
   const setArticleState = useArticleStore.setState
@@ -135,60 +135,14 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   // 不需要 cloneDeep，因为 getCurrentFolder 只读取数据不修改
   const currentFolder = getCurrentFolder(folderPath, fileTree)
 
-  // 优化的输入处理，支持输入法
+  // 编辑时保留原始输入，提交时再统一清洗文件名。
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target
-    const value = input.value
-    const cursorPosition = input.selectionStart || 0
-    
-    // 如果正在使用输入法合成，不进行空格替换
-    if (isComposing) {
-      setName(value)
-      return
-    }
-    
-    // 检查是否包含空格，只有包含空格时才需要处理光标位置
-    if (value.includes(' ')) {
-      const sanitizedValue = value.replace(/\s+/g, '_')
-      setName(sanitizedValue)
-      
-      // 保持光标位置
-      requestAnimationFrame(() => {
-        if (input.selectionStart !== null) {
-          input.setSelectionRange(cursorPosition, cursorPosition)
-        }
-      })
-    } else {
-      setName(value)
-    }
-  }, [isComposing])
-
-  // 输入法合成开始
-  const handleCompositionStart = useCallback(() => {
-    setIsComposing(true)
+    setName(preserveFileNameInputValue(e.target.value))
   }, [])
 
-  // 输入法合成结束，进行空格替换
+  // 输入法合成结束后仍保留原始输入，避免语音/IME 批量提交时被即时改写。
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
-    setIsComposing(false)
-    const input = e.currentTarget
-    const value = input.value
-    const cursorPosition = input.selectionStart || 0
-    
-    // 只有当值包含空格时才需要替换和恢复光标位置
-    if (value.includes(' ')) {
-      const sanitizedValue = value.replace(/\s+/g, '_')
-      setName(sanitizedValue)
-      
-      // 计算新的光标位置（空格变为下划线，长度不变，所以位置保持不变）
-      requestAnimationFrame(() => {
-        if (input.selectionStart !== null) {
-          input.setSelectionRange(cursorPosition, cursorPosition)
-        }
-      })
-    } else {
-      setName(value)
-    }
+    setName(preserveFileNameInputValue(e.currentTarget.value))
   }, [])
 
   async function handleSelectFile() {
@@ -490,7 +444,7 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
       setName(finalName)
     } else {
       // 统一处理：将空格替换为下划线，确保本地和远程文件名一致
-      finalName = name.replace(/\s+/g, '_')
+      finalName = sanitizeFileNameOnCommit(name)
       setName(finalName)
     }
   
@@ -922,7 +876,6 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                   value={name}
                   onBlur={handleRename}
                   onChange={handleInputChange}
-                  onCompositionStart={handleCompositionStart}
                   onCompositionEnd={handleCompositionEnd}
                   onKeyDown={(e) => {
                     // 阻止删除快捷键冒泡到全局快捷键处理器

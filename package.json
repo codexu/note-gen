@@ -7,6 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start --turbopack -p 3456",
     "lint": "next lint",
+    "lint:i18n": "node scripts/check-i18n.js",
+    "audit:locales": "node scripts/audit-locales.js",
     "tauri": "tauri",
     "docs:build": "npm --prefix ./docs run build",
     "sync-version": "./scripts/sync-version.sh",

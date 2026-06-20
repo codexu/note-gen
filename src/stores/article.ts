@@ -501,8 +501,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const nextPath = isRecordOpenTabPath(path) ? '' : path
     // 切换文件时，先清空 currentArticle，避免内容覆盖
     set({ currentArticle: '', activeFilePath: nextPath, selectedFilePaths: [] })
-    const store = await getStore();
-    await store.set('activeFilePath', nextPath)
+
+    // 持久化和读取文件并行执行，不互相阻塞
+    const persistPath = async () => {
+      const store = await getStore();
+      await store.set('activeFilePath', nextPath)
+    }
+    persistPath()
+
     // 触发事件，让推送队列重置计时器
     emitter.emit('article-opened', { path: nextPath })
 

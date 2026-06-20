@@ -1344,6 +1344,24 @@ export function TipTapEditor({
     content: initialContent,
     contentType: 'markdown',
     editorProps: {
+      transformPastedHTML(html) {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(html, 'text/html')
+        // ChatGPT 代码块结构：外层 <pre> → 多层 div → 内层 <pre class="cm-content"> → <code>
+        // Tiptap 会把外层和内层 <pre> 各创建一个代码块，导致重复。
+        // 将每个嵌套结构展平成单个干净的 <pre><code>。
+        doc.querySelectorAll('pre').forEach(pre => {
+          const innerPre = pre.querySelector('pre')
+          if (!innerPre) return // 已经是干净结构，跳过
+          const code = pre.querySelector('code')
+          const cleanPre = doc.createElement('pre')
+          const cleanCode = doc.createElement('code')
+          cleanCode.textContent = code?.textContent ?? ''
+          cleanPre.appendChild(cleanCode)
+          pre.parentNode?.replaceChild(cleanPre, pre)
+        })
+        return doc.body.innerHTML
+      },
       dragCopies: (event) => {
         if (isEditorDragHandleDraggingRef.current) {
           return false

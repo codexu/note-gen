@@ -1,25 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { check, Update } from '@tauri-apps/plugin-updater'
-import { logUpdaterError, logUpdaterInfo } from '@/lib/updater-debug-log'
-
-function getObjectKeys(value: unknown) {
-  if (!value || typeof value !== 'object') return []
-  return Object.keys(value)
-}
-
-function summarizeUpdate(update: Update) {
-  const platformKeys = getObjectKeys(update.rawJson.platforms)
-
-  return {
-    currentVersion: update.currentVersion,
-    version: update.version,
-    date: update.date ?? null,
-    bodyLength: update.body?.length ?? 0,
-    rawJsonKeys: getObjectKeys(update.rawJson),
-    platformKeys,
-  }
-}
 
 interface UpdateState {
   hasUpdate: boolean
@@ -68,13 +49,7 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
   },
   
   checkForUpdates: async () => {
-    const startedAt = Date.now()
-
     try {
-      logUpdaterInfo('check started', {
-        timeoutMs: 5000,
-      })
-
       const update = await check({
         timeout: 5000,
       })
@@ -83,30 +58,18 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
         const { ignoredVersion } = get()
         const hasUpdate = update.version !== ignoredVersion
 
-        logUpdaterInfo('check completed: update found', {
-          ...summarizeUpdate(update),
-          ignoredVersion: ignoredVersion || null,
-          hasUpdate,
-          elapsedMs: Date.now() - startedAt,
-        })
-
         set({ 
           update,
           latestVersion: update.version,
           hasUpdate
         })
       } else {
-        logUpdaterInfo('check completed: no update', {
-          elapsedMs: Date.now() - startedAt,
-        })
-
         set({ 
           update: null,
           hasUpdate: false
         })
       }
-    } catch (error) {
-      logUpdaterError('check failed', error)
+    } catch {
       // 检查更新失败，忽略错误
     }
   },

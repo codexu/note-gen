@@ -1,7 +1,6 @@
 'use client';
 
 import { relaunch } from '@tauri-apps/plugin-process';
-import type { DownloadEvent } from '@tauri-apps/plugin-updater';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useLocale, useTranslations } from 'next-intl';
@@ -13,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, ArrowRight, Info, Loader2, RefreshCw, RotateCcw } from 'lucide-react';
 import { getReleases, type GithubRelease } from '@/lib/sync/github';
 import { checkIsTauri, isMobileDevice } from '@/lib/check';
-import { flushUpdaterDebugLog, logUpdaterError, logUpdaterInfo } from '@/lib/updater-debug-log';
 import { compareVersions, extractVersionText, isPrereleaseVersion, parseVersion } from '@/lib/version';
 import {
   Accordion,
@@ -43,9 +41,6 @@ const releaseMarkdown = new MarkdownIt({
   linkify: true,
   typographer: true,
 });
-
-const DOWNLOAD_PROGRESS_LOG_INTERVAL_MS = 1000;
-const DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES = 5 * 1024 * 1024;
 
 releaseMarkdown.renderer.rules.link_open = function (tokens, idx, options, _env, self) {
   tokens[idx].attrSet('target', '_blank');
@@ -109,21 +104,6 @@ function getErrorDescription(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   return '';
-}
-
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-
-  const units = ['B', 'KiB', 'MiB', 'GiB'];
-  let value = bytes;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
 }
 
 function ReleaseMarkdown({ body, fallback }: { body: string | null, fallback: string }) {
@@ -214,29 +194,14 @@ export default function Updater() {
 
   async function checkUpdate(forceRefresh = false) {
     setChecking(true);
-    logUpdaterInfo('manual check started', {
-      forceRefresh,
-      currentVersion: version,
-      isTauri,
-      isMobile,
-    });
 
     try {
       await checkForUpdates();
       setReleaseLoadStatus('loading');
       setReleaseLoadError(null);
 
-      const checkedState = useUpdateStore.getState();
-      logUpdaterInfo('manual check state updated', {
-        hasUpdate: checkedState.hasUpdate,
-        latestVersion: checkedState.latestVersion || null,
-        updateVersion: checkedState.update?.version ?? null,
-        ignoredVersion: checkedState.ignoredVersion || null,
-      });
-
       const releases = await getReleases({ forceRefresh });
       if (!releases) {
-        logUpdaterInfo('release notes load failed: empty response');
         setReleaseNotes([]);
         setReleaseLoadStatus('error');
         setReleaseLoadError(t('releaseLoadError'));
@@ -250,17 +215,9 @@ export default function Updater() {
         includePrereleases,
       });
 
-      logUpdaterInfo('release notes loaded', {
-        releaseCount: releases.length,
-        relevantReleaseCount: nextReleaseNotes.length,
-        includePrereleases,
-        latestReleaseVersion: nextReleaseNotes[0]?.version ?? null,
-      });
-
       setReleaseNotes(nextReleaseNotes);
       setReleaseLoadStatus('ready');
     } catch (error) {
-      logUpdaterError('manual check failed', error);
       const description = getErrorDescription(error) || t('releaseLoadError');
       setReleaseNotes([]);
       setReleaseLoadStatus('error');
@@ -274,79 +231,20 @@ export default function Updater() {
       const checkedAt = new Date();
       setLastCheckedAt(checkedAt);
       setChecking(false);
-      logUpdaterInfo('manual check finished', {
-        checkedAt: checkedAt.toISOString(),
-      });
     }
   }
 
   async function installUpdate() {
     setLoading(true);
     if (!availableUpdate) {
-      logUpdaterInfo('install skipped: no available update');
       setLoading(false);
       return;
     }
 
     try {
-      let downloadedBytes = 0;
-      let expectedBytes: number | null = null;
-      let lastProgressLoggedAt = 0;
-      let lastProgressLoggedBytes = 0;
-
-      logUpdaterInfo('install started', {
-        currentVersion: availableUpdate.currentVersion,
-        version: availableUpdate.version,
-        date: availableUpdate.date ?? null,
-      });
-
-      await availableUpdate.download((event: DownloadEvent) => {
-        if (event.event === 'Started') {
-          expectedBytes = event.data.contentLength ?? null;
-          logUpdaterInfo('download started', {
-            contentLength: expectedBytes,
-            contentLengthText: expectedBytes ? formatBytes(expectedBytes) : null,
-          });
-          return;
-        }
-
-        if (event.event === 'Progress') {
-          downloadedBytes += event.data.chunkLength;
-          const now = Date.now();
-          const shouldLogProgress =
-            downloadedBytes - lastProgressLoggedBytes >= DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES ||
-            now - lastProgressLoggedAt >= DOWNLOAD_PROGRESS_LOG_INTERVAL_MS;
-
-          if (shouldLogProgress) {
-            lastProgressLoggedAt = now;
-            lastProgressLoggedBytes = downloadedBytes;
-            logUpdaterInfo('download progress', {
-              downloadedBytes,
-              downloadedText: formatBytes(downloadedBytes),
-              contentLength: expectedBytes,
-              contentLengthText: expectedBytes ? formatBytes(expectedBytes) : null,
-              percent: expectedBytes ? Number(((downloadedBytes / expectedBytes) * 100).toFixed(2)) : null,
-            });
-          }
-          return;
-        }
-
-        logUpdaterInfo('download finished', {
-          downloadedBytes,
-          downloadedText: formatBytes(downloadedBytes),
-        });
-      });
-      await flushUpdaterDebugLog();
-
-      logUpdaterInfo('install handoff started');
-      await flushUpdaterDebugLog();
-      await availableUpdate.install();
-
-      logUpdaterInfo('install completed, relaunching');
-      await flushUpdaterDebugLog();
+      await availableUpdate.downloadAndInstall();
       await relaunch();
     } catch (error) {
-      logUpdaterError('install failed', error);
       toast({
         title: t('checkError'),
         description: getErrorDescription(error),

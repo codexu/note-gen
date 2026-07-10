@@ -25,6 +25,7 @@ import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/en'
 import 'dayjs/locale/ja'
 import 'dayjs/locale/pt-br'
+import 'dayjs/locale/ko'
 import { useI18n } from '@/hooks/useI18n'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -88,6 +89,7 @@ export function SyncConfirmDialog() {
       case 'zh': return 'zh-cn'
       case 'ja': return 'ja'
       case 'pt-BR': return 'pt-br'
+      case 'ko': return 'ko'
       default: return 'en'
     }
   }

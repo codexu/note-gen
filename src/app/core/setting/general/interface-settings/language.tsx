@@ -28,6 +28,8 @@ export function LanguageSettings() {
         return "Português"
       case "ja":
         return "日本語"
+      case "ko":
+        return "한국어"
       default:
         return "中文"
     }
@@ -73,6 +75,11 @@ export function LanguageSettings() {
             <SelectItem value="pt-BR">
               <div className="flex items-center gap-2">
                 <span>Português</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="ko">
+              <div className="flex items-center gap-2">
+                <span>한국어</span>
               </div>
             </SelectItem>
           </SelectContent>

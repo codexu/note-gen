@@ -761,68 +761,17 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
 
     // 图表
     {
-      title: tr.items.flowchart,
+      title: 'Mermaid',
       description: tr.items.flowchartDesc,
       icon: <GitBranch className="w-4 h-4" />,
       group: tr.groups.chart,
-      searchTerms: ['mermaid', 'flowchart', 'diagram'],
-      ...createMermaidCommand('flowchart'),
-    },
-    {
-      title: tr.items.sequence,
-      description: tr.items.sequenceDesc,
-      icon: <GitCommit className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'sequence', 'sequenceDiagram'],
-      ...createMermaidCommand('sequence'),
-    },
-    {
-      title: tr.items.gantt,
-      description: tr.items.ganttDesc,
-      icon: <Calendar className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'gantt'],
-      ...createMermaidCommand('gantt'),
-    },
-    {
-      title: tr.items.classDiagram,
-      description: tr.items.classDiagramDesc,
-      icon: <Layers className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'class', 'classDiagram'],
-      ...createMermaidCommand('classDiagram'),
-    },
-    {
-      title: tr.items.stateDiagram,
-      description: tr.items.stateDiagramDesc,
-      icon: <Activity className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'state', 'stateDiagram'],
-      ...createMermaidCommand('stateDiagram'),
-    },
-    {
-      title: tr.items.pie,
-      description: tr.items.pieDesc,
-      icon: <PieChart className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'pie', 'chart'],
-      ...createMermaidCommand('pie'),
-    },
-    {
-      title: tr.items.erDiagram,
-      description: tr.items.erDiagramDesc,
-      icon: <Database className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'er', 'erDiagram'],
-      ...createMermaidCommand('er'),
-    },
-    {
-      title: tr.items.journey,
-      description: tr.items.journeyDesc,
-      icon: <Map className="w-4 h-4" />,
-      group: tr.groups.chart,
-      searchTerms: ['mermaid', 'journey'],
-      ...createMermaidCommand('journey'),
+      searchTerms: ['mermaid', 'diagram', 'chart', 'flowchart', 'sequence', 'gantt', 'flow', '图表'],
+      command: ({ editor, range }: { editor: Editor; range: Range }) => {
+        editor.chain().focus().deleteRange(range).insertContent({
+          type: 'mermaidDiagram',
+          attrs: { code: '', type: 'flowchart' },
+        }).run()
+      },
     },
   ]
 

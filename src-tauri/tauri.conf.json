@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:3456",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && pnpm build:siyuan-worker && node scripts/fetch-node-runtime.mjs",
     "frontendDist": "../out"
   },
   "app": {
@@ -36,7 +36,9 @@
     "targets": "all",
     "resources": [
       "icons",
-      "resources/ocr/*"
+      "resources/ocr/*",
+      "resources/siyuan-import-worker.bundle.mjs",
+      "resources/node-runtime/*"
     ],
     "fileAssociations": [
       {

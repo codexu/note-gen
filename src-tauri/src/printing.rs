@@ -12,7 +12,9 @@ pub fn print_webview(
 
         use objc2::runtime::AnyObject;
         use objc2::{AnyThread, ClassType};
-        use objc2_app_kit::{NSPrintInfo, NSPrintJobSavingURL, NSPrintOperation, NSPrintSaveJob, NSWindow};
+        use objc2_app_kit::{
+            NSPrintInfo, NSPrintJobSavingURL, NSPrintOperation, NSPrintSaveJob, NSWindow,
+        };
         use objc2_foundation::{NSString, NSURL};
         use objc2_web_kit::WKWebView;
         use tauri::{Emitter, Manager};
@@ -33,8 +35,7 @@ pub fn print_webview(
                 return false;
             }
             let mut tail = vec![0; tail_length as usize];
-            file.read_exact(&mut tail).is_ok()
-                && tail.windows(5).any(|window| window == b"%%EOF")
+            file.read_exact(&mut tail).is_ok() && tail.windows(5).any(|window| window == b"%%EOF")
         }
 
         let print_window = window.clone();
@@ -49,10 +50,8 @@ pub fn print_webview(
                 let output_paths = path.as_deref().map(|output_path| {
                     let output_path = PathBuf::from(output_path);
                     let parent = output_path.parent().unwrap_or_else(|| Path::new("."));
-                    let temporary_path = parent.join(format!(
-                        ".notegen-pdf-{}.tmp",
-                        uuid::Uuid::new_v4()
-                    ));
+                    let temporary_path =
+                        parent.join(format!(".notegen-pdf-{}.tmp", uuid::Uuid::new_v4()));
                     (output_path, temporary_path)
                 });
                 let is_direct_export = output_paths.is_some();
@@ -61,7 +60,9 @@ pub fn print_webview(
                     let path = NSString::from_str(&temporary_path.to_string_lossy());
                     let url = NSURL::fileURLWithPath(&path);
                     let url_object: &AnyObject = url.as_super().as_super();
-                    print_info.dictionary().insert(NSPrintJobSavingURL, url_object);
+                    print_info
+                        .dictionary()
+                        .insert(NSPrintJobSavingURL, url_object);
                     print_info.setJobDisposition(NSPrintSaveJob);
                 }
 
@@ -70,7 +71,8 @@ pub fn print_webview(
                 operation.setShowsProgressPanel(!is_direct_export);
 
                 if let Some((output_path, temporary_path)) = output_paths {
-                    let ns_window = &*(print_window.ns_window().expect("missing NSWindow") as *mut NSWindow);
+                    let ns_window =
+                        &*(print_window.ns_window().expect("missing NSWindow") as *mut NSWindow);
                     operation.runOperationModalForWindow_delegate_didRunSelector_contextInfo(
                         ns_window,
                         None,

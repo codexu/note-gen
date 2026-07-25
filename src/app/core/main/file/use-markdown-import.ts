@@ -1,102 +1,121 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { copyFile, exists, mkdir, readDir } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
 import { getWorkspacePath } from '@/lib/workspace'
+import { isMobileDevice } from '@/lib/check'
 import useArticleStore from '@/stores/article'
+import { useImportLock } from './import-lock'
+import { importMarkdownDirectory } from './markdown-import'
 
-async function copyMarkdownFilesRecursively(
-  sourceDir: string,
-  targetDir: string,
-  relativePath = ''
-): Promise<number> {
-  let copiedCount = 0
-  const entries = await readDir(sourceDir)
-
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
-      continue
-    }
-
-    const sourcePath = await join(sourceDir, entry.name)
-    const nextRelativePath = relativePath ? await join(relativePath, entry.name) : entry.name
-    const targetPath = await join(targetDir, nextRelativePath)
-
-    if (entry.isDirectory) {
-      copiedCount += await copyMarkdownFilesRecursively(sourcePath, targetDir, nextRelativePath)
-      continue
-    }
-
-    if (!entry.isFile) {
-      continue
-    }
-
-    const isMarkdown = entry.name.endsWith('.md')
-    const isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(entry.name)
-    if (!isMarkdown && !isImage) {
-      continue
-    }
-
-    const targetDirectory = relativePath ? await join(targetDir, relativePath) : targetDir
-    if (!await exists(targetDirectory)) {
-      await mkdir(targetDirectory, { recursive: true })
-    }
-
-    await copyFile(sourcePath, targetPath)
-    copiedCount++
-  }
-
-  return copiedCount
+type UseMarkdownImportOptions = {
+  onImportSiYuanArchive?: (zipPath: string) => Promise<void>
 }
 
-export function useMarkdownImport() {
-  const [isImporting, setIsImporting] = useState(false)
+export function useMarkdownImport(options: UseMarkdownImportOptions = {}) {
+  const { onImportSiYuanArchive } = options
+  const { isLocked, acquire, release } = useImportLock()
   const loadFileTree = useArticleStore(state => state.loadFileTree)
   const t = useTranslations('article.file.toolbar')
 
-  const importMarkdown = useCallback(async () => {
-    if (isImporting) {
+  const importMarkdownDirectoryFromDialog = useCallback(async () => {
+    const selectedPath = await openDialog({
+      directory: true,
+      multiple: false,
+      title: t('importMarkdown'),
+    })
+
+    if (!selectedPath || Array.isArray(selectedPath)) {
       return
     }
 
-    setIsImporting(true)
-    try {
-      const selectedPath = await openDialog({
-        directory: true,
-        multiple: false,
-        title: t('importMarkdown'),
-      })
+    const workspace = await getWorkspacePath()
+    const targetDir = workspace.isCustom
+      ? workspace.path
+      : await join(await appDataDir(), 'article')
+    const copiedCount = await importMarkdownDirectory(selectedPath, targetDir)
 
-      if (!selectedPath || Array.isArray(selectedPath)) {
+    await loadFileTree()
+    toast({
+      title: t('importSuccess'),
+      description: t('importSuccessDesc', { count: copiedCount }),
+    })
+  }, [loadFileTree, t])
+
+  const importMarkdown = useCallback(async () => {
+    if (isMobileDevice()) {
+      if (!acquire()) {
         return
       }
 
-      const workspace = await getWorkspacePath()
-      const targetDir = workspace.isCustom
-        ? workspace.path
-        : await join(await appDataDir(), 'article')
-      const copiedCount = await copyMarkdownFilesRecursively(selectedPath, targetDir)
+      try {
+        await importMarkdownDirectoryFromDialog()
+      } catch (error) {
+        console.error('Import markdown error:', error)
+        await loadFileTree().catch(() => {})
+        toast({
+          title: t('importError'),
+          description: String(error),
+          variant: 'destructive',
+        })
+      } finally {
+        release()
+      }
+      return
+    }
 
-      await loadFileTree()
-      toast({
-        title: t('importSuccess'),
-        description: t('importSuccessDesc', { count: copiedCount }),
-      })
+    const selectedPath = await openDialog({
+      multiple: false,
+      directory: false,
+      title: t('importMarkdown'),
+    })
+
+    if (
+      selectedPath
+      && !Array.isArray(selectedPath)
+      && selectedPath.toLowerCase().endsWith('.sy.zip')
+    ) {
+      if (!onImportSiYuanArchive) {
+        toast({
+          title: t('importSiYuanError'),
+          description: t('importSiYuanInvalidArchive'),
+          variant: 'destructive',
+        })
+        return
+      }
+
+      await onImportSiYuanArchive(selectedPath)
+      return
+    }
+
+    if (!acquire()) {
+      return
+    }
+
+    try {
+      await importMarkdownDirectoryFromDialog()
     } catch (error) {
       console.error('Import markdown error:', error)
+      await loadFileTree().catch(() => {})
       toast({
         title: t('importError'),
         description: String(error),
         variant: 'destructive',
       })
     } finally {
-      setIsImporting(false)
+      release()
     }
-  }, [isImporting, loadFileTree, t])
+  }, [
+    acquire,
+    importMarkdownDirectoryFromDialog,
+    loadFileTree,
+    onImportSiYuanArchive,
+    release,
+    t,
+  ])
 
-  return { isImporting, importMarkdown }
+  return { isImporting: isLocked, importMarkdown }
 }

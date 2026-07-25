@@ -12,16 +12,20 @@ mod file_open;
 mod fonts;
 mod fuzzy_search;
 mod keywords;
+mod maintenance_lock;
 mod mcp;
 mod mcp_runtime;
 mod ocr_packages;
 mod printing;
+mod process_util;
 mod remote_skills;
 mod screenshot;
+mod siyuan_import;
 mod skill_runtime;
 mod skills;
 mod tray;
 mod window;
+mod zip_extract;
 
 use ai::{
     ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multipart_request,
@@ -45,6 +49,9 @@ use remote_skills::{
     RemoteSkillManager,
 };
 use screenshot::{cleanup_temp_screenshot_dir, screenshot};
+use siyuan_import::{
+    cancel_siyuan_import, import_siyuan_archive, shutdown_active_import, SiyuanImportManager,
+};
 use skill_runtime::{
     cancel_skill_script, inspect_skill_python, install_skill_python_dependencies, run_skill_script,
     SkillProcessManager,
@@ -52,6 +59,7 @@ use skill_runtime::{
 use skills::{
     import_skill, import_skill_zip, install_skill_package, uninstall_skill, validate_skill_package,
 };
+use tauri::Manager;
 use tray::update_tray_record_toolbar_config;
 
 fn main() {
@@ -71,6 +79,7 @@ fn main() {
         .manage(AiRequestManager::new())
         .manage(SkillProcessManager::default())
         .manage(RemoteSkillManager::default())
+        .manage(SiyuanImportManager::default())
         // 系统级插件
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
@@ -93,6 +102,8 @@ fn main() {
             export_app_data,
             import_app_data,
             import_app_data_from_file,
+            import_siyuan_archive,
+            cancel_siyuan_import,
             import_skill,
             import_skill_zip,
             validate_skill_package,
@@ -144,6 +155,15 @@ fn main() {
                 file_open::handle_opened_urls(&app_handle, urls);
             }
             tauri::RunEvent::Exit => {
+                let manager = app_handle.state::<SiyuanImportManager>();
+                tauri::async_runtime::block_on(async {
+                    shutdown_active_import(&manager).await;
+                    let _ = crate::siyuan_import::cleanup_stale_siyuan_temp_directories(
+                        &app_handle,
+                        &manager,
+                    )
+                    .await;
+                });
                 cleanup_temp_screenshot_dir(&app_handle);
             }
             _ => {}

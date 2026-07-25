@@ -377,7 +377,7 @@ export function FileMoreMenu({ isImporting, onImportMarkdown }: FileMoreMenuProp
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onImportMarkdown}>
+        <DropdownMenuItem disabled={isImporting} onSelect={onImportMarkdown}>
           <FolderInput className="mr-2 size-4" />
           {isImporting ? tToolbar('importing') : tToolbar('importMarkdown')}
         </DropdownMenuItem>

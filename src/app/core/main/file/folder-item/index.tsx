@@ -601,8 +601,19 @@ export function FolderItem({
 
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
-    // 设置选中状态
-    await setActiveFilePath(path)
+
+    const folderName = path.split('/').pop() || path
+    const folderDocPath = `${path}/${folderName}.md`
+    const { getWorkspacePath } = await import('@/lib/workspace')
+    const { appDataDir, join } = await import('@tauri-apps/api/path')
+    const workspace = await getWorkspacePath()
+    const folderDocAbsolutePath = workspace.isCustom
+      ? await join(workspace.path, folderDocPath)
+      : await join(await appDataDir(), 'article', folderDocPath)
+    const hasFolderDocument = await exists(folderDocAbsolutePath)
+
+    // 设置选中状态：若存在同名文件夹文档，则直接打开该 Markdown
+    await setActiveFilePath(hasFolderDocument ? folderDocPath : path)
 
     // 自动展开文件夹（如果未展开）
     if (!collapsibleList.includes(path)) {
@@ -612,11 +623,12 @@ export function FolderItem({
     // 加载文件夹内容
     await loadCollapsibleFiles(path)
 
+    if (hasFolderDocument) {
+      return
+    }
+
     // 触发文件夹选择事件
-    const folderName = path.split('/').pop() || path
     let fullPath: string
-    const { getWorkspacePath } = await import('@/lib/workspace')
-    const workspace = await getWorkspacePath()
     if (workspace.isCustom) {
       const pathParts = path.split('/')
       fullPath = workspace.path + '/' + pathParts.join('/')

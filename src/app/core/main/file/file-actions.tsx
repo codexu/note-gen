@@ -6,13 +6,29 @@ import { useTranslations } from "next-intl"
 import { useState } from "react"
 import useArticleStore from "@/stores/article"
 import { debounce } from "lodash-es"
+import { isMobileDevice } from '@/lib/check'
 import { FileMoreMenu } from './file-more-menu'
+import { SiYuanImportDialog } from './siyuan-import-dialog'
 import { useMarkdownImport } from './use-markdown-import'
+import { useSiYuanImport } from './use-siyuan-import'
 
 export function FileActions() {
   const { newFolder, newFile, loadFileTree, loadRemoteSyncFiles, fileTreeLoading } = useArticleStore()
   const t = useTranslations('article.file.toolbar')
-  const { isImporting, importMarkdown } = useMarkdownImport()
+  const {
+    isImporting: isSiYuanImporting,
+    importSiYuan,
+    cancelImport,
+    dialogOpen,
+    setDialogOpen,
+    progress,
+    report,
+  } = useSiYuanImport()
+  const { isImporting: isMarkdownImporting, importMarkdown } = useMarkdownImport({
+    onImportSiYuanArchive: isMobileDevice() ? undefined : importSiYuan,
+  })
+  const isDesktopImportSupported = !isMobileDevice()
+  const isImporting = isMarkdownImporting || (isDesktopImportSupported && isSiYuanImporting)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const debounceNewFile = debounce(newFile, 200)
@@ -55,6 +71,16 @@ export function FileActions() {
         isImporting={isImporting}
         onImportMarkdown={() => void importMarkdown()}
       />
+      {isDesktopImportSupported ? (
+        <SiYuanImportDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          isImporting={isSiYuanImporting}
+          progress={progress}
+          report={report}
+          onCancel={cancelImport}
+        />
+      ) : null}
     </div>
   )
 }

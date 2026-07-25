@@ -1,0 +1,24 @@
+{
+  "Type": "NodeDocument",
+  "ID": "20260101120002-nbkdoc1",
+  "Properties": {
+    "id": "20260101120002-nbkdoc1",
+    "title": "Notebook document",
+    "type": "doc"
+  },
+  "Children": [
+    {
+      "Type": "NodeParagraph",
+      "ID": "20260101120003-paragr1",
+      "Properties": {
+        "id": "20260101120003-paragr1"
+      },
+      "Children": [
+        {
+          "Type": "NodeText",
+          "Data": "Document inside a verified SiYuan notebook."
+        }
+      ]
+    }
+  ]
+}

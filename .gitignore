@@ -37,6 +37,12 @@ target/*
 skills-lock.json
 src-tauri/resources/ocr/*
 !src-tauri/resources/ocr/.gitkeep
+src-tauri/resources/node-runtime/*
+!src-tauri/resources/node-runtime/manifest.json
+!src-tauri/resources/node-runtime/LICENSE
+!src-tauri/resources/node-runtime/SBOM.json
+!src-tauri/resources/node-runtime/.gitkeep
+.cache/
 src-tauri/native-ocr/ios-vision/.tauri/
 
 /.pnp
@@ -49,6 +55,7 @@ src-tauri/native-ocr/ios-vision/.tauri/
 
 # testing
 /coverage
+/.test-siyuan-import/
 *.test.*
 
 # next.js

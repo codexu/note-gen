@@ -68,9 +68,9 @@ import { AiSuggestionHighlight } from './ai-suggestion-highlight'
 import { AgentDiffPreview, agentDiffPreviewPluginKey } from './agent-diff-preview-extension'
 import emitter from '@/lib/emitter'
 import { QuoteMark } from './quote-mark'
-import { MarkdownParagraph, normalizeMarkdownPlaceholders } from './markdown-paragraph'
+import { MarkdownParagraph, normalizeMarkdownPlaceholders, stripSiYuanInvisibleMarkdownChars } from './markdown-paragraph'
 import { StableCodeBlockLowlight } from './code-block-extension'
-import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
+import { shouldKeepImageSrcAsIs, shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import useSettingStore from '@/stores/setting'
 import useChatStore, { type PendingQuote } from '@/stores/chat'
 import { ArrowUp, Loader2, X } from 'lucide-react'
@@ -689,13 +689,13 @@ function applyImageNodeAttributes(element: HTMLImageElement, attrs: Record<strin
   const relativeSrc = typeof attrs.relativeSrc === 'string' ? attrs.relativeSrc : ''
   const width = parseImageDimension(attrs.width)
   const height = parseImageDimension(attrs.height)
-  const currentSrc = element.getAttribute('src')
+  const currentSrc = element.getAttribute('src') || ''
   const currentRelativeSrc = element.getAttribute('data-relative-src') || ''
+  const markdownRelativeSrc = relativeSrc || (shouldTransformImageSrcToWorkspaceAsset(src) ? src : '')
   const shouldKeepConvertedSrc =
-    Boolean(relativeSrc) &&
-    currentRelativeSrc === relativeSrc &&
-    shouldTransformImageSrcToWorkspaceAsset(src) &&
-    currentSrc !== src
+    shouldKeepImageSrcAsIs(currentSrc) &&
+    Boolean(markdownRelativeSrc) &&
+    (currentRelativeSrc === markdownRelativeSrc || !currentRelativeSrc)
 
   if (!shouldKeepConvertedSrc && currentSrc !== src) {
     element.setAttribute('src', src)
@@ -710,8 +710,8 @@ function applyImageNodeAttributes(element: HTMLImageElement, attrs: Record<strin
     element.removeAttribute('title')
   }
 
-  if (relativeSrc) {
-    element.setAttribute('data-relative-src', relativeSrc)
+  if (markdownRelativeSrc) {
+    element.setAttribute('data-relative-src', markdownRelativeSrc)
   } else {
     element.removeAttribute('data-relative-src')
   }
@@ -1088,10 +1088,11 @@ function resetEditorHistory(editor: CoreEditor): void {
 }
 
 function setEditorContentWithoutUndo(editor: CoreEditor, content: string): void {
+  const normalizedContent = stripSiYuanInvisibleMarkdownChars(content)
   editor
     .chain()
     .setMeta('addToHistory', false)
-    .setContent(content, { contentType: 'markdown' })
+    .setContent(normalizedContent, { contentType: 'markdown' })
     .run()
 
   resetEditorHistory(editor)
@@ -3767,7 +3768,7 @@ export function TipTapEditor({
 
   // 处理编辑器中图片的相对路径，转换为 asset:// URL
   useEffect(() => {
-    if (!editor || !editor.view) return
+    if (!editor || !editor.view || !activeFilePath) return
 
     let transformFrameId: number | null = null
 
@@ -3776,30 +3777,37 @@ export function TipTapEditor({
       const editorDom = editor.view.dom
       const images = editorDom.querySelectorAll('img')
 
-      const currentFilePath = useArticleStore.getState().activeFilePath
+      const currentFilePath = activeFilePath
 
       for (const img of images) {
         const src = img.getAttribute('src')
+        const storedRelativeSrc = img.getAttribute('data-relative-src')
+        const relativeSrc = storedRelativeSrc
+          || (src && shouldTransformImageSrcToWorkspaceAsset(src) ? src : null)
         // 如果是相对路径，转换为 asset://
-        if (src && currentFilePath && shouldTransformImageSrcToWorkspaceAsset(src)) {
-          const fullRelativePath = resolveImagePathFromMarkdown(currentFilePath, src)
+        if (relativeSrc && currentFilePath && shouldTransformImageSrcToWorkspaceAsset(relativeSrc)) {
+          const fullRelativePath = resolveImagePathFromMarkdown(currentFilePath, relativeSrc)
           // 异步转换路径
-          convertImageByWorkspace(fullRelativePath).then((assetUrl: string) => {
-            // 只有当 src 仍然是相对路径时才更新（避免覆盖已转换的）
+          void convertImageByWorkspace(fullRelativePath).then((assetUrl: string) => {
             const currentSrc = img.getAttribute('src')
-            if (currentSrc === src || !currentSrc?.startsWith('asset://')) {
+            if (!currentSrc || shouldTransformImageSrcToWorkspaceAsset(currentSrc)) {
               img.setAttribute('src', assetUrl)
+              img.setAttribute('data-relative-src', relativeSrc)
             }
+          }).catch(error => {
+            console.error('Failed to convert workspace image path:', fullRelativePath, error)
           })
         }
         // 添加 onerror 处理：如果加载失败，尝试转换路径
         if (img && !img.onerror) {
           img.onerror = async () => {
             const currentSrc = img.getAttribute('src')
-            if (currentSrc && currentFilePath && shouldTransformImageSrcToWorkspaceAsset(currentSrc)) {
-              const fullRelativePath = resolveImagePathFromMarkdown(currentFilePath, currentSrc)
+            const retryRelativeSrc = img.getAttribute('data-relative-src') || currentSrc
+            if (retryRelativeSrc && currentFilePath && shouldTransformImageSrcToWorkspaceAsset(retryRelativeSrc)) {
+              const fullRelativePath = resolveImagePathFromMarkdown(currentFilePath, retryRelativeSrc)
               const assetUrl = await convertImageByWorkspace(fullRelativePath)
               img.setAttribute('src', assetUrl)
+              img.setAttribute('data-relative-src', retryRelativeSrc)
             }
           }
         }
@@ -3818,30 +3826,48 @@ export function TipTapEditor({
     }
 
     const imageNodeObserver = new MutationObserver((mutations) => {
-      const hasAddedImageNode = mutations.some(mutation =>
-        Array.from(mutation.addedNodes).some(node =>
+      const shouldTransform = mutations.some(mutation => {
+        if (mutation.type === 'attributes') {
+          const target = mutation.target
+          return target instanceof HTMLImageElement
+            && (mutation.attributeName === 'src' || mutation.attributeName === 'data-relative-src')
+        }
+
+        return Array.from(mutation.addedNodes).some(node =>
           node instanceof HTMLImageElement ||
           (node instanceof HTMLElement && node.querySelector('img'))
         )
-      )
+      })
 
-      if (hasAddedImageNode) {
+      if (shouldTransform) {
         scheduleTransformImagePaths()
       }
     })
 
-    imageNodeObserver.observe(editor.view.dom, { childList: true, subtree: true })
+    imageNodeObserver.observe(editor.view.dom, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src', 'data-relative-src'],
+    })
+
+    const handleEditorUpdate = () => {
+      scheduleTransformImagePaths()
+    }
+
+    editor.on('update', handleEditorUpdate)
 
     // 初始执行
     scheduleTransformImagePaths()
 
     return () => {
+      editor.off('update', handleEditorUpdate)
       imageNodeObserver.disconnect()
       if (transformFrameId !== null) {
         cancelAnimationFrame(transformFrameId)
       }
     }
-  }, [editor])
+  }, [editor, activeFilePath])
 
   // Listen to editor transactions and notify header/tab bar about undo/redo state
   useEffect(() => {

@@ -1,0 +1,10 @@
+{
+  "build": {
+    "beforeBuildCommand": "pnpm build"
+  },
+  "bundle": {
+    "resources": [
+      "icons"
+    ]
+  }
+}

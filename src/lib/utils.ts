@@ -32,7 +32,8 @@ export async function convertImage(path: string) {
     return path
   }
 
-  const normalizedPath = normalizeAppDataAssetPath(path)
+  const pathOnly = path.split(/[?#]/, 1)[0]
+  const normalizedPath = normalizeAppDataAssetPath(pathOnly)
   const cachedSrc = convertedImageSrcCache.get(normalizedPath)
   if (cachedSrc) {
     return cachedSrc
@@ -45,9 +46,28 @@ export async function convertImage(path: string) {
   return src
 }
 
+function decodeWorkspaceImagePath(path: string): string {
+  return path
+    .replace(/\\/g, '/')
+    .split('/')
+    .map(segment => {
+      if (!segment || segment === '.' || segment === '..') {
+        return segment
+      }
+
+      try {
+        return decodeURIComponent(segment)
+      } catch {
+        return segment
+      }
+    })
+    .join('/')
+}
+
 export async function convertImageByWorkspace(path: string) {
+  const pathOnly = decodeWorkspaceImagePath(path.split(/[?#]/, 1)[0])
   const workspace = await getWorkspacePath()
-  const cacheKey = `${workspace.isCustom ? workspace.path : 'app-data'}:${path}`
+  const cacheKey = `${workspace.isCustom ? workspace.path : 'app-data'}:${pathOnly}`
   const cachedSrc = convertedWorkspaceImageSrcCache.get(cacheKey)
   if (cachedSrc) {
     return cachedSrc
@@ -55,9 +75,9 @@ export async function convertImageByWorkspace(path: string) {
 
   let fullPath: string
   if (workspace.isCustom) {
-    fullPath = `${workspace.path}/${path}`
+    fullPath = `${workspace.path}/${pathOnly}`
   } else {
-    fullPath = `${await getCachedAppDataDir()}/article/${path}`
+    fullPath = `${await getCachedAppDataDir()}/article/${pathOnly}`
   }
   const src = convertFileSrc(fullPath)
   convertedWorkspaceImageSrcCache.set(cacheKey, src)

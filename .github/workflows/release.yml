@@ -6,7 +6,55 @@ on:
       - release
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck frontend
+        run: pnpm typecheck
+
+      - name: Lint frontend
+        run: pnpm lint
+
+      - name: Run import regression tests
+        run: pnpm test:import
+
+      - name: Verify SiYuan worker bundle matches source
+        run: pnpm verify:siyuan-worker
+
+      - name: Fetch bundled Node runtime for worker tests
+        run: pnpm fetch:node-runtime
+
+      - name: Run Rust unit tests
+        run: cargo test
+        working-directory: src-tauri
+
   build-android:
+    needs: verify
     outputs:
       appVersion: ${{ steps.get_version.outputs.version }}
     runs-on: ubuntu-latest
@@ -209,6 +257,7 @@ jobs:
           rm -f src-tauri/android-release.keystore
 
   publish-tauri:
+    needs: verify
     outputs:
       appVersion: ${{ steps.set_output.outputs.appVersion }}
     permissions:
@@ -220,23 +269,33 @@ jobs:
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
             name: 'macos-arm64'
+            nodeTarget: 'aarch64-apple-darwin'
+            appBundlePath: 'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/NoteGen.app'
             bundlePath: 'src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/NoteGen_*.dmg'
           - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
             name: 'macos-x64'
+            nodeTarget: 'x86_64-apple-darwin'
+            appBundlePath: 'src-tauri/target/x86_64-apple-darwin/release/bundle/macos/NoteGen.app'
             bundlePath: 'src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/NoteGen_*.dmg'
           - platform: 'ubuntu-24.04'
             args: '--bundles deb,rpm'
             name: 'linux-deb-rpm'
+            nodeTarget: 'x86_64-unknown-linux-gnu'
+            appBundlePath: 'src-tauri/target/release/bundle/deb/NoteGen_*/usr/lib/note-gen'
             bundlePath: 'src-tauri/target/release/bundle/(rpm|deb)/NoteGen_*.(rpm|deb)'
           - platform: 'ubuntu-22.04'
             args: '--bundles appimage'
             name: 'linux-appimage'
+            nodeTarget: 'x86_64-unknown-linux-gnu'
+            appBundlePath: 'src-tauri/target/release/bundle/appimage/NoteGen_*.AppImage'
             bundlePath: 'src-tauri/target/release/bundle/appimage/NoteGen_*.AppImage'
             noSign: true
           - platform: 'windows-latest'
             args: ''
             name: 'windows'
+            nodeTarget: 'x86_64-pc-windows-msvc'
+            appBundlePath: 'src-tauri/target/release'
             bundlePath: 'src-tauri\target\release\bundle\(nsis|msi)\NoteGen_*.(exe|msi)'
 
     runs-on: ${{ matrix.platform }}
@@ -270,6 +329,9 @@ jobs:
 
       - name: install frontend dependencies
         run: pnpm install
+
+      - name: Fetch bundled Node runtime for build target
+        run: node scripts/fetch-node-runtime.mjs --target "${{ matrix.nodeTarget }}"
 
       - name: Import Apple Certificate
         id: import_apple_certificate
@@ -310,6 +372,45 @@ jobs:
           fi
           echo "apple_signing_identity=$APPLE_SIGNING_IDENTITY" >> $GITHUB_OUTPUT
 
+      - name: Build desktop app for smoke gate
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ steps.import_apple_certificate.outputs.apple_signing_identity || secrets.APPLE_SIGNING_IDENTITY }}
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Resolve smoke bundle path
+        shell: bash
+        run: |
+          case "${{ matrix.name }}" in
+            macos-arm64|macos-x64)
+              echo "SMOKE_APP_BUNDLE=${{ matrix.appBundlePath }}" >> "$GITHUB_ENV"
+              ;;
+            windows)
+              echo "SMOKE_APP_BUNDLE=src-tauri/target/release" >> "$GITHUB_ENV"
+              ;;
+            linux-deb-rpm)
+              BUNDLE="$(find src-tauri/target/release/bundle/deb -type d -path '*/usr/lib/note-gen' 2>/dev/null | head -1)"
+              echo "SMOKE_APP_BUNDLE=${BUNDLE:-src-tauri/target/release}" >> "$GITHUB_ENV"
+              ;;
+            linux-appimage)
+              echo "SMOKE_APP_BUNDLE=src-tauri/target/release" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "SMOKE_APP_BUNDLE=src-tauri/target/release" >> "$GITHUB_ENV"
+              ;;
+          esac
+
+      - name: Smoke test bundled SiYuan worker import
+        env:
+          APP_BUNDLE: ${{ env.SMOKE_APP_BUNDLE }}
+          EXTRACTED_DIR: ${{ github.workspace }}/tests/fixtures/siyuan-minimal
+          NODE_RUNTIME_TARGET: ${{ matrix.nodeTarget }}
+          CI: 'true'
+        run: |
+          pnpm smoke:desktop-siyuan
+          pnpm smoke:desktop-siyuan -- --cancel-smoke
+
       - uses: tauri-apps/tauri-action@v0.5.23
         id: tauri-action
         env:
@@ -321,11 +422,10 @@ jobs:
           tagName: note-gen-v__VERSION__
           releaseName: 'NoteGen v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
-      
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -355,6 +455,20 @@ jobs:
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           security delete-keychain $KEYCHAIN_PATH || true
+
+  finalize-release:
+    needs: publish-tauri
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish draft GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.publish-tauri.outputs.appVersion }}"
+          gh release edit "note-gen-v${VERSION}" --draft=false
 
   mirror-release-to-aliyun:
     needs:

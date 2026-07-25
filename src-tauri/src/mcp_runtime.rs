@@ -10,6 +10,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex;
 
+use crate::process_util::{configure_process_group, terminate_process_tree};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RuntimeKind {
@@ -351,43 +353,6 @@ fn install_recipe_command(recipe_id: &str) -> Option<(&'static str, Vec<&'static
     }
 }
 
-#[cfg(unix)]
-fn configure_install_command(command: &mut TokioCommand) {
-    command.process_group(0);
-}
-
-#[cfg(windows)]
-fn configure_install_command(_command: &mut TokioCommand) {}
-
-#[cfg(not(any(unix, windows)))]
-fn configure_install_command(_command: &mut TokioCommand) {}
-
-#[cfg(unix)]
-async fn kill_install_process(pid: u32) -> Result<(), String> {
-    let target = format!("-{pid}");
-    TokioCommand::new("kill")
-        .args(["-TERM", target.as_str()])
-        .status()
-        .await
-        .map_err(|error| format!("Failed to send TERM to install process group: {error}"))?;
-    Ok(())
-}
-
-#[cfg(windows)]
-async fn kill_install_process(pid: u32) -> Result<(), String> {
-    TokioCommand::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .status()
-        .await
-        .map_err(|error| format!("Failed to stop install process tree: {error}"))?;
-    Ok(())
-}
-
-#[cfg(not(any(unix, windows)))]
-async fn kill_install_process(_pid: u32) -> Result<(), String> {
-    Err("Install cancellation is not supported on this platform".to_string())
-}
-
 fn final_install_stage(success: bool, cancelled: bool) -> InstallProgressStage {
     if cancelled {
         InstallProgressStage::Cancelled
@@ -486,7 +451,7 @@ pub async fn install_mcp_runtime(
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    configure_install_command(&mut command);
+    configure_process_group(&mut command);
 
     let mut child = command
         .spawn()
@@ -609,7 +574,8 @@ pub async fn cancel_mcp_runtime_install(
         cancelled_installs.insert(recipe_id.clone());
     }
 
-    kill_install_process(pid).await?;
+    let force = cfg!(windows);
+    terminate_process_tree(pid, force).await?;
 
     emit_install_event(
         &app,

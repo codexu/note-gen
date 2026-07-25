@@ -34,6 +34,18 @@ function getMarkdownDirSegments(markdownPath: string): string[] {
   return segments.slice(0, -1)
 }
 
+function decodeImagePathSegment(segment: string): string {
+  if (!segment || segment === '.' || segment === '..') {
+    return segment
+  }
+
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
 export function resolveImagePathFromMarkdown(markdownPath: string, imagePath: string): string {
   const markdownDirSegments = getMarkdownDirSegments(markdownPath)
   const imageSegments = imagePath
@@ -42,6 +54,7 @@ export function resolveImagePathFromMarkdown(markdownPath: string, imagePath: st
     .replace(/\/+/g, '/')
     .split('/')
     .filter(Boolean)
+    .map(decodeImagePathSegment)
 
   const resolvedSegments = [...markdownDirSegments]
 

@@ -1,0 +1,8 @@
+{
+  "version": "22.17.1",
+  "targetTriple": "aarch64-apple-darwin",
+  "platform": "darwin-arm64",
+  "binary": "node",
+  "archiveSha256": "a983f4f2a7b71512b78d7935b9ccf6b72120a255810070afd635c4146bca7b31",
+  "binarySha256": "68353134fb956407a2114dbc0912d27180550c5f2424ce66a404099147f3d749"
+}

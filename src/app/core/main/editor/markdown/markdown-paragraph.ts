@@ -16,8 +16,14 @@ export const EMPTY_PARAGRAPH_MARKDOWN = '&nbsp;'
 const NBSP_CHAR = '\u00A0'
 const TABLE_MARKDOWN_LINE = /^\|(?:[^|\n]*\|)+\s*$/
 
+const SIYUAN_INVISIBLE_CHAR_RE = /[\u200B-\u200D\uFEFF]/g
+
+export function stripSiYuanInvisibleMarkdownChars(markdown: string): string {
+  return markdown.replace(SIYUAN_INVISIBLE_CHAR_RE, '')
+}
+
 export function normalizeMarkdownPlaceholders(markdown: string): string {
-  return markdown
+  return stripSiYuanInvisibleMarkdownChars(markdown)
     .split('\n')
     .map((line) => {
       if (line.trim() === EMPTY_PARAGRAPH_MARKDOWN) {

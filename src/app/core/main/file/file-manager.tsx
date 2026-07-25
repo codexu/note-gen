@@ -55,6 +55,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useMarkdownImport } from './use-markdown-import'
+import { useSiYuanImport } from './use-siyuan-import'
+import { isMobileDevice } from '@/lib/check'
 import { useShallow } from 'zustand/react/shallow'
 
 // 递归过滤文件树，移除云端文件（如果 showCloudFiles 为 false）
@@ -207,7 +209,10 @@ export function FileManager({ focusSidebar }: { focusSidebar: () => void }) {
     fileTreeLoading: state.fileTreeLoading,
     fileTreeInitialized: state.fileTreeInitialized,
   })))
-  const { isImporting, importMarkdown } = useMarkdownImport()
+  const { importSiYuan } = useSiYuanImport()
+  const { isImporting, importMarkdown } = useMarkdownImport({
+    onImportSiYuanArchive: isMobileDevice() ? undefined : importSiYuan,
+  })
   const setArticleState = useArticleStore.setState
   const { clipboardItem, clipboardItems, clipboardOperation, setClipboardItem } = useClipboardStore()
 

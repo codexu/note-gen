@@ -1,0 +1,24 @@
+{
+  "Type": "NodeDocument",
+  "ID": "20260101120000-rootdc1",
+  "Properties": {
+    "id": "20260101120000-rootdc1",
+    "title": "Root document",
+    "type": "doc"
+  },
+  "Children": [
+    {
+      "Type": "NodeParagraph",
+      "ID": "20260101120001-paragr1",
+      "Properties": {
+        "id": "20260101120001-paragr1"
+      },
+      "Children": [
+        {
+          "Type": "NodeText",
+          "Data": "Root-level SiYuan document with a child directory."
+        }
+      ]
+    }
+  ]
+}

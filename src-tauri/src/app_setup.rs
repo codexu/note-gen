@@ -1,5 +1,7 @@
 use crate::file_open;
 use crate::screenshot::cleanup_temp_screenshot_dir;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use crate::siyuan_import::spawn_stale_siyuan_temp_cleanup;
 use crate::tray::create_tray;
 use crate::window;
 use tauri::App;
@@ -10,6 +12,8 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let app_handle = app.handle();
 
     cleanup_temp_screenshot_dir(&app_handle);
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    spawn_stale_siyuan_temp_cleanup(&app_handle);
 
     // 在 Windows 上明确禁用窗口装饰
     #[cfg(target_os = "windows")]

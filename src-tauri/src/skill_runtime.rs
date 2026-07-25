@@ -15,6 +15,8 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use crate::process_util::{configure_process_group, terminate_process_tree};
+
 const MAX_ARGUMENTS: usize = 20;
 const MAX_ARGUMENT_BYTES: usize = 4096;
 const MAX_CAPTURE_BYTES: usize = 50 * 1024;
@@ -778,47 +780,6 @@ fn is_safe_identifier(value: &str, max_len: usize) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-}
-
-#[cfg(unix)]
-fn configure_process_group(command: &mut Command) {
-    command.process_group(0);
-}
-#[cfg(not(unix))]
-fn configure_process_group(_command: &mut Command) {}
-
-#[cfg(unix)]
-async fn terminate_process_tree(pid: u32, force: bool) -> Result<(), String> {
-    let signal = if force { "-KILL" } else { "-TERM" };
-    let status = Command::new("kill")
-        .args([signal, &format!("-{pid}")])
-        .status()
-        .await
-        .map_err(|error| format!("Failed to stop Skill process group: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err("Failed to stop Skill process group".to_string())
-    }
-}
-
-#[cfg(windows)]
-async fn terminate_process_tree(pid: u32, _force: bool) -> Result<(), String> {
-    let status = Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .status()
-        .await
-        .map_err(|error| format!("Failed to stop Skill process tree: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err("Failed to stop Skill process tree".to_string())
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-async fn terminate_process_tree(_pid: u32, _force: bool) -> Result<(), String> {
-    Err("Skill process cancellation is unavailable on this platform".to_string())
 }
 
 #[cfg(test)]

@@ -34,6 +34,19 @@ function getMarkdownDirSegments(markdownPath: string): string[] {
   return segments.slice(0, -1)
 }
 
+// Markdown 链接中的路径通常经过 URL 编码（如空格为 %20），解析为磁盘路径时需解码
+function decodePathSegment(segment: string): string {
+  if (!segment.includes('%')) {
+    return segment
+  }
+
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
 export function resolveImagePathFromMarkdown(markdownPath: string, imagePath: string): string {
   const markdownDirSegments = getMarkdownDirSegments(markdownPath)
   const imageSegments = imagePath
@@ -42,6 +55,7 @@ export function resolveImagePathFromMarkdown(markdownPath: string, imagePath: st
     .replace(/\/+/g, '/')
     .split('/')
     .filter(Boolean)
+    .map(decodePathSegment)
 
   const resolvedSegments = [...markdownDirSegments]
 

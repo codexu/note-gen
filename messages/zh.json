@@ -3951,6 +3951,12 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "bookmark": {
+      "loading": "正在获取链接信息：{url}",
+      "fetchFailed": "获取链接信息失败，可点击刷新重试",
+      "refresh": "刷新",
+      "toLink": "转为普通链接"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "润色",
@@ -3969,6 +3975,7 @@
       "quoteToChat": "引用到对话",
       "link": "链接",
       "openLink": "打开链接",
+      "pasteAsCard": "粘贴为卡片",
       "linkPlaceholder": "输入链接地址",
       "confirm": "确认",
       "cancel": "取消",

@@ -13,6 +13,7 @@ import {
   List,
   ListOrdered,
   CheckSquare,
+  PanelTop,
   Sparkles,
   Minimize2,
   Maximize2,
@@ -714,6 +715,14 @@ export function BubbleMenu({
           <>
             <ToolbarSeparator />
             <ToolbarButton onClick={openCurrentLink} title={t('bubbleMenu.openLink')}><ExternalLink /></ToolbarButton>
+            {/^https?:\/\//.test(currentLinkHref) && (
+              <ToolbarButton
+                onClick={() => editor.chain().convertLinkToBookmark().run()}
+                title={t('bubbleMenu.pasteAsCard')}
+              >
+                <PanelTop />
+              </ToolbarButton>
+            )}
           </>
         )}
       </div>

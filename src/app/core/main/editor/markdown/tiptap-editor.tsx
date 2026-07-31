@@ -30,6 +30,7 @@ import { dropPoint } from '@tiptap/pm/transform'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
+import { BookmarkCard } from './bookmark-extension'
 import { MathEditorDialog } from './math-editor-dialog'
 import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type UIEvent as ReactUIEvent } from 'react'
@@ -768,6 +769,23 @@ const PasteMarkdown = Extension.create({
               return true
             }
 
+            // 粘贴纯 URL：插入链接并选中，触发气泡菜单（可选择打开链接/转为卡片）
+            const trimmedUrl = text.trim()
+            if (/^https?:\/\/\S+$/.test(trimmedUrl)) {
+              const from = selection.from
+              editor
+                .chain()
+                .focus()
+                .insertContent({
+                  type: 'text',
+                  text: trimmedUrl,
+                  marks: [{ type: 'link', attrs: { href: trimmedUrl } }],
+                })
+                .setTextSelection({ from, to: from + trimmedUrl.length })
+                .run()
+              return true
+            }
+
             // 检查文本是否看起来像 Markdown
             if (looksLikeMarkdown(text)) {
               // 使用 editor.commands.insertContent 插入 Markdown 内容
@@ -1428,6 +1446,7 @@ export function TipTapEditor({
       InlineMath,
       BlockMath,
       MermaidDiagram,
+      BookmarkCard,
       Image.extend({
         addAttributes() {
           return {

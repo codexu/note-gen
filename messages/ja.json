@@ -3820,6 +3820,12 @@
       "line": "{fileName}の{line}行目から引用",
       "lines": "{fileName}の{start}-{end}行目から引用"
     },
+    "bookmark": {
+      "loading": "リンク情報を取得中：{url}",
+      "fetchFailed": "リンク情報の取得に失敗しました。更新して再試行できます",
+      "refresh": "更新",
+      "toLink": "リンクに変換"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "添削",
@@ -3838,6 +3844,7 @@
       "quoteToChat": "チャットに引用",
       "link": "リンク",
       "openLink": "リンクを開く",
+      "pasteAsCard": "カードとして貼り付け",
       "linkPlaceholder": "リンクURLを入力",
       "confirm": "確認",
       "cancel": "キャンセル",

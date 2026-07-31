@@ -61,6 +61,62 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;')
 }
 
+function isBookmarkPayload(code: string): boolean {
+  try {
+    const parsed = JSON.parse(code)
+    return Boolean(parsed) && typeof parsed === 'object' && typeof parsed.url === 'string'
+  } catch {
+    return false
+  }
+}
+
+function StreamdownBookmarkCard({ code }: { code: string }) {
+  const bookmark = useMemo(() => {
+    try {
+      const parsed = JSON.parse(code)
+      if (parsed && typeof parsed === 'object' && typeof parsed.url === 'string') {
+        return parsed as { url: string; title?: string; description?: string; icon?: string; siteName?: string; cover?: string }
+      }
+    } catch {
+      // fall through to null: render as a plain code block
+    }
+    return null
+  }, [code])
+
+  if (!bookmark) {
+    return null
+  }
+
+  let domain = bookmark.url
+  try {
+    domain = new URL(bookmark.url).hostname
+  } catch {
+    // keep the raw url as the label
+  }
+
+  return (
+    <a
+      href={bookmark.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="not-prose flex overflow-hidden rounded-lg border border-border bg-card no-underline transition-colors hover:bg-accent/40"
+      title={bookmark.url}
+    >
+      <span className="min-w-0 flex-1 px-4 py-3">
+        <span className="block truncate text-sm font-medium text-foreground">{bookmark.title || domain}</span>
+        {bookmark.description ? (
+          <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">{bookmark.description}</span>
+        ) : null}
+        <span className="mt-2 block truncate text-xs text-muted-foreground">{bookmark.siteName || domain}</span>
+      </span>
+      {bookmark.cover ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={bookmark.cover} alt="" className="hidden max-h-28 w-40 shrink-0 object-cover sm:block" />
+      ) : null}
+    </a>
+  )
+}
+
 function StreamdownCode({
   children,
   className,
@@ -82,6 +138,10 @@ function StreamdownCode({
       return escapeHtml(code)
     }
   }, [code, dataBlock, language])
+
+  if (dataBlock && language === 'bookmark' && isBookmarkPayload(code)) {
+    return <StreamdownBookmarkCard code={code} />
+  }
 
   if (!dataBlock) {
     return (

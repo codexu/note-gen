@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, readDir } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
+import { invoke } from '@tauri-apps/api/core'
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
 import { getWorkspacePath } from '@/lib/workspace'
@@ -98,5 +99,48 @@ export function useMarkdownImport() {
     }
   }, [isImporting, loadFileTree, t])
 
-  return { isImporting, importMarkdown }
+  const importNotionZip = useCallback(async () => {
+    if (isImporting) {
+      return
+    }
+
+    setIsImporting(true)
+    try {
+      const selectedPath = await openDialog({
+        multiple: false,
+        filters: [{ name: 'Notion Export', extensions: ['zip'] }],
+        title: t('importNotion'),
+      })
+
+      if (!selectedPath || Array.isArray(selectedPath)) {
+        return
+      }
+
+      const workspace = await getWorkspacePath()
+      const targetDir = workspace.isCustom
+        ? workspace.path
+        : await join(await appDataDir(), 'article')
+      const copiedCount = await invoke<number>('import_notion_zip', {
+        zipPath: selectedPath,
+        targetDir,
+      })
+
+      await loadFileTree()
+      toast({
+        title: t('importSuccess'),
+        description: t('importSuccessDesc', { count: copiedCount }),
+      })
+    } catch (error) {
+      console.error('Import notion zip error:', error)
+      toast({
+        title: t('importError'),
+        description: String(error),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsImporting(false)
+    }
+  }, [isImporting, loadFileTree, t])
+
+  return { isImporting, importMarkdown, importNotionZip }
 }

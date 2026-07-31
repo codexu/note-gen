@@ -3340,6 +3340,7 @@
         "processingVectors": "正在處理向量數據",
         "calculateVectors": "知識庫計算（全量）",
         "importMarkdown": "匯入筆記",
+        "importNotion": "匯入 Notion（.zip）",
         "importing": "正在匯入...",
         "importSuccess": "匯入成功",
         "importSuccessDesc": "成功匯入 {count} 個文件",

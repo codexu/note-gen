@@ -11,6 +11,7 @@ mod ios_ocr;
 mod mcp;
 mod mcp_runtime;
 mod mobile_system_bars;
+mod notion_import;
 mod ocr_packages;
 mod printing;
 mod remote_skills;
@@ -33,6 +34,7 @@ use mcp::{
 use mcp_runtime::{
     cancel_mcp_runtime_install, inspect_mcp_runtime, install_mcp_runtime, RuntimeInstallManager,
 };
+use notion_import::import_notion_zip;
 use ocr_packages::{list_ocr_providers, run_ocr_provider};
 use remote_skills::{
     cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
@@ -90,6 +92,7 @@ pub fn run() {
             database_recovery::delete_local_database,
             import_skill,
             import_skill_zip,
+            import_notion_zip,
             validate_skill_package,
             install_skill_package,
             uninstall_skill,

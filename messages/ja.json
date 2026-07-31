@@ -3350,6 +3350,7 @@
         "processingVectors": "ベクトルデータ処理中",
         "calculateVectors": "知識庫計算（全量）",
         "importMarkdown": "ノートをインポート",
+        "importNotion": "Notion をインポート（.zip）",
         "importing": "インポート中...",
         "importSuccess": "インポート成功",
         "importSuccessDesc": "{count} 個のファイルをインポートしました",

@@ -3453,6 +3453,7 @@
         "processingVectors": "Processing Vector Data",
         "calculateVectors": "Knowledge Base Calculation (Full)",
         "importMarkdown": "Import Notes",
+        "importNotion": "Import Notion (.zip)",
         "importing": "Importing...",
         "importSuccess": "Import Successful",
         "importSuccessDesc": "Successfully imported {count} files",

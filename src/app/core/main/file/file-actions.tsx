@@ -12,7 +12,7 @@ import { useMarkdownImport } from './use-markdown-import'
 export function FileActions() {
   const { newFolder, newFile, loadFileTree, loadRemoteSyncFiles, fileTreeLoading } = useArticleStore()
   const t = useTranslations('article.file.toolbar')
-  const { isImporting, importMarkdown } = useMarkdownImport()
+  const { isImporting, importMarkdown, importNotionZip } = useMarkdownImport()
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const debounceNewFile = debounce(newFile, 200)
@@ -54,6 +54,7 @@ export function FileActions() {
       <FileMoreMenu
         isImporting={isImporting}
         onImportMarkdown={() => void importMarkdown()}
+        onImportNotion={() => void importNotionZip()}
       />
     </div>
   )

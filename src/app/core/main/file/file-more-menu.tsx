@@ -13,6 +13,7 @@ import {
   Download,
   EllipsisVertical,
   Eye,
+  FileArchive,
   FolderInput,
   LoaderCircle,
   PackageOpen,
@@ -44,9 +45,10 @@ import { isSyncConfigured } from '@/lib/sync/sync-manager'
 type FileMoreMenuProps = {
   isImporting: boolean
   onImportMarkdown: () => void
+  onImportNotion: () => void
 }
 
-export function FileMoreMenu({ isImporting, onImportMarkdown }: FileMoreMenuProps) {
+export function FileMoreMenu({ isImporting, onImportMarkdown, onImportNotion }: FileMoreMenuProps) {
   const t = useTranslations('article.file.cloudLibrary')
   const tToolbar = useTranslations('article.file.toolbar')
   const {
@@ -380,6 +382,10 @@ export function FileMoreMenu({ isImporting, onImportMarkdown }: FileMoreMenuProp
         <DropdownMenuItem onSelect={onImportMarkdown}>
           <FolderInput className="mr-2 size-4" />
           {isImporting ? tToolbar('importing') : tToolbar('importMarkdown')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onImportNotion}>
+          <FileArchive className="mr-2 size-4" />
+          {isImporting ? tToolbar('importing') : tToolbar('importNotion')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

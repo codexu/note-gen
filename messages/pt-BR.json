@@ -3333,6 +3333,7 @@
         "processingVectors": "Processando Dados Vetoriais",
         "calculateVectors": "Cálculo da Base de Conhecimento (Completo)",
         "importMarkdown": "Importar notas",
+        "importNotion": "Importar Notion (.zip)",
         "importing": "Importando...",
         "importSuccess": "Importação Bem-sucedida",
         "importSuccessDesc": "Importados {count} arquivos com sucesso",

@@ -3810,6 +3810,12 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "bookmark": {
+      "loading": "正在取得連結資訊：{url}",
+      "fetchFailed": "取得連結資訊失敗，可點擊重新整理重試",
+      "refresh": "重新整理",
+      "toLink": "轉為一般連結"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "潤色",
@@ -3828,6 +3834,7 @@
       "quoteToChat": "引用到對話",
       "link": "連結",
       "openLink": "打開連結",
+      "pasteAsCard": "貼上為卡片",
       "linkPlaceholder": "輸入連結地址",
       "confirm": "確認",
       "cancel": "取消",

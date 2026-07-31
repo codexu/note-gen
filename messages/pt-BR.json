@@ -3770,6 +3770,12 @@
       "enhance": "Aprimorar busca",
       "searching": "Buscando arquivos relacionados..."
     },
+    "bookmark": {
+      "loading": "Obtendo informações do link: {url}",
+      "fetchFailed": "Falha ao obter informações do link. Clique em atualizar para tentar novamente.",
+      "refresh": "Atualizar",
+      "toLink": "Converter em link"
+    },
     "bubbleMenu": {
       "ai": "IA",
       "polish": "Polir",
@@ -3788,6 +3794,7 @@
       "quoteToChat": "Citar no Chat",
       "link": "Link",
       "openLink": "Abrir link",
+      "pasteAsCard": "Colar como cartão",
       "linkPlaceholder": "Digite a URL do link",
       "confirm": "Confirmar",
       "cancel": "Cancelar",

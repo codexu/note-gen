@@ -3931,6 +3931,12 @@
       "line": "Quoted from {fileName} line {line}",
       "lines": "Quoted from {fileName} lines {start}-{end}"
     },
+    "bookmark": {
+      "loading": "Fetching link info: {url}",
+      "fetchFailed": "Failed to fetch link info. Click refresh to retry.",
+      "refresh": "Refresh",
+      "toLink": "Convert to link"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "Polish",
@@ -3949,6 +3955,7 @@
       "quoteToChat": "Quote to Chat",
       "link": "Link",
       "openLink": "Open link",
+      "pasteAsCard": "Paste as card",
       "linkPlaceholder": "Enter link URL",
       "confirm": "Confirm",
       "cancel": "Cancel",

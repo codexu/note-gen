@@ -2462,11 +2462,34 @@ export function TipTapEditor({
       void openLink(href.trim()).catch(() => {})
     }
 
+    // 链接转书签卡片：兼容 link mark 与 [文本](url) 源码编辑态两种状态
+    const handleCurrentLinkToBookmark = () => {
+      const range = editableLinkSourcePluginKey.getState(editor.state)
+      if (range) {
+        const source = editor.state.doc.textBetween(range.from, range.to, undefined, '￼')
+        const href = parseMarkdownLinkSource(source)?.href?.trim() ?? ''
+        if (!/^https?:\/\//.test(href)) return
+        editor.view.dispatch(editor.state.tr.setMeta(editableLinkSourcePluginKey, null))
+        editor
+          .chain()
+          .focus()
+          .deleteRange({ from: range.from, to: range.to })
+          .insertContentAt(range.from, {
+            type: 'bookmarkCard',
+            attrs: { url: href, status: 'loading' },
+          })
+          .run()
+        return
+      }
+      editor.chain().convertLinkToBookmark().run()
+    }
+
     editorElement.addEventListener('mousedown', handleModifiedMouseDown, true)
     editorElement.addEventListener('click', handleClick)
     document.addEventListener('keydown', handleEscape, true)
     document.addEventListener('tiptap-editable-link-toggle-mark', handleEditableLinkMarkToggle)
     document.addEventListener('tiptap-current-link-open', handleCurrentLinkOpen)
+    document.addEventListener('tiptap-current-link-to-bookmark', handleCurrentLinkToBookmark)
     editor.on('transaction', handleTransaction)
     editor.on('selectionUpdate', expandLinkAtCaret)
     editor.on('blur', handleBlur)
@@ -2477,6 +2500,7 @@ export function TipTapEditor({
       document.removeEventListener('keydown', handleEscape, true)
       document.removeEventListener('tiptap-editable-link-toggle-mark', handleEditableLinkMarkToggle)
       document.removeEventListener('tiptap-current-link-open', handleCurrentLinkOpen)
+      document.removeEventListener('tiptap-current-link-to-bookmark', handleCurrentLinkToBookmark)
       editor.off('transaction', handleTransaction)
       editor.off('selectionUpdate', expandLinkAtCaret)
       editor.off('blur', handleBlur)

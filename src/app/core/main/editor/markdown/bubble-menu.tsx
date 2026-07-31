@@ -717,7 +717,7 @@ export function BubbleMenu({
             <ToolbarButton onClick={openCurrentLink} title={t('bubbleMenu.openLink')}><ExternalLink /></ToolbarButton>
             {/^https?:\/\//.test(currentLinkHref) && (
               <ToolbarButton
-                onClick={() => editor.chain().convertLinkToBookmark().run()}
+                onClick={() => document.dispatchEvent(new CustomEvent('tiptap-current-link-to-bookmark'))}
                 title={t('bubbleMenu.pasteAsCard')}
               >
                 <PanelTop />

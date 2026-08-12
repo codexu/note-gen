@@ -107,6 +107,23 @@ export default baseConfig
 
 export type ModelType = 'chat' | 'image' | 'video' | 'tts' | 'stt' | 'embedding' | 'rerank';
 
+export type ModelInputModality = 'text' | 'image' | 'video'
+export type ModelThinkingMode = 'adaptive' | 'disabled' | 'always_on'
+
+export interface ModelPricing {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite?: number
+}
+
+export interface ProviderEndpoint {
+  region: 'global_en' | 'cn_zh'
+  protocol: 'openai' | 'anthropic'
+  baseURL: string
+  docsURL: string
+}
+
 export interface ModelConfig {
   id: string
   model: string
@@ -115,6 +132,10 @@ export interface ModelConfig {
   topP?: number
   voice?: string
   enableStream?: boolean
+  contextWindow?: number
+  pricing?: ModelPricing
+  inputModalities?: ModelInputModality[]
+  thinking?: ModelThinkingMode[]
 }
 
 export interface AiConfig {
@@ -125,6 +146,7 @@ export interface AiConfig {
   icon?: string
   apiKeyUrl?: string
   customHeaders?: Record<string, string>
+  endpoints?: ProviderEndpoint[]
   models?: ModelConfig[]
   // 保持向后兼容
   model?: string
@@ -232,10 +254,38 @@ const baseAiConfig: AiConfig[] = [
     title: 'MiniMax',
     baseURL: 'https://api.minimax.io/v1',
     icon: 'https://filecdn.minimax.chat/public/c5b4442f-ab8b-4d97-9119-8504670b0097.png',
-    apiKeyUrl: 'https://platform.minimaxi.com/',
+    apiKeyUrl: 'https://platform.minimax.io/',
+    endpoints: [
+      { region: 'global_en', protocol: 'openai', baseURL: 'https://api.minimax.io/v1', docsURL: 'https://platform.minimax.io/docs' },
+      { region: 'global_en', protocol: 'anthropic', baseURL: 'https://api.minimax.io/anthropic', docsURL: 'https://platform.minimax.io/docs' },
+      { region: 'cn_zh', protocol: 'openai', baseURL: 'https://api.minimaxi.com/v1', docsURL: 'https://platform.minimaxi.com/docs' },
+      { region: 'cn_zh', protocol: 'anthropic', baseURL: 'https://api.minimaxi.com/anthropic', docsURL: 'https://platform.minimaxi.com/docs' },
+    ],
     models: [
-      { id: 'minimax-MiniMax-M3', model: 'MiniMax-M3', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
-      { id: 'minimax-MiniMax-M2.7', model: 'MiniMax-M2.7', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
+      {
+        id: 'minimax-MiniMax-M3',
+        model: 'MiniMax-M3',
+        modelType: 'chat',
+        temperature: 0.7,
+        topP: 1,
+        enableStream: true,
+        contextWindow: 1_000_000,
+        pricing: { input: 0.6, output: 2.4, cacheRead: 0.12 },
+        inputModalities: ['text', 'image', 'video'],
+        thinking: ['adaptive', 'disabled'],
+      },
+      {
+        id: 'minimax-MiniMax-M2.7',
+        model: 'MiniMax-M2.7',
+        modelType: 'chat',
+        temperature: 0.7,
+        topP: 1,
+        enableStream: true,
+        contextWindow: 204_800,
+        pricing: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+        inputModalities: ['text'],
+        thinking: ['always_on'],
+      },
       { id: 'minimax-MiniMax-M2.7-highspeed', model: 'MiniMax-M2.7-highspeed', modelType: 'chat', temperature: 0.7, topP: 1, enableStream: true },
     ],
   },

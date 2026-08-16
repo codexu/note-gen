@@ -3,6 +3,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 import { CodeBlockView } from './code-block-view'
 import { createViewportLowlightPlugin } from './viewport-lowlight-plugin'
+import { parseFencedCodeBlockToken, renderFencedCodeBlockNode } from './code-block-markdown'
 
 interface ViewportCodeBlockOptions extends CodeBlockOptions {
   shouldHighlight?: () => boolean
@@ -15,6 +16,11 @@ export const StableCodeBlockLowlight = CodeBlock.extend<ViewportCodeBlockOptions
       shouldHighlight: undefined,
     }
   },
+
+  // Overrides the upstream handlers that drop `~~~` fences on parse and emit a
+  // fixed three-backtick fence on render (note-gen #1195).
+  parseMarkdown: parseFencedCodeBlockToken,
+  renderMarkdown: renderFencedCodeBlockNode,
 
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView)

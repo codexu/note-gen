@@ -2918,9 +2918,9 @@
         "organizeAs": "Organize as",
         "template": "Template",
         "setting": "Settings",
-        "confirm": "确认",
-        "cancel": "取消",
-        "removeThinking": "移除思考过程",
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "removeThinking": "Remove thinking process",
         "stop": "Stop"
       }
     },
@@ -2951,11 +2951,11 @@
         "noMatchingConversations": "No matching conversations found",
         "noConversationHistory": "No conversation history yet",
         "quickPrompts": {
-          "title": "快速开始",
-          "writeNote": "帮我写一篇笔记",
-          "summarize": "帮我总结这段内容",
-          "brainstorm": "帮我头脑风暴一些想法",
-          "explain": "帮我解释这个概念"
+          "title": "Quick start",
+          "writeNote": "Help me write a note",
+          "summarize": "Help me summarize this content",
+          "brainstorm": "Help me brainstorm some ideas",
+          "explain": "Help me explain this concept"
         }
       },
       "newChat": "New Chat with New Tag",

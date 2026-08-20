@@ -151,6 +151,14 @@
       "enabled": true
     },
     {
+      "key": "orcarouter",
+      "title": "OrcaRouter",
+      "baseURL": "https://api.orcarouter.ai/v1",
+      "apiKeyUrl": "https://www.orcarouter.ai",
+      "icon": "https://www.orcarouter.ai/apple-touch-icon.png",
+      "enabled": true
+    },
+    {
       "key": "qiniu",
       "title": "七牛云",
       "baseURL": "https://openai.qiniu.com/v1",

@@ -17,6 +17,9 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/en'
+import 'dayjs/locale/ja'
+import 'dayjs/locale/pt-br'
+import 'dayjs/locale/de'
 import useSettingStore from '@/stores/setting'
 
 // 初始化 dayjs 插件
@@ -24,7 +27,11 @@ dayjs.extend(relativeTime)
 
 // 格式化相对时间
 function formatRelativeTime(timestamp: number, locale: string): string {
-  const dayjsLocale = locale === 'en' ? 'en' : 'zh-cn'
+  let dayjsLocale = 'en'
+  if (locale === '简体中文' || locale === 'zh') dayjsLocale = 'zh-cn'
+  else if (locale === '日本語' || locale === 'ja') dayjsLocale = 'ja'
+  else if (locale === 'Português' || locale === 'pt-BR') dayjsLocale = 'pt-br'
+  else if (locale === 'Deutsch' || locale === 'de') dayjsLocale = 'de'
   return dayjs(timestamp).locale(dayjsLocale).fromNow()
 }
 

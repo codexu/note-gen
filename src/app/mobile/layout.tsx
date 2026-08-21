@@ -10,6 +10,9 @@ import { applyAppFontFamily } from "@/lib/font-settings"
 import dayjs from "dayjs"
 import zh from "dayjs/locale/zh-cn";
 import en from "dayjs/locale/en";
+import de from "dayjs/locale/de";
+import ja from "dayjs/locale/ja";
+import ptBR from "dayjs/locale/pt-br";
 import { useI18n } from "@/hooks/useI18n"
 import useVectorStore from "@/stores/vector"
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -211,6 +214,15 @@ export default function RootLayout({
         break;
       case 'en':
         dayjs.locale(en);
+        break;
+      case 'de':
+        dayjs.locale(de);
+        break;
+      case 'ja':
+        dayjs.locale(ja);
+        break;
+      case 'pt-BR':
+        dayjs.locale(ptBR);
         break;
       default:
         break;

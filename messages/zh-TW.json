@@ -3202,6 +3202,7 @@
         "outputLanguageEn": "English",
         "outputLanguageJa": "日本語",
         "outputLanguagePtBR": "Português",
+        "outputLanguageDe": "Deutsch",
         "outputLanguageCustom": "自訂",
         "outputLanguageCustomPlaceholder": "例如：使用法語；或使用自然口語的中文",
         "outputLanguageHelp": "可選擇常用語言，也可以選擇自訂後手動填寫輸出語言要求。",

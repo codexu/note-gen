@@ -29,6 +29,7 @@ export function LanguageSettings() {
             { value: 'en', label: 'English' },
             { value: 'ja', label: '日本語' },
             { value: 'pt-BR', label: 'Português' },
+            { value: 'de', label: 'Deutsch' },
           ]}
         />
       </ItemActions>

@@ -3202,6 +3202,7 @@
         "outputLanguageEn": "English",
         "outputLanguageJa": "日本語",
         "outputLanguagePtBR": "Português",
+        "outputLanguageDe": "Deutsch",
         "outputLanguageCustom": "カスタム",
         "outputLanguageCustomPlaceholder": "例：フランス語を使う、または自然な会話調の中国語を使う",
         "outputLanguageHelp": "一般的な言語を選ぶか、カスタムを選んで出力言語の要件を手動で入力できます。",

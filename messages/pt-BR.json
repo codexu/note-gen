@@ -2897,6 +2897,7 @@
         "outputLanguageEn": "English",
         "outputLanguageJa": "日本語",
         "outputLanguagePtBR": "Português",
+        "outputLanguageDe": "Deutsch",
         "outputLanguageCustom": "Personalizado",
         "outputLanguageCustomPlaceholder": "Ex.: usar francês, ou usar chinês natural e conversacional",
         "outputLanguageHelp": "Escolha um idioma comum ou selecione Personalizado para preencher manualmente o requisito de idioma.",

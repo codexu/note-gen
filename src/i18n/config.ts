@@ -1,6 +1,6 @@
 import type { AbstractIntlMessages } from 'next-intl';
 
-export const SUPPORTED_LOCALES = ['en', 'zh', 'ja', 'pt-BR', 'zh-TW'] as const;
+export const SUPPORTED_LOCALES = ['en', 'zh', 'ja', 'pt-BR', 'zh-TW', 'de'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 export const DEFAULT_LOCALE: SupportedLocale = 'zh';

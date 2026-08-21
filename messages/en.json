@@ -3019,6 +3019,7 @@
         "outputLanguageEn": "English",
         "outputLanguageJa": "日本語",
         "outputLanguagePtBR": "Português",
+        "outputLanguageDe": "Deutsch",
         "outputLanguageCustom": "Custom",
         "outputLanguageCustomPlaceholder": "For example: use French, or use natural conversational Chinese",
         "outputLanguageHelp": "Choose a common language, or select Custom to manually enter the output language requirement.",

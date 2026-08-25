@@ -23,13 +23,18 @@ export function replaceLinesInRange(
   const endIndex = actualEndLine - 1
 
   // 验证行号范围
-  if (startIndex < 0 || endIndex >= lines.length) {
+  if (startIndex < 0 || startIndex >= lines.length) {
     throw new Error(`无效的行号范围: ${startLine}-${endLine}，文件共 ${lines.length} 行`)
   }
 
+  // Clamp endIndex to the last line to handle minor line-count discrepancies
+  // caused by content normalization (e.g. trailing newline stripping) between
+  // get_editor_content and the actual replacement call.
+  const clampedEndIndex = Math.min(endIndex, lines.length - 1)
+
   // 替换指定行
   const before = lines.slice(0, startIndex)
-  const after = lines.slice(endIndex + 1)
+  const after = lines.slice(clampedEndIndex + 1)
   return [...before, ...newLines, ...after].join('\n')
 }
 
@@ -109,13 +114,16 @@ export function deleteLinesInRange(
   const endIndex = actualEndLine - 1
 
   // 验证行号范围
-  if (startIndex < 0 || endIndex >= lines.length) {
+  if (startIndex < 0 || startIndex >= lines.length) {
     throw new Error(`无效的行号范围: ${startLine}-${endLine}，文件共 ${lines.length} 行`)
   }
 
+  // Clamp endIndex to the last line to handle minor line-count discrepancies.
+  const clampedEndIndex = Math.min(endIndex, lines.length - 1)
+
   // 删除指定行
   const before = lines.slice(0, startIndex)
-  const after = lines.slice(endIndex + 1)
+  const after = lines.slice(clampedEndIndex + 1)
 
   return [...before, ...after].join('\n')
 }

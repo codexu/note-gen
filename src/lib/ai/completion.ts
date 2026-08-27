@@ -208,7 +208,7 @@ Continuation:`
 
     let isFirst = true
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content
+      const content = chunk.choices?.[0]?.delta?.content
       if (content) {
         const cleaned = cleanupCompletion(content)
         if (cleaned) {
@@ -265,7 +265,7 @@ export async function fetchEditorAiGenerationStream(
 
     let isFirst = true
     for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content
+      const content = chunk.choices?.[0]?.delta?.content
       if (content) {
         onChunk(content, isFirst)
         isFirst = false

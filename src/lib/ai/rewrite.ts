@@ -165,7 +165,7 @@ Output:`
 
     let isFirst = true
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta
+      const delta = chunk.choices?.[0]?.delta
       const rawThinking = (delta as { reasoning_content?: string } | undefined)?.reasoning_content || ''
       const content = delta?.content || ''
 
@@ -247,7 +247,7 @@ Output:`
 
     let isFirst = true
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta
+      const delta = chunk.choices?.[0]?.delta
       const rawThinking = (delta as { reasoning_content?: string } | undefined)?.reasoning_content || ''
       const content = delta?.content || ''
 
@@ -329,7 +329,7 @@ Output:`
 
     let isFirst = true
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta
+      const delta = chunk.choices?.[0]?.delta
       const rawThinking = (delta as { reasoning_content?: string } | undefined)?.reasoning_content || ''
       const content = delta?.content || ''
 

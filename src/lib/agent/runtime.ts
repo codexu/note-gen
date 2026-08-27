@@ -1279,7 +1279,7 @@ export class AgentRuntime {
           if (this.stopped) {
             throw new Error('USER_STOPPED')
           }
-          const choice = chunk.choices[0]
+          const choice = chunk.choices?.[0]
           if (!choice) {
             continue
           }

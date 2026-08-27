@@ -191,7 +191,7 @@ export async function fetchAiStream(
         break;
       }
       
-      const delta = chunk.choices[0]?.delta
+      const delta = chunk.choices?.[0]?.delta
       const extendedDelta = delta as (typeof delta & {
         reasoning?: string
         reasoning_content?: string
@@ -392,7 +392,7 @@ export async function fetchAiStream(
             break;
           }
           
-          const delta = chunk.choices[0]?.delta
+          const delta = chunk.choices?.[0]?.delta
           const extendedDelta = delta as (typeof delta & {
             reasoning?: string
             reasoning_content?: string
@@ -506,7 +506,7 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
         break;
       }
       
-      const content = chunk.choices[0]?.delta?.content || ''
+      const content = chunk.choices?.[0]?.delta?.content || ''
       if (content) {
         onUpdate(content)
       }

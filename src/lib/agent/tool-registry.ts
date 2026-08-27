@@ -211,11 +211,20 @@ function legacyInputSchema(tool: Tool): JsonSchema {
   const required: string[] = []
 
   for (const parameter of tool.parameters) {
-    properties[parameter.name] = {
+    const schema: JsonSchema = {
       type: parameter.type === 'number' ? 'number' : parameter.type,
       description: parameter.description,
       default: parameter.default,
     }
+
+    // JSON Schema requires `items` alongside `type: 'array'`. Legacy tool
+    // descriptors carry no item type, so emit a permissive schema rather than a
+    // bare `{ "type": "array" }`, which some providers reject outright.
+    if (schema.type === 'array' && schema.items === undefined) {
+      schema.items = {}
+    }
+
+    properties[parameter.name] = schema
 
     if (parameter.required) {
       required.push(parameter.name)

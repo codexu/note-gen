@@ -26,7 +26,8 @@ import {
   ListTodo,
 } from 'lucide-react'
 import { useState, useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
-import { TextSelection } from '@tiptap/pm/state'
+import { TextSelection, type Transaction } from '@tiptap/pm/state'
+import { VIEW_STATE_RESTORE_META } from './selection-intent'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
@@ -203,7 +204,7 @@ export function BubbleMenu({
   }, [customTranslateLang, handleTranslate, t])
 
   // 更新定位
-  const updatePosition = useCallback(() => {
+  const updatePosition = useCallback((props?: { transaction?: Transaction }) => {
     const { selection } = editor.state
     const { from, to } = selection
 
@@ -218,8 +219,11 @@ export function BubbleMenu({
     }
 
     // 应用启动或文件恢复时可能会还原一个非空选区，但这不是用户本次主动选择的文本。
+    // 只折叠带有恢复标记的选区；辅助功能工具（VoiceOver、写作助手）通过
+    // Accessibility API 创建的选区必须保留，否则它们无法继续操作。
     if (!hasUserSelectionIntentRef.current) {
-      if (hasTextSelection(editor)) {
+      const isRestoredSelection = props?.transaction?.getMeta(VIEW_STATE_RESTORE_META) === true
+      if (isRestoredSelection && hasTextSelection(editor)) {
         collapseSelection()
       }
       hideMenu()

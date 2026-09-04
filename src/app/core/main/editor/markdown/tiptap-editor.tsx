@@ -23,6 +23,7 @@ import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent } from '@tiptap/core'
 import { Fragment, Slice, type Node as ProseMirrorNode, type NodeType } from '@tiptap/pm/model'
 import { AllSelection, EditorState, Plugin, PluginKey, TextSelection, type Selection } from '@tiptap/pm/state'
+import { VIEW_STATE_RESTORE_META } from './selection-intent'
 import { redoDepth, undoDepth } from '@tiptap/pm/history'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { dropPoint } from '@tiptap/pm/transform'
@@ -3290,16 +3291,22 @@ export function TipTapEditor({
         return
       }
 
+      // The marker lets the bubble menu tell a restored selection from one
+      // made by the user or an assistive tool; only the former is collapsed.
+      const markViewStateRestore = ({ tr }: { tr: { setMeta: (key: string, value: unknown) => unknown } }) => {
+        tr.setMeta(VIEW_STATE_RESTORE_META, true)
+        return true
+      }
       if (isMobile) {
-        editor.commands.setTextSelection({
+        editor.chain().setTextSelection({
           from: selectionFrom,
           to: selectionTo,
-        })
+        }).command(markViewStateRestore).run()
       } else {
         editor.chain().focus().setTextSelection({
           from: selectionFrom,
           to: selectionTo,
-        }).run()
+        }).command(markViewStateRestore).run()
       }
 
       requestAnimationFrame(() => {

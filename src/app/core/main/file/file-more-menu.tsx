@@ -15,6 +15,7 @@ import {
   Eye,
   FileArchive,
   FileOutput,
+  FolderDot,
   FolderInput,
   LoaderCircle,
   PackageOpen,
@@ -23,6 +24,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -42,6 +44,10 @@ import useCloudLibraryStore from '@/stores/cloud-library'
 import useVectorStore from '@/stores/vector'
 import { getSyncConfiguration } from './file-tree-action-policy'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import useSettingStore from '@/stores/setting'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { filterFileTreeByVisibility } from './file-tree-model'
+import { flattenFileTree } from './file-selection'
 
 type FileMoreMenuProps = {
   isImporting: boolean
@@ -60,6 +66,8 @@ export function FileMoreMenu({
   const tToolbar = useTranslations('article.file.toolbar')
   const tSync = useTranslations('settings.sync')
   const { openSettings } = useSettingsDialogStore()
+  const assetsPath = useSettingStore(state => state.assetsPath)
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const {
     loadFileTree,
     loadRemoteSyncFiles,
@@ -69,10 +77,14 @@ export function FileMoreMenu({
     setSortType,
     sortDirection,
     setSortDirection,
-    toggleAllFolders,
+    fileTree,
+    expandAllFolders,
+    collapseAllFolders,
     collapsibleList,
     showCloudFiles,
     setShowCloudFiles,
+    showAssetsFolders,
+    setShowAssetsFolders,
     syncStaticAssets,
     setSyncStaticAssets,
     showKnowledgeBaseStatus,
@@ -93,6 +105,16 @@ export function FileMoreMenu({
     downloadKnowledgeBase,
   } = useCloudLibraryStore()
   const busy = operation !== null || isProcessing || isImporting
+  const visibleFolderPaths = useMemo(() => new Set(
+    flattenFileTree(filterFileTreeByVisibility(fileTree, {
+      showCloudFiles,
+      showAssetsFolders,
+      assetsFolderName,
+    }))
+      .filter(entry => entry.isDirectory)
+      .map(entry => entry.path)
+  ), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles])
+  const hasExpandedVisibleFolders = collapsibleList.some(path => visibleFolderPaths.has(path))
 
   async function ensureSyncConfigured() {
     const sync = await getSyncConfiguration()
@@ -297,11 +319,27 @@ export function FileMoreMenu({
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuItem onSelect={toggleAllFolders}>
-          {collapsibleList.length > 0
+        <DropdownMenuItem onSelect={hasExpandedVisibleFolders ? collapseAllFolders : expandAllFolders}>
+          {hasExpandedVisibleFolders
             ? <ChevronsDownUp className="mr-2 size-4" />
             : <ChevronsUpDown className="mr-2 size-4" />}
-          {collapsibleList.length > 0 ? tToolbar('collapseAll') : tToolbar('expandAll')}
+          {hasExpandedVisibleFolders ? tToolbar('collapseAll') : tToolbar('expandAll')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            void setShowAssetsFolders(!showAssetsFolders)
+          }}
+        >
+          <FolderDot className="mr-2 size-4" />
+          <span>{t('showAssetsFolders')}</span>
+          <Switch
+            className="ml-auto"
+            checked={showAssetsFolders}
+            onClick={(event) => event.stopPropagation()}
+            onCheckedChange={(checked) => void setShowAssetsFolders(checked)}
+            aria-label={t('showAssetsFolders')}
+          />
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={(event) => {

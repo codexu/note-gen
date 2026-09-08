@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from "react"
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { FileManager } from "./file-manager"
 import useArticleStore from "@/stores/article"
 import useClipboardStore from "@/stores/clipboard"
@@ -10,6 +10,9 @@ import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
 import { flattenFileTree, getFileSelectionEntries, toClipboardItems } from "./file-selection"
 import { useShallow } from 'zustand/react/shallow'
 import { useWorkspaceFileWatcher } from './use-workspace-file-watcher'
+import useSettingStore from '@/stores/setting'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { filterFileTreeByVisibility } from './file-tree-model'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -18,11 +21,20 @@ type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
  * 只有当文件管理器区域获得焦点时才响应快捷键
  */
 function useFileManagerShortcuts() {
-  const { activeFilePath, fileTree, selectedFilePaths } = useArticleStore(useShallow((state) => ({
+  const { activeFilePath, fileTree, selectedFilePaths, showCloudFiles, showAssetsFolders } = useArticleStore(useShallow((state) => ({
     activeFilePath: state.activeFilePath,
     fileTree: state.fileTree,
     selectedFilePaths: state.selectedFilePaths,
+    showCloudFiles: state.showCloudFiles,
+    showAssetsFolders: state.showAssetsFolders,
   })))
+  const assetsPath = useSettingStore(state => state.assetsPath)
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
+  const visibleFileTree = useMemo(() => filterFileTreeByVisibility(fileTree, {
+    showCloudFiles,
+    showAssetsFolders,
+    assetsFolderName,
+  }), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles])
   const { setClipboardItem, setClipboardItems } = useClipboardStore()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isFocused, setIsFocused] = useState(false)
@@ -58,7 +70,7 @@ function useFileManagerShortcuts() {
     if (!activeFilePath) return null
 
     // 递归查找文件树中匹配的项
-    function findInTree(tree: typeof fileTree, targetPath: string): ReturnType<typeof getActiveItem> {
+    function findInTree(tree: typeof visibleFileTree, targetPath: string): ReturnType<typeof getActiveItem> {
       const entry = flattenFileTree(tree).find(item => item.path === targetPath)
       if (!entry) return null
       return {
@@ -70,8 +82,8 @@ function useFileManagerShortcuts() {
       }
     }
 
-    return findInTree(fileTree, activeFilePath)
-  }, [activeFilePath, fileTree])
+    return findInTree(visibleFileTree, activeFilePath)
+  }, [activeFilePath, visibleFileTree])
 
   // 处理快捷键
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -90,7 +102,7 @@ function useFileManagerShortcuts() {
       return
     }
 
-    const selectedEntries = getFileSelectionEntries(fileTree, selectedFilePaths)
+    const selectedEntries = getFileSelectionEntries(visibleFileTree, selectedFilePaths)
     const allSelectedEntriesAreLocal = selectedEntries.every(entry => entry.isLocale)
     const activeItem = getActiveItem()
 
@@ -103,7 +115,7 @@ function useFileManagerShortcuts() {
       e.stopPropagation()
       window.dispatchEvent(new CustomEvent('filemanager-select-all', {
         detail: {
-          anchorPath: selectedFilePaths.at(-1) ?? activeItem?.path ?? '',
+          anchorPath: selectedEntries.at(-1)?.path ?? activeItem?.path ?? '',
         },
       }))
       return
@@ -198,7 +210,7 @@ function useFileManagerShortcuts() {
       }
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, fileTree, selectedFilePaths, setClipboardItem, setClipboardItems])
+  }, [isFocused, getActiveItem, isModKey, currentPlatform, selectedFilePaths, setClipboardItem, setClipboardItems, visibleFileTree])
 
   // 注册全局快捷键
   useEffect(() => {
@@ -268,12 +280,14 @@ export function FileSidebar() {
     initCollapsibleList,
     initSortSettings,
     initShowCloudFiles,
+    initShowAssetsFolders,
     initSyncStaticAssets,
     initShowKnowledgeBaseStatus,
   } = useArticleStore(useShallow((state) => ({
     initCollapsibleList: state.initCollapsibleList,
     initSortSettings: state.initSortSettings,
     initShowCloudFiles: state.initShowCloudFiles,
+    initShowAssetsFolders: state.initShowAssetsFolders,
     initSyncStaticAssets: state.initSyncStaticAssets,
     initShowKnowledgeBaseStatus: state.initShowKnowledgeBaseStatus,
   })))
@@ -283,6 +297,7 @@ export function FileSidebar() {
     initCollapsibleList()
     initSortSettings()
     initShowCloudFiles()
+    initShowAssetsFolders()
     initSyncStaticAssets()
     initShowKnowledgeBaseStatus()
   }, [])

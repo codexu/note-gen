@@ -100,6 +100,7 @@ export function ResponsiveActionMenu({
                 type="button"
                 variant={item.destructive ? 'destructive' : 'ghost'}
                 disabled={item.disabled || pendingKey !== null}
+                aria-pressed={item.selected}
                 className={cn(
                   'h-12 w-full justify-start px-3',
                   item.destructive && 'mt-2',

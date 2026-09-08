@@ -24,6 +24,45 @@ export type FileTreeSearchIndex = {
   trigrams: Map<string, Set<string>>
 }
 
+export type FileTreeVisibilityOptions = {
+  showCloudFiles: boolean
+  showAssetsFolders: boolean
+  assetsFolderName: string
+}
+
+export function isFileTreeEntryVisible(
+  item: DirTree,
+  options: FileTreeVisibilityOptions,
+) {
+  return (
+    (options.showCloudFiles || item.isLocale)
+    && (
+      options.showAssetsFolders
+      || item.isFile
+      || item.name !== options.assetsFolderName
+    )
+  )
+}
+
+/** Build a display-only tree without mutating the source used by sync and IO. */
+export function filterFileTreeByVisibility(
+  tree: DirTree[],
+  options: FileTreeVisibilityOptions,
+): DirTree[] {
+  if (options.showCloudFiles && options.showAssetsFolders) return tree
+
+  return tree.flatMap((item) => {
+    if (!isFileTreeEntryVisible(item, options)) return []
+
+    return [{
+      ...item,
+      children: item.children
+        ? filterFileTreeByVisibility(item.children, options)
+        : undefined,
+    }]
+  })
+}
+
 function createNodeId(path: string, isFolder: boolean) {
   return `${isFolder ? 'folder' : 'file'}:${path}`
 }

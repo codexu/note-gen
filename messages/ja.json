@@ -3740,9 +3740,10 @@
         "importError": "インポート失敗"
       },
       "cloudLibrary": {
-        "title": "リモートファイルと知識ベース",
+        "title": "ファイル表示と同期",
         "more": "その他",
         "fileView": "ファイル表示",
+        "showAssetsFolders": "アセットフォルダーを表示",
         "showKnowledgeBaseStatus": "知識ベースの状態を表示",
         "files": "リモートファイル",
         "showRemoteFiles": "リモートファイルを表示",

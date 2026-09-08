@@ -3915,9 +3915,10 @@
         "importError": "导入失败"
       },
       "cloudLibrary": {
-        "title": "远程文件与知识库",
+        "title": "文件视图与同步",
         "more": "更多",
         "fileView": "文件视图",
+        "showAssetsFolders": "显示资源文件夹",
         "showKnowledgeBaseStatus": "显示知识库状态",
         "files": "远程文件",
         "showRemoteFiles": "显示远程文件",

@@ -729,6 +729,9 @@ interface NoteState {
   showCloudFiles: boolean
   initShowCloudFiles: () => Promise<void>
   setShowCloudFiles: (show: boolean) => Promise<void>
+  showAssetsFolders: boolean
+  initShowAssetsFolders: () => Promise<void>
+  setShowAssetsFolders: (show: boolean) => Promise<void>
   syncStaticAssets: boolean
   initSyncStaticAssets: () => Promise<void>
   setSyncStaticAssets: (enabled: boolean) => Promise<void>
@@ -1430,6 +1433,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ showCloudFiles: show })
     const store = await getStore();
     await store.set('showCloudFiles', show)
+  },
+  showAssetsFolders: true,
+  initShowAssetsFolders: async () => {
+    const store = await getStore()
+    const show = await store.get<boolean>('showAssetsFolders')
+    set({ showAssetsFolders: show ?? true })
+  },
+  setShowAssetsFolders: async (show: boolean) => {
+    set({ showAssetsFolders: show })
+    const store = await getStore()
+    await store.set('showAssetsFolders', show)
   },
   syncStaticAssets: true,
   initSyncStaticAssets: async () => {

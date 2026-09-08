@@ -3730,9 +3730,10 @@
         "importError": "匯入失敗"
       },
       "cloudLibrary": {
-        "title": "遠端檔案與知識庫",
+        "title": "檔案檢視與同步",
         "more": "更多",
         "fileView": "檔案檢視",
+        "showAssetsFolders": "顯示資源資料夾",
         "showKnowledgeBaseStatus": "顯示知識庫狀態",
         "files": "遠端檔案",
         "showRemoteFiles": "顯示遠端檔案",

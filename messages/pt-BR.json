@@ -3723,9 +3723,10 @@
         "importError": "Falha na Importação"
       },
       "cloudLibrary": {
-        "title": "Arquivos remotos e base de conhecimento",
+        "title": "Visualização de arquivos e sincronização",
         "more": "Mais",
         "fileView": "Visualização de arquivos",
+        "showAssetsFolders": "Mostrar pastas de recursos",
         "showKnowledgeBaseStatus": "Mostrar status da base de conhecimento",
         "files": "Arquivos remotos",
         "showRemoteFiles": "Mostrar arquivos remotos",

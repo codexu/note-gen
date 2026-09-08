@@ -3874,9 +3874,10 @@
         "importError": "Import fehlgeschlagen"
       },
       "cloudLibrary": {
-        "title": "Remote-Dateien & Wissensdatenbank",
+        "title": "Dateiansicht & Synchronisierung",
         "more": "Mehr",
         "fileView": "Dateiansicht",
+        "showAssetsFolders": "Asset-Ordner anzeigen",
         "showKnowledgeBaseStatus": "Wissensdatenbank-Status anzeigen",
         "files": "Remote-Dateien",
         "showRemoteFiles": "Remote-Dateien anzeigen",

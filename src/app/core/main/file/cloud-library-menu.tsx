@@ -1,7 +1,7 @@
 'use client'
 
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { Cloud, Database, DatabaseZap, Download, EllipsisVertical, LoaderCircle, PackageOpen, Upload } from 'lucide-react'
+import { Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, Upload } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -30,6 +30,9 @@ export function CloudLibraryMenu({ className }: { className?: string }) {
     showCloudFiles,
     initShowCloudFiles,
     setShowCloudFiles,
+    showAssetsFolders,
+    initShowAssetsFolders,
+    setShowAssetsFolders,
   } = useArticleStore()
   const { processAllDocuments, isProcessing, isAutoVectorEnabled, setAutoVectorEnabled } = useVectorStore()
   const {
@@ -44,7 +47,8 @@ export function CloudLibraryMenu({ className }: { className?: string }) {
   useEffect(() => {
     void initSyncStaticAssets()
     void initShowCloudFiles()
-  }, [initShowCloudFiles, initSyncStaticAssets])
+    void initShowAssetsFolders()
+  }, [initShowAssetsFolders, initShowCloudFiles, initSyncStaticAssets])
 
   async function ensureSyncConfigured() {
     const sync = await getSyncConfiguration()
@@ -190,6 +194,14 @@ export function CloudLibraryMenu({ className }: { className?: string }) {
         </Button>
       }
       items={[
+        {
+          key: 'show-assets-folders',
+          label: t('showAssetsFolders'),
+          icon: <FolderDot />,
+          keepOpen: true,
+          onSelect: () => setShowAssetsFolders(!showAssetsFolders),
+          selected: showAssetsFolders,
+        },
         {
           key: 'show-remote',
           label: t('showRemoteFiles'),

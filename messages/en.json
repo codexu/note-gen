@@ -3892,9 +3892,10 @@
         "importError": "Import Failed"
       },
       "cloudLibrary": {
-        "title": "Remote Files & Knowledge Base",
+        "title": "File View & Sync",
         "more": "More",
         "fileView": "File View",
+        "showAssetsFolders": "Show Asset Folders",
         "showKnowledgeBaseStatus": "Show Knowledge Base Status",
         "files": "Remote Files",
         "showRemoteFiles": "Show Remote Files",

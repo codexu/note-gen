@@ -68,6 +68,7 @@ import {
 import {
   buildFileTreeSearchIndex,
   filterFileTreeByPathSet,
+  filterFileTreeByVisibility,
   getFileTreeSearchMatches,
   searchFileTreeIndex,
   type FileTreeNode,
@@ -77,24 +78,13 @@ import { useSyncAvailability } from './use-sync-availability'
 import useSettingStore from '@/stores/setting'
 import { buildFileTreeSyncStatusMap } from './file-tree-action-policy'
 import { deleteRemoteFile } from '@/lib/sync/remote-library'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
 import {
   clearFolderRemoteState,
   deleteRemoteFolder,
 } from './folder-item/delete-folder-utils'
 
 type SearchPhase = 'idle' | 'local' | 'remote' | 'complete'
-
-// 递归过滤文件树，移除云端文件（如果 showCloudFiles 为 false）
-function filterFileTree(tree: DirTree[], showCloud: boolean): DirTree[] {
-  if (showCloud) return tree
-
-  return tree
-    .filter(item => item.isLocale)
-    .map(item => ({
-      ...item,
-      children: item.children ? filterFileTree(item.children, showCloud) : undefined
-    }))
-}
 
 // 搜索结果按“本地优先、远程补充”展示。同一来源内保持文件树原有顺序，
 // 避免远程结果到达后让已经展示的本地结果相互跳动。
@@ -154,7 +144,9 @@ export function FileManager({
   const remoteSearchLoadedPathsRef = useRef(new Set<string>())
   const scrollSaveTimerRef = useRef<number | null>(null)
   const workspacePath = useSettingStore(state => state.workspacePath)
+  const assetsPath = useSettingStore(state => state.assetsPath)
   const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const t = useTranslations('article.file')
   const tRecordToolbar = useTranslations('record.mark.toolbar')
   const {
@@ -182,6 +174,7 @@ export function FileManager({
     newFolder,
     setFileTree,
     showCloudFiles,
+    showAssetsFolders,
     moveLocalEntry,
     syncOpenTabsForPathChange,
     selectedFilePaths,
@@ -204,6 +197,7 @@ export function FileManager({
     newFolder: state.newFolder,
     setFileTree: state.setFileTree,
     showCloudFiles: state.showCloudFiles,
+    showAssetsFolders: state.showAssetsFolders,
     moveLocalEntry: state.moveLocalEntry,
     syncOpenTabsForPathChange: state.syncOpenTabsForPathChange,
     selectedFilePaths: state.selectedFilePaths,
@@ -849,7 +843,11 @@ export function FileManager({
 
       if (generation !== searchLoadGenerationRef.current) return
 
-      const localTree = filterFileTree(useArticleStore.getState().fileTree, false)
+      const localTree = filterFileTreeByVisibility(useArticleStore.getState().fileTree, {
+        showCloudFiles: false,
+        showAssetsFolders,
+        assetsFolderName,
+      })
       const localIndex = buildFileTreeSearchIndex(localTree)
       const localMatchCount = getFileTreeSearchMatches(localIndex, query).size
       setLocalSearchMatchCount(localMatchCount)
@@ -921,7 +919,7 @@ export function FileManager({
         searchLoadGenerationRef.current += 1
       }
     }
-  }, [filterQuery, loadFolderRemoteFiles, refreshSyncAvailability, searchRetryNonce, showCloudFiles])
+  }, [assetsFolderName, filterQuery, loadFolderRemoteFiles, refreshSyncAvailability, searchRetryNonce, showAssetsFolders, showCloudFiles])
 
   useEffect(() => {
     function handleDeleteSelection() {
@@ -947,8 +945,12 @@ export function FileManager({
 
   // 根据开关状态过滤文件树 - 使用 useMemo 缓存结果
   const filteredFileTree = useMemo(
-    () => filterFileTree(fileTree, showCloudFiles),
-    [fileTree, showCloudFiles]
+    () => filterFileTreeByVisibility(fileTree, {
+      showCloudFiles,
+      showAssetsFolders,
+      assetsFolderName,
+    }),
+    [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles]
   )
   const syncStatusByPath = useMemo(
     () => buildFileTreeSyncStatusMap(fileTree),

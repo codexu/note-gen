@@ -14,7 +14,10 @@ import { Input } from '@/components/ui/input'
 import emitter from '@/lib/emitter'
 import { toast } from '@/hooks/use-toast'
 import useArticleStore from '@/stores/article'
+import useSettingStore from '@/stores/setting'
 import { getFilePathOptions } from '@/lib/workspace'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { isFileTreeEntryVisible } from '@/app/core/main/file/file-tree-model'
 import { EntryListItem } from './entry-list-item'
 import { NameInputDialog } from './name-input-dialog'
 import { BrowserEntry } from './types'
@@ -47,6 +50,16 @@ import { deleteSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 
 function shouldLoadRemoteOnTreeRefresh(options?: { isCreateFlow?: boolean }) {
   return options?.isCreateFlow !== true
+}
+
+function getVisibleDirectoryPath(path: string, assetsFolderName: string) {
+  const normalizedPath = normalizePath(path)
+  const segments = normalizedPath.split('/').filter(Boolean)
+  const assetsIndex = segments.indexOf(assetsFolderName)
+
+  return assetsIndex === -1
+    ? normalizedPath
+    : segments.slice(0, assetsIndex).join('/')
 }
 
 async function isMobileOneDriveSyncEnabled() {
@@ -94,9 +107,12 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     markFileRemote,
     setEntryLoading,
     showCloudFiles,
+    showAssetsFolders,
     cleanTabsByDeletedFile,
     cleanTabsByDeletedFolder,
   } = useArticleStore()
+  const assetsPath = useSettingStore(state => state.assetsPath)
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
 
   const ensureSyncConfigured = useCallback(async () => {
     const sync = await getSyncConfiguration()
@@ -148,14 +164,18 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   const rawEntries = useMemo(() => {
     const children = getChildrenByPath(fileTree, currentDir)
     return children
-      .filter((node) => showCloudFiles || node.isLocale)
+      .filter(node => isFileTreeEntryVisible(node, {
+        showCloudFiles,
+        showAssetsFolders,
+        assetsFolderName,
+      }))
       .filter((node) => node.isDirectory || syncStaticAssets || isMarkdownFile(node))
       .sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1
         if (!a.isDirectory && b.isDirectory) return 1
         return a.name.localeCompare(b.name)
       })
-  }, [fileTree, currentDir, showCloudFiles, syncStaticAssets])
+  }, [assetsFolderName, fileTree, currentDir, showAssetsFolders, showCloudFiles, syncStaticAssets])
 
   const visibleEntries = useMemo(() => {
     const mapped: BrowserEntry[] = rawEntries.map((node) => {
@@ -503,7 +523,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     if (hasInitializedBrowserRef.current) return
     hasInitializedBrowserRef.current = true
 
-    const initialDir = parentPath(normalizedActivePath)
+    const activeParentDir = parentPath(normalizedActivePath)
+    const initialDir = showAssetsFolders
+      ? activeParentDir
+      : getVisibleDirectoryPath(activeParentDir, assetsFolderName)
     setCurrentDir(initialDir)
     setSearchQuery('')
 
@@ -513,7 +536,18 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     }
 
     init()
-  }, [active, normalizedActivePath, refreshRemoteInBackground, refreshTree, resetDragState])
+  }, [active, assetsFolderName, normalizedActivePath, refreshRemoteInBackground, refreshTree, resetDragState, showAssetsFolders])
+
+  useEffect(() => {
+    if (!active || showAssetsFolders) return
+
+    const nextDir = getVisibleDirectoryPath(currentDir, assetsFolderName)
+    if (nextDir === currentDir) return
+
+    setCurrentDir(nextDir)
+    setSearchQuery('')
+    resetDragState()
+  }, [active, assetsFolderName, currentDir, resetDragState, showAssetsFolders])
 
   useEffect(() => {
     if (!active) return

@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { computedParentPath, getCurrentFolder, joinRelativePath } from "@/lib/path";
 import useSettingStore from '@/stores/setting'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
 import { isSkillsFolder } from "@/lib/skills/utils"
 import DownloadFolder from './sync-folder'
 import { UploadFolder } from './upload-folder'
@@ -86,6 +87,7 @@ export function FolderItem({
   const dragExpandTimeoutRef = useRef<number | null>(null)
 
   const { assetsPath, fileManagerTextSize } = useSettingStore()
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
 
@@ -1009,11 +1011,11 @@ export function FolderItem({
                     {isSkillsFolder(item.name) ? (
                       <Sparkles className={`${iconSize} shrink-0 text-primary`} />
                     ) : collapsibleList.includes(path) ? (
-                      assetsPath === item.name
+                      assetsFolderName === item.name
                         ? <FolderOpenDot className={`${iconSize} shrink-0`} />
                         : <FolderOpen className={`${iconSize} shrink-0`} />
                     ) : (
-                      assetsPath === item.name
+                      assetsFolderName === item.name
                         ? <FolderDot className={`${iconSize} shrink-0`} />
                         : <Folder className={`${iconSize} shrink-0`} />
                     )}

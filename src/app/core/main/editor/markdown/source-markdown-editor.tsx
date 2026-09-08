@@ -396,11 +396,7 @@ export function SourceMarkdownEditor({
         return didRedo
       },
       getUndoRedoState,
-      openSearch: () => {
-        const didOpen = openSearchPanel(view)
-        if (didOpen) view.focus()
-        return didOpen
-      },
+      openSearch: () => openSearchPanel(view),
       find: (query) => {
         const normalizedQuery = query.trim().toLocaleLowerCase()
         if (!normalizedQuery) return false

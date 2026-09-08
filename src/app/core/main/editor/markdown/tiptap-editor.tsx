@@ -1703,6 +1703,11 @@ export function TipTapEditor({
 
   // Search and replace panel state
   const [searchReplaceOpen, setSearchReplaceOpen] = useState(false)
+  const [searchFocusRequest, setSearchFocusRequest] = useState(0)
+  const openSearchReplace = useCallback(() => {
+    setSearchReplaceOpen(true)
+    setSearchFocusRequest((request) => request + 1)
+  }, [])
   const [mobileContext, setMobileContext] = useState<MobileSelectionContext>(null)
   const [mobileSheetMode, setMobileSheetMode] = useState<MobileSheetMode>(null)
   const [mobileOutlineOpen, setMobileOutlineOpen] = useState(isMobile && enableOutline)
@@ -3742,7 +3747,7 @@ export function TipTapEditor({
         return
       case 'open-search-replace':
         closeSheet()
-        setSearchReplaceOpen(true)
+        openSearchReplace()
         return
       case 'toggle-outline':
         closeSheet()
@@ -3797,6 +3802,7 @@ export function TipTapEditor({
   }, [
     customAiInstruction,
     editor,
+    openSearchReplace,
     updateMobileContext,
   ])
 
@@ -4895,7 +4901,7 @@ export function TipTapEditor({
       toggleHeading5: (targetEditor) => targetEditor.chain().focus().toggleHeading({ level: 5 }).run(),
       toggleHeading6: (targetEditor) => targetEditor.chain().focus().toggleHeading({ level: 6 }).run(),
       openSearch: () => {
-        setSearchReplaceOpen(true)
+        openSearchReplace()
         return true
       },
       openSlashCommand: (targetEditor) => targetEditor.commands.triggerSlashCommand(),
@@ -5017,6 +5023,7 @@ export function TipTapEditor({
   }, [
     insertImageAtSelection,
     isMobile,
+    openSearchReplace,
     onTerminate,
     onToggleOutline,
   ])
@@ -5139,14 +5146,14 @@ export function TipTapEditor({
         return
       }
 
-      setSearchReplaceOpen(true)
+      openSearchReplace()
     }
 
     emitter.on('editor-search-trigger' as any, handleSearchTrigger)
     return () => {
       emitter.off('editor-search-trigger' as any, handleSearchTrigger)
     }
-  }, [handleToggleViewMode, isActive, isSectionScope, isSectionVirtualView, isSourceView])
+  }, [handleToggleViewMode, isActive, isSectionScope, isSectionVirtualView, isSourceView, openSearchReplace])
 
   useEffect(() => {
     if (
@@ -5200,7 +5207,7 @@ export function TipTapEditor({
       }
 
       storage.searchTerm = pendingSearchKeyword
-      setSearchReplaceOpen(true)
+      openSearchReplace()
       editor.view.dispatch(editor.state.tr)
 
       focusTimer = setTimeout(() => {
@@ -5256,6 +5263,7 @@ export function TipTapEditor({
     isSectionScope,
     isSectionVirtualView,
     isSourceView,
+    openSearchReplace,
   ])
 
   // Handle remote file pull updates via event (instead of initialContent change).
@@ -7243,6 +7251,7 @@ export function TipTapEditor({
             <SearchReplacePanel
               editor={editor}
               open={searchReplaceOpen}
+              focusRequest={searchFocusRequest}
               onOpenChange={setSearchReplaceOpen}
             />
           </>

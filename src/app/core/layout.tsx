@@ -411,10 +411,11 @@ export default function RootLayout({
     const handleKeyDown = (e: KeyboardEvent) => {
       // 搜索快捷键：Cmd+F (macOS) 或 Ctrl+F (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        if (e.defaultPrevented) return
+
         // 检查焦点是否在编辑器内
-        const target = e.target as HTMLElement
-        const editorElement = document.getElementById('aritcle-md-editor')
-        const isFocusInEditor = editorElement && editorElement.contains(target)
+        const target = e.target instanceof Element ? e.target : null
+        const isFocusInEditor = Boolean(target?.closest('#aritcle-md-editor'))
 
         // 如果焦点在编辑器内，触发编辑器搜索
         if (isFocusInEditor) {

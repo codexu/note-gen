@@ -2,7 +2,7 @@
 
 import { Editor } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Search, X, ChevronDown, ChevronUp, Replace, ReplaceAll } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ interface SearchAndReplaceStorage {
 interface SearchReplacePanelProps {
   editor: Editor
   open: boolean
+  focusRequest: number
   onOpenChange: (open: boolean) => void
 }
 
@@ -173,13 +174,19 @@ function clearSearch(editor: Editor) {
   }
 }
 
-export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplacePanelProps) {
+export function SearchReplacePanel({ editor, open, focusRequest, onOpenChange }: SearchReplacePanelProps) {
   const [searchText, setSearchText] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [resultCount, setResultCount] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const isMobile = isMobileDevice()
+
+  const focusSearchInput = useCallback(() => {
+    searchInputRef.current?.focus()
+    searchInputRef.current?.select()
+  }, [])
 
   // 更新搜索结果计数
   const updateResults = useCallback(() => {
@@ -226,6 +233,13 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
     updateResults()
   }, [editor, open, updateResults])
 
+  useEffect(() => {
+    if (!open || isMobile) return
+
+    const focusFrame = requestAnimationFrame(focusSearchInput)
+    return () => cancelAnimationFrame(focusFrame)
+  }, [focusRequest, focusSearchInput, isMobile, open])
+
   // 替换当前
   const handleReplace = useCallback(() => {
     if (!editor) return
@@ -262,7 +276,26 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
     setSearchText('')
     setReplaceText('')
     onOpenChange(false)
-  }, [editor, onOpenChange])
+
+    if (!isMobile) {
+      requestAnimationFrame(() => {
+        if (!editor.isDestroyed) editor.commands.focus()
+      })
+    }
+  }, [editor, isMobile, onOpenChange])
+
+  const handleDrawerOpenChange = useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true)
+      return
+    }
+
+    handleClose()
+  }, [handleClose, onOpenChange])
+
+  const handleDrawerAnimationEnd = useCallback((drawerOpen: boolean) => {
+    if (drawerOpen) focusSearchInput()
+  }, [focusSearchInput])
 
   // 搜索文本变化
   const handleSearchChange = useCallback((value: string) => {
@@ -301,12 +334,26 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
   if (!open) return null
 
   const panelContent = (
-    <>
+    <div
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'f') {
+          event.preventDefault()
+          event.stopPropagation()
+          focusSearchInput()
+          return
+        }
+
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        handleClose()
+      }}
+    >
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            id="searchAndReplace-replace-input"
+            ref={searchInputRef}
             placeholder="搜索..."
             value={searchText}
             onChange={(e) => handleSearchChange(e.target.value)}
@@ -317,8 +364,6 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
                 } else {
                   handleNext()
                 }
-              } else if (e.key === 'Escape') {
-                handleClose()
               }
             }}
             className="pl-8 pr-16"
@@ -412,12 +457,16 @@ export function SearchReplacePanel({ editor, open, onOpenChange }: SearchReplace
           <span>区分大小写</span>
         </label>
       </div>
-    </>
+    </div>
   )
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer
+        open={open}
+        onOpenChange={handleDrawerOpenChange}
+        onAnimationEnd={handleDrawerAnimationEnd}
+      >
         <DrawerContent className="max-h-[80vh]">
           <DrawerHeader>
             <DrawerTitle>搜索和替换</DrawerTitle>

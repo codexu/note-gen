@@ -5,7 +5,7 @@ use crate::tray::create_tray;
 use crate::web_clipper;
 use crate::window;
 use tauri::App;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 use tauri::Manager;
 
 pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
@@ -13,8 +13,8 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     cleanup_temp_screenshot_dir(&app_handle);
 
-    // 在 Windows 上明确禁用窗口装饰
-    #[cfg(target_os = "windows")]
+    // 在 Windows 和 Linux 上明确禁用系统窗口装饰，使用自定义标题栏
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
         if let Some(window) = app_handle.get_webview_window("main") {
             let _ = window.set_decorations(false);

@@ -115,7 +115,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
       const autoMatch = await store.get<boolean>('skills.autoMatch')
 
       set({
-        enabled: enabled ?? false,
+        enabled: enabled ?? true,
         autoMatch: autoMatch ?? true,
       })
     } catch (error) {

@@ -945,7 +945,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       let result = 0
       switch (sortType) {
         case 'name':
-          result = a.name.localeCompare(b.name)
+          result = a.name.localeCompare(b.name, undefined, { numeric: true })
           break
         case 'created':
           if (a.createdAt && b.createdAt) {

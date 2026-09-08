@@ -13,6 +13,7 @@ import { Editor } from '@tiptap/react'
 import { useTranslations } from 'next-intl'
 import { SendHorizontal } from 'lucide-react'
 import { SlashMenu, SlashMenuRef } from './slash-menu'
+import type { SlashCommandItem } from './suggestion'
 import { setMenuKeyDownHandler } from './index'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ interface MenuState {
   range: Range | null
   clientRect: DOMRect | null
   query: string
+  onSelectItem?: (item: SlashCommandItem) => void
 }
 
 interface CustomPromptState {
@@ -84,6 +86,7 @@ export const SlashCommandPortal = () => {
     value: '',
   })
   const menuRef = useRef<SlashMenuRef>(null)
+  const menuContainerRef = useRef<HTMLDivElement>(null)
   const customPromptRef = useRef<HTMLFormElement>(null)
   const customPromptInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
@@ -108,6 +111,7 @@ export const SlashCommandPortal = () => {
         range: Range
         clientRect: DOMRect
         query: string
+        onSelectItem?: (item: SlashCommandItem) => void
       }>
       const newPosition = calculateMenuPosition(event.detail.clientRect)
       setPosition(newPosition)
@@ -117,6 +121,7 @@ export const SlashCommandPortal = () => {
         range: event.detail.range,
         clientRect: event.detail.clientRect,
         query: event.detail.query,
+        onSelectItem: event.detail.onSelectItem,
       })
     }
 
@@ -134,6 +139,7 @@ export const SlashCommandPortal = () => {
         range: event.detail.range,
         clientRect: event.detail.clientRect,
         query: event.detail.query,
+        onSelectItem: undefined,
       }))
     }
 
@@ -208,6 +214,38 @@ export const SlashCommandPortal = () => {
     }
   }, [state.visible])
 
+  useEffect(() => {
+    if (!state.visible || !state.onSelectItem) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        hideMenu()
+        return
+      }
+
+      if (menuRef.current?.onKeyDown({ event })) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuContainerRef.current?.contains(event.target as Node)) {
+        hideMenu()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown, true)
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [hideMenu, state.onSelectItem, state.visible])
+
   const handleCustomPromptSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const instruction = customPrompt.value.trim()
@@ -248,6 +286,7 @@ export const SlashCommandPortal = () => {
     <>
       {slashMenuContext && (
         <div
+          ref={menuContainerRef}
           style={{
             position: 'fixed',
             top: slashMenuContext.position.top,
@@ -261,6 +300,12 @@ export const SlashCommandPortal = () => {
             range={slashMenuContext.range}
             clientRect={slashMenuContext.clientRect}
             query={state.query}
+            onSelectItem={state.onSelectItem
+              ? (item) => {
+                  state.onSelectItem?.(item)
+                  hideMenu()
+                }
+              : undefined}
           />
         </div>
       )}

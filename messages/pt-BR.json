@@ -4212,6 +4212,19 @@
       "editHeading": "Editar título {title}",
       "dragHeading": "Mover {title} com suas subseções"
     },
+    "blockHandle": {
+      "controls": "Ações do bloco",
+      "addBelow": "Adicionar uma linha abaixo",
+      "dragOrOpen": "Arraste o bloco ou clique para abrir as ações",
+      "copyContent": "Copiar conteúdo",
+      "copyMarkdown": "Copiar Markdown",
+      "duplicate": "Duplicar bloco",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo",
+      "clearFormatting": "Limpar formatação",
+      "turnInto": "Transformar em",
+      "paragraph": "Texto"
+    },
     "githubAlert": {
       "changeType": "Alterar tipo de alerta",
       "titleLabel": "Título do alerta",

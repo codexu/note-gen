@@ -14,6 +14,7 @@ interface SlashMenuProps {
   range: Range
   clientRect?: DOMRect | null
   query: string
+  onSelectItem?: (item: SlashCommandItem) => void
 }
 
 export interface SlashMenuRef {
@@ -35,7 +36,7 @@ function ShortcutHint({ keys }: { keys: string[] }) {
   )
 }
 
-export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, range, query }, ref) => {
+export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, range, query, onSelectItem }, ref) => {
   const t = useTranslations('editor.slashCommand')
   const hasQuery = query.trim().length > 0
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0)
@@ -199,10 +200,14 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
   const selectItem = useCallback(
     (item: SlashCommandItem | undefined) => {
       if (item) {
-        item.command({ editor, range })
+        if (onSelectItem) {
+          onSelectItem(item)
+        } else {
+          item.command({ editor, range })
+        }
       }
     },
-    [editor, range]
+    [editor, onSelectItem, range]
   )
 
   const selectVisibleItem = useCallback(

@@ -4400,6 +4400,19 @@
       "line": "Zitiert aus {fileName} Zeile {line}",
       "lines": "Zitiert aus {fileName} Zeilen {start}-{end}"
     },
+    "blockHandle": {
+      "controls": "Blockaktionen",
+      "addBelow": "Zeile darunter einfügen",
+      "dragOrOpen": "Block ziehen oder klicken, um Aktionen zu öffnen",
+      "copyContent": "Inhalt kopieren",
+      "copyMarkdown": "Markdown kopieren",
+      "duplicate": "Block duplizieren",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "clearFormatting": "Formatierung löschen",
+      "turnInto": "Umwandeln in",
+      "paragraph": "Text"
+    },
     "githubAlert": {
       "changeType": "Alert-Typ ändern",
       "titleLabel": "Alert-Titel",

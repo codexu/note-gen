@@ -4431,6 +4431,19 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "blockHandle": {
+      "controls": "块操作",
+      "addBelow": "在下方新增一行",
+      "dragOrOpen": "拖动块，或点击打开操作菜单",
+      "copyContent": "复制内容",
+      "copyMarkdown": "复制 Markdown",
+      "duplicate": "创建副本",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "clearFormatting": "清除格式",
+      "turnInto": "转换为",
+      "paragraph": "正文"
+    },
     "githubAlert": {
       "changeType": "切换提示块类型",
       "titleLabel": "提示块标题",

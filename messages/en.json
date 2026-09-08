@@ -4408,6 +4408,19 @@
       "line": "Quoted from {fileName} line {line}",
       "lines": "Quoted from {fileName} lines {start}-{end}"
     },
+    "blockHandle": {
+      "controls": "Block actions",
+      "addBelow": "Add a line below",
+      "dragOrOpen": "Drag block or click to open actions",
+      "copyContent": "Copy content",
+      "copyMarkdown": "Copy Markdown",
+      "duplicate": "Duplicate block",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "clearFormatting": "Clear formatting",
+      "turnInto": "Turn into",
+      "paragraph": "Text"
+    },
     "githubAlert": {
       "changeType": "Change alert type",
       "titleLabel": "Alert title",

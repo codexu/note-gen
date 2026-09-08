@@ -144,7 +144,13 @@
   margin: 0;
 }
 
-.tiptap-editor .tiptap.ProseMirror > p:not(.is-empty) + p:not(.is-empty) {
+.tiptap-editor .tiptap.ProseMirror > p:empty,
+.tiptap-editor .tiptap.ProseMirror > p:has(> br.ProseMirror-trailingBreak:only-child) {
+  min-height: 1lh;
+}
+
+.tiptap-editor .tiptap.ProseMirror > p:not(:empty):not(:has(> br.ProseMirror-trailingBreak:only-child))
+  + p:not(:empty):not(:has(> br.ProseMirror-trailingBreak:only-child)) {
   margin-top: 0.85em;
 }
 
@@ -1001,28 +1007,15 @@
 
 .tiptap-drag-handle {
   z-index: 40;
-  width: 20px;
-  height: 26px;
+  width: 49px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: hsl(var(--muted-foreground) / 0.6);
-  background: hsl(var(--background) / 0.92);
-  border: 1px solid transparent;
-  border-radius: 5px;
-  cursor: grab;
   opacity: 0;
   pointer-events: none;
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
-}
-
-.tiptap-drag-handle::before {
-  content: '';
-  width: 9px;
-  height: 13.5px;
-  background-image: radial-gradient(currentColor 1.5px, transparent 1.5px);
-  background-position: 0 0;
-  background-size: 4.5px 4.5px;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
 .tiptap-editor:hover .tiptap-drag-handle {
@@ -1031,25 +1024,39 @@
 }
 
 .tiptap-drag-handle:hover,
+.tiptap-drag-handle:focus-within,
+.tiptap-drag-handle[data-gutter-hover="true"],
+.tiptap-drag-handle[data-menu-open="true"],
 .tiptap-drag-handle[data-dragging="true"] {
   color: hsl(var(--foreground));
-  background: hsl(var(--muted));
-  border-color: hsl(var(--border));
   opacity: 1;
   pointer-events: auto;
 }
 
-.tiptap-drag-handle[data-dragging="true"] {
+.tiptap-drag-handle [data-editor-block-add] {
+  cursor: pointer;
+}
+
+.tiptap-drag-handle [data-editor-block-drag-trigger] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.tiptap-drag-handle[data-dragging="true"] [data-editor-block-drag-trigger] {
   cursor: grabbing;
 }
 
-.tiptap-pointer-drop-indicator {
-  position: fixed;
-  z-index: 9999;
-  height: 2px;
-  border-radius: 999px;
-  background: hsl(var(--primary));
-  box-shadow: 0 0 0 1px hsl(var(--background));
+.tiptap-drag-handle[data-dragging="true"] [data-editor-block-add] {
+  visibility: hidden;
+}
+
+.tiptap-editor .ProseMirror .tiptap-block-drag-preview-source {
+  display: none;
+}
+
+.tiptap-editor .ProseMirror .tiptap-block-drag-preview {
+  opacity: 0.72;
+  filter: saturate(0.8);
   pointer-events: none;
 }
 

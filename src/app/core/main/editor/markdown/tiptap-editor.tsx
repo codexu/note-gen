@@ -13,6 +13,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import Typography from '@tiptap/extension-typography'
 import Dropcursor from '@tiptap/extension-dropcursor'
 import DragHandle from '@tiptap/extension-drag-handle'
+import { getSelectionRanges } from '@tiptap/extension-node-range'
 import { renderTableToMarkdown, Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
@@ -22,8 +23,8 @@ import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent } from '@tiptap/core'
 import { Fragment, Slice, type Node as ProseMirrorNode, type NodeType } from '@tiptap/pm/model'
-import { AllSelection, EditorState, Plugin, PluginKey, TextSelection, type Selection } from '@tiptap/pm/state'
-import { redoDepth, undoDepth } from '@tiptap/pm/history'
+import { AllSelection, EditorState, Plugin, PluginKey, TextSelection, type Selection, type Transaction } from '@tiptap/pm/state'
+import { closeHistory, redoDepth, undoDepth } from '@tiptap/pm/history'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import { dropPoint } from '@tiptap/pm/transform'
 import 'katex/dist/katex.min.css'
@@ -31,6 +32,7 @@ import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
 import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
@@ -58,6 +60,7 @@ import { FooterBar } from './footer-bar/index'
 import { Outline } from './outline'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
+import type { SlashCommandItem } from './slash-command/suggestion'
 import {
   fetchCompletionStream,
   fetchEditorAiGenerationStream,
@@ -134,6 +137,10 @@ import {
   type SectionedMarkdownEditorController,
   type SectionedMarkdownSelection,
 } from './sectioned-markdown-editor'
+import {
+  BlockHandleControls,
+  type EditorBlockConversionType,
+} from './block-handle-controls'
 import dynamic from 'next/dynamic'
 import {
   openMarkdownCollaboration,
@@ -345,14 +352,21 @@ const MOBILE_SCROLL_TOP_THRESHOLD = 160
 function createDragHandleElement(): HTMLElement {
   const element = document.createElement('div')
   element.className = 'tiptap-drag-handle'
-  element.setAttribute('aria-hidden', 'true')
+  element.addEventListener('dragstart', (event) => {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  })
   return element
 }
 
-type EditorBlockDragState = {
+type EditorBlockTarget = {
   editor: CoreEditor
   from: number
   to: number
+  expectedDoc?: CoreEditor['state']['doc']
+}
+
+type EditorBlockDragState = EditorBlockTarget & {
   startDoc: CoreEditor['state']['doc']
   targetPos: number | null
 }
@@ -363,8 +377,433 @@ type EditorBlockPointerDragState = EditorBlockDragState & {
   startY: number
   moved: boolean
   indicatorPos: number | null
-  indicator: HTMLDivElement
+  preview: HTMLDivElement
   handle: HTMLElement
+  controls: HTMLElement
+  controlsOffsetY: number
+  controlsFixedLeft: number
+  controlsPosition: string
+  controlsLeft: string
+  controlsTop: string
+}
+
+type EditorBlockDragPreview = {
+  from: number
+  to: number
+  pos: number
+  dom: HTMLDivElement
+}
+
+const editorBlockDragPreviewPluginKey = new PluginKey<DecorationSet>('editorBlockDragPreview')
+
+const EditorBlockDragPreview = Extension.create({
+  name: 'editorBlockDragPreview',
+
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: editorBlockDragPreviewPluginKey,
+      state: {
+        init: () => DecorationSet.empty,
+        apply(tr, current) {
+          const preview = tr.getMeta(editorBlockDragPreviewPluginKey) as EditorBlockDragPreview | null | undefined
+          if (preview === undefined) {
+            return tr.docChanged ? DecorationSet.empty : current.map(tr.mapping, tr.doc)
+          }
+          if (!preview) {
+            return DecorationSet.empty
+          }
+
+          const decorations: Decoration[] = []
+          let sourcePos = preview.from
+          while (sourcePos < preview.to) {
+            const node = tr.doc.nodeAt(sourcePos)
+            if (!node || sourcePos + node.nodeSize > preview.to) {
+              break
+            }
+            decorations.push(Decoration.node(sourcePos, sourcePos + node.nodeSize, {
+              class: 'tiptap-block-drag-preview-source',
+            }))
+            sourcePos += node.nodeSize
+          }
+          decorations.push(Decoration.widget(preview.pos, () => preview.dom, { side: -1 }))
+          return DecorationSet.create(tr.doc, decorations)
+        },
+      },
+      props: {
+        decorations: state => editorBlockDragPreviewPluginKey.getState(state),
+      },
+    })]
+  },
+})
+
+type ResolvedEditorBlockTarget = EditorBlockTarget & {
+  node: ProseMirrorNode
+}
+
+function resolveEditorBlockTarget(target: EditorBlockTarget | null): ResolvedEditorBlockTarget | null {
+  if (
+    !target
+    || target.editor.isDestroyed
+    || (target.expectedDoc && target.editor.state.doc !== target.expectedDoc)
+  ) {
+    return null
+  }
+
+  const { doc } = target.editor.state
+  if (
+    !Number.isInteger(target.from)
+    || !Number.isInteger(target.to)
+    || target.from < 0
+    || target.to <= target.from
+    || target.to > doc.content.size
+  ) {
+    return null
+  }
+
+  const node = doc.nodeAt(target.from)
+  if (!node || target.to !== target.from + node.nodeSize) {
+    return null
+  }
+
+  return { ...target, node }
+}
+
+function getEditorBlockDragTarget(target: EditorBlockTarget): EditorBlockTarget | null {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return null
+  }
+
+  const { editor, from: targetFrom, to: targetTo } = resolvedTarget
+  const { selection } = editor.state
+  if (selection.empty) {
+    return target
+  }
+
+  const selectionRanges = getSelectionRanges(selection.$from, selection.$to, 0)
+  if (selectionRanges.length < 2) {
+    return target
+  }
+
+  const targetIsSelected = selectionRanges.some(({ $from, $to }) => (
+    targetFrom === $from.pos && targetTo === $to.pos
+  ))
+  if (!targetIsSelected) {
+    return target
+  }
+
+  return {
+    editor,
+    from: selectionRanges[0].$from.pos,
+    to: selectionRanges[selectionRanges.length - 1].$to.pos,
+  }
+}
+
+function getEditorBlockTextSelection(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return null
+  }
+
+  const { from, node } = resolvedTarget
+  if ((node.type.name === 'paragraph' || node.type.name === 'heading') && node.isTextblock) {
+    return {
+      from: from + 1,
+      to: from + node.nodeSize - 1,
+    }
+  }
+
+  if (node.type.name !== 'listItem' && node.type.name !== 'taskItem') {
+    return null
+  }
+
+  const firstChild = node.firstChild
+  if (!firstChild?.isTextblock) {
+    return null
+  }
+
+  const childFrom = from + 1
+  return {
+    from: childFrom + 1,
+    to: childFrom + firstChild.nodeSize - 1,
+  }
+}
+
+function getEditorBlockActiveType(target: EditorBlockTarget | null): EditorBlockConversionType | null {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  const selection = getEditorBlockTextSelection(target)
+  if (!resolvedTarget || !selection) {
+    return null
+  }
+
+  const $from = resolvedTarget.editor.state.doc.resolve(selection.from)
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const nodeName = $from.node(depth).type.name
+    if (nodeName === 'bulletList' || nodeName === 'orderedList' || nodeName === 'taskList') {
+      return nodeName
+    }
+  }
+
+  const textBlock = $from.parent
+  if (textBlock.type.name === 'heading') {
+    const level = Number(textBlock.attrs.level)
+    if (level >= 1 && level <= 6) {
+      return `heading${level}` as EditorBlockConversionType
+    }
+  }
+
+  return textBlock.type.name === 'paragraph' ? 'paragraph' : null
+}
+
+function dispatchIsolatedEditorBlockTransaction(editor: CoreEditor, tr: Transaction) {
+  editor.view.dispatch(closeHistory(tr))
+  if (!editor.isDestroyed) {
+    editor.view.dispatch(closeHistory(editor.state.tr))
+  }
+}
+
+function insertEditorBlockBelow(target: EditorBlockTarget | null, command?: SlashCommandItem['command']) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const { editor, from, to, node } = resolvedTarget
+  const { doc, schema } = editor.state
+  const $from = doc.resolve(from)
+  const parent = $from.parent
+  const insertIndex = $from.index() + 1
+  let insertedNode: ProseMirrorNode | null = null
+
+  if (node.type.name === 'listItem' || node.type.name === 'taskItem') {
+    const attrs = node.type.name === 'taskItem' ? { checked: false } : undefined
+    const listItem = node.type.createAndFill(attrs)
+    if (listItem && parent.canReplace(insertIndex, insertIndex, Fragment.from(listItem))) {
+      insertedNode = listItem
+    }
+  } else {
+    const paragraph = schema.nodes.paragraph?.createAndFill()
+    if (paragraph && parent.canReplace(insertIndex, insertIndex, Fragment.from(paragraph))) {
+      insertedNode = paragraph
+    }
+  }
+
+  if (!insertedNode) {
+    return
+  }
+
+  const tr = editor.state.tr.insert(to, insertedNode)
+  if (!tr.docChanged) {
+    return
+  }
+
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(to + 1, tr.doc.content.size))))
+  editor.view.focus()
+  dispatchIsolatedEditorBlockTransaction(editor, tr.scrollIntoView())
+  command?.({
+    editor,
+    range: {
+      from: editor.state.selection.from,
+      to: editor.state.selection.to,
+    },
+  })
+}
+
+function openEditorBlockInsertMenu(target: EditorBlockTarget | null, clientRect: DOMRect) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const frozenTarget: EditorBlockTarget = {
+    editor: resolvedTarget.editor,
+    from: resolvedTarget.from,
+    to: resolvedTarget.to,
+    expectedDoc: resolvedTarget.editor.state.doc,
+  }
+
+  document.dispatchEvent(new CustomEvent('slash-command-show', {
+    detail: {
+      editor: resolvedTarget.editor,
+      range: {
+        from: resolvedTarget.editor.state.selection.from,
+        to: resolvedTarget.editor.state.selection.to,
+      },
+      clientRect,
+      query: '',
+      onSelectItem: (item: SlashCommandItem) => {
+        insertEditorBlockBelow(frozenTarget, item.command)
+      },
+    },
+  }))
+}
+
+function duplicateEditorBlock(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const { editor, from, to } = resolvedTarget
+  const slice = editor.state.doc.slice(from, to)
+  const tr = editor.state.tr.replaceRange(to, to, slice)
+  if (!tr.docChanged) {
+    return
+  }
+
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(to + 1, tr.doc.content.size))))
+  editor.view.focus()
+  dispatchIsolatedEditorBlockTransaction(editor, tr.scrollIntoView())
+}
+
+function canMoveEditorBlock(target: EditorBlockTarget | null, direction: -1 | 1) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return false
+  }
+
+  const $from = resolvedTarget.editor.state.doc.resolve(resolvedTarget.from)
+  const index = $from.index()
+  return direction < 0 ? index > 0 : index < $from.parent.childCount - 1
+}
+
+function moveEditorBlockByOffset(target: EditorBlockTarget | null, direction: -1 | 1) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const { editor, from, to } = resolvedTarget
+  const $from = editor.state.doc.resolve(from)
+  const index = $from.index()
+  if (direction < 0 ? index === 0 : index >= $from.parent.childCount - 1) {
+    return
+  }
+  const sibling = $from.parent.child(index + direction)
+
+  moveEditorBlock({
+    editor,
+    from,
+    to,
+    startDoc: editor.state.doc,
+    targetPos: direction < 0 ? from - sibling.nodeSize : to + sibling.nodeSize,
+  })
+}
+
+function getEditorBlockMarkdown(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget || !resolvedTarget.editor.markdown) {
+    return null
+  }
+
+  const { editor, from, to } = resolvedTarget
+  return editor.markdown.serialize({
+    type: 'doc',
+    content: editor.state.doc.slice(from, to).content.toJSON(),
+  })
+}
+
+function copyEditorBlockContent(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const text = resolvedTarget.editor.state.doc.textBetween(
+    resolvedTarget.from,
+    resolvedTarget.to,
+    '\n',
+    '\n',
+  )
+  void navigator.clipboard.writeText(text)
+}
+
+function copyEditorBlockMarkdown(target: EditorBlockTarget | null) {
+  const markdown = getEditorBlockMarkdown(target)
+  if (markdown !== null) {
+    void navigator.clipboard.writeText(markdown)
+  }
+}
+
+function clearEditorBlockFormatting(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  const selection = getEditorBlockTextSelection(target)
+  if (!resolvedTarget || !selection) {
+    return
+  }
+
+  const { editor } = resolvedTarget
+  const startDoc = editor.state.doc
+  editor
+    .chain()
+    .focus()
+    .command(({ tr }) => {
+      closeHistory(tr)
+      return true
+    })
+    .setTextSelection(selection)
+    .unsetAllMarks()
+    .clearNodes()
+    .scrollIntoView()
+    .run()
+
+  if (!editor.isDestroyed && editor.state.doc !== startDoc) {
+    editor.view.dispatch(closeHistory(editor.state.tr))
+  }
+}
+
+function deleteEditorBlock(target: EditorBlockTarget | null) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  if (!resolvedTarget) {
+    return
+  }
+
+  const { editor, from, to } = resolvedTarget
+  const tr = editor.state.tr.deleteRange(from, to)
+  if (!tr.docChanged) {
+    return
+  }
+
+  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(from, tr.doc.content.size))))
+  editor.view.focus()
+  dispatchIsolatedEditorBlockTransaction(editor, tr.scrollIntoView())
+}
+
+function convertEditorBlock(target: EditorBlockTarget | null, type: EditorBlockConversionType) {
+  const resolvedTarget = resolveEditorBlockTarget(target)
+  const selection = getEditorBlockTextSelection(target)
+  if (!resolvedTarget || !selection) {
+    return
+  }
+
+  const { editor } = resolvedTarget
+  const startDoc = editor.state.doc
+  const chain = editor
+    .chain()
+    .focus()
+    .command(({ tr }) => {
+      closeHistory(tr)
+      return true
+    })
+    .setTextSelection(selection)
+    .clearNodes()
+
+  if (type === 'paragraph') {
+    chain.setParagraph().run()
+  } else if (type.startsWith('heading')) {
+    const level = Number(type.slice('heading'.length)) as 1 | 2 | 3 | 4 | 5 | 6
+    chain.setHeading({ level }).run()
+  } else if (type === 'bulletList') {
+    chain.toggleBulletList().run()
+  } else if (type === 'orderedList') {
+    chain.toggleOrderedList().run()
+  } else {
+    chain.toggleTaskList().run()
+  }
+
+  if (!editor.isDestroyed && editor.state.doc !== startDoc) {
+    editor.view.dispatch(closeHistory(editor.state.tr))
+  }
 }
 
 function moveEditorBlock(state: EditorBlockDragState) {
@@ -393,35 +832,27 @@ function moveEditorBlock(state: EditorBlockDragState) {
 
   tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(mappedInsertPos, tr.doc.content.size))))
   editor.view.focus()
-  editor.view.dispatch(tr.setMeta('uiEvent', 'drop'))
+  dispatchIsolatedEditorBlockTransaction(editor, tr.setMeta('uiEvent', 'drop'))
 }
 
-function getEditorBlockDropIndicatorTop(editor: CoreEditor, pos: number, fallbackTop: number) {
-  const $pos = editor.state.doc.resolve(pos)
-  if ($pos.parent.inlineContent) {
-    return editor.view.coordsAtPos(pos).top
+function createEditorBlockDragPreviewDom(editor: CoreEditor, from: number, to: number) {
+  const preview = document.createElement('div')
+  preview.className = 'tiptap-block-drag-preview'
+
+  let pos = from
+  while (pos < to) {
+    const node = editor.state.doc.nodeAt(pos)
+    const nodeDom = editor.view.nodeDOM(pos)
+    if (!node || pos + node.nodeSize > to) {
+      break
+    }
+    if (nodeDom instanceof HTMLElement) {
+      preview.appendChild(nodeDom.cloneNode(true))
+    }
+    pos += node.nodeSize
   }
 
-  const before = $pos.nodeBefore
-  const after = $pos.nodeAfter
-  if (!before && !after) {
-    return fallbackTop
-  }
-
-  const beforeDom = before
-    ? editor.view.nodeDOM(pos - before.nodeSize)
-    : null
-  const afterDom = after
-    ? editor.view.nodeDOM(pos)
-    : null
-  const beforeRect = beforeDom instanceof HTMLElement ? beforeDom.getBoundingClientRect() : null
-  const afterRect = afterDom instanceof HTMLElement ? afterDom.getBoundingClientRect() : null
-
-  if (beforeRect && afterRect) {
-    return (beforeRect.bottom + afterRect.top) / 2
-  }
-
-  return beforeRect?.bottom ?? afterRect?.top ?? fallbackTop
+  return preview
 }
 
 function clearEditorNativeDropCursor(editor: CoreEditor) {
@@ -1759,8 +2190,12 @@ export function TipTapEditor({
   const onChangeRef = useRef(onChange)
   const classifyCanonicalMarkdownRef = useRef<(value: string) => boolean>(() => false)
   const viewStatePersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const editorDragHandleTargetRef = useRef<{ editor: CoreEditor; from: number; to: number } | null>(null)
+  const editorDragHandleTargetRef = useRef<EditorBlockTarget | null>(null)
+  const editorBlockMenuTargetRef = useRef<EditorBlockTarget | null>(null)
   const editorBlockPointerDragStateRef = useRef<EditorBlockPointerDragState | null>(null)
+  const editorBlockMenuOpenRef = useRef(false)
+  const editorDragHandleElementRef = useRef<HTMLElement | null>(null)
+  const [editorDragHandleElement, setEditorDragHandleElement] = useState<HTMLElement | null>(null)
   const editorShortcuts = useEditorShortcutStore((state) => state.shortcuts)
   const editorShortcutsRef = useRef(editorShortcuts)
   const editorShortcutHandlersRef = useRef<Partial<Record<EditorShortcutCommandId, (targetEditor: CoreEditor) => boolean>>>({})
@@ -1848,6 +2283,13 @@ export function TipTapEditor({
     return editorShortcutHandlersRef.current[id]?.(targetEditor) ?? false
   }, [])
 
+  const renderEditorDragHandle = useCallback(() => {
+    const element = createDragHandleElement()
+    editorDragHandleElementRef.current = element
+    setEditorDragHandleElement(element)
+    return element
+  }, [])
+
   // When file path changes, reset initialization state to avoid old file content overwriting new file
   useEffect(() => {
     if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
@@ -1922,10 +2364,11 @@ export function TipTapEditor({
       Typography,
       SearchAndReplace,
       Dropcursor,
+      EditorBlockDragPreview,
       ...(!isMobile
         ? [
             DragHandle.configure({
-              render: createDragHandleElement,
+              render: renderEditorDragHandle,
               onNodeChange: (options) => {
                 const { editor: targetEditor, node } = options
                 const pos = (options as typeof options & { pos?: number }).pos
@@ -1944,17 +2387,28 @@ export function TipTapEditor({
                         ?.querySelector<HTMLElement>('.ProseMirror')
 
                       if (!editorDom) {
-                        return { x: x - 8, y }
+                        return { x: x - 4, y }
                       }
 
                       const editorRect = editorDom.getBoundingClientRect()
                       const editorPaddingLeft = Number.parseFloat(getComputedStyle(editorDom).paddingLeft) || 0
                       const contentLeft = editorRect.left + editorPaddingLeft
                       const referenceLeft = elements.reference.getBoundingClientRect().left
+                      const handleHeight = elements.floating.getBoundingClientRect().height
+                      const target = editorDragHandleTargetRef.current
+                      const targetDom = target && !target.editor.isDestroyed
+                        ? target.editor.view.nodeDOM(target.from)
+                        : null
+                      const referenceLineHeight = targetDom instanceof HTMLElement
+                        ? Number.parseFloat(getComputedStyle(targetDom).lineHeight)
+                        : handleHeight
+                      const lineOffset = Number.isFinite(referenceLineHeight)
+                        ? Math.max(0, (referenceLineHeight - handleHeight) / 2)
+                        : 0
 
                       return {
-                        x: x + contentLeft - referenceLeft - 8,
-                        y,
+                        x: x + contentLeft - referenceLeft - 4,
+                        y: y + lineOffset,
                       }
                     },
                   },
@@ -2922,6 +3376,45 @@ export function TipTapEditor({
       return
     }
 
+    const handleGutterMouseMove = (event: MouseEvent) => {
+      if (!event.isTrusted) {
+        return
+      }
+
+      const controls = editorDragHandleElementRef.current
+      if (!controls || editorBlockMenuOpenRef.current || editorBlockPointerDragStateRef.current) {
+        return
+      }
+
+      const editorRect = editor.view.dom.getBoundingClientRect()
+      const editorStyle = getComputedStyle(editor.view.dom)
+      const editorPaddingLeft = Number.parseFloat(editorStyle.paddingLeft) || 0
+      const editorPaddingRight = Number.parseFloat(editorStyle.paddingRight) || 0
+      const contentLeft = editorRect.left + editorPaddingLeft
+      const contentRight = editorRect.right - editorPaddingRight
+      const blockProbeX = Math.min(contentLeft + 48, contentRight - 1)
+      const wasInGutter = controls.dataset.gutterHover === 'true'
+      const isInGutter = event.clientX >= contentLeft - 53
+        && event.clientX < contentLeft
+        && event.clientY >= editorRect.top
+        && event.clientY <= editorRect.bottom
+      const isInsideEditor = event.clientX >= editorRect.left
+        && event.clientX <= editorRect.right
+        && event.clientY >= editorRect.top
+        && event.clientY <= editorRect.bottom
+
+      controls.dataset.gutterHover = String(isInGutter)
+      if (isInGutter) {
+        editor.view.dom.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true,
+          clientX: blockProbeX,
+          clientY: event.clientY,
+        }))
+      } else if (wasInGutter && !isInsideEditor) {
+        editor.commands.setMeta('hideDragHandle', true)
+      }
+    }
+
     const finishPointerDrag = (event: PointerEvent, shouldMove: boolean) => {
       const dragState = editorBlockPointerDragStateRef.current
       if (!dragState || dragState.pointerId !== event.pointerId) {
@@ -2929,8 +3422,15 @@ export function TipTapEditor({
       }
 
       editorBlockPointerDragStateRef.current = null
-      dragState.handle.dataset.dragging = 'false'
-      dragState.indicator.remove()
+      dragState.controls.dataset.dragging = 'false'
+      Object.assign(dragState.controls.style, {
+        position: dragState.controlsPosition,
+        left: dragState.controlsLeft,
+        top: dragState.controlsTop,
+      })
+      if (!editor.isDestroyed) {
+        editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
+      }
 
       if (dragState.handle.hasPointerCapture(event.pointerId)) {
         dragState.handle.releasePointerCapture(event.pointerId)
@@ -2939,25 +3439,51 @@ export function TipTapEditor({
       if (shouldMove && dragState.moved) {
         moveEditorBlock(dragState)
       }
+
+      if (dragState.moved) {
+        dragState.controls.dataset.gutterHover = 'false'
+        if (!editor.isDestroyed) {
+          editor.commands.setMeta('hideDragHandle', true)
+        }
+        dragState.handle.dataset.editorBlockDragFinished = 'true'
+        window.setTimeout(() => {
+          delete dragState.handle.dataset.editorBlockDragFinished
+        }, 0)
+        event.preventDefault()
+        event.stopPropagation()
+      }
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) {
+      if (event.button !== 0 || editorBlockMenuOpenRef.current) {
         return
       }
 
       const eventTarget = event.target
       const handle = eventTarget instanceof Element
-        ? eventTarget.closest<HTMLElement>('.tiptap-drag-handle')
+        ? eventTarget.closest<HTMLElement>('[data-editor-block-drag-trigger]')
         : null
       const target = editorDragHandleTargetRef.current
+      const controls = handle?.closest<HTMLElement>('.tiptap-drag-handle')
 
-      if (!handle || !target || target.editor !== editor) {
+      if (
+        !handle
+        || !controls
+        || controls !== editorDragHandleElementRef.current
+        || !target
+        || target.editor !== editor
+      ) {
         return
       }
 
+      const dragTarget = getEditorBlockDragTarget(target)
+      if (!dragTarget) {
+        return
+      }
+      const controlsRect = controls.getBoundingClientRect()
+
       editorBlockPointerDragStateRef.current = {
-        ...target,
+        ...dragTarget,
         startDoc: editor.state.doc,
         targetPos: null,
         pointerId: event.pointerId,
@@ -2965,13 +3491,17 @@ export function TipTapEditor({
         startY: event.clientY,
         moved: false,
         indicatorPos: null,
-        indicator: Object.assign(document.createElement('div'), {
-          className: 'tiptap-pointer-drop-indicator',
-        }),
+        preview: createEditorBlockDragPreviewDom(editor, dragTarget.from, dragTarget.to),
         handle,
+        controls,
+        controlsOffsetY: event.clientY - controlsRect.top,
+        controlsFixedLeft: controlsRect.left,
+        controlsPosition: controls.style.position,
+        controlsLeft: controls.style.left,
+        controlsTop: controls.style.top,
       }
 
-      handle.dataset.dragging = 'true'
+      controls.dataset.dragging = 'true'
       handle.setPointerCapture(event.pointerId)
 
       event.preventDefault()
@@ -2989,8 +3519,18 @@ export function TipTapEditor({
       }
 
       if (dragState.moved) {
+        Object.assign(dragState.controls.style, {
+          position: 'fixed',
+          left: `${dragState.controlsFixedLeft}px`,
+          top: `${event.clientY - dragState.controlsOffsetY}px`,
+        })
+        const editorRect = editor.view.dom.getBoundingClientRect()
+        const editorStyle = getComputedStyle(editor.view.dom)
+        const contentLeft = editorRect.left + (Number.parseFloat(editorStyle.paddingLeft) || 0)
+        const contentRight = editorRect.right - (Number.parseFloat(editorStyle.paddingRight) || 0)
+        const blockProbeX = Math.min(contentLeft + 48, contentRight - 1)
         const targetPos = editor.view.posAtCoords({
-          left: event.clientX,
+          left: Math.max(blockProbeX, Math.min(event.clientX, contentRight - 1)),
           top: event.clientY,
         })?.pos
 
@@ -3001,26 +3541,20 @@ export function TipTapEditor({
 
           if (indicatorPos !== dragState.indicatorPos) {
             dragState.indicatorPos = indicatorPos
-            const editorRect = editor.view.dom.getBoundingClientRect()
-            const indicatorTop = getEditorBlockDropIndicatorTop(editor, indicatorPos, event.clientY)
-
-            Object.assign(dragState.indicator.style, {
-              position: 'fixed',
-              zIndex: '2147483647',
-              left: `${editorRect.left}px`,
-              top: `${indicatorTop - 1}px`,
-              width: `${editorRect.width}px`,
-              height: '3px',
-              borderRadius: '999px',
-              backgroundColor: 'hsl(var(--primary))',
-              boxShadow: '0 0 0 1px hsl(var(--background))',
-              pointerEvents: 'none',
-            })
-
-            if (!dragState.indicator.isConnected) {
-              document.body.appendChild(dragState.indicator)
-            }
+            const preview = indicatorPos >= dragState.from && indicatorPos <= dragState.to
+              ? null
+              : {
+                  from: dragState.from,
+                  to: dragState.to,
+                  pos: indicatorPos,
+                  dom: dragState.preview,
+                } satisfies EditorBlockDragPreview
+            editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, preview))
           }
+        } else {
+          dragState.targetPos = null
+          dragState.indicatorPos = null
+          editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
         }
 
         event.preventDefault()
@@ -3031,16 +3565,34 @@ export function TipTapEditor({
     const handlePointerUp = (event: PointerEvent) => finishPointerDrag(event, true)
     const handlePointerCancel = (event: PointerEvent) => finishPointerDrag(event, false)
 
+    document.addEventListener('mousemove', handleGutterMouseMove, true)
     document.addEventListener('pointerdown', handlePointerDown, true)
     document.addEventListener('pointermove', handlePointerMove, true)
     document.addEventListener('pointerup', handlePointerUp, true)
     document.addEventListener('pointercancel', handlePointerCancel, true)
 
     return () => {
+      document.removeEventListener('mousemove', handleGutterMouseMove, true)
       document.removeEventListener('pointerdown', handlePointerDown, true)
       document.removeEventListener('pointermove', handlePointerMove, true)
       document.removeEventListener('pointerup', handlePointerUp, true)
       document.removeEventListener('pointercancel', handlePointerCancel, true)
+
+      const dragState = editorBlockPointerDragStateRef.current
+      if (dragState?.editor === editor) {
+        editorBlockPointerDragStateRef.current = null
+        dragState.controls.dataset.dragging = 'false'
+        Object.assign(dragState.controls.style, {
+          position: dragState.controlsPosition,
+          left: dragState.controlsLeft,
+          top: dragState.controlsTop,
+        })
+        editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
+        if (dragState.handle.hasPointerCapture(dragState.pointerId)) {
+          dragState.handle.releasePointerCapture(dragState.pointerId)
+        }
+      }
+      delete editorDragHandleElementRef.current?.dataset.gutterHover
     }
   }, [editor, isSectionVirtualView])
 
@@ -7224,6 +7776,55 @@ export function TipTapEditor({
           />
         ) : (
           <>
+            {editorDragHandleElement ? createPortal(
+              <BlockHandleControls
+                editor={editor}
+                getActiveType={() => getEditorBlockActiveType(
+                  editorBlockMenuTargetRef.current ?? editorDragHandleTargetRef.current,
+                )}
+                canConvert={() => Boolean(getEditorBlockTextSelection(
+                  editorBlockMenuTargetRef.current ?? editorDragHandleTargetRef.current,
+                ))}
+                canMoveUp={() => canMoveEditorBlock(editorBlockMenuTargetRef.current, -1)}
+                canMoveDown={() => canMoveEditorBlock(editorBlockMenuTargetRef.current, 1)}
+                onAddBelow={(anchor) => openEditorBlockInsertMenu(
+                  editorDragHandleTargetRef.current,
+                  anchor,
+                )}
+                onCopyContent={() => copyEditorBlockContent(editorBlockMenuTargetRef.current)}
+                onCopyMarkdown={() => copyEditorBlockMarkdown(editorBlockMenuTargetRef.current)}
+                onDuplicate={() => duplicateEditorBlock(editorBlockMenuTargetRef.current)}
+                onMoveUp={() => moveEditorBlockByOffset(editorBlockMenuTargetRef.current, -1)}
+                onMoveDown={() => moveEditorBlockByOffset(editorBlockMenuTargetRef.current, 1)}
+                onClearFormatting={() => clearEditorBlockFormatting(editorBlockMenuTargetRef.current)}
+                onDelete={() => deleteEditorBlock(editorBlockMenuTargetRef.current)}
+                onConvert={(type) => convertEditorBlock(editorBlockMenuTargetRef.current, type)}
+                onMenuOpenChange={(open) => {
+                  editorBlockMenuOpenRef.current = open
+                  editorDragHandleElement.dataset.menuOpen = String(open)
+
+                  if (open) {
+                    const target = editorDragHandleTargetRef.current
+                    editorBlockMenuTargetRef.current = target
+                      ? { ...target, expectedDoc: target.editor.state.doc }
+                      : null
+                  }
+
+                  if (!editor.isDestroyed) {
+                    if (open) {
+                      editor.commands.lockDragHandle()
+                    } else {
+                      editor.commands.unlockDragHandle()
+                    }
+                  }
+
+                  if (!open) {
+                    editorBlockMenuTargetRef.current = null
+                  }
+                }}
+              />,
+              editorDragHandleElement,
+            ) : null}
             <EditorContent editor={editor} className={cn("relative select-text", scrollable && "h-full")}>
               <SmartFileLink editor={editor} activeFilePath={activeFilePath} />
 

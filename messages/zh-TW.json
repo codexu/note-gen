@@ -4238,6 +4238,19 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "blockHandle": {
+      "controls": "區塊操作",
+      "addBelow": "在下方新增一行",
+      "dragOrOpen": "拖動區塊，或點擊開啟操作選單",
+      "copyContent": "複製內容",
+      "copyMarkdown": "複製 Markdown",
+      "duplicate": "建立副本",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "clearFormatting": "清除格式",
+      "turnInto": "轉換為",
+      "paragraph": "內文"
+    },
     "githubAlert": {
       "changeType": "切換提示區塊類型",
       "titleLabel": "提示區塊標題",

@@ -4,7 +4,6 @@ import { Editor } from '@tiptap/react'
 import {
   ChevronDown,
   ChevronRight,
-  GripVertical,
   Heading1,
   Heading2,
   Heading3,
@@ -175,6 +174,7 @@ function isOutlineDragData(value: unknown): value is OutlineDragData {
 
 function SortableOutlineItem({
   heading,
+  indentLevel,
   activeHeadingId,
   collapsedHeadingIds,
   hasChildrenById,
@@ -191,6 +191,7 @@ function SortableOutlineItem({
   onCancelEdit,
 }: {
   heading: HeadingItem
+  indentLevel: number
   activeHeadingId: string | null
   collapsedHeadingIds: Set<string>
   hasChildrenById: Map<string, boolean>
@@ -208,7 +209,6 @@ function SortableOutlineItem({
 }) {
   const t = useTranslations('editor')
   const {
-    attributes,
     listeners,
     setNodeRef,
     setActivatorNodeRef,
@@ -228,6 +228,7 @@ function SortableOutlineItem({
     Boolean(normalizedSearchQuery) &&
     !getNormalizedSearchText(heading.text).includes(normalizedSearchQuery)
   const isEditing = editingHeadingId === heading.id
+  const dragDescriptionId = `outline-drag-description-${heading.id}`
   const headingContentClass = cn(
     'flex min-w-0 flex-1 items-start gap-2 rounded py-1.5 pr-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring [&_svg]:mt-0.5 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:transition-colors',
     isActive
@@ -255,7 +256,7 @@ function SortableOutlineItem({
           heading.level === 1 ? 'font-semibold' : '',
           isSearchContext && !isActive ? 'text-muted-foreground' : ''
         )}
-        style={{ paddingLeft: `${Math.min(heading.level - 1, 5) * 12 + 8}px` }}
+        style={{ paddingLeft: `${Math.min(indentLevel, 5) * 12 + 8}px` }}
       >
         {canCollapse ? (
           <Button
@@ -283,27 +284,9 @@ function SortableOutlineItem({
           >
             {isCollapsed ? <ChevronRight /> : <ChevronDown />}
           </Button>
-        ) : COLLAPSIBLE_HEADING_LEVELS.has(heading.level) ? (
-          <span className="size-6 shrink-0" />
         ) : (
-          null
+          <span aria-hidden="true" className="size-6 shrink-0" />
         )}
-
-        <Button
-          ref={setActivatorNodeRef}
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="mt-0.5 shrink-0 cursor-grab touch-none text-muted-foreground opacity-50 transition-opacity hover:opacity-100 active:cursor-grabbing disabled:cursor-default disabled:opacity-0"
-          aria-label={t('outline.dragHeading', { title: heading.text })}
-          title={t('outline.dragHeading', { title: heading.text })}
-          disabled={dragDisabled}
-          onClick={(event) => event.stopPropagation()}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical />
-        </Button>
 
         {isEditing ? (
           <div className={headingContentClass}>
@@ -319,20 +302,37 @@ function SortableOutlineItem({
           </div>
         ) : (
           <button
+            ref={setActivatorNodeRef}
             type="button"
             onClick={() => onSelect(heading.id)}
             onDoubleClick={() => onStartEdit(heading.id)}
+            onPointerDown={dragDisabled ? undefined : listeners?.onPointerDown}
             onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== 'F2') return
+              if (event.key === 'Enter' || event.key === 'F2') {
+                event.preventDefault()
+                onStartEdit(heading.id)
+                return
+              }
 
-              event.preventDefault()
-              onStartEdit(heading.id)
+              if (!dragDisabled && event.shiftKey && event.code === 'Space') {
+                listeners?.onKeyDown?.(event)
+              }
             }}
-            className={headingContentClass}
+            className={cn(
+              headingContentClass,
+              !dragDisabled && 'cursor-grab active:cursor-grabbing'
+            )}
             aria-current={isActive ? 'true' : undefined}
+            aria-describedby={!dragDisabled ? dragDescriptionId : undefined}
+            aria-keyshortcuts={!dragDisabled ? 'Shift+Space' : undefined}
           >
             {getHeadingIcon(heading.level)}
             <span className={getOutlineHeadingTextClass()}>{heading.text}</span>
+            {!dragDisabled ? (
+              <span id={dragDescriptionId} className="sr-only">
+                {t('outline.dragHeading', { title: heading.text })}
+              </span>
+            ) : null}
           </button>
         )}
       </div>
@@ -345,6 +345,7 @@ function OutlineItems({
   totalHeadingCount,
   activeHeadingId,
   collapsedHeadingIds,
+  ancestorIdsById,
   hasChildrenById,
   parentIdById,
   normalizedSearchQuery,
@@ -363,6 +364,7 @@ function OutlineItems({
   totalHeadingCount: number
   activeHeadingId: string | null
   collapsedHeadingIds: Set<string>
+  ancestorIdsById: Map<string, string[]>
   hasChildrenById: Map<string, boolean>
   parentIdById: Map<string, string | null>
   normalizedSearchQuery: string
@@ -412,6 +414,7 @@ function OutlineItems({
             <SortableOutlineItem
               key={heading.id}
               heading={heading}
+              indentLevel={ancestorIdsById.get(heading.id)?.length ?? 0}
               activeHeadingId={activeHeadingId}
               collapsedHeadingIds={collapsedHeadingIds}
               hasChildrenById={hasChildrenById}
@@ -456,6 +459,8 @@ export function Outline({
   const t = useTranslations('editor')
   // Use ref to always get latest headings in event handlers
   const headingsRef = useRef<HeadingItem[]>([])
+  const headingIdsRef = useRef(new WeakMap<object, string>())
+  const nextHeadingIdRef = useRef(0)
   const outlineScrollContainerRef = useRef<HTMLDivElement>(null)
   const lastAutoExpandedActiveHeadingIdRef = useRef<string | null>(null)
   // Track if editor is ready - use both ref and state
@@ -525,15 +530,18 @@ export function Outline({
     if (!editor) return []
 
     const items: HeadingItem[] = []
-    let index = 0
-
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
         const rawLevel = node.attrs.level
         const level = typeof rawLevel === 'number' ? rawLevel : Number(rawLevel) || 1
         const rawText = node.textContent.trim()
         const text = rawText || t('outline.untitledHeading', { level })
-        const id = `heading-${index}-${level}`
+        let id = headingIdsRef.current.get(node)
+        if (!id) {
+          id = `heading-${nextHeadingIdRef.current}`
+          nextHeadingIdRef.current += 1
+          headingIdsRef.current.set(node, id)
+        }
         const nodeSize = node.nodeSize
         items.push({
           level,
@@ -543,7 +551,6 @@ export function Outline({
           pos,
           nodeSize,
         })
-        index++
       }
     })
 
@@ -1063,6 +1070,7 @@ export function Outline({
           totalHeadingCount={headings.length}
           activeHeadingId={activeHeadingId}
           collapsedHeadingIds={collapsedHeadingIds}
+          ancestorIdsById={outlineMeta.ancestorIdsById}
           hasChildrenById={outlineMeta.hasChildrenById}
           parentIdById={outlineMeta.parentIdById}
           normalizedSearchQuery={normalizedSearchQuery}

@@ -356,7 +356,7 @@ export function BubbleMenu({
       })
     }
 
-    editorElement.addEventListener('mousedown', handlePointerStart)
+    editorElement.addEventListener('mousedown', handlePointerStart, true)
     editorElement.addEventListener('touchstart', handlePointerStart, { passive: true })
     editorElement.addEventListener('keydown', handleKeyDown, true)
     editorElement.addEventListener('compositionstart', handleCompositionStart)
@@ -366,7 +366,7 @@ export function BubbleMenu({
     ownerDocument.addEventListener('touchcancel', finishPointerSelection)
 
     return () => {
-      editorElement.removeEventListener('mousedown', handlePointerStart)
+      editorElement.removeEventListener('mousedown', handlePointerStart, true)
       editorElement.removeEventListener('touchstart', handlePointerStart)
       editorElement.removeEventListener('keydown', handleKeyDown, true)
       editorElement.removeEventListener('compositionstart', handleCompositionStart)

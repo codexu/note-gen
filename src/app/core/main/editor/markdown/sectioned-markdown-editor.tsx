@@ -18,6 +18,7 @@ import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import { normalizeMarkdownPlaceholders } from './markdown-paragraph'
+import { configureGitHubAlertMarkdownIt } from './github-alert-blockquote'
 import { useViewportActivation } from './viewport-activation'
 import { createViewportWorkQueue } from './viewport-work-scheduler'
 import {
@@ -35,6 +36,7 @@ const previewMarkdown = new MarkdownIt({
   linkify: false,
   typographer: false,
 })
+configureGitHubAlertMarkdownIt(previewMarkdown)
 
 const defaultImageRenderer = previewMarkdown.renderer.rules.image
 previewMarkdown.renderer.rules.image = (tokens, index, options, env, self) => {

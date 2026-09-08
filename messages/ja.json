@@ -4248,6 +4248,11 @@
       "line": "{fileName}の{line}行目から引用",
       "lines": "{fileName}の{start}-{end}行目から引用"
     },
+    "githubAlert": {
+      "changeType": "アラートの種類を変更",
+      "titleLabel": "アラートのタイトル",
+      "normalQuote": "通常の引用"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "添削",

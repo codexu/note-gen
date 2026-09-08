@@ -4408,6 +4408,11 @@
       "line": "Quoted from {fileName} line {line}",
       "lines": "Quoted from {fileName} lines {start}-{end}"
     },
+    "githubAlert": {
+      "changeType": "Change alert type",
+      "titleLabel": "Alert title",
+      "normalQuote": "Regular quote"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "Polish",

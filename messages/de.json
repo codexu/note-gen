@@ -4400,6 +4400,11 @@
       "line": "Zitiert aus {fileName} Zeile {line}",
       "lines": "Zitiert aus {fileName} Zeilen {start}-{end}"
     },
+    "githubAlert": {
+      "changeType": "Alert-Typ ändern",
+      "titleLabel": "Alert-Titel",
+      "normalQuote": "Normales Zitat"
+    },
     "bubbleMenu": {
       "ai": "KI",
       "polish": "Überarbeiten",

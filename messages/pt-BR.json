@@ -4212,6 +4212,11 @@
       "editHeading": "Editar título {title}",
       "dragHeading": "Mover {title} com suas subseções"
     },
+    "githubAlert": {
+      "changeType": "Alterar tipo de alerta",
+      "titleLabel": "Título do alerta",
+      "normalQuote": "Citação comum"
+    },
     "bubbleMenu": {
       "ai": "IA",
       "polish": "Polir",

@@ -16,6 +16,7 @@ import { resolveImagePathFromMarkdown } from '@/lib/markdown-image-path'
 import { convertImageByWorkspace } from '@/lib/utils'
 import { getFilePathOptions } from '@/lib/workspace'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
+import { GitHubAlertBlockquote } from './github-alert-blockquote'
 
 export type MarkdownExportFormat = 'markdown' | 'html' | 'json' | 'pdf'
 
@@ -251,7 +252,8 @@ function getMarkdownManager() {
   if (!markdownManager) {
     markdownManager = new MarkdownManager({
       extensions: [
-        StarterKit,
+        GitHubAlertBlockquote,
+        StarterKit.configure({ blockquote: false }),
         TaskList,
         TaskItem.configure({ nested: true }),
       ],

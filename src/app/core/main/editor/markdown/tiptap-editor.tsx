@@ -79,6 +79,7 @@ import {
 } from '@/lib/editor-deactivation'
 import { QuoteMark } from './quote-mark'
 import { MarkdownParagraph, normalizeMarkdownPlaceholders } from './markdown-paragraph'
+import { GitHubAlertBlockquoteEditor } from './github-alert-blockquote-view'
 import { StableCodeBlockLowlight } from './code-block-extension'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import useSettingStore from '@/stores/setting'
@@ -1882,7 +1883,9 @@ export function TipTapEditor({
         getShortcuts: () => editorShortcutsRef.current,
         runCommand: runEditorShortcutCommand,
       }),
+      GitHubAlertBlockquoteEditor,
       StarterKit.configure({
+        blockquote: false,
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },

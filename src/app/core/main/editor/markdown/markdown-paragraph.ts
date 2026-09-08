@@ -14,10 +14,12 @@ declare module '@tiptap/core' {
 
 export const EMPTY_PARAGRAPH_MARKDOWN = '&nbsp;'
 const NBSP_CHAR = '\u00A0'
+const EMPTY_SPACE_ENTITIES = ['&#x20;', '&#32;'] as const
 const TABLE_MARKDOWN_LINE = /^\|(?:[^|\n]*\|)+\s*$/
+const TRAILING_EMPTY_PARAGRAPHS_RE = /(?:^|\n)(?:(?:&nbsp;|&#x20;|&#32;)(?:\n|$))+$/
 
 export function normalizeMarkdownPlaceholders(markdown: string): string {
-  return markdown
+  const normalized = markdown
     .split('\n')
     .map((line) => {
       if (line.trim() === EMPTY_PARAGRAPH_MARKDOWN) {
@@ -31,6 +33,8 @@ export function normalizeMarkdownPlaceholders(markdown: string): string {
       return line
     })
     .join('\n')
+
+  return normalized.replace(TRAILING_EMPTY_PARAGRAPHS_RE, '')
 }
 
 export const MarkdownParagraph = Node.create<MarkdownParagraphOptions>({
@@ -63,7 +67,12 @@ export const MarkdownParagraph = Node.create<MarkdownParagraphOptions>({
     if (
       content.length === 1 &&
       content[0].type === 'text' &&
-      (content[0].text === EMPTY_PARAGRAPH_MARKDOWN || content[0].text === NBSP_CHAR)
+      (
+        content[0].text === EMPTY_PARAGRAPH_MARKDOWN
+        || content[0].text === NBSP_CHAR
+        || content[0].text.trim() === ''
+        || EMPTY_SPACE_ENTITIES.includes(content[0].text as typeof EMPTY_SPACE_ENTITIES[number])
+      )
     ) {
       return helpers.createNode('paragraph', undefined, [])
     }

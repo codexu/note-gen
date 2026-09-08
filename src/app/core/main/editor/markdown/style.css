@@ -366,6 +366,91 @@
   font-style: italic;
 }
 
+/* GitHub Alert 提示块 */
+.tiptap-editor .ProseMirror blockquote.markdown-alert {
+  --github-alert-border: hsl(var(--border));
+  --github-alert-color: hsl(var(--foreground));
+  border-left-color: var(--github-alert-border);
+  padding: 0.5rem 1rem;
+  color: hsl(var(--foreground));
+  font-style: normal;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  color: var(--github-alert-color);
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  fill: currentColor;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-title-input {
+  min-width: 4ch;
+  max-width: calc(100% - 3rem);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-type-picker {
+  flex: none;
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-content > :first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-content > :last-child {
+  margin-bottom: 0;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-content > p:empty {
+  min-height: 1em;
+}
+
+.tiptap-editor .ProseMirror .markdown-alert-content > p:first-child:empty:not(:last-child) {
+  display: none;
+}
+
+.tiptap-editor .ProseMirror blockquote.markdown-alert-note {
+  --github-alert-border: #0969da;
+  --github-alert-color: #0969da;
+}
+
+.tiptap-editor .ProseMirror blockquote.markdown-alert-tip {
+  --github-alert-border: #1a7f37;
+  --github-alert-color: #1a7f37;
+}
+
+.tiptap-editor .ProseMirror blockquote.markdown-alert-important {
+  --github-alert-border: #8250df;
+  --github-alert-color: #8250df;
+}
+
+.tiptap-editor .ProseMirror blockquote.markdown-alert-warning {
+  --github-alert-border: #9a6700;
+  --github-alert-color: #9a6700;
+}
+
+.tiptap-editor .ProseMirror blockquote.markdown-alert-caution {
+  --github-alert-border: #cf222e;
+  --github-alert-color: #d1242f;
+}
+
 /* 分隔线 */
 .tiptap-editor .ProseMirror hr {
   border: none;
@@ -1025,6 +1110,35 @@
 
 .dark .tiptap-editor .ProseMirror blockquote {
   color: hsl(var(--muted-foreground));
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert {
+  color: hsl(var(--foreground));
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert-note {
+  --github-alert-border: #1f6feb;
+  --github-alert-color: #4493f8;
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert-tip {
+  --github-alert-border: #238636;
+  --github-alert-color: #3fb950;
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert-important {
+  --github-alert-border: #8957e5;
+  --github-alert-color: #ab7df8;
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert-warning {
+  --github-alert-border: #9e6a03;
+  --github-alert-color: #d29922;
+}
+
+.dark .tiptap-editor .ProseMirror blockquote.markdown-alert-caution {
+  --github-alert-border: #da3633;
+  --github-alert-color: #f85149;
 }
 
 .dark .tiptap-editor .ProseMirror table th {

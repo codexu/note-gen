@@ -4431,6 +4431,11 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "githubAlert": {
+      "changeType": "切换提示块类型",
+      "titleLabel": "提示块标题",
+      "normalQuote": "普通引用"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "润色",

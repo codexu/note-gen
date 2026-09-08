@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useMemo, useState } from 'react'
+import { type CSSProperties, type ReactNode, useMemo, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,9 @@ interface ResponsiveSelectProps {
   id?: string
   className?: string
   placeholder?: ReactNode
+  appearance?: 'default' | 'inline'
+  triggerContent?: ReactNode
+  showChevron?: boolean
 }
 
 export function ResponsiveSelect({
@@ -49,9 +52,28 @@ export function ResponsiveSelect({
   id,
   className,
   placeholder,
+  appearance = 'default',
+  triggerContent,
+  showChevron = true,
 }: ResponsiveSelectProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
+  const inlineTriggerStyle: CSSProperties | undefined = appearance === 'inline'
+    ? {
+        width: 'auto',
+        minWidth: 0,
+        height: 'auto',
+        border: 0,
+        borderRadius: 0,
+        background: 'transparent',
+        padding: 0,
+        color: 'inherit',
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        lineHeight: 'inherit',
+        boxShadow: 'none',
+      }
+    : undefined
   const selectedOption = useMemo(
     () => options.find(option => option.value === value),
     [options, value],
@@ -61,8 +83,17 @@ export function ResponsiveSelect({
     const groups = Array.from(new Set(options.map(option => option.group || '')))
     return (
       <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger id={id} className={className}>
-          <SelectValue placeholder={placeholder} />
+        <SelectTrigger
+          id={id}
+          className={className}
+          style={inlineTriggerStyle}
+          title={title}
+          aria-label={title}
+          showChevron={showChevron}
+        >
+          {triggerContent
+            ? <SelectValue>{triggerContent}</SelectValue>
+            : <SelectValue placeholder={placeholder} />}
         </SelectTrigger>
         <SelectContent>
           {groups.map(group => (
@@ -85,15 +116,21 @@ export function ResponsiveSelect({
       <Button
         id={id}
         type="button"
-        variant="outline"
+        variant={appearance === 'inline' ? 'ghost' : 'outline'}
         disabled={disabled}
-        className={cn('h-10 w-full justify-between px-3 font-normal', className)}
+        className={cn(
+          appearance === 'inline' ? 'w-auto justify-start' : 'h-10 w-full justify-between px-3 font-normal',
+          className,
+        )}
+        style={inlineTriggerStyle}
+        title={title}
+        aria-label={title}
         onClick={() => setOpen(true)}
       >
-        <span className={cn('truncate', !selectedOption && 'text-muted-foreground')}>
-          {selectedOption?.label ?? placeholder}
+        <span className={cn('flex items-center truncate', !selectedOption && 'text-muted-foreground')}>
+          {triggerContent ?? selectedOption?.label ?? placeholder}
         </span>
-        <ChevronDown aria-hidden="true" />
+        {showChevron ? <ChevronDown aria-hidden="true" /> : null}
       </Button>
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent>

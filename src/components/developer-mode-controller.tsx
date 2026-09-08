@@ -5,6 +5,38 @@ import { closeDeveloperTools, openDeveloperTools, supportsNativeDeveloperTools }
 import { clearRuntimeLogs } from '@/lib/diagnostics/runtime-log-buffer'
 import useSettingStore from '@/stores/setting'
 
+const TEXT_INPUT_TYPES = new Set([
+  'email',
+  'number',
+  'password',
+  'search',
+  'tel',
+  'text',
+  'url',
+])
+const EDITOR_TEXT_SURFACE_SELECTOR = '.ProseMirror, .cm-content'
+
+function shouldAllowNativeTextContextMenu(target: EventTarget | null): boolean {
+  const element = target instanceof Element
+    ? target
+    : target instanceof Node
+      ? target.parentElement
+      : null
+  if (!element) return false
+
+  const input = element.closest('input')
+  if (input instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(input.type)) return true
+
+  if (element.closest('textarea') instanceof HTMLTextAreaElement) return true
+  if (element instanceof HTMLElement && element.isContentEditable) return true
+
+  const editorRoot = element.closest(EDITOR_TEXT_SURFACE_SELECTOR)
+  if (!editorRoot) return false
+
+  const nonEditableAncestor = element.closest('[contenteditable="false"]')
+  return !nonEditableAncestor || nonEditableAncestor === editorRoot
+}
+
 export function DeveloperModeController() {
   const developerMode = useSettingStore(state => state.developerMode)
 
@@ -20,6 +52,10 @@ export function DeveloperModeController() {
     }
 
     const handleContextMenu = (event: MouseEvent) => {
+      // Keep the WebView's native editing menu for text controls. It preserves
+      // the browser's real selection/clipboard pipeline while the global guard
+      // still hides the general developer context menu elsewhere in the app.
+      if (nativeDeveloperToolsSupported && shouldAllowNativeTextContextMenu(event.target)) return
       if (!developerMode || !nativeDeveloperToolsSupported) event.preventDefault()
     }
 

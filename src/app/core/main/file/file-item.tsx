@@ -1,12 +1,8 @@
+import { isMobileDevice } from '@/lib/check'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
-import useArticleStore, {
-  beginDeferredFileActivation,
-  isDeferredFileActivationCurrent,
-  type DirTree,
-  type FileTabOpenMode,
-} from "@/stores/article";
+import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
@@ -17,7 +13,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/sync/github.types";
 import { S3Config, WebDAVConfig } from "@/types/sync";
 import { cloneDeep } from "lodash-es";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
@@ -113,7 +109,6 @@ export function FileItem({
   const [renameError, setRenameError] = useState<string | null>(null)
   const [, setIsComposing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const pendingDownloadRef = useRef<Promise<boolean> | null>(null)
   const {
     activeFilePath,
     setActiveFilePath,
@@ -265,62 +260,40 @@ export function FileItem({
     setName(e.currentTarget.value)
   }, [])
 
-  async function ensureFileAvailable() {
-    if (item.isLocale) return true
-    if (!pendingDownloadRef.current) {
-      setEntryLoading(path, true)
-      pendingDownloadRef.current = (async () => {
-        try {
-          await downloadRemoteLibraryFile(path)
-          markFileLocal(path)
-          return true
-        } catch (error) {
-          toast({
-            title: t('cloudLibrary.operationFailed'),
-            description: error instanceof Error ? error.message : String(error),
-            variant: 'destructive',
-          })
-          return false
-        } finally {
-          setEntryLoading(path, false)
-        }
-      })()
-    }
-
-    const pendingDownload = pendingDownloadRef.current
-    const available = await pendingDownload
-    if (pendingDownloadRef.current === pendingDownload) pendingDownloadRef.current = null
-    return available
-  }
-
-  async function handleSelectFile(tabOpenMode: FileTabOpenMode = 'preview') {
-    const activationIntentId = beginDeferredFileActivation()
+  async function handleSelectFile() {
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
     const currentPath = computedParentPath(item)
 
-    if (!await ensureFileAvailable()) return
-    if (!isDeferredFileActivationCurrent(activationIntentId)) return
-
-    const tabOptions = isMobile
-      ? undefined
-      : {
-          tabOpenMode,
-          tabMetadata: { name: item.name, isFolder: false },
-        }
+    if (!item.isLocale) {
+      setEntryLoading(currentPath, true)
+      try {
+        await downloadRemoteLibraryFile(currentPath)
+        markFileLocal(currentPath)
+      } catch (error) {
+        toast({
+          title: t('cloudLibrary.operationFailed'),
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        })
+        return
+      } finally {
+        setEntryLoading(currentPath, false)
+      }
+    }
 
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
       // 图片文件：设置 activeFilePath，让 EditorLayout 显示图片编辑器
-      await setActiveFilePath(currentPath, true, tabOptions)
+      setActiveFilePath(currentPath)
     } else if (item.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template)$/i)) {
       // Markdown/文本文件：设置 activeFilePath
-      await setActiveFilePath(currentPath, true, tabOptions)
+      setActiveFilePath(currentPath)
 
       // 检查是否是远程文件
       // 读取内容的逻辑移到 EditorLayout 中处理，避免重复渲染
     } else {
       // 其他文件类型：设置 activeFilePath，让 EditorLayout 显示 UnsupportedFile 组件
-      await setActiveFilePath(currentPath, true, tabOptions)
+      setActiveFilePath(currentPath)
     }
   }
 
@@ -330,15 +303,7 @@ export function FileItem({
       return
     }
 
-    if (e.detail > 1) return
-    void handleSelectFile('preview')
-  }
-
-  function handleFileDoubleClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    focusSidebar?.()
-    if (e.metaKey || e.ctrlKey || e.shiftKey) return
-    if ((e.target as HTMLElement).closest('input,button,[contenteditable="true"]')) return
-    void handleSelectFile('pinned')
+    void handleSelectFile()
   }
 
   function handleFileContextMenu(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
@@ -697,22 +662,18 @@ export function FileItem({
   }
 
   async function handleShowFileManager() {
-    // 获取工作区路径信息
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
-    
-    // 确定文件所在的目录路径
-    const folderPath = item.parent ? computedParentPath(item.parent) : ''
-    
-    // 根据工作区类型确定正确的路径
+    const isMobile = isMobileDevice()
+    const targetPath = isMobile ? path.split('/').slice(0, -1).join('/') : path
+    const openInFileManager = isMobile ? openPath : revealItemInDir
+
     if (workspace.isCustom) {
-      // 自定义工作区 - 直接使用工作区路径
-      const pathOptions = await getFilePathOptions(folderPath)
-      openPath(pathOptions.path)
+      const pathOptions = await getFilePathOptions(targetPath)
+      await openInFileManager(pathOptions.path)
     } else {
-      // 默认工作区 - 使用 AppData 目录
       const appDir = await appDataDir()
-      openPath(await join(appDir, 'article', folderPath))
+      await openInFileManager(await join(appDir, 'article', targetPath))
     }
   }
 
@@ -926,7 +887,6 @@ export function FileItem({
             selected={isSelected}
             treeItemProps={treeItemProps}
             onActivate={handleFileClick}
-            onDoubleClick={handleFileDoubleClick}
             onContextMenu={handleFileContextMenu}
           >
             {

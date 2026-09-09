@@ -1,10 +1,12 @@
 'use client'
 
+import { isMobileDevice } from '@/lib/check'
+
 import { useEffect, useState } from 'react'
 import { File, FolderOpen, ExternalLink } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 
@@ -133,19 +135,21 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
     }
   }
 
-  // 打开文件目录
+  // 在文件管理器中定位文件
   const handleOpenDirectory = async () => {
     try {
       const workspace = await getWorkspacePath()
-      const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))
+      const isMobile = isMobileDevice()
+      const targetPath = isMobile ? filePath.split('/').slice(0, -1).join('/') : filePath
+      const openInFileManager = isMobile ? openPath : revealItemInDir
 
       if (workspace.isCustom) {
-        const pathOptions = await getFilePathOptions(folderPath)
-        await openPath(pathOptions.path)
+        const pathOptions = await getFilePathOptions(targetPath)
+        await openInFileManager(pathOptions.path)
       } else {
         const appDir = await appDataDir()
         const { join } = await import('@tauri-apps/api/path')
-        await openPath(await join(appDir, 'article', folderPath))
+        await openInFileManager(await join(appDir, 'article', targetPath))
       }
     } catch (error) {
       console.error('Failed to open directory:', error)

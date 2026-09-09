@@ -17,7 +17,11 @@ import { setLocalRecordedSha } from '@/lib/sync/auto-sync'
 import { debugSyncPerf } from '@/lib/sync/remote-file'
 import { generateGitSyncCommitMessage } from '@/lib/sync/commit-message'
 import { uploadRemoteText } from '@/lib/sync/remote-library'
-import { flushPendingStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
+import {
+  enqueueStaticAssetSync,
+  flushPendingStaticAssetSync,
+} from '@/lib/sync/static-asset-sync-queue'
+import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import type { S3Config, WebDAVConfig } from '@/types/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 
@@ -212,6 +216,15 @@ export function SyncButton({
       logPerf('readLocalFile', {
         workspaceCustom: workspace.isCustom,
         contentLength: content.length,
+      })
+
+      const referencedImagePaths = collectLocalMarkdownImagePaths(content, activeFilePath)
+      for (const imagePath of referencedImagePaths) {
+        enqueueStaticAssetSync(imagePath)
+      }
+      await flushPendingStaticAssetSync({ force: true })
+      logPerf('flushReferencedStaticAssets', {
+        referencedImages: referencedImagePaths.length,
       })
 
       const needsCommitMessage = needsRepo

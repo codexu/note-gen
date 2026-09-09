@@ -210,6 +210,53 @@ function rewriteMarkdownImages(content: string, rewriteSource: (source: string) 
   return rewritten
 }
 
+export function collectLocalMarkdownImagePaths(
+  content: string,
+  markdownPath: string,
+): string[] {
+  const paths = new Set<string>()
+  const normalizedMarkdownPath = normalizeWorkspacePath(markdownPath)
+  const collectSource = (source: string) => {
+    const wrappedInAngles = source.startsWith('<') && source.endsWith('>')
+    const unwrappedSource = wrappedInAngles ? source.slice(1, -1) : source
+    const { pathname } = splitPathSuffix(unwrappedSource)
+    const decodedPathname = decodePath(pathname)
+
+    if (
+      !decodedPathname
+      || EXTERNAL_MEDIA_PATH_RE.test(decodedPathname)
+      || decodedPathname.startsWith('/')
+      || decodedPathname.startsWith('\\')
+    ) {
+      return source
+    }
+
+    const resolvedPath = normalizeWorkspacePath(
+      resolveImagePathFromMarkdown(normalizedMarkdownPath, decodedPathname),
+    )
+    if (
+      resolvedPath
+      && !resolvedPath.split('/').some(segment => segment.startsWith('.'))
+    ) {
+      paths.add(resolvedPath)
+    }
+
+    return source
+  }
+
+  rewriteMarkdownImages(content, collectSource)
+  // Only image syntax is inspected. Ordinary Markdown links remain regular attachments.
+  content.replace(
+    HTML_IMAGE_RE,
+    (_match, _before: string, _quote: string, source: string) => {
+      collectSource(source)
+      return _match
+    },
+  )
+
+  return [...paths]
+}
+
 function rewriteMediaSource(
   source: string,
   previousMarkdownPath: string,

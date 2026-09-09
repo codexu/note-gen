@@ -15,7 +15,9 @@ import { debugSyncPerf } from './remote-file'
 import { generateGitSyncCommitMessage } from './commit-message'
 import { getSyncMetadataKey } from './sync-context'
 import { supportsCloudFolderWorkspace } from './cloud-folder'
+import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import {
+  enqueueStaticAssetSync,
   finishStaticAssetSyncWorkspaceSwitch,
   flushPendingStaticAssetSync,
   prepareStaticAssetSyncForWorkspaceSwitch,
@@ -363,6 +365,17 @@ class SyncPushQueue {
           attempt,
           workspaceCustom: workspace.isCustom,
           contentLength: content.length,
+        })
+
+        const referencedImagePaths = collectLocalMarkdownImagePaths(content, path)
+        for (const imagePath of referencedImagePaths) {
+          enqueueStaticAssetSync(imagePath)
+        }
+        await flushPendingStaticAssetSync({ force: true })
+        if (!this.isTaskCurrent(task)) return { success: false }
+        logPerf('flushReferencedStaticAssets', {
+          attempt,
+          referencedImages: referencedImagePaths.length,
         })
 
         // 检查本地内容是否与远程相同，如果相同则跳过推送

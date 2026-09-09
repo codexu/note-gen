@@ -1,6 +1,6 @@
 'use client'
 
-import { exists, readFile } from '@tauri-apps/plugin-fs'
+import { exists, lstat, readFile } from '@tauri-apps/plugin-fs'
 
 import { getCurrentFolder } from '@/lib/path'
 import { getFilePathOptions } from '@/lib/workspace'
@@ -105,13 +105,32 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return true
 }
 
-async function readLocalBytes(path: string): Promise<Uint8Array | null> {
-  const pathOptions = await getFilePathOptions(path)
-  const fileExists = pathOptions.baseDir
-    ? await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
-    : await exists(pathOptions.path)
-  if (!fileExists) return null
+async function isSafeLocalAsset(path: string): Promise<boolean> {
+  const segments = path.split('/').filter(Boolean)
 
+  for (let index = 1; index <= segments.length; index += 1) {
+    const candidate = segments.slice(0, index).join('/')
+    const pathOptions = await getFilePathOptions(candidate)
+    const candidateExists = pathOptions.baseDir
+      ? await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await exists(pathOptions.path)
+    if (!candidateExists) return false
+
+    const info = pathOptions.baseDir
+      ? await lstat(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await lstat(pathOptions.path)
+    if (info.isSymlink) return false
+    if (index < segments.length && !info.isDirectory) return false
+    if (index === segments.length && !info.isFile) return false
+  }
+
+  return segments.length > 0
+}
+
+async function readLocalBytes(path: string): Promise<Uint8Array | null> {
+  if (!await isSafeLocalAsset(path)) return null
+
+  const pathOptions = await getFilePathOptions(path)
   return pathOptions.baseDir
     ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
     : await readFile(pathOptions.path)

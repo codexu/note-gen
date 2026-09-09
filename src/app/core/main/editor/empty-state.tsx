@@ -184,7 +184,7 @@ export function EmptyState({
   const { setLeftSidebarTab } = useSidebarStore()
   const t = useTranslations('article.emptyState')
   const { shortcuts } = useShortcutStore()
-  const { addWorkspaceHistory } = useSettingStore()
+  const { setWorkspacePath } = useSettingStore()
   const [textRecordShortcut, setTextRecordShortcut] = useState('')
   const [preferences, setPreferences] = useState(DEFAULT_NEW_TAB_PREFERENCES)
   const sensors = useSensors(
@@ -309,15 +309,7 @@ export function EmptyState({
       })
       
       if (selected && typeof selected === 'string') {
-        const store = await Store.load('store.json')
-        const { waitForLocalMcpWorkspaceWrites } = await import('@/lib/local-mcp/workspace-guard')
-        await waitForLocalMcpWorkspaceWrites()
-        await store.set('workspacePath', selected)
-        await store.save()
-        
-        // 添加到历史记录
-        await addWorkspaceHistory(selected)
-        
+        await setWorkspacePath(selected)
         // 重新加载页面以应用新工作区
         window.location.reload()
       }

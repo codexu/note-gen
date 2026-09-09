@@ -23,7 +23,10 @@ import { search, type SearchableItem } from '@/lib/search-utils'
 import { downloadRemoteLibraryFile } from '@/lib/sync/remote-library'
 import { cn } from '@/lib/utils'
 import type { KnowledgeSearchCandidate } from '@/types/knowledge'
-import useArticleStore from '@/stores/article'
+import useArticleStore, {
+  beginDeferredFileActivation,
+  isDeferredFileActivationCurrent,
+} from '@/stores/article'
 import useCanvasStore from '@/stores/canvas'
 import useMarkStore from '@/stores/mark'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -528,19 +531,24 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
   const hasRelatedResults = relatedGroups.some(group => group.results.length > 0)
 
   const handleSelect = useCallback(async (result: SidebarSearchResult) => {
+    const activationIntent = beginDeferredFileActivation()
     await setLeftSidebarTab(TAB_BY_TYPE[result.searchType])
+    if (!isDeferredFileActivationCurrent(activationIntent)) return
     await showCenterPanel()
+    if (!isDeferredFileActivationCurrent(activationIntent)) return
     router.push('/core/main')
 
     if (result.searchType === 'record') {
       let mark = allMarks.find(item => item.id === result.markId)
       if (!mark) {
         await fetchAllMarks()
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
         mark = useMarkStore.getState().allMarks.find(item => item.id === result.markId)
       }
       if (!mark) return
       setActiveMarkId(mark.id)
       await addTab(createRecordTab(mark, t(`record.mark.type.${mark.type}`)))
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
       await setActiveFilePath('')
       return
     }
@@ -551,6 +559,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
         setPendingCanvasFocus({ canvasId: result.canvasId, nodeIds: result.nodeIds })
       }
       const project = await openCanvasProject(result.canvasId)
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
       if (project) await addTab(createCanvasTab(project))
       return
     }
@@ -559,6 +568,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
     try {
       if (result.isLocale === false) {
         await downloadRemoteLibraryFile(result.path)
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
         markFileLocal(result.path)
       }
       const parts = result.path.split('/')
@@ -568,9 +578,10 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
         currentPath = currentPath ? `${currentPath}/${part}` : part
         await setCollapsibleList(currentPath, true)
       }
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
       setMatchPosition(result.firstMatchIndex ?? null)
       setPendingSearchKeyword(result.firstMatchIndex !== undefined ? normalizedQuery : '')
-      await setActiveFilePath(result.path)
+      await setActiveFilePath(result.path, true, { tabOpenMode: 'preview' })
     } catch (error) {
       console.error('Failed to open sidebar search result:', error)
       toast({ title: t('search.openFailed'), variant: 'destructive' })

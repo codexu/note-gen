@@ -191,7 +191,11 @@ export function AgentPanelWithRag({
     }
     const filepath = detail.locator?.filePath || detail.filepath
     if (!filepath) return
-    await setActiveFilePath(filepath)
+    await setActiveFilePath(
+      filepath,
+      true,
+      pathname.startsWith('/mobile') ? undefined : { tabOpenMode: 'preview' },
+    )
   }
 
   const sourceIcon = (sourceType?: RagSourceDetail['sourceType']) => {

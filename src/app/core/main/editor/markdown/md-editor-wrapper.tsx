@@ -39,6 +39,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     currentArticle,
     justPulledFile,
     articleLoading,
+    setTabDisposition,
   } = useArticleStore(useShallow((state) => ({
     saveCurrentArticle: state.saveCurrentArticle,
     isPulling: state.isPulling,
@@ -46,6 +47,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     currentArticle: state.currentArticle,
     justPulledFile: state.justPulledFile,
     articleLoading: state.loading,
+    setTabDisposition: state.setTabDisposition,
   })))
   const {
     enableOutline,
@@ -367,6 +369,10 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     }
 
     if (filePath) {
+      const previewTab = useArticleStore.getState().openTabs.find(tab => (
+        tab.path === filePath && tab.preview
+      ))
+      if (previewTab) void setTabDisposition(previewTab.id, 'regular')
       saveCurrentArticle(content, filePath)
     } else if (!filePath && !isCreatingFileRef.current) {
       // Auto-create untitled file
@@ -375,7 +381,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
         isCreatingFileRef.current = false
       })
     }
-  }, [saveCurrentArticle, filePath, tabContentsRef])
+  }, [saveCurrentArticle, setTabDisposition, filePath, tabContentsRef])
 
   // Handle editor ready - store editor instance
   const handleEditorReady = useCallback((editor: any) => {

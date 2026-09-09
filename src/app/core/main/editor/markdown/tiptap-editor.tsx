@@ -4005,7 +4005,11 @@ export function TipTapEditor({
     const editorElement = editorContainerRef.current
 
     const openFileInApp = async (path: string) => {
-      await useArticleStore.getState().setActiveFilePath(path)
+      await useArticleStore.getState().setActiveFilePath(
+        path,
+        true,
+        isMobile ? undefined : { tabOpenMode: 'preview' },
+      )
     }
 
     const editLink = (anchor: HTMLAnchorElement, href: string) => {

@@ -54,6 +54,7 @@ import {
   type EditorPathWriteTransactionContext,
 } from '@/lib/editor-deactivation'
 import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
+import type { EditorWorkspaceLayout } from '@/app/core/main/editor/editor-group-layout'
 
 type SyncPushCompletedEvent = Events['sync-push-completed']
 type SyncPushCompletedListener = (event: SyncPushCompletedEvent) => void
@@ -75,6 +76,18 @@ const inFlightArticleSaves = new Map<string, Promise<void>>()
 let vectorCalculationTimer: ReturnType<typeof setTimeout> | null = null
 let pendingVectorCalculation: { path: string; content: string } | null = null
 let inFlightVectorCalculation: { path: string; promise: Promise<void> } | null = null
+let fileTabOpenRequestSequence = 0
+let fileActivationIntentSequence = 0
+const EDITOR_WORKSPACE_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
+let persistedEditorNavigationQueue: Promise<void> = Promise.resolve()
+
+export function beginDeferredFileActivation() {
+  return ++fileActivationIntentSequence
+}
+
+export function isDeferredFileActivationCurrent(intentId: number) {
+  return intentId === fileActivationIntentSequence
+}
 
 function pathIsSameOrDescendant(
   path: string,
@@ -139,6 +152,23 @@ const pendingArticleReads = new Map<string, {
   generation: number
   promise: Promise<void>
 }>()
+let editorWorkspaceTransitionGeneration = 0
+let editorWorkspaceTransitionInProgress = false
+
+export async function beginEditorWorkspaceTransition(): Promise<void> {
+  editorWorkspaceTransitionInProgress = true
+  editorWorkspaceTransitionGeneration += 1
+  beginDeferredFileActivation()
+  articleReadGeneration += 1
+  const reads = [...pendingArticleReads.values()].map(entry => entry.promise)
+  pendingArticleReads.clear()
+  await Promise.allSettled(reads)
+}
+
+export function finishEditorWorkspaceTransition(): void {
+  editorWorkspaceTransitionGeneration += 1
+  editorWorkspaceTransitionInProgress = false
+}
 
 function runArticleReadOnce(
   path: string,
@@ -228,6 +258,34 @@ async function getStore(): Promise<Store> {
     storeInstance = await Store.load('store.json')
   }
   return storeInstance
+}
+
+async function updatePersistedEditorNavigation(
+  transform: (
+    layout: EditorWorkspaceLayout,
+    helpers: typeof import('@/app/core/main/editor/editor-group-layout'),
+  ) => EditorWorkspaceLayout,
+): Promise<void> {
+  const task = persistedEditorNavigationQueue.then(async () => {
+    try {
+      const workspaceKey = getFileTreeWorkspaceKey(await getWorkspacePath())
+      const store = await getStore()
+      const layout = await store.get<EditorWorkspaceLayout>(EDITOR_WORKSPACE_LAYOUT_STORE_KEY)
+      if (!layout) return
+      if (layout.workspaceKey !== undefined && layout.workspaceKey !== workspaceKey) return
+      const helpers = await import('@/app/core/main/editor/editor-group-layout')
+      const nextLayout = transform(layout, helpers)
+      if (nextLayout === layout) return
+      const latestWorkspaceKey = getFileTreeWorkspaceKey(await getWorkspacePath())
+      if (latestWorkspaceKey !== workspaceKey) return
+      await store.set(EDITOR_WORKSPACE_LAYOUT_STORE_KEY, nextLayout)
+      await store.save()
+    } catch (error) {
+      console.error('Failed to update persisted editor navigation:', error)
+    }
+  })
+  persistedEditorNavigationQueue = task
+  return task
 }
 
 async function loadCloudFolderRemoteSnapshot(
@@ -469,6 +527,8 @@ export interface EditorViewState {
 }
 
 export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank'
+export type EditorTabDisposition = 'preview' | 'regular' | 'pinned'
+export type FileTabOpenMode = 'preview' | 'pinned'
 
 export interface OpenTabInfo {
   id: string
@@ -477,9 +537,87 @@ export interface OpenTabInfo {
   isFolder: boolean
   kind?: EditorTabKind
   autoCreated?: boolean
+  preview?: boolean
+  pinned?: boolean
   markId?: number
   markType?: Mark['type']
   canvasId?: string
+}
+
+export interface FileTabOpenRequest {
+  id: number
+  path: string
+  mode: FileTabOpenMode
+  name: string
+  isFolder: boolean
+}
+
+function normalizeOpenTabInfo(tab: OpenTabInfo): OpenTabInfo {
+  const pinned = tab.pinned === true
+  return {
+    ...tab,
+    preview: pinned ? false : tab.preview === true,
+    pinned,
+  }
+}
+
+type EditorStatePersistenceUpdate = {
+  openTabs?: OpenTabInfo[]
+  activeTabId?: string
+  activeFilePath?: string
+  persistWorkspaceActiveFilePath?: boolean
+}
+
+let editorStatePersistenceQueue: Promise<void> = Promise.resolve()
+let editorStateMutationRevision = 0
+
+export async function flushEditorStatePersistence(): Promise<void> {
+  let pendingEditorState = editorStatePersistenceQueue
+  let pendingNavigation = persistedEditorNavigationQueue
+  while (true) {
+    await Promise.all([pendingEditorState, pendingNavigation])
+    if (
+      pendingEditorState === editorStatePersistenceQueue
+      && pendingNavigation === persistedEditorNavigationQueue
+    ) return
+    pendingEditorState = editorStatePersistenceQueue
+    pendingNavigation = persistedEditorNavigationQueue
+  }
+}
+
+function persistEditorState(update: EditorStatePersistenceUpdate): Promise<void> {
+  editorStateMutationRevision += 1
+  const workspaceTransitionGeneration = editorWorkspaceTransitionGeneration
+  const snapshot = {
+    ...update,
+    openTabs: update.openTabs?.map(tab => ({ ...tab })),
+  }
+  const task = editorStatePersistenceQueue.then(async () => {
+    if (
+      editorWorkspaceTransitionInProgress
+      || workspaceTransitionGeneration !== editorWorkspaceTransitionGeneration
+    ) return
+    const store = await getStore()
+    if (snapshot.openTabs !== undefined) {
+      await store.set('openTabs', snapshot.openTabs)
+    }
+    if (snapshot.activeTabId !== undefined) {
+      await store.set('activeTabId', snapshot.activeTabId)
+    }
+    if (snapshot.activeFilePath !== undefined) {
+      await store.set('activeFilePath', snapshot.activeFilePath)
+      if (snapshot.persistWorkspaceActiveFilePath) {
+        await store.set(
+          await getWorkspaceStoreKey('activeFilePath'),
+          snapshot.activeFilePath,
+        )
+      }
+    }
+  })
+  editorStatePersistenceQueue = task.catch(error => {
+    console.error('Failed to persist editor state:', error)
+  })
+  return task
 }
 
 const RECORD_TAB_PATH_PREFIX = 'record://mark/'
@@ -684,7 +822,14 @@ interface NoteState {
   setActiveFilePath: (
     name: string,
     autoSync?: boolean,
-    options?: { deactivationAlreadyPrepared?: boolean }
+    options?: {
+      deactivationAlreadyPrepared?: boolean
+      tabOpenMode?: FileTabOpenMode
+      tabMetadata?: Pick<OpenTabInfo, 'name' | 'isFolder'>
+      createIfMissing?: boolean
+      persistWorkspaceActiveFilePath?: boolean
+      workspaceTransitionReset?: boolean
+    }
   ) => Promise<void>
   selectedFilePaths: string[]
   setSelectedFilePaths: (paths: string[]) => void
@@ -696,12 +841,25 @@ interface NoteState {
 
   // Tabs for multi-file editing
   openTabs: OpenTabInfo[]
-  setOpenTabs: (tabs: OpenTabInfo[]) => void
+  setOpenTabs: (tabs: OpenTabInfo[]) => Promise<void>
   activeTabId: string
-  setActiveTabId: (id: string) => void
-  addTab: (tab: OpenTabInfo) => void
+  setActiveTabId: (
+    id: string,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
+  addTab: (
+    tab: OpenTabInfo,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
+  replaceTab: (id: string, tab: OpenTabInfo) => Promise<void>
+  setTabDisposition: (id: string, disposition: EditorTabDisposition) => Promise<void>
+  pendingFileTabOpenRequest: FileTabOpenRequest | null
+  consumeFileTabOpenRequest: (id: number) => void
   updateRecordTab: (mark: Mark) => Promise<void>
-  removeTab: (id: string) => void
+  removeTab: (
+    id: string,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
   editorViewStates: Record<string, EditorViewState>
   setEditorViewState: (path: string, state: Partial<EditorViewState>) => void
   getEditorViewState: (path: string) => EditorViewState | null
@@ -710,10 +868,12 @@ interface NoteState {
   cleanTabsByDeletedFile: (
     deletedPath: string,
     workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
   ) => Promise<void>
   cleanTabsByDeletedFolder: (
     deletedFolderPath: string,
     workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
   ) => Promise<void>
   clearTabs: () => void
 
@@ -755,6 +915,7 @@ interface NoteState {
   fileTree: DirTree[]
   fileTreeLoading: boolean
   fileTreeInitialized: boolean
+  fileTreeWorkspaceKey: string | null
   setFileTree: (tree: DirTree[]) => void
   setEntryLoading: (relativePath: string, loading: boolean) => boolean
   setEntrySyncError: (relativePath: string, error?: string) => boolean
@@ -794,7 +955,12 @@ interface NoteState {
   skipSyncOnSave: boolean // 标记是否跳过同步（用于程序写入时）
   aiGeneratingFilePath: string | null // 标记当前正在 AI 生成的文件路径
   aiTerminateFn: (() => void) | null // AI 生成的终止函数
-  readArticle: (path: string, sha?: string, autoSync?: boolean) => Promise<void>
+  readArticle: (
+    path: string,
+    sha?: string,
+    autoSync?: boolean,
+    options?: { createIfMissing?: boolean },
+  ) => Promise<void>
   setCurrentArticle: (content: string) => void
   setIsPulling: (pulling: boolean) => void
   setJustPulledFile: (justPulled: boolean) => void
@@ -984,6 +1150,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   activeFilePath: '',
   setActiveFilePath: async (path: string, autoSync = true, options) => {
+    fileActivationIntentSequence += 1
+    if (editorWorkspaceTransitionInProgress && !options?.workspaceTransitionReset) return
     const nextPath = isVirtualOpenTabPath(path) ? '' : path
     if (
       nextPath !== get().activeFilePath
@@ -992,18 +1160,46 @@ const useArticleStore = create<NoteState>((set, get) => ({
     ) {
       return
     }
-    const fileName = nextPath.split('/').pop() || ''
-    const shouldReadArticle = Boolean(fileName && fileName.includes('.'))
+    const currentFileTabOpenRequest = get().pendingFileTabOpenRequest
+    const matchingFileTabOpenRequest = currentFileTabOpenRequest?.path === nextPath
+      ? currentFileTabOpenRequest
+      : null
+    const matchingOpenTab = get().openTabs.find(tab => tab.path === nextPath)
+    const requestedTabName = options?.tabMetadata?.name
+      || matchingFileTabOpenRequest?.name
+      || matchingOpenTab?.name
+      || nextPath.split(/[\\/]/).pop()
+      || nextPath
+    const requestedTabIsFolder = options?.tabMetadata?.isFolder
+      ?? matchingFileTabOpenRequest?.isFolder
+      ?? matchingOpenTab?.isFolder
+      ?? !(nextPath.split(/[\\/]/).pop() || '').includes('.')
+    const pendingFileTabOpenRequest = options?.tabOpenMode && nextPath
+      ? {
+          id: ++fileTabOpenRequestSequence,
+          path: nextPath,
+          mode: options.tabOpenMode,
+          name: requestedTabName,
+          isFolder: requestedTabIsFolder,
+        }
+      : matchingFileTabOpenRequest
+        ? matchingFileTabOpenRequest
+        : null
+    const fileName = nextPath.split(/[\\/]/).pop() || ''
+    const shouldReadArticle = Boolean(
+      !requestedTabIsFolder && fileName && fileName.includes('.')
+    )
     const canReusePendingRead = shouldReadArticle
       && get().activeFilePath === nextPath
       && hasCurrentPendingArticleRead(nextPath)
 
     if (canReusePendingRead) {
-      set({ selectedFilePaths: [] })
+      set({ selectedFilePaths: [], pendingFileTabOpenRequest })
       emitter.emit('article-opened', { path: nextPath })
-      const store = await getStore()
-      await store.set('activeFilePath', nextPath)
-      await store.set(await getWorkspaceStoreKey('activeFilePath'), nextPath)
+      await persistEditorState({
+        activeFilePath: get().activeFilePath,
+        persistWorkspaceActiveFilePath: options?.persistWorkspaceActiveFilePath !== false,
+      })
       return
     }
 
@@ -1019,6 +1215,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       justPulledFile: false,
       selectedFilePaths: [],
       loading: shouldReadArticle,
+      pendingFileTabOpenRequest,
     })
     // 触发事件，让推送队列重置计时器
     emitter.emit('article-opened', { path: nextPath })
@@ -1026,12 +1223,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // 触发读取文件内容（包括远程拉取）
     // 需要确保是文件而不是文件夹
     if (shouldReadArticle) {
-      void get().readArticle(nextPath, undefined, autoSync)
+      void get().readArticle(nextPath, undefined, autoSync, {
+        createIfMissing: options?.createIfMissing,
+      })
     }
 
-    const store = await getStore();
-    await store.set('activeFilePath', nextPath)
-    await store.set(await getWorkspaceStoreKey('activeFilePath'), nextPath)
+    await persistEditorState({
+      activeFilePath: get().activeFilePath,
+      persistWorkspaceActiveFilePath: options?.persistWorkspaceActiveFilePath !== false,
+    })
   },
   selectedFilePaths: [],
   setSelectedFilePaths: (paths: string[]) => {
@@ -1051,43 +1251,88 @@ const useArticleStore = create<NoteState>((set, get) => ({
   openTabs: [],
   activeTabId: '',
   editorViewStates: {},
+  pendingFileTabOpenRequest: null,
+  consumeFileTabOpenRequest: (id) => {
+    set(state => state.pendingFileTabOpenRequest?.id === id
+      ? { pendingFileTabOpenRequest: null }
+      : state)
+  },
   setOpenTabs: async (tabs) => {
+    const normalizedTabs = tabs.map(normalizeOpenTabInfo)
     const activeTabId = get().activeTabId
     if (
       activeTabId
-      && !tabs.some(tab => tab.id === activeTabId)
+      && !normalizedTabs.some(tab => tab.id === activeTabId)
       && !prepareActiveEditorDeactivation()
     ) {
       return
     }
-    const keptPaths = new Set(tabs.map(tab => tab.path))
+    const keptPaths = new Set(normalizedTabs.map(tab => tab.path))
     const nextEditorViewStates = Object.fromEntries(
       Object.entries(get().editorViewStates).filter(([path]) => keptPaths.has(path))
     )
-    set({ openTabs: tabs, editorViewStates: nextEditorViewStates })
-    const store = await getStore();
-    await store.set('openTabs', tabs)
+    set({ openTabs: normalizedTabs, editorViewStates: nextEditorViewStates })
+    await persistEditorState({ openTabs: normalizedTabs })
   },
-  setActiveTabId: async (id) => {
-    if (id !== get().activeTabId && !prepareActiveEditorDeactivation()) return
+  setActiveTabId: async (id, options) => {
+    if (
+      id !== get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
     set({ activeTabId: id })
-    const store = await getStore();
-    await store.set('activeTabId', id)
+    await persistEditorState({ activeTabId: id })
   },
-  addTab: async (tab) => {
+  addTab: async (tab, options) => {
+    const normalizedTab = normalizeOpenTabInfo(tab)
     const currentTabs = get().openTabs
     // Check if tab already exists
-    const existingTab = currentTabs.find(t => t.path === tab.path)
+    const existingTab = currentTabs.find(t => t.path === normalizedTab.path)
     if (existingTab) {
-      await get().setActiveTabId(existingTab.id)
+      await get().setActiveTabId(existingTab.id, options)
       return
     }
-    if (tab.id !== get().activeTabId && !prepareActiveEditorDeactivation()) return
-    const newTabs = [...currentTabs, tab]
-    set({ openTabs: newTabs, activeTabId: tab.id })
-    const store = await getStore();
-    await store.set('openTabs', newTabs)
-    await store.set('activeTabId', tab.id)
+    if (
+      normalizedTab.id !== get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
+    const newTabs = [...currentTabs, normalizedTab]
+    set({ openTabs: newTabs, activeTabId: normalizedTab.id })
+    await persistEditorState({
+      openTabs: newTabs,
+      activeTabId: normalizedTab.id,
+    })
+  },
+  replaceTab: async (id, tab) => {
+    const currentTabs = get().openTabs
+    const replacedTab = currentTabs.find(item => item.id === id)
+    if (!replacedTab) return
+    const normalizedTab = normalizeOpenTabInfo({ ...tab, id })
+    const newTabs = currentTabs.map(item => item.id === id ? normalizedTab : item)
+    const nextEditorViewStates = { ...get().editorViewStates }
+    if (replacedTab.path !== normalizedTab.path) {
+      delete nextEditorViewStates[replacedTab.path]
+    }
+    set({
+      openTabs: newTabs,
+      activeTabId: id,
+      editorViewStates: nextEditorViewStates,
+    })
+    await persistEditorState({ openTabs: newTabs, activeTabId: id })
+  },
+  setTabDisposition: async (id, disposition) => {
+    const currentTabs = get().openTabs
+    const target = currentTabs.find(tab => tab.id === id)
+    if (!target) return
+    const preview = disposition === 'preview'
+    const pinned = disposition === 'pinned'
+    if (target.preview === preview && target.pinned === pinned) return
+    const newTabs = currentTabs.map(tab => tab.id === id
+      ? { ...tab, preview, pinned }
+      : tab)
+    set({ openTabs: newTabs })
+    await persistEditorState({ openTabs: newTabs })
   },
   updateRecordTab: async (mark) => {
     const currentTabs = get().openTabs
@@ -1110,11 +1355,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     set({ openTabs: newTabs })
-    const store = await getStore()
-    await store.set('openTabs', newTabs)
+    await persistEditorState({ openTabs: newTabs })
   },
-  removeTab: async (id) => {
-    if (id === get().activeTabId && !prepareActiveEditorDeactivation()) return
+  removeTab: async (id, options) => {
+    if (
+      id === get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
     const currentTabs = get().openTabs
     const removedTab = currentTabs.find(t => t.id === id)
     const newTabs = currentTabs.filter(t => t.id !== id)
@@ -1123,8 +1371,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       delete nextEditorViewStates[removedTab.path]
     }
     set({ openTabs: newTabs, editorViewStates: nextEditorViewStates })
-    const store = await getStore();
-    await store.set('openTabs', newTabs)
+    await persistEditorState({ openTabs: newTabs })
   },
   setEditorViewState: (path, state) => {
     if (!path) {
@@ -1176,6 +1423,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   cleanTabsByDeletedFile: async (
     deletedPath: string,
     workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
   ) => {
     const currentWorkspaceRoot = await getCurrentEditorWorkspaceRoot()
     if (
@@ -1188,6 +1436,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const isDeletedFile = (path: string) => (
       editorPathsReferToSameFile(path, deletedPath, workspaceRoot)
     )
+    if (options?.preservePendingSaves) {
+      const latestState = get()
+      if (
+        isDeletedFile(latestState.activeFilePath)
+        && !prepareActiveEditorDeactivation()
+      ) return
+      if (
+        [...pendingArticleSaves.keys()].some(isDeletedFile)
+        || [...inFlightArticleSaves.keys()].some(isDeletedFile)
+      ) return
+    }
     discardQueuedArticleSaves(deletedPath, workspaceRoot, false)
     discardPendingVectorCalculation(deletedPath, workspaceRoot, false)
 
@@ -1197,15 +1456,35 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const currentActiveFilePath = currentState.activeFilePath
     const currentSelectedFilePaths = currentState.selectedFilePaths
     const newTabs = currentTabs.filter(tab => !isDeletedFile(tab.path))
+    const deletedTabIds = currentTabs
+      .filter(tab => isDeletedFile(tab.path))
+      .map(tab => tab.id)
     const nextSelectedFilePaths = currentSelectedFilePaths.filter(path => !isDeletedFile(path))
     const currentActiveTab = currentTabs.find(tab => tab.id === currentActiveTabId)
     const activeTabDeleted = Boolean(currentActiveTab && isDeletedFile(currentActiveTab.path))
     const tabsChanged = newTabs.length !== currentTabs.length
+    const pendingRequestDeleted = Boolean(
+      currentState.pendingFileTabOpenRequest
+      && isDeletedFile(currentState.pendingFileTabOpenRequest.path)
+    )
+
+    let preferredFallbackTabId = ''
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-deleted', {
+      path: deletedPath,
+      isFolder: false,
+      workspaceRoot,
+      deletedTabIds,
+      resolveFallbackTabId: tabId => { preferredFallbackTabId = tabId },
+      markHandled: () => { navigationHandled = true },
+    })
+    const navigationNeedsPersistentUpdate = !navigationHandled
 
     let newActiveTabId = currentActiveTabId
     let newActiveFilePath = currentActiveFilePath
     if (activeTabDeleted && newTabs.length > 0) {
-      const targetTab = newTabs[newTabs.length - 1]
+      const targetTab = newTabs.find(tab => tab.id === preferredFallbackTabId)
+        ?? newTabs[newTabs.length - 1]
       newActiveTabId = targetTab.id
       newActiveFilePath = getActiveFilePathForTab(targetTab)
     } else if (activeTabDeleted) {
@@ -1225,13 +1504,21 @@ const useArticleStore = create<NoteState>((set, get) => ({
       delete nextEditorViewStates[path]
       viewStatesChanged = true
     })
-    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged) return
+    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged && !pendingRequestDeleted) {
+      if (navigationNeedsPersistentUpdate) {
+        await updatePersistedEditorNavigation((layout, helpers) => (
+          helpers.cleanEditorNavigationHistoryByDeletedFile(layout, deletedPath, workspaceRoot)
+        ))
+      }
+      return
+    }
 
     set({
       openTabs: newTabs,
       activeTabId: newActiveTabId,
       selectedFilePaths: nextSelectedFilePaths,
       editorViewStates: nextEditorViewStates,
+      ...(pendingRequestDeleted ? { pendingFileTabOpenRequest: null } : {}),
       ...(activeChanged ? {
         activeFilePath: newActiveFilePath,
         currentArticle: '',
@@ -1242,20 +1529,27 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } : {}),
     })
 
+    const persistencePromise = tabsChanged || activeChanged
+      ? persistEditorState({
+          ...(tabsChanged ? { openTabs: newTabs } : {}),
+          ...(activeChanged ? { activeTabId: newActiveTabId } : {}),
+        })
+      : null
     const activatePromise = activeChanged
       ? get().setActiveFilePath(
         newActiveFilePath,
         true,
-        { deactivationAlreadyPrepared: true },
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
       )
       : null
-    const store = await getStore()
-    if (tabsChanged) {
-      await store.set('openTabs', newTabs)
-    }
+    await persistencePromise
     if (activeChanged) {
-      await store.set('activeTabId', newActiveTabId)
       await activatePromise
+    }
+    if (navigationNeedsPersistentUpdate) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.cleanEditorNavigationHistoryByDeletedFile(layout, deletedPath, workspaceRoot)
+      ))
     }
   },
 
@@ -1263,6 +1557,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   cleanTabsByDeletedFolder: async (
     deletedFolderPath: string,
     workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
   ) => {
     const currentWorkspaceRoot = await getCurrentEditorWorkspaceRoot()
     if (
@@ -1275,6 +1570,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const isInDeletedFolder = (path: string) => (
       pathIsSameOrDescendant(path, deletedFolderPath, workspaceRoot)
     )
+    if (options?.preservePendingSaves) {
+      const latestState = get()
+      if (
+        isInDeletedFolder(latestState.activeFilePath)
+        && !prepareActiveEditorDeactivation()
+      ) return
+      if (
+        [...pendingArticleSaves.keys()].some(isInDeletedFolder)
+        || [...inFlightArticleSaves.keys()].some(isInDeletedFolder)
+      ) return
+    }
     discardQueuedArticleSaves(deletedFolderPath, workspaceRoot)
     discardPendingVectorCalculation(deletedFolderPath, workspaceRoot)
 
@@ -1286,6 +1592,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const newTabs = currentTabs.filter(
       tab => !isInDeletedFolder(tab.path)
     )
+    const deletedTabIds = currentTabs
+      .filter(tab => isInDeletedFolder(tab.path))
+      .map(tab => tab.id)
     const currentActiveTab = currentTabs.find(tab => tab.id === currentActiveTabId)
     const activeTabDeleted = Boolean(
       currentActiveTab && isInDeletedFolder(currentActiveTab.path)
@@ -1295,10 +1604,23 @@ const useArticleStore = create<NoteState>((set, get) => ({
       path => !isInDeletedFolder(path)
     )
 
+    let preferredFallbackTabId = ''
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-deleted', {
+      path: deletedFolderPath,
+      isFolder: true,
+      workspaceRoot,
+      deletedTabIds,
+      resolveFallbackTabId: tabId => { preferredFallbackTabId = tabId },
+      markHandled: () => { navigationHandled = true },
+    })
+    const navigationNeedsPersistentUpdate = !navigationHandled
+
     let newActiveTabId = currentActiveTabId
     let newActiveFilePath = currentActiveFilePath
     if (activeTabDeleted && newTabs.length > 0) {
-      const targetTab = newTabs[newTabs.length - 1]
+      const targetTab = newTabs.find(tab => tab.id === preferredFallbackTabId)
+        ?? newTabs[newTabs.length - 1]
       newActiveTabId = targetTab.id
       newActiveFilePath = getActiveFilePathForTab(targetTab)
     } else if (activeTabDeleted) {
@@ -1309,6 +1631,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     const tabsChanged = newTabs.length !== currentTabs.length
+    const pendingRequestDeleted = Boolean(
+      currentState.pendingFileTabOpenRequest
+      && isInDeletedFolder(currentState.pendingFileTabOpenRequest.path)
+    )
     const activeChanged = newActiveTabId !== currentActiveTabId
       || newActiveFilePath !== currentActiveFilePath
     const selectionChanged = nextSelectedFilePaths.length !== currentSelectedFilePaths.length
@@ -1321,13 +1647,25 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     })
 
-    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged) return
+    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged && !pendingRequestDeleted) {
+      if (navigationNeedsPersistentUpdate) {
+        await updatePersistedEditorNavigation((layout, helpers) => (
+          helpers.cleanEditorNavigationHistoryByDeletedFolder(
+            layout,
+            deletedFolderPath,
+            workspaceRoot,
+          )
+        ))
+      }
+      return
+    }
 
     set({
       openTabs: newTabs,
       activeTabId: newActiveTabId,
       selectedFilePaths: nextSelectedFilePaths,
       editorViewStates: nextEditorViewStates,
+      ...(pendingRequestDeleted ? { pendingFileTabOpenRequest: null } : {}),
       ...(activeChanged ? {
         activeFilePath: newActiveFilePath,
         currentArticle: '',
@@ -1337,26 +1675,42 @@ const useArticleStore = create<NoteState>((set, get) => ({
         loading: Boolean(newActiveFilePath && isLikelyFilePath(newActiveFilePath)),
       } : {}),
     })
+    const persistencePromise = tabsChanged || activeChanged
+      ? persistEditorState({
+          ...(tabsChanged ? { openTabs: newTabs } : {}),
+          ...(activeChanged ? { activeTabId: newActiveTabId } : {}),
+        })
+      : null
     const activatePromise = activeChanged
       ? get().setActiveFilePath(
         newActiveFilePath,
         true,
-        { deactivationAlreadyPrepared: true },
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
       )
       : null
-    const store = await getStore()
-    if (tabsChanged) await store.set('openTabs', newTabs)
+    await persistencePromise
     if (activeChanged) {
-      await store.set('activeTabId', newActiveTabId)
       await activatePromise
+    }
+    if (navigationNeedsPersistentUpdate) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.cleanEditorNavigationHistoryByDeletedFolder(
+          layout,
+          deletedFolderPath,
+          workspaceRoot,
+        )
+      ))
     }
   },
 
   clearTabs: async () => {
-    set({ openTabs: [], activeTabId: '', editorViewStates: {} })
-    const store = await getStore();
-    await store.set('openTabs', [])
-    await store.set('activeTabId', '')
+    set({
+      openTabs: [],
+      activeTabId: '',
+      editorViewStates: {},
+      pendingFileTabOpenRequest: null,
+    })
+    await persistEditorState({ openTabs: [], activeTabId: '' })
   },
 
   matchPosition: null,
@@ -1389,15 +1743,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // Initialize open tabs from store
   initOpenTabs: async () => {
+    await flushEditorStatePersistence()
+    const initializationRevision = editorStateMutationRevision
     const store = await getStore();
     const tabs = await store.get<OpenTabInfo[]>('openTabs')
     const activeTabId = await store.get<string>('activeTabId')
-    const nextTabs = tabs || []
-    const nextActiveTabId = activeTabId || ''
+    if (editorStateMutationRevision !== initializationRevision) return
+    const nextTabs = (tabs || []).map(normalizeOpenTabInfo)
+    const nextActiveTabId = activeTabId && nextTabs.some(tab => tab.id === activeTabId)
+      ? activeTabId
+      : nextTabs.at(-1)?.id ?? ''
     const activeTab = nextTabs.find(tab => tab.id === nextActiveTabId)
     const nextActiveFilePath = getActiveFilePathForTab(activeTab)
     const shouldReadActiveArticle = Boolean(
-      nextActiveFilePath && isLikelyFilePath(nextActiveFilePath)
+      nextActiveFilePath && !activeTab?.isFolder && isLikelyFilePath(nextActiveFilePath)
     )
     const currentState = get()
     const canReuseActiveArticle = shouldReadActiveArticle
@@ -1424,10 +1783,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
     })
 
     if (shouldReadActiveArticle && !canReuseActiveArticle) {
-      void get().readArticle(nextActiveFilePath)
+      void get().readArticle(nextActiveFilePath, undefined, true, {
+        createIfMissing: false,
+      })
     }
 
-    await store.set('activeFilePath', nextActiveFilePath)
+    const latestEditorState = get()
+    await persistEditorState({
+      openTabs: latestEditorState.openTabs,
+      activeTabId: latestEditorState.activeTabId,
+      activeFilePath: latestEditorState.activeFilePath,
+    })
   },
   setShowCloudFiles: async (show: boolean) => {
     set({ showCloudFiles: show })
@@ -1470,6 +1836,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   fileTree: [],
   fileTreeInitialized: false,
+  fileTreeWorkspaceKey: null,
   setFileTree: (tree: DirTree[]) => {
     const sortedTree = get().sortFileTree(tree)
     set({ fileTree: sortedTree, fileTreeInitialized: true })
@@ -1668,6 +2035,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const currentTabs = get().openTabs
     const currentActiveTabId = get().activeTabId
     const currentActiveFilePath = get().activeFilePath
+    const currentFileTabOpenRequest = get().pendingFileTabOpenRequest
     const nextActiveFilePath = mapMovedPath(currentActiveFilePath)
     const newTabs = currentTabs.map(tab => {
       if (isRecordOpenTab(tab)) {
@@ -1695,23 +2063,49 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return states
     }, {})
     const nextSelectedFilePaths = get().selectedFilePaths.map(mapMovedPath)
+    const nextFileTabOpenRequest = currentFileTabOpenRequest
+      ? (() => {
+          const nextPath = mapMovedPath(currentFileTabOpenRequest.path)
+          return {
+            ...currentFileTabOpenRequest,
+            path: nextPath,
+            name: nextPath === currentFileTabOpenRequest.path
+              ? currentFileTabOpenRequest.name
+              : nextPath.split(/[\\/]/).pop() || currentFileTabOpenRequest.name,
+          }
+        })()
+      : null
 
     set({
       openTabs: newTabs,
       activeTabId: nextActiveTabId,
       editorViewStates: nextEditorViewStates,
       selectedFilePaths: nextSelectedFilePaths,
+      pendingFileTabOpenRequest: nextFileTabOpenRequest,
     })
+    const persistencePromise = persistEditorState({
+      openTabs: newTabs,
+      activeTabId: nextActiveTabId,
+    })
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-moved', {
+      oldPath,
+      newPath,
+      markHandled: () => { navigationHandled = true },
+    })
+    if (!navigationHandled) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.mapEditorNavigationHistoryForPathChange(layout, oldPath, newPath)
+      ))
+    }
     if (nextActiveFilePath !== currentActiveFilePath) {
       await get().setActiveFilePath(
         nextActiveFilePath,
         true,
-        { deactivationAlreadyPrepared: true },
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
       )
     }
-    const store = await getStore()
-    await store.set('openTabs', newTabs)
-    await store.set('activeTabId', nextActiveTabId)
+    await persistencePromise
 
     for (const queuedSave of queuedSavesToRebase) {
       await get().saveCurrentArticle(queuedSave.content, queuedSave.path)
@@ -1795,7 +2189,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const cachedTree = workspaceChanged ? [] : get().fileTree
     if (workspaceChanged) {
       // 切换工作区时立即移除旧的本地树和仅远端节点。
-      set({ fileTree: [] })
+      set({
+        fileTree: [],
+        fileTreeInitialized: false,
+        fileTreeWorkspaceKey: workspaceKey,
+      })
+    } else {
+      set({ fileTreeWorkspaceKey: workspaceKey })
     }
 
     // 确保 collapsibleList 已初始化
@@ -1974,6 +2374,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const syncContext = await getCurrentSyncContext()
       if (fileTreeWorkspaceKey === null) {
         fileTreeWorkspaceKey = syncContext.workspaceKey
+        set({ fileTreeWorkspaceKey: syncContext.workspaceKey })
       }
       const requestContext: RemoteFileTreeRequestContext = {
         ...(context ?? {
@@ -2375,6 +2776,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const syncContext = await getCurrentSyncContext()
     if (fileTreeWorkspaceKey === null) {
       fileTreeWorkspaceKey = syncContext.workspaceKey
+      set({ fileTreeWorkspaceKey: syncContext.workspaceKey })
     }
     const requestContext: RemoteFileTreeRequestContext = {
       workspaceKey: syncContext.workspaceKey,
@@ -2834,8 +3236,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
     })
 
     if (storedActiveFilePath && isVirtualOpenTabPath(storedActiveFilePath)) {
-      await store.set('activeFilePath', '')
-      await store.set(activeFilePathKey, '')
+      await persistEditorState({
+        activeFilePath: '',
+        persistWorkspaceActiveFilePath: true,
+      })
     }
     if (res && collapsibleList.length !== res.length) {
       await store.set(key, collapsibleList)
@@ -2866,7 +3270,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
             isPulling: false,
             justPulledFile: false,
           })
-          void get().readArticle(activeFilePath)
+          void get().readArticle(activeFilePath, undefined, true, {
+            createIfMissing: false,
+          })
         }
       }
     }
@@ -2965,14 +3371,28 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ readFilePath: path })
   },
 
-  readArticle: (path: string, sha?: string, autoSync = true) => {
+  readArticle: (path: string, sha?: string, autoSync = true, options) => {
     // 处理文件名兼容性问题
     let actualPath = path
     if (!isAbsoluteFsPath(path) && hasInvalidFileNameChars(path)) {
       actualPath = sanitizeFilePath(path)
       if (get().activeFilePath !== actualPath) {
+        const pendingOpenRequest = get().pendingFileTabOpenRequest
+        const matchingOpenRequest = pendingOpenRequest?.path === path
+          ? pendingOpenRequest
+          : null
         // setActiveFilePath starts the canonical read for the sanitized path.
-        return get().setActiveFilePath(actualPath, autoSync)
+        return get().setActiveFilePath(actualPath, autoSync, {
+          deactivationAlreadyPrepared: true,
+          createIfMissing: options?.createIfMissing,
+          ...(matchingOpenRequest ? {
+            tabOpenMode: matchingOpenRequest.mode,
+            tabMetadata: {
+              name: actualPath.split(/[\\/]/).pop() || matchingOpenRequest.name,
+              isFolder: matchingOpenRequest.isFolder,
+            },
+          } : {}),
+        })
       }
     }
 
@@ -3028,6 +3448,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
       try {
         const remoteContent = await pullRemoteFile(actualPath)
+        if (!isCurrentArticleRead()) return
         await saveLocalFile(actualPath, remoteContent)
 
         if (isCurrentArticleRead()) {
@@ -3101,7 +3522,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
         await pullMissingRemoteArticle()
         return
-      } else if (isFileNotFound) {
+      } else if (isFileNotFound && options?.createIfMissing !== false) {
         // 本地文件，创建空白文件
         await ensureDirectoryExists(actualPath)
         const pathOptions = await getFilePathOptions(actualPath)
@@ -3124,7 +3545,11 @@ const useArticleStore = create<NoteState>((set, get) => ({
         }
       } else {
         if (isCurrentArticleRead()) {
-          set({ currentArticle: '', loading: false })
+          set({
+            currentArticle: '',
+            loading: false,
+            isPulling: false,
+          })
         }
       }
     }

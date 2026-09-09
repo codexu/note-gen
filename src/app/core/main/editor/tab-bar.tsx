@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, FilePlus2, FileText, Folder, Maximize2, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Plus, Redo2, Undo2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, FilePlus2, FileText, Folder, Maximize2, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
@@ -34,6 +34,8 @@ export interface TabInfo {
   isFolder: boolean
   kind?: 'file' | 'record' | 'canvas' | 'blank'
   autoCreated?: boolean
+  preview?: boolean
+  pinned?: boolean
   markId?: number
   markType?: Mark['type']
   canvasId?: string
@@ -54,14 +56,21 @@ interface TabBarProps {
   onCloseRightTabs: (tabId: string) => void
   onSplitTab: (tabId: string, direction: EditorSplitDirection) => void
   onMoveToNewWindow: (tabId: string) => void
+  onPinTab: (tabId: string) => void
+  onUnpinTab: (tabId: string) => void
+  canNavigateBack: boolean
+  canNavigateForward: boolean
+  onNavigateBack: () => void
+  onNavigateForward: () => void
   onToggleMaximize: () => void
+  canCloseGroup: boolean
   onCloseGroup: () => void
 }
 
 function SortableTabWithMenu({
   tab, groupId, isActive, tabs, modKey, onTabSwitch, onCloseTab,
   onCloseOtherTabs, onCloseAllTabs, onCloseLeftTabs, onCloseRightTabs,
-  onSplitTab, onMoveToNewWindow, onToggleMaximize,
+  onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab,
 }: {
   tab: TabInfo
   groupId: string
@@ -76,7 +85,8 @@ function SortableTabWithMenu({
   onCloseRightTabs: (tabId: string) => void
   onSplitTab: (tabId: string, direction: EditorSplitDirection) => void
   onMoveToNewWindow: (tabId: string) => void
-  onToggleMaximize: () => void
+  onPinTab: (tabId: string) => void
+  onUnpinTab: (tabId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `editor-tab:${groupId}:${tab.id}`,
@@ -90,6 +100,11 @@ function SortableTabWithMenu({
   const canDetach = canOpenInEditorWindow(tab)
   const canClose = tabs.length > 1 || tab.kind !== 'blank'
   const recordTypeLabel = isRecordTab ? recordTypeT(tab.markType || 'text') : ''
+  const baseTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' ? tab.name : tab.path
+  const hasClosableOtherTabs = tabs.some(item => item.id !== tab.id && !item.pinned)
+  const hasClosableLeftTabs = tabs.slice(0, currentIndex).some(item => !item.pinned)
+  const hasClosableRightTabs = tabs.slice(currentIndex + 1).some(item => !item.pinned)
+  const hasClosableUnpinnedTabs = tabs.some(item => !item.pinned && (tabs.length > 1 || item.kind !== 'blank'))
 
   return (
     <ContextMenu>
@@ -102,14 +117,17 @@ function SortableTabWithMenu({
             'group relative flex h-12 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 px-3 text-sm transition-colors',
             isActive ? 'bg-muted/40 font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
-          title={isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' ? tab.name : tab.path}
+          title={tab.preview ? `${t('previewTab')}: ${baseTitle}` : baseTitle}
           onClick={() => onTabSwitch(tab.id)}
           onAuxClick={event => {
             if (event.button !== 1 || !canClose) return
             event.preventDefault()
             onCloseTab(tab.id)
           }}
-          onDoubleClick={onToggleMaximize}
+          onDoubleClick={event => {
+            if ((event.target as HTMLElement).closest('button,[role="menuitem"]')) return
+            if (tab.kind !== 'blank' && !tab.pinned) onPinTab(tab.id)
+          }}
           {...attributes}
           {...listeners}
         >
@@ -124,7 +142,8 @@ function SortableTabWithMenu({
           ) : (
             <FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           )}
-          <span className="truncate">{tab.name}</span>
+          {tab.pinned && <Pin className="size-3.5 shrink-0 text-primary" />}
+          <span className={cn('truncate', tab.preview && 'italic')}>{tab.name}</span>
           <Button
             type="button"
             variant="ghost"
@@ -145,11 +164,21 @@ function SortableTabWithMenu({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuGroup>
+          <ContextMenuItem
+            disabled={tab.kind === 'blank'}
+            onClick={() => tab.pinned ? onUnpinTab(tab.id) : onPinTab(tab.id)}
+          >
+            {tab.pinned ? <PinOff /> : <Pin />}
+            {t(tab.pinned ? 'unpinTab' : 'pinTab')}
+          </ContextMenuItem>
+        </ContextMenuGroup>
+        <ContextMenuSeparator />
+        <ContextMenuGroup>
           <ContextMenuItem disabled={!canClose} onClick={() => onCloseTab(tab.id)}>{t('close')}<ContextMenuShortcut>{modKey}W</ContextMenuShortcut></ContextMenuItem>
-          <ContextMenuItem disabled={tabs.length < 2} onClick={() => onCloseOtherTabs(tab.id)}>{t('closeOthers')}</ContextMenuItem>
-          <ContextMenuItem disabled={currentIndex === 0} onClick={() => onCloseLeftTabs(tab.id)}>{t('closeLeft')}</ContextMenuItem>
-          <ContextMenuItem disabled={currentIndex === tabs.length - 1} onClick={() => onCloseRightTabs(tab.id)}>{t('closeRight')}</ContextMenuItem>
-          <ContextMenuItem disabled={!canClose} onClick={onCloseAllTabs}>{t('closeAll')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableOtherTabs} onClick={() => onCloseOtherTabs(tab.id)}>{t('closeOthers')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableLeftTabs} onClick={() => onCloseLeftTabs(tab.id)}>{t('closeLeft')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableRightTabs} onClick={() => onCloseRightTabs(tab.id)}>{t('closeRight')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableUnpinnedTabs} onClick={onCloseAllTabs}>{t('closeAll')}</ContextMenuItem>
         </ContextMenuGroup>
         <ContextMenuSeparator />
         <ContextMenuGroup>
@@ -173,7 +202,8 @@ export function TabBar({
   groupId, tabs, activeTabId, isActiveGroup, isMaximized,
   onTabSwitch, onNewTab, onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onCloseLeftTabs, onCloseRightTabs, onSplitTab, onMoveToNewWindow,
-  onToggleMaximize, onCloseGroup,
+  onPinTab, onUnpinTab, canNavigateBack, canNavigateForward,
+  onNavigateBack, onNavigateForward, onToggleMaximize, canCloseGroup, onCloseGroup,
 }: TabBarProps) {
   const { showEditorUndoRedo } = useSettingStore()
   const t = useTranslations('tabContext')
@@ -198,6 +228,8 @@ export function TabBar({
     ? activeTab.canvasId || getCanvasIdFromTabPath(activeTab.path)
     : null
   const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl+'
+  const navigateBackShortcut = currentPlatform === 'macos' ? '⌘[' : 'Alt+←'
+  const navigateForwardShortcut = currentPlatform === 'macos' ? '⌘]' : 'Alt+→'
 
   const queryCanUndoRedo = useCallback(() => {
     if (!isActiveGroup) return
@@ -301,6 +333,12 @@ export function TabBar({
 
   return (
     <div className="flex h-12 shrink-0 items-center border-b bg-background">
+      {isActiveGroup && (
+        <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
+          <TooltipButton icon={<ArrowLeft />} tooltipText={`${t('navigateBack')} (${navigateBackShortcut})`} side="bottom" buttonClassName="size-7" disabled={!canNavigateBack} onClick={onNavigateBack} />
+          <TooltipButton icon={<ArrowRight />} tooltipText={`${t('navigateForward')} (${navigateForwardShortcut})`} side="bottom" buttonClassName="size-7" disabled={!canNavigateForward} onClick={onNavigateForward} />
+        </div>
+      )}
       {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && (
         <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
           <TooltipButton icon={<Undo2 />} tooltipText={`${t('undo')} (${modKey}Z)`} side="bottom" buttonClassName="size-7" disabled={!canUndo} onClick={() => runUndoRedo(false)} />
@@ -321,7 +359,7 @@ export function TabBar({
                 onCloseOtherTabs={onCloseOtherTabs} onCloseAllTabs={onCloseAllTabs}
                 onCloseLeftTabs={onCloseLeftTabs} onCloseRightTabs={onCloseRightTabs}
                 onSplitTab={onSplitTab} onMoveToNewWindow={onMoveToNewWindow}
-                onToggleMaximize={onToggleMaximize}
+                onPinTab={onPinTab} onUnpinTab={onUnpinTab}
               />
             ))}
           </SortableContext>
@@ -352,7 +390,7 @@ export function TabBar({
                 <DropdownMenuItem onClick={onToggleMaximize}><Maximize2 />{isMaximized ? t('restoreGroup') : t('maximizeGroup')}</DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuGroup><DropdownMenuItem onClick={onCloseGroup}><X />{t('closeGroup')}</DropdownMenuItem></DropdownMenuGroup>
+              <DropdownMenuGroup><DropdownMenuItem disabled={!canCloseGroup} onClick={onCloseGroup}><X />{t('closeGroup')}</DropdownMenuItem></DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

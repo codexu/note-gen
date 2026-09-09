@@ -15,6 +15,19 @@ interface Events {
   'editor-file-content-updated': { path: string; content: string };
   'editor-file-path-changed': { oldPath: string; newPath: string; content?: string };
   'editor-file-close': { path: string };
+  'editor-navigation-path-moved': {
+    oldPath: string
+    newPath: string
+    markHandled?: () => void
+  };
+  'editor-navigation-path-deleted': {
+    path: string
+    isFolder: boolean
+    workspaceRoot?: string
+    deletedTabIds?: string[]
+    resolveFallbackTabId?: (tabId: string) => void
+    markHandled?: () => void
+  };
   'toolbar-text-number': number;
   'toolbar-reset-selected-text': unknown;
   'quickRecordText': unknown;

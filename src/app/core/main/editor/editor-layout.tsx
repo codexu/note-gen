@@ -15,6 +15,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { Store } from '@tauri-apps/plugin-store'
+import { platform } from '@tauri-apps/plugin-os'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { Layout } from 'react-resizable-panels'
 import { useTranslations } from 'next-intl'
@@ -26,6 +27,7 @@ import useArticleStore, { findFolderInTree, type DirTree } from '@/stores/articl
 import useMarkStore from '@/stores/mark'
 import useCanvasStore from '@/stores/canvas'
 import useChatStore from '@/stores/chat'
+import useSettingStore from '@/stores/setting'
 import { useSidebarStore } from '@/stores/sidebar'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { OnboardingSpotlight } from '@/components/onboarding-spotlight'
@@ -44,16 +46,36 @@ import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
 import { getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
 import { focusEditorWindowForPath, openEditorWindow } from '@/lib/editor-windows'
-import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
+import {
+  editorPathIsSameOrDescendant,
+  editorPathsReferToSameFile,
+  getCurrentEditorWorkspaceRoot,
+  prepareActiveEditorDeactivationDurably,
+  workspaceRootsReferToSameLocation,
+} from '@/lib/editor-deactivation'
 import { computedParentPath } from '@/lib/path'
 import {
+  getDefaultArticleAbsolutePath,
+  getWorkspacePath,
+  isAbsoluteFsPath,
+} from '@/lib/workspace'
+import {
+  cleanEditorNavigationHistoryByDeletedFile,
+  cleanEditorNavigationHistoryByDeletedFolder,
   closeEditorGroup,
   createEditorWorkspaceLayout,
+  getEditorBackNavigationTarget,
+  getEditorForwardNavigationTarget,
   getEditorGroupIds,
+  mapEditorNavigationHistoryForPathChange,
   moveEditorTab,
   normalizeEditorWorkspaceLayout,
+  recordEditorNavigation,
+  removeEditorNavigationEntry,
   removeTabFromEditorGroup,
   setActiveEditorGroupTab,
+  resetEditorNavigation,
+  setEditorNavigationIndex,
   splitEditorGroup,
   tabIsReferenced,
   updateEditorSplitSizes,
@@ -87,10 +109,50 @@ const MARKDOWN_EXTENSIONS = new Set([
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'])
 const ONBOARDING_PROGRESS_STORE_KEY = 'desktopOnboardingProgress'
 const EDITOR_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
+type PendingEditorNavigationMutation =
+  | { type: 'move'; oldPath: string; newPath: string }
+  | { type: 'delete'; path: string; isFolder: boolean; workspaceRoot?: string }
+type PendingEditorNavigation = {
+  operationId: number
+  workspaceKey?: string
+  groupId: string
+  activeTabId: string
+  activeFilePath: string
+}
 const CanvasEditor = dynamic(
   () => import('../canvas/canvas-editor').then(module => module.CanvasEditor),
   { ssr: false },
 )
+
+function getEditorWorkspaceKey(workspace: { path: string; isCustom: boolean }) {
+  return workspace.isCustom
+    ? workspace.path.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+    : '__default__'
+}
+
+function applyEditorNavigationMutation(
+  layout: EditorWorkspaceLayout,
+  mutation: PendingEditorNavigationMutation,
+) {
+  if (mutation.type === 'move') {
+    return mapEditorNavigationHistoryForPathChange(
+      layout,
+      mutation.oldPath,
+      mutation.newPath,
+    )
+  }
+  return mutation.isFolder
+    ? cleanEditorNavigationHistoryByDeletedFolder(
+        layout,
+        mutation.path,
+        mutation.workspaceRoot,
+      )
+    : cleanEditorNavigationHistoryByDeletedFile(
+        layout,
+        mutation.path,
+        mutation.workspaceRoot,
+      )
+}
 
 const editorCollisionDetection: CollisionDetection = args => {
   if (!args.pointerCoordinates) return closestCenter(args)
@@ -150,6 +212,11 @@ interface EditorGroupPaneProps {
   onKeepTabs: (groupId: string, keptTabIds: string[]) => void
   onSplitTab: (groupId: string, tabId: string, direction: EditorSplitDirection) => void
   onMoveToNewWindow: (groupId: string, tabId: string) => void
+  onPinTab: (tabId: string) => void
+  onUnpinTab: (tabId: string) => void
+  onNavigateBack: () => void
+  onNavigateForward: () => void
+  navigationReady: boolean
   onToggleMaximize: (groupId: string) => void
   onCloseGroup: (groupId: string) => void
   renderActiveContent: (tab: TabInfo, active: boolean, groupId: string) => React.ReactNode
@@ -158,7 +225,8 @@ interface EditorGroupPaneProps {
 
 function EditorGroupPane({
   group, tabs, activeLayout, dragging, onActivateGroup, onNewTab, onCloseTab,
-  onKeepTabs, onSplitTab, onMoveToNewWindow, onToggleMaximize, onCloseGroup,
+  onKeepTabs, onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab,
+  onNavigateBack, onNavigateForward, navigationReady, onToggleMaximize, onCloseGroup,
   renderActiveContent, renderEmpty,
 }: EditorGroupPaneProps) {
   const groupTabs = group.tabIds
@@ -192,13 +260,20 @@ function EditorGroupPane({
         }}
         onSplitTab={(tabId, direction) => onSplitTab(group.id, tabId, direction)}
         onMoveToNewWindow={tabId => onMoveToNewWindow(group.id, tabId)}
+        onPinTab={onPinTab}
+        onUnpinTab={onUnpinTab}
+        canNavigateBack={navigationReady && Boolean(getEditorBackNavigationTarget(activeLayout))}
+        canNavigateForward={navigationReady && Boolean(getEditorForwardNavigationTarget(activeLayout))}
+        onNavigateBack={onNavigateBack}
+        onNavigateForward={onNavigateForward}
         onToggleMaximize={() => onToggleMaximize(group.id)}
+        canCloseGroup={!groupTabs.some(tab => tab.pinned)}
         onCloseGroup={() => onCloseGroup(group.id)}
       />
       <div className="relative flex min-h-0 flex-1" onPointerDownCapture={() => onActivateGroup(group.id, group.activeTabId)}>
         {groupTabs.map(tab => (
           <div
-            key={tab.id}
+            key={`${tab.id}:${tab.path}`}
             className="min-h-0 min-w-0 flex-1 overflow-hidden"
             style={{ display: tab.id === activeTab?.id ? 'flex' : 'none' }}
           >
@@ -221,22 +296,35 @@ function EditorGroupPane({
 
 export function EditorLayout() {
   const {
-    activeFilePath, fileTree, setActiveFilePath, openTabs, activeTabId,
-    setActiveTabId, setOpenTabs, addTab, removeTab, initOpenTabs, initShowCloudFiles,
+    activeFilePath, fileTree, fileTreeInitialized, fileTreeWorkspaceKey,
+    setActiveFilePath, openTabs, activeTabId,
+    setActiveTabId, setOpenTabs, addTab, replaceTab,
+    setTabDisposition, pendingFileTabOpenRequest, consumeFileTabOpenRequest,
+    removeTab, cleanTabsByDeletedFile, cleanTabsByDeletedFolder,
+    initOpenTabs, initShowCloudFiles,
   } = useArticleStore(useShallow(state => ({
     activeFilePath: state.activeFilePath,
     fileTree: state.fileTree,
+    fileTreeInitialized: state.fileTreeInitialized,
+    fileTreeWorkspaceKey: state.fileTreeWorkspaceKey,
     setActiveFilePath: state.setActiveFilePath,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
     setActiveTabId: state.setActiveTabId,
     setOpenTabs: state.setOpenTabs,
     addTab: state.addTab,
+    replaceTab: state.replaceTab,
+    setTabDisposition: state.setTabDisposition,
+    pendingFileTabOpenRequest: state.pendingFileTabOpenRequest,
+    consumeFileTabOpenRequest: state.consumeFileTabOpenRequest,
     removeTab: state.removeTab,
+    cleanTabsByDeletedFile: state.cleanTabsByDeletedFile,
+    cleanTabsByDeletedFolder: state.cleanTabsByDeletedFolder,
     initOpenTabs: state.initOpenTabs,
     initShowCloudFiles: state.initShowCloudFiles,
   })))
   const { setLeftSidebarTab, rightSidebarVisible, toggleRightSidebar } = useSidebarStore()
+  const workspacePath = useSettingStore(state => state.workspacePath)
   const { setOnboardingPromptDraft } = useChatStore()
   const setActiveMarkId = useMarkStore(state => state.setActiveMarkId)
   const clearActiveMark = useMarkStore(state => state.clearActiveMark)
@@ -245,10 +333,23 @@ export function EditorLayout() {
   const tGroups = useTranslations('tabContext')
 
   const tabContentsRef = useRef<Record<string, string>>({})
+  const tabContentsWorkspacePathRef = useRef(workspacePath)
+  if (tabContentsWorkspacePathRef.current !== workspacePath) {
+    tabContentsWorkspacePathRef.current = workspacePath
+    tabContentsRef.current = {}
+  }
   const [layout, setLayoutState] = useState<EditorWorkspaceLayout>(() => createEditorWorkspaceLayout([]))
   const layoutRef = useRef<EditorWorkspaceLayout>(layout)
   const layoutPersistQueueRef = useRef<Promise<void>>(Promise.resolve())
   const suppressPanelLayoutUntilRef = useRef(0)
+  const navigationOperationRef = useRef(0)
+  const pendingEditorNavigationRef = useRef<PendingEditorNavigation | null>(null)
+  const pendingNavigationMutationsRef = useRef<PendingEditorNavigationMutation[]>([])
+  const layoutReadyRef = useRef(false)
+  const restoredTabValidationRef = useRef<{
+    sequence: number
+    status: 'idle' | 'running' | 'done'
+  }>({ sequence: 0, status: 'idle' })
   const initializedRef = useRef(false)
   const currentOnboardingTaskRef = useRef<OnboardingStepId | null>(null)
   const [layoutReady, setLayoutReady] = useState(false)
@@ -266,11 +367,15 @@ export function EditorLayout() {
   )
 
   const setLayout = useCallback((next: EditorWorkspaceLayout | ((current: EditorWorkspaceLayout) => EditorWorkspaceLayout)) => {
-    setLayoutState(current => {
-      const resolved = typeof next === 'function' ? next(current) : next
-      layoutRef.current = resolved
-      return resolved
-    })
+    const resolved = typeof next === 'function' ? next(layoutRef.current) : next
+    layoutRef.current = resolved
+    setLayoutState(resolved)
+  }, [])
+
+  const applyPendingNavigationMutations = useCallback((current: EditorWorkspaceLayout) => {
+    const pendingMutations = pendingNavigationMutationsRef.current
+    pendingNavigationMutationsRef.current = []
+    return pendingMutations.reduce(applyEditorNavigationMutation, current)
   }, [])
 
   const canDeactivateActiveEditor = useCallback(() => {
@@ -290,20 +395,44 @@ export function EditorLayout() {
       const tabs = articleState.openTabs
       const store = await Store.load('store.json')
       const storedLayout = await store.get<EditorWorkspaceLayout>(EDITOR_LAYOUT_STORE_KEY)
+      const workspaceKey = getEditorWorkspaceKey(await getWorkspacePath())
       let restoredLayout = normalizeEditorWorkspaceLayout(storedLayout, tabs)
+      if (restoredLayout.workspaceKey !== workspaceKey) {
+        restoredLayout = resetEditorNavigation(restoredLayout, workspaceKey)
+      }
       const restoredGroup = Object.values(restoredLayout.groups)
         .find(group => group.tabIds.includes(articleState.activeTabId))
       if (restoredGroup && articleState.activeTabId) {
         restoredLayout = setActiveEditorGroupTab(restoredLayout, restoredGroup.id, articleState.activeTabId)
       }
+      restoredLayout = applyPendingNavigationMutations(restoredLayout)
       setLayout(restoredLayout)
+      layoutReadyRef.current = true
       setLayoutReady(true)
     })().catch(error => {
       console.error('Failed to restore editor layout:', error)
-      setLayout(createEditorWorkspaceLayout(useArticleStore.getState().openTabs))
+      setLayout(applyPendingNavigationMutations(
+        createEditorWorkspaceLayout(useArticleStore.getState().openTabs),
+      ))
+      layoutReadyRef.current = true
       setLayoutReady(true)
     })
-  }, [initOpenTabs, initShowCloudFiles, setLayout])
+  }, [applyPendingNavigationMutations, initOpenTabs, initShowCloudFiles, setLayout])
+
+  useEffect(() => {
+    if (!layoutReady) return
+    let disposed = false
+    void getWorkspacePath().then(workspace => {
+      if (disposed) return
+      const workspaceKey = getEditorWorkspaceKey(workspace)
+      setLayout(current => current.workspaceKey === workspaceKey
+        ? current
+        : resetEditorNavigation(current, workspaceKey))
+    }).catch(error => {
+      console.error('Failed to resolve editor workspace history:', error)
+    })
+    return () => { disposed = true }
+  }, [layoutReady, setLayout, workspacePath])
 
   useEffect(() => {
     if (!layoutReady) return
@@ -327,6 +456,12 @@ export function EditorLayout() {
   useEffect(() => {
     const handleFileContentUpdated = (event: Events['editor-file-content-updated']) => {
       tabContentsRef.current[event.path] = event.content
+      const previewTab = useArticleStore.getState().openTabs.find(tab => (
+        tab.path === event.path && tab.preview
+      ))
+      if (previewTab) {
+        void useArticleStore.getState().setTabDisposition(previewTab.id, 'regular')
+      }
       queueMicrotask(() => emitter.emit('sync-content-updated', event))
     }
     const handleFilePathChanged = (event: Events['editor-file-path-changed']) => {
@@ -334,13 +469,90 @@ export function EditorLayout() {
       delete tabContentsRef.current[event.oldPath]
       if (typeof content === 'string') tabContentsRef.current[event.newPath] = content
     }
+    const handleNavigationPathMoved = (event: Events['editor-navigation-path-moved']) => {
+      const layoutIsReady = layoutReadyRef.current
+      if (!layoutIsReady) {
+        pendingNavigationMutationsRef.current.push({
+          type: 'move',
+          oldPath: event.oldPath,
+          newPath: event.newPath,
+        })
+      } else {
+        event.markHandled?.()
+      }
+      const movedContents: Array<[string, string]> = []
+      for (const [path, content] of Object.entries(tabContentsRef.current)) {
+        const nextPath = path === event.oldPath
+          ? event.newPath
+          : path.startsWith(`${event.oldPath}/`)
+            ? `${event.newPath}${path.slice(event.oldPath.length)}`
+            : path
+        if (nextPath === path) continue
+        delete tabContentsRef.current[path]
+        movedContents.push([nextPath, content])
+      }
+      for (const [path, content] of movedContents) {
+        tabContentsRef.current[path] = content
+      }
+      if (!layoutIsReady) return
+      setLayout(current => mapEditorNavigationHistoryForPathChange(
+        current,
+        event.oldPath,
+        event.newPath,
+      ))
+    }
+    const handleNavigationPathDeleted = (event: Events['editor-navigation-path-deleted']) => {
+      const layoutIsReady = layoutReadyRef.current
+      if (!layoutIsReady) {
+        pendingNavigationMutationsRef.current.push({
+          type: 'delete',
+          path: event.path,
+          isFolder: event.isFolder,
+          workspaceRoot: event.workspaceRoot,
+        })
+      } else {
+        event.markHandled?.()
+      }
+      if (layoutIsReady && event.deletedTabIds?.length && event.resolveFallbackTabId) {
+        const deletedTabIds = new Set(event.deletedTabIds)
+        const validTabIds = new Set(useArticleStore.getState().openTabs.map(tab => tab.id))
+        const currentLayout = layoutRef.current
+        const activeGroup = currentLayout.groups[currentLayout.activeGroupId]
+        const activeIndex = activeGroup?.tabIds.indexOf(activeGroup.activeTabId) ?? -1
+        if (activeGroup && activeIndex >= 0 && deletedTabIds.has(activeGroup.activeTabId)) {
+          const previousTabId = activeGroup.tabIds
+            .slice(0, activeIndex)
+            .reverse()
+            .find(tabId => validTabIds.has(tabId) && !deletedTabIds.has(tabId))
+          const nextTabId = activeGroup.tabIds
+            .slice(activeIndex + 1)
+            .find(tabId => validTabIds.has(tabId) && !deletedTabIds.has(tabId))
+          const fallbackTabId = previousTabId ?? nextTabId
+          if (fallbackTabId) event.resolveFallbackTabId(fallbackTabId)
+        }
+      }
+      for (const path of Object.keys(tabContentsRef.current)) {
+        const deleted = event.isFolder
+          ? editorPathIsSameOrDescendant(path, event.path, event.workspaceRoot)
+          : editorPathsReferToSameFile(path, event.path, event.workspaceRoot)
+        if (deleted) delete tabContentsRef.current[path]
+      }
+      if (!layoutIsReady) return
+      setLayout(current => event.isFolder
+        ? cleanEditorNavigationHistoryByDeletedFolder(current, event.path, event.workspaceRoot)
+        : cleanEditorNavigationHistoryByDeletedFile(current, event.path, event.workspaceRoot))
+    }
     emitter.on('editor-file-content-updated', handleFileContentUpdated)
     emitter.on('editor-file-path-changed', handleFilePathChanged)
+    emitter.on('editor-navigation-path-moved', handleNavigationPathMoved)
+    emitter.on('editor-navigation-path-deleted', handleNavigationPathDeleted)
     return () => {
       emitter.off('editor-file-content-updated', handleFileContentUpdated)
       emitter.off('editor-file-path-changed', handleFilePathChanged)
+      emitter.off('editor-navigation-path-moved', handleNavigationPathMoved)
+      emitter.off('editor-navigation-path-deleted', handleNavigationPathDeleted)
     }
-  }, [])
+  }, [setLayout])
 
   useEffect(() => {
     currentOnboardingTaskRef.current = currentOnboardingTask
@@ -400,40 +612,167 @@ export function EditorLayout() {
     return 'unknown'
   }, [fileTree])
 
-  const checkPathExists = useCallback(async (path: string) => {
+  const checkPathExists = useCallback(async (
+    path: string,
+    workspaceRoot?: string,
+  ): Promise<boolean | null> => {
     try {
-      const [{ exists }, { getFilePathOptions }] = await Promise.all([
-        import('@tauri-apps/plugin-fs'),
-        import('@/lib/workspace'),
-      ])
+      const { exists } = await import('@tauri-apps/plugin-fs')
+      if (workspaceRoot) {
+        const resolvedPath = isAbsoluteFsPath(path)
+          ? path
+          : await (await import('@tauri-apps/api/path')).join(workspaceRoot, path)
+        return await exists(resolvedPath)
+      }
+      const { getFilePathOptions } = await import('@/lib/workspace')
       const options = await getFilePathOptions(path)
       return options.baseDir
         ? await exists(options.path, { baseDir: options.baseDir })
         : await exists(options.path)
     } catch {
-      return false
+      return null
     }
   }, [])
 
+  const activeFileTabReady = !activeFilePath || openTabs.some(tab => (
+    tab.path === activeFilePath
+  ))
+
   useEffect(() => {
-    if (!layoutReady || !openTabs.length) return
+    const validationState = restoredTabValidationRef.current
+    if (!fileTreeInitialized) {
+      validationState.sequence += 1
+      validationState.status = 'idle'
+      return
+    }
+    if (!layoutReady || !activeFileTabReady || validationState.status !== 'idle') return
+
+    const validationSequence = ++validationState.sequence
+    validationState.status = 'running'
     let disposed = false
+    const validationWorkspacePath = useSettingStore.getState().workspacePath
+    const restoredState = useArticleStore.getState()
+    const restoredTabs = [...restoredState.openTabs]
+    const restoredFileTree = restoredState.fileTree
+
     void (async () => {
-      const invalidIds = new Set<string>()
-      for (const tab of openTabs) {
+      const validationWorkspaceRoot = await getCurrentEditorWorkspaceRoot().catch(() => null)
+      const expectedWorkspaceRoot = validationWorkspacePath
+        ? validationWorkspacePath
+        : await getDefaultArticleAbsolutePath('').catch(() => null)
+      if (
+        !validationWorkspaceRoot
+        || !expectedWorkspaceRoot
+        || !workspaceRootsReferToSameLocation(
+          validationWorkspaceRoot,
+          expectedWorkspaceRoot,
+        )
+        || disposed
+        || useSettingStore.getState().workspacePath !== validationWorkspacePath
+      ) return
+
+      const missingCandidates: TabInfo[] = []
+      for (const tab of restoredTabs) {
         if (isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isBlankEditorTab(tab)) continue
-        const existsInTree = Boolean(findPathInTree(tab.path, fileTree))
-        if (tab.isFolder ? !existsInTree : !existsInTree && !await checkPathExists(tab.path)) {
-          invalidIds.add(tab.id)
-          delete tabContentsRef.current[tab.path]
+        const treeItem = findPathInTree(tab.path, restoredFileTree)
+        if (treeItem?.isLocale === false) continue
+        const existsOnDisk = await checkPathExists(tab.path, validationWorkspaceRoot)
+        if (disposed || useSettingStore.getState().workspacePath !== validationWorkspacePath) return
+        if (existsOnDisk === false) missingCandidates.push(tab)
+      }
+      if (!missingCandidates.length) return
+
+      let syncConfigured: boolean | null = null
+      if (missingCandidates.some(tab => !isAbsoluteFsPath(tab.path))) {
+        try {
+          const { isSyncConfigured } = await import('@/lib/sync/sync-manager')
+          syncConfigured = await isSyncConfigured({ throwOnError: true })
+        } catch {
+          // A configuration read failure is not proof that a remote-only file is gone.
+          syncConfigured = null
         }
       }
-      if (disposed || !invalidIds.size) return
-      const currentTabs = useArticleStore.getState().openTabs
-      await setOpenTabs(currentTabs.filter(tab => !invalidIds.has(tab.id)))
-    })()
-    return () => { disposed = true }
-  }, [checkPathExists, fileTree, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, layoutReady, openTabs, setOpenTabs])
+      if (disposed || useSettingStore.getState().workspacePath !== validationWorkspacePath) return
+
+      const invalidTabs = missingCandidates.filter(tab => (
+        isAbsoluteFsPath(tab.path) || syncConfigured === false
+      ))
+      const currentActiveTabId = useArticleStore.getState().activeTabId
+      invalidTabs.sort((left, right) => (
+        Number(left.id === currentActiveTabId) - Number(right.id === currentActiveTabId)
+      ))
+
+      for (const tab of invalidTabs) {
+        if (disposed || useSettingStore.getState().workspacePath !== validationWorkspacePath) return
+        const currentState = useArticleStore.getState()
+        const currentTab = currentState.openTabs.find(item => item.id === tab.id)
+        if (
+          !currentTab
+          || currentTab.isFolder !== tab.isFolder
+          || !editorPathsReferToSameFile(
+            currentTab.path,
+            tab.path,
+            validationWorkspaceRoot,
+          )
+          || findPathInTree(currentTab.path, currentState.fileTree)?.isLocale === false
+        ) {
+          continue
+        }
+        const stillMissing = await checkPathExists(currentTab.path, validationWorkspaceRoot)
+        if (disposed || useSettingStore.getState().workspacePath !== validationWorkspacePath) return
+        if (stillMissing !== false) continue
+        if (
+          currentState.activeTabId === currentTab.id
+          && !canDeactivateActiveEditor()
+        ) continue
+        if (tabContentsRef.current[currentTab.path]) continue
+
+        if (currentTab.isFolder) {
+          await cleanTabsByDeletedFolder(
+            currentTab.path,
+            validationWorkspaceRoot,
+            { preservePendingSaves: true },
+          )
+        } else {
+          await cleanTabsByDeletedFile(
+            currentTab.path,
+            validationWorkspaceRoot,
+            { preservePendingSaves: true },
+          )
+        }
+      }
+    })().catch(error => {
+      console.error('Failed to clean invalid restored editor tabs:', error)
+    }).finally(() => {
+      const currentValidation = restoredTabValidationRef.current
+      if (currentValidation.sequence !== validationSequence) return
+      currentValidation.status = disposed ? 'idle' : 'done'
+    })
+
+    return () => {
+      disposed = true
+      const currentValidation = restoredTabValidationRef.current
+      if (
+        currentValidation.sequence === validationSequence
+        && currentValidation.status === 'running'
+      ) {
+        currentValidation.sequence += 1
+        currentValidation.status = 'idle'
+      }
+    }
+  }, [
+    activeFilePath,
+    activeFileTabReady,
+    checkPathExists,
+    canDeactivateActiveEditor,
+    cleanTabsByDeletedFile,
+    cleanTabsByDeletedFolder,
+    fileTreeInitialized,
+    isBlankEditorTab,
+    isCanvasEditorTab,
+    isRecordEditorTab,
+    layoutReady,
+  ])
 
   useEffect(() => {
     const restoredActiveTab = openTabs.find(tab => tab.id === activeTabId)
@@ -444,79 +783,248 @@ export function EditorLayout() {
     )
   }, [activeTabId, isCanvasEditorTab, openTabs, setActiveCanvasId])
 
-  const activateTab = useCallback(async (groupId: string, tab?: TabInfo | null) => {
+  const activateTab = useCallback(async (
+    groupId: string,
+    tab?: TabInfo | null,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => {
     const currentGlobalTab = useArticleStore.getState().activeTabId
-    if (tab?.id !== currentGlobalTab && !canDeactivateActiveEditor()) return false
+    if (
+      tab?.id !== currentGlobalTab
+      && !options?.deactivationAlreadyPrepared
+      && !canDeactivateActiveEditor()
+    ) return false
     setLayout(current => setActiveEditorGroupTab(current, groupId, tab?.id ?? ''))
+    const preparedOptions = {
+      deactivationAlreadyPrepared: true,
+      createIfMissing: false,
+    }
     if (!tab) {
       clearActiveMark()
       setActiveCanvasId(null)
-      await Promise.all([setActiveTabId(''), setActiveFilePath('')])
+      await Promise.all([
+        setActiveTabId('', preparedOptions),
+        setActiveFilePath('', true, preparedOptions),
+      ])
       return true
     }
-    const persistActiveTab = Promise.resolve(setActiveTabId(tab.id))
+    const persistActiveTab = setActiveTabId(tab.id, preparedOptions)
     if (isBlankEditorTab(tab)) {
       clearActiveMark()
       setActiveCanvasId(null)
-      await Promise.all([persistActiveTab, setActiveFilePath('')])
+      await Promise.all([persistActiveTab, setActiveFilePath('', true, preparedOptions)])
     } else if (isRecordEditorTab(tab)) {
       setActiveMarkId(getRecordIdForTab(tab))
       setActiveCanvasId(null)
-      await Promise.all([persistActiveTab, setActiveFilePath('')])
+      await Promise.all([persistActiveTab, setActiveFilePath('', true, preparedOptions)])
     } else if (isCanvasEditorTab(tab)) {
       clearActiveMark()
       setActiveCanvasId(getCanvasIdFromTabPath(tab.path))
-      await Promise.all([persistActiveTab, setActiveFilePath('')])
+      await Promise.all([persistActiveTab, setActiveFilePath('', true, preparedOptions)])
     } else {
       clearActiveMark()
       setActiveCanvasId(null)
-      await Promise.all([persistActiveTab, setActiveFilePath(tab.path)])
+      await Promise.all([persistActiveTab, setActiveFilePath(tab.path, true, preparedOptions)])
     }
     return true
   }, [canDeactivateActiveEditor, clearActiveMark, getRecordIdForTab, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, setActiveCanvasId, setActiveFilePath, setActiveMarkId, setActiveTabId, setLayout])
 
   useEffect(() => {
-    if (!activeFilePath || isRecordTabPath(activeFilePath)) return
+    if (!layoutReady || !activeFilePath || isRecordTabPath(activeFilePath)) return
+    const openRequest = pendingFileTabOpenRequest?.path === activeFilePath
+      ? pendingFileTabOpenRequest
+      : null
     const existing = openTabs.find(tab => tab.path === activeFilePath)
     if (existing) {
-      if (activeTabId !== existing.id && layoutReady) {
+      if (openRequest?.mode === 'pinned' && !existing.pinned) {
+        void setTabDisposition(existing.id, 'pinned')
+      }
+      if (activeTabId !== existing.id) {
         const activeGroup = layoutRef.current.groups[layoutRef.current.activeGroupId]
         const targetGroup = activeGroup?.tabIds.includes(existing.id)
           ? activeGroup
           : Object.values(layoutRef.current.groups).find(group => group.tabIds.includes(existing.id))
-        if (targetGroup) void activateTab(targetGroup.id, existing)
+        if (targetGroup) {
+          void activateTab(targetGroup.id, existing, {
+            deactivationAlreadyPrepared: Boolean(openRequest),
+          }).finally(() => {
+            if (openRequest) consumeFileTabOpenRequest(openRequest.id)
+          })
+          return
+        }
       }
+      if (openRequest) consumeFileTabOpenRequest(openRequest.id)
       return
     }
+    const requestedGroupId = layoutRef.current.activeGroupId
     let disposed = false
     void (async () => {
-      const ownedByStandaloneWindow = await focusEditorWindowForPath(activeFilePath).catch(error => {
+      const requestIsCurrent = () => {
+        const articleState = useArticleStore.getState()
+        return !disposed
+          && articleState.activeFilePath === activeFilePath
+          && (
+            !openRequest
+            || articleState.pendingFileTabOpenRequest?.id === openRequest.id
+          )
+      }
+      const ownedByStandaloneWindow = await focusEditorWindowForPath(activeFilePath, {
+        shouldFocus: requestIsCurrent,
+      }).catch(error => {
         console.error('Failed to resolve standalone editor ownership:', error)
         return false
       })
+      const currentArticleState = useArticleStore.getState()
+      if (!requestIsCurrent()) return
       if (ownedByStandaloneWindow) {
-        if (disposed) return
-        const currentTab = openTabs.find(tab => tab.id === activeTabId)
-        await setActiveFilePath(currentTab?.path ?? '')
+        if (openRequest) consumeFileTabOpenRequest(openRequest.id)
+        const currentTab = currentArticleState.openTabs.find(tab => (
+          tab.id === currentArticleState.activeTabId
+        ))
+        await setActiveFilePath(
+          currentTab?.path ?? '',
+          true,
+          { deactivationAlreadyPrepared: true, createIfMissing: false },
+        )
         return
       }
-      if (disposed) return
-      await Promise.resolve(addTab({
+      const existingAfterOwnershipCheck = currentArticleState.openTabs.find(tab => (
+        tab.path === activeFilePath
+      ))
+      if (existingAfterOwnershipCheck) {
+        if (openRequest?.mode === 'pinned' && !existingAfterOwnershipCheck.pinned) {
+          void setTabDisposition(existingAfterOwnershipCheck.id, 'pinned')
+        }
+        const currentLayout = layoutRef.current
+        const targetGroup = Object.values(currentLayout.groups).find(group => (
+          group.tabIds.includes(existingAfterOwnershipCheck.id)
+        ))
+        if (targetGroup) {
+          await activateTab(targetGroup.id, existingAfterOwnershipCheck, {
+            deactivationAlreadyPrepared: Boolean(openRequest),
+          })
+        }
+        if (openRequest) consumeFileTabOpenRequest(openRequest.id)
+        return
+      }
+      const latestLayout = layoutRef.current
+      const targetGroupId = latestLayout.groups[requestedGroupId]
+        ? requestedGroupId
+        : latestLayout.activeGroupId
+      const targetGroup = latestLayout.groups[targetGroupId]
+      if (!targetGroup) {
+        if (openRequest) consumeFileTabOpenRequest(openRequest.id)
+        return
+      }
+      const treeItem = findPathInTree(activeFilePath, fileTree)
+      const tab: TabInfo = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
         path: activeFilePath,
-        name: activeFilePath.split(/[\\/]/).pop() || activeFilePath,
-        isFolder: isFolderPath(activeFilePath),
+        name: openRequest?.name || activeFilePath.split(/[\\/]/).pop() || activeFilePath,
+        isFolder: treeItem?.isDirectory ?? openRequest?.isFolder ?? isFolderPath(activeFilePath),
         kind: 'file',
-      }))
+        preview: openRequest?.mode === 'preview',
+        pinned: openRequest?.mode === 'pinned',
+      }
+
+      if (openRequest?.mode === 'preview') {
+        const currentTabs = useArticleStore.getState().openTabs
+        const previewTab = targetGroup.tabIds
+          .map(tabId => currentTabs.find(item => item.id === tabId))
+          .find(item => item?.preview)
+        if (previewTab) {
+          emitter.emit('editor-file-close', { path: previewTab.path })
+          delete tabContentsRef.current[previewTab.path]
+          void replaceTab(previewTab.id, { ...tab, id: previewTab.id })
+          setLayout(current => setActiveEditorGroupTab(current, targetGroupId, previewTab.id))
+          consumeFileTabOpenRequest(openRequest.id)
+          return
+        }
+      }
+
+      void addTab(tab, { deactivationAlreadyPrepared: true })
+      if (!useArticleStore.getState().openTabs.some(item => item.id === tab.id)) {
+        if (openRequest) consumeFileTabOpenRequest(openRequest.id)
+        return
+      }
+      setLayout(current => {
+        const resolvedGroupId = current.groups[targetGroupId]
+          ? targetGroupId
+          : current.activeGroupId
+        const resolvedGroup = current.groups[resolvedGroupId]
+        if (!resolvedGroup) return current
+        const groups = Object.fromEntries(Object.entries(current.groups).map(([groupId, group]) => {
+          if (groupId === resolvedGroupId) {
+            return [groupId, {
+              ...group,
+              tabIds: group.tabIds.includes(tab.id)
+                ? group.tabIds
+                : [...group.tabIds, tab.id],
+              activeTabId: tab.id,
+            }]
+          }
+          if (!group.tabIds.includes(tab.id)) return [groupId, group]
+          const tabIds = group.tabIds.filter(id => id !== tab.id)
+          return [groupId, {
+            ...group,
+            tabIds,
+            activeTabId: group.activeTabId === tab.id
+              ? tabIds.at(-1) ?? ''
+              : group.activeTabId,
+          }]
+        }))
+        return { ...current, groups, activeGroupId: resolvedGroupId }
+      })
+      if (openRequest) consumeFileTabOpenRequest(openRequest.id)
     })()
     return () => { disposed = true }
-  }, [activateTab, activeFilePath, activeTabId, addTab, isFolderPath, layoutReady, openTabs, setActiveFilePath])
+  }, [activateTab, activeFilePath, activeTabId, addTab, consumeFileTabOpenRequest, fileTree, isFolderPath, layoutReady, openTabs, pendingFileTabOpenRequest, replaceTab, setActiveFilePath, setLayout, setTabDisposition])
+
+  useEffect(() => {
+    if (
+      !layoutReady
+      || !activeTabId
+      || !activeFilePath
+      || fileTreeWorkspaceKey === null
+      || layout.workspaceKey !== fileTreeWorkspaceKey
+    ) return
+    const activeTab = openTabs.find(tab => tab.id === activeTabId)
+    if (!activeTab || activeTab.path !== activeFilePath) return
+    setLayout(current => {
+      const activeGroup = current.groups[current.activeGroupId]
+      const targetGroup = activeGroup?.tabIds.includes(activeTabId)
+        ? activeGroup
+        : Object.values(current.groups).find(group => group.tabIds.includes(activeTabId))
+      if (!targetGroup) return current
+      return recordEditorNavigation(
+        setActiveEditorGroupTab(current, targetGroup.id, activeTabId),
+        activeTab,
+      )
+    })
+  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
 
   const handleActivateGroup = useCallback((groupId: string, tabId?: string) => {
     const tab = openTabs.find(item => item.id === tabId)
-    if (layoutRef.current.activeGroupId === groupId && (!tabId || activeTabId === tabId)) return
+    const tabActiveFilePath = tab && (
+      isBlankEditorTab(tab) || isRecordEditorTab(tab) || isCanvasEditorTab(tab)
+    )
+      ? ''
+      : tab?.path ?? ''
+    if (
+      layoutRef.current.activeGroupId === groupId
+      && (!tabId || (activeTabId === tabId && activeFilePath === tabActiveFilePath))
+    ) {
+      if (
+        tab
+        && layoutRef.current.workspaceKey === fileTreeWorkspaceKey
+        && layoutRef.current.navigationHistory[layoutRef.current.navigationIndex]?.path !== tab.path
+      ) {
+        setLayout(current => recordEditorNavigation(current, tab))
+      }
+      return
+    }
     void activateTab(groupId, tab)
-  }, [activateTab, activeTabId, openTabs])
+  }, [activateTab, activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, openTabs, setLayout])
 
   const removeGlobalTabIfUnused = useCallback((nextLayout: EditorWorkspaceLayout, tabId: string) => {
     if (!tabIsReferenced(nextLayout, tabId)) {
@@ -525,7 +1033,7 @@ export function EditorLayout() {
         emitter.emit('editor-file-close', { path: tab.path })
         delete tabContentsRef.current[tab.path]
       }
-      void removeTab(tabId)
+      void removeTab(tabId, { deactivationAlreadyPrepared: true })
     }
   }, [openTabs, removeTab])
 
@@ -552,37 +1060,60 @@ export function EditorLayout() {
   const handleKeepTabs = useCallback((groupId: string, keptTabIds: string[]) => {
     const group = layoutRef.current.groups[groupId]
     if (!group) return
-    const removedIds = group.tabIds.filter(id => !keptTabIds.includes(id))
+    const protectedTabIds = group.tabIds.filter(tabId => (
+      openTabs.find(tab => tab.id === tabId)?.pinned
+    ))
+    const effectiveKeptTabIds = new Set([...keptTabIds, ...protectedTabIds])
+    const removedIds = group.tabIds.filter(id => !effectiveKeptTabIds.has(id))
     if (removedIds.includes(group.activeTabId) && layoutRef.current.activeGroupId === groupId && !canDeactivateActiveEditor()) return
     let next = layoutRef.current
     for (const tabId of removedIds) next = removeTabFromEditorGroup(next, groupId, tabId)
-    if (!keptTabIds.length && getEditorGroupIds(next.root).length > 1) next = closeEditorGroup(next, groupId)
+    if (!effectiveKeptTabIds.size && getEditorGroupIds(next.root).length > 1) next = closeEditorGroup(next, groupId)
     setLayout(next)
     removedIds.forEach(tabId => removeGlobalTabIfUnused(next, tabId))
     const nextGroup = next.groups[next.activeGroupId]
     void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === nextGroup?.activeTabId))
   }, [activateTab, canDeactivateActiveEditor, openTabs, removeGlobalTabIfUnused, setLayout])
 
+  const handlePinTab = useCallback((tabId: string) => {
+    void setTabDisposition(tabId, 'pinned')
+  }, [setTabDisposition])
+
+  const handleUnpinTab = useCallback((tabId: string) => {
+    void setTabDisposition(tabId, 'regular')
+  }, [setTabDisposition])
+
   const handleCloseGroup = useCallback((groupId: string) => {
     const group = layoutRef.current.groups[groupId]
-    if (!group || !canDeactivateActiveEditor()) return
+    if (!group) return
+    const pinnedTabIds = group.tabIds.filter(tabId => (
+      openTabs.find(tab => tab.id === tabId)?.pinned
+    ))
+    if (pinnedTabIds.length) {
+      handleKeepTabs(groupId, pinnedTabIds)
+      return
+    }
+    if (!canDeactivateActiveEditor()) return
     const next = closeEditorGroup(layoutRef.current, groupId)
     setLayout(next)
     group.tabIds.forEach(tabId => removeGlobalTabIfUnused(next, tabId))
     const activeGroup = next.groups[next.activeGroupId]
     void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === activeGroup?.activeTabId))
-  }, [activateTab, canDeactivateActiveEditor, openTabs, removeGlobalTabIfUnused, setLayout])
+  }, [activateTab, canDeactivateActiveEditor, handleKeepTabs, openTabs, removeGlobalTabIfUnused, setLayout])
 
   const handleSplitTab = useCallback((groupId: string, tabId: string, direction: EditorSplitDirection) => {
     const group = layoutRef.current.groups[groupId]
     if (!group || group.tabIds.length < 2 || !group.tabIds.includes(tabId)) return
     if (!canDeactivateActiveEditor()) return
+    if (openTabs.find(tab => tab.id === tabId)?.preview) {
+      void setTabDisposition(tabId, 'regular')
+    }
     const next = splitEditorGroup(layoutRef.current, groupId, direction, tabId, {
       moveFromGroupId: groupId,
     })
     setLayout(next)
     void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === tabId))
-  }, [activateTab, canDeactivateActiveEditor, openTabs, setLayout])
+  }, [activateTab, canDeactivateActiveEditor, openTabs, setLayout, setTabDisposition])
 
   const handleMoveToNewWindow = useCallback(async (_groupId: string, tabId: string) => {
     const tab = openTabs.find(item => item.id === tabId)
@@ -591,8 +1122,12 @@ export function EditorLayout() {
     try {
       const currentActivePath = useArticleStore.getState().activeFilePath
       if (currentActivePath && !await prepareActiveEditorDeactivationDurably(currentActivePath)) return
+      const detachedTab = tab.preview
+        ? { ...tab, preview: false, pinned: false }
+        : tab
+      if (tab.preview) await setTabDisposition(tab.id, 'regular')
       await useArticleStore.getState().flushPendingArticleSavesForPaths([tab.path])
-      const opened = await openEditorWindow(tab)
+      const opened = await openEditorWindow(detachedTab)
       if (!opened) {
         toast.error(tGroups('openWindowFailed'))
         return
@@ -620,7 +1155,7 @@ export function EditorLayout() {
     } finally {
       setDetachingTabId('')
     }
-  }, [activateTab, openTabs, setLayout, setOpenTabs, tGroups])
+  }, [activateTab, openTabs, setLayout, setOpenTabs, setTabDisposition, tGroups])
 
   const handleToggleMaximize = useCallback((groupId: string) => {
     suppressPanelLayoutUntilRef.current = Date.now() + 200
@@ -693,6 +1228,17 @@ export function EditorLayout() {
     }
     if (!canDeactivateActiveEditor()) return
 
+    const movesBetweenGroups = target.groupId !== source.groupId
+    const createsSplit = target.type === 'editor-drop-zone'
+      && target.direction !== undefined
+      && target.direction !== 'center'
+    if (
+      (movesBetweenGroups || createsSplit)
+      && openTabs.find(tab => tab.id === source.tabId)?.preview
+    ) {
+      void setTabDisposition(source.tabId, 'regular')
+    }
+
     let next = layoutRef.current
     if (target.type === 'editor-tab' && target.tabId) {
       const targetGroup = next.groups[target.groupId]
@@ -721,10 +1267,344 @@ export function EditorLayout() {
     }
     setLayout(next)
     void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === source.tabId))
-  }, [activateTab, canDeactivateActiveEditor, handleMoveToNewWindow, openTabs, setLayout])
+  }, [activateTab, canDeactivateActiveEditor, handleMoveToNewWindow, openTabs, setLayout, setTabDisposition])
+
+  const handleNavigateHistory = useCallback(async (direction: 'back' | 'forward') => {
+    const currentOperationId = navigationOperationRef.current
+    const initialLayout = layoutRef.current
+    const groupId = initialLayout.activeGroupId
+    const initialGroup = initialLayout.groups[groupId]
+    if (!initialGroup) return
+    const initialArticleState = useArticleStore.getState()
+    const initialActiveTabId = initialArticleState.activeTabId
+    const initialActiveFilePath = initialArticleState.activeFilePath
+    const initialActiveTab = initialArticleState.openTabs.find(tab => (
+      tab.id === initialActiveTabId
+    ))
+    const initialNavigationEntry = initialLayout.navigationHistory[initialLayout.navigationIndex]
+    const pendingNavigation = pendingEditorNavigationRef.current
+    const navigationIsAligned = Boolean(
+      initialActiveFilePath
+      && initialGroup.activeTabId === initialActiveTabId
+      && initialActiveTab?.path === initialActiveFilePath
+      && initialNavigationEntry?.path === initialActiveFilePath
+    )
+    const continuesPendingNavigation = Boolean(
+      pendingNavigation
+      && pendingNavigation.operationId === currentOperationId
+      && pendingNavigation.workspaceKey === initialLayout.workspaceKey
+      && pendingNavigation.groupId === groupId
+      && pendingNavigation.activeTabId === initialActiveTabId
+      && pendingNavigation.activeFilePath === initialActiveFilePath
+      && initialGroup.activeTabId === initialActiveTabId
+    )
+    if (!navigationIsAligned && !continuesPendingNavigation) return
+
+    const target = direction === 'back'
+      ? getEditorBackNavigationTarget(initialLayout)
+      : getEditorForwardNavigationTarget(initialLayout)
+    if (!target) return
+    const latestGroup = layoutRef.current.groups[groupId]
+    if (
+      navigationOperationRef.current !== currentOperationId
+      || layoutRef.current.workspaceKey !== initialLayout.workspaceKey
+      || layoutRef.current.activeGroupId !== groupId
+      || latestGroup?.activeTabId !== initialGroup.activeTabId
+      || !canDeactivateActiveEditor()
+    ) return
+
+    const operationId = ++navigationOperationRef.current
+    pendingEditorNavigationRef.current = {
+      operationId,
+      workspaceKey: initialLayout.workspaceKey,
+      groupId,
+      activeTabId: initialActiveTabId,
+      activeFilePath: initialActiveFilePath,
+    }
+    let retainPendingNavigation = false
+    const navigationIsCurrent = () => {
+      const articleState = useArticleStore.getState()
+      return navigationOperationRef.current === operationId
+        && articleState.activeTabId === initialActiveTabId
+        && articleState.activeFilePath === initialActiveFilePath
+    }
+
+    try {
+      if (
+        !navigationIsCurrent()
+        || layoutRef.current.workspaceKey !== initialLayout.workspaceKey
+        || layoutRef.current.activeGroupId !== groupId
+        || layoutRef.current.groups[groupId]?.activeTabId !== initialGroup.activeTabId
+      ) return
+
+      setLayout(current => setEditorNavigationIndex(current, target.index))
+
+    const navigationContextIsCurrent = () => {
+      const currentLayout = layoutRef.current
+      const currentGroup = currentLayout.groups[groupId]
+      return navigationIsCurrent()
+        && currentLayout.workspaceKey === initialLayout.workspaceKey
+        && currentLayout.activeGroupId === groupId
+        && currentGroup?.activeTabId === initialGroup.activeTabId
+    }
+    const navigationTargetIsCurrent = (expectedPath: string) => {
+      const currentLayout = layoutRef.current
+      return navigationContextIsCurrent()
+        && currentLayout.navigationHistory[currentLayout.navigationIndex]?.path === expectedPath
+    }
+    const restoreNavigationCursor = () => {
+      if (navigationOperationRef.current !== operationId) return
+      setLayout(current => {
+        const currentGroup = current.groups[groupId]
+        if (
+          !navigationIsCurrent()
+          || current.workspaceKey !== initialLayout.workspaceKey
+          || current.activeGroupId !== groupId
+          || currentGroup?.activeTabId !== initialGroup.activeTabId
+        ) return current
+        if (
+          initialLayout.navigationIndex >= 0
+          && current.navigationHistory[initialLayout.navigationIndex]?.path === initialActiveFilePath
+        ) {
+          return setEditorNavigationIndex(current, initialLayout.navigationIndex)
+        }
+        const matchingIndexes = current.navigationHistory
+          .map((entry, index) => entry.path === initialActiveFilePath ? index : -1)
+          .filter(index => index >= 0)
+        if (!matchingIndexes.length) return current
+        const nearestIndex = matchingIndexes.reduce((nearest, index) => {
+          const distance = Math.abs(index - current.navigationIndex)
+          const nearestDistance = Math.abs(nearest - current.navigationIndex)
+          if (distance < nearestDistance) return index
+          if (distance > nearestDistance) return nearest
+          return direction === 'back'
+            ? Math.max(nearest, index)
+            : Math.min(nearest, index)
+        })
+        return setEditorNavigationIndex(current, nearestIndex)
+      })
+    }
+    const persistedWorkspaceIsCurrent = async () => {
+      try {
+        return getEditorWorkspaceKey(await getWorkspacePath()) === initialLayout.workspaceKey
+      } catch {
+        return false
+      }
+    }
+
+    let navigationWorkspaceRoot = ''
+    try {
+      const navigationWorkspace = await getWorkspacePath()
+      if (!navigationContextIsCurrent()) return
+      if (getEditorWorkspaceKey(navigationWorkspace) !== initialLayout.workspaceKey) {
+        restoreNavigationCursor()
+        return
+      }
+      navigationWorkspaceRoot = navigationWorkspace.isCustom
+        ? navigationWorkspace.path
+        : await getDefaultArticleAbsolutePath('')
+    } catch {
+      restoreNavigationCursor()
+      return
+    }
+    if (!navigationContextIsCurrent()) return
+
+    while (navigationContextIsCurrent()) {
+      const resolvedEntry = layoutRef.current.navigationHistory[layoutRef.current.navigationIndex]
+      if (!resolvedEntry) return
+      if (resolvedEntry.path === initialActiveFilePath) {
+        const nextTarget = direction === 'back'
+          ? getEditorBackNavigationTarget(layoutRef.current)
+          : getEditorForwardNavigationTarget(layoutRef.current)
+        if (!nextTarget) return
+        setLayout(current => setEditorNavigationIndex(current, nextTarget.index))
+        continue
+      }
+      const checkedTargetPath = resolvedEntry.path
+      let focusTargetPath = ''
+      try {
+        focusTargetPath = isAbsoluteFsPath(checkedTargetPath)
+          ? checkedTargetPath
+          : await (await import('@tauri-apps/api/path')).join(
+              navigationWorkspaceRoot,
+              checkedTargetPath,
+            )
+      } catch {
+        restoreNavigationCursor()
+        return
+      }
+      if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+      const ownedByStandaloneWindow = await focusEditorWindowForPath(focusTargetPath, {
+        shouldFocus: () => navigationTargetIsCurrent(checkedTargetPath),
+      }).catch(error => {
+        console.error('Failed to resolve standalone editor ownership:', error)
+        return false
+      })
+      if (!navigationContextIsCurrent()) return
+      if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+      if (!await persistedWorkspaceIsCurrent()) {
+        restoreNavigationCursor()
+        return
+      }
+      if (ownedByStandaloneWindow) {
+        // The history cursor now represents the focused standalone editor,
+        // while the main window still owns its previous active tab. Preserve
+        // the context so another back/forward action can cross that boundary.
+        retainPendingNavigation = true
+        return
+      }
+
+      const currentArticleState = useArticleStore.getState()
+      const treeItem = findPathInTree(checkedTargetPath, currentArticleState.fileTree)
+      if (treeItem?.isLocale !== false) {
+        const existsOnDisk = await checkPathExists(
+          checkedTargetPath,
+          navigationWorkspaceRoot,
+        )
+        if (!navigationContextIsCurrent()) return
+        if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+
+        let definitelyMissing = isAbsoluteFsPath(checkedTargetPath) && existsOnDisk === false
+        if (existsOnDisk === false && !isAbsoluteFsPath(checkedTargetPath)) {
+          try {
+            const { isSyncConfigured } = await import('@/lib/sync/sync-manager')
+            definitelyMissing = !await isSyncConfigured({ throwOnError: true })
+          } catch {
+            // Preserve the target when remote availability cannot be determined safely.
+            definitelyMissing = false
+          }
+        }
+        if (!navigationContextIsCurrent()) return
+        if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+
+        if (definitelyMissing) {
+          const stillMissing = await checkPathExists(
+            checkedTargetPath,
+            navigationWorkspaceRoot,
+          )
+          if (!navigationContextIsCurrent()) return
+          if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+          if (stillMissing !== false) continue
+          const workspaceStillCurrent = await persistedWorkspaceIsCurrent()
+          if (!navigationContextIsCurrent()) return
+          if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+          if (!workspaceStillCurrent) {
+            restoreNavigationCursor()
+            return
+          }
+          let removed = false
+          setLayout(current => {
+            const currentGroup = current.groups[groupId]
+            if (
+              navigationOperationRef.current !== operationId
+              || !navigationIsCurrent()
+              || current.workspaceKey !== initialLayout.workspaceKey
+              || current.activeGroupId !== groupId
+              || currentGroup?.activeTabId !== initialGroup.activeTabId
+              || current.navigationHistory[current.navigationIndex]?.path !== checkedTargetPath
+            ) {
+              return current
+            }
+            removed = true
+            return removeEditorNavigationEntry(
+              current,
+              current.navigationIndex,
+              direction === 'back' ? 'next' : 'previous',
+            )
+          })
+          if (!removed) continue
+          const nextTarget = direction === 'back'
+            ? getEditorBackNavigationTarget(layoutRef.current)
+            : getEditorForwardNavigationTarget(layoutRef.current)
+          if (nextTarget) {
+            setLayout(current => setEditorNavigationIndex(current, nextTarget.index))
+            continue
+          }
+          // A rapid sequence can cancel an earlier activation after its cursor
+          // already moved. If no further entry exists, activate the nearest
+          // valid reserved position instead of leaving cursor and editor apart.
+          const fallbackEntry = layoutRef.current.navigationHistory[layoutRef.current.navigationIndex]
+          if (fallbackEntry && fallbackEntry.path !== initialActiveFilePath) continue
+          return
+        }
+      }
+
+      if (!await persistedWorkspaceIsCurrent()) {
+        restoreNavigationCursor()
+        return
+      }
+      if (!navigationTargetIsCurrent(checkedTargetPath)) continue
+      if (!canDeactivateActiveEditor()) {
+        restoreNavigationCursor()
+        return
+      }
+      const existing = useArticleStore.getState().openTabs.find(tab => (
+        tab.path === checkedTargetPath
+      ))
+      if (existing) {
+        const sourceGroup = layoutRef.current.groups[groupId]
+        const targetGroup = sourceGroup?.tabIds.includes(existing.id)
+          ? sourceGroup
+          : Object.values(layoutRef.current.groups).find(group => group.tabIds.includes(existing.id))
+        if (targetGroup) {
+          await activateTab(targetGroup.id, existing, { deactivationAlreadyPrepared: true })
+          return
+        }
+        restoreNavigationCursor()
+        return
+      }
+
+      await setActiveFilePath(checkedTargetPath, true, {
+        deactivationAlreadyPrepared: true,
+        createIfMissing: false,
+        tabOpenMode: 'preview',
+        tabMetadata: {
+          name: resolvedEntry.name,
+          isFolder: resolvedEntry.isFolder,
+        },
+      })
+      return
+    }
+    } finally {
+      if (
+        !retainPendingNavigation
+        && pendingEditorNavigationRef.current?.operationId === operationId
+      ) {
+        pendingEditorNavigationRef.current = null
+      }
+    }
+  }, [activateTab, canDeactivateActiveEditor, checkPathExists, setActiveFilePath, setLayout])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return
+      let currentPlatform = ''
+      try { currentPlatform = platform() } catch { currentPlatform = '' }
+      const isMac = currentPlatform === 'macos'
+      const navigationDirection = isMac
+        ? event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+          ? event.code === 'BracketLeft'
+            ? 'back'
+            : event.code === 'BracketRight'
+              ? 'forward'
+              : null
+          : null
+        : event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
+          ? event.key === 'ArrowLeft'
+            ? 'back'
+            : event.key === 'ArrowRight'
+              ? 'forward'
+              : null
+          : null
+      if (navigationDirection) {
+        event.preventDefault()
+        const target = navigationDirection === 'back'
+          ? getEditorBackNavigationTarget(layoutRef.current)
+          : getEditorForwardNavigationTarget(layoutRef.current)
+        if (!target) return
+        void handleNavigateHistory(navigationDirection)
+        return
+      }
       if (event.ctrlKey && event.key === 'Tab') {
         const group = layoutRef.current.groups[layoutRef.current.activeGroupId]
         if (!group || group.tabIds.length < 2) return
@@ -752,9 +1632,9 @@ export function EditorLayout() {
       event.preventDefault()
       handleActivateGroup(group.id, group.activeTabId)
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleActivateGroup, handleSplitTab])
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
     if (isRecordEditorTab(tab)) {
@@ -765,9 +1645,9 @@ export function EditorLayout() {
       const canvasId = tab.canvasId || getCanvasIdFromTabPath(tab.path)
       return <div className="flex min-h-0 flex-1 overflow-hidden">{canvasId ? <CanvasEditor canvasId={canvasId} isActive={active} /> : <UnsupportedFile filePath={tab.path} />}</div>
     }
-    const itemType = getItemType(tab.path)
+    const itemType = tab.isFolder ? 'folder' : getItemType(tab.path)
     return (
-      <TabContentErrorBoundary key={tab.id} tabName={tab.name} onClose={() => handleCloseTab(groupId, tab.id)}>
+      <TabContentErrorBoundary key={`${workspacePath || '__default__'}:${tab.id}:${tab.path}`} tabName={tab.name} onClose={() => handleCloseTab(groupId, tab.id)}>
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {itemType === 'folder' && <FolderView folderPath={tab.path} />}
           {itemType === 'image' && <ImageEditor filePath={tab.path} isActive={active} />}
@@ -776,7 +1656,7 @@ export function EditorLayout() {
         </div>
       </TabContentErrorBoundary>
     )
-  }, [detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab])
+  }, [detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -847,6 +1727,25 @@ export function EditorLayout() {
     )
   }, [activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, onboardingProgress, tGroups])
 
+  const activeNavigationTab = openTabs.find(tab => tab.id === activeTabId)
+  const activeNavigationEntry = layout.navigationHistory[layout.navigationIndex]
+  const activeNavigationGroup = layout.groups[layout.activeGroupId]
+  const pendingNavigation = pendingEditorNavigationRef.current
+  const navigationReady = Boolean(
+    activeFilePath
+    && activeNavigationGroup?.activeTabId === activeTabId
+    && activeNavigationTab?.path === activeFilePath
+    && activeNavigationEntry?.path === activeFilePath
+  ) || Boolean(
+    pendingNavigation
+    && pendingNavigation.operationId === navigationOperationRef.current
+    && pendingNavigation.workspaceKey === layout.workspaceKey
+    && pendingNavigation.groupId === layout.activeGroupId
+    && pendingNavigation.activeTabId === activeTabId
+    && pendingNavigation.activeFilePath === activeFilePath
+    && activeNavigationGroup?.activeTabId === activeTabId
+  )
+
   const renderLayoutNode = useCallback((node: EditorLayoutNode): React.ReactNode => {
     if (node.type === 'group') {
       const group = layout.groups[node.groupId]
@@ -864,6 +1763,11 @@ export function EditorLayout() {
           onKeepTabs={handleKeepTabs}
           onSplitTab={handleSplitTab}
           onMoveToNewWindow={handleMoveToNewWindow}
+          onPinTab={handlePinTab}
+          onUnpinTab={handleUnpinTab}
+          onNavigateBack={() => { void handleNavigateHistory('back') }}
+          onNavigateForward={() => { void handleNavigateHistory('forward') }}
+          navigationReady={navigationReady}
           onToggleMaximize={handleToggleMaximize}
           onCloseGroup={handleCloseGroup}
           renderActiveContent={renderContentPanel}
@@ -901,7 +1805,7 @@ export function EditorLayout() {
         })}
       </ResizablePanelGroup>
     )
-  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handleSplitTab, handleToggleMaximize, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
+  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNavigateHistory, handleNewTab, handlePinTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, navigationReady, openTabs, renderContentPanel, renderEmpty, setLayout])
 
   if (!layoutReady) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{tGroups('loadingLayout')}</div>
   const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''

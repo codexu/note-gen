@@ -135,7 +135,10 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
     const lastActivePath = await loadWorkspaceCollapsibleList()
     await loadFileTree()
     if (lastActivePath) {
-      await setActiveFilePath(lastActivePath, true, { deactivationAlreadyPrepared: true })
+      await setActiveFilePath(lastActivePath, true, {
+        deactivationAlreadyPrepared: true,
+        createIfMissing: false,
+      })
     }
     await refreshSkills()
   }

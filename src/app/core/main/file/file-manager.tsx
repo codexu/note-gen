@@ -438,7 +438,11 @@ export function FileManager({
 
     try {
       const trashedCount = await moveEntriesToSystemTrash(entries.map(entry => entry.path))
-      for (const entry of entries) {
+      const cleanupEntries = [...entries].sort((left, right) => (
+        Number(activeEditorPathIsAffected(activeFilePath, left.path))
+        - Number(activeEditorPathIsAffected(activeFilePath, right.path))
+      ))
+      for (const entry of cleanupEntries) {
         await cleanDeletedLocalEntryTabs(entry)
       }
 

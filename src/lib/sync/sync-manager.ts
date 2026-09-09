@@ -973,7 +973,9 @@ function hasConfiguredText(value: string | null | undefined): boolean {
  * 检查同步是否已配置
  * 检查是否有选择同步平台并配置了对应的访问令牌
  */
-export async function isSyncConfigured(): Promise<boolean> {
+export async function isSyncConfigured(
+  options?: { throwOnError?: boolean },
+): Promise<boolean> {
   try {
     const store = await Store.load('store.json')
     const platform = await store.get<string>('primaryBackupMethod') || 'github'
@@ -1049,7 +1051,8 @@ export async function isSyncConfigured(): Promise<boolean> {
       default:
         return false
     }
-  } catch {
+  } catch (error) {
+    if (options?.throwOnError) throw error
     return false
   }
 }

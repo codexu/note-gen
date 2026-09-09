@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils'
 import { File, FolderTree, NotebookPen, Palette, SearchX, Tags } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Store } from '@tauri-apps/plugin-store'
-import useArticleStore from '@/stores/article'
+import useArticleStore, {
+  beginDeferredFileActivation,
+  isDeferredFileActivationCurrent,
+} from '@/stores/article'
 import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -353,6 +356,7 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
   }, [mapKnowledgeCandidate, searchFilter])
 
   async function handleSelect(item: EnhancedSearchResult) {
+    const activationIntent = beginDeferredFileActivation()
     // 如果是记录类型，跳转到记录页面并设置对应的 tag
     if (item.searchType === 'record') {
       onOpenChange(false)
@@ -362,11 +366,13 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
 
       if (item.tagId) {
         await setCurrentTagId(item.tagId)
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
       }
 
       if (!isMobileRoute) {
         // PC 端：切换到记录标签页
         await setLeftSidebarTab('notes')
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
       } else {
         // 移动端：进入记录页
         router.push('/mobile/record')
@@ -390,9 +396,11 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
         return
       }
       await setLeftSidebarTab('canvases')
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
       const project = item.canvasId ? await openCanvasProject(item.canvasId) : null
-      if (project) await addTab(createCanvasTab(project))
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
       router.push('/core/main')
+      if (project) await addTab(createCanvasTab(project))
       return
     }
     
@@ -402,13 +410,8 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
     // PC 端切换到笔记标签页；移动端直接跳转写作页
     if (!isMobileRoute) {
       await setLeftSidebarTab('files')
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
     }
-    
-    // 如果是文章类型，跳转到文章页面
-    if (item.firstMatchIndex !== undefined) {
-      setMatchPosition(item.firstMatchIndex)
-    }
-    setPendingSearchKeyword(searchValue.trim())
     
     const filePath = item.path as string
     
@@ -429,15 +432,26 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
           await setCollapsibleList(currentPath, true)
         }
       }
+      if (!isDeferredFileActivationCurrent(activationIntent)) return
+
+      // 如果是文章类型，跳转到文章页面
+      if (item.firstMatchIndex !== undefined) {
+        setMatchPosition(item.firstMatchIndex)
+      }
+      setPendingSearchKeyword(searchValue.trim())
       
       // 设置活动文件路径
-      await setActiveFilePath(filePath)
+      await setActiveFilePath(
+        filePath,
+        true,
+        isMobileRoute ? undefined : { tabOpenMode: 'preview' },
+      )
       
       // 跳转到对应平台页面
       router.push(isMobileRoute ? '/mobile/writing' : '/core/main')
     }
     
-    setupAndNavigate()
+    void setupAndNavigate()
   }
 
   useEffect(() => {

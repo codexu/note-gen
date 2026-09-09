@@ -1,4 +1,5 @@
-import { exists, readDir, readFile, writeFile } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readDir, readFile, writeFile } from '@tauri-apps/plugin-fs'
+import { dirname } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { deleteFile as deleteGithubFile, getFiles as getGithubFiles, uploadFile as uploadGithubFile } from './github'
 import { deleteFile as deleteGiteeFile, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from './gitee'
@@ -379,8 +380,9 @@ async function pullRemoteLibraryFiles(
 }
 
 export async function downloadRemoteLibraryFile(path: string): Promise<void> {
+  const pathOptions = await getFilePathOptions(path)
   const content = await downloadRemoteBytes(path)
-  await saveLocalBytes(path, content)
+  await saveLocalBytes(path, content, pathOptions)
 }
 
 export async function uploadAllLocalLibraryFiles(
@@ -489,9 +491,23 @@ export async function listLocalLibraryFiles(
   return await collectLocalLibraryFiles('', options)
 }
 
-async function saveLocalBytes(path: string, content: Uint8Array): Promise<void> {
-  await ensureDirectoryExists(path)
-  const pathOptions = await getFilePathOptions(path)
+async function saveLocalBytes(
+  path: string,
+  content: Uint8Array,
+  resolvedPathOptions?: Awaited<ReturnType<typeof getFilePathOptions>>,
+): Promise<void> {
+  if (!resolvedPathOptions) {
+    await ensureDirectoryExists(path)
+  }
+  const pathOptions = resolvedPathOptions ?? await getFilePathOptions(path)
+  if (resolvedPathOptions) {
+    const parentPath = await dirname(pathOptions.path)
+    if (pathOptions.baseDir) {
+      await mkdir(parentPath, { baseDir: pathOptions.baseDir, recursive: true })
+    } else {
+      await mkdir(parentPath, { recursive: true })
+    }
+  }
   if (pathOptions.baseDir) {
     await writeFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
   } else {

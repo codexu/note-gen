@@ -33,6 +33,7 @@ export function TooltipButton(
   const isMobile = useIsMobile()
   const button = (
     <Button
+      type="button"
       id={buttonId}
       className={cn("relative", buttonClassName)}
       disabled={disabled}

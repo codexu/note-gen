@@ -87,6 +87,7 @@ interface DiagnosticContext {
 }
 
 const CANVAS_TAB_PREFIX = 'canvas://project/'
+const EDITOR_WORKSPACE_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
 const TEMPORARY_DIRECTORIES = ['canvas-thumbnails', 'temp_screenshot'] as const
 const LAYOUT_STORAGE_KEYS = [
   'leftSidebarVisible',
@@ -118,6 +119,7 @@ async function clearStartupState() {
   await store.set('activeTabId', '')
   await store.set('activeFilePath', '')
   await store.set('currentPage', getSafeRoute())
+  await store.delete(EDITOR_WORKSPACE_LAYOUT_STORE_KEY)
   await store.save()
 }
 

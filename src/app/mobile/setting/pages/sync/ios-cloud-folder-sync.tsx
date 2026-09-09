@@ -172,7 +172,10 @@ export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncPro
     const lastActivePath = await loadWorkspaceCollapsibleList()
     await loadFileTree()
     if (lastActivePath) {
-      await setActiveFilePath(lastActivePath, true, { deactivationAlreadyPrepared: true })
+      await setActiveFilePath(lastActivePath, true, {
+        deactivationAlreadyPrepared: true,
+        createIfMissing: false,
+      })
     }
     await refreshSkills()
   }

@@ -76,10 +76,15 @@ export async function removeEditorWindowSession(id: string) {
   await store.save()
 }
 
-export async function focusEditorWindowForPath(path: string) {
+export async function focusEditorWindowForPath(
+  path: string,
+  options?: { shouldFocus?: () => boolean },
+) {
   if (!checkIsTauri()) return false
   const tab = { id: '', path, name: '', isFolder: false }
-  const { absolutePath } = await resolveEditorWindowPath(tab)
+  const absolutePath = isAbsoluteFsPath(path)
+    ? normalizePath(path)
+    : (await resolveEditorWindowPath(tab)).absolutePath
   const [{ getAllWebviewWindows }, { Store }] = await Promise.all([
     import('@tauri-apps/api/webviewWindow'),
     import('@tauri-apps/plugin-store'),
@@ -96,8 +101,11 @@ export async function focusEditorWindowForPath(path: string) {
     await store.save()
     return false
   }
+  if (options?.shouldFocus && !options.shouldFocus()) return true
   await editorWindow.show()
+  if (options?.shouldFocus && !options.shouldFocus()) return true
   await editorWindow.unminimize()
+  if (options?.shouldFocus && !options.shouldFocus()) return true
   await editorWindow.setFocus()
   return true
 }

@@ -1307,15 +1307,47 @@ const useSettingStore = create<SettingState>((set, get) => ({
       const { invalidateMemoryCache } = await import('@/lib/memory/cache-version')
       invalidateMemoryCache()
       const store = await Store.load('store.json');
-      await store.set('workspacePath', path)
+      const {
+        beginEditorWorkspaceTransition,
+        finishEditorWorkspaceTransition,
+        flushEditorStatePersistence,
+        default: useArticleStore,
+      } = await import('@/stores/article')
+      const articleState = useArticleStore.getState()
+      const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
+      if (!await prepareActiveEditorDeactivationDurably(articleState.activeFilePath)) {
+        throw new Error('Unable to save the active editor before switching workspace')
+      }
+      await articleState.flushAllPendingArticleSaves()
+      await articleState.settleAllVectorCalculations()
+      await flushEditorStatePersistence()
       const workspaceRepos = await getWorkspaceSyncRepos(path)
-      set({
-        workspacePath: path,
-        githubCustomSyncRepo: workspaceRepos.github || '',
-        giteeCustomSyncRepo: workspaceRepos.gitee || '',
-        gitlabCustomSyncRepo: workspaceRepos.gitlab || '',
-        giteaCustomSyncRepo: workspaceRepos.gitea || '',
-      })
+      await beginEditorWorkspaceTransition()
+      try {
+        await articleState.clearTabs()
+        await articleState.setActiveFilePath('', true, {
+          deactivationAlreadyPrepared: true,
+          persistWorkspaceActiveFilePath: false,
+          workspaceTransitionReset: true,
+        })
+        await new Promise<void>(resolve => setTimeout(resolve, 0))
+        await articleState.flushAllPendingArticleSaves()
+        await articleState.settleAllVectorCalculations()
+        await flushEditorStatePersistence()
+        await store.set('workspacePath', path)
+        await store.set('openTabs', [])
+        await store.set('activeTabId', '')
+        await store.set('activeFilePath', '')
+        set({
+          workspacePath: path,
+          githubCustomSyncRepo: workspaceRepos.github || '',
+          giteeCustomSyncRepo: workspaceRepos.gitee || '',
+          gitlabCustomSyncRepo: workspaceRepos.gitlab || '',
+          giteaCustomSyncRepo: workspaceRepos.gitea || '',
+        })
+      } finally {
+        finishEditorWorkspaceTransition()
+      }
 
       const { default: useSyncStore } = await import('@/stores/sync')
       const { SyncStateEnum } = await import('@/lib/sync/github.types')

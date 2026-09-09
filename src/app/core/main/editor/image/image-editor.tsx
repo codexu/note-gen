@@ -60,6 +60,14 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
   const MAX_PREVIEW_SCALE = 4
   const PREVIEW_SCALE_STEP = 0.25
 
+  const keepCurrentPreviewTab = () => {
+    const articleState = useArticleStore.getState()
+    const previewTab = articleState.openTabs.find(tab => (
+      tab.path === filePath && tab.preview
+    ))
+    if (previewTab) void articleState.setTabDisposition(previewTab.id, 'regular')
+  }
+
   useEffect(() => {
     loadImage()
   }, [filePath])
@@ -151,6 +159,7 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
 
       const url = URL.createObjectURL(blob)
       setImageSrc(url)
+      keepCurrentPreviewTab()
       setHasChanges(true)
       setPreviewScale(1)
       
@@ -223,6 +232,7 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
 
   const handleSave = async () => {
     try {
+      keepCurrentPreviewTab()
       let blob: Blob
 
       if (cropperRef.current) {
@@ -299,6 +309,7 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
       }
       img.src = url
       
+      keepCurrentPreviewTab()
       setHasChanges(true)
       setCropMode(false)
       setPreviewScale(1)
@@ -470,6 +481,7 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
                 handlers: true,
               }}
               onChange={() => {
+                keepCurrentPreviewTab()
                 setHasChanges(true)
               }}
             />

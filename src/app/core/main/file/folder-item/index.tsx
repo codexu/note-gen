@@ -1,6 +1,6 @@
 import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
-import useArticleStore, { DirTree } from "@/stores/article";
+import useArticleStore, { beginDeferredFileActivation, DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { Folder, FolderDot, FolderOpen, FolderOpenDot, LoaderCircle, Database, Sparkles } from "lucide-react"
@@ -750,6 +750,7 @@ export function FolderItem({
     if (!item.isDirectory) {
       return
     }
+    beginDeferredFileActivation()
 
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
@@ -757,7 +758,16 @@ export function FolderItem({
     // 文件树选择状态。不要把不存在于本地的目录写入 activeFilePath，
     // 否则编辑器会把它当成普通路径并尝试读取本地元数据。
     if (item.isLocale) {
-      await setActiveFilePath(path)
+      await setActiveFilePath(
+        path,
+        true,
+        isMobile
+          ? undefined
+          : {
+              tabOpenMode: 'preview',
+              tabMetadata: { name: item.name, isFolder: true },
+            },
+      )
     } else {
       if (activeFilePath === path) {
         await setActiveFilePath('')

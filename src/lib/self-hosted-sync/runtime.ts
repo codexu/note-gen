@@ -1293,7 +1293,7 @@ async function cleanupDeletedFolders(binding: Binding) {
       )) {
         throw new Error('remote_folder_editor_busy')
       }
-      await articleState.cleanTabsByDeletedFolder(folder.relativePath)
+      await articleState.cleanTabsByDeletedFolder(folder.relativePath, binding.localRoot)
       await invoke<boolean>('self_hosted_delete_directory', {
         workspaceId: binding.workspaceId,
         objectId: folder.objectId,
@@ -1817,7 +1817,7 @@ async function deleteRemoteEditorFile(
       }
 
       try {
-        await useArticleStore.getState().cleanTabsByDeletedFile(relativePath)
+        await useArticleStore.getState().cleanTabsByDeletedFile(relativePath, binding.localRoot)
       } catch (error) {
         await rollbackRemoteEditorSnapshot(
           binding,

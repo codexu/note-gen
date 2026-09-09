@@ -34,6 +34,7 @@ export type ResponsiveActionMenuItem = {
   selected?: boolean
   separatorBefore?: boolean
   keepOpen?: boolean
+  multiline?: boolean
 }
 
 interface ResponsiveActionMenuProps {
@@ -65,6 +66,7 @@ export function ResponsiveActionMenu({
               <Fragment key={item.key}>
                 {item.separatorBefore ? <DropdownMenuSeparator /> : null}
                 <DropdownMenuItem
+                  className={cn(item.multiline && 'gap-4 px-3 py-3')}
                   disabled={item.disabled}
                   variant={item.destructive ? 'destructive' : 'default'}
                   onSelect={event => {
@@ -73,9 +75,13 @@ export function ResponsiveActionMenu({
                   }}
                 >
                   {item.icon}
-                  <span className="truncate">{item.label}</span>
+                  <span className={cn(item.multiline ? 'min-w-0 flex-1 whitespace-normal break-words' : 'truncate')}>{item.label}</span>
                   {item.end}
-                  {item.selected ? <Check className="ml-auto" aria-hidden="true" /> : null}
+                  {item.multiline ? (
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {item.selected ? <Check aria-hidden="true" /> : null}
+                    </span>
+                  ) : item.selected ? <Check className="ml-auto" aria-hidden="true" /> : null}
                 </DropdownMenuItem>
               </Fragment>
             ))}
@@ -103,6 +109,7 @@ export function ResponsiveActionMenu({
                 aria-pressed={item.selected}
                 className={cn(
                   'h-12 w-full justify-start px-3',
+                  item.multiline && 'h-auto min-h-12 gap-4 py-3',
                   item.destructive && 'mt-2',
                 )}
                 onClick={async () => {
@@ -116,10 +123,14 @@ export function ResponsiveActionMenu({
                 }}
               >
                 {item.icon}
-                <span className="truncate">{item.label}</span>
+                <span className={cn(item.multiline ? 'min-w-0 flex-1 whitespace-normal break-words text-left' : 'truncate')}>{item.label}</span>
                 {item.end}
                 {pendingKey === item.key ? <Loader2 className="ml-auto animate-spin" aria-hidden="true" /> : null}
-                {item.selected ? <Check className="ml-auto" aria-hidden="true" /> : null}
+                {item.multiline ? (
+                  <span className="flex size-4 shrink-0 items-center justify-center">
+                    {item.selected ? <Check data-icon="inline-end" aria-hidden="true" /> : null}
+                  </span>
+                ) : item.selected ? <Check className="ml-auto" aria-hidden="true" /> : null}
               </Button>
             </Fragment>
           ))}

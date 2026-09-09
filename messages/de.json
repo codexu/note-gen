@@ -3280,9 +3280,9 @@
           "permissionMode": {
             "label": "Agenten-Berechtigungsmodus",
             "modes": {
-              "read-only": { "title": "Schreibgeschützt", "description": "Erlaube Lesen und Analyse, aber blockiere Änderungen." },
-              "ask": { "title": "Vor Bearbeitung fragen", "description": "Lass das Modell frei planen und zeige jede konkrete Änderung vor der Ausführung in der Vorschau." },
-              "auto-edit": { "title": "Automatisch bearbeiten", "description": "Führe reversible lokale Änderungen automatisch aus; frage weiterhin bei Löschungen, Skripten und externen Aktionen." }
+              "read-only": { "title": "Schreibgeschützt", "description": "Inhalte nur ansehen und analysieren, ohne Änderungen vorzunehmen." },
+              "ask": { "title": "Vor Bearbeitung fragen", "description": "Ohne Rückfrage lesen; vor Änderungen um Genehmigung bitten." },
+              "auto-edit": { "title": "Automatisch bearbeiten", "description": "Lokale Inhalte automatisch bearbeiten; Löschungen, Skripte, Skill-Installationen und andere sensible Aktionen benötigen weiterhin eine Genehmigung." }
             }
           },
           "autoFinal": {

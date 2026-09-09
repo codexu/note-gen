@@ -3234,9 +3234,9 @@
           "permissionMode": {
             "label": "Agent 权限模式",
             "modes": {
-              "read-only": { "title": "只读", "description": "允许读取和分析，禁止修改内容。" },
-              "ask": { "title": "修改前确认", "description": "模型自由规划；每个具体修改在执行前展示预览。" },
-              "auto-edit": { "title": "自动修改", "description": "本地可恢复修改自动执行；删除、脚本和外部操作仍需确认。" }
+              "read-only": { "title": "只读", "description": "仅查看和分析内容，不允许修改。" },
+              "ask": { "title": "修改前确认", "description": "读取无需确认，修改内容前请求批准。" },
+              "auto-edit": { "title": "自动修改", "description": "自动修改本地内容；删除、脚本、技能安装等操作仍需批准。" }
             }
           },
           "autoFinal": {

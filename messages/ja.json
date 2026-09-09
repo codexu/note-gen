@@ -3090,9 +3090,9 @@
           "permissionMode": {
             "label": "Agent の権限モード",
             "modes": {
-              "read-only": { "title": "読み取り専用", "description": "読み取りと分析を許可し、変更を禁止します。" },
-              "ask": { "title": "編集前に確認", "description": "モデルが自由に計画し、具体的な変更を実行前にプレビューします。" },
-              "auto-edit": { "title": "自動編集", "description": "元に戻せるローカル変更は自動実行し、削除・スクリプト・外部操作は確認します。" }
+              "read-only": { "title": "読み取り専用", "description": "内容の閲覧と分析のみを許可し、変更は行いません。" },
+              "ask": { "title": "編集前に確認", "description": "読み取りは確認不要、内容の変更前に承認を求めます。" },
+              "auto-edit": { "title": "自動編集", "description": "ローカルの内容を自動編集します。削除、スクリプト、スキルのインストールなどは承認が必要です。" }
             }
           },
           "autoFinal": {

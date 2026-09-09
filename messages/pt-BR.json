@@ -3165,9 +3165,9 @@
           "permissionMode": {
             "label": "Modo de permissão do Agent",
             "modes": {
-              "read-only": { "title": "Somente leitura", "description": "Permite leitura e análise, mas bloqueia alterações." },
-              "ask": { "title": "Confirmar edições", "description": "O modelo planeja livremente e mostra cada alteração antes de executar." },
-              "auto-edit": { "title": "Edição automática", "description": "Executa alterações locais reversíveis; exclusões, scripts e ações externas ainda exigem confirmação." }
+              "read-only": { "title": "Somente leitura", "description": "Apenas visualizar e analisar conteúdo, sem fazer alterações." },
+              "ask": { "title": "Confirmar edições", "description": "Ler sem confirmação; pedir aprovação antes de alterar conteúdo." },
+              "auto-edit": { "title": "Edição automática", "description": "Editar conteúdo local automaticamente; exclusões, scripts, instalação de skills e outras ações sensíveis ainda exigem aprovação." }
             }
           },
           "autoFinal": {

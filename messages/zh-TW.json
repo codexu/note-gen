@@ -3096,9 +3096,9 @@
           "permissionMode": {
             "label": "Agent 權限模式",
             "modes": {
-              "read-only": { "title": "唯讀", "description": "允許讀取與分析，禁止修改內容。" },
-              "ask": { "title": "修改前確認", "description": "模型自由規劃；每個具體修改在執行前顯示預覽。" },
-              "auto-edit": { "title": "自動修改", "description": "本機可復原修改自動執行；刪除、腳本與外部操作仍需確認。" }
+              "read-only": { "title": "唯讀", "description": "僅檢視與分析內容，不允許修改。" },
+              "ask": { "title": "修改前確認", "description": "讀取無需確認，修改內容前請求批准。" },
+              "auto-edit": { "title": "自動修改", "description": "自動修改本機內容；刪除、腳本、技能安裝等操作仍需批准。" }
             }
           },
           "autoFinal": {

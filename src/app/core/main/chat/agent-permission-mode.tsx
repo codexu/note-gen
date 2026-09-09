@@ -14,6 +14,12 @@ const MODE_ICONS = {
   "auto-edit": ShieldCheck,
 } satisfies Record<AgentPermissionMode, typeof Eye>
 
+const MODE_COLORS = {
+  "read-only": "text-muted-foreground",
+  ask: "text-warning-foreground",
+  "auto-edit": "text-destructive",
+} satisfies Record<AgentPermissionMode, string>
+
 export function AgentPermissionModeSelect() {
   const t = useTranslations("record.chat.input.agent.permissionMode")
   const { agentPermissionMode, setAgentPermissionMode } = useSettingStore()
@@ -29,7 +35,7 @@ export function AgentPermissionModeSelect() {
   return (
     <ResponsiveActionMenu
       title={t("label")}
-      desktopClassName="w-64"
+      desktopClassName="w-[30rem] max-w-[calc(100vw-2rem)]"
       trigger={
         <Button
           type="button"
@@ -39,7 +45,7 @@ export function AgentPermissionModeSelect() {
           className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
           aria-label={t("label")}
         >
-          <Icon className="size-4" />
+          <Icon data-icon="inline-start" className={MODE_COLORS[agentPermissionMode]} />
           <span className="hidden md:inline">{t(`modes.${agentPermissionMode}.title`)}</span>
         </Button>
       }
@@ -47,11 +53,16 @@ export function AgentPermissionModeSelect() {
         const ModeIcon = MODE_ICONS[mode]
         return {
           key: mode,
-          icon: <ModeIcon />,
+          icon: (
+            <span className={MODE_COLORS[mode]}>
+              <ModeIcon data-icon="inline-start" aria-hidden="true" />
+            </span>
+          ),
+          multiline: true,
           label: (
-            <span className="flex min-w-0 flex-col items-start">
+            <span className="flex min-w-0 flex-col items-start gap-1">
               <span>{t(`modes.${mode}.title`)}</span>
-              <span className="text-xs text-muted-foreground">{t(`modes.${mode}.description`)}</span>
+              <span className="text-xs leading-relaxed font-normal text-muted-foreground">{t(`modes.${mode}.description`)}</span>
             </span>
           ),
           selected: mode === agentPermissionMode,

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useEffect, useState } from "react"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
-import { BotMessageSquare, BotOff, Check, ChevronRight } from "lucide-react"
+import { Check, ChevronRight } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Label } from "@/components/ui/label"
 import {
@@ -136,11 +136,6 @@ export function ModelSelector() {
         className="h-16 flex items-center justify-between w-full px-0"
       >
         <div className="flex items-center gap-2">
-          {groupedModels.length > 0 ? (
-            <BotMessageSquare className="size-4" />
-          ) : (
-            <BotOff className="size-4" />
-          )}
           <Label className="text-sm font-medium">{t('tooltip')}</Label>
         </div>
         <div className="flex items-center gap-2">

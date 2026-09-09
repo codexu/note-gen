@@ -1,28 +1,23 @@
 "use client"
 
 import { useState } from 'react'
-import { FileIcon, FolderOpen, ImageIcon, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
+  DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import {
-  Item,
-  ItemContent,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from '@/components/ui/item'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface AttachmentAddMenuProps {
   mobile: boolean
@@ -32,11 +27,7 @@ interface AttachmentAddMenuProps {
   onSelectFolders: () => void
 }
 
-const ACTIONS = [
-  { id: 'image', icon: ImageIcon },
-  { id: 'file', icon: FileIcon },
-  { id: 'folder', icon: FolderOpen },
-] as const
+const ACTIONS = ['image', 'file', 'folder'] as const
 
 export function AttachmentAddMenu({
   mobile,
@@ -48,7 +39,7 @@ export function AttachmentAddMenu({
   const [open, setOpen] = useState(false)
   const t = useTranslations('record.chat.input.addAttachment')
 
-  const selectAction = (id: typeof ACTIONS[number]['id']) => {
+  const selectAction = (id: typeof ACTIONS[number]) => {
     setOpen(false)
     if (id === 'image') onSelectImages()
     if (id === 'file') onSelectFiles()
@@ -69,42 +60,20 @@ export function AttachmentAddMenu({
     </Button>
   )
 
-  const items = (
-    <ItemGroup className="gap-1">
-      {ACTIONS.map(({ id, icon: Icon }) => (
-        <Item key={id} asChild size="sm" className="cursor-pointer hover:bg-muted">
-          <button type="button" onClick={() => selectAction(id)}>
-            <ItemMedia variant="icon"><Icon /></ItemMedia>
-            <ItemContent>
-              <ItemTitle>{t(`${id}.title`)}</ItemTitle>
-            </ItemContent>
-          </button>
-        </Item>
-      ))}
-    </ItemGroup>
-  )
-
   if (mobile) {
     return (
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
-          <DrawerTitle className="sr-only">{t('title')}</DrawerTitle>
-          <div className="px-3 pb-5">
-            <ItemGroup className="gap-1">
-              {ACTIONS.map(({ id, icon: Icon }) => (
-                <DrawerClose asChild key={id}>
-                  <Item asChild size="sm" className="cursor-pointer hover:bg-muted">
-                    <button type="button" onClick={() => selectAction(id)}>
-                      <ItemMedia variant="icon"><Icon /></ItemMedia>
-                      <ItemContent>
-                        <ItemTitle>{t(`${id}.title`)}</ItemTitle>
-                      </ItemContent>
-                    </button>
-                  </Item>
-                </DrawerClose>
-              ))}
-            </ItemGroup>
+          <DrawerHeader>
+            <DrawerTitle>{t('title')}</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex flex-col gap-1 px-4 pb-6">
+            {ACTIONS.map((id) => (
+              <Button key={id} type="button" variant="ghost" className="h-12 justify-start gap-3" onClick={() => selectAction(id)}>
+                {t(`${id}.title`)}
+              </Button>
+            ))}
           </div>
         </DrawerContent>
       </Drawer>
@@ -112,11 +81,17 @@ export function AttachmentAddMenu({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-48">
-        {items}
-      </PopoverContent>
-    </Popover>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-48">
+        <DropdownMenuGroup>
+          {ACTIONS.map((id) => (
+            <DropdownMenuItem key={id} className="h-9 gap-2 px-2" onSelect={() => selectAction(id)}>
+              {t(`${id}.title`)}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item"
 
 interface PromptSelectProps {
   display?: 'icon' | 'status' | 'panel'
@@ -46,16 +46,13 @@ export function PromptSelect({ display = 'icon', disabled = false }: PromptSelec
             <span className="truncate">{currentPrompt?.title || '-'}</span>
           </Button>
         ) : display === 'panel' ? (
-          <Item asChild size="sm" className="h-12 flex-nowrap py-0 cursor-pointer hover:bg-muted">
+          <Item asChild size="sm" className="min-h-10 flex-nowrap py-2 cursor-pointer hover:bg-muted">
             <button type="button" disabled={disabled}>
-              <ItemMedia variant="icon">
-                <Drama />
-              </ItemMedia>
               <ItemContent className="min-w-0">
-                <ItemTitle>{t('tooltip')}</ItemTitle>
+                <ItemTitle className="min-w-0 truncate">{t('tooltip')}</ItemTitle>
               </ItemContent>
               <ItemActions className="shrink-0">
-                <span className="max-w-40 truncate text-xs text-muted-foreground">
+                <span className="max-w-28 truncate text-xs text-muted-foreground" title={currentPrompt?.title}>
                   {currentPrompt?.title || '-'}
                 </span>
                 <ChevronRight />

@@ -19,7 +19,7 @@ import {
 import { useTranslations } from "next-intl"
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -110,16 +110,13 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
             {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
           </Button>
         ) : display === 'panel' ? (
-          <Item asChild size="sm" className="h-12 flex-nowrap py-0 cursor-pointer hover:bg-muted">
+          <Item asChild size="sm" className="min-h-10 flex-nowrap py-2 cursor-pointer hover:bg-muted">
             <button type="button" disabled={disabled}>
-              <ItemMedia variant="icon">
-                {selectedModel ? <BotMessageSquare /> : <BotOff />}
-              </ItemMedia>
               <ItemContent className="min-w-0">
-                <ItemTitle>{t('tooltip')}</ItemTitle>
+                <ItemTitle className="min-w-0 truncate">{t('tooltip')}</ItemTitle>
               </ItemContent>
               <ItemActions className="shrink-0">
-                <span className="max-w-40 truncate text-xs text-muted-foreground">
+                <span className="max-w-28 truncate text-xs text-muted-foreground" title={displayedModelLabel}>
                   {displayedModelLabel}
                 </span>
                 {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
@@ -140,7 +137,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
       <PopoverContent
         align={display === 'icon' ? 'center' : 'start'}
         side={display === 'panel' ? 'right' : undefined}
-        className="w-[400px] p-0"
+        className="w-[400px] max-w-[calc(100vw-2rem)] p-0"
       >
         <Command>
           <CommandInput placeholder={t('placeholder')} className="h-9" />

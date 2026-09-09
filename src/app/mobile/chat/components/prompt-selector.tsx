@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Drama, Check, ChevronRight } from "lucide-react"
+import { Check, ChevronRight } from "lucide-react"
 import usePromptStore from "@/stores/prompt"
 import { Label } from "@/components/ui/label"
 import {
@@ -79,7 +79,6 @@ export function PromptSelector() {
         className="h-16 flex items-center justify-between w-full px-0"
       >
         <div className="flex items-center gap-2">
-          <Drama className="size-4" />
           <Label className="text-sm font-medium">{t('tooltip')}</Label>
         </div>
         <div className="flex items-center gap-2">

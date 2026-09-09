@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useEffect, useState } from 'react'
-import { Server, PlugZap, Plug, ChevronRight } from 'lucide-react'
+import { PlugZap, Plug, ChevronRight } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { useTranslations } from 'next-intl'
 import { Label } from '@/components/ui/label'
@@ -110,7 +110,6 @@ export function McpSelector() {
         className="h-16 flex items-center justify-between w-full px-0"
       >
         <div className="flex items-center gap-2">
-          <Server className="size-4" />
           <Label className="text-sm font-medium">{t('selectServers')}</Label>
           {selectedServerIds.length > 0 && (
             <Badge variant="secondary" className="text-xs">

@@ -5,7 +5,7 @@ import { TooltipButton } from '@/components/tooltip-button'
 import { useState, useEffect } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { Switch } from '@/components/ui/switch'
-import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { Item, ItemActions, ItemContent, ItemTitle } from '@/components/ui/item'
 
 interface ClipboardMonitorProps {
   display?: 'icon' | 'panel'
@@ -43,10 +43,7 @@ export function ClipboardMonitor({ display = 'icon' }: ClipboardMonitorProps) {
 
   if (display === 'panel') {
     return (
-      <Item size="sm" className="h-12 flex-nowrap py-0 hover:bg-muted">
-        <ItemMedia variant="icon">
-          {isEnabled ? <Clipboard /> : <ClipboardX />}
-        </ItemMedia>
+      <Item size="sm" className="min-h-10 flex-nowrap py-2">
         <ItemContent className="min-w-0">
           <ItemTitle>{isEnabled ? t('enable') : t('disable')}</ItemTitle>
         </ItemContent>

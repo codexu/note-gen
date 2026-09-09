@@ -133,6 +133,7 @@ export default baseConfig
 
 export type ModelType = 'chat' | 'image' | 'video' | 'tts' | 'stt' | 'embedding' | 'rerank';
 export type ProxyMode = 'inherit' | 'direct' | 'custom';
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type WebSearchProvider = 'auto' | 'zhipu' | 'tavily' | 'brave' | 'exa';
 export type WebSearchApiProvider = Exclude<WebSearchProvider, 'auto'>;
 export type WebSearchApiKeys = Partial<Record<WebSearchApiProvider, string>>;
@@ -183,6 +184,8 @@ export interface AiConfig {
   maxTokens?: number
   contextWindow?: number
   tokenLimitParam?: 'max_completion_tokens' | 'max_tokens'
+  // Runtime-only override captured when sending a chat turn.
+  reasoningEffort?: ReasoningEffort
   enableWebSearch?: boolean
   enableNativeWebSearch?: boolean
   enableThirdPartyWebSearch?: boolean

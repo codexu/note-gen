@@ -2053,6 +2053,17 @@
       "contextWindowPlaceholder": "自動偵測（預設 16K）",
       "tokenLimitParam": "Token 限制參數",
       "tokenLimitParamDesc": "預設使用 max_completion_tokens；舊版相容接口可切換為 max_tokens。",
+      "reasoningEffort": {
+        "title": "推理等級",
+        "default": "預設",
+        "none": "關閉",
+        "minimal": "最低",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "極高",
+        "max": "最高"
+      },
       "advancedParameters": "進階參數",
       "selectConfig": "請選擇模型平台",
       "models": "模型列表",

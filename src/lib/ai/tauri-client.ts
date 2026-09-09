@@ -2,7 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core'
 import type OpenAI from 'openai'
 import type { ModelsPage } from 'openai/resources/models'
 import { Store } from '@tauri-apps/plugin-store'
-import type { AiConfig } from '@/app/core/setting/config'
+import type { AiConfig, ReasoningEffort } from '@/app/core/setting/config'
 
 type JsonValue = Record<string, unknown>
 
@@ -18,6 +18,176 @@ export type AiProxyConfig =
   | { mode: 'custom'; url: string }
 
 const SUPPORTED_PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks5:', 'socks5h:'])
+
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+// Only documented IDs on native endpoints are classified; gateways and aliases
+// remain unknown. See the model pages linked below before extending this list.
+export function getReasoningEfforts(aiConfig?: AiConfig): readonly ReasoningEffort[] | undefined {
+  const model = aiConfig?.model?.trim().toLowerCase() || ''
+  const hostname = getProviderHostname(aiConfig)
+  const matches = (name: string) => model === name
+    || (model.startsWith(`${name}-`) && /^\d{4}-\d{2}-\d{2}$/.test(model.slice(name.length + 1)))
+  // https://developers.openai.com/api/docs/models/gpt-5.1
+  // https://developers.openai.com/api/docs/models/gpt-5.2
+  // https://developers.openai.com/api/docs/models/gpt-4.1
+  if (hostname === 'api.openai.com') {
+    if (matches('gpt-5.1')) return ['none', 'low', 'medium', 'high']
+    if (matches('gpt-5.2')) return ['none', 'low', 'medium', 'high', 'xhigh']
+    if (matches('gpt-4.1')) return []
+  }
+  // https://ai.google.dev/gemini-api/docs/openai
+  if (hostname === 'generativelanguage.googleapis.com') {
+    if (['gemini-2.5-flash', 'gemini-2.5-flash-lite'].includes(model)) {
+      return ['none', 'minimal', 'low', 'medium', 'high']
+    }
+    if (['gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite-preview'].includes(model)) {
+      return ['minimal', 'low', 'medium', 'high']
+    }
+  }
+  // Thinking switches, not discrete effort levels:
+  // https://platform.kimi.ai/docs/api/models-overview.md
+  // https://platform.minimaxi.com/docs/api-reference/text-chat-openai.md
+  if (['api.moonshot.cn', 'api.moonshot.ai'].includes(hostname) && model === 'kimi-k2.6') return ['none']
+  if (hostname === 'api.minimaxi.com') {
+    if (model === 'minimax-m3') return ['none']
+    if (['minimax-m2', 'minimax-m2.1', 'minimax-m2.5'].includes(model)) return []
+  }
+  return undefined
+}
+
+type ReasoningRequestFields = {
+  reasoning_effort?: ReasoningEffort
+  reasoning?: Record<string, unknown> & { effort: ReasoningEffort }
+  thinking?: { type: 'disabled' }
+  enable_thinking?: false
+}
+
+export function normalizeReasoningEffort(value: unknown): ReasoningEffort | undefined {
+  return value === 'none'
+    || value === 'minimal'
+    || value === 'low'
+    || value === 'medium'
+    || value === 'high'
+    || value === 'xhigh'
+    || value === 'max'
+    ? value
+    : undefined
+}
+
+function getProviderHostname(aiConfig?: AiConfig): string {
+  try {
+    return new URL(aiConfig?.baseURL || '').hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+function isProvider(aiConfig: AiConfig | undefined, keys: string[], hostnames: string[]): boolean {
+  const providerKey = (aiConfig?.templateKey || aiConfig?.key || '').toLowerCase()
+  const hostname = getProviderHostname(aiConfig)
+  return keys.includes(providerKey) || hostnames.some(domain => (
+    hostname === domain || hostname.endsWith(`.${domain}`)
+  ))
+}
+
+function isOpenRouterProvider(aiConfig?: AiConfig): boolean {
+  return isProvider(aiConfig, ['openrouter'], ['openrouter.ai'])
+}
+
+function isDeepSeekProvider(aiConfig?: AiConfig): boolean {
+  return isProvider(aiConfig, ['deepseek'], ['api.deepseek.com'])
+}
+
+function isMoonshotProvider(aiConfig?: AiConfig): boolean {
+  return isProvider(aiConfig, ['kimi', 'moonshot'], ['api.moonshot.cn', 'api.moonshot.ai'])
+}
+
+function isMiniMaxProvider(aiConfig?: AiConfig): boolean {
+  return isProvider(aiConfig, ['minimax'], ['api.minimaxi.com'])
+}
+
+function isZhipuProvider(aiConfig?: AiConfig): boolean {
+  return isProvider(aiConfig, ['bigmodel', 'zhipu'], ['open.bigmodel.cn'])
+}
+
+function usesThinkingObjectForDisabledReasoning(aiConfig?: AiConfig): boolean {
+  const model = aiConfig?.model?.trim().toLowerCase() || ''
+
+  if (isDeepSeekProvider(aiConfig)) {
+    return true
+  }
+
+  if (isMoonshotProvider(aiConfig) && /^kimi-k2\.6(?:$|[-_.])/.test(model)) {
+    return true
+  }
+
+  if (isMiniMaxProvider(aiConfig) && /^minimax-m3(?:$|[-_.])/.test(model)) {
+    return true
+  }
+
+  if (!isZhipuProvider(aiConfig)) {
+    return false
+  }
+
+  return /^glm-4\.[5-9]v?(?:$|[-_.])/.test(model)
+    || /^glm-5(?:$|[-v_])/.test(model)
+    || /^glm-5\.1(?:$|[-_.])/.test(model)
+}
+
+function usesEnableThinkingForDisabledReasoning(aiConfig?: AiConfig): boolean {
+  const model = aiConfig?.model?.toLowerCase() || ''
+  const isKnownQwenProvider = isProvider(
+    aiConfig,
+    ['aliyun', 'bailian', 'qwen', 'siliconflow'],
+    [
+      'dashscope.aliyuncs.com',
+      'dashscope-intl.aliyuncs.com',
+      'api.siliconflow.cn',
+      'api.siliconflow.com',
+      'api.notegen.top',
+    ]
+  )
+
+  return isKnownQwenProvider && (model.includes('qwen') || model.includes('qwq'))
+}
+
+/**
+ * Reasoning controls differ across otherwise OpenAI-compatible providers.
+ * Unknown custom endpoints receive the standard reasoning_effort field. An
+ * explicitly selected value is never silently discarded: unsupported values
+ * remain visible as provider errors, while an unset value preserves old requests.
+ */
+function applyReasoningEffort<T extends OpenAI.Chat.ChatCompletionCreateParams>(
+  body: T,
+  aiConfig?: AiConfig
+): T {
+  const effort = normalizeReasoningEffort(aiConfig?.reasoningEffort)
+  if (!effort) {
+    return body
+  }
+
+  let reasoningFields: ReasoningRequestFields
+  if (isOpenRouterProvider(aiConfig)) {
+    const existingReasoning = (body as unknown as Record<string, unknown>).reasoning
+    reasoningFields = {
+      reasoning: {
+        ...(existingReasoning && typeof existingReasoning === 'object' && !Array.isArray(existingReasoning)
+          ? existingReasoning as Record<string, unknown>
+          : {}),
+        effort,
+      },
+    }
+  } else if (effort === 'none' && usesThinkingObjectForDisabledReasoning(aiConfig)) {
+    reasoningFields = { thinking: { type: 'disabled' } }
+  } else if (effort === 'none' && usesEnableThinkingForDisabledReasoning(aiConfig)) {
+    reasoningFields = { enable_thinking: false }
+  } else {
+    reasoningFields = { reasoning_effort: effort }
+  }
+
+  return { ...body, ...reasoningFields } as T
+}
 
 export function isValidProxyURL(proxyURL: string | undefined): boolean {
   const value = proxyURL?.trim()
@@ -302,12 +472,12 @@ export async function createTauriOpenAIClient(aiConfig?: AiConfig): Promise<Open
     chat: {
       completions: {
         create: (async (body, options) => {
+          const requestBody = applyReasoningEffort(body, aiConfig)
           if ('stream' in body && body.stream) {
-            const requestId = createRequestId()
             return createStreamingIterable<OpenAI.Chat.Completions.ChatCompletionChunk>({
               config,
-              requestId,
-              body,
+              requestId: createRequestId(),
+              body: requestBody,
             }, options?.signal)
           }
 
@@ -315,7 +485,7 @@ export async function createTauriOpenAIClient(aiConfig?: AiConfig): Promise<Open
             config,
             path: '/chat/completions',
             method: 'POST',
-            body,
+            body: requestBody,
           }, options?.signal)
         }) as ChatCompletionCreate,
       },

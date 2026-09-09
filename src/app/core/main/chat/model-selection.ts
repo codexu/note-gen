@@ -89,6 +89,7 @@ export async function changePrimaryChatModel(input: {
   const chatState = useChatStore.getState()
   const appliesNextTurn = chatState.loading || chatState.agentState.isRunning
 
+  useChatStore.getState().setReasoningOverride(null)
   settingState.setPrimaryModel(input.modelId)
   const store = await Store.load('store.json')
   await store.set('primaryModel', input.modelId)

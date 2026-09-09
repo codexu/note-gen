@@ -2240,6 +2240,17 @@
       "contextWindowPlaceholder": "自动检测（默认 16K）",
       "tokenLimitParam": "Token 限制参数",
       "tokenLimitParamDesc": "默认使用 max_completion_tokens；旧版兼容接口可切换为 max_tokens。",
+      "reasoningEffort": {
+        "title": "推理等级",
+        "default": "默认",
+        "none": "关闭",
+        "minimal": "最低",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "极高",
+        "max": "最高"
+      },
       "advancedParameters": "高级参数",
       "selectConfig": "请选择模型平台",
       "models": "模型列表",

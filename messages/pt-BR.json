@@ -2126,6 +2126,17 @@
       "contextWindowPlaceholder": "Detectar automaticamente (16K)",
       "tokenLimitParam": "Parâmetro de limite de tokens",
       "tokenLimitParamDesc": "Usa max_completion_tokens por padrão. Selecione max_tokens para APIs compatíveis legadas.",
+      "reasoningEffort": {
+        "title": "Nível de raciocínio",
+        "default": "Padrão",
+        "none": "Desativado",
+        "minimal": "Mínimo",
+        "low": "Baixo",
+        "medium": "Médio",
+        "high": "Alto",
+        "xhigh": "Extra alto",
+        "max": "Máximo"
+      },
       "advancedParameters": "Parâmetros avançados",
       "selectConfig": "Selecione uma plataforma de modelos",
       "models": "Lista de modelos",

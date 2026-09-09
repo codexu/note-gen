@@ -12,6 +12,7 @@ import {
 import { McpSelector } from "./mcp-selector"
 import { ModelSelector } from "./model-selector"
 import { PromptSelector } from "./prompt-selector"
+import { ReasoningSelect } from "@/app/core/main/chat/reasoning-select"
 import { useTranslations } from "next-intl"
 
 export function ChatToolsDrawer() {
@@ -37,6 +38,7 @@ export function ChatToolsDrawer() {
             <div className="h-16 flex items-center w-full">
               <ModelSelector />
             </div>
+            <ReasoningSelect />
             <div className="h-16 flex items-center w-full">
               <PromptSelector />
             </div>

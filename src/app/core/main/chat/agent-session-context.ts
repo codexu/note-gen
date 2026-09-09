@@ -5,6 +5,7 @@ import { isLinkedFolder, type LinkedResource, type MarkdownFile } from '@/lib/fi
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
 import type { CanvasSelectionContext } from '@/types/canvas'
 import type { ImageAttachment } from './image-attachments'
+import type { ChatReasoningOverride } from '@/lib/ai/chat-reasoning'
 
 export interface AgentQuoteData {
   quote: string
@@ -19,6 +20,7 @@ export interface AgentQuoteData {
 }
 
 export interface AgentRequestSnapshot {
+  reasoningOverride?: ChatReasoningOverride | null
   inputValue: string
   requestText: string
   linkedResource?: LinkedResource | null

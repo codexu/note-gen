@@ -4,7 +4,7 @@ import type OpenAI from 'openai';
 import { AiConfig } from "@/app/core/setting/config";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { platform } from "@tauri-apps/plugin-os";
-import { createTauriOpenAIClient, type OpenAICompatibleClient } from "./tauri-client";
+import { createTauriOpenAIClient, normalizeReasoningEffort, type OpenAICompatibleClient } from "./tauri-client";
 import {
   AGENT_CORE_PROMPT_VERSION,
   isManagedAgentSystemPrompt,
@@ -116,6 +116,7 @@ export async function getAISettingsByModelId(
           maxTokens: targetModel.maxTokens,
           contextWindow: targetModel.contextWindow,
           tokenLimitParam: targetModel.tokenLimitParam,
+          reasoningEffort: undefined,
           enableWebSearch: webSearchSettings.nativeEnabled
             || webSearchSettings.thirdPartyEnabled
             || webSearchSettings.basicEnabled,
@@ -136,6 +137,7 @@ export async function getAISettingsByModelId(
       if (config.key === modelId) {
         return {
           ...config,
+          reasoningEffort: undefined,
           enableWebSearch: webSearchSettings.nativeEnabled
             || webSearchSettings.thirdPartyEnabled
             || webSearchSettings.basicEnabled,
@@ -581,7 +583,7 @@ export function withFastAiRequestOptions<const T extends OpenAI.Chat.ChatComplet
   return {
     ...tokenLimitParams,
     ...compatibleParams,
-    ...(supportsEnableThinkingSwitch(aiConfig) ? { enable_thinking: false } : {}),
+    ...(!normalizeReasoningEffort(aiConfig?.reasoningEffort) && supportsEnableThinkingSwitch(aiConfig) ? { enable_thinking: false } : {}),
     ...(requiresDashScopeGlmToolStream(compatibleParams, aiConfig) ? { tool_stream: true } : {}),
   } as T
 }

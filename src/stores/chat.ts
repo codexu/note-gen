@@ -6,6 +6,7 @@ import { locales } from '@/lib/locales';
 import { AgentState, ToolCall } from '@/lib/agent/types'
 import { LinkedResource } from '@/lib/files'
 import type { Conversation } from '@/db/conversations'
+import type { ChatReasoningOverride } from '@/lib/ai/chat-reasoning'
 
 export interface PendingQuote {
   quote: string
@@ -55,6 +56,8 @@ export interface McpToolCall {
 }
 
 interface ChatState {
+  reasoningOverride: ChatReasoningOverride | null
+  setReasoningOverride: (value: ChatReasoningOverride | null) => void
   loading: boolean
   setLoading: (loading: boolean) => void
 
@@ -145,6 +148,8 @@ interface ChatState {
 let nextTemporaryChatId = -1
 
 const useChatStore = create<ChatState>((set, get) => ({
+  reasoningOverride: null,
+  setReasoningOverride: (reasoningOverride) => set({ reasoningOverride }),
   loading: false,
 
   setLoading: (loading: boolean) => {
@@ -570,7 +575,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     const { createConversation: createConv } = await import('@/db/conversations')
     const id = await createConv(title)
     // 设置为当前会话并刷新会话列表
-    set({ currentConversationId: id, isTemporaryConversation: false })
+    set({ currentConversationId: id, isTemporaryConversation: false, reasoningOverride: null })
     await get().initConversations()
     return id
   },
@@ -589,6 +594,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     const data = await getChatsByConversation(id)
     set({
       currentConversationId: id,
+      reasoningOverride: previousConversationId === id ? get().reasoningOverride : null,
       chats: data,
       isTemporaryConversation: false,
       pendingQuote: null,
@@ -620,6 +626,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         // 没有其他会话了，清空状态，不创建新会话
         set({
           currentConversationId: null,
+          reasoningOverride: null,
           chats: [],
           isTemporaryConversation: false,
           pendingQuote: null,
@@ -670,6 +677,7 @@ const useChatStore = create<ChatState>((set, get) => ({
       currentConversationId: null,
       chats: [],
       isTemporaryConversation: false,
+      reasoningOverride: null,
       pendingQuote: null,
       editorSelectionQuote: null,
       agentAutoApproveConversationId: null,
@@ -685,6 +693,7 @@ const useChatStore = create<ChatState>((set, get) => ({
       currentConversationId: null,
       chats: [],
       isTemporaryConversation: true,
+      reasoningOverride: null,
       pendingQuote: null,
       editorSelectionQuote: null,
       agentAutoApproveConversationId: null,

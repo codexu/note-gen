@@ -2101,6 +2101,17 @@
       "contextWindowPlaceholder": "自動検出（既定16K）",
       "tokenLimitParam": "トークン制限パラメーター",
       "tokenLimitParamDesc": "既定では max_completion_tokens を使用します。旧式の互換APIでは max_tokens を選択してください。",
+      "reasoningEffort": {
+        "title": "推論レベル",
+        "default": "デフォルト",
+        "none": "無効",
+        "minimal": "最小",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "極高",
+        "max": "最大"
+      },
       "advancedParameters": "詳細パラメーター",
       "selectConfig": "モデルプラットフォームを選択",
       "models": "モデルリスト",

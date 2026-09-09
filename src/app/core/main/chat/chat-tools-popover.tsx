@@ -17,6 +17,7 @@ import { ClipboardMonitor } from "./clipboard-monitor"
 import { McpServerList } from "./mcp-button"
 import { ModelSelect } from "./model-select"
 import { PromptSelect } from "./prompt-select"
+import { ReasoningSelect } from "./reasoning-select"
 
 const TOOL_IDS = ['modelSelect', 'promptSelect', 'mcpButton', 'clipboardMonitor'] as const
 
@@ -42,7 +43,7 @@ export function ChatToolsPopover() {
         <div className="flex max-h-96 flex-col overflow-y-auto px-3 py-3">
           {TOOL_IDS.map((toolId) => (
             <div key={toolId}>
-              {toolId === 'modelSelect' && <ModelSelect display="panel" />}
+              {toolId === 'modelSelect' && <><ModelSelect display="panel" /><ReasoningSelect /></>}
               {toolId === 'promptSelect' && <PromptSelect display="panel" />}
               {toolId === 'mcpButton' && (
                 <Popover>

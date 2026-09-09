@@ -2247,6 +2247,17 @@
       "contextWindowPlaceholder": "Automatisch erkennen (16K Fallback)",
       "tokenLimitParam": "Token-Limit-Parameter",
       "tokenLimitParamDesc": "Verwendet standardmäßig max_completion_tokens. Wähle max_tokens für ältere kompatible APIs.",
+      "reasoningEffort": {
+        "title": "Reasoning-Aufwand",
+        "default": "Standard",
+        "none": "Deaktiviert",
+        "minimal": "Minimal",
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch",
+        "xhigh": "Sehr hoch",
+        "max": "Maximum"
+      },
       "advancedParameters": "Erweiterte Parameter",
       "selectConfig": "Wähle eine Modellplattform",
       "models": "Modellliste",

@@ -22,6 +22,7 @@ import type { AgentApprovalDecision, AgentSteeringPayload } from "@/lib/agent/ty
 import { serializeChatAttachments, type RuntimeChatAttachment } from '@/lib/chat-attachments'
 import { retainCompletedAgentTraceEvents } from '@/lib/agent/trace-retention'
 import { getAISettingsByModelId } from '@/lib/ai/utils'
+import { applyChatReasoningOverride } from '@/lib/ai/chat-reasoning'
 import type { AiConfig } from '@/app/core/setting/config'
 import {
   buildChatImageContext,
@@ -147,6 +148,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   }), [agentSession])
 
   const createRequestSnapshot = (overrideText?: string): AgentRequestSnapshot => ({
+    reasoningOverride: useChatStore.getState().reasoningOverride,
     inputValue: overrideText ?? inputValue,
     requestText: (overrideText ?? inputValue).trim() || t('record.chat.input.addAttachment.attachmentOnlyPrompt'),
     linkedResource,
@@ -1097,7 +1099,9 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
   agentSession.configure({
     execute: async (request) => {
       const modelId = useSettingStore.getState().primaryModel
-      const aiConfig = await getAISettingsByModelId(modelId)
+      const aiConfig = applyChatReasoningOverride(
+        await getAISettingsByModelId(modelId), modelId, request.reasoningOverride ?? null,
+      )
       const modelSnapshot = {
         id: modelId,
         name: aiConfig?.model || modelId,

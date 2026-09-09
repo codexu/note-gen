@@ -2265,6 +2265,17 @@
       "contextWindowPlaceholder": "Auto detect (16K fallback)",
       "tokenLimitParam": "Token Limit Parameter",
       "tokenLimitParamDesc": "Uses max_completion_tokens by default. Select max_tokens for legacy compatible APIs.",
+      "reasoningEffort": {
+        "title": "Reasoning Effort",
+        "default": "Default",
+        "none": "Disabled",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Maximum"
+      },
       "advancedParameters": "Advanced Parameters",
       "selectConfig": "Select a model platform",
       "models": "Model List",

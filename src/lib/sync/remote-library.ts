@@ -25,6 +25,11 @@ import { getFilePathOptions } from '@/lib/workspace'
 import { decodeBase64ToBytes, getRemoteFileContent } from './remote-file'
 import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/types/sync'
 import { recordSyncTiming } from './sync-timing'
+import {
+  createStaticAssetSyncMarker,
+  rememberStaticAssetSyncMarker,
+  withStaticAssetSyncLock,
+} from './static-asset-sync-origin'
 
 const MARKDOWN_FILE_PATTERN = /\.md$/i
 const ONE_DRIVE_FILE_TRANSFER_CONCURRENCY = 3
@@ -48,6 +53,7 @@ async function runWithConcurrency<T>(
 }
 
 const STATIC_ASSET_CONTENT_TYPES: Record<string, string> = {
+  bmp: 'image/bmp',
   css: 'text/css; charset=utf-8',
   gif: 'image/gif',
   html: 'text/html; charset=utf-8',
@@ -359,14 +365,16 @@ async function pullRemoteLibraryFiles(
     onProgress?.({ phase: 'downloading', current: started, total: files.length, path: file.path })
 
     try {
-      if (!options.overwriteExisting && await isLocalLibraryFile(file.path)) {
-        result.skipped += 1
-        return
-      }
+      await withStaticAssetSyncLock(file.path, async operationKey => {
+        if (!options.overwriteExisting && await isLocalLibraryFile(file.path)) {
+          result.skipped += 1
+          return
+        }
 
-      const content = await downloadRemoteBytes(file.path)
-      await saveLocalBytes(file.path, content)
-      result.downloaded += 1
+        const content = await downloadRemoteBytes(file.path)
+        await saveLocalBytes(file.path, content, { operationKey })
+        result.downloaded += 1
+      })
     } catch (error) {
       result.failed.push({
         path: file.path,
@@ -380,9 +388,14 @@ async function pullRemoteLibraryFiles(
 }
 
 export async function downloadRemoteLibraryFile(path: string): Promise<void> {
-  const pathOptions = await getFilePathOptions(path)
-  const content = await downloadRemoteBytes(path)
-  await saveLocalBytes(path, content, pathOptions)
+  await withStaticAssetSyncLock(path, async operationKey => {
+    const pathOptions = await getFilePathOptions(path)
+    const content = await downloadRemoteBytes(path)
+    await saveLocalBytes(path, content, {
+      operationKey,
+      resolvedPathOptions: pathOptions,
+    })
+  })
 }
 
 export async function uploadAllLocalLibraryFiles(
@@ -411,12 +424,17 @@ export async function uploadLocalLibraryFolder(
 }
 
 export async function uploadLocalLibraryFile(path: string): Promise<string> {
-  const pathOptions = await getFilePathOptions(path)
-  const content = pathOptions.baseDir
-    ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-    : await readFile(pathOptions.path)
+  return await withStaticAssetSyncLock(path, async operationKey => {
+    const pathOptions = await getFilePathOptions(path)
+    const content = pathOptions.baseDir
+      ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await readFile(pathOptions.path)
+    const marker = await createStaticAssetSyncMarker(path, content, operationKey)
 
-  return await uploadRemoteBytes(path, content, `Upload file: ${path}`, getRemoteContentType(path))
+    const sha = await uploadRemoteBytes(path, content, `Upload file: ${path}`, getRemoteContentType(path))
+    rememberStaticAssetSyncMarker(marker)
+    return sha
+  })
 }
 
 async function uploadLocalLibraryFiles(
@@ -494,12 +512,17 @@ export async function listLocalLibraryFiles(
 async function saveLocalBytes(
   path: string,
   content: Uint8Array,
-  resolvedPathOptions?: Awaited<ReturnType<typeof getFilePathOptions>>,
+  options: {
+    operationKey?: string
+    resolvedPathOptions?: Awaited<ReturnType<typeof getFilePathOptions>>
+  } = {},
 ): Promise<void> {
+  const { operationKey, resolvedPathOptions } = options
   if (!resolvedPathOptions) {
     await ensureDirectoryExists(path)
   }
   const pathOptions = resolvedPathOptions ?? await getFilePathOptions(path)
+  const marker = await createStaticAssetSyncMarker(path, content, operationKey)
   if (resolvedPathOptions) {
     const parentPath = await dirname(pathOptions.path)
     if (pathOptions.baseDir) {
@@ -513,6 +536,7 @@ async function saveLocalBytes(
   } else {
     await writeFile(pathOptions.path, content)
   }
+  rememberStaticAssetSyncMarker(marker)
 }
 
 async function downloadRemoteBytesRaw(

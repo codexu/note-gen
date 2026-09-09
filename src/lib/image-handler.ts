@@ -7,7 +7,11 @@ import { convertImageByWorkspace } from './utils'
 import { toMarkdownImagePath } from './markdown-image-path'
 import { getWritingAssetsDirName } from './writing-assets-path'
 import useArticleStore from '@/stores/article'
-import { uploadLocalLibraryFile } from '@/lib/sync/remote-library'
+import {
+  captureStaticAssetSyncSource,
+  enqueueStaticAssetSync,
+  uploadStaticAssetNow,
+} from '@/lib/sync/static-asset-sync-queue'
 
 export interface ImageUploadResult {
   /** Webview 可访问的 URL（用于编辑器显示） */
@@ -26,13 +30,14 @@ export async function saveImageToWorkspace(
   file: File,
   activeFilePath: string
 ): Promise<ImageUploadResult> {
+  const syncSource = captureStaticAssetSyncSource()
   const { imageRelativePath, markdownRelativePath } = await saveImageLocally(file, activeFilePath)
   const articleStore = useArticleStore.getState()
 
   if (articleStore.syncStaticAssets) {
+    enqueueStaticAssetSync(imageRelativePath, syncSource)
     try {
-      const sha = await uploadLocalLibraryFile(imageRelativePath)
-      articleStore.markFileRemote(imageRelativePath, sha)
+      await uploadStaticAssetNow(imageRelativePath, syncSource)
     } catch (error) {
       console.error('[ImageHandler] Failed to auto-upload local image:', error)
     }

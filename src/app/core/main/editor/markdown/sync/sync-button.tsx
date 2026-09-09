@@ -17,6 +17,7 @@ import { setLocalRecordedSha } from '@/lib/sync/auto-sync'
 import { debugSyncPerf } from '@/lib/sync/remote-file'
 import { generateGitSyncCommitMessage } from '@/lib/sync/commit-message'
 import { uploadRemoteText } from '@/lib/sync/remote-library'
+import { flushPendingStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
 import type { S3Config, WebDAVConfig } from '@/types/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 
@@ -192,6 +193,8 @@ export function SyncButton({
       logPerf('loadConfig', {
         hasRepo: Boolean(repo),
       })
+
+      await flushPendingStaticAssetSync({ force: true })
 
       // The section editor may still have a debounced local save. Prefer its
       // flushed canonical snapshot so a manual push never uploads stale disk content.

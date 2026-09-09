@@ -15,6 +15,11 @@ import { debugSyncPerf } from './remote-file'
 import { generateGitSyncCommitMessage } from './commit-message'
 import { getSyncMetadataKey } from './sync-context'
 import { supportsCloudFolderWorkspace } from './cloud-folder'
+import {
+  finishStaticAssetSyncWorkspaceSwitch,
+  flushPendingStaticAssetSync,
+  prepareStaticAssetSyncForWorkspaceSwitch,
+} from './static-asset-sync-queue'
 
 type SyncProvider = 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
 
@@ -246,6 +251,10 @@ class SyncPushQueue {
       this.clear()
       return
     }
+
+    // Upload newly created or changed local images before Markdown starts
+    // referencing them on another device.
+    await flushPendingStaticAssetSync({ force: true })
 
     // Bug fix: Process all tasks in the queue (newest first)
     // Group by path - keep only the newest task for each path
@@ -1026,6 +1035,7 @@ class SyncPushQueue {
   async prepareForWorkspaceSwitch() {
     this.workspaceSwitchPauseDepth += 1
     this.clear()
+    await prepareStaticAssetSyncForWorkspaceSwitch()
     const deadline = Date.now() + this.WORKSPACE_SWITCH_WAIT_TIMEOUT
     while (this.isProcessing) {
       if (Date.now() >= deadline) {
@@ -1039,6 +1049,7 @@ class SyncPushQueue {
   finishWorkspaceSwitch() {
     this.workspaceSwitchPauseDepth = Math.max(0, this.workspaceSwitchPauseDepth - 1)
     this.lastInputTime = Date.now()
+    finishStaticAssetSyncWorkspaceSwitch()
   }
 }
 

@@ -7,11 +7,45 @@ import { useEffect } from 'react'
 import useSettingStore from '@/stores/setting'
 import useArticleStore from '@/stores/article'
 import { getSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/runtime'
+import { enqueueStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
 
 function isStructuralEvent(event: WatchEvent) {
   if (event.type === 'any' || event.type === 'other') return true
   if ('create' in event.type || 'remove' in event.type) return true
   return 'modify' in event.type && event.type.modify.kind === 'rename'
+}
+
+function getChangedFilePaths(event: WatchEvent, paths: string[]): string[] {
+  if (typeof event.type === 'string') return paths
+  if ('create' in event.type) {
+    return event.type.create.kind === 'folder' ? [] : paths
+  }
+  if (!('modify' in event.type)) return []
+  if (event.type.modify.kind === 'metadata') {
+    return ['write-time', 'any', 'other'].includes(event.type.modify.mode) ? paths : []
+  }
+  if (event.type.modify.kind !== 'rename') return paths
+
+  const mode = event.type.modify.mode
+  if (mode === 'from') return []
+  if ((mode === 'both' || mode === 'any') && paths.length > 1) {
+    return [paths[paths.length - 1]]
+  }
+  return paths
+}
+
+function toWorkspaceRelativeWatchPath(path: string, normalizedRoot: string): string {
+  const normalizedPath = path.replace(/\\/g, '/')
+  const isWindowsPath = /^[a-zA-Z]:\//.test(normalizedRoot) || normalizedRoot.startsWith('//')
+  const comparableRoot = isWindowsPath ? normalizedRoot.toLowerCase() : normalizedRoot
+  const comparablePath = isWindowsPath ? normalizedPath.toLowerCase() : normalizedPath
+
+  if (comparablePath.startsWith(`${comparableRoot}/`)) {
+    return normalizedPath.slice(normalizedRoot.length + 1)
+  }
+  return normalizedPath.startsWith('/') || /^[a-zA-Z]:\//.test(normalizedPath)
+    ? ''
+    : normalizedPath.replace(/^\.?\//, '')
 }
 
 export function useWorkspaceFileWatcher() {
@@ -29,17 +63,20 @@ export function useWorkspaceFileWatcher() {
 
       unwatch = await watch(workspaceRoot, event => {
         if (disposed) return
+        if (workspacePath !== useSettingStore.getState().workspacePath) return
         void getSelfHostedSyncRuntime().wake('file-watcher')
 
-        const relativePaths = event.paths.map(path => {
-          const normalizedPath = path.replace(/\\/g, '/')
-          if (normalizedPath.startsWith(`${normalizedRoot}/`)) {
-            return normalizedPath.slice(normalizedRoot.length + 1)
-          }
-          return normalizedPath.startsWith('/') || /^[a-zA-Z]:\//.test(normalizedPath)
-            ? ''
-            : normalizedPath.replace(/^\.?\//, '')
-        }).filter(path => path && !path.split('/').some(part => part.startsWith('.')))
+        const relativePaths = event.paths
+          .map(path => toWorkspaceRelativeWatchPath(path, normalizedRoot))
+          .filter(path => path && !path.split('/').some(part => part.startsWith('.')))
+
+        for (const relativePath of getChangedFilePaths(event, relativePaths)) {
+          enqueueStaticAssetSync(relativePath)
+        }
+
+        // Ignore events that only point at hidden or out-of-workspace entries.
+        // A truly pathless structural event still falls through to a full reload.
+        if (event.paths.length > 0 && relativePaths.length === 0) return
 
         if (!isStructuralEvent(event)) {
           for (const relativePath of relativePaths) {
@@ -50,14 +87,14 @@ export function useWorkspaceFileWatcher() {
 
         const state = useArticleStore.getState()
         if (typeof event.type !== 'string' && 'create' in event.type && event.type.create.kind === 'file') {
-          const updated = relativePaths
+          const updated = relativePaths.length > 0 && relativePaths
             .map(path => state.reconcileLocalFile(path, true))
             .every(Boolean)
           if (updated) return
         }
 
         if (typeof event.type !== 'string' && 'remove' in event.type && event.type.remove.kind === 'file') {
-          const updated = relativePaths
+          const updated = relativePaths.length > 0 && relativePaths
             .map(path => state.reconcileLocalFile(path, false))
             .every(Boolean)
           if (updated) return

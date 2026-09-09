@@ -16,7 +16,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["$APPDATA/article/**/*", "**"]
       }
     },
     "windows": [

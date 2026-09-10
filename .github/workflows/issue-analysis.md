@@ -25,7 +25,9 @@ safe-outputs:
 
 tools:
   bash: []
+  cli-proxy: false
   github:
+    mode: local
     toolsets: [repos, issues, search]
     min-integrity: none
 

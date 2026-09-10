@@ -16,6 +16,7 @@ import {
 
 interface MobileEditorProps {
   onEditorReady?: (editor: Editor | null) => void
+  isActive: boolean
 }
 
 export interface MobileEditorHandle {
@@ -23,7 +24,7 @@ export interface MobileEditorHandle {
 }
 
 export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(function MobileEditor(
-  { onEditorReady },
+  { onEditorReady, isActive },
   ref,
 ) {
   const tEditor = useTranslations('editor')
@@ -212,6 +213,7 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
         onEditorReady={onEditorReady}
         mobileMode
         applyLayoutPreferences
+        isActive={isActive}
       />
     </div>
   )

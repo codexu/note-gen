@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 import { Editor } from '@tiptap/react'
 import {
   Bold,
@@ -80,6 +81,7 @@ const KEYBOARD_SELECTION_KEYS = new Set([
 ])
 
 interface BubbleMenuProps {
+  pluginsEnabled?: boolean
   editor: Editor
   onAIPolish?: () => void
   onAIConcise?: () => void
@@ -134,6 +136,7 @@ function isKeyboardSelectionIntent(event: KeyboardEvent): boolean {
 }
 
 export function BubbleMenu({
+  pluginsEnabled = false,
   editor,
   onAIPolish,
   onAIConcise,
@@ -145,6 +148,7 @@ export function BubbleMenu({
   openLinkInputSignal = 0,
 }: BubbleMenuProps) {
   const t = useTranslations('editor')
+  const pluginMenuOwner = useId()
   const linkTextInputId = useId()
   const linkUrlInputId = useId()
   const [show, setShow] = useState(false)
@@ -542,6 +546,7 @@ export function BubbleMenu({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         hideMenu()
         setIsInteractingWithMenu(false)
@@ -549,7 +554,7 @@ export function BubbleMenu({
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [hideMenu])
+  }, [hideMenu, pluginMenuOwner])
 
   // Update position on scroll
   useEffect(() => {
@@ -807,6 +812,7 @@ export function BubbleMenu({
 
         <ToolbarSeparator />
 
+        {pluginsEnabled ? <PluginEditorToolbar editor={editor} location="editor/selection" owner={pluginMenuOwner} /> : null}
         {/* 文本格式化 */}
         <div className="flex gap-0.5">
           <ToolbarButton active={isActive('bold')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold /></ToolbarButton>

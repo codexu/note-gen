@@ -77,6 +77,8 @@ import { useFileTree } from './use-file-tree'
 import { useSyncAvailability } from './use-sync-availability'
 import useSettingStore from '@/stores/setting'
 import { buildFileTreeSyncStatusMap } from './file-tree-action-policy'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
+import { PluginFileActions } from '@/components/plugins/plugin-file-actions'
 import { deleteRemoteFile } from '@/lib/sync/remote-library'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
 import {
@@ -1055,6 +1057,7 @@ export function FileManager({
           </Badge>
         ) : null}
         {showSearch ? <div ref={toolbarRef} className="sticky top-0 z-10 select-none bg-background/95 px-2 py-2 backdrop-blur-sm">
+          <PluginFileActions />
           <div className="flex min-w-0 items-center gap-1.5">
               <InputGroup
                 focusRing="subtle"
@@ -1263,6 +1266,7 @@ export function FileManager({
               <FolderPlus className="mr-2 h-4 w-4" />
               {t('context.newFolder')}
             </ContextMenuItem>
+            <PluginFileMenuItems context={{ kind: 'root', selectedPaths: [] }} />
             <ContextMenuSeparator />
             <ContextMenuItem
               inset

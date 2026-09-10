@@ -67,6 +67,23 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Embed and verify plugin marketplace root public key
+        env:
+          PLUGIN_MARKET_ROOT_PUBLIC_KEY: ${{ vars.PLUGIN_MARKET_ROOT_PUBLIC_KEY }}
+          PLUGIN_MARKET_ENABLED: ${{ vars.PLUGIN_MARKET_ENABLED }}
+        run: |
+          if [ "$PLUGIN_MARKET_ENABLED" = "false" ]; then
+            printf '# Marketplace explicitly disabled for this release.\n' > src-tauri/plugin-market-public-key.txt
+            echo "::notice::Plugin marketplace disabled by PLUGIN_MARKET_ENABLED=false."
+            exit 0
+          fi
+          if [ -z "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" ]; then
+            echo "::error::Configure PLUGIN_MARKET_ROOT_PUBLIC_KEY, or explicitly set PLUGIN_MARKET_ENABLED=false for a release without the marketplace."
+            exit 1
+          fi
+          printf '%s\n' "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" > src-tauri/plugin-market-public-key.txt
+          pnpm plugin-market:check-key
+
       - name: Setup NDK toolchain
         run: |
           export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
@@ -285,6 +302,24 @@ jobs:
 
       - name: install frontend dependencies
         run: pnpm install
+
+      - name: Embed and verify plugin marketplace root public key
+        shell: bash
+        env:
+          PLUGIN_MARKET_ROOT_PUBLIC_KEY: ${{ vars.PLUGIN_MARKET_ROOT_PUBLIC_KEY }}
+          PLUGIN_MARKET_ENABLED: ${{ vars.PLUGIN_MARKET_ENABLED }}
+        run: |
+          if [ "$PLUGIN_MARKET_ENABLED" = "false" ]; then
+            printf '# Marketplace explicitly disabled for this release.\n' > src-tauri/plugin-market-public-key.txt
+            echo "::notice::Plugin marketplace disabled by PLUGIN_MARKET_ENABLED=false."
+            exit 0
+          fi
+          if [ -z "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" ]; then
+            echo "::error::Configure PLUGIN_MARKET_ROOT_PUBLIC_KEY, or explicitly set PLUGIN_MARKET_ENABLED=false for a release without the marketplace."
+            exit 1
+          fi
+          printf '%s\n' "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" > src-tauri/plugin-market-public-key.txt
+          pnpm plugin-market:check-key
 
       - name: Import Apple Certificate
         id: import_apple_certificate

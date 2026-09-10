@@ -12,7 +12,7 @@ import useChatStore from '@/stores/chat'
 
 type WritingView = 'files' | 'editor'
 
-export function WritingScreen() {
+export function WritingScreen({ isActive }: { isActive: boolean }) {
   const pathname = usePathname()
   const activeFilePath = useArticleStore(state => state.activeFilePath)
   const initCollapsibleList = useArticleStore(state => state.initCollapsibleList)
@@ -126,7 +126,7 @@ export function WritingScreen() {
       >
         <EditorHeader onBack={closeEditor} />
         <div className='min-h-0 flex-1 overflow-hidden'>
-          <MobileEditor ref={editorRef} />
+          <MobileEditor ref={editorRef} isActive={isActive && view === 'editor'} />
         </div>
       </div>
     </div>

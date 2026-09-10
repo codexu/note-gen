@@ -2,6 +2,8 @@
 
 import { ChartNoAxesColumnIncreasing } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   Item,
@@ -17,6 +19,18 @@ import useSettingStore from '@/stores/setting'
 export default function ShowEditorStats() {
   const t = useTranslations('settings.editor.stats')
   const { showEditorStats, setShowEditorStats } = useSettingStore()
+  const [saving, setSaving] = useState(false)
+
+  async function updateSetting(show: boolean) {
+    setSaving(true)
+    try {
+      await setShowEditorStats(show)
+    } catch {
+      toast.error(t('saveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Item variant="outline">
@@ -30,8 +44,9 @@ export default function ShowEditorStats() {
       <ItemActions className="mobile-setting-inline-action">
         <Switch
           checked={showEditorStats}
+          disabled={saving}
           aria-label={t('title')}
-          onCheckedChange={(show) => void setShowEditorStats(show)}
+          onCheckedChange={(show) => void updateSetting(show)}
         />
       </ItemActions>
     </Item>

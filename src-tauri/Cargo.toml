@@ -23,6 +23,7 @@ tauri = { version = "2", features = [ "macos-private-api", "protocol-asset", "im
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "=1"
+serde_json_canonicalizer = "0.3.2"
 serde_yaml = "0.9"
 tauri-plugin-store = "2"
 tauri-plugin-fs = { version = "2", features = ["watch"] }
@@ -54,6 +55,8 @@ sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio
 base64 = "0.22"
 anydoc = "=0.1.8"
 unicode-normalization = "0.1"
+ring = "0.17"
+semver = "1"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]

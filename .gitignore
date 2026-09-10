@@ -4,6 +4,7 @@
 node_modules
 
 ./dist
+/packages/*/dist/
 dist-ssr
 plans/
 docs/
@@ -101,3 +102,6 @@ docs/.vitepress/cache
 
 # Local Remotion video workspace
 /remotion/*
+
+# Generated browser plugin worker
+/public/plugin-runtime.js

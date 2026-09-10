@@ -10,14 +10,17 @@ function isWindowsLikePath(path: string): boolean {
   return /^[a-zA-Z]:\//.test(path) || path.startsWith('//')
 }
 
-let runtimeWorkspaceRoot: string | null = null
+let runtimeWorkspace: { path: string; isCustom: boolean } | null = null
 
 /**
  * Pins workspace-dependent helpers to one absolute root in the current webview.
  * Standalone editor windows use this without changing the persisted main-window workspace.
  */
-export function setRuntimeWorkspaceRoot(path: string | null): void {
-  runtimeWorkspaceRoot = path?.trim() || null
+export function setRuntimeWorkspaceRoot(path: string | null, isCustom = true): void {
+  const normalizedPath = path?.trim()
+  runtimeWorkspace = normalizedPath
+    ? { path: isCustom ? normalizedPath : 'article', isCustom }
+    : null
 }
 
 export function isAbsoluteFsPath(path: string): boolean {
@@ -30,8 +33,8 @@ export function isAbsoluteFsPath(path: string): boolean {
  * 否则返回默认的 AppData/article 路径
  */
 export async function getWorkspacePath(): Promise<{ path: string, isCustom: boolean }> {
-  if (runtimeWorkspaceRoot) {
-    return { path: runtimeWorkspaceRoot, isCustom: true }
+  if (runtimeWorkspace) {
+    return runtimeWorkspace
   }
 
   // 查询本地存储

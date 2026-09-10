@@ -763,7 +763,7 @@ function MarkMissingState({ onClose }: { onClose: () => void }) {
   )
 }
 
-function TodoDetailEditor({ mark }: { mark: Mark }) {
+function TodoDetailEditor({ mark, isActive }: { mark: Mark; isActive: boolean }) {
   const t = useTranslations()
   const { updateMark } = useMarkStore()
   const { fetchTags, getCurrentTag } = useTagStore()
@@ -819,6 +819,8 @@ function TodoDetailEditor({ mark }: { mark: Mark }) {
             showFooterBar={false}
             scrollable={isLargeDescription}
             enableLargeDocumentMode
+            isActive={isActive}
+            exposeToPluginHost={false}
           />
         </div>
       </SectionBlock>
@@ -826,7 +828,7 @@ function TodoDetailEditor({ mark }: { mark: Mark }) {
   )
 }
 
-function MarkDetailBody({ mark }: { mark: Mark }) {
+function MarkDetailBody({ mark, isActive }: { mark: Mark; isActive: boolean }) {
   const t = useTranslations()
   const markT = useTranslations('record.mark')
   const { updateMark } = useMarkStore()
@@ -904,7 +906,7 @@ function MarkDetailBody({ mark }: { mark: Mark }) {
   }, [mark, primaryModel, t, updateMark])
 
   if (mark.type === 'todo') {
-    return <TodoDetailEditor mark={mark} />
+    return <TodoDetailEditor mark={mark} isActive={isActive} />
   }
 
   const contentPlaceholder = imageSrc ? t('record.capture.screenshotOcrContent') : markT('content')
@@ -986,6 +988,8 @@ function MarkDetailBody({ mark }: { mark: Mark }) {
             showFooterBar={false}
             scrollable={isLargeContent}
             enableLargeDocumentMode
+            isActive={isActive}
+            exposeToPluginHost={false}
           />
         </div>
       </SectionBlock>
@@ -993,14 +997,14 @@ function MarkDetailBody({ mark }: { mark: Mark }) {
   )
 }
 
-function MarkDetailView({ mark, onClose }: { mark: Mark; onClose: () => void }) {
+function MarkDetailView({ mark, onClose, isActive }: { mark: Mark; onClose: () => void; isActive: boolean }) {
   return (
     <PhotoPreviewProvider>
       <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden bg-background">
         <MarkDetailToolbar mark={mark} onClose={onClose} />
         <div className="app-panel-scrollbar min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="min-w-full max-w-full overflow-hidden">
-            <MarkDetailBody key={mark.id} mark={mark} />
+            <MarkDetailBody key={mark.id} mark={mark} isActive={isActive} />
           </div>
         </div>
       </div>
@@ -1008,7 +1012,7 @@ function MarkDetailView({ mark, onClose }: { mark: Mark; onClose: () => void }) 
   )
 }
 
-export function MarkDetailPanel({ markId, onClose }: { markId: number; onClose: () => void }) {
+export function MarkDetailPanel({ markId, onClose, isActive }: { markId: number; onClose: () => void; isActive: boolean }) {
   const { marks, allMarks, fetchAllMarks } = useMarkStore()
   const mark = useMemo(
     () => marks.find((item) => item.id === markId) ?? allMarks.find((item) => item.id === markId) ?? null,
@@ -1025,5 +1029,5 @@ export function MarkDetailPanel({ markId, onClose }: { markId: number; onClose: 
     return <MarkMissingState onClose={onClose} />
   }
 
-  return <MarkDetailView mark={mark} onClose={onClose} />
+  return <MarkDetailView mark={mark} onClose={onClose} isActive={isActive} />
 }

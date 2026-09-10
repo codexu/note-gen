@@ -19,13 +19,14 @@ import {
   Brain,
   Globe2,
   Palette,
+  Blocks,
 } from "lucide-react"
 import type { ReactNode } from 'react'
 import type { SettingSection } from '@/stores/settings-dialog'
 
 export type SettingNavigationGroup =
   | 'basic'
-  | 'aiExtensions'
+  | 'ai'
   | 'data'
 
 export type SettingNavigationItem =
@@ -74,7 +75,11 @@ const baseConfig: SettingNavigationItem[] = [
     anchor: 'audio',
   },
   {
-    group: 'aiExtensions',
+    icon: <Blocks className="size-4" />,
+    anchor: 'plugins',
+  },
+  {
+    group: 'ai',
   },
   {
     icon: <BotMessageSquare className="size-4" />,

@@ -53,6 +53,7 @@ import {
   activeEditorPathIsAffected,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 
 export function FolderItem({
   item,
@@ -1089,6 +1090,11 @@ export function FolderItem({
             <NewFile item={item} />
             <NewFolder item={item} />
             <ViewDirectory item={item} />
+            <PluginFileMenuItems context={{
+              kind: 'folder',
+              relativePath: path,
+              selectedPaths: selectionEntries.map((entry) => entry.path),
+            }} />
             <ContextMenuSeparator />
             {/* skills 文件夹及其子内容不显示知识库选项 */}
             {!isInSkillsFolder(path) && (

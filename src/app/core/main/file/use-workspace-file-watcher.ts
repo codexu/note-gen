@@ -8,6 +8,10 @@ import useSettingStore from '@/stores/setting'
 import useArticleStore from '@/stores/article'
 import { getSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/runtime'
 import { enqueueStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
+import {
+  capturePluginWorkspaceBindingForWorkspace,
+  emitPluginNoteChange,
+} from '@/lib/plugins/broker'
 
 function isStructuralEvent(event: WatchEvent) {
   if (event.type === 'any' || event.type === 'other') return true
@@ -65,6 +69,16 @@ export function useWorkspaceFileWatcher() {
         if (disposed) return
         if (workspacePath !== useSettingStore.getState().workspacePath) return
         void getSelfHostedSyncRuntime().wake('file-watcher')
+        const pluginWorkspaceBinding = capturePluginWorkspaceBindingForWorkspace(
+          workspacePath,
+          Boolean(workspacePath),
+        )
+        const emitNoteChange = (change: Parameters<typeof emitPluginNoteChange>[0]) => {
+          emitPluginNoteChange(change, {
+            binding: pluginWorkspaceBinding,
+            source: 'file-watcher',
+          })
+        }
 
         const relativePaths = event.paths
           .map(path => toWorkspaceRelativeWatchPath(path, normalizedRoot))
@@ -77,16 +91,23 @@ export function useWorkspaceFileWatcher() {
         // Ignore events that only point at hidden or out-of-workspace entries.
         // A truly pathless structural event still falls through to a full reload.
         if (event.paths.length > 0 && relativePaths.length === 0) return
+        const notePaths = relativePaths.filter(path => path.toLowerCase().endsWith('.md'))
 
         if (!isStructuralEvent(event)) {
           for (const relativePath of relativePaths) {
             useArticleStore.getState().markFileDirty(relativePath)
           }
+          for (const path of notePaths) emitNoteChange({ type: 'changed', path })
           return
+        }
+
+        if (event.type === 'any' || event.type === 'other') {
+          for (const path of notePaths) emitNoteChange({ type: 'changed', path })
         }
 
         const state = useArticleStore.getState()
         if (typeof event.type !== 'string' && 'create' in event.type && event.type.create.kind === 'file') {
+          for (const path of notePaths) emitNoteChange({ type: 'created', path })
           const updated = relativePaths.length > 0 && relativePaths
             .map(path => state.reconcileLocalFile(path, true))
             .every(Boolean)
@@ -94,6 +115,7 @@ export function useWorkspaceFileWatcher() {
         }
 
         if (typeof event.type !== 'string' && 'remove' in event.type && event.type.remove.kind === 'file') {
+          for (const path of notePaths) emitNoteChange({ type: 'deleted', path })
           const updated = relativePaths.length > 0 && relativePaths
             .map(path => state.reconcileLocalFile(path, false))
             .every(Boolean)
@@ -109,6 +131,9 @@ export function useWorkspaceFileWatcher() {
           if ((mode === 'both' || mode === 'any') && relativePaths.length >= 2) {
             const oldPath = relativePaths[0]
             const newPath = relativePaths[relativePaths.length - 1]
+            if (oldPath.toLowerCase().endsWith('.md') && newPath.toLowerCase().endsWith('.md')) {
+              emitNoteChange({ type: 'moved', path: newPath, previousPath: oldPath })
+            }
             state.reconcileLocalFile(oldPath, false)
             state.reconcileLocalFile(newPath, true)
           }

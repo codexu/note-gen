@@ -41,6 +41,7 @@ import { isMobileDevice } from '@/lib/check'
 import { pickImagesFromPhotoLibrary } from '@/lib/image-picker'
 
 export interface SlashCommandItem {
+  id?: string
   title: string
   description?: string
   icon: React.ReactNode

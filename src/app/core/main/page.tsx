@@ -3,7 +3,7 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { LeftSidebar } from "./left-sidebar"
 import { EditorLayout } from './editor/editor-layout'
-import Chat from './chat'
+import { PluginRightSidebar } from '@/components/plugins/plugin-right-sidebar'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState, useRef } from 'react'
@@ -281,7 +281,7 @@ function ResizableWrapper() {
         collapsedSize="0%"
         onResize={(size) => setRightPanelCollapsed(size.asPercentage < 0.1)}
       >
-        <Chat />
+        <PluginRightSidebar />
       </ResizablePanel>
     )
 

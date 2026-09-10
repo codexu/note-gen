@@ -22,6 +22,7 @@ mod mcp_runtime;
 mod notion_import;
 mod ocr_packages;
 mod printing;
+mod plugins;
 mod remote_skills;
 mod screenshot;
 mod self_hosted_crypto;
@@ -65,6 +66,15 @@ use mcp_runtime::{
 };
 use notion_import::import_notion_zip;
 use ocr_packages::{list_ocr_providers, run_ocr_provider};
+use plugins::{
+    plugin_commit_host_state, plugin_confirm_activation, plugin_fetch_market, plugin_import_local,
+    plugin_install_market, plugin_list_installed, plugin_read_host_state,
+    plugin_delete_workspace_note, plugin_list_workspace_notes, plugin_move_workspace_note,
+    plugin_network_fetch, plugin_open_or_create_note, plugin_read_entry, plugin_read_locale,
+    plugin_read_usage, plugin_read_workspace_note, plugin_rollback, plugin_uninstall, plugin_write_workspace_note,
+    plugin_storage_get, plugin_storage_set, plugin_storage_remove,
+    PluginManager,
+};
 use remote_skills::{
     cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
     RemoteSkillManager,
@@ -107,6 +117,7 @@ fn main() {
         .manage(AiRequestManager::new())
         .manage(SkillProcessManager::default())
         .manage(RemoteSkillManager::default())
+        .manage(PluginManager::default())
         .manage(WebClipperState::new())
         .manage(LocalMcpState::new())
         // 系统级插件
@@ -148,6 +159,31 @@ fn main() {
             validate_skill_package,
             install_skill_package,
             uninstall_skill,
+            plugin_read_host_state,
+            plugin_commit_host_state,
+            plugin_storage_get,
+            plugin_storage_set,
+            plugin_storage_remove,
+            plugin_list_installed,
+            plugin_fetch_market,
+            plugin_install_market,
+            plugin_confirm_activation,
+            plugin_import_local,
+            plugins::plugin_development_revision,
+            plugin_uninstall,
+            plugin_rollback,
+            plugin_read_entry,
+            plugin_read_locale,
+            plugin_read_usage,
+            plugin_open_or_create_note,
+            plugin_read_workspace_note,
+            plugins::plugin_read_attachment,
+            plugins::plugin_create_attachment,
+            plugin_list_workspace_notes,
+            plugin_write_workspace_note,
+            plugin_delete_workspace_note,
+            plugin_move_workspace_note,
+            plugin_network_fetch,
             search_remote_skills,
             inspect_remote_skill,
             install_remote_skill,

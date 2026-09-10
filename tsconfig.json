@@ -20,9 +20,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@notegen/plugin-api": ["./packages/plugin-api/src/index.ts"]
     }
   },
-  "include": ["next-env.d.ts", "next.config.ts", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "src/app/core/record/mark/control-scan.tsx.bak"],
+  "include": ["next-env.d.ts", "next.config.ts", "src/**/*.ts", "src/**/*.tsx", "packages/plugin-api/src/**/*.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "src/app/core/record/mark/control-scan.tsx.bak"],
   "exclude": ["node_modules"]
 }

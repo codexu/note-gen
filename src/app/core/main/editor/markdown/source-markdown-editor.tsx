@@ -1,5 +1,7 @@
 'use client'
 
+import { PluginError } from '@notegen/plugin-api'
+
 import {
   defaultKeymap,
   history,
@@ -70,6 +72,9 @@ interface SourceMarkdownEditorProps {
 }
 
 export interface SourceMarkdownEditorController {
+  isComposing: () => boolean
+  applyEdits: (edits: readonly { from: number; to: number; text: string }[]) => void
+  setSelection: (from: number, to: number) => void
   isFocused: () => boolean
   undo: () => boolean
   redo: () => boolean
@@ -425,6 +430,15 @@ export function SourceMarkdownEditor({
           selection: { anchor: selectionFrom, head: selectionTo },
           annotations: isolateHistory.of('full'),
         })
+      },
+      isComposing: () => view.composing,
+      applyEdits: edits => {
+        if (view.composing || view.state.facet(EditorState.readOnly)) throw new PluginError('EditorBusy', 'The source editor is composing or read-only')
+        view.dispatch({ changes: edits.map(edit => ({ from: edit.from, to: edit.to, insert: edit.text })), annotations: isolateHistory.of('full') })
+      },
+      setSelection: (from, to) => {
+        view.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true })
+        view.focus()
       },
     })
     onUndoRedoChangeRef.current?.(getUndoRedoState())

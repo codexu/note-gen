@@ -52,6 +52,7 @@ import {
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
 import { canOpenInEditorWindow, openEditorWindow } from '@/lib/editor-windows'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -1048,6 +1049,11 @@ export function FileItem({
                 <FolderOpen className="mr-2 h-4 w-4" />
                 {t('context.viewDirectory')}
               </ContextMenuItem>
+              <PluginFileMenuItems context={{
+                kind: 'file',
+                relativePath: path,
+                selectedPaths: selectionEntries.map((entry) => entry.path),
+              }} />
               <ContextMenuSub>
                 <ContextMenuSubTrigger inset disabled={!canExportMarkdownFile || exportingFormat !== null} menuType="file">
                   <Download className="mr-2 h-4 w-4" />

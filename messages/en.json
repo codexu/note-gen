@@ -344,9 +344,18 @@
       "basicSettingsTitle": "Basic settings",
       "basicSettingsDesc": "AI decides when other notes are useful; you can tune how deeply it searches and how broadly it matches.",
       "sourceTypes": {
-        "article": { "title": "Articles", "desc": "Include Markdown articles in semantic knowledge search." },
-        "record": { "title": "Records", "desc": "Index individual records, OCR, transcripts, and existing metadata." },
-        "canvas": { "title": "Canvases", "desc": "Index canvas node text and explicit connections." }
+        "article": {
+          "title": "Articles",
+          "desc": "Include Markdown articles in semantic knowledge search."
+        },
+        "record": {
+          "title": "Records",
+          "desc": "Index individual records, OCR, transcripts, and existing metadata."
+        },
+        "canvas": {
+          "title": "Canvases",
+          "desc": "Index canvas node text and explicit connections."
+        }
       },
       "globalSemanticSearchTitle": "Global semantic search",
       "globalSemanticSearchDesc": "Add related results after typing pauses. Local exact search remains available when disabled.",
@@ -363,15 +372,30 @@
       "automaticSearchDesc": "When a question depends on your records, AI finds relevant notes automatically. It skips search for general questions or when the current note is sufficient.",
       "agentStrategyTitle": "Automatic search strategy",
       "agentStrategies": {
-        "fast": { "title": "Fast", "desc": "Search at most once to minimize response time." },
-        "balanced": { "title": "Standard", "desc": "Search up to twice for a balance between speed and cross-note discovery." },
-        "deep": { "title": "Deep", "desc": "Search up to three times for comparisons, history, and cross-note synthesis." }
+        "fast": {
+          "title": "Fast",
+          "desc": "Search at most once to minimize response time."
+        },
+        "balanced": {
+          "title": "Standard",
+          "desc": "Search up to twice for a balance between speed and cross-note discovery."
+        },
+        "deep": {
+          "title": "Deep",
+          "desc": "Search up to three times for comparisons, history, and cross-note synthesis."
+        }
       },
       "presetDesc": "Presets only adjust result count and thresholds.",
       "presets": {
-        "precision": { "title": "Precision" },
-        "balanced": { "title": "Balanced" },
-        "recall": { "title": "Recall" }
+        "precision": {
+          "title": "Precision"
+        },
+        "balanced": {
+          "title": "Balanced"
+        },
+        "recall": {
+          "title": "Recall"
+        }
       },
       "settingsTitle": "Parameter Settings",
       "settingsDesc": "By adjusting parameters, you can more precisely control the retrieval effect of the knowledge base.",
@@ -594,6 +618,319 @@
       "systemRuntime": "system",
       "runtimeUnavailable": "unavailable"
     },
+    "plugins": {
+      "ui": {
+        "moreActions": "More plugin actions",
+        "loadingView": "Loading plugin view…",
+        "viewFailed": "Unable to open plugin view",
+        "retry": "Retry",
+        "empty": "No content yet",
+        "chat": "AI Chat",
+        "editor": "Editor",
+        "closeView": "Close {name}",
+        "close": "Close",
+        "requiredField": "This field is required",
+        "invalidValue": "Enter a valid value"
+      },
+      "title": "Plugins",
+      "desc": "Discover, install, authorize, and configure extensions for NoteGen. Plugin code currently runs only on desktop.",
+      "loading": "Loading plugins...",
+      "initializationFailed": "Plugins could not be initialized",
+      "required": "Required",
+      "optional": "Optional",
+      "tabs": {
+        "market": "Marketplace",
+        "installed": "Installed",
+        "updates": "Updates",
+        "permissions": "Permissions",
+        "developer": "Developer"
+      },
+      "actions": {
+        "retry": "Try again",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing...",
+        "install": "Install",
+        "installing": "Installing...",
+        "installed": "Installed",
+        "update": "Update",
+        "rollback": "Roll back",
+        "uninstall": "Uninstall",
+        "uninstallKeepData": "Uninstall and keep data",
+        "uninstallAndRemoveData": "Uninstall and remove data",
+        "cancel": "Cancel",
+        "revoke": "Revoke",
+        "import": "Import",
+        "importing": "Importing...",
+        "reload": "Reload",
+        "clearLogs": "Clear logs",
+        "details": "Details",
+        "enabling": "Enabling...",
+        "clearFailure": "Clear failure state",
+        "exportDiagnostics": "Export diagnostics"
+      },
+      "labels": {
+        "official": "Official",
+        "featured": "Featured",
+        "verified": "Verified",
+        "attention": "Needs attention"
+      },
+      "sources": {
+        "marketplace": "Marketplace",
+        "development": "Development"
+      },
+      "runtime": {
+        "inactive": "Inactive",
+        "activating": "Starting",
+        "active": "Active",
+        "stopping": "Stopping",
+        "failed": "Failed",
+        "quarantined": "Quarantined"
+      },
+      "commandPalette": {
+        "title": "Plugin commands",
+        "description": "Search and run commands contributed by enabled plugins.",
+        "placeholder": "Search plugin commands...",
+        "empty": "No matching plugin commands.",
+        "group": "Plugins"
+      },
+      "statusBar": {
+        "loading": "Plugin status is updating"
+      },
+      "market": {
+        "searchPlaceholder": "Search plugins by name, author, or category",
+        "searchLabel": "Search plugin marketplace",
+        "sourceTitle": "Marketplace index verified",
+        "staleTitle": "Showing an offline marketplace snapshot",
+        "staleInstallDisabled": "Offline snapshots are read-only. Reconnect and refresh the verified index before installing or updating plugins.",
+        "sourceAndTime": "Source: {source}. Generated: {time}.",
+        "sources": {
+          "remote": "remote index",
+          "cache": "local cache"
+        },
+        "loadFailed": "Marketplace refresh failed",
+        "installFailed": "Plugin installation failed",
+        "installAria": "Install {name}",
+        "reviewInstallTitle": "Review {name} before installing",
+        "reviewInstallDesc": "Verify the publisher, source, license, compatibility, package digest, and requested permissions.",
+        "publisher": "Publisher",
+        "publisherKey": "Publisher key ID",
+        "license": "License",
+        "packageDigest": "Package SHA-256",
+        "sourceCode": "Source code",
+        "homepage": "Homepage",
+        "noPermissions": "No protected permissions requested",
+        "unavailable": "Unavailable",
+        "permissionsCount": "Declares {count} permissions",
+        "noResults": "No matching plugins",
+        "noResultsDesc": "Try a different name, author, or category.",
+        "empty": "The marketplace is empty",
+        "emptyDesc": "Refresh the signed index, or try again when you are online."
+      },
+      "installed": {
+        "searchPlaceholder": "Search installed plugins",
+        "searchLabel": "Search installed plugins",
+        "operationFailed": "Plugin state could not be changed",
+        "noDescription": "No description provided.",
+        "allWorkspaces": "Enabled in all workspaces",
+        "enablementLabel": "Enablement scope",
+        "enablementDesc": "Plugin settings and permissions remain separate for each workspace.",
+        "permissionReviewRequired": "Permission review required",
+        "reviewPermissions": "Review permissions",
+        "enablement": {
+          "disabled": "Disabled",
+          "workspace": "Current workspace",
+          "allWorkspaces": "All workspaces"
+        },
+        "enableAria": "Enable {name} in this workspace",
+        "disableAria": "Disable {name} in this workspace",
+        "failureTitle": "Last failure: {code}",
+        "failureCount": "Recorded {count} times.",
+        "noResults": "No matching installed plugins",
+        "noResultsDesc": "Try searching by plugin name, ID, or author.",
+        "empty": "No plugins installed",
+        "emptyDesc": "Install a plugin from the marketplace to get started.",
+        "revoked": "This version was withdrawn: {reason}"
+      },
+      "details": {
+        "author": "Author",
+        "unknown": "Unknown",
+        "apiVersion": "Plugin API",
+        "minAppVersion": "Minimum NoteGen version",
+        "platforms": "Platforms",
+        "contentHash": "Content hash",
+        "commands": "Commands",
+        "menus": "Menu items",
+        "permissions": "Permissions"
+      },
+      "settings": {
+        "title": "Plugin settings",
+        "contextChanged": "The plugin or workspace changed. Reopen its settings before saving.",
+        "desc": "These values are validated and stored by NoteGen.",
+        "none": "This plugin has no configurable settings.",
+        "invalidNumber": "Enter a valid number.",
+        "relativePathOnly": "Use a relative workspace path without .. segments.",
+        "relativePathHelp": "Paths are relative to the current workspace; absolute paths are not accepted.",
+        "byteUsage": "{used} / {max} bytes",
+        "byteLimitExceeded": "This value uses {used} bytes and exceeds the {max}-byte limit.",
+        "scopes": {
+          "device": "This device",
+          "workspace": "Current workspace"
+        }
+      },
+      "updates": {
+        "summaryTitle": "{count} updates available",
+        "summaryDesc": "Updates are installed atomically. NoteGen keeps the previous version when rollback is available.",
+        "operationFailed": "Plugin operation failed",
+        "available": "Update available",
+        "current": "Up to date",
+        "pendingActivation": "Awaiting activation",
+        "pendingActivationDesc": "Open or run the plugin once to confirm this version, or roll back before installing another update.",
+        "versionChange": "Version {current} → {next}",
+        "currentVersion": "Installed version {version}",
+        "confirmUpdateTitle": "Update {name}?",
+        "confirmUpdateDesc": "Replace version {current} with {next}. Review any changed permissions before enabling it again.",
+        "confirmRollbackTitle": "Roll back {name}?",
+        "confirmRollbackDesc": "Replace version {current} with the retained version {previous}.",
+        "confirmUninstallTitle": "Uninstall {name}?",
+        "confirmUninstallDesc": "Keep settings and cache for a future reinstall, or remove them too. Workspace files created by the plugin are never deleted.",
+        "empty": "No plugins to manage",
+        "emptyDesc": "Installed marketplace and development plugins appear here."
+      },
+      "permissionNames": {
+        "editor": {
+          "read": "Read the active editor",
+          "write": "Modify the active editor"
+        },
+        "notes": {
+          "read": "Read notes",
+          "create": "Create notes",
+          "open": "Open notes",
+          "list": "List notes",
+          "write": "Write notes",
+          "delete": "Delete notes",
+          "move": "Move notes"
+        },
+        "attachments": {
+          "read": "Read attachments",
+          "create": "Create attachments"
+        },
+        "network": {
+          "fetch": "Access approved websites"
+        }
+      },
+      "permissionScopes": {
+        "active-editor": "Limited to the active Markdown editor.",
+        "workspace-file": "Limited to explicitly authorized workspace files.",
+        "workspace-files": "Limited to explicitly authorized workspace files.",
+        "workspace-folder": "Limited to an explicitly authorized workspace folder.",
+        "network-origins": "Limited to explicitly approved HTTPS origins."
+      },
+      "ux": {
+        "discover": "Discover",
+        "technicalDetails": "Technical details",
+        "importHelp": "Choose one plugin's source or built package directory. .notegen/package is detected automatically. Run pnpm build in the plugin repository before the first import.",
+        "permissionNeeded": "Folder permission required",
+        "managePlugin": "Manage plugins"
+      },
+      "usage": {
+        "title": "Usage guide",
+        "start": "Use now",
+        "missing": "This plugin has not provided an offline usage guide.",
+        "failed": "Could not load the guide. Reopen plugin settings to retry.",
+        "enableFirst": "Enable the plugin to use this action."
+      },
+      "permissionDialog": {
+        "selectAll": "Select all",
+        "folderLabel": "Storage folder",
+        "chooseFolder": "Choose a workspace folder",
+        "chooseFile": "Choose a workspace file",
+        "entireWorkspace": "Entire workspace (all notes)",
+        "advancedPaths": "Advanced: new folder or multiple paths",
+        "dailyFolderHelp": "Allow creating and opening notes in {folder}. Date subfolders are preserved; the plugin creates the folder if needed.",
+        "title": "Review permissions for {name}",
+        "contextChanged": "The plugin or workspace changed. Close this dialog and review its current permissions again.",
+        "desc": "NoteGen grants permissions per workspace. Required permissions cannot be deselected; optional permissions remain your choice.",
+        "togglePermission": "Allow permission: {permission}",
+        "pathLabel": "Allowed relative path",
+        "pathPlaceholder": "Folder or file inside this workspace",
+        "pathHelp": "Use comma-separated paths when more than one path is allowed. Absolute paths and .. are rejected.",
+        "pathRequired": "Enter at least one allowed relative path.",
+        "relativePathOnly": "Every allowed path must stay inside the workspace.",
+        "originLabel": "Allowed HTTPS origins",
+        "originPlaceholder": "https://api.example.com",
+        "originHelp": "Use comma-separated origins. Paths, credentials, HTTP, and wildcards are rejected.",
+        "originOnly": "Enter complete HTTPS origins without paths or credentials.",
+        "confirm": "Allow and enable",
+        "folderHelp": "Selected folder: {folder}. This also updates the plugin folder setting."
+      },
+      "permissions": {
+        "workspaceIsolationTitle": "Permissions are isolated by workspace",
+        "workspaceIsolationDesc": "A plugin cannot reuse a grant in another workspace. Changed plugin packages must be reviewed again.",
+        "revokeFailed": "Permission could not be revoked",
+        "currentWorkspace": "Current workspace",
+        "otherWorkspace": "Known workspace",
+        "current": "Current",
+        "switchToManage": "Switch to this workspace to revoke or review its permissions.",
+        "status": {
+          "granted": "Allowed",
+          "denied": "Not allowed",
+          "unreviewed": "Not reviewed",
+          "changed": "Review again"
+        },
+        "revokeAria": "Revoke {permission} from {name}",
+        "confirmRevokeTitle": "Revoke this permission?",
+        "confirmRevokeDesc": "{name} will lose “{permission}” in the current workspace and may stop working.",
+        "empty": "No plugin permissions",
+        "emptyDesc": "Installed plugins have not declared any protected capabilities."
+      },
+      "developer": {
+        "autoReload": "Auto-reload",
+        "autoReloadHelp": "Run notegen-plugin dev in your plugin project. Enabled development plugins reload successful builds automatically; permission changes still require review.",
+        "disabledTitle": "Developer mode is off",
+        "disabledDesc": "Enable Developer Mode under General → Advanced before loading local plugin code or viewing runtime logs.",
+        "importTitle": "Load a local plugin package",
+        "importDesc": "Import an unpacked development directory. Local code is not verified by the marketplace.",
+        "pathLabel": "Absolute package path",
+        "pathPlaceholder": "/path/to/my-plugin",
+        "chooseFolder": "Choose folder",
+        "pathHelp": "The directory must contain a valid plugin manifest and compiled entry file.",
+        "pathRequired": "Enter a package path.",
+        "absolutePathRequired": "Enter an absolute path.",
+        "importSuccess": "Development plugin imported",
+        "loadedTitle": "Loaded development plugins",
+        "pathUnavailable": "Source path unavailable",
+        "noDevelopmentPlugins": "No development plugins loaded",
+        "noDevelopmentPluginsDesc": "Enter an unpacked package path above to begin local development.",
+        "logsTitle": "Plugin runtime logs",
+        "logsDesc": "Messages are kept in memory and can be cleared here; restarting NoteGen also removes them.",
+        "logFilterLabel": "Filter logs by plugin",
+        "allLogs": "All plugins",
+        "logLevels": {
+          "info": "Info",
+          "warning": "Warning",
+          "error": "Error"
+        },
+        "noLogs": "No plugin logs",
+        "noLogsDesc": "Runtime warnings and errors will appear here."
+      },
+      "display": {
+        "title": "Interface visibility",
+        "description": "Choose where this plugin appears on this device. Changes apply immediately. Hiding entries keeps the plugin and its data; commands remain available in the command palette.",
+        "locations": {
+          "left-sidebar": "Left sidebar tabs",
+          "right-sidebar": "Right sidebar tabs",
+          "editor-tab": "Editor tabs",
+          "file/context": "File context menu",
+          "editor/context": "Editor context menu",
+          "tab/context": "Tab context menu",
+          "editor/toolbar": "Editor toolbar",
+          "editor/slash": "Slash command menu",
+          "editor/selection": "Text selection menu",
+          "mobile/writing/overflow": "Mobile overflow menu",
+          "status-bar": "Status bar"
+        }
+      }
+    },
     "editor": {
       "title": "Editor Settings",
       "desc": "Here, you can customize the editor, creating a writing experience tailored to your needs.",
@@ -642,9 +979,10 @@
       },
       "stats": {
         "title": "Writing statistics",
-        "desc": "Show character count and estimated reading time in the status bar",
+        "desc": "Show the character count in the mobile editor status bar",
         "characters": "{count} characters",
-        "readingTime": "about {count} min"
+        "readingTime": "about {count} min",
+        "saveError": "Could not save this setting. Try again."
       },
       "sourceMode": {
         "visual": "WYSIWYG",
@@ -1001,13 +1339,13 @@
     "memories": {
       "title": "Memory Management",
       "desc": "AI long-term memory feature that lets AI remember your writing preferences, experiences, and note-taking habits.",
-    "stats": {
-      "total": "Total Memories",
-      "preferences": "Preferences",
-      "memories": "Memories",
-      "active": "Active",
-      "pending": "Needs review",
-      "archived": "Deleted"
+      "stats": {
+        "total": "Total Memories",
+        "preferences": "Preferences",
+        "memories": "Memories",
+        "active": "Active",
+        "pending": "Needs review",
+        "archived": "Deleted"
       },
       "form": {
         "title": "Add New Memory",
@@ -1022,13 +1360,13 @@
         "preferenceDesc": "Language, format, style, etc.",
         "memoryDesc": "Facts, experience, expertise, etc.",
         "save": "Save Memory",
-      "saving": "Saving...",
-      "description": "Save stable user information that can help in future conversations.",
-      "kindLabel": "Memory type",
-      "scopeLabel": "Scope",
-      "alwaysApply": "Always apply",
-      "alwaysApplyDescription": "Inject this memory without relying on relevance retrieval.",
-      "update": "Update memory"
+        "saving": "Saving...",
+        "description": "Save stable user information that can help in future conversations.",
+        "kindLabel": "Memory type",
+        "scopeLabel": "Scope",
+        "alwaysApply": "Always apply",
+        "alwaysApplyDescription": "Inject this memory without relying on relevance retrieval.",
+        "update": "Update memory"
       },
       "listTitle": "My Memories",
       "addMemory": "Add Memory",
@@ -1057,52 +1395,72 @@
       "errorDelete": "Failed to delete",
       "errorList": "Failed to get memory list",
       "errorEmbedding": "Failed to generate embedding, please check embedding model configuration",
-    "errorClear": "Failed to clear",
-    "policy": {
-      "generate": "Remember important information from chats",
-      "generateDescription": "AI automatically remembers important information. You can also say “Please remember…” or “From now on…”."
-    },
-    "actions": {
-      "undo": "Undo",
-      "more": "More actions",
-      "approve": "Approve",
-      "approveAll": "Approve all",
-      "review": "Review",
-      "edit": "Edit",
-      "promote": "Promote to stable guidance",
-      "demote": "Remove from stable guidance",
-      "restore": "Restore",
-      "archive": "Delete",
-      "deletePermanently": "Delete permanently"
-    },
-    "kinds": {"preference": "Preference", "fact": "Fact", "experience": "Experience", "decision": "Decision"},
-    "scopes": {"global": "Global", "workspace": "Current workspace"},
-    "statuses": {"active": "Active", "pending": "Needs review", "archived": "Deleted"},
-    "filters": {"search": "Search memories", "allKinds": "All types", "allScopes": "All scopes"},
-    "sensitive": {
-      "title": "Potentially sensitive content",
-      "description": "Passwords, tokens, and private keys never become active memories automatically. Confirm that this content is safe before saving.",
-      "badge": "Sensitive"
-    },
-    "indexing": {"ready": "Indexed", "pending": "Awaiting index", "failed": "Index failed"},
-    "deleteConfirm": {
-      "title": "Permanently delete this memory?",
-      "description": "This cannot be undone.",
-      "cancel": "Cancel"
-    },
-    "autoCreated": "Generated {count} memories in the background",
-    "pendingConfirmation": "This memory needs confirmation",
-    "approvedAll": "All candidates approved",
-    "savedPendingIndex": "Memory saved and queued for indexing",
-    "savedPendingReview": "Memory added to the review queue",
-    "archived": "Memory deleted",
-    "promoted": "Added to Agent custom guidance",
-    "demoted": "Removed from Agent custom guidance",
-    "always": "Always apply",
-    "lastRecallReason": "Last recalled: {reason}",
-    "neverRecalled": "Never recalled",
-    "editTitle": "Edit memory",
-    "editDescription": "Change the content, type, scope, and application mode."
+      "errorClear": "Failed to clear",
+      "policy": {
+        "generate": "Remember important information from chats",
+        "generateDescription": "AI automatically remembers important information. You can also say “Please remember…” or “From now on…”."
+      },
+      "actions": {
+        "undo": "Undo",
+        "more": "More actions",
+        "approve": "Approve",
+        "approveAll": "Approve all",
+        "review": "Review",
+        "edit": "Edit",
+        "promote": "Promote to stable guidance",
+        "demote": "Remove from stable guidance",
+        "restore": "Restore",
+        "archive": "Delete",
+        "deletePermanently": "Delete permanently"
+      },
+      "kinds": {
+        "preference": "Preference",
+        "fact": "Fact",
+        "experience": "Experience",
+        "decision": "Decision"
+      },
+      "scopes": {
+        "global": "Global",
+        "workspace": "Current workspace"
+      },
+      "statuses": {
+        "active": "Active",
+        "pending": "Needs review",
+        "archived": "Deleted"
+      },
+      "filters": {
+        "search": "Search memories",
+        "allKinds": "All types",
+        "allScopes": "All scopes"
+      },
+      "sensitive": {
+        "title": "Potentially sensitive content",
+        "description": "Passwords, tokens, and private keys never become active memories automatically. Confirm that this content is safe before saving.",
+        "badge": "Sensitive"
+      },
+      "indexing": {
+        "ready": "Indexed",
+        "pending": "Awaiting index",
+        "failed": "Index failed"
+      },
+      "deleteConfirm": {
+        "title": "Permanently delete this memory?",
+        "description": "This cannot be undone.",
+        "cancel": "Cancel"
+      },
+      "autoCreated": "Generated {count} memories in the background",
+      "pendingConfirmation": "This memory needs confirmation",
+      "approvedAll": "All candidates approved",
+      "savedPendingIndex": "Memory saved and queued for indexing",
+      "savedPendingReview": "Memory added to the review queue",
+      "archived": "Memory deleted",
+      "promoted": "Added to Agent custom guidance",
+      "demoted": "Removed from Agent custom guidance",
+      "always": "Always apply",
+      "lastRecallReason": "Last recalled: {reason}",
+      "neverRecalled": "Never recalled",
+      "editTitle": "Edit memory",
+      "editDescription": "Change the content, type, scope, and application mode."
     },
     "defaultModel": {
       "title": "Default Model",
@@ -1241,18 +1599,141 @@
       "engineSwitchReviewDescription": "The current sync runtime will pause before switching. There are {changes} local changes and {commands} pending commands; the current remote has {currentRemote} objects and the target remote has {nextRemote}. Neither remote is deleted automatically. Continue after reviewing the differences.",
       "selfHosted": {
         "title": "Self-hosted",
-        "experimentalWarningTitle": "Self-hosted sync is experimental", "experimentalWarningDescription": "This feature may contain unknown defects. The safety of data during synchronization or in remote storage cannot currently be guaranteed.", "experimentalBackupTitle": "Back up your data before continuing", "experimentalBackupDescription": "Create a complete backup of your workspace before enabling this feature and keep recoverable copies while using it. Do not use self-hosted sync as the only backup for important data.", "experimentalAcknowledge": "I understand the risks and want to continue",
+        "experimentalWarningTitle": "Self-hosted sync is experimental",
+        "experimentalWarningDescription": "This feature may contain unknown defects. The safety of data during synchronization or in remote storage cannot currently be guaranteed.",
+        "experimentalBackupTitle": "Back up your data before continuing",
+        "experimentalBackupDescription": "Create a complete backup of your workspace before enabling this feature and keep recoverable copies while using it. Do not use self-hosted sync as the only backup for important data.",
+        "experimentalAcknowledge": "I understand the risks and want to continue",
         "deploymentGuide": "View server deployment guide",
-        "transferTarget": "Choose an owned writable workspace", "transferToLibrary": "Transfer to workspace", "transferTargetUnavailable": "The target workspace is unavailable or read only", "transferredToLibrary": "Transferred to {name}",
-        "libraryUnbound": "Workspace unbound locally", "unbind": "Unbind local workspace",
-        "connectedToast": "Self-hosted sync connected", "connectionFailed": "Connection failed", "disconnectedToast": "Self-hosted sync disconnected",
-        "connectionTitle": "Connect to self-hosted sync", "connectionDescription": "Connect to a sync service you deploy and manage to keep workspaces and personal data in sync across devices with real-time collaboration.", "serverUrl": "Server URL", "httpsNoDowngrade": "An HTTPS failure never falls back to HTTP.", "insecureTitle": "Unencrypted connection", "insecureDescription": "This is a non-local HTTP address. Login and sync traffic may be visible on the network.", "login": "Account", "password": "Password", "totp": "Two-factor code (optional)", "connected": "Connected", "browserAuthorization": "Authorize in browser", "passwordLogin": "Sign in with password", "usePassword": "Use password or TOTP", "disconnectTitle": "Disconnect server", "disconnectDescription": "Credentials and workspace keys are removed from secure storage; downloaded local files are kept.", "disconnect": "Disconnect",
-        "reauthenticationTitle": "Authorization expired", "reauthenticationDescription": "Authorize again in your browser. Existing local data and workspace associations will be preserved.",
-        "personalDataTitle": "Personal data", "personalDataDescription": "Choose which personal-space domains sync. Paths, secrets, caches, indexes, and hardware choices always stay local.", "domains": { "tags": { "title": "Tags", "description": "Names, order, and pinned state." }, "marks": { "title": "Records, notes, and canvases", "description": "Sync records, related notes, and complete canvas content." }, "conversations": { "title": "Conversations", "description": "Conversation titles, order, and state." }, "messages": { "title": "Messages", "description": "Each message is synchronized independently." }, "memories": { "title": "Memories", "description": "Memory content without embeddings or indexes." }, "settings": { "title": "Preferences", "description": "Portable preferences without tokens, API keys, or local paths." }, "attachments": { "title": "Personal attachments", "description": "Attachments used by records and conversations." } },
-        "librariesTitle": "Workspace sync", "librariesDescription": "Cloud and local workspaces have a one-to-one relationship. Choosing another workspace opens its separate local copy.", "currentWorkspaceLibrary": "Current cloud workspace", "currentWorkspacePath": "Current local workspace: {path}", "newLibraryDefaultName": "My workspace", "libraryCreated": "Workspace created and opened", "libraryBound": "Workspace opened", "workspaceAdded": "Workspace added with a separate local copy", "operationFailed": "Operation failed", "invitationCreated": "Invitation created", "linkCopied": "One-time invitation token copied", "invitedBy": "{login} invited you to a workspace", "invitationRole": "Role: {role}", "accept": "Accept", "notBound": "Choose a workspace", "readOnly": "Read only", "readWrite": "Read and write", "bind": "Bind", "newLibraryName": "New workspace name", "createLibrary": "Create and open workspace", "refresh": "Refresh", "membersTitle": "Members of {name}", "membersDescription": "View current members and manage their roles or access.", "invitationsTitle": "Workspace invitations", "invitationsDescription": "Accept received invitations or invite another account to the current workspace.", "removeMember": "Remove member", "accountLogin": "Account name", "roleTemplate": "Role template", "capabilities": "Capabilities", "inviteAccount": "Invite account", "copyInviteLink": "Create and copy invitation token",
-        "capabilityDescriptions": { "content": { "read": "View workspace content", "create": "Create notes and files", "update": "Edit notes and files", "delete": "Delete notes and files" }, "history": { "view": "View version history", "restore": "Restore previous versions" }, "member": { "invite": "Invite new members", "update": "Change member permissions", "remove": "Remove members" }, "workspace": { "rename": "Rename workspace", "delete": "Delete workspace" } },
-        "deleteWorkspace": "Delete cloud workspace", "deleteWorkspaceTitle": "Delete this cloud workspace?", "deleteWorkspaceDescription": "{name} and its remote synchronized content will be soft deleted. The local folder and files will remain and stop syncing.", "confirmDeleteWorkspace": "Delete cloud workspace", "workspaceDeleted": "Cloud workspace deleted; switched to the default workspace", "defaultWorkspaceUnavailable": "Default workspace not found. Refresh and try again.", "cancel": "Cancel",
-        "conflictsTitle": "Conflict center", "conflictsDescription": "Local conflict copies are kept until you acknowledge them.", "noConflicts": "No conflicts need attention.", "keepLocalCopy": "Local copy retained", "conflictTypes": { "snapshot-diverged": "Local and remote snapshots differ", "remote-delete-local-edit": "Local edit after remote deletion", "viewer-local-edit": "Local edit in a read-only workspace", "protocol-conflict": "Server version conflict", "symlink-ignored": "Symbolic link ignored and excluded from sync" }
+        "transferTarget": "Choose an owned writable workspace",
+        "transferToLibrary": "Transfer to workspace",
+        "transferTargetUnavailable": "The target workspace is unavailable or read only",
+        "transferredToLibrary": "Transferred to {name}",
+        "libraryUnbound": "Workspace unbound locally",
+        "unbind": "Unbind local workspace",
+        "connectedToast": "Self-hosted sync connected",
+        "connectionFailed": "Connection failed",
+        "disconnectedToast": "Self-hosted sync disconnected",
+        "connectionTitle": "Connect to self-hosted sync",
+        "connectionDescription": "Connect to a sync service you deploy and manage to keep workspaces and personal data in sync across devices with real-time collaboration.",
+        "serverUrl": "Server URL",
+        "httpsNoDowngrade": "An HTTPS failure never falls back to HTTP.",
+        "insecureTitle": "Unencrypted connection",
+        "insecureDescription": "This is a non-local HTTP address. Login and sync traffic may be visible on the network.",
+        "login": "Account",
+        "password": "Password",
+        "totp": "Two-factor code (optional)",
+        "connected": "Connected",
+        "browserAuthorization": "Authorize in browser",
+        "passwordLogin": "Sign in with password",
+        "usePassword": "Use password or TOTP",
+        "disconnectTitle": "Disconnect server",
+        "disconnectDescription": "Credentials and workspace keys are removed from secure storage; downloaded local files are kept.",
+        "disconnect": "Disconnect",
+        "reauthenticationTitle": "Authorization expired",
+        "reauthenticationDescription": "Authorize again in your browser. Existing local data and workspace associations will be preserved.",
+        "personalDataTitle": "Personal data",
+        "personalDataDescription": "Choose which personal-space domains sync. Paths, secrets, caches, indexes, and hardware choices always stay local.",
+        "domains": {
+          "tags": {
+            "title": "Tags",
+            "description": "Names, order, and pinned state."
+          },
+          "marks": {
+            "title": "Records, notes, and canvases",
+            "description": "Sync records, related notes, and complete canvas content."
+          },
+          "conversations": {
+            "title": "Conversations",
+            "description": "Conversation titles, order, and state."
+          },
+          "messages": {
+            "title": "Messages",
+            "description": "Each message is synchronized independently."
+          },
+          "memories": {
+            "title": "Memories",
+            "description": "Memory content without embeddings or indexes."
+          },
+          "settings": {
+            "title": "Preferences",
+            "description": "Portable preferences without tokens, API keys, or local paths."
+          },
+          "attachments": {
+            "title": "Personal attachments",
+            "description": "Attachments used by records and conversations."
+          }
+        },
+        "librariesTitle": "Workspace sync",
+        "librariesDescription": "Cloud and local workspaces have a one-to-one relationship. Choosing another workspace opens its separate local copy.",
+        "currentWorkspaceLibrary": "Current cloud workspace",
+        "currentWorkspacePath": "Current local workspace: {path}",
+        "newLibraryDefaultName": "My workspace",
+        "libraryCreated": "Workspace created and opened",
+        "libraryBound": "Workspace opened",
+        "workspaceAdded": "Workspace added with a separate local copy",
+        "operationFailed": "Operation failed",
+        "invitationCreated": "Invitation created",
+        "linkCopied": "One-time invitation token copied",
+        "invitedBy": "{login} invited you to a workspace",
+        "invitationRole": "Role: {role}",
+        "accept": "Accept",
+        "notBound": "Choose a workspace",
+        "readOnly": "Read only",
+        "readWrite": "Read and write",
+        "bind": "Bind",
+        "newLibraryName": "New workspace name",
+        "createLibrary": "Create and open workspace",
+        "refresh": "Refresh",
+        "membersTitle": "Members of {name}",
+        "membersDescription": "View current members and manage their roles or access.",
+        "invitationsTitle": "Workspace invitations",
+        "invitationsDescription": "Accept received invitations or invite another account to the current workspace.",
+        "removeMember": "Remove member",
+        "accountLogin": "Account name",
+        "roleTemplate": "Role template",
+        "capabilities": "Capabilities",
+        "inviteAccount": "Invite account",
+        "copyInviteLink": "Create and copy invitation token",
+        "capabilityDescriptions": {
+          "content": {
+            "read": "View workspace content",
+            "create": "Create notes and files",
+            "update": "Edit notes and files",
+            "delete": "Delete notes and files"
+          },
+          "history": {
+            "view": "View version history",
+            "restore": "Restore previous versions"
+          },
+          "member": {
+            "invite": "Invite new members",
+            "update": "Change member permissions",
+            "remove": "Remove members"
+          },
+          "workspace": {
+            "rename": "Rename workspace",
+            "delete": "Delete workspace"
+          }
+        },
+        "deleteWorkspace": "Delete cloud workspace",
+        "deleteWorkspaceTitle": "Delete this cloud workspace?",
+        "deleteWorkspaceDescription": "{name} and its remote synchronized content will be soft deleted. The local folder and files will remain and stop syncing.",
+        "confirmDeleteWorkspace": "Delete cloud workspace",
+        "workspaceDeleted": "Cloud workspace deleted; switched to the default workspace",
+        "defaultWorkspaceUnavailable": "Default workspace not found. Refresh and try again.",
+        "cancel": "Cancel",
+        "conflictsTitle": "Conflict center",
+        "conflictsDescription": "Local conflict copies are kept until you acknowledge them.",
+        "noConflicts": "No conflicts need attention.",
+        "keepLocalCopy": "Local copy retained",
+        "conflictTypes": {
+          "snapshot-diverged": "Local and remote snapshots differ",
+          "remote-delete-local-edit": "Local edit after remote deletion",
+          "viewer-local-edit": "Local edit in a read-only workspace",
+          "protocol-conflict": "Server version conflict",
+          "symlink-ignored": "Symbolic link ignored and excluded from sync"
+        }
       },
       "connectionTab": "Connection",
       "syncOptionsTab": "Sync Options",
@@ -2571,7 +3052,7 @@
     },
     "navigationGroups": {
       "basic": "Basic",
-      "aiExtensions": "AI & Extensions",
+      "ai": "AI",
       "data": "Data & Storage"
     },
     "searchPlaceholder": "Search settings...",
@@ -3220,9 +3701,15 @@
         "attachImage": "Attach images",
         "addAttachment": {
           "title": "Add",
-          "image": { "title": "Image" },
-          "file": { "title": "File" },
-          "folder": { "title": "Folder" },
+          "image": {
+            "title": "Image"
+          },
+          "file": {
+            "title": "File"
+          },
+          "folder": {
+            "title": "Folder"
+          },
           "entryCount": "{count} items",
           "remove": "Remove {name}",
           "metadataOnly": "metadata only",
@@ -3285,10 +3772,25 @@
           "deliveryMode": {
             "label": "Message delivery while running",
             "queued": "{count} message(s) queued",
-            "pending": { "title": "Pending messages", "add": "Add to pending list", "remove": "Delete queued message", "edit": "Edit message", "save": "Save", "cancel": "Cancel", "reorder": "Drag to reorder", "more": "More actions" },
+            "pending": {
+              "title": "Pending messages",
+              "add": "Add to pending list",
+              "remove": "Delete queued message",
+              "edit": "Edit message",
+              "save": "Save",
+              "cancel": "Cancel",
+              "reorder": "Drag to reorder",
+              "more": "More actions"
+            },
             "modes": {
-              "steer": { "title": "Adjust next turn", "description": "Apply this instruction first on the next turn, after the current response and tool calls finish." },
-              "follow-up": { "title": "Run next", "description": "Start this as a new task after the current task finishes." }
+              "steer": {
+                "title": "Adjust next turn",
+                "description": "Apply this instruction first on the next turn, after the current response and tool calls finish."
+              },
+              "follow-up": {
+                "title": "Run next",
+                "description": "Start this as a new task after the current task finishes."
+              }
             }
           },
           "resume": {
@@ -3298,9 +3800,18 @@
           "permissionMode": {
             "label": "Agent permission mode",
             "modes": {
-              "read-only": { "title": "Read only", "description": "View and analyze content without making changes." },
-              "ask": { "title": "Ask before edits", "description": "Read without confirmation; ask for approval before changing content." },
-              "auto-edit": { "title": "Auto edit", "description": "Edit local content automatically; deletions, scripts, skill installation, and other sensitive actions still require approval." }
+              "read-only": {
+                "title": "Read only",
+                "description": "View and analyze content without making changes."
+              },
+              "ask": {
+                "title": "Ask before edits",
+                "description": "Read without confirmation; ask for approval before changing content."
+              },
+              "auto-edit": {
+                "title": "Auto edit",
+                "description": "Edit local content automatically; deletions, scripts, skill installation, and other sensitive actions still require approval."
+              }
             }
           },
           "autoFinal": {
@@ -3427,16 +3938,43 @@
           "commands": {
             "title": "Quick commands",
             "placeholder": "Search commands...",
-            "summarize": { "label": "Summarize", "description": "Extract key points and conclusions", "prompt": "Summarize the following content and extract the key points and conclusions:" },
-            "organize": { "label": "Organize as note", "description": "Create structured Markdown", "prompt": "Organize the following content into a clear, structured Markdown note:" },
-            "rewrite": { "label": "Polish", "description": "Improve wording without changing meaning", "prompt": "Polish the following content while preserving its meaning:" },
-            "translate": { "label": "Translate", "description": "Translate into a chosen language", "prompt": "Translate the following content into:" },
-            "searchNotes": { "label": "Search notes", "description": "Find related content in your knowledge base", "prompt": "Search my note knowledge base and answer:" },
-            "createNote": { "label": "Create note", "description": "Create a structured Markdown note", "prompt": "Create a new Markdown note based on these requirements:" }
+            "summarize": {
+              "label": "Summarize",
+              "description": "Extract key points and conclusions",
+              "prompt": "Summarize the following content and extract the key points and conclusions:"
+            },
+            "organize": {
+              "label": "Organize as note",
+              "description": "Create structured Markdown",
+              "prompt": "Organize the following content into a clear, structured Markdown note:"
+            },
+            "rewrite": {
+              "label": "Polish",
+              "description": "Improve wording without changing meaning",
+              "prompt": "Polish the following content while preserving its meaning:"
+            },
+            "translate": {
+              "label": "Translate",
+              "description": "Translate into a chosen language",
+              "prompt": "Translate the following content into:"
+            },
+            "searchNotes": {
+              "label": "Search notes",
+              "description": "Find related content in your knowledge base",
+              "prompt": "Search my note knowledge base and answer:"
+            },
+            "createNote": {
+              "label": "Create note",
+              "description": "Create a structured Markdown note",
+              "prompt": "Create a new Markdown note based on these requirements:"
+            }
           },
           "skills": {
             "title": "Skills",
-            "scope": { "global": "Global", "project": "Workspace" }
+            "scope": {
+              "global": "Global",
+              "project": "Workspace"
+            }
           },
           "resources": {
             "title": "Link context",
@@ -3556,9 +4094,55 @@
   "canvas": {
     "new": "New canvas",
     "chooseTemplate": "Choose a template",
-    "manager": { "title": "Canvas manager", "view": "View", "grid": "Thumbnail view", "list": "List view", "switchToGrid": "Switch to thumbnail view", "switchToList": "Switch to list view", "sort": { "title": "Sort", "updated": "Last modified", "created": "Date created", "name": "Name" }, "pin": "Pin canvas", "unpin": "Unpin canvas", "refreshThumbnails": "Regenerate thumbnails", "closeTrash": "Back to canvas manager", "trashEmpty": "Recently deleted is empty", "trashEmptyDescription": "Deleted canvases will appear here.", "trashCount": "{count} deleted canvases", "sync": { "upload": "Upload", "pending": "Waiting to upload", "clickToUpload": "Waiting to upload. Click to upload now.", "uploading": "Uploading", "synced": "Uploaded", "failed": "Upload failed", "downloadingAll": "Pulling remote canvases", "deleting": "Deleting and syncing", "permanentlyDeleting": "Deleting permanently" }, "count": "{count} canvases" },
-    "templates": { "blank": "Blank canvas", "flowchart": "Flowchart", "mindmap": "Mind map", "timeline": "Timeline", "quadrant": "Four quadrants", "kanban": "Kanban", "swot": "SWOT analysis" },
-    "import": { "action": "Import canvas or Mermaid", "fileType": "Canvas file", "defaultTitle": "Imported canvas", "success": "Canvas imported", "error": "This file could not be imported" },
+    "manager": {
+      "title": "Canvas manager",
+      "view": "View",
+      "grid": "Thumbnail view",
+      "list": "List view",
+      "switchToGrid": "Switch to thumbnail view",
+      "switchToList": "Switch to list view",
+      "sort": {
+        "title": "Sort",
+        "updated": "Last modified",
+        "created": "Date created",
+        "name": "Name"
+      },
+      "pin": "Pin canvas",
+      "unpin": "Unpin canvas",
+      "refreshThumbnails": "Regenerate thumbnails",
+      "closeTrash": "Back to canvas manager",
+      "trashEmpty": "Recently deleted is empty",
+      "trashEmptyDescription": "Deleted canvases will appear here.",
+      "trashCount": "{count} deleted canvases",
+      "sync": {
+        "upload": "Upload",
+        "pending": "Waiting to upload",
+        "clickToUpload": "Waiting to upload. Click to upload now.",
+        "uploading": "Uploading",
+        "synced": "Uploaded",
+        "failed": "Upload failed",
+        "downloadingAll": "Pulling remote canvases",
+        "deleting": "Deleting and syncing",
+        "permanentlyDeleting": "Deleting permanently"
+      },
+      "count": "{count} canvases"
+    },
+    "templates": {
+      "blank": "Blank canvas",
+      "flowchart": "Flowchart",
+      "mindmap": "Mind map",
+      "timeline": "Timeline",
+      "quadrant": "Four quadrants",
+      "kanban": "Kanban",
+      "swot": "SWOT analysis"
+    },
+    "import": {
+      "action": "Import canvas or Mermaid",
+      "fileType": "Canvas file",
+      "defaultTitle": "Imported canvas",
+      "success": "Canvas imported",
+      "error": "This file could not be imported"
+    },
     "untitled": "Untitled canvas",
     "more": "More actions",
     "duplicate": "Duplicate",
@@ -3566,9 +4150,21 @@
     "delete": "Delete canvas",
     "trash": "Recently deleted",
     "restore": "Restore canvas",
-    "deleteDialog": { "title": "Delete this canvas?", "description": "“{title}” will move to Recently Deleted and can be restored later.", "cancel": "Cancel", "confirm": "Move to Recently Deleted" },
+    "deleteDialog": {
+      "title": "Delete this canvas?",
+      "description": "“{title}” will move to Recently Deleted and can be restored later.",
+      "cancel": "Cancel",
+      "confirm": "Move to Recently Deleted"
+    },
     "permanentDelete": "Delete permanently",
-    "permanentDeleteDialog": { "title": "Permanently delete this canvas?", "description": "The local content for “{title}” will be deleted. If sync is configured, its remote sync file will also be removed. This action cannot be undone.", "cancel": "Cancel", "confirm": "Delete permanently", "deleting": "Deleting", "error": "Permanent deletion failed. Check your sync settings and network, then try again." },
+    "permanentDeleteDialog": {
+      "title": "Permanently delete this canvas?",
+      "description": "The local content for “{title}” will be deleted. If sync is configured, its remote sync file will also be removed. This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete permanently",
+      "deleting": "Deleting",
+      "error": "Permanent deletion failed. Check your sync settings and network, then try again."
+    },
     "rename": "Rename",
     "loading": "Loading canvas...",
     "undo": "Undo",
@@ -3578,26 +4174,256 @@
     "exportSuccess": "Canvas exported",
     "exportError": "Failed to export canvas",
     "aiPreview": "AI change preview",
-    "tools": { "label": "Canvas tools", "select": "Select", "hand": "Hand", "connector": "Connector", "pen": "Pen", "highlighter": "Highlighter", "eraser": "Eraser" },
-    "toolbox": { "ai": "Generate with AI", "aiPrompt": "Using my description, generate a diagram on the current canvas with native nodes and edges that remain independently editable: ", "shapes": "Shapes", "media": "Media", "drawing": "Drawing", "close": "Close panel", "commonShapes": "Common shapes", "flowchartShapes": "Flowchart", "dataShapes": "Data and storage", "favorites": "Favorites", "recent": "Recent", "searchShapes": "Search shapes", "noShapes": "No matching shapes", "favorite": "Favorite shape", "unfavorite": "Remove favorite", "customComponents": "My components", "deleteCustomComponent": "Delete custom component", "saveCustomComponent": "Save component", "saveCustomComponentDescription": "Save the selected nodes and their internal edges as a reusable component.", "customComponentName": "Component name", "customComponentDefaultName": "My component", "customComponentSaved": "Custom component saved", "connectionShape": "Choose connected shape", "connectionShapeDescription": "Create a shape and connect it to the current node.", "aiDescription": "Describe the diagram to generate or modify", "aiGenerate": "Send to AI", "aiScopes": { "append": "Append", "replace": "Replace", "selection": "Selection", "appendPrompt": "Keep the current content and append this diagram: ", "replacePrompt": "Replace the current canvas and generate this diagram: ", "selectionPrompt": "Only modify the currently selected nodes and edges: "}, "aiPresets": { "flowchart": "Flowchart", "flowchartPrompt": "Create a clear business process flowchart", "architecture": "Architecture", "architecturePrompt": "Create a layered software system architecture diagram", "sequence": "Sequence flow", "sequencePrompt": "Express a participant interaction sequence with independently editable nodes and edges", "mindmap": "Mind map", "mindmapPrompt": "Create a mind map branching outward from a central topic" } },
-    "brush": { "penTitle": "Pen", "highlighterTitle": "Highlighter", "strokeTitle": "Brush stroke", "color": "Color", "size": "Brush width" },
-    "nodes": { "process": "Process", "decision": "Decision", "terminator": "Start / End", "inputOutput": "Input / Output", "document": "Document", "multiDocument": "Multiple documents", "database": "Database", "predefinedProcess": "Predefined process", "manualInput": "Manual input", "preparation": "Preparation", "delay": "Delay", "display": "Display", "connector": "On-page connector", "offPageConnector": "Off-page connector", "internalStorage": "Internal storage", "storedData": "Stored data", "text": "Text", "note": "Note reference", "record": "Record", "image": "Image", "link": "Web link", "todo": "Todo", "group": "Group", "chart": "Data chart" },
-    "chart": {
-      "createTitle": "Create data chart", "editTitle": "Edit data chart", "description": "Enter data and insert it directly. The node finishes processing in the background.", "titleLabel": "Chart title", "titlePlaceholder": "Leave blank to generate automatically", "titleDescription": "Automatic titles are regenerated whenever the chart data is generated.", "typeLabel": "Chart type", "dataLabel": "Data", "dataPlaceholder": "Month,Desktop,Mobile\nJanuary,186,80\nFebruary,305,200", "dataDescription": "Supports natural-language descriptions, CSV, TSV, Markdown tables, and JSON.", "generate": "Generate preview", "generating": "Parsing", "preview": "Preview", "primarySeries": "Value field", "summary": "{rows} rows · {series} series", "emptyPreviewTitle": "Preview not generated", "emptyPreviewDescription": "Enter data and generate a preview to confirm the chart type and content.", "cancel": "Cancel", "insert": "Insert into canvas", "update": "Regenerate", "nodeLoading": "Generating chart…", "nodeErrorTitle": "Chart generation failed", "nodeErrorHint": "Double-click the node to edit the data and retry.",
-      "types": { "auto": "Auto detect", "area": "Area chart", "bar": "Bar chart", "line": "Line chart", "pie": "Pie chart", "radar": "Radar chart", "radial": "Radial chart" },
-      "notes": { "label": "Reference notes", "placeholder": "Select notes", "selected": "{count} notes selected", "title": "Chart source notes", "description": "Select one or more notes to use as chart data sources.", "search": "Search notes", "empty": "No notes found", "manualInput": "Manual input" },
-      "recommendations": { "time-series": "Time series detected; line chart recommended", "continuous": "Continuous cumulative data detected; area chart recommended", "proportion": "Proportions detected; pie chart recommended", "progress": "Progress values detected; radial chart recommended", "multidimensional": "Multidimensional comparison detected; radar chart recommended", "categorical": "Categorical data detected; bar chart recommended", "ai": "Recommended by AI from the data semantics" },
-      "appearance": { "title": "Chart appearance", "variant": "Container", "palette": "Palette", "showTitle": "Show title", "showLegend": "Show legend", "showGrid": "Show grid", "showXAxis": "Show category axis", "showYAxis": "Show value axis", "variants": { "card": "Card", "minimal": "Minimal", "transparent": "Transparent" }, "palettes": { "system": "System", "cool": "Cool", "warm": "Warm", "monochrome": "Monochrome" } },
-      "errors": { "CHART_NEEDS_HEADER_AND_ROW": "Provide a header and at least one data row.", "CHART_NEEDS_TWO_COLUMNS": "Provide at least two columns.", "CHART_INVALID_MARKDOWN_TABLE": "The Markdown table is invalid.", "CHART_JSON_ARRAY_REQUIRED": "JSON must be an array of objects or contain a data array.", "CHART_EMPTY_DATA": "Data cannot be empty.", "CHART_NUMERIC_SERIES_REQUIRED": "No numeric series was found.", "CHART_MISSING_NUMERIC_VALUE": "A numeric series contains an empty or non-numeric value.", "CHART_EMPTY_INPUT": "Enter some data.", "CHART_AI_REQUIRED": "This input requires AI parsing.", "CHART_AI_ADDED_VALUE": "AI returned a number not present in the input, so generation was blocked.", "CHART_AI_SERIES_MISMATCH": "AI returned inconsistent series lengths.", "CHART_AI_INVALID_JSON": "AI did not return valid chart data.", "CHART_AI_NOT_CONFIGURED": "Configure an editor or primary AI model first.", "CHART_GENERATION_INTERRUPTED": "The previous generation was interrupted.", "CHART_UNKNOWN_ERROR": "Could not generate the chart. Check the data and try again." }
+    "tools": {
+      "label": "Canvas tools",
+      "select": "Select",
+      "hand": "Hand",
+      "connector": "Connector",
+      "pen": "Pen",
+      "highlighter": "Highlighter",
+      "eraser": "Eraser"
     },
-    "linkNode": { "urlPrompt": "Enter a web address", "labelPrompt": "Enter a link title" },
-    "utilityNodes": { "title": "Utility nodes", "description": "Add an image, web link, or todo." },
-    "arrange": { "title": "Align and group", "description": "Arrange the selected nodes.", "alignHorizontal": "Align horizontal centers", "alignVertical": "Align vertical centers", "distributeHorizontal": "Distribute horizontally", "distributeVertical": "Distribute vertically", "group": "Create group" },
-    "group": { "defaultLabel": "Group" },
-    "edge": { "title": "Connection style", "description": "Adjust the selected connection path and label.", "orthogonal": "Orthogonal", "straight": "Straight", "curve": "Curve", "editLabel": "Edit label", "labelPrompt": "Enter connection label", "labelDescription": "The label appears at the center of the edge. Leave it empty to remove it.", "saveLabel": "Save label" },
-    "selection": { "tools": "Node tools", "style": "Node style", "color": "Accent", "customColor": "Custom color", "border": "Border", "solid": "Solid", "dashed": "Dashed", "dotted": "Dotted", "borderWidth": "Border width", "fill": "Background", "transparent": "Transparent", "customFill": "Custom fill", "lock": "Lock nodes", "unlock": "Unlock nodes", "copyStyle": "Copy style", "pasteStyle": "Paste style", "styleCopied": "Node style copied", "stylePasted": "Node style applied", "imagePasted": "Image pasted onto canvas", "imagePasteError": "Could not paste image", "chatContext": "Canvas selection: {nodes} nodes, {edges} edges", "chatContextNodes": "{nodes} nodes", "chatContextNodesAndRelations": "{nodes} nodes · {relations} relations", "removeChatContext": "Remove canvas selection" },
-    "layer": { "front": "Bring to front", "forward": "Bring forward", "backward": "Send backward", "back": "Send to back" },
-    "noteNode": { "title": "Add note reference", "description": "Choose a note from the file manager. Double-click the node to open its source file.", "search": "Search notes...", "empty": "No notes found", "group": "Workspace notes", "added": "Added note “{name}”" },
+    "toolbox": {
+      "ai": "Generate with AI",
+      "aiPrompt": "Using my description, generate a diagram on the current canvas with native nodes and edges that remain independently editable: ",
+      "shapes": "Shapes",
+      "media": "Media",
+      "drawing": "Drawing",
+      "close": "Close panel",
+      "commonShapes": "Common shapes",
+      "flowchartShapes": "Flowchart",
+      "dataShapes": "Data and storage",
+      "favorites": "Favorites",
+      "recent": "Recent",
+      "searchShapes": "Search shapes",
+      "noShapes": "No matching shapes",
+      "favorite": "Favorite shape",
+      "unfavorite": "Remove favorite",
+      "customComponents": "My components",
+      "deleteCustomComponent": "Delete custom component",
+      "saveCustomComponent": "Save component",
+      "saveCustomComponentDescription": "Save the selected nodes and their internal edges as a reusable component.",
+      "customComponentName": "Component name",
+      "customComponentDefaultName": "My component",
+      "customComponentSaved": "Custom component saved",
+      "connectionShape": "Choose connected shape",
+      "connectionShapeDescription": "Create a shape and connect it to the current node.",
+      "aiDescription": "Describe the diagram to generate or modify",
+      "aiGenerate": "Send to AI",
+      "aiScopes": {
+        "append": "Append",
+        "replace": "Replace",
+        "selection": "Selection",
+        "appendPrompt": "Keep the current content and append this diagram: ",
+        "replacePrompt": "Replace the current canvas and generate this diagram: ",
+        "selectionPrompt": "Only modify the currently selected nodes and edges: "
+      },
+      "aiPresets": {
+        "flowchart": "Flowchart",
+        "flowchartPrompt": "Create a clear business process flowchart",
+        "architecture": "Architecture",
+        "architecturePrompt": "Create a layered software system architecture diagram",
+        "sequence": "Sequence flow",
+        "sequencePrompt": "Express a participant interaction sequence with independently editable nodes and edges",
+        "mindmap": "Mind map",
+        "mindmapPrompt": "Create a mind map branching outward from a central topic"
+      }
+    },
+    "brush": {
+      "penTitle": "Pen",
+      "highlighterTitle": "Highlighter",
+      "strokeTitle": "Brush stroke",
+      "color": "Color",
+      "size": "Brush width"
+    },
+    "nodes": {
+      "process": "Process",
+      "decision": "Decision",
+      "terminator": "Start / End",
+      "inputOutput": "Input / Output",
+      "document": "Document",
+      "multiDocument": "Multiple documents",
+      "database": "Database",
+      "predefinedProcess": "Predefined process",
+      "manualInput": "Manual input",
+      "preparation": "Preparation",
+      "delay": "Delay",
+      "display": "Display",
+      "connector": "On-page connector",
+      "offPageConnector": "Off-page connector",
+      "internalStorage": "Internal storage",
+      "storedData": "Stored data",
+      "text": "Text",
+      "note": "Note reference",
+      "record": "Record",
+      "image": "Image",
+      "link": "Web link",
+      "todo": "Todo",
+      "group": "Group",
+      "chart": "Data chart"
+    },
+    "chart": {
+      "createTitle": "Create data chart",
+      "editTitle": "Edit data chart",
+      "description": "Enter data and insert it directly. The node finishes processing in the background.",
+      "titleLabel": "Chart title",
+      "titlePlaceholder": "Leave blank to generate automatically",
+      "titleDescription": "Automatic titles are regenerated whenever the chart data is generated.",
+      "typeLabel": "Chart type",
+      "dataLabel": "Data",
+      "dataPlaceholder": "Month,Desktop,Mobile\nJanuary,186,80\nFebruary,305,200",
+      "dataDescription": "Supports natural-language descriptions, CSV, TSV, Markdown tables, and JSON.",
+      "generate": "Generate preview",
+      "generating": "Parsing",
+      "preview": "Preview",
+      "primarySeries": "Value field",
+      "summary": "{rows} rows · {series} series",
+      "emptyPreviewTitle": "Preview not generated",
+      "emptyPreviewDescription": "Enter data and generate a preview to confirm the chart type and content.",
+      "cancel": "Cancel",
+      "insert": "Insert into canvas",
+      "update": "Regenerate",
+      "nodeLoading": "Generating chart…",
+      "nodeErrorTitle": "Chart generation failed",
+      "nodeErrorHint": "Double-click the node to edit the data and retry.",
+      "types": {
+        "auto": "Auto detect",
+        "area": "Area chart",
+        "bar": "Bar chart",
+        "line": "Line chart",
+        "pie": "Pie chart",
+        "radar": "Radar chart",
+        "radial": "Radial chart"
+      },
+      "notes": {
+        "label": "Reference notes",
+        "placeholder": "Select notes",
+        "selected": "{count} notes selected",
+        "title": "Chart source notes",
+        "description": "Select one or more notes to use as chart data sources.",
+        "search": "Search notes",
+        "empty": "No notes found",
+        "manualInput": "Manual input"
+      },
+      "recommendations": {
+        "time-series": "Time series detected; line chart recommended",
+        "continuous": "Continuous cumulative data detected; area chart recommended",
+        "proportion": "Proportions detected; pie chart recommended",
+        "progress": "Progress values detected; radial chart recommended",
+        "multidimensional": "Multidimensional comparison detected; radar chart recommended",
+        "categorical": "Categorical data detected; bar chart recommended",
+        "ai": "Recommended by AI from the data semantics"
+      },
+      "appearance": {
+        "title": "Chart appearance",
+        "variant": "Container",
+        "palette": "Palette",
+        "showTitle": "Show title",
+        "showLegend": "Show legend",
+        "showGrid": "Show grid",
+        "showXAxis": "Show category axis",
+        "showYAxis": "Show value axis",
+        "variants": {
+          "card": "Card",
+          "minimal": "Minimal",
+          "transparent": "Transparent"
+        },
+        "palettes": {
+          "system": "System",
+          "cool": "Cool",
+          "warm": "Warm",
+          "monochrome": "Monochrome"
+        }
+      },
+      "errors": {
+        "CHART_NEEDS_HEADER_AND_ROW": "Provide a header and at least one data row.",
+        "CHART_NEEDS_TWO_COLUMNS": "Provide at least two columns.",
+        "CHART_INVALID_MARKDOWN_TABLE": "The Markdown table is invalid.",
+        "CHART_JSON_ARRAY_REQUIRED": "JSON must be an array of objects or contain a data array.",
+        "CHART_EMPTY_DATA": "Data cannot be empty.",
+        "CHART_NUMERIC_SERIES_REQUIRED": "No numeric series was found.",
+        "CHART_MISSING_NUMERIC_VALUE": "A numeric series contains an empty or non-numeric value.",
+        "CHART_EMPTY_INPUT": "Enter some data.",
+        "CHART_AI_REQUIRED": "This input requires AI parsing.",
+        "CHART_AI_ADDED_VALUE": "AI returned a number not present in the input, so generation was blocked.",
+        "CHART_AI_SERIES_MISMATCH": "AI returned inconsistent series lengths.",
+        "CHART_AI_INVALID_JSON": "AI did not return valid chart data.",
+        "CHART_AI_NOT_CONFIGURED": "Configure an editor or primary AI model first.",
+        "CHART_GENERATION_INTERRUPTED": "The previous generation was interrupted.",
+        "CHART_UNKNOWN_ERROR": "Could not generate the chart. Check the data and try again."
+      }
+    },
+    "linkNode": {
+      "urlPrompt": "Enter a web address",
+      "labelPrompt": "Enter a link title"
+    },
+    "utilityNodes": {
+      "title": "Utility nodes",
+      "description": "Add an image, web link, or todo."
+    },
+    "arrange": {
+      "title": "Align and group",
+      "description": "Arrange the selected nodes.",
+      "alignHorizontal": "Align horizontal centers",
+      "alignVertical": "Align vertical centers",
+      "distributeHorizontal": "Distribute horizontally",
+      "distributeVertical": "Distribute vertically",
+      "group": "Create group"
+    },
+    "group": {
+      "defaultLabel": "Group"
+    },
+    "edge": {
+      "title": "Connection style",
+      "description": "Adjust the selected connection path and label.",
+      "orthogonal": "Orthogonal",
+      "straight": "Straight",
+      "curve": "Curve",
+      "editLabel": "Edit label",
+      "labelPrompt": "Enter connection label",
+      "labelDescription": "The label appears at the center of the edge. Leave it empty to remove it.",
+      "saveLabel": "Save label"
+    },
+    "selection": {
+      "tools": "Node tools",
+      "style": "Node style",
+      "color": "Accent",
+      "customColor": "Custom color",
+      "border": "Border",
+      "solid": "Solid",
+      "dashed": "Dashed",
+      "dotted": "Dotted",
+      "borderWidth": "Border width",
+      "fill": "Background",
+      "transparent": "Transparent",
+      "customFill": "Custom fill",
+      "lock": "Lock nodes",
+      "unlock": "Unlock nodes",
+      "copyStyle": "Copy style",
+      "pasteStyle": "Paste style",
+      "styleCopied": "Node style copied",
+      "stylePasted": "Node style applied",
+      "imagePasted": "Image pasted onto canvas",
+      "imagePasteError": "Could not paste image",
+      "chatContext": "Canvas selection: {nodes} nodes, {edges} edges",
+      "chatContextNodes": "{nodes} nodes",
+      "chatContextNodesAndRelations": "{nodes} nodes · {relations} relations",
+      "removeChatContext": "Remove canvas selection"
+    },
+    "layer": {
+      "front": "Bring to front",
+      "forward": "Bring forward",
+      "backward": "Send backward",
+      "back": "Send to back"
+    },
+    "noteNode": {
+      "title": "Add note reference",
+      "description": "Choose a note from the file manager. Double-click the node to open its source file.",
+      "search": "Search notes...",
+      "empty": "No notes found",
+      "group": "Workspace notes",
+      "added": "Added note “{name}”"
+    },
     "footer": {
       "nodes": "{count} nodes",
       "edges": "{count} connections",
@@ -3608,10 +4434,34 @@
       "fit": "Fit view",
       "layout": "Auto arrange",
       "export": "Export",
-      "import": { "title": "Import", "file": "Choose file", "content": "Enter content", "contentTitle": "Import canvas content", "contentDescription": "Supports NoteGen Canvas JSON or Mermaid flowchart content. Importing replaces the current canvas.", "contentPlaceholder": "Paste Canvas JSON or Mermaid content…", "confirm": "Import into current canvas" },
-      "exportMenu": { "record": "Export as illustration record", "recordError": "Failed to save the illustration record", "computer": "Save to computer", "source": "Editable files", "png2x": "PNG · 2× high resolution", "png4x": "PNG · 4× ultra resolution", "svg": "SVG · vector", "canvasFile": "NoteGen Canvas JSON", "mermaid": "Mermaid flowchart" }
+      "import": {
+        "title": "Import",
+        "file": "Choose file",
+        "content": "Enter content",
+        "contentTitle": "Import canvas content",
+        "contentDescription": "Supports NoteGen Canvas JSON or Mermaid flowchart content. Importing replaces the current canvas.",
+        "contentPlaceholder": "Paste Canvas JSON or Mermaid content…",
+        "confirm": "Import into current canvas"
+      },
+      "exportMenu": {
+        "record": "Export as illustration record",
+        "recordError": "Failed to save the illustration record",
+        "computer": "Save to computer",
+        "source": "Editable files",
+        "png2x": "PNG · 2× high resolution",
+        "png4x": "PNG · 4× ultra resolution",
+        "svg": "SVG · vector",
+        "canvasFile": "NoteGen Canvas JSON",
+        "mermaid": "Mermaid flowchart"
+      }
     },
-    "contextMenu": { "selectAll": "Select all", "copy": "Copy", "paste": "Paste", "duplicate": "Duplicate", "delete": "Delete selection" },
+    "contextMenu": {
+      "selectAll": "Select all",
+      "copy": "Copy",
+      "paste": "Paste",
+      "duplicate": "Duplicate",
+      "delete": "Delete selection"
+    },
     "empty": {
       "title": "No canvases yet",
       "description": "Create a canvas to organize ideas with diagrams and freehand drawing."
@@ -4449,7 +5299,12 @@
       "canvasTasks": "Extract task relationships",
       "canvasSource": "Selected Markdown source:",
       "canvasPromptSuffix": "Read the current blank canvas, then use canvas tools to generate it. Show an operation preview and wait for confirmation before applying.",
-      "canvasPrompts": { "flowchart": "Turn the selected text into a clear flowchart.", "mindmap": "Turn the selected text into a well-structured mind map.", "timeline": "Identify dates, phases, and milestones and generate a timeline.", "tasks": "Extract tasks, dependencies, and ordering and generate a task relationship diagram." },
+      "canvasPrompts": {
+        "flowchart": "Turn the selected text into a clear flowchart.",
+        "mindmap": "Turn the selected text into a well-structured mind map.",
+        "timeline": "Identify dates, phases, and milestones and generate a timeline.",
+        "tasks": "Extract tasks, dependencies, and ordering and generate a task relationship diagram."
+      },
       "translate": "Translate",
       "translateSubtitle": "Translate to",
       "quoteToChat": "Quote to Chat",
@@ -4494,7 +5349,13 @@
       "generating": "Generating...",
       "abort": "Abort"
     },
-    "canvasDrop": { "hint": "Drop to insert canvas image", "generating": "Generating canvas image…", "success": "Canvas inserted", "successDescription": "Static image created: {path}", "failed": "Could not insert canvas" },
+    "canvasDrop": {
+      "hint": "Drop to insert canvas image",
+      "generating": "Generating canvas image…",
+      "success": "Canvas inserted",
+      "successDescription": "Static image created: {path}",
+      "failed": "Could not insert canvas"
+    },
     "image": {
       "insert": "Insert Image",
       "uploading": "Uploading...",

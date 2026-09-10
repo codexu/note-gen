@@ -16,6 +16,7 @@ import {
   toClipboardItems,
 } from "./file-selection"
 import useSettingStore from "@/stores/setting"
+import { PluginFileMenuItems } from "@/components/plugins/plugin-file-menu-items"
 
 interface BatchSelectionContextMenuProps {
   entries: FileSelectionEntry[]
@@ -106,6 +107,12 @@ export function BatchSelectionContextMenu({
           {t('context.deleteSelectedRemote', { count: remoteDeletionCount })}
         </ContextMenuItem>
       ) : null}
+      <PluginFileMenuItems
+        context={{
+          kind: entries.every(entry => entry.isDirectory) ? 'folder' : 'file',
+          selectedPaths: entries.map(entry => entry.path),
+        }}
+      />
     </>
   )
 }

@@ -26,6 +26,7 @@ import { getMarkTypeListBadgeClasses } from '../mark/mark-type-meta'
 import { getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
 import type { EditorSplitDirection } from './editor-group-layout'
 import { canOpenInEditorWindow } from '@/lib/editor-windows'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 
 export interface TabInfo {
   id: string
@@ -191,6 +192,9 @@ function SortableTabWithMenu({
         <ContextMenuGroup>
           <ContextMenuItem disabled={!canDetach} onClick={() => onMoveToNewWindow(tab.id)}><ExternalLink />{t('moveToNewWindow')}</ContextMenuItem>
         </ContextMenuGroup>
+        {!isRecordTab && !isCanvasTab && tab.kind !== 'blank' && !tab.isFolder && /\.md$/i.test(tab.path) ? (
+          <PluginFileMenuItems location="tab/context" context={{ kind: 'file', relativePath: tab.path, selectedPaths: [tab.path] }} />
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   )

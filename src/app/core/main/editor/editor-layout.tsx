@@ -36,6 +36,8 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { PluginEditorTabs } from '@/components/plugins/plugin-editor-tabs'
+import { usePluginUiStore } from '@/lib/plugins/ui-registry'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, type TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
@@ -295,6 +297,7 @@ function EditorGroupPane({
 }
 
 export function EditorLayout() {
+  const activePluginView = usePluginUiStore(state => state.activeEditorView)
   const {
     activeFilePath, fileTree, fileTreeInitialized, fileTreeWorkspaceKey,
     setActiveFilePath, openTabs, activeTabId,
@@ -1637,9 +1640,10 @@ export function EditorLayout() {
   }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
+    active = active && !activePluginView
     if (isRecordEditorTab(tab)) {
       const markId = getRecordIdForTab(tab)
-      return <div className="flex min-h-0 flex-1 overflow-hidden">{markId !== null ? <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(groupId, tab.id)} /> : <UnsupportedFile filePath={tab.path} />}</div>
+      return <div className="flex min-h-0 flex-1 overflow-hidden">{markId !== null ? <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} /> : <UnsupportedFile filePath={tab.path} />}</div>
     }
     if (isCanvasEditorTab(tab)) {
       const canvasId = tab.canvasId || getCanvasIdFromTabPath(tab.path)
@@ -1656,7 +1660,7 @@ export function EditorLayout() {
         </div>
       </TabContentErrorBoundary>
     )
-  }, [detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
+  }, [activePluginView, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -1820,7 +1824,7 @@ export function EditorLayout() {
       onDragEnd={handleDragEnd}
     >
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-        {renderLayoutNode(layout.root)}
+        <PluginEditorTabs>{renderLayoutNode(layout.root)}</PluginEditorTabs>
       </div>
       <OnboardingSpotlight
         targetId={activeOnboardingStep ? getOnboardingSpotlightTarget(activeOnboardingStep) : null}

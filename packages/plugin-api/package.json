@@ -1,0 +1,41 @@
+{
+  "name": "@notegen/plugin-api",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Public TypeScript contract for NoteGen plugins.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "pnpm run clean && tsc -p tsconfig.json",
+    "prepack": "pnpm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codexu/note-gen-plugin-sdk.git"
+  },
+  "homepage": "https://notegen.top/en/docs/plugins/developers/plugin-api",
+  "bugs": {
+    "url": "https://github.com/codexu/note-gen-plugin-sdk/issues"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

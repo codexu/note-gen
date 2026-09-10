@@ -344,9 +344,18 @@
       "basicSettingsTitle": "Grundeinstellungen",
       "basicSettingsDesc": "Die KI entscheidet, wann andere Notizen nützlich sind; du kannst anpassen, wie tief sie sucht und wie breit sie abgleicht.",
       "sourceTypes": {
-        "article": { "title": "Artikel", "desc": "Markdown-Artikel in die semantische Wissenssuche einbeziehen." },
-        "record": { "title": "Aufzeichnungen", "desc": "Einzelne Aufzeichnungen, OCR, Transkripte und Metadaten indizieren." },
-        "canvas": { "title": "Canvases", "desc": "Text in Canvas-Knoten und explizite Verbindungen indizieren." }
+        "article": {
+          "title": "Artikel",
+          "desc": "Markdown-Artikel in die semantische Wissenssuche einbeziehen."
+        },
+        "record": {
+          "title": "Aufzeichnungen",
+          "desc": "Einzelne Aufzeichnungen, OCR, Transkripte und Metadaten indizieren."
+        },
+        "canvas": {
+          "title": "Canvases",
+          "desc": "Text in Canvas-Knoten und explizite Verbindungen indizieren."
+        }
       },
       "globalSemanticSearchTitle": "Globale semantische Suche",
       "globalSemanticSearchDesc": "Fügt verwandte Ergebnisse nach Tipp-Pausen hinzu. Lokale exakte Suche bleibt weiterhin verfügbar, wenn diese deaktiviert ist.",
@@ -363,15 +372,30 @@
       "automaticSearchDesc": "Wenn eine Frage sich auf deine Aufzeichnungen bezieht, findet die KI automatisch passende Notizen. Sie überspringt die Suche bei allgemeinen Fragen oder wenn die aktuelle Notiz ausreicht.",
       "agentStrategyTitle": "Strategie der automatischen Suche",
       "agentStrategies": {
-        "fast": { "title": "Schnell", "desc": "Sucht höchstens einmal, um die Antwortzeit zu minimieren." },
-        "balanced": { "title": "Standard", "desc": "Sucht bis zu zweimal, für ein Gleichgewicht aus Geschwindigkeit und notenübergreifender Entdeckung." },
-        "deep": { "title": "Tief", "desc": "Sucht bis zu dreimal für Vergleiche, Historie und notenübergreifende Synthese." }
+        "fast": {
+          "title": "Schnell",
+          "desc": "Sucht höchstens einmal, um die Antwortzeit zu minimieren."
+        },
+        "balanced": {
+          "title": "Standard",
+          "desc": "Sucht bis zu zweimal, für ein Gleichgewicht aus Geschwindigkeit und notenübergreifender Entdeckung."
+        },
+        "deep": {
+          "title": "Tief",
+          "desc": "Sucht bis zu dreimal für Vergleiche, Historie und notenübergreifende Synthese."
+        }
       },
       "presetDesc": "Voreinstellungen passen nur die Ergebnisanzahl und Schwellenwerte an.",
       "presets": {
-        "precision": { "title": "Präzision" },
-        "balanced": { "title": "Ausgewogen" },
-        "recall": { "title": "Abruf" }
+        "precision": {
+          "title": "Präzision"
+        },
+        "balanced": {
+          "title": "Ausgewogen"
+        },
+        "recall": {
+          "title": "Abruf"
+        }
       },
       "settingsTitle": "Parametereinstellungen",
       "settingsDesc": "Durch Anpassen der Parameter kannst du den Abrufeffekt der Wissensdatenbank genauer steuern.",
@@ -594,6 +618,319 @@
       "systemRuntime": "system",
       "runtimeUnavailable": "nicht verfügbar"
     },
+    "plugins": {
+      "ui": {
+        "moreActions": "Weitere Plugin-Aktionen",
+        "loadingView": "Plugin-Ansicht wird geladen…",
+        "viewFailed": "Plugin-Ansicht konnte nicht geöffnet werden",
+        "retry": "Erneut versuchen",
+        "empty": "Noch keine Inhalte",
+        "chat": "KI-Chat",
+        "editor": "Editor",
+        "closeView": "{name} schließen",
+        "close": "Schließen",
+        "requiredField": "Dieses Feld ist erforderlich",
+        "invalidValue": "Geben Sie einen gültigen Wert ein"
+      },
+      "title": "Plugins",
+      "desc": "Erweiterungen für NoteGen entdecken, installieren, freigeben und konfigurieren. Plugins werden derzeit nur auf dem Desktop ausgeführt.",
+      "loading": "Plugins werden geladen...",
+      "initializationFailed": "Plugins konnten nicht initialisiert werden",
+      "required": "Erforderlich",
+      "optional": "Optional",
+      "tabs": {
+        "market": "Marktplatz",
+        "installed": "Installiert",
+        "updates": "Updates",
+        "permissions": "Berechtigungen",
+        "developer": "Entwicklung"
+      },
+      "actions": {
+        "retry": "Erneut versuchen",
+        "refresh": "Aktualisieren",
+        "refreshing": "Wird aktualisiert...",
+        "install": "Installieren",
+        "installing": "Wird installiert...",
+        "installed": "Installiert",
+        "update": "Aktualisieren",
+        "rollback": "Vorherige Version wiederherstellen",
+        "uninstall": "Deinstallieren",
+        "uninstallKeepData": "Deinstallieren und Daten behalten",
+        "uninstallAndRemoveData": "Deinstallieren und Daten entfernen",
+        "cancel": "Abbrechen",
+        "revoke": "Entziehen",
+        "import": "Importieren",
+        "importing": "Wird importiert...",
+        "reload": "Neu laden",
+        "clearLogs": "Protokolle leeren",
+        "details": "Details",
+        "enabling": "Wird aktiviert...",
+        "clearFailure": "Fehlerstatus zurücksetzen",
+        "exportDiagnostics": "Diagnose exportieren"
+      },
+      "labels": {
+        "official": "Offiziell",
+        "featured": "Empfohlen",
+        "verified": "Verifiziert",
+        "attention": "Aktion erforderlich"
+      },
+      "sources": {
+        "marketplace": "Marktplatz",
+        "development": "Entwicklung"
+      },
+      "runtime": {
+        "inactive": "Inaktiv",
+        "activating": "Wird gestartet",
+        "active": "Aktiv",
+        "stopping": "Wird beendet",
+        "failed": "Fehlgeschlagen",
+        "quarantined": "Isoliert"
+      },
+      "commandPalette": {
+        "title": "Plugin-Befehle",
+        "description": "Befehle aktivierter Plugins suchen und ausführen.",
+        "placeholder": "Plugin-Befehle suchen...",
+        "empty": "Keine passenden Plugin-Befehle.",
+        "group": "Plugins"
+      },
+      "statusBar": {
+        "loading": "Plugin-Status wird aktualisiert"
+      },
+      "market": {
+        "searchPlaceholder": "Plugins nach Name, Autor oder Kategorie suchen",
+        "searchLabel": "Plugin-Marktplatz durchsuchen",
+        "sourceTitle": "Marktplatzindex verifiziert",
+        "staleTitle": "Offline-Kopie des Marktplatzes wird angezeigt",
+        "staleInstallDisabled": "Offline-Kopien sind schreibgeschützt. Stelle die Verbindung wieder her und aktualisiere den verifizierten Index, bevor du Plugins installierst oder aktualisierst.",
+        "sourceAndTime": "Quelle: {source}. Erstellt: {time}.",
+        "sources": {
+          "remote": "Online-Index",
+          "cache": "lokaler Cache"
+        },
+        "loadFailed": "Marktplatz konnte nicht aktualisiert werden",
+        "installFailed": "Plugin-Installation fehlgeschlagen",
+        "installAria": "{name} installieren",
+        "reviewInstallTitle": "{name} vor der Installation prüfen",
+        "reviewInstallDesc": "Prüfe Herausgeber, Quelle, Lizenz, Kompatibilität, Paketprüfsumme und angeforderte Berechtigungen.",
+        "publisher": "Herausgeber",
+        "publisherKey": "Schlüssel-ID des Herausgebers",
+        "license": "Lizenz",
+        "packageDigest": "SHA-256 des Pakets",
+        "sourceCode": "Quellcode",
+        "homepage": "Website",
+        "noPermissions": "Keine geschützten Berechtigungen angefordert",
+        "unavailable": "Nicht verfügbar",
+        "permissionsCount": "Deklarierte Berechtigungen: {count}",
+        "noResults": "Keine passenden Plugins",
+        "noResultsDesc": "Versuche einen anderen Namen, Autor oder eine andere Kategorie.",
+        "empty": "Der Marktplatz ist leer",
+        "emptyDesc": "Aktualisiere den signierten Index oder versuche es erneut, sobald du online bist."
+      },
+      "installed": {
+        "searchPlaceholder": "Installierte Plugins durchsuchen",
+        "searchLabel": "Installierte Plugins durchsuchen",
+        "operationFailed": "Plugin-Status konnte nicht geändert werden",
+        "noDescription": "Keine Beschreibung vorhanden.",
+        "allWorkspaces": "In allen Arbeitsbereichen aktiviert",
+        "enablementLabel": "Aktivierungsbereich",
+        "enablementDesc": "Plugin-Einstellungen und Berechtigungen bleiben für jeden Arbeitsbereich getrennt.",
+        "permissionReviewRequired": "Berechtigungen müssen geprüft werden",
+        "reviewPermissions": "Berechtigungen prüfen",
+        "enablement": {
+          "disabled": "Deaktiviert",
+          "workspace": "Aktueller Arbeitsbereich",
+          "allWorkspaces": "Alle Arbeitsbereiche"
+        },
+        "enableAria": "{name} in diesem Arbeitsbereich aktivieren",
+        "disableAria": "{name} in diesem Arbeitsbereich deaktivieren",
+        "failureTitle": "Letzter Fehler: {code}",
+        "failureCount": "Aufgetreten: {count} Mal.",
+        "noResults": "Keine passenden installierten Plugins",
+        "noResultsDesc": "Suche nach Plugin-Name, ID oder Autor.",
+        "empty": "Keine Plugins installiert",
+        "emptyDesc": "Installiere zunächst ein Plugin aus dem Marktplatz.",
+        "revoked": "Diese Version wurde zurückgezogen: {reason}"
+      },
+      "details": {
+        "author": "Autor",
+        "unknown": "Unbekannt",
+        "apiVersion": "Plugin-API",
+        "minAppVersion": "Erforderliche NoteGen-Version",
+        "platforms": "Plattformen",
+        "contentHash": "Inhalts-Hash",
+        "commands": "Befehle",
+        "menus": "Menüeinträge",
+        "permissions": "Berechtigungen"
+      },
+      "settings": {
+        "contextChanged": "Das Plugin oder der Arbeitsbereich wurde geändert. Öffne die Plugin-Einstellungen erneut, bevor du speicherst.",
+        "title": "Plugin-Einstellungen",
+        "desc": "Diese Werte werden von NoteGen geprüft und gespeichert.",
+        "none": "Dieses Plugin hat keine konfigurierbaren Einstellungen.",
+        "invalidNumber": "Gib eine gültige Zahl ein.",
+        "relativePathOnly": "Verwende einen relativen Arbeitsbereichspfad ohne ..-Abschnitte.",
+        "relativePathHelp": "Pfade sind relativ zum aktuellen Arbeitsbereich; absolute Pfade sind nicht zulässig.",
+        "byteUsage": "{used} / {max} Byte",
+        "byteLimitExceeded": "Dieser Wert belegt {used} Byte und überschreitet das Limit von {max} Byte.",
+        "scopes": {
+          "device": "Dieses Gerät",
+          "workspace": "Aktueller Arbeitsbereich"
+        }
+      },
+      "updates": {
+        "summaryTitle": "Verfügbare Updates: {count}",
+        "summaryDesc": "Updates werden vollständig oder gar nicht übernommen. NoteGen behält die vorherige Version, wenn eine Wiederherstellung möglich ist.",
+        "operationFailed": "Plugin-Aktion fehlgeschlagen",
+        "available": "Update verfügbar",
+        "current": "Aktuell",
+        "pendingActivation": "Aktivierung ausstehend",
+        "pendingActivationDesc": "Öffne oder starte das Plugin einmal, um diese Version zu bestätigen, oder stelle vor einem weiteren Update die vorherige Version wieder her.",
+        "versionChange": "Version {current} → {next}",
+        "currentVersion": "Installierte Version {version}",
+        "confirmUpdateTitle": "{name} aktualisieren?",
+        "confirmUpdateDesc": "Version {current} wird durch {next} ersetzt. Prüfe geänderte Berechtigungen, bevor du das Plugin erneut aktivierst.",
+        "confirmRollbackTitle": "Vorherige Version von {name} wiederherstellen?",
+        "confirmRollbackDesc": "Version {current} wird durch die aufbewahrte Version {previous} ersetzt.",
+        "confirmUninstallTitle": "{name} deinstallieren?",
+        "confirmUninstallDesc": "Behalte Einstellungen und Cache für eine spätere Neuinstallation oder entferne sie ebenfalls. Vom Plugin erstellte Arbeitsbereichsdateien werden nicht gelöscht.",
+        "empty": "Keine Plugins zu verwalten",
+        "emptyDesc": "Hier erscheinen installierte Marktplatz- und Entwicklungs-Plugins."
+      },
+      "permissionNames": {
+        "editor": {
+          "read": "Aktiven Editor lesen",
+          "write": "Aktiven Editor ändern"
+        },
+        "notes": {
+          "read": "Notizen lesen",
+          "create": "Notizen erstellen",
+          "open": "Notizen öffnen",
+          "list": "Notizen auflisten",
+          "write": "Notizen schreiben",
+          "delete": "Notizen löschen",
+          "move": "Notizen verschieben"
+        },
+        "attachments": {
+          "read": "Anhänge lesen",
+          "create": "Anhänge erstellen"
+        },
+        "network": {
+          "fetch": "Freigegebene Websites aufrufen"
+        }
+      },
+      "permissionScopes": {
+        "active-editor": "Auf den aktiven Markdown-Editor beschränkt.",
+        "workspace-file": "Auf ausdrücklich freigegebene Arbeitsbereichsdateien beschränkt.",
+        "workspace-files": "Auf ausdrücklich freigegebene Arbeitsbereichsdateien beschränkt.",
+        "workspace-folder": "Auf einen ausdrücklich freigegebenen Arbeitsbereichsordner beschränkt.",
+        "network-origins": "Auf ausdrücklich freigegebene HTTPS-Ursprünge beschränkt."
+      },
+      "ux": {
+        "discover": "Entdecken",
+        "technicalDetails": "Technische Details",
+        "importHelp": "Quell- oder Paketordner eines Plugins auswählen. .notegen/package wird automatisch erkannt. Vor dem ersten Import pnpm build im Plugin-Repository ausführen.",
+        "permissionNeeded": "Ordnerberechtigung erforderlich",
+        "managePlugin": "Plugins verwalten"
+      },
+      "usage": {
+        "title": "Anleitung",
+        "start": "Jetzt verwenden",
+        "missing": "Dieses Plugin enthält noch keine Offline-Anleitung.",
+        "failed": "Anleitung konnte nicht geladen werden. Plugin-Einstellungen erneut öffnen.",
+        "enableFirst": "Aktivieren Sie das Plugin, um diese Aktion zu verwenden."
+      },
+      "permissionDialog": {
+        "selectAll": "Alle auswählen",
+        "folderLabel": "Speicherordner",
+        "chooseFolder": "Arbeitsbereichsordner auswählen",
+        "chooseFile": "Arbeitsbereichsdatei auswählen",
+        "entireWorkspace": "Gesamter Arbeitsbereich (alle Notizen)",
+        "advancedPaths": "Erweitert: neuer Ordner oder mehrere Pfade",
+        "dailyFolderHelp": "Notizen in {folder} erstellen und öffnen erlauben. Datumsunterordner bleiben erhalten; das Plugin erstellt den Ordner bei Bedarf.",
+        "contextChanged": "Das Plugin oder der Arbeitsbereich wurde geändert. Schließe diesen Dialog und prüfe die aktuellen Berechtigungen erneut.",
+        "title": "Berechtigungen für {name} prüfen",
+        "desc": "NoteGen vergibt Berechtigungen pro Arbeitsbereich.",
+        "togglePermission": "Berechtigung erlauben: {permission}",
+        "pathLabel": "Erlaubter relativer Pfad",
+        "pathPlaceholder": "Ordner oder Datei im Arbeitsbereich",
+        "pathHelp": "Mehrere Pfade durch Kommas trennen.",
+        "pathRequired": "Mindestens einen Wert eingeben.",
+        "relativePathOnly": "Jeder Pfad muss im Arbeitsbereich liegen.",
+        "originLabel": "Erlaubte HTTPS-Ursprünge",
+        "originPlaceholder": "https://api.example.com",
+        "originHelp": "Mehrere Ursprünge durch Kommas trennen.",
+        "originOnly": "Vollständige HTTPS-Ursprünge ohne Pfad oder Zugangsdaten eingeben.",
+        "confirm": "Erlauben und aktivieren",
+        "folderHelp": "Gewählter Ordner: {folder}. Aktualisiert auch die Ordnereinstellung des Plugins."
+      },
+      "permissions": {
+        "workspaceIsolationTitle": "Berechtigungen gelten nur im jeweiligen Arbeitsbereich",
+        "workspaceIsolationDesc": "Ein Plugin kann Berechtigungen nicht in einem anderen Arbeitsbereich verwenden. Geänderte Plugin-Pakete müssen erneut geprüft werden.",
+        "revokeFailed": "Berechtigung konnte nicht entzogen werden",
+        "currentWorkspace": "Aktueller Arbeitsbereich",
+        "otherWorkspace": "Bekannter Arbeitsbereich",
+        "current": "Aktuell",
+        "switchToManage": "Wechsle zu diesem Arbeitsbereich, um seine Berechtigungen zu prüfen oder zu entziehen.",
+        "status": {
+          "granted": "Erlaubt",
+          "denied": "Nicht erlaubt",
+          "unreviewed": "Nicht geprüft",
+          "changed": "Erneut prüfen"
+        },
+        "revokeAria": "{name} die Berechtigung {permission} entziehen",
+        "confirmRevokeTitle": "Diese Berechtigung entziehen?",
+        "confirmRevokeDesc": "{name} verliert im aktuellen Arbeitsbereich die Berechtigung „{permission}“ und funktioniert danach möglicherweise nicht mehr.",
+        "empty": "Keine Plugin-Berechtigungen",
+        "emptyDesc": "Die installierten Plugins haben keine geschützten Funktionen deklariert."
+      },
+      "developer": {
+        "autoReload": "Automatisch neu laden",
+        "autoReloadHelp": "Führen Sie notegen-plugin dev im Plugin-Projekt aus. Aktivierte Entwicklungsplugins laden erfolgreiche Builds automatisch; Berechtigungsänderungen müssen bestätigt werden.",
+        "disabledTitle": "Entwicklermodus ist deaktiviert",
+        "disabledDesc": "Aktiviere den Entwicklermodus unter Allgemein → Erweitert, um lokalen Plugin-Code zu laden oder Laufzeitprotokolle anzusehen.",
+        "importTitle": "Lokales Plugin-Paket laden",
+        "importDesc": "Importiere ein entpacktes Entwicklungsverzeichnis. Lokaler Code wird nicht vom Marktplatz verifiziert.",
+        "pathLabel": "Absoluter Paketpfad",
+        "pathPlaceholder": "/path/to/my-plugin",
+        "chooseFolder": "Ordner auswählen",
+        "pathHelp": "Das Verzeichnis muss ein gültiges Plugin-Manifest und eine kompilierte Einstiegsdatei enthalten.",
+        "pathRequired": "Gib einen Paketpfad ein.",
+        "absolutePathRequired": "Gib einen absoluten Pfad ein.",
+        "importSuccess": "Entwicklungs-Plugin importiert",
+        "loadedTitle": "Geladene Entwicklungs-Plugins",
+        "pathUnavailable": "Quellpfad nicht verfügbar",
+        "noDevelopmentPlugins": "Keine Entwicklungs-Plugins geladen",
+        "noDevelopmentPluginsDesc": "Gib oben den Pfad zu einem entpackten Paket ein, um mit der lokalen Entwicklung zu beginnen.",
+        "logsTitle": "Plugin-Laufzeitprotokolle",
+        "logsDesc": "Meldungen werden im Arbeitsspeicher gehalten und können hier gelöscht werden. Ein Neustart von NoteGen entfernt sie ebenfalls.",
+        "logFilterLabel": "Protokolle nach Plugin filtern",
+        "allLogs": "Alle Plugins",
+        "logLevels": {
+          "info": "Info",
+          "warning": "Warnung",
+          "error": "Fehler"
+        },
+        "noLogs": "Keine Plugin-Protokolle",
+        "noLogsDesc": "Laufzeitwarnungen und Fehler erscheinen hier."
+      },
+      "display": {
+        "title": "Anzeige in der Oberfläche",
+        "description": "Wählen Sie, wo dieses Plugin auf diesem Gerät erscheint. Änderungen gelten sofort. Ausgeblendete Einträge deaktivieren weder das Plugin noch löschen sie Daten. Befehle bleiben in der Befehlspalette verfügbar.",
+        "locations": {
+          "left-sidebar": "Tabs der linken Seitenleiste",
+          "right-sidebar": "Tabs der rechten Seitenleiste",
+          "editor-tab": "Editor-Tabs",
+          "file/context": "Datei-Kontextmenü",
+          "editor/context": "Editor-Kontextmenü",
+          "tab/context": "Tab-Kontextmenü",
+          "editor/toolbar": "Editor-Symbolleiste",
+          "editor/slash": "Slash-Befehlsmenü",
+          "editor/selection": "Textauswahlmenü",
+          "mobile/writing/overflow": "Mobiles Mehr-Menü",
+          "status-bar": "Statusleiste"
+        }
+      }
+    },
     "editor": {
       "title": "Editor-Einstellungen",
       "desc": "Hier kannst du den Editor anpassen und dir ein Schreiberlebnis nach deinen Bedürfnissen schaffen.",
@@ -642,9 +979,10 @@
       },
       "stats": {
         "title": "Schreibstatistiken",
-        "desc": "Zeige Zeichenanzahl und geschätzte Lesezeit in der Statusleiste an",
+        "desc": "Zeichenanzahl in der Statusleiste des mobilen Editors anzeigen",
         "characters": "{count} Zeichen",
-        "readingTime": "etwa {count} Min"
+        "readingTime": "etwa {count} Min",
+        "saveError": "Die Einstellung konnte nicht gespeichert werden. Bitte erneut versuchen."
       },
       "sourceMode": {
         "visual": "WYSIWYG",
@@ -1075,16 +1413,36 @@
         "archive": "Löschen",
         "deletePermanently": "Dauerhaft löschen"
       },
-      "kinds": {"preference": "Präferenz", "fact": "Fakt", "experience": "Erfahrung", "decision": "Entscheidung"},
-      "scopes": {"global": "Global", "workspace": "Aktueller Arbeitsbereich"},
-      "statuses": {"active": "Aktiv", "pending": "Muss überprüft werden", "archived": "Gelöscht"},
-      "filters": {"search": "Erinnerungen suchen", "allKinds": "Alle Typen", "allScopes": "Alle Bereiche"},
+      "kinds": {
+        "preference": "Präferenz",
+        "fact": "Fakt",
+        "experience": "Erfahrung",
+        "decision": "Entscheidung"
+      },
+      "scopes": {
+        "global": "Global",
+        "workspace": "Aktueller Arbeitsbereich"
+      },
+      "statuses": {
+        "active": "Aktiv",
+        "pending": "Muss überprüft werden",
+        "archived": "Gelöscht"
+      },
+      "filters": {
+        "search": "Erinnerungen suchen",
+        "allKinds": "Alle Typen",
+        "allScopes": "Alle Bereiche"
+      },
       "sensitive": {
         "title": "Möglicherweise sensible Inhalte",
         "description": "Passwörter, Token und private Schlüssel werden niemals automatisch zu aktiven Erinnerungen. Bestätige, dass dieser Inhalt sicher ist, bevor du ihn speicherst.",
         "badge": "Sensibel"
       },
-      "indexing": {"ready": "Indiziert", "pending": "Wartet auf Indizierung", "failed": "Indizierung fehlgeschlagen"},
+      "indexing": {
+        "ready": "Indiziert",
+        "pending": "Wartet auf Indizierung",
+        "failed": "Indizierung fehlgeschlagen"
+      },
       "deleteConfirm": {
         "title": "Diese Erinnerung dauerhaft löschen?",
         "description": "Dies kann nicht rückgängig gemacht werden.",
@@ -2553,7 +2911,7 @@
     },
     "navigationGroups": {
       "basic": "Grundlegendes",
-      "aiExtensions": "KI & Erweiterungen",
+      "ai": "KI",
       "data": "Daten & Speicher"
     },
     "searchPlaceholder": "Einstellungen durchsuchen...",
@@ -3202,9 +3560,15 @@
         "attachImage": "Bilder anhängen",
         "addAttachment": {
           "title": "Hinzufügen",
-          "image": { "title": "Bild" },
-          "file": { "title": "Datei" },
-          "folder": { "title": "Ordner" },
+          "image": {
+            "title": "Bild"
+          },
+          "file": {
+            "title": "Datei"
+          },
+          "folder": {
+            "title": "Ordner"
+          },
           "entryCount": "{count} Elemente",
           "remove": "Entferne {name}",
           "metadataOnly": "nur Metadaten",
@@ -3267,10 +3631,25 @@
           "deliveryMode": {
             "label": "Nachrichten während der Ausführung",
             "queued": "{count} Nachricht(en) eingereiht",
-            "pending": { "title": "Ausstehende Nachrichten", "add": "Zur Warteliste hinzufügen", "remove": "Nachricht aus Warteschlange löschen", "edit": "Nachricht bearbeiten", "save": "Speichern", "cancel": "Abbrechen", "reorder": "Zum Sortieren ziehen", "more": "Weitere Aktionen" },
+            "pending": {
+              "title": "Ausstehende Nachrichten",
+              "add": "Zur Warteliste hinzufügen",
+              "remove": "Nachricht aus Warteschlange löschen",
+              "edit": "Nachricht bearbeiten",
+              "save": "Speichern",
+              "cancel": "Abbrechen",
+              "reorder": "Zum Sortieren ziehen",
+              "more": "Weitere Aktionen"
+            },
             "modes": {
-              "steer": { "title": "Nächsten Schritt anpassen", "description": "Wendet diese Anweisung im nächsten Schritt zuerst an, nachdem die aktuelle Antwort und die Tool-Aufrufe abgeschlossen sind." },
-              "follow-up": { "title": "Danach ausführen", "description": "Startet dies nach Abschluss der aktuellen Aufgabe als neue Aufgabe." }
+              "steer": {
+                "title": "Nächsten Schritt anpassen",
+                "description": "Wendet diese Anweisung im nächsten Schritt zuerst an, nachdem die aktuelle Antwort und die Tool-Aufrufe abgeschlossen sind."
+              },
+              "follow-up": {
+                "title": "Danach ausführen",
+                "description": "Startet dies nach Abschluss der aktuellen Aufgabe als neue Aufgabe."
+              }
             }
           },
           "resume": {
@@ -3280,9 +3659,18 @@
           "permissionMode": {
             "label": "Agenten-Berechtigungsmodus",
             "modes": {
-              "read-only": { "title": "Schreibgeschützt", "description": "Inhalte nur ansehen und analysieren, ohne Änderungen vorzunehmen." },
-              "ask": { "title": "Vor Bearbeitung fragen", "description": "Ohne Rückfrage lesen; vor Änderungen um Genehmigung bitten." },
-              "auto-edit": { "title": "Automatisch bearbeiten", "description": "Lokale Inhalte automatisch bearbeiten; Löschungen, Skripte, Skill-Installationen und andere sensible Aktionen benötigen weiterhin eine Genehmigung." }
+              "read-only": {
+                "title": "Schreibgeschützt",
+                "description": "Inhalte nur ansehen und analysieren, ohne Änderungen vorzunehmen."
+              },
+              "ask": {
+                "title": "Vor Bearbeitung fragen",
+                "description": "Ohne Rückfrage lesen; vor Änderungen um Genehmigung bitten."
+              },
+              "auto-edit": {
+                "title": "Automatisch bearbeiten",
+                "description": "Lokale Inhalte automatisch bearbeiten; Löschungen, Skripte, Skill-Installationen und andere sensible Aktionen benötigen weiterhin eine Genehmigung."
+              }
             }
           },
           "autoFinal": {
@@ -3409,16 +3797,43 @@
           "commands": {
             "title": "Schnellbefehle",
             "placeholder": "Befehle suchen...",
-            "summarize": { "label": "Zusammenfassen", "description": "Schlüsselpunkte und Schlussfolgerungen extrahieren", "prompt": "Fasse den folgenden Inhalt zusammen und extrahiere die Schlüsselpunkte und Schlussfolgerungen:" },
-            "organize": { "label": "Als Notiz organisieren", "description": "Strukturiertes Markdown erstellen", "prompt": "Organisiere den folgenden Inhalt in eine klare, strukturierte Markdown-Notiz:" },
-            "rewrite": { "label": "Aufpolieren", "description": "Formulierung verbessern, ohne die Bedeutung zu ändern", "prompt": "Poliere den folgenden Inhalt auf und behalte seine Bedeutung bei:" },
-            "translate": { "label": "Übersetzen", "description": "In eine ausgewählte Sprache übersetzen", "prompt": "Übersetze den folgenden Inhalt in:" },
-            "searchNotes": { "label": "Notizen suchen", "description": "Verwandte Inhalte in deiner Wissensdatenbank finden", "prompt": "Durchsuche meine Notiz-Wissensdatenbank und antworte:" },
-            "createNote": { "label": "Notiz erstellen", "description": "Eine strukturierte Markdown-Notiz erstellen", "prompt": "Erstelle eine neue Markdown-Notiz basierend auf diesen Anforderungen:" }
+            "summarize": {
+              "label": "Zusammenfassen",
+              "description": "Schlüsselpunkte und Schlussfolgerungen extrahieren",
+              "prompt": "Fasse den folgenden Inhalt zusammen und extrahiere die Schlüsselpunkte und Schlussfolgerungen:"
+            },
+            "organize": {
+              "label": "Als Notiz organisieren",
+              "description": "Strukturiertes Markdown erstellen",
+              "prompt": "Organisiere den folgenden Inhalt in eine klare, strukturierte Markdown-Notiz:"
+            },
+            "rewrite": {
+              "label": "Aufpolieren",
+              "description": "Formulierung verbessern, ohne die Bedeutung zu ändern",
+              "prompt": "Poliere den folgenden Inhalt auf und behalte seine Bedeutung bei:"
+            },
+            "translate": {
+              "label": "Übersetzen",
+              "description": "In eine ausgewählte Sprache übersetzen",
+              "prompt": "Übersetze den folgenden Inhalt in:"
+            },
+            "searchNotes": {
+              "label": "Notizen suchen",
+              "description": "Verwandte Inhalte in deiner Wissensdatenbank finden",
+              "prompt": "Durchsuche meine Notiz-Wissensdatenbank und antworte:"
+            },
+            "createNote": {
+              "label": "Notiz erstellen",
+              "description": "Eine strukturierte Markdown-Notiz erstellen",
+              "prompt": "Erstelle eine neue Markdown-Notiz basierend auf diesen Anforderungen:"
+            }
           },
           "skills": {
             "title": "Skills",
-            "scope": { "global": "Global", "project": "Arbeitsbereich" }
+            "scope": {
+              "global": "Global",
+              "project": "Arbeitsbereich"
+            }
           },
           "resources": {
             "title": "Linkkontext",
@@ -3538,9 +3953,55 @@
   "canvas": {
     "new": "Neues Canvas",
     "chooseTemplate": "Wähle eine Vorlage",
-    "manager": { "title": "Canvas-Manager", "view": "Ansicht", "grid": "Miniaturansicht", "list": "Listenansicht", "switchToGrid": "Zur Miniaturansicht wechseln", "switchToList": "Zur Listenansicht wechseln", "sort": { "title": "Sortieren", "updated": "Zuletzt geändert", "created": "Erstellungsdatum", "name": "Name" }, "pin": "Canvas anheften", "unpin": "Canvas lösen", "refreshThumbnails": "Miniaturansichten neu generieren", "closeTrash": "Zurück zum Canvas-Manager", "trashEmpty": "Kürzlich gelöscht ist leer", "trashEmptyDescription": "Gelöschte Canvases werden hier angezeigt.", "trashCount": "{count} gelöschte Canvases", "sync": { "upload": "Hochladen", "pending": "Wartet auf Upload", "clickToUpload": "Wartet auf Upload. Klicken, um jetzt hochzuladen.", "uploading": "Lädt hoch", "synced": "Hochgeladen", "failed": "Upload fehlgeschlagen", "downloadingAll": "Entfernte Canvases abrufen", "deleting": "Löschen und Synchronisieren", "permanentlyDeleting": "Dauerhaft löschen" }, "count": "{count} Canvases" },
-    "templates": { "blank": "Leeres Canvas", "flowchart": "Flussdiagramm", "mindmap": "Mindmap", "timeline": "Zeitleiste", "quadrant": "Vier Quadranten", "kanban": "Kanban", "swot": "SWOT-Analyse" },
-    "import": { "action": "Canvas oder Mermaid importieren", "fileType": "Canvas-Datei", "defaultTitle": "Importiertes Canvas", "success": "Canvas importiert", "error": "Diese Datei konnte nicht importiert werden" },
+    "manager": {
+      "title": "Canvas-Manager",
+      "view": "Ansicht",
+      "grid": "Miniaturansicht",
+      "list": "Listenansicht",
+      "switchToGrid": "Zur Miniaturansicht wechseln",
+      "switchToList": "Zur Listenansicht wechseln",
+      "sort": {
+        "title": "Sortieren",
+        "updated": "Zuletzt geändert",
+        "created": "Erstellungsdatum",
+        "name": "Name"
+      },
+      "pin": "Canvas anheften",
+      "unpin": "Canvas lösen",
+      "refreshThumbnails": "Miniaturansichten neu generieren",
+      "closeTrash": "Zurück zum Canvas-Manager",
+      "trashEmpty": "Kürzlich gelöscht ist leer",
+      "trashEmptyDescription": "Gelöschte Canvases werden hier angezeigt.",
+      "trashCount": "{count} gelöschte Canvases",
+      "sync": {
+        "upload": "Hochladen",
+        "pending": "Wartet auf Upload",
+        "clickToUpload": "Wartet auf Upload. Klicken, um jetzt hochzuladen.",
+        "uploading": "Lädt hoch",
+        "synced": "Hochgeladen",
+        "failed": "Upload fehlgeschlagen",
+        "downloadingAll": "Entfernte Canvases abrufen",
+        "deleting": "Löschen und Synchronisieren",
+        "permanentlyDeleting": "Dauerhaft löschen"
+      },
+      "count": "{count} Canvases"
+    },
+    "templates": {
+      "blank": "Leeres Canvas",
+      "flowchart": "Flussdiagramm",
+      "mindmap": "Mindmap",
+      "timeline": "Zeitleiste",
+      "quadrant": "Vier Quadranten",
+      "kanban": "Kanban",
+      "swot": "SWOT-Analyse"
+    },
+    "import": {
+      "action": "Canvas oder Mermaid importieren",
+      "fileType": "Canvas-Datei",
+      "defaultTitle": "Importiertes Canvas",
+      "success": "Canvas importiert",
+      "error": "Diese Datei konnte nicht importiert werden"
+    },
     "untitled": "Unbenanntes Canvas",
     "more": "Weitere Aktionen",
     "duplicate": "Duplizieren",
@@ -3548,9 +4009,21 @@
     "delete": "Canvas löschen",
     "trash": "Kürzlich gelöscht",
     "restore": "Canvas wiederherstellen",
-    "deleteDialog": { "title": "Dieses Canvas löschen?", "description": "„{title}“ wird nach Kürzlich gelöscht verschoben und kann später wiederhergestellt werden.", "cancel": "Abbrechen", "confirm": "Nach Kürzlich gelöscht verschieben" },
+    "deleteDialog": {
+      "title": "Dieses Canvas löschen?",
+      "description": "„{title}“ wird nach Kürzlich gelöscht verschoben und kann später wiederhergestellt werden.",
+      "cancel": "Abbrechen",
+      "confirm": "Nach Kürzlich gelöscht verschieben"
+    },
     "permanentDelete": "Dauerhaft löschen",
-    "permanentDeleteDialog": { "title": "Dieses Canvas dauerhaft löschen?", "description": "Der lokale Inhalt für „{title}“ wird gelöscht. Wenn Sync konfiguriert ist, wird auch die entfernte Sync-Datei entfernt. Diese Aktion kann nicht rückgängig gemacht werden.", "cancel": "Abbrechen", "confirm": "Dauerhaft löschen", "deleting": "Löscht", "error": "Dauerhaftes Löschen fehlgeschlagen. Überprüfe deine Sync-Einstellungen und das Netzwerk und versuche es dann erneut." },
+    "permanentDeleteDialog": {
+      "title": "Dieses Canvas dauerhaft löschen?",
+      "description": "Der lokale Inhalt für „{title}“ wird gelöscht. Wenn Sync konfiguriert ist, wird auch die entfernte Sync-Datei entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "cancel": "Abbrechen",
+      "confirm": "Dauerhaft löschen",
+      "deleting": "Löscht",
+      "error": "Dauerhaftes Löschen fehlgeschlagen. Überprüfe deine Sync-Einstellungen und das Netzwerk und versuche es dann erneut."
+    },
     "rename": "Umbenennen",
     "loading": "Canvas wird geladen...",
     "undo": "Rückgängig",
@@ -3560,26 +4033,256 @@
     "exportSuccess": "Canvas exportiert",
     "exportError": "Canvas konnte nicht exportiert werden",
     "aiPreview": "KI-Änderungsvorschau",
-    "tools": { "label": "Canvas-Werkzeuge", "select": "Auswählen", "hand": "Hand", "connector": "Verbindung", "pen": "Stift", "highlighter": "Textmarker", "eraser": "Radiergummi" },
-    "toolbox": { "ai": "Mit KI generieren", "aiPrompt": "Generiere anhand meiner Beschreibung ein Diagramm auf dem aktuellen Canvas mit nativen Knoten und Kanten, die unabhängig bearbeitbar bleiben: ", "shapes": "Formen", "media": "Medien", "drawing": "Zeichnen", "close": "Panel schließen", "commonShapes": "Allgemeine Formen", "flowchartShapes": "Flussdiagramm", "dataShapes": "Daten und Speicherung", "favorites": "Favoriten", "recent": "Zuletzt verwendet", "searchShapes": "Formen suchen", "noShapes": "Keine passenden Formen", "favorite": "Form favorisieren", "unfavorite": "Favorit entfernen", "customComponents": "Meine Komponenten", "deleteCustomComponent": "Benutzerdefinierte Komponente löschen", "saveCustomComponent": "Komponente speichern", "saveCustomComponentDescription": "Speichere die ausgewählten Knoten und ihre internen Kanten als wiederverwendbare Komponente.", "customComponentName": "Komponentenname", "customComponentDefaultName": "Meine Komponente", "customComponentSaved": "Benutzerdefinierte Komponente gespeichert", "connectionShape": "Verbundene Form auswählen", "connectionShapeDescription": "Erstelle eine Form und verbinde sie mit dem aktuellen Knoten.", "aiDescription": "Beschreibe das zu generierende oder zu ändernde Diagramm", "aiGenerate": "An KI senden", "aiScopes": { "append": "Anhängen", "replace": "Ersetzen", "selection": "Auswahl", "appendPrompt": "Behalte den aktuellen Inhalt bei und hänge dieses Diagramm an: ", "replacePrompt": "Ersetze das aktuelle Canvas und generiere dieses Diagramm: ", "selectionPrompt": "Ändere nur die aktuell ausgewählten Knoten und Kanten: "}, "aiPresets": { "flowchart": "Flussdiagramm", "flowchartPrompt": "Erstelle ein klares Geschäftsprozess-Flussdiagramm", "architecture": "Architektur", "architecturePrompt": "Erstelle ein mehrschichtiges Software-Systemarchitekturdiagramm", "sequence": "Sequenzablauf", "sequencePrompt": "Drücke eine Teilnehmer-Interaktionssequenz mit unabhängig bearbeitbaren Knoten und Kanten aus", "mindmap": "Mindmap", "mindmapPrompt": "Erstelle eine Mindmap, die sich von einem zentralen Thema nach außen verzweigt" } },
-    "brush": { "penTitle": "Stift", "highlighterTitle": "Textmarker", "strokeTitle": "Pinselstrich", "color": "Farbe", "size": "Pinselbreite" },
-    "nodes": { "process": "Prozess", "decision": "Entscheidung", "terminator": "Start / Ende", "inputOutput": "Eingabe / Ausgabe", "document": "Dokument", "multiDocument": "Mehrere Dokumente", "database": "Datenbank", "predefinedProcess": "Vordefinierter Prozess", "manualInput": "Manuelle Eingabe", "preparation": "Vorbereitung", "delay": "Verzögerung", "display": "Anzeige", "connector": "Seiteninterner Verbinder", "offPageConnector": "Seitenübergreifender Verbinder", "internalStorage": "Interner Speicher", "storedData": "Gespeicherte Daten", "text": "Text", "note": "Notizreferenz", "record": "Aufzeichnung", "image": "Bild", "link": "Weblink", "todo": "Aufgabe", "group": "Gruppe", "chart": "Datendiagramm" },
-    "chart": {
-      "createTitle": "Datendiagramm erstellen", "editTitle": "Datendiagramm bearbeiten", "description": "Gib Daten ein und füge sie direkt ein. Der Knoten schließt die Verarbeitung im Hintergrund ab.", "titleLabel": "Diagrammtitel", "titlePlaceholder": "Leer lassen, um automatisch zu generieren", "titleDescription": "Automatische Titel werden bei jeder Generierung der Diagrammdaten neu erstellt.", "typeLabel": "Diagrammtyp", "dataLabel": "Daten", "dataPlaceholder": "Monat,Desktop,Mobil\nJanuar,186,80\nFebruar,305,200", "dataDescription": "Unterstützt natürlichsprachliche Beschreibungen, CSV, TSV, Markdown-Tabellen und JSON.", "generate": "Vorschau generieren", "generating": "Parsen", "preview": "Vorschau", "primarySeries": "Wertfeld", "summary": "{rows} Zeilen · {series} Serien", "emptyPreviewTitle": "Vorschau nicht generiert", "emptyPreviewDescription": "Gib Daten ein und generiere eine Vorschau, um den Diagrammtyp und den Inhalt zu bestätigen.", "cancel": "Abbrechen", "insert": "In Canvas einfügen", "update": "Neu generieren", "nodeLoading": "Diagramm wird generiert…", "nodeErrorTitle": "Diagrammgenerierung fehlgeschlagen", "nodeErrorHint": "Doppelklicke auf den Knoten, um die Daten zu bearbeiten und es erneut zu versuchen.",
-      "types": { "auto": "Automatisch erkennen", "area": "Flächendiagramm", "bar": "Balkendiagramm", "line": "Liniendiagramm", "pie": "Kreisdiagramm", "radar": "Netzdiagramm", "radial": "Radialdiagramm" },
-      "notes": { "label": "Referenznotizen", "placeholder": "Notizen auswählen", "selected": "{count} Notizen ausgewählt", "title": "Diagramm-Quellnotizen", "description": "Wähle eine oder mehrere Notizen als Datenquellen für das Diagramm aus.", "search": "Notizen suchen", "empty": "Keine Notizen gefunden", "manualInput": "Manuelle Eingabe" },
-      "recommendations": { "time-series": "Zeitreihe erkannt; Liniendiagramm empfohlen", "continuous": "Kontinuierliche kumulative Daten erkannt; Flächendiagramm empfohlen", "proportion": "Proportionen erkannt; Kreisdiagramm empfohlen", "progress": "Fortschrittswerte erkannt; Radialdiagramm empfohlen", "multidimensional": "Mehrdimensionaler Vergleich erkannt; Netzdiagramm empfohlen", "categorical": "Kategorische Daten erkannt; Balkendiagramm empfohlen", "ai": "Von KI aus der Datensemantik empfohlen" },
-      "appearance": { "title": "Diagrammerscheinung", "variant": "Container", "palette": "Palette", "showTitle": "Titel anzeigen", "showLegend": "Legende anzeigen", "showGrid": "Raster anzeigen", "showXAxis": "Kategorieachse anzeigen", "showYAxis": "Wertachse anzeigen", "variants": { "card": "Karte", "minimal": "Minimal", "transparent": "Transparent" }, "palettes": { "system": "System", "cool": "Kühl", "warm": "Warm", "monochrome": "Monochrom" } },
-      "errors": { "CHART_NEEDS_HEADER_AND_ROW": "Gib einen Header und mindestens eine Datenzeile an.", "CHART_NEEDS_TWO_COLUMNS": "Gib mindestens zwei Spalten an.", "CHART_INVALID_MARKDOWN_TABLE": "Die Markdown-Tabelle ist ungültig.", "CHART_JSON_ARRAY_REQUIRED": "JSON muss ein Array von Objekten sein oder ein Datenarray enthalten.", "CHART_EMPTY_DATA": "Daten dürfen nicht leer sein.", "CHART_NUMERIC_SERIES_REQUIRED": "Es wurde keine numerische Serie gefunden.", "CHART_MISSING_NUMERIC_VALUE": "Eine numerische Serie enthält einen leeren oder nicht numerischen Wert.", "CHART_EMPTY_INPUT": "Gib einige Daten ein.", "CHART_AI_REQUIRED": "Diese Eingabe erfordert KI-Parsing.", "CHART_AI_ADDED_VALUE": "KI hat eine Zahl zurückgegeben, die nicht in der Eingabe vorhanden ist, daher wurde die Generierung blockiert.", "CHART_AI_SERIES_MISMATCH": "KI hat inkonsistente Serienlängen zurückgegeben.", "CHART_AI_INVALID_JSON": "KI hat keine gültigen Diagrammdaten zurückgegeben.", "CHART_AI_NOT_CONFIGURED": "Konfiguriere zuerst einen Editor oder ein primäres KI-Modell.", "CHART_GENERATION_INTERRUPTED": "Die vorherige Generierung wurde unterbrochen.", "CHART_UNKNOWN_ERROR": "Diagramm konnte nicht generiert werden. Überprüfe die Daten und versuche es erneut." }
+    "tools": {
+      "label": "Canvas-Werkzeuge",
+      "select": "Auswählen",
+      "hand": "Hand",
+      "connector": "Verbindung",
+      "pen": "Stift",
+      "highlighter": "Textmarker",
+      "eraser": "Radiergummi"
     },
-    "linkNode": { "urlPrompt": "Gib eine Webadresse ein", "labelPrompt": "Gib einen Linktitel ein" },
-    "utilityNodes": { "title": "Dienstprogramm-Knoten", "description": "Füge ein Bild, einen Weblink oder eine Aufgabe hinzu." },
-    "arrange": { "title": "Ausrichten und gruppieren", "description": "Ordne die ausgewählten Knoten an.", "alignHorizontal": "Horizontale Zentren ausrichten", "alignVertical": "Vertikale Zentren ausrichten", "distributeHorizontal": "Horizontal verteilen", "distributeVertical": "Vertikal verteilen", "group": "Gruppe erstellen" },
-    "group": { "defaultLabel": "Gruppe" },
-    "edge": { "title": "Verbindungsstil", "description": "Passe den ausgewählten Verbindungspfad und die Beschriftung an.", "orthogonal": "Orthogonal", "straight": "Gerade", "curve": "Kurve", "editLabel": "Beschriftung bearbeiten", "labelPrompt": "Verbindungsbeschriftung eingeben", "labelDescription": "Die Beschriftung erscheint in der Mitte der Kante. Lass sie leer, um sie zu entfernen.", "saveLabel": "Beschriftung speichern" },
-    "selection": { "tools": "Knotenwerkzeuge", "style": "Knotenstil", "color": "Akzentfarbe", "customColor": "Benutzerdefinierte Farbe", "border": "Rahmen", "solid": "Durchgezogen", "dashed": "Gestrichelt", "dotted": "Gepunktet", "borderWidth": "Rahmenbreite", "fill": "Hintergrund", "transparent": "Transparent", "customFill": "Benutzerdefinierte Füllung", "lock": "Knoten sperren", "unlock": "Knoten entsperren", "copyStyle": "Stil kopieren", "pasteStyle": "Stil anwenden", "styleCopied": "Knotenstil kopiert", "stylePasted": "Knotenstil angewandt", "imagePasted": "Bild auf Canvas eingefügt", "imagePasteError": "Bild konnte nicht eingefügt werden", "chatContext": "Canvas-Auswahl: {nodes} Knoten, {edges} Kanten", "chatContextNodes": "{nodes} Knoten", "chatContextNodesAndRelations": "{nodes} Knoten · {relations} Relationen", "removeChatContext": "Canvas-Auswahl entfernen" },
-    "layer": { "front": "In den Vordergrund", "forward": "Nach vorne", "backward": "Nach hinten", "back": "In den Hintergrund" },
-    "noteNode": { "title": "Notizreferenz hinzufügen", "description": "Wähle eine Notiz aus dem Dateimanager. Doppelklicke auf den Knoten, um die Quelldatei zu öffnen.", "search": "Notizen suchen...", "empty": "Keine Notizen gefunden", "group": "Arbeitsbereichsnotizen", "added": "Notiz „{name}“ hinzugefügt" },
+    "toolbox": {
+      "ai": "Mit KI generieren",
+      "aiPrompt": "Generiere anhand meiner Beschreibung ein Diagramm auf dem aktuellen Canvas mit nativen Knoten und Kanten, die unabhängig bearbeitbar bleiben: ",
+      "shapes": "Formen",
+      "media": "Medien",
+      "drawing": "Zeichnen",
+      "close": "Panel schließen",
+      "commonShapes": "Allgemeine Formen",
+      "flowchartShapes": "Flussdiagramm",
+      "dataShapes": "Daten und Speicherung",
+      "favorites": "Favoriten",
+      "recent": "Zuletzt verwendet",
+      "searchShapes": "Formen suchen",
+      "noShapes": "Keine passenden Formen",
+      "favorite": "Form favorisieren",
+      "unfavorite": "Favorit entfernen",
+      "customComponents": "Meine Komponenten",
+      "deleteCustomComponent": "Benutzerdefinierte Komponente löschen",
+      "saveCustomComponent": "Komponente speichern",
+      "saveCustomComponentDescription": "Speichere die ausgewählten Knoten und ihre internen Kanten als wiederverwendbare Komponente.",
+      "customComponentName": "Komponentenname",
+      "customComponentDefaultName": "Meine Komponente",
+      "customComponentSaved": "Benutzerdefinierte Komponente gespeichert",
+      "connectionShape": "Verbundene Form auswählen",
+      "connectionShapeDescription": "Erstelle eine Form und verbinde sie mit dem aktuellen Knoten.",
+      "aiDescription": "Beschreibe das zu generierende oder zu ändernde Diagramm",
+      "aiGenerate": "An KI senden",
+      "aiScopes": {
+        "append": "Anhängen",
+        "replace": "Ersetzen",
+        "selection": "Auswahl",
+        "appendPrompt": "Behalte den aktuellen Inhalt bei und hänge dieses Diagramm an: ",
+        "replacePrompt": "Ersetze das aktuelle Canvas und generiere dieses Diagramm: ",
+        "selectionPrompt": "Ändere nur die aktuell ausgewählten Knoten und Kanten: "
+      },
+      "aiPresets": {
+        "flowchart": "Flussdiagramm",
+        "flowchartPrompt": "Erstelle ein klares Geschäftsprozess-Flussdiagramm",
+        "architecture": "Architektur",
+        "architecturePrompt": "Erstelle ein mehrschichtiges Software-Systemarchitekturdiagramm",
+        "sequence": "Sequenzablauf",
+        "sequencePrompt": "Drücke eine Teilnehmer-Interaktionssequenz mit unabhängig bearbeitbaren Knoten und Kanten aus",
+        "mindmap": "Mindmap",
+        "mindmapPrompt": "Erstelle eine Mindmap, die sich von einem zentralen Thema nach außen verzweigt"
+      }
+    },
+    "brush": {
+      "penTitle": "Stift",
+      "highlighterTitle": "Textmarker",
+      "strokeTitle": "Pinselstrich",
+      "color": "Farbe",
+      "size": "Pinselbreite"
+    },
+    "nodes": {
+      "process": "Prozess",
+      "decision": "Entscheidung",
+      "terminator": "Start / Ende",
+      "inputOutput": "Eingabe / Ausgabe",
+      "document": "Dokument",
+      "multiDocument": "Mehrere Dokumente",
+      "database": "Datenbank",
+      "predefinedProcess": "Vordefinierter Prozess",
+      "manualInput": "Manuelle Eingabe",
+      "preparation": "Vorbereitung",
+      "delay": "Verzögerung",
+      "display": "Anzeige",
+      "connector": "Seiteninterner Verbinder",
+      "offPageConnector": "Seitenübergreifender Verbinder",
+      "internalStorage": "Interner Speicher",
+      "storedData": "Gespeicherte Daten",
+      "text": "Text",
+      "note": "Notizreferenz",
+      "record": "Aufzeichnung",
+      "image": "Bild",
+      "link": "Weblink",
+      "todo": "Aufgabe",
+      "group": "Gruppe",
+      "chart": "Datendiagramm"
+    },
+    "chart": {
+      "createTitle": "Datendiagramm erstellen",
+      "editTitle": "Datendiagramm bearbeiten",
+      "description": "Gib Daten ein und füge sie direkt ein. Der Knoten schließt die Verarbeitung im Hintergrund ab.",
+      "titleLabel": "Diagrammtitel",
+      "titlePlaceholder": "Leer lassen, um automatisch zu generieren",
+      "titleDescription": "Automatische Titel werden bei jeder Generierung der Diagrammdaten neu erstellt.",
+      "typeLabel": "Diagrammtyp",
+      "dataLabel": "Daten",
+      "dataPlaceholder": "Monat,Desktop,Mobil\nJanuar,186,80\nFebruar,305,200",
+      "dataDescription": "Unterstützt natürlichsprachliche Beschreibungen, CSV, TSV, Markdown-Tabellen und JSON.",
+      "generate": "Vorschau generieren",
+      "generating": "Parsen",
+      "preview": "Vorschau",
+      "primarySeries": "Wertfeld",
+      "summary": "{rows} Zeilen · {series} Serien",
+      "emptyPreviewTitle": "Vorschau nicht generiert",
+      "emptyPreviewDescription": "Gib Daten ein und generiere eine Vorschau, um den Diagrammtyp und den Inhalt zu bestätigen.",
+      "cancel": "Abbrechen",
+      "insert": "In Canvas einfügen",
+      "update": "Neu generieren",
+      "nodeLoading": "Diagramm wird generiert…",
+      "nodeErrorTitle": "Diagrammgenerierung fehlgeschlagen",
+      "nodeErrorHint": "Doppelklicke auf den Knoten, um die Daten zu bearbeiten und es erneut zu versuchen.",
+      "types": {
+        "auto": "Automatisch erkennen",
+        "area": "Flächendiagramm",
+        "bar": "Balkendiagramm",
+        "line": "Liniendiagramm",
+        "pie": "Kreisdiagramm",
+        "radar": "Netzdiagramm",
+        "radial": "Radialdiagramm"
+      },
+      "notes": {
+        "label": "Referenznotizen",
+        "placeholder": "Notizen auswählen",
+        "selected": "{count} Notizen ausgewählt",
+        "title": "Diagramm-Quellnotizen",
+        "description": "Wähle eine oder mehrere Notizen als Datenquellen für das Diagramm aus.",
+        "search": "Notizen suchen",
+        "empty": "Keine Notizen gefunden",
+        "manualInput": "Manuelle Eingabe"
+      },
+      "recommendations": {
+        "time-series": "Zeitreihe erkannt; Liniendiagramm empfohlen",
+        "continuous": "Kontinuierliche kumulative Daten erkannt; Flächendiagramm empfohlen",
+        "proportion": "Proportionen erkannt; Kreisdiagramm empfohlen",
+        "progress": "Fortschrittswerte erkannt; Radialdiagramm empfohlen",
+        "multidimensional": "Mehrdimensionaler Vergleich erkannt; Netzdiagramm empfohlen",
+        "categorical": "Kategorische Daten erkannt; Balkendiagramm empfohlen",
+        "ai": "Von KI aus der Datensemantik empfohlen"
+      },
+      "appearance": {
+        "title": "Diagrammerscheinung",
+        "variant": "Container",
+        "palette": "Palette",
+        "showTitle": "Titel anzeigen",
+        "showLegend": "Legende anzeigen",
+        "showGrid": "Raster anzeigen",
+        "showXAxis": "Kategorieachse anzeigen",
+        "showYAxis": "Wertachse anzeigen",
+        "variants": {
+          "card": "Karte",
+          "minimal": "Minimal",
+          "transparent": "Transparent"
+        },
+        "palettes": {
+          "system": "System",
+          "cool": "Kühl",
+          "warm": "Warm",
+          "monochrome": "Monochrom"
+        }
+      },
+      "errors": {
+        "CHART_NEEDS_HEADER_AND_ROW": "Gib einen Header und mindestens eine Datenzeile an.",
+        "CHART_NEEDS_TWO_COLUMNS": "Gib mindestens zwei Spalten an.",
+        "CHART_INVALID_MARKDOWN_TABLE": "Die Markdown-Tabelle ist ungültig.",
+        "CHART_JSON_ARRAY_REQUIRED": "JSON muss ein Array von Objekten sein oder ein Datenarray enthalten.",
+        "CHART_EMPTY_DATA": "Daten dürfen nicht leer sein.",
+        "CHART_NUMERIC_SERIES_REQUIRED": "Es wurde keine numerische Serie gefunden.",
+        "CHART_MISSING_NUMERIC_VALUE": "Eine numerische Serie enthält einen leeren oder nicht numerischen Wert.",
+        "CHART_EMPTY_INPUT": "Gib einige Daten ein.",
+        "CHART_AI_REQUIRED": "Diese Eingabe erfordert KI-Parsing.",
+        "CHART_AI_ADDED_VALUE": "KI hat eine Zahl zurückgegeben, die nicht in der Eingabe vorhanden ist, daher wurde die Generierung blockiert.",
+        "CHART_AI_SERIES_MISMATCH": "KI hat inkonsistente Serienlängen zurückgegeben.",
+        "CHART_AI_INVALID_JSON": "KI hat keine gültigen Diagrammdaten zurückgegeben.",
+        "CHART_AI_NOT_CONFIGURED": "Konfiguriere zuerst einen Editor oder ein primäres KI-Modell.",
+        "CHART_GENERATION_INTERRUPTED": "Die vorherige Generierung wurde unterbrochen.",
+        "CHART_UNKNOWN_ERROR": "Diagramm konnte nicht generiert werden. Überprüfe die Daten und versuche es erneut."
+      }
+    },
+    "linkNode": {
+      "urlPrompt": "Gib eine Webadresse ein",
+      "labelPrompt": "Gib einen Linktitel ein"
+    },
+    "utilityNodes": {
+      "title": "Dienstprogramm-Knoten",
+      "description": "Füge ein Bild, einen Weblink oder eine Aufgabe hinzu."
+    },
+    "arrange": {
+      "title": "Ausrichten und gruppieren",
+      "description": "Ordne die ausgewählten Knoten an.",
+      "alignHorizontal": "Horizontale Zentren ausrichten",
+      "alignVertical": "Vertikale Zentren ausrichten",
+      "distributeHorizontal": "Horizontal verteilen",
+      "distributeVertical": "Vertikal verteilen",
+      "group": "Gruppe erstellen"
+    },
+    "group": {
+      "defaultLabel": "Gruppe"
+    },
+    "edge": {
+      "title": "Verbindungsstil",
+      "description": "Passe den ausgewählten Verbindungspfad und die Beschriftung an.",
+      "orthogonal": "Orthogonal",
+      "straight": "Gerade",
+      "curve": "Kurve",
+      "editLabel": "Beschriftung bearbeiten",
+      "labelPrompt": "Verbindungsbeschriftung eingeben",
+      "labelDescription": "Die Beschriftung erscheint in der Mitte der Kante. Lass sie leer, um sie zu entfernen.",
+      "saveLabel": "Beschriftung speichern"
+    },
+    "selection": {
+      "tools": "Knotenwerkzeuge",
+      "style": "Knotenstil",
+      "color": "Akzentfarbe",
+      "customColor": "Benutzerdefinierte Farbe",
+      "border": "Rahmen",
+      "solid": "Durchgezogen",
+      "dashed": "Gestrichelt",
+      "dotted": "Gepunktet",
+      "borderWidth": "Rahmenbreite",
+      "fill": "Hintergrund",
+      "transparent": "Transparent",
+      "customFill": "Benutzerdefinierte Füllung",
+      "lock": "Knoten sperren",
+      "unlock": "Knoten entsperren",
+      "copyStyle": "Stil kopieren",
+      "pasteStyle": "Stil anwenden",
+      "styleCopied": "Knotenstil kopiert",
+      "stylePasted": "Knotenstil angewandt",
+      "imagePasted": "Bild auf Canvas eingefügt",
+      "imagePasteError": "Bild konnte nicht eingefügt werden",
+      "chatContext": "Canvas-Auswahl: {nodes} Knoten, {edges} Kanten",
+      "chatContextNodes": "{nodes} Knoten",
+      "chatContextNodesAndRelations": "{nodes} Knoten · {relations} Relationen",
+      "removeChatContext": "Canvas-Auswahl entfernen"
+    },
+    "layer": {
+      "front": "In den Vordergrund",
+      "forward": "Nach vorne",
+      "backward": "Nach hinten",
+      "back": "In den Hintergrund"
+    },
+    "noteNode": {
+      "title": "Notizreferenz hinzufügen",
+      "description": "Wähle eine Notiz aus dem Dateimanager. Doppelklicke auf den Knoten, um die Quelldatei zu öffnen.",
+      "search": "Notizen suchen...",
+      "empty": "Keine Notizen gefunden",
+      "group": "Arbeitsbereichsnotizen",
+      "added": "Notiz „{name}“ hinzugefügt"
+    },
     "footer": {
       "nodes": "{count} Knoten",
       "edges": "{count} Verbindungen",
@@ -3590,10 +4293,34 @@
       "fit": "An Fenster anpassen",
       "layout": "Automatisch anordnen",
       "export": "Exportieren",
-      "import": { "title": "Importieren", "file": "Datei auswählen", "content": "Inhalt eingeben", "contentTitle": "Canvas-Inhalt importieren", "contentDescription": "Unterstützt NoteGen Canvas JSON oder Mermaid-Flussdiagramm-Inhalte. Beim Import wird das aktuelle Canvas ersetzt.", "contentPlaceholder": "Füge Canvas JSON oder Mermaid-Inhalte ein…", "confirm": "In aktuelles Canvas importieren" },
-      "exportMenu": { "record": "Als Illustrationsaufzeichnung exportieren", "recordError": "Die Illustrationsaufzeichnung konnte nicht gespeichert werden", "computer": "Auf Computer speichern", "source": "Bearbeitbare Dateien", "png2x": "PNG · 2× hohe Auflösung", "png4x": "PNG · 4× Ultra-Auflösung", "svg": "SVG · Vektor", "canvasFile": "NoteGen Canvas JSON", "mermaid": "Mermaid-Flussdiagramm" }
+      "import": {
+        "title": "Importieren",
+        "file": "Datei auswählen",
+        "content": "Inhalt eingeben",
+        "contentTitle": "Canvas-Inhalt importieren",
+        "contentDescription": "Unterstützt NoteGen Canvas JSON oder Mermaid-Flussdiagramm-Inhalte. Beim Import wird das aktuelle Canvas ersetzt.",
+        "contentPlaceholder": "Füge Canvas JSON oder Mermaid-Inhalte ein…",
+        "confirm": "In aktuelles Canvas importieren"
+      },
+      "exportMenu": {
+        "record": "Als Illustrationsaufzeichnung exportieren",
+        "recordError": "Die Illustrationsaufzeichnung konnte nicht gespeichert werden",
+        "computer": "Auf Computer speichern",
+        "source": "Bearbeitbare Dateien",
+        "png2x": "PNG · 2× hohe Auflösung",
+        "png4x": "PNG · 4× Ultra-Auflösung",
+        "svg": "SVG · Vektor",
+        "canvasFile": "NoteGen Canvas JSON",
+        "mermaid": "Mermaid-Flussdiagramm"
+      }
     },
-    "contextMenu": { "selectAll": "Alles auswählen", "copy": "Kopieren", "paste": "Einfügen", "duplicate": "Duplizieren", "delete": "Auswahl löschen" },
+    "contextMenu": {
+      "selectAll": "Alles auswählen",
+      "copy": "Kopieren",
+      "paste": "Einfügen",
+      "duplicate": "Duplizieren",
+      "delete": "Auswahl löschen"
+    },
     "empty": {
       "title": "Noch keine Canvases",
       "description": "Erstelle ein Canvas, um Ideen mit Diagrammen und Freihandzeichnungen zu organisieren."
@@ -4114,17 +4841,6 @@
         },
         "question": {
           "tooltip": "Q&A",
-          "selectContent": "Bitte zuerst Inhalt auswählen",
-          "promptTemplate": "Referenztext: \n{content}\nBasierend auf der Frage: \n{question}\n, gib den Antwortinhalt direkt an."
-        },
-        "continue": {
-          "tooltip": "Weiter",
-          "description": "Wandle Aufzeichnungen in Inhalte um, um sie in den Artikel einzufügen.",
-          "noRecords": "Keine Aufzeichnungen",
-          "ocrNoContent": "OCR hat keinen Inhalt erkannt"
-        },
-        "question": {
-          "tooltip": "Q&A",
           "selectContent": "Bitte wähle zuerst einen Inhalt aus",
           "promptTemplate": "Referenztext: \n{content}\nBasierend auf der Frage: \n{question}\n, gib direkt den Antwortinhalt an."
         },
@@ -4441,7 +5157,12 @@
       "canvasTasks": "Aufgabenbeziehungen extrahieren",
       "canvasSource": "Ausgewählte Markdown-Quelle:",
       "canvasPromptSuffix": "Lies die aktuelle leere Leinwand und verwende dann Leinwand-Werkzeuge, um sie zu generieren. Zeige eine Operationsvorschau an und warte auf Bestätigung vor der Anwendung.",
-      "canvasPrompts": { "flowchart": "Wandle den ausgewählten Text in ein klares Flussdiagramm um.", "mindmap": "Wandle den ausgewählten Text in eine gut strukturierte Mindmap um.", "timeline": "Identifiziere Daten, Phasen und Meilensteine und generiere eine Zeitleiste.", "tasks": "Extrahiere Aufgaben, Abhängigkeiten und Reihenfolgen und generiere ein Aufgabenbeziehungsdiagramm." },
+      "canvasPrompts": {
+        "flowchart": "Wandle den ausgewählten Text in ein klares Flussdiagramm um.",
+        "mindmap": "Wandle den ausgewählten Text in eine gut strukturierte Mindmap um.",
+        "timeline": "Identifiziere Daten, Phasen und Meilensteine und generiere eine Zeitleiste.",
+        "tasks": "Extrahiere Aufgaben, Abhängigkeiten und Reihenfolgen und generiere ein Aufgabenbeziehungsdiagramm."
+      },
       "translate": "Übersetzen",
       "translateSubtitle": "Übersetzen nach",
       "quoteToChat": "In Chat zitieren",
@@ -4486,7 +5207,13 @@
       "generating": "Generiere...",
       "abort": "Abbrechen"
     },
-    "canvasDrop": { "hint": "Ablegen, um Leinwandbild einzufügen", "generating": "Generiere Leinwandbild…", "success": "Leinwand eingefügt", "successDescription": "Statisches Bild erstellt: {path}", "failed": "Leinwand konnte nicht eingefügt werden" },
+    "canvasDrop": {
+      "hint": "Ablegen, um Leinwandbild einzufügen",
+      "generating": "Generiere Leinwandbild…",
+      "success": "Leinwand eingefügt",
+      "successDescription": "Statisches Bild erstellt: {path}",
+      "failed": "Leinwand konnte nicht eingefügt werden"
+    },
     "image": {
       "insert": "Bild einfügen",
       "uploading": "Lade hoch...",

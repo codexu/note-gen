@@ -8,6 +8,12 @@ import { ChevronRight } from 'lucide-react'
 import { SlashCommandItem, suggestionItems, filterItems } from './suggestion'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
+import {
+  executePluginCommand,
+} from '@/lib/plugins/command-registry'
+import { PluginIcon } from '@/components/plugins/plugin-icon'
+import { usePluginEditorCommands } from '@/components/plugins/use-plugin-editor-commands'
+import { toast } from '@/hooks/use-toast'
 
 interface SlashMenuProps {
   editor: Editor
@@ -42,6 +48,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const pluginCommands = usePluginEditorCommands('editor/slash', editor).filter(command => !command.disabled)
 
   // 构建翻译对象
   const translations = useMemo(() => ({
@@ -139,8 +146,27 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
   ], [translations.groups])
 
   const items = useMemo(() => {
-    return filterItems(suggestionItems(translations), query)
-  }, [query, translations])
+    const pluginItems: SlashCommandItem[] = pluginCommands.map((command) => ({
+      id: command.id,
+      title: command.title,
+      description: command.description,
+      icon: <PluginIcon name={command.icon} className="size-4" />,
+      group: command.group ?? command.pluginName,
+      searchTerms: [command.id, command.pluginName, ...(command.keywords ?? [])],
+      command: ({ editor: targetEditor, range: targetRange }) => {
+        targetEditor.chain().focus().deleteRange(targetRange).run()
+        document.dispatchEvent(new CustomEvent('slash-command-hide'))
+        void executePluginCommand(command.id).catch((error) => {
+          toast({
+            title: command.title,
+            description: error instanceof Error ? error.message : String(error),
+            variant: 'destructive',
+          })
+        })
+      },
+    }))
+    return filterItems([...suggestionItems(translations), ...pluginItems], query)
+  }, [pluginCommands, query, translations])
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, SlashCommandItem[]> = {}
@@ -291,7 +317,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
           return (
             <button
-              key={`${item.group}-${item.title}`}
+              key={item.id ?? `${item.group}-${item.title}-${itemIdx}`}
               ref={(el) => {
                 itemRefs.current[itemIdx] = el
               }}
@@ -367,7 +393,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
             return (
               <button
-                key={`${item.group}-${item.title}`}
+                key={item.id ?? `${item.group}-${item.title}-${itemIdx}`}
                 ref={(el) => {
                   itemRefs.current[itemIdx] = el
                 }}

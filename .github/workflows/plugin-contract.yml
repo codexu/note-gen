@@ -1,0 +1,42 @@
+name: Plugin contract parity
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_ref:
+        description: Reviewed full SDK commit SHA
+        type: string
+        required: true
+  pull_request:
+    paths:
+      - 'packages/plugin-api/**'
+      - 'src-tauri/src/plugins.rs'
+      - 'scripts/check-plugin-contract.py'
+      - '.github/workflows/plugin-contract.yml'
+  push:
+    branches: [dev]
+    paths:
+      - 'packages/plugin-api/**'
+      - 'src-tauri/src/plugins.rs'
+      - 'scripts/check-plugin-contract.py'
+      - '.github/workflows/plugin-contract.yml'
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - name: Require a reviewed SDK commit
+        env:
+          SDK_REF: ${{ inputs.sdk_ref || vars.PLUGIN_SDK_REF }}
+        run: |
+          if [[ ! "$SDK_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::Set PLUGIN_SDK_REF to the full reviewed SDK commit SHA.'
+            exit 1
+          fi
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          repository: codexu/note-gen-plugin-sdk
+          ref: ${{ inputs.sdk_ref || vars.PLUGIN_SDK_REF }}
+          path: .plugin-sdk-contract
+      - run: python3 scripts/check-plugin-contract.py --sdk .plugin-sdk-contract

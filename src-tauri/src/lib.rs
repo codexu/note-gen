@@ -21,6 +21,7 @@ mod mobile_system_bars;
 mod notion_import;
 mod ocr_packages;
 mod printing;
+mod plugins;
 mod remote_skills;
 mod self_hosted_crypto;
 mod self_hosted_files;
@@ -53,6 +54,18 @@ use mcp_runtime::{
 };
 use notion_import::import_notion_zip;
 use ocr_packages::{list_ocr_providers, run_ocr_provider};
+use plugins::{
+    plugin_commit_host_state, plugin_delete_workspace_note, plugin_list_workspace_notes,
+    plugin_move_workspace_note, plugin_network_fetch, plugin_open_or_create_note,
+    plugin_read_host_state, plugin_read_workspace_note, plugin_write_workspace_note, PluginManager,
+    plugin_storage_get, plugin_storage_set, plugin_storage_remove,
+};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use plugins::{
+    plugin_confirm_activation, plugin_fetch_market, plugin_import_local, plugin_install_market,
+    plugin_list_installed, plugin_read_entry, plugin_read_locale, plugin_read_usage, plugin_rollback,
+    plugin_uninstall,
+};
 use remote_skills::{
     cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
     RemoteSkillManager,
@@ -99,7 +112,8 @@ pub fn run() {
         .manage(McpServerManager::new())
         .manage(RuntimeInstallManager::new())
         .manage(AiRequestManager::new())
-        .manage(RemoteSkillManager::default());
+        .manage(RemoteSkillManager::default())
+        .manage(PluginManager::default());
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let builder = builder.manage(SkillProcessManager::default());
@@ -146,6 +160,40 @@ pub fn run() {
             validate_skill_package,
             install_skill_package,
             uninstall_skill,
+            plugin_read_host_state,
+            plugin_commit_host_state,
+            plugin_storage_get,
+            plugin_storage_set,
+            plugin_storage_remove,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_list_installed,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_fetch_market,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_install_market,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_confirm_activation,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_import_local,
+            plugins::plugin_development_revision,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_uninstall,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_rollback,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_read_entry,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_read_locale,
+            plugin_read_usage,
+            plugin_open_or_create_note,
+            plugin_read_workspace_note,
+            plugins::plugin_read_attachment,
+            plugins::plugin_create_attachment,
+            plugin_list_workspace_notes,
+            plugin_write_workspace_note,
+            plugin_delete_workspace_note,
+            plugin_move_workspace_note,
+            plugin_network_fetch,
             search_remote_skills,
             inspect_remote_skill,
             install_remote_skill,
@@ -233,6 +281,10 @@ pub fn run() {
             self_hosted_files::self_hosted_pending_file_journal,
             self_hosted_files::self_hosted_recover_file_journal,
         ])
+        .setup(|app| {
+            plugins::cleanup_plugin_artifacts(app.handle());
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -3,16 +3,7 @@ export interface EditorStatistics {
   readingMinutes: number
 }
 
-export function markdownToPlainText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?```/g, (block) => block.replace(/^```[^\n]*\n?|\n?```$/g, ''))
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^\s{0,3}(#{1,6}|>|[-+*]\s|\d+[.)]\s)\s*/gm, '')
-    .replace(/[*_~]/g, '')
-    .replace(/<[^>]+>/g, '')
-}
+export { markdownToPlainText } from './markdown-to-plain-text'
 
 export function getEditorStatistics(text: string): EditorStatistics {
   const normalizedText = text.trim()

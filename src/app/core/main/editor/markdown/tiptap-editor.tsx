@@ -74,6 +74,7 @@ import { AISuggestionFloating } from './ai-suggestion-floating'
 import { AiSuggestionHighlight } from './ai-suggestion-highlight'
 import { AgentDiffPreview, agentDiffPreviewPluginKey } from './agent-diff-preview-extension'
 import emitter, { type Events } from '@/lib/emitter'
+import { registerPluginEditor } from '@/lib/plugins/editor-bridge'
 import {
   editorPathsReferToSameFile,
   getCurrentEditorWorkspaceRoot,
@@ -148,6 +149,7 @@ import {
 } from '@/lib/self-hosted-sync/markdown-collaboration'
 import './style.css'
 import { MainStatusBarPortal } from '../../main-status-bar'
+import { PluginEditorContextMenu } from '@/components/plugins/plugin-editor-context-menu'
 
 const MathEditorDialog = dynamic(
   () => import('./math-editor-dialog').then((module) => module.MathEditorDialog),
@@ -697,6 +699,7 @@ function getEditorBlockMarkdown(target: EditorBlockTarget | null) {
   }
 
   const { editor, from, to } = resolvedTarget
+
   return editor.markdown.serialize({
     type: 'doc',
     content: editor.state.doc.slice(from, to).content.toJSON(),
@@ -1813,6 +1816,7 @@ interface TipTapEditorProps {
   applyLayoutPreferences?: boolean
   enableLargeDocumentMode?: boolean
   isActive?: boolean
+  exposeToPluginHost?: boolean
   onTerminate?: () => void
   documentScope?: 'document' | 'section'
   documentMarkdown?: string
@@ -1935,6 +1939,7 @@ export function TipTapEditor({
   applyLayoutPreferences = false,
   enableLargeDocumentMode = applyLayoutPreferences,
   isActive = true,
+  exposeToPluginHost = true,
   onTerminate,
   documentScope = 'document',
   documentMarkdown,
@@ -6549,6 +6554,7 @@ export function TipTapEditor({
   // Editor tools event handlers for Agent integration
   useEffect(() => {
     let lastEditorSelectionQuote: PendingQuote | null = null
+    let disposePluginEditor: (() => void) | undefined
 
     const buildQuoteDataFromRange = (from: number, to: number): PendingQuote | null => {
       if (usesCanonicalMarkdown) {
@@ -6678,13 +6684,14 @@ export function TipTapEditor({
       if (isSectionVirtualView) {
         const selection = sectionedEditorControllerRef.current?.getSelection()
         if (!selection) {
-          return { text: '', from: -1, to: -1, startLine: -1, endLine: -1 }
+          return { text: '', from: -1, to: -1, empty: true, startLine: -1, endLine: -1 }
         }
 
         return {
           text: selection.text,
           from: -1,
           to: -1,
+          empty: selection.collapsed,
           startLine: -1,
           endLine: -1,
         }
@@ -6712,7 +6719,7 @@ export function TipTapEditor({
       }
 
       const { from, to } = editor.state.selection
-      const text = editor.state.doc.textBetween(from, to)
+      const text = editor.state.doc.textBetween(from, to, '\n', '\n')
       const textBeforeFrom = editor.state.doc.textBetween(0, from, '\n', '\n')
       const startLine = (textBeforeFrom.match(/\n/g)?.length || 0) + 1
       const textBeforeTo = editor.state.doc.textBetween(0, to, '\n', '\n')
@@ -6743,11 +6750,7 @@ export function TipTapEditor({
         return
       }
 
-      const markdown = usesCanonicalMarkdown
-        ? isSectionVirtualView
-          ? flushSectionedMarkdown()
-          : sourceMarkdownRef.current
-        : normalizeMarkdownPlaceholders(editor.getMarkdown())
+      const markdown = getCurrentMarkdownSnapshot()
       const text = usesCanonicalMarkdown ? markdown : editor.getText()
       const markdownLines = markdown.split('\n')
       const totalLines = markdownLines.length
@@ -6782,6 +6785,7 @@ export function TipTapEditor({
       content,
       position,
       replaceSelection = false,
+      expectedVersion,
       expectedSelection,
       expectedSelectionToken,
       resolve,
@@ -6790,13 +6794,15 @@ export function TipTapEditor({
       content: string;
       position?: number;
       replaceSelection?: boolean;
+      expectedVersion?: number;
       expectedSelection?: string;
       expectedSelectionToken?: string;
-      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number }) => void;
+      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number; versionMismatch?: boolean }) => void;
     }) => {
       if (
         !editor
         || normalizePathForCompare(filePath) !== normalizePathForCompare(activeFilePath)
+        || (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current)
       ) {
         resolve({ success: false, insertedLength: 0 })
         return
@@ -6808,6 +6814,9 @@ export function TipTapEditor({
 
       if (isSectionVirtualView && typeof position !== 'number') {
         runDeferredEditorCommand(() => {
+          if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
+            throw new Error('The editor revision changed before the edit')
+          }
           flushSectionedMarkdown()
           const activeEditor = sectionedEditorControllerRef.current?.getActiveEditor()
           if (!activeEditor || activeEditor.isDestroyed) {
@@ -6845,8 +6854,8 @@ export function TipTapEditor({
 
           flushSectionedMarkdown()
           resolve({ success: true, insertedLength: content.length })
-        }, () => {
-          resolve({ success: false, insertedLength: 0 })
+        }, (error) => {
+          resolve({ success: false, insertedLength: 0, versionMismatch: String(error).includes('revision changed') })
         })
         return
       }
@@ -6897,6 +6906,9 @@ export function TipTapEditor({
         // Insert content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         runDeferredEditorCommand(() => {
+          if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
+            throw new Error('The editor revision changed before the edit')
+          }
           if (typeof position === 'number') {
             const insertPosition = clampSelectionPosition(position, editor.state.doc.content.size)
             editor.commands.setTextSelection({ from: insertPosition, to: insertPosition })
@@ -6914,8 +6926,8 @@ export function TipTapEditor({
             insertedLength: content.length,
             newCursorPosition: newPosition,
           })
-        }, () => {
-          resolve({ success: false, insertedLength: 0 })
+        }, (error) => {
+          resolve({ success: false, insertedLength: 0, versionMismatch: String(error).includes('revision changed') })
         })
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
@@ -7407,6 +7419,39 @@ export function TipTapEditor({
         listenersSetup = true
         return
       }
+      if (!activeFilePath || !exposeToPluginHost) return
+
+      const pluginRegistration = registerPluginEditor({
+        path: activeFilePath,
+        getMode: () => isSectionVirtualView ? 'sectioned' : isSourceView ? 'source' : 'visual',
+        getRevision: () => contentVersionRef.current,
+        isComposing: () => isSourceView ? sourceEditorControllerRef.current?.isComposing() ?? true : !isSectionVirtualView && editor.view.composing,
+        applyMarkdownEdits: edits => {
+          const controller = sourceEditorControllerRef.current
+          if (!isSourceView || !controller) throw new Error('The source editor is not ready')
+          controller.applyEdits(edits)
+        },
+        setMarkdownSelection: (from, to) => {
+          const controller = sourceEditorControllerRef.current
+          if (!isSourceView || !controller) throw new Error('The source editor is not ready')
+          controller.setSelection(from, to)
+        },
+        getCanonicalMarkdown: getCurrentMarkdownSnapshot,
+        getSelection: () => {
+          const selection = getCurrentEditorSelection()
+          const hasCanonicalOffsets = isSourceView
+            && Number.isSafeInteger(selection.from)
+            && Number.isSafeInteger(selection.to)
+            && selection.from >= 0
+            && selection.to >= selection.from
+          return {
+            text: selection.text,
+            ...(hasCanonicalOffsets ? { from: selection.from, to: selection.to } : {}),
+            empty: 'empty' in selection ? selection.empty : undefined,
+          }
+        },
+      })
+      disposePluginEditor = pluginRegistration.dispose
 
       if (usesCanonicalMarkdown) {
         // Keep the Markdown-aware Agent bridge active, while leaving commands that
@@ -7443,6 +7488,8 @@ export function TipTapEditor({
     }
 
     const cleanupListeners = () => {
+      disposePluginEditor?.()
+      disposePluginEditor = undefined
       emitter.off('editor-get-selection', handleGetSelection)
       emitter.off('editor-get-content', handleGetContent)
       emitter.off('editor-insert', handleInsert)
@@ -7476,7 +7523,9 @@ export function TipTapEditor({
     activeFilePath,
     classifyCanonicalMarkdown,
     editor,
+    exposeToPluginHost,
     flushSectionedMarkdown,
+    getCurrentMarkdownSnapshot,
     handleSectionedMarkdownChange,
     handleSourceMarkdownChange,
     isActive,
@@ -7535,23 +7584,24 @@ export function TipTapEditor({
   }
 
   return (
-    <div
-      ref={editorContainerRef}
-      id={isSectionScope ? undefined : 'aritcle-md-editor'}
-      className={cn(
-        "tiptap-editor relative flex select-none flex-col",
-        scrollable ? "h-full" : "h-auto min-h-full",
-        !contentInset && "tiptap-editor-no-inset"
-      )}
-      data-editor-line-height={applyLayoutPreferences ? editorLineHeight : undefined}
-      style={
-        applyLayoutPreferences
-          ? {
-              '--editor-line-height': EDITOR_LINE_HEIGHT_VALUES[editorLineHeight],
-            } as CSSProperties
-          : undefined
-      }
-    >
+    <PluginEditorContextMenu enabled={exposeToPluginHost} editor={effectiveViewMode === 'visual' ? editor : null}>
+      <div
+        ref={editorContainerRef}
+        id={isSectionScope ? undefined : 'aritcle-md-editor'}
+        className={cn(
+          "tiptap-editor relative flex select-none flex-col",
+          scrollable ? "h-full" : "h-auto min-h-full",
+          !contentInset && "tiptap-editor-no-inset"
+        )}
+        data-editor-line-height={applyLayoutPreferences ? editorLineHeight : undefined}
+        style={
+          applyLayoutPreferences
+            ? {
+                '--editor-line-height': EDITOR_LINE_HEIGHT_VALUES[editorLineHeight],
+              } as CSSProperties
+            : undefined
+        }
+      >
       {developerMode && developerPerformanceInfo && !isSectionScope ? (
         <div className="pointer-events-none absolute left-3 top-3 z-40 rounded-md border bg-background/90 px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground shadow-sm backdrop-blur">
           <div>{t('developerPerformance.documentSize')}: {formatDeveloperDocumentSize(sourceMarkdown)}</div>
@@ -7843,6 +7893,7 @@ export function TipTapEditor({
 
               {!isMobile && (
                 <BubbleMenuComponent
+                  pluginsEnabled={exposeToPluginHost}
                   editor={editor}
                   onAIPolish={handleAIPolish}
                   onAIConcise={handleAIConcise}
@@ -7898,6 +7949,8 @@ export function TipTapEditor({
 
       {isMobile && (
         <MobileEditorMoreSheet
+          editor={editor}
+          pluginsEnabled={exposeToPluginHost}
           open={mobileSheetMode !== null}
           mode={mobileSheetMode}
           imageSrc={imageSrcDraft}
@@ -7963,7 +8016,6 @@ export function TipTapEditor({
               : isSectionVirtualView
                 ? handleSectionedMarkdownChange
                 : undefined}
-            deferSourceStatistics={isLargeDocument && usesCanonicalMarkdown}
             embedded={!isMobile && !standalone}
           />
         </MainStatusBarPortal>
@@ -7980,7 +8032,8 @@ export function TipTapEditor({
           title={mathType === 'inline' ? '插入行内公式' : '插入块级公式'}
         />
       ) : null}
-    </div>
+      </div>
+    </PluginEditorContextMenu>
   )
 }
 

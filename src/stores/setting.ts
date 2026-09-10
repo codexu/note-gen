@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { emit } from '@tauri-apps/api/event'
 import { create } from 'zustand'
 import { getVersion } from '@tauri-apps/api/app'
 import { AiConfig } from '@/app/core/setting/config'
@@ -81,6 +82,8 @@ import {
   type CanvasWheelBehavior,
 } from '@/lib/canvas/preferences'
 
+export const DEVELOPER_MODE_CHANGED_EVENT = 'notegen://developer-mode-changed'
+
 export enum GenTemplateRange {
   All = 'all',
   Today = 'today',
@@ -122,7 +125,7 @@ interface SettingState {
   setAutostartMinimized: (enabled: boolean) => Promise<void>
 
   developerMode: boolean
-  setDeveloperMode: (enabled: boolean) => void
+  setDeveloperMode: (enabled: boolean) => Promise<void>
 
   developerPerformanceInfo: boolean
   setDeveloperPerformanceInfo: (enabled: boolean) => void
@@ -348,12 +351,13 @@ interface SettingState {
   recordCompletionBehavior: RecordCompletionBehavior
   setRecordCompletionBehavior: (behavior: RecordCompletionBehavior) => Promise<void>
 
+  // 移动端保留原生统计；桌面端由官方插件提供。
+  showEditorStats: boolean
+  setShowEditorStats: (show: boolean) => Promise<void>
+
   // 编辑器撤销/重做按钮显示设置
   showEditorUndoRedo: boolean
   setShowEditorUndoRedo: (show: boolean) => Promise<void>
-
-  showEditorStats: boolean
-  setShowEditorStats: (show: boolean) => Promise<void>
 
   showSourceLineNumbers: boolean
   setShowSourceLineNumbers: (show: boolean) => Promise<void>
@@ -1015,7 +1019,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
   },
 
   developerMode: false,
-  setDeveloperMode: (developerMode) => set({ developerMode }),
+  setDeveloperMode: async (developerMode) => {
+    set({ developerMode })
+    const store = await Store.load('store.json')
+    await store.set('developerMode', developerMode)
+    await store.save()
+    await emit(DEVELOPER_MODE_CHANGED_EVENT, developerMode).catch(() => undefined)
+  },
 
   developerPerformanceInfo: false,
   setDeveloperPerformanceInfo: (developerPerformanceInfo) => set({ developerPerformanceInfo }),
@@ -1781,20 +1791,21 @@ const useSettingStore = create<SettingState>((set, get) => ({
     await store.save()
   },
 
+  // 保留旧偏好键，移动端默认显示统计。
+  showEditorStats: true,
+  setShowEditorStats: async (show: boolean) => {
+    const store = await Store.load('store.json')
+    await store.set('showEditorStats', show)
+    await store.save()
+    set({ showEditorStats: show })
+  },
+
   // 编辑器撤销/重做按钮显示设置 - 默认开启
   showEditorUndoRedo: true,
   setShowEditorUndoRedo: async (show: boolean) => {
     set({ showEditorUndoRedo: show })
     const store = await Store.load('store.json');
     await store.set('showEditorUndoRedo', show)
-    await store.save()
-  },
-
-  showEditorStats: true,
-  setShowEditorStats: async (showEditorStats) => {
-    set({ showEditorStats })
-    const store = await Store.load('store.json')
-    await store.set('showEditorStats', showEditorStats)
     await store.save()
   },
 

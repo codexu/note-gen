@@ -19,6 +19,7 @@ import {
   ListOrdered,
   Map,
   Minus,
+  MoreHorizontal,
   Pilcrow,
   PieChart,
   Plus,
@@ -53,6 +54,7 @@ type MobileWritingToolbarAction =
   | 'ai-generate-section'
   | 'ai-generate-summary'
   | 'open-ai-custom'
+  | 'open-mobile-more'
   | 'open-search-replace'
   | 'toggle-outline'
   | 'undo'
@@ -94,6 +96,7 @@ const ROOT_ITEMS: ToolbarItem[] = [
   { kind: 'menu', menu: 'block', label: '块级', icon: Quote },
   { kind: 'menu', menu: 'math', label: '数学', icon: Sigma },
   { kind: 'menu', menu: 'diagram', label: '图表', icon: Workflow },
+  { kind: 'action', action: 'open-mobile-more', label: '更多', icon: MoreHorizontal },
 ]
 
 const MENU_LABELS: Record<Exclude<MobileWritingToolbarMenu, 'root'>, string> = {

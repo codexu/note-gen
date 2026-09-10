@@ -125,7 +125,7 @@ export function SettingTab() {
             if ('group' in item) {
               return (
                 <div
-                  key={item.group}
+                  key={`group:${item.group}`}
                   role="presentation"
                   className="px-2.5 pb-1 pt-5 text-[11px] font-normal text-muted-foreground/60 first:pt-3"
                 >
@@ -136,7 +136,7 @@ export function SettingTab() {
 
             return (
               <TabsTrigger
-                key={item.anchor}
+                key={`section:${item.anchor}`}
                 value={item.anchor}
                 className="h-8 flex-none px-2.5 has-data-[icon=inline-start]:pl-2.5"
               >

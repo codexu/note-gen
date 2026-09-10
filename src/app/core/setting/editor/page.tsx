@@ -2,12 +2,12 @@
 import { UserRoundCog } from "lucide-react"
 import { SettingSection, SettingType } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
+import ShowEditorStats from './show-editor-stats';
 import ShowUndoRedo from './show-undo-redo';
 import Outline from './outline';
 import { DefaultModelsSettings } from '../components/default-models-settings';
 import LayoutSettings from './layout-settings';
 import { ItemGroup } from '@/components/ui/item';
-import ShowEditorStats from './show-editor-stats';
 import EditorMode from './editor-mode';
 import ShowSourceLineNumbers from './show-source-line-numbers';
 import SourceWrap from './source-wrap';
@@ -34,9 +34,9 @@ export default function EditorSettingPage() {
               <SourceWrap />
             </>
           ) : null}
+          <ShowEditorStats />
           <Outline />
           <ShowUndoRedo />
-          <ShowEditorStats />
         </ItemGroup>
       </SettingSection>
     </div>

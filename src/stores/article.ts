@@ -42,9 +42,11 @@ import {
 } from '@/lib/sync/cloud-folder-tree-cache'
 import {
   editorPathsReferToSameFile,
+  editorPathsCouldReferToSameFile,
   editorPathIsSameOrDescendant,
   getCurrentEditorWorkspaceRoot,
   getEditorPathMutationRevision,
+  isEditorPathMutationLocked,
   prepareActiveEditorDeactivation,
   prepareActiveEditorDeactivationDurably,
   registerActiveEditorDurableSaveFlusher,
@@ -1153,6 +1155,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     fileActivationIntentSequence += 1
     if (editorWorkspaceTransitionInProgress && !options?.workspaceTransitionReset) return
     const nextPath = isVirtualOpenTabPath(path) ? '' : path
+    if (isEditorPathMutationLocked(nextPath)) return
     if (
       nextPath !== get().activeFilePath
       && !options?.deactivationAlreadyPrepared
@@ -1258,6 +1261,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       : state)
   },
   setOpenTabs: async (tabs) => {
+    if (tabs.some(tab => isEditorPathMutationLocked(tab.path))) return
     const normalizedTabs = tabs.map(normalizeOpenTabInfo)
     const activeTabId = get().activeTabId
     if (
@@ -1275,6 +1279,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
     await persistEditorState({ openTabs: normalizedTabs })
   },
   setActiveTabId: async (id, options) => {
+    const tab = get().openTabs.find(candidate => candidate.id === id)
+    if (tab && isEditorPathMutationLocked(tab.path)) return
     if (
       id !== get().activeTabId
       && !options?.deactivationAlreadyPrepared
@@ -1285,6 +1291,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   addTab: async (tab, options) => {
     const normalizedTab = normalizeOpenTabInfo(tab)
+    if (isEditorPathMutationLocked(tab.path)) return
     const currentTabs = get().openTabs
     // Check if tab already exists
     const existingTab = currentTabs.find(t => t.path === normalizedTab.path)
@@ -3371,7 +3378,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ readFilePath: path })
   },
 
-  readArticle: (path: string, sha?: string, autoSync = true, options) => {
+  readArticle: (path, sha, autoSync = true, options) => {
     // 处理文件名兼容性问题
     let actualPath = path
     if (!isAbsoluteFsPath(path) && hasInvalidFileNameChars(path)) {
@@ -3898,7 +3905,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
         ...inFlightArticleSaves.keys(),
       ])
       const matchingPaths = [...savePaths].filter(savePath => (
-        paths.some(path => pathIsSameOrDescendant(savePath, path, workspaceRoot))
+        paths.some(path => (
+          pathIsSameOrDescendant(savePath, path, workspaceRoot)
+          || editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
+        ))
       ))
       if (matchingPaths.length === 0) return
       await Promise.all(matchingPaths.map(path => get().flushPendingArticleSave(path)))
@@ -3930,14 +3940,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // transaction callback: it would wait on this same gate.
     const transactionPaths = new Set<string>([path])
     const activeFilePath = get().activeFilePath
-    if (editorPathsReferToSameFile(activeFilePath, path, workspaceRoot)) {
+    if (editorPathsCouldReferToSameFile(activeFilePath, path, workspaceRoot)) {
       transactionPaths.add(activeFilePath)
     }
     for (const savePath of new Set([
       ...pendingArticleSaves.keys(),
       ...inFlightArticleSaves.keys(),
     ])) {
-      if (editorPathsReferToSameFile(savePath, path, workspaceRoot)) {
+      if (editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)) {
         transactionPaths.add(savePath)
       }
     }
@@ -3961,10 +3971,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return await transaction({
         hasQueuedSave: () => (
           [...pendingArticleSaves.keys()].some(savePath => (
-            editorPathsReferToSameFile(savePath, path, workspaceRoot)
+            editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
           ))
           || [...inFlightArticleSaves.entries()].some(([savePath, save]) => (
-            editorPathsReferToSameFile(savePath, path, workspaceRoot)
+            editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
             && save !== transactionGate
           ))
         ),

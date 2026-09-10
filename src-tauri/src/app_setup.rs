@@ -1,5 +1,6 @@
 use crate::file_open;
 use crate::local_mcp;
+use crate::plugins;
 use crate::screenshot::cleanup_temp_screenshot_dir;
 use crate::tray::create_tray;
 use crate::web_clipper;
@@ -12,6 +13,7 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let app_handle = app.handle();
 
     cleanup_temp_screenshot_dir(&app_handle);
+    plugins::cleanup_plugin_artifacts(&app_handle);
 
     // 在 Windows 和 Linux 上明确禁用系统窗口装饰，使用自定义标题栏
     #[cfg(any(target_os = "windows", target_os = "linux"))]

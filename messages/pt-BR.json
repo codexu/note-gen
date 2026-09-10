@@ -344,9 +344,18 @@
       "basicSettingsTitle": "Configurações básicas",
       "basicSettingsDesc": "A IA decide quando outras notas são úteis; você pode ajustar a profundidade e o alcance da busca.",
       "sourceTypes": {
-        "article": { "title": "Artigos", "desc": "Inclui artigos Markdown na busca semântica." },
-        "record": { "title": "Registros", "desc": "Indexa registros individuais, OCR, transcrições e metadados existentes." },
-        "canvas": { "title": "Telas", "desc": "Indexa textos dos nós e conexões explícitas da tela." }
+        "article": {
+          "title": "Artigos",
+          "desc": "Inclui artigos Markdown na busca semântica."
+        },
+        "record": {
+          "title": "Registros",
+          "desc": "Indexa registros individuais, OCR, transcrições e metadados existentes."
+        },
+        "canvas": {
+          "title": "Telas",
+          "desc": "Indexa textos dos nós e conexões explícitas da tela."
+        }
       },
       "globalSemanticSearchTitle": "Busca semântica global",
       "globalSemanticSearchDesc": "Adiciona resultados relacionados após uma pausa na digitação; a busca exata local continua disponível.",
@@ -363,15 +372,30 @@
       "automaticSearchDesc": "Quando uma pergunta depender dos seus registros, a IA encontra notas relevantes automaticamente. A busca é ignorada em perguntas gerais ou quando a nota atual for suficiente.",
       "agentStrategyTitle": "Estratégia de busca automática",
       "agentStrategies": {
-        "fast": { "title": "Rápida", "desc": "Faz no máximo uma busca para reduzir o tempo de resposta." },
-        "balanced": { "title": "Padrão", "desc": "Faz até duas buscas, equilibrando velocidade e descoberta entre notas." },
-        "deep": { "title": "Profunda", "desc": "Faz até três buscas para comparações, histórico e síntese entre notas." }
+        "fast": {
+          "title": "Rápida",
+          "desc": "Faz no máximo uma busca para reduzir o tempo de resposta."
+        },
+        "balanced": {
+          "title": "Padrão",
+          "desc": "Faz até duas buscas, equilibrando velocidade e descoberta entre notas."
+        },
+        "deep": {
+          "title": "Profunda",
+          "desc": "Faz até três buscas para comparações, histórico e síntese entre notas."
+        }
       },
       "presetDesc": "As predefinições alteram apenas a quantidade e os limites.",
       "presets": {
-        "precision": { "title": "Precisão" },
-        "balanced": { "title": "Equilibrado" },
-        "recall": { "title": "Revocação" }
+        "precision": {
+          "title": "Precisão"
+        },
+        "balanced": {
+          "title": "Equilibrado"
+        },
+        "recall": {
+          "title": "Revocação"
+        }
       },
       "settingsTitle": "Configuração de Parâmetros",
       "settingsDesc": "Ajustando os parâmetros, você pode controlar com mais precisão o efeito de recuperação da base de conhecimento.",
@@ -579,9 +603,10 @@
       },
       "stats": {
         "title": "Estatísticas de escrita",
-        "desc": "Mostre caracteres e o tempo estimado de leitura na barra de status",
+        "desc": "Mostrar a contagem de caracteres na barra de status do editor móvel",
         "characters": "{count} caracteres",
-        "readingTime": "cerca de {count} min"
+        "readingTime": "cerca de {count} min",
+        "saveError": "Não foi possível salvar esta configuração. Tente novamente."
       },
       "sourceMode": {
         "visual": "WYSIWYG",
@@ -938,13 +963,13 @@
     "memories": {
       "title": "Gerenciamento de Memória",
       "desc": "Recurso de memória de longo prazo da IA que permite que a IA lembre de suas preferências de escrita, base de conhecimento e hábitos de anotações.",
-    "stats": {
-      "total": "Total de Memórias",
-      "preferences": "Preferências",
-      "memories": "Memórias",
-      "active": "Ativas",
-      "pending": "Para revisar",
-      "archived": "Excluídas"
+      "stats": {
+        "total": "Total de Memórias",
+        "preferences": "Preferências",
+        "memories": "Memórias",
+        "active": "Ativas",
+        "pending": "Para revisar",
+        "archived": "Excluídas"
       },
       "form": {
         "title": "Adicionar Nova Memória",
@@ -959,13 +984,13 @@
         "memoryDescription": "记忆：事实、经验、专长等信息，根据对话内容智能匹配",
         "preferenceLabel": "偏好",
         "memoryLabel": "记忆",
-      "memoryDesc": "事实、经验、专长等",
-      "description": "Salve informações estáveis do usuário para conversas futuras.",
-      "kindLabel": "Tipo de memória",
-      "scopeLabel": "Escopo",
-      "alwaysApply": "Sempre aplicar",
-      "alwaysApplyDescription": "Injeta a memória sem depender da recuperação por relevância.",
-      "update": "Atualizar memória"
+        "memoryDesc": "事实、经验、专长等",
+        "description": "Salve informações estáveis do usuário para conversas futuras.",
+        "kindLabel": "Tipo de memória",
+        "scopeLabel": "Escopo",
+        "alwaysApply": "Sempre aplicar",
+        "alwaysApplyDescription": "Injeta a memória sem depender da recuperação por relevância.",
+        "update": "Atualizar memória"
       },
       "listTitle": "Minhas Memórias",
       "addMemory": "Adicionar Memória",
@@ -979,32 +1004,72 @@
       "tabs": {
         "all": "Todas",
         "preference": "Preferências",
-    "memory": "记忆",
-    "policy": {
-      "generate": "Memorizar informações importantes das conversas",
-      "generateDescription": "A IA memoriza automaticamente informações importantes. Você também pode dizer “Lembre-se…” ou “A partir de agora…”."
-    },
-    "actions": {"undo": "Desfazer", "more": "Mais ações", "approve": "Aprovar", "approveAll": "Aprovar todas", "review": "Revisar", "edit": "Editar", "promote": "Promover para instrução estável", "demote": "Remover da instrução estável", "restore": "Restaurar", "archive": "Excluir", "deletePermanently": "Excluir permanentemente"},
-    "kinds": {"preference": "Preferência", "fact": "Fato", "experience": "Experiência", "decision": "Decisão"},
-    "scopes": {"global": "Global", "workspace": "Espaço de trabalho atual"},
-    "statuses": {"active": "Ativa", "pending": "Para revisar", "archived": "Excluída"},
-    "filters": {"search": "Pesquisar memórias", "allKinds": "Todos os tipos", "allScopes": "Todos os escopos"},
-    "sensitive": {"title": "Conteúdo potencialmente sensível", "description": "Senhas, tokens e chaves privadas nunca são ativados automaticamente. Confirme se o conteúdo é seguro.", "badge": "Sensível"},
-    "indexing": {"ready": "Indexada", "pending": "Aguardando índice", "failed": "Falha no índice"},
-    "deleteConfirm": {"title": "Excluir esta memória permanentemente?", "description": "Esta ação não poderá ser desfeita.", "cancel": "Cancelar"},
-    "autoCreated": "{count} memórias geradas em segundo plano",
-    "pendingConfirmation": "Esta memória precisa de confirmação",
-    "approvedAll": "Todas as candidatas foram aprovadas",
-    "savedPendingIndex": "Memória salva e aguardando indexação",
-    "savedPendingReview": "Memória adicionada à fila de revisão",
-    "archived": "Memória excluída",
-    "promoted": "Adicionada às instruções personalizadas do Agent",
-    "demoted": "Removida das instruções personalizadas do Agent",
-    "always": "Sempre aplicar",
-    "lastRecallReason": "Última recuperação: {reason}",
-    "neverRecalled": "Nunca recuperada",
-    "editTitle": "Editar memória",
-    "editDescription": "Altere conteúdo, tipo, escopo e modo de aplicação."
+        "memory": "记忆",
+        "policy": {
+          "generate": "Memorizar informações importantes das conversas",
+          "generateDescription": "A IA memoriza automaticamente informações importantes. Você também pode dizer “Lembre-se…” ou “A partir de agora…”."
+        },
+        "actions": {
+          "undo": "Desfazer",
+          "more": "Mais ações",
+          "approve": "Aprovar",
+          "approveAll": "Aprovar todas",
+          "review": "Revisar",
+          "edit": "Editar",
+          "promote": "Promover para instrução estável",
+          "demote": "Remover da instrução estável",
+          "restore": "Restaurar",
+          "archive": "Excluir",
+          "deletePermanently": "Excluir permanentemente"
+        },
+        "kinds": {
+          "preference": "Preferência",
+          "fact": "Fato",
+          "experience": "Experiência",
+          "decision": "Decisão"
+        },
+        "scopes": {
+          "global": "Global",
+          "workspace": "Espaço de trabalho atual"
+        },
+        "statuses": {
+          "active": "Ativa",
+          "pending": "Para revisar",
+          "archived": "Excluída"
+        },
+        "filters": {
+          "search": "Pesquisar memórias",
+          "allKinds": "Todos os tipos",
+          "allScopes": "Todos os escopos"
+        },
+        "sensitive": {
+          "title": "Conteúdo potencialmente sensível",
+          "description": "Senhas, tokens e chaves privadas nunca são ativados automaticamente. Confirme se o conteúdo é seguro.",
+          "badge": "Sensível"
+        },
+        "indexing": {
+          "ready": "Indexada",
+          "pending": "Aguardando índice",
+          "failed": "Falha no índice"
+        },
+        "deleteConfirm": {
+          "title": "Excluir esta memória permanentemente?",
+          "description": "Esta ação não poderá ser desfeita.",
+          "cancel": "Cancelar"
+        },
+        "autoCreated": "{count} memórias geradas em segundo plano",
+        "pendingConfirmation": "Esta memória precisa de confirmação",
+        "approvedAll": "Todas as candidatas foram aprovadas",
+        "savedPendingIndex": "Memória salva e aguardando indexação",
+        "savedPendingReview": "Memória adicionada à fila de revisão",
+        "archived": "Memória excluída",
+        "promoted": "Adicionada às instruções personalizadas do Agent",
+        "demoted": "Removida das instruções personalizadas do Agent",
+        "always": "Sempre aplicar",
+        "lastRecallReason": "Última recuperação: {reason}",
+        "neverRecalled": "Nunca recuperada",
+        "editTitle": "Editar memória",
+        "editDescription": "Altere conteúdo, tipo, escopo e modo de aplicação."
       },
       "success": "Sucesso",
       "saved": "Memória salva",
@@ -1151,18 +1216,141 @@
       "engineSwitchReviewDescription": "A sincronização atual será pausada antes da troca. Há {changes} alterações locais, {commands} comandos pendentes, {currentRemote} objetos no remoto atual e {nextRemote} no destino. Nenhum remoto será excluído automaticamente. Continue após revisar as diferenças.",
       "selfHosted": {
         "title": "Auto-hospedado",
-        "experimentalWarningTitle": "A sincronização auto-hospedada é experimental", "experimentalWarningDescription": "Este recurso pode conter falhas desconhecidas. No momento, não é possível garantir a segurança dos dados durante a sincronização ou no armazenamento remoto.", "experimentalBackupTitle": "Faça backup antes de continuar", "experimentalBackupDescription": "Crie um backup completo do espaço de trabalho antes de ativar o recurso e mantenha cópias recuperáveis durante o uso. Não use a sincronização auto-hospedada como único backup de dados importantes.", "experimentalAcknowledge": "Entendo os riscos e quero continuar",
+        "experimentalWarningTitle": "A sincronização auto-hospedada é experimental",
+        "experimentalWarningDescription": "Este recurso pode conter falhas desconhecidas. No momento, não é possível garantir a segurança dos dados durante a sincronização ou no armazenamento remoto.",
+        "experimentalBackupTitle": "Faça backup antes de continuar",
+        "experimentalBackupDescription": "Crie um backup completo do espaço de trabalho antes de ativar o recurso e mantenha cópias recuperáveis durante o uso. Não use a sincronização auto-hospedada como único backup de dados importantes.",
+        "experimentalAcknowledge": "Entendo os riscos e quero continuar",
         "deploymentGuide": "Ver guia de implantação do servidor",
-        "transferTarget": "Escolha um espaço de trabalho próprio e gravável", "transferToLibrary": "Transferir para o espaço", "transferTargetUnavailable": "O espaço de destino não está disponível ou é somente leitura", "transferredToLibrary": "Transferido para {name}",
-        "libraryUnbound": "Espaço de trabalho desvinculado localmente", "unbind": "Desvincular espaço local",
-        "connectedToast": "Sincronização auto-hospedada conectada", "connectionFailed": "Falha na conexão", "disconnectedToast": "Sincronização auto-hospedada desconectada",
-        "connectionTitle": "Conectar à sincronização auto-hospedada", "connectionDescription": "Conecte-se a um serviço de sincronização implantado e gerenciado por você para sincronizar espaços de trabalho e dados pessoais entre dispositivos com colaboração em tempo real.", "serverUrl": "URL do servidor", "httpsNoDowngrade": "Uma falha de HTTPS nunca rebaixa automaticamente para HTTP.", "insecureTitle": "Conexão não criptografada", "insecureDescription": "Este é um endereço HTTP não local. O login e o tráfego podem ficar visíveis na rede.", "login": "Conta", "password": "Senha", "totp": "Código de dois fatores (opcional)", "connected": "Conectado", "browserAuthorization": "Autorizar no navegador", "passwordLogin": "Entrar com senha", "usePassword": "Usar senha ou TOTP", "disconnectTitle": "Desconectar servidor", "disconnectDescription": "Credenciais e chaves são removidas do armazenamento seguro; arquivos locais baixados são mantidos.", "disconnect": "Desconectar",
-        "reauthenticationTitle": "A autorização expirou", "reauthenticationDescription": "Autorize novamente no navegador. Os dados locais e vínculos de espaços de trabalho serão preservados.",
-        "personalDataTitle": "Dados pessoais", "personalDataDescription": "Escolha os domínios pessoais sincronizados. Caminhos, segredos, caches, índices e hardware ficam locais.", "domains": { "tags": { "title": "Tags", "description": "Nomes, ordem e estado fixado." }, "marks": { "title": "Registros, notas e telas", "description": "Sincroniza registros, notas relacionadas e o conteúdo completo das telas." }, "conversations": { "title": "Conversas", "description": "Títulos, ordem e estado das conversas." }, "messages": { "title": "Mensagens", "description": "Cada mensagem é sincronizada separadamente." }, "memories": { "title": "Memórias", "description": "Conteúdo sem embeddings nem índices." }, "settings": { "title": "Preferências", "description": "Preferências portáveis sem tokens, chaves de API ou caminhos locais." }, "attachments": { "title": "Anexos pessoais", "description": "Anexos usados por registros e conversas." } },
-        "librariesTitle": "Sincronização do espaço de trabalho", "librariesDescription": "Os espaços de trabalho na nuvem e locais têm relação um para um. Escolher outro espaço abre sua cópia local separada.", "currentWorkspaceLibrary": "Espaço de trabalho atual na nuvem", "currentWorkspacePath": "Espaço de trabalho local atual: {path}", "newLibraryDefaultName": "Meu espaço de trabalho", "libraryCreated": "Espaço criado e aberto", "libraryBound": "Espaço de trabalho aberto", "workspaceAdded": "Espaço adicionado; a cópia local será sincronizada em segundo plano", "operationFailed": "Falha na operação", "invitationCreated": "Convite criado", "linkCopied": "Token de convite único copiado", "invitedBy": "{login} convidou você para um espaço de trabalho", "invitationRole": "Função: {role}", "accept": "Aceitar", "notBound": "Escolha um espaço de trabalho", "readOnly": "Somente leitura", "readWrite": "Leitura e escrita", "bind": "Vincular", "newLibraryName": "Nome do novo espaço", "createLibrary": "Criar e abrir espaço", "refresh": "Atualizar", "membersTitle": "Membros de {name}", "membersDescription": "Veja os membros atuais e gerencie suas funções ou acesso.", "invitationsTitle": "Convites para o espaço", "invitationsDescription": "Aceite convites recebidos ou convide outra conta para o espaço atual.", "removeMember": "Remover membro", "accountLogin": "Nome da conta", "roleTemplate": "Modelo de função", "capabilities": "Permissões", "inviteAccount": "Convidar conta", "copyInviteLink": "Criar e copiar token de convite",
-        "capabilityDescriptions": { "content": { "read": "Ver conteúdo do espaço", "create": "Criar notas e arquivos", "update": "Editar notas e arquivos", "delete": "Excluir notas e arquivos" }, "history": { "view": "Ver histórico de versões", "restore": "Restaurar versões anteriores" }, "member": { "invite": "Convidar novos membros", "update": "Alterar permissões de membros", "remove": "Remover membros" }, "workspace": { "rename": "Renomear espaço de trabalho", "delete": "Excluir espaço de trabalho" } },
-        "deleteWorkspace": "Excluir espaço na nuvem", "deleteWorkspaceTitle": "Excluir este espaço na nuvem?", "deleteWorkspaceDescription": "{name} e seu conteúdo remoto sincronizado serão excluídos logicamente. A pasta e os arquivos locais serão mantidos e deixarão de sincronizar.", "confirmDeleteWorkspace": "Excluir espaço na nuvem", "workspaceDeleted": "Espaço na nuvem excluído; retornamos ao espaço padrão", "defaultWorkspaceUnavailable": "Espaço de trabalho padrão não encontrado. Atualize e tente novamente.", "cancel": "Cancelar",
-        "conflictsTitle": "Central de conflitos", "conflictsDescription": "Cópias locais são mantidas até a confirmação.", "noConflicts": "Nenhum conflito requer atenção.", "keepLocalCopy": "Cópia local mantida", "conflictTypes": { "snapshot-diverged": "Snapshots local e remoto são diferentes", "remote-delete-local-edit": "Edição local após exclusão remota", "viewer-local-edit": "Edição local em espaço somente leitura", "protocol-conflict": "Conflito de versão no servidor", "symlink-ignored": "Link simbólico ignorado e excluído da sincronização" }
+        "transferTarget": "Escolha um espaço de trabalho próprio e gravável",
+        "transferToLibrary": "Transferir para o espaço",
+        "transferTargetUnavailable": "O espaço de destino não está disponível ou é somente leitura",
+        "transferredToLibrary": "Transferido para {name}",
+        "libraryUnbound": "Espaço de trabalho desvinculado localmente",
+        "unbind": "Desvincular espaço local",
+        "connectedToast": "Sincronização auto-hospedada conectada",
+        "connectionFailed": "Falha na conexão",
+        "disconnectedToast": "Sincronização auto-hospedada desconectada",
+        "connectionTitle": "Conectar à sincronização auto-hospedada",
+        "connectionDescription": "Conecte-se a um serviço de sincronização implantado e gerenciado por você para sincronizar espaços de trabalho e dados pessoais entre dispositivos com colaboração em tempo real.",
+        "serverUrl": "URL do servidor",
+        "httpsNoDowngrade": "Uma falha de HTTPS nunca rebaixa automaticamente para HTTP.",
+        "insecureTitle": "Conexão não criptografada",
+        "insecureDescription": "Este é um endereço HTTP não local. O login e o tráfego podem ficar visíveis na rede.",
+        "login": "Conta",
+        "password": "Senha",
+        "totp": "Código de dois fatores (opcional)",
+        "connected": "Conectado",
+        "browserAuthorization": "Autorizar no navegador",
+        "passwordLogin": "Entrar com senha",
+        "usePassword": "Usar senha ou TOTP",
+        "disconnectTitle": "Desconectar servidor",
+        "disconnectDescription": "Credenciais e chaves são removidas do armazenamento seguro; arquivos locais baixados são mantidos.",
+        "disconnect": "Desconectar",
+        "reauthenticationTitle": "A autorização expirou",
+        "reauthenticationDescription": "Autorize novamente no navegador. Os dados locais e vínculos de espaços de trabalho serão preservados.",
+        "personalDataTitle": "Dados pessoais",
+        "personalDataDescription": "Escolha os domínios pessoais sincronizados. Caminhos, segredos, caches, índices e hardware ficam locais.",
+        "domains": {
+          "tags": {
+            "title": "Tags",
+            "description": "Nomes, ordem e estado fixado."
+          },
+          "marks": {
+            "title": "Registros, notas e telas",
+            "description": "Sincroniza registros, notas relacionadas e o conteúdo completo das telas."
+          },
+          "conversations": {
+            "title": "Conversas",
+            "description": "Títulos, ordem e estado das conversas."
+          },
+          "messages": {
+            "title": "Mensagens",
+            "description": "Cada mensagem é sincronizada separadamente."
+          },
+          "memories": {
+            "title": "Memórias",
+            "description": "Conteúdo sem embeddings nem índices."
+          },
+          "settings": {
+            "title": "Preferências",
+            "description": "Preferências portáveis sem tokens, chaves de API ou caminhos locais."
+          },
+          "attachments": {
+            "title": "Anexos pessoais",
+            "description": "Anexos usados por registros e conversas."
+          }
+        },
+        "librariesTitle": "Sincronização do espaço de trabalho",
+        "librariesDescription": "Os espaços de trabalho na nuvem e locais têm relação um para um. Escolher outro espaço abre sua cópia local separada.",
+        "currentWorkspaceLibrary": "Espaço de trabalho atual na nuvem",
+        "currentWorkspacePath": "Espaço de trabalho local atual: {path}",
+        "newLibraryDefaultName": "Meu espaço de trabalho",
+        "libraryCreated": "Espaço criado e aberto",
+        "libraryBound": "Espaço de trabalho aberto",
+        "workspaceAdded": "Espaço adicionado; a cópia local será sincronizada em segundo plano",
+        "operationFailed": "Falha na operação",
+        "invitationCreated": "Convite criado",
+        "linkCopied": "Token de convite único copiado",
+        "invitedBy": "{login} convidou você para um espaço de trabalho",
+        "invitationRole": "Função: {role}",
+        "accept": "Aceitar",
+        "notBound": "Escolha um espaço de trabalho",
+        "readOnly": "Somente leitura",
+        "readWrite": "Leitura e escrita",
+        "bind": "Vincular",
+        "newLibraryName": "Nome do novo espaço",
+        "createLibrary": "Criar e abrir espaço",
+        "refresh": "Atualizar",
+        "membersTitle": "Membros de {name}",
+        "membersDescription": "Veja os membros atuais e gerencie suas funções ou acesso.",
+        "invitationsTitle": "Convites para o espaço",
+        "invitationsDescription": "Aceite convites recebidos ou convide outra conta para o espaço atual.",
+        "removeMember": "Remover membro",
+        "accountLogin": "Nome da conta",
+        "roleTemplate": "Modelo de função",
+        "capabilities": "Permissões",
+        "inviteAccount": "Convidar conta",
+        "copyInviteLink": "Criar e copiar token de convite",
+        "capabilityDescriptions": {
+          "content": {
+            "read": "Ver conteúdo do espaço",
+            "create": "Criar notas e arquivos",
+            "update": "Editar notas e arquivos",
+            "delete": "Excluir notas e arquivos"
+          },
+          "history": {
+            "view": "Ver histórico de versões",
+            "restore": "Restaurar versões anteriores"
+          },
+          "member": {
+            "invite": "Convidar novos membros",
+            "update": "Alterar permissões de membros",
+            "remove": "Remover membros"
+          },
+          "workspace": {
+            "rename": "Renomear espaço de trabalho",
+            "delete": "Excluir espaço de trabalho"
+          }
+        },
+        "deleteWorkspace": "Excluir espaço na nuvem",
+        "deleteWorkspaceTitle": "Excluir este espaço na nuvem?",
+        "deleteWorkspaceDescription": "{name} e seu conteúdo remoto sincronizado serão excluídos logicamente. A pasta e os arquivos locais serão mantidos e deixarão de sincronizar.",
+        "confirmDeleteWorkspace": "Excluir espaço na nuvem",
+        "workspaceDeleted": "Espaço na nuvem excluído; retornamos ao espaço padrão",
+        "defaultWorkspaceUnavailable": "Espaço de trabalho padrão não encontrado. Atualize e tente novamente.",
+        "cancel": "Cancelar",
+        "conflictsTitle": "Central de conflitos",
+        "conflictsDescription": "Cópias locais são mantidas até a confirmação.",
+        "noConflicts": "Nenhum conflito requer atenção.",
+        "keepLocalCopy": "Cópia local mantida",
+        "conflictTypes": {
+          "snapshot-diverged": "Snapshots local e remoto são diferentes",
+          "remote-delete-local-edit": "Edição local após exclusão remota",
+          "viewer-local-edit": "Edição local em espaço somente leitura",
+          "protocol-conflict": "Conflito de versão no servidor",
+          "symlink-ignored": "Link simbólico ignorado e excluído da sincronização"
+        }
       },
       "connectionTab": "Conexão",
       "syncOptionsTab": "Opções de Sincronização",
@@ -1744,13 +1932,62 @@
     "backup": {
       "title": "Backup e restauração",
       "desc": "Crie e restaure snapshots de dados do NoteGen.",
-      "howItWorks": { "title": "Isto é backup, não sincronização entre dispositivos", "description": "O NoteGen cria snapshots .ngbackup independentes na pasta escolhida sem alterar a configuração de sincronização existente." },
-      "directory": { "title": "Pasta de backup", "description": "Escolha uma pasta exclusiva para os backups do NoteGen. Não selecione o espaço de trabalho atual.", "dialogTitle": "Escolher pasta de backup do NoteGen", "empty": "Nenhuma pasta de backup selecionada", "choose": "Escolher pasta", "open": "Abrir", "clear": "Limpar", "required": "Escolha primeiro uma pasta de backup" },
-      "automation": { "title": "Backup automático", "description": "O NoteGen verifica ao iniciar e mantém os snapshots mais recentes automaticamente.", "schedule": "Frequência", "scheduleDescription": "Backups automáticos rodam somente com o NoteGen aberto.", "disabled": "Desativado", "daily": "Diário", "weekly": "Semanal", "retention": "Manter", "retentionDescription": "Backups automáticos e manuais antigos além desse limite são removidos. O snapshot de segurança pré-restauração não é removido imediatamente.", "copies": "{count} cópias" },
-      "manual": { "title": "Fazer backup agora", "never": "Nenhum backup concluído", "lastSuccess": "Último sucesso: {time}", "create": "Criar backup agora", "creating": "Criando backup" },
-      "history": { "title": "Histórico de backups", "description": "Somente backups do NoteGen na pasta selecionada aparecem aqui e o formato é validado na leitura.", "empty": "Ainda não há backups nesta pasta", "invalid": "Arquivo de backup inválido", "workspace": "Inclui espaço de trabalho" },
-      "restore": { "import": "Escolher outro backup", "chooseTitle": "Escolher backup do NoteGen", "action": "Restaurar", "confirmTitle": "Restaurar este backup?", "confirmDescription": "O NoteGen primeiro salva os dados atuais na pasta selecionada, depois restaura os dados e reinicia. O espaço de trabalho arquivado vai para uma pasta separada e não substitui os arquivos atuais.", "cancel": "Cancelar", "confirm": "Salvar dados atuais e restaurar", "restoring": "Restaurando", "failedTitle": "Falha na restauração", "failedDescription": "Não foi possível restaurar: {error}. O NoteGen será reiniciado para reabrir o banco de dados.", "safetyBackupError": "O backup de segurança pré-restauração falhou; a restauração foi cancelada" },
-      "createSuccess": "Backup criado", "createError": "Falha no backup", "listError": "Não foi possível ler a pasta de backup"
+      "howItWorks": {
+        "title": "Isto é backup, não sincronização entre dispositivos",
+        "description": "O NoteGen cria snapshots .ngbackup independentes na pasta escolhida sem alterar a configuração de sincronização existente."
+      },
+      "directory": {
+        "title": "Pasta de backup",
+        "description": "Escolha uma pasta exclusiva para os backups do NoteGen. Não selecione o espaço de trabalho atual.",
+        "dialogTitle": "Escolher pasta de backup do NoteGen",
+        "empty": "Nenhuma pasta de backup selecionada",
+        "choose": "Escolher pasta",
+        "open": "Abrir",
+        "clear": "Limpar",
+        "required": "Escolha primeiro uma pasta de backup"
+      },
+      "automation": {
+        "title": "Backup automático",
+        "description": "O NoteGen verifica ao iniciar e mantém os snapshots mais recentes automaticamente.",
+        "schedule": "Frequência",
+        "scheduleDescription": "Backups automáticos rodam somente com o NoteGen aberto.",
+        "disabled": "Desativado",
+        "daily": "Diário",
+        "weekly": "Semanal",
+        "retention": "Manter",
+        "retentionDescription": "Backups automáticos e manuais antigos além desse limite são removidos. O snapshot de segurança pré-restauração não é removido imediatamente.",
+        "copies": "{count} cópias"
+      },
+      "manual": {
+        "title": "Fazer backup agora",
+        "never": "Nenhum backup concluído",
+        "lastSuccess": "Último sucesso: {time}",
+        "create": "Criar backup agora",
+        "creating": "Criando backup"
+      },
+      "history": {
+        "title": "Histórico de backups",
+        "description": "Somente backups do NoteGen na pasta selecionada aparecem aqui e o formato é validado na leitura.",
+        "empty": "Ainda não há backups nesta pasta",
+        "invalid": "Arquivo de backup inválido",
+        "workspace": "Inclui espaço de trabalho"
+      },
+      "restore": {
+        "import": "Escolher outro backup",
+        "chooseTitle": "Escolher backup do NoteGen",
+        "action": "Restaurar",
+        "confirmTitle": "Restaurar este backup?",
+        "confirmDescription": "O NoteGen primeiro salva os dados atuais na pasta selecionada, depois restaura os dados e reinicia. O espaço de trabalho arquivado vai para uma pasta separada e não substitui os arquivos atuais.",
+        "cancel": "Cancelar",
+        "confirm": "Salvar dados atuais e restaurar",
+        "restoring": "Restaurando",
+        "failedTitle": "Falha na restauração",
+        "failedDescription": "Não foi possível restaurar: {error}. O NoteGen será reiniciado para reabrir o banco de dados.",
+        "safetyBackupError": "O backup de segurança pré-restauração falhou; a restauração foi cancelada"
+      },
+      "createSuccess": "Backup criado",
+      "createError": "Falha no backup",
+      "listError": "Não foi possível ler a pasta de backup"
     },
     "backupSync": {
       "title": "Dados de Backup",
@@ -2489,9 +2726,322 @@
       "deleteSkillDesc": "Tem certeza de que deseja excluir esta Skill? Esta ação não pode ser desfeita.",
       "skillDeleted": "Skill excluída com sucesso"
     },
+    "plugins": {
+      "ui": {
+        "moreActions": "Mais ações de plugins",
+        "loadingView": "Carregando visualização do plugin…",
+        "viewFailed": "Não foi possível abrir a visualização",
+        "retry": "Tentar novamente",
+        "empty": "Nenhum conteúdo",
+        "chat": "Conversa com IA",
+        "editor": "Editor",
+        "closeView": "Fechar {name}",
+        "close": "Fechar",
+        "requiredField": "Este campo é obrigatório",
+        "invalidValue": "Insira um valor válido"
+      },
+      "title": "Plugins",
+      "desc": "Encontre, instale, autorize e configure extensões para o NoteGen. Por enquanto, os plugins são executados apenas no desktop.",
+      "loading": "Carregando plugins...",
+      "initializationFailed": "Não foi possível inicializar os plugins",
+      "required": "Obrigatório",
+      "optional": "Opcional",
+      "tabs": {
+        "market": "Loja de plugins",
+        "installed": "Instalado",
+        "updates": "Atualizações",
+        "permissions": "Permissões",
+        "developer": "Desenvolvedor"
+      },
+      "actions": {
+        "retry": "Tentar novamente",
+        "refresh": "Recarregar",
+        "refreshing": "Recarregando...",
+        "install": "Instalar",
+        "installing": "Instalando...",
+        "installed": "Instalado",
+        "update": "Atualizar",
+        "rollback": "Reverter versão",
+        "uninstall": "Desinstalar",
+        "uninstallKeepData": "Desinstalar e manter os dados",
+        "uninstallAndRemoveData": "Desinstalar e excluir os dados",
+        "cancel": "Cancelar",
+        "revoke": "Revogar",
+        "import": "Importar",
+        "importing": "Importando...",
+        "reload": "Recarregar",
+        "clearLogs": "Limpar logs",
+        "details": "Detalhes",
+        "enabling": "Ativando...",
+        "clearFailure": "Limpar estado de falha",
+        "exportDiagnostics": "Exportar diagnóstico"
+      },
+      "labels": {
+        "official": "Oficial",
+        "featured": "Em destaque",
+        "verified": "Verificado",
+        "attention": "Requer atenção"
+      },
+      "sources": {
+        "marketplace": "Loja de plugins",
+        "development": "Desenvolvimento"
+      },
+      "runtime": {
+        "inactive": "Inativo",
+        "activating": "Iniciando",
+        "active": "Ativo",
+        "stopping": "Parando",
+        "failed": "Falhou",
+        "quarantined": "Em quarentena"
+      },
+      "commandPalette": {
+        "title": "Comandos de plugins",
+        "description": "Pesquise e execute comandos dos plugins ativados.",
+        "placeholder": "Pesquisar comandos de plugins...",
+        "empty": "Nenhum comando de plugin encontrado.",
+        "group": "Plugins"
+      },
+      "statusBar": {
+        "loading": "Atualizando o status do plugin"
+      },
+      "market": {
+        "searchPlaceholder": "Pesquisar plugins por nome, autor ou categoria",
+        "searchLabel": "Pesquisar na loja de plugins",
+        "sourceTitle": "Índice da loja verificado",
+        "staleTitle": "Exibindo uma cópia offline da loja",
+        "staleInstallDisabled": "A cópia offline é somente para consulta. Reconecte-se e recarregue o índice verificado antes de instalar ou atualizar plugins.",
+        "sourceAndTime": "Origem: {source}. Gerado em: {time}.",
+        "sources": {
+          "remote": "índice remoto",
+          "cache": "cache local"
+        },
+        "loadFailed": "Falha ao recarregar a loja",
+        "installFailed": "Falha ao instalar o plugin",
+        "installAria": "Instalar {name}",
+        "reviewInstallTitle": "Revise {name} antes de instalar",
+        "reviewInstallDesc": "Confira o publicador, a origem, a licença, a compatibilidade, o hash do pacote e as permissões solicitadas.",
+        "publisher": "Publicador",
+        "publisherKey": "ID da chave do publicador",
+        "license": "Licença",
+        "packageDigest": "SHA-256 do pacote",
+        "sourceCode": "Código-fonte",
+        "homepage": "Site",
+        "noPermissions": "Nenhuma permissão protegida solicitada",
+        "unavailable": "Indisponível",
+        "permissionsCount": "Permissões declaradas: {count}",
+        "noResults": "Nenhum plugin encontrado",
+        "noResultsDesc": "Tente outro nome, autor ou categoria.",
+        "empty": "A loja está vazia",
+        "emptyDesc": "Recarregue o índice assinado ou tente novamente quando estiver online."
+      },
+      "installed": {
+        "searchPlaceholder": "Pesquisar plugins instalados",
+        "searchLabel": "Pesquisar plugins instalados",
+        "operationFailed": "Não foi possível alterar o estado do plugin",
+        "noDescription": "Nenhuma descrição fornecida.",
+        "allWorkspaces": "Ativado em todos os espaços de trabalho",
+        "enablementLabel": "Onde ativar",
+        "enablementDesc": "As configurações e permissões do plugin continuam separadas por espaço de trabalho.",
+        "permissionReviewRequired": "É necessário revisar as permissões",
+        "reviewPermissions": "Revisar permissões",
+        "enablement": {
+          "disabled": "Desativado",
+          "workspace": "Espaço de trabalho atual",
+          "allWorkspaces": "Todos os espaços de trabalho"
+        },
+        "enableAria": "Ativar {name} neste espaço de trabalho",
+        "disableAria": "Desativar {name} neste espaço de trabalho",
+        "failureTitle": "Última falha: {code}",
+        "failureCount": "Ocorrências registradas: {count}.",
+        "noResults": "Nenhum plugin instalado corresponde à pesquisa",
+        "noResultsDesc": "Tente pesquisar pelo nome, ID ou autor do plugin.",
+        "empty": "Nenhum plugin instalado",
+        "emptyDesc": "Instale um plugin da loja para começar.",
+        "revoked": "Esta versão foi retirada: {reason}"
+      },
+      "details": {
+        "author": "Autor",
+        "unknown": "Desconhecido",
+        "apiVersion": "API de plugins",
+        "minAppVersion": "Versão mínima do NoteGen",
+        "platforms": "Plataformas",
+        "contentHash": "Hash do conteúdo",
+        "commands": "Comandos",
+        "menus": "Itens de menu",
+        "permissions": "Permissões"
+      },
+      "settings": {
+        "contextChanged": "O plugin ou o espaço de trabalho mudou. Reabra as configurações do plugin antes de salvar.",
+        "title": "Configurações do plugin",
+        "desc": "Esses valores são validados e salvos pelo NoteGen.",
+        "none": "Este plugin não possui configurações ajustáveis.",
+        "invalidNumber": "Insira um número válido.",
+        "relativePathOnly": "Use um caminho relativo ao espaço de trabalho, sem segmentos ..",
+        "relativePathHelp": "Os caminhos são relativos ao espaço de trabalho atual; caminhos absolutos não são aceitos.",
+        "byteUsage": "{used} / {max} bytes",
+        "byteLimitExceeded": "Este valor usa {used} bytes e excede o limite de {max} bytes.",
+        "scopes": {
+          "device": "Este dispositivo",
+          "workspace": "Espaço de trabalho atual"
+        }
+      },
+      "updates": {
+        "summaryTitle": "Atualizações disponíveis: {count}",
+        "summaryDesc": "As atualizações são aplicadas por completo ou não são aplicadas. O NoteGen mantém a versão anterior quando a reversão está disponível.",
+        "operationFailed": "Falha na operação do plugin",
+        "available": "Atualização disponível",
+        "current": "Atualizado",
+        "pendingActivation": "Aguardando ativação",
+        "pendingActivationDesc": "Abra ou execute o plugin uma vez para confirmar esta versão, ou reverta antes de instalar outra atualização.",
+        "versionChange": "Versão {current} → {next}",
+        "currentVersion": "Versão instalada: {version}",
+        "confirmUpdateTitle": "Atualizar {name}?",
+        "confirmUpdateDesc": "Substituir a versão {current} por {next}. Revise as permissões alteradas antes de ativar o plugin novamente.",
+        "confirmRollbackTitle": "Reverter a versão de {name}?",
+        "confirmRollbackDesc": "Substituir a versão {current} pela versão mantida {previous}.",
+        "confirmUninstallTitle": "Desinstalar {name}?",
+        "confirmUninstallDesc": "Mantenha as configurações e o cache para uma futura reinstalação ou exclua-os também. Os arquivos criados pelo plugin no espaço de trabalho nunca são excluídos.",
+        "empty": "Nenhum plugin para gerenciar",
+        "emptyDesc": "Os plugins da loja e de desenvolvimento instalados aparecem aqui."
+      },
+      "permissionNames": {
+        "editor": {
+          "read": "Ler o editor ativo",
+          "write": "Modificar o editor ativo"
+        },
+        "notes": {
+          "read": "Ler notas",
+          "create": "Criar notas",
+          "open": "Abrir notas",
+          "list": "Listar notas",
+          "write": "Gravar notas",
+          "delete": "Excluir notas",
+          "move": "Mover notas"
+        },
+        "attachments": {
+          "read": "Ler anexos",
+          "create": "Criar anexos"
+        },
+        "network": {
+          "fetch": "Acessar sites autorizados"
+        }
+      },
+      "permissionScopes": {
+        "active-editor": "Limitado ao editor Markdown ativo.",
+        "workspace-file": "Limitado aos arquivos autorizados.",
+        "workspace-files": "Limitado aos arquivos autorizados.",
+        "workspace-folder": "Limitado a uma pasta autorizada.",
+        "network-origins": "Limitado às origens HTTPS autorizadas."
+      },
+      "ux": {
+        "discover": "Descobrir",
+        "technicalDetails": "Detalhes técnicos",
+        "importHelp": "Selecione a pasta de código-fonte ou do pacote de um plugin. .notegen/package é detectado automaticamente. Execute pnpm build no repositório antes da primeira importação.",
+        "permissionNeeded": "Permissão de pasta necessária",
+        "managePlugin": "Gerenciar plugins"
+      },
+      "usage": {
+        "title": "Como usar",
+        "start": "Usar agora",
+        "missing": "Este plugin ainda não inclui um guia offline.",
+        "failed": "Não foi possível carregar o guia. Reabra as configurações do plugin.",
+        "enableFirst": "Ative o plugin para usar esta ação."
+      },
+      "permissionDialog": {
+        "selectAll": "Selecionar tudo",
+        "folderLabel": "Pasta de armazenamento",
+        "chooseFolder": "Selecione uma pasta do espaço de trabalho",
+        "chooseFile": "Selecionar arquivo do espaço de trabalho",
+        "entireWorkspace": "Todo o espaço de trabalho (todas as notas)",
+        "advancedPaths": "Avançado: nova pasta ou vários caminhos",
+        "dailyFolderHelp": "Permitir criar e abrir notas em {folder}. As subpastas de data são preservadas; o plugin cria a pasta se necessário.",
+        "contextChanged": "O plugin ou o espaço de trabalho mudou. Feche esta janela e revise as permissões atuais novamente.",
+        "title": "Revisar permissões de {name}",
+        "desc": "O NoteGen concede permissões por espaço de trabalho.",
+        "togglePermission": "Permitir: {permission}",
+        "pathLabel": "Caminho relativo permitido",
+        "pathPlaceholder": "Pasta ou arquivo no espaço de trabalho",
+        "pathHelp": "Separe vários caminhos por vírgula.",
+        "pathRequired": "Informe pelo menos um valor.",
+        "relativePathOnly": "Cada caminho deve permanecer no espaço de trabalho.",
+        "originLabel": "Origens HTTPS permitidas",
+        "originPlaceholder": "https://api.example.com",
+        "originHelp": "Separe várias origens por vírgula.",
+        "originOnly": "Informe origens HTTPS completas, sem caminho ou credenciais.",
+        "confirm": "Permitir e ativar",
+        "folderHelp": "Pasta selecionada: {folder}. A configuração de pasta do plugin também será atualizada."
+      },
+      "permissions": {
+        "workspaceIsolationTitle": "As permissões são separadas por espaço de trabalho",
+        "workspaceIsolationDesc": "Um plugin não pode reutilizar uma autorização em outro espaço de trabalho. Pacotes alterados precisam ser revisados novamente.",
+        "revokeFailed": "Não foi possível revogar a permissão",
+        "currentWorkspace": "Espaço de trabalho atual",
+        "otherWorkspace": "Espaço de trabalho conhecido",
+        "current": "Atual",
+        "switchToManage": "Mude para este espaço de trabalho para revogar ou revisar suas permissões.",
+        "status": {
+          "granted": "Permitido",
+          "denied": "Não permitido",
+          "unreviewed": "Não revisado",
+          "changed": "Revisar novamente"
+        },
+        "revokeAria": "Revogar {permission} de {name}",
+        "confirmRevokeTitle": "Revogar esta permissão?",
+        "confirmRevokeDesc": "{name} perderá a permissão “{permission}” no espaço de trabalho atual e poderá parar de funcionar.",
+        "empty": "Nenhuma permissão de plugin",
+        "emptyDesc": "Os plugins instalados não declararam recursos protegidos."
+      },
+      "developer": {
+        "autoReload": "Recarregar automaticamente",
+        "autoReloadHelp": "Execute notegen-plugin dev no projeto. Plugins de desenvolvimento ativos recarregam builds bem-sucedidas; mudanças de permissão ainda exigem revisão.",
+        "disabledTitle": "O modo de desenvolvedor está desativado",
+        "disabledDesc": "Ative o modo de desenvolvedor em Geral → Avançado antes de carregar plugins locais ou visualizar os logs de execução.",
+        "importTitle": "Carregar um pacote de plugin local",
+        "importDesc": "Importe um diretório de desenvolvimento descompactado. O código local não é verificado pela loja.",
+        "pathLabel": "Caminho absoluto do pacote",
+        "pathPlaceholder": "/path/to/my-plugin",
+        "chooseFolder": "Escolher pasta",
+        "pathHelp": "O diretório deve conter um manifesto de plugin válido e um arquivo de entrada compilado.",
+        "pathRequired": "Insira o caminho do pacote.",
+        "absolutePathRequired": "Insira um caminho absoluto.",
+        "importSuccess": "Plugin de desenvolvimento importado",
+        "loadedTitle": "Plugins de desenvolvimento carregados",
+        "pathUnavailable": "Caminho de origem indisponível",
+        "noDevelopmentPlugins": "Nenhum plugin de desenvolvimento carregado",
+        "noDevelopmentPluginsDesc": "Insira acima o caminho de um pacote descompactado para começar o desenvolvimento local.",
+        "logsTitle": "Logs de execução dos plugins",
+        "logsDesc": "As mensagens ficam na memória e podem ser apagadas aqui. Reiniciar o NoteGen também as remove.",
+        "logFilterLabel": "Filtrar logs por plugin",
+        "allLogs": "Todos os plugins",
+        "logLevels": {
+          "info": "Informações",
+          "warning": "Aviso",
+          "error": "Erro"
+        },
+        "noLogs": "Nenhum log de plugin",
+        "noLogsDesc": "Avisos e erros de execução aparecerão aqui."
+      },
+      "display": {
+        "title": "Exibição na interface",
+        "description": "Escolha onde este plugin aparece neste dispositivo. As alterações são imediatas. Ocultar entradas mantém o plugin e seus dados; os comandos continuam disponíveis na paleta de comandos.",
+        "locations": {
+          "left-sidebar": "Abas da barra lateral esquerda",
+          "right-sidebar": "Abas da barra lateral direita",
+          "editor-tab": "Abas do editor",
+          "file/context": "Menu de contexto de arquivos",
+          "editor/context": "Menu de contexto do editor",
+          "tab/context": "Menu de contexto de abas",
+          "editor/toolbar": "Barra de ferramentas do editor",
+          "editor/slash": "Menu de comandos com barra",
+          "editor/selection": "Menu de seleção de texto",
+          "mobile/writing/overflow": "Menu de mais opções no celular",
+          "status-bar": "Barra de status"
+        }
+      }
+    },
     "navigationGroups": {
       "basic": "Configurações básicas",
-      "aiExtensions": "IA e extensões",
+      "ai": "IA",
       "data": "Dados e armazenamento"
     },
     "searchPlaceholder": "Pesquisar configurações...",
@@ -3098,9 +3648,15 @@
         "attachImage": "Anexar imagens",
         "addAttachment": {
           "title": "Adicionar",
-          "image": { "title": "Imagem" },
-          "file": { "title": "Arquivo" },
-          "folder": { "title": "Pasta" },
+          "image": {
+            "title": "Imagem"
+          },
+          "file": {
+            "title": "Arquivo"
+          },
+          "folder": {
+            "title": "Pasta"
+          },
           "entryCount": "{count} itens",
           "remove": "Remover {name}",
           "metadataOnly": "somente metadados",
@@ -3152,10 +3708,25 @@
           "deliveryMode": {
             "label": "Mensagens durante a execução",
             "queued": "{count} mensagem(ns) na fila",
-            "pending": { "title": "Mensagens pendentes", "add": "Adicionar à lista de pendências", "remove": "Excluir mensagem da fila", "edit": "Editar mensagem", "save": "Salvar", "cancel": "Cancelar", "reorder": "Arraste para reordenar", "more": "Mais ações" },
+            "pending": {
+              "title": "Mensagens pendentes",
+              "add": "Adicionar à lista de pendências",
+              "remove": "Excluir mensagem da fila",
+              "edit": "Editar mensagem",
+              "save": "Salvar",
+              "cancel": "Cancelar",
+              "reorder": "Arraste para reordenar",
+              "more": "Mais ações"
+            },
             "modes": {
-              "steer": { "title": "Ajustar o próximo turno", "description": "Aplica esta instrução primeiro no próximo turno, após a resposta atual e as chamadas de ferramentas terminarem." },
-              "follow-up": { "title": "Executar depois", "description": "Inicia isto como uma nova tarefa após a conclusão da tarefa atual." }
+              "steer": {
+                "title": "Ajustar o próximo turno",
+                "description": "Aplica esta instrução primeiro no próximo turno, após a resposta atual e as chamadas de ferramentas terminarem."
+              },
+              "follow-up": {
+                "title": "Executar depois",
+                "description": "Inicia isto como uma nova tarefa após a conclusão da tarefa atual."
+              }
             }
           },
           "resume": {
@@ -3165,9 +3736,18 @@
           "permissionMode": {
             "label": "Modo de permissão do Agent",
             "modes": {
-              "read-only": { "title": "Somente leitura", "description": "Apenas visualizar e analisar conteúdo, sem fazer alterações." },
-              "ask": { "title": "Confirmar edições", "description": "Ler sem confirmação; pedir aprovação antes de alterar conteúdo." },
-              "auto-edit": { "title": "Edição automática", "description": "Editar conteúdo local automaticamente; exclusões, scripts, instalação de skills e outras ações sensíveis ainda exigem aprovação." }
+              "read-only": {
+                "title": "Somente leitura",
+                "description": "Apenas visualizar e analisar conteúdo, sem fazer alterações."
+              },
+              "ask": {
+                "title": "Confirmar edições",
+                "description": "Ler sem confirmação; pedir aprovação antes de alterar conteúdo."
+              },
+              "auto-edit": {
+                "title": "Edição automática",
+                "description": "Editar conteúdo local automaticamente; exclusões, scripts, instalação de skills e outras ações sensíveis ainda exigem aprovação."
+              }
             }
           },
           "autoFinal": {
@@ -3249,16 +3829,43 @@
           "commands": {
             "title": "Comandos rápidos",
             "placeholder": "Pesquisar comandos...",
-            "summarize": { "label": "Resumir", "description": "Extrair pontos principais e conclusões", "prompt": "Resuma o conteúdo a seguir e extraia os pontos principais e as conclusões:" },
-            "organize": { "label": "Organizar como nota", "description": "Criar Markdown estruturado", "prompt": "Organize o conteúdo a seguir em uma nota Markdown clara e estruturada:" },
-            "rewrite": { "label": "Aprimorar", "description": "Melhorar a redação sem alterar o sentido", "prompt": "Aprimore o conteúdo a seguir preservando seu significado:" },
-            "translate": { "label": "Traduzir", "description": "Traduzir para o idioma escolhido", "prompt": "Traduza o conteúdo a seguir para:" },
-            "searchNotes": { "label": "Pesquisar notas", "description": "Encontrar conteúdo relacionado na base de conhecimento", "prompt": "Pesquise na minha base de notas e responda:" },
-            "createNote": { "label": "Criar nota", "description": "Criar uma nota Markdown estruturada", "prompt": "Crie uma nova nota Markdown com base nestes requisitos:" }
+            "summarize": {
+              "label": "Resumir",
+              "description": "Extrair pontos principais e conclusões",
+              "prompt": "Resuma o conteúdo a seguir e extraia os pontos principais e as conclusões:"
+            },
+            "organize": {
+              "label": "Organizar como nota",
+              "description": "Criar Markdown estruturado",
+              "prompt": "Organize o conteúdo a seguir em uma nota Markdown clara e estruturada:"
+            },
+            "rewrite": {
+              "label": "Aprimorar",
+              "description": "Melhorar a redação sem alterar o sentido",
+              "prompt": "Aprimore o conteúdo a seguir preservando seu significado:"
+            },
+            "translate": {
+              "label": "Traduzir",
+              "description": "Traduzir para o idioma escolhido",
+              "prompt": "Traduza o conteúdo a seguir para:"
+            },
+            "searchNotes": {
+              "label": "Pesquisar notas",
+              "description": "Encontrar conteúdo relacionado na base de conhecimento",
+              "prompt": "Pesquise na minha base de notas e responda:"
+            },
+            "createNote": {
+              "label": "Criar nota",
+              "description": "Criar uma nota Markdown estruturada",
+              "prompt": "Crie uma nova nota Markdown com base nestes requisitos:"
+            }
           },
           "skills": {
             "title": "Skills",
-            "scope": { "global": "Global", "project": "Workspace" }
+            "scope": {
+              "global": "Global",
+              "project": "Workspace"
+            }
           },
           "resources": {
             "title": "Vincular contexto",
@@ -3387,9 +3994,55 @@
   "canvas": {
     "new": "Nova tela",
     "chooseTemplate": "Escolher um modelo",
-    "manager": { "title": "Gerenciador de telas", "view": "Visualização", "grid": "Visualização em miniaturas", "list": "Visualização em lista", "switchToGrid": "Mudar para miniaturas", "switchToList": "Mudar para lista", "sort": { "title": "Ordenar", "updated": "Última modificação", "created": "Data de criação", "name": "Nome" }, "pin": "Fixar tela", "unpin": "Desafixar tela", "refreshThumbnails": "Gerar miniaturas novamente", "closeTrash": "Voltar ao gerenciador de telas", "trashEmpty": "Nenhuma exclusão recente", "trashEmptyDescription": "As telas excluídas aparecerão aqui.", "trashCount": "{count} telas excluídas", "sync": { "upload": "Enviar", "pending": "Aguardando envio", "clickToUpload": "Aguardando envio. Clique para enviar agora.", "uploading": "Enviando", "synced": "Enviada", "failed": "Falha no envio", "downloadingAll": "Buscando telas remotas", "deleting": "Excluindo e sincronizando", "permanentlyDeleting": "Excluindo permanentemente" }, "count": "{count} telas" },
-    "templates": { "blank": "Tela em branco", "flowchart": "Fluxograma", "mindmap": "Mapa mental", "timeline": "Linha do tempo", "quadrant": "Quatro quadrantes", "kanban": "Kanban", "swot": "Análise SWOT" },
-    "import": { "action": "Importar tela ou Mermaid", "fileType": "Arquivo de tela", "defaultTitle": "Tela importada", "success": "Tela importada", "error": "Não foi possível importar este arquivo" },
+    "manager": {
+      "title": "Gerenciador de telas",
+      "view": "Visualização",
+      "grid": "Visualização em miniaturas",
+      "list": "Visualização em lista",
+      "switchToGrid": "Mudar para miniaturas",
+      "switchToList": "Mudar para lista",
+      "sort": {
+        "title": "Ordenar",
+        "updated": "Última modificação",
+        "created": "Data de criação",
+        "name": "Nome"
+      },
+      "pin": "Fixar tela",
+      "unpin": "Desafixar tela",
+      "refreshThumbnails": "Gerar miniaturas novamente",
+      "closeTrash": "Voltar ao gerenciador de telas",
+      "trashEmpty": "Nenhuma exclusão recente",
+      "trashEmptyDescription": "As telas excluídas aparecerão aqui.",
+      "trashCount": "{count} telas excluídas",
+      "sync": {
+        "upload": "Enviar",
+        "pending": "Aguardando envio",
+        "clickToUpload": "Aguardando envio. Clique para enviar agora.",
+        "uploading": "Enviando",
+        "synced": "Enviada",
+        "failed": "Falha no envio",
+        "downloadingAll": "Buscando telas remotas",
+        "deleting": "Excluindo e sincronizando",
+        "permanentlyDeleting": "Excluindo permanentemente"
+      },
+      "count": "{count} telas"
+    },
+    "templates": {
+      "blank": "Tela em branco",
+      "flowchart": "Fluxograma",
+      "mindmap": "Mapa mental",
+      "timeline": "Linha do tempo",
+      "quadrant": "Quatro quadrantes",
+      "kanban": "Kanban",
+      "swot": "Análise SWOT"
+    },
+    "import": {
+      "action": "Importar tela ou Mermaid",
+      "fileType": "Arquivo de tela",
+      "defaultTitle": "Tela importada",
+      "success": "Tela importada",
+      "error": "Não foi possível importar este arquivo"
+    },
     "untitled": "Tela sem título",
     "more": "Mais ações",
     "duplicate": "Duplicar",
@@ -3397,9 +4050,21 @@
     "delete": "Excluir tela",
     "trash": "Excluídas recentemente",
     "restore": "Restaurar tela",
-    "deleteDialog": { "title": "Excluir esta tela?", "description": "“{title}” será movida para Excluídas recentemente e poderá ser restaurada depois.", "cancel": "Cancelar", "confirm": "Mover para Excluídas recentemente" },
+    "deleteDialog": {
+      "title": "Excluir esta tela?",
+      "description": "“{title}” será movida para Excluídas recentemente e poderá ser restaurada depois.",
+      "cancel": "Cancelar",
+      "confirm": "Mover para Excluídas recentemente"
+    },
     "permanentDelete": "Excluir permanentemente",
-    "permanentDeleteDialog": { "title": "Excluir esta tela permanentemente?", "description": "O conteúdo local de “{title}” será excluído. Se a sincronização estiver configurada, o arquivo remoto também será removido. Esta ação não pode ser desfeita.", "cancel": "Cancelar", "confirm": "Excluir permanentemente", "deleting": "Excluindo", "error": "Falha na exclusão permanente. Verifique as configurações de sincronização e a rede e tente novamente." },
+    "permanentDeleteDialog": {
+      "title": "Excluir esta tela permanentemente?",
+      "description": "O conteúdo local de “{title}” será excluído. Se a sincronização estiver configurada, o arquivo remoto também será removido. Esta ação não pode ser desfeita.",
+      "cancel": "Cancelar",
+      "confirm": "Excluir permanentemente",
+      "deleting": "Excluindo",
+      "error": "Falha na exclusão permanente. Verifique as configurações de sincronização e a rede e tente novamente."
+    },
     "rename": "Renomear",
     "loading": "Carregando tela...",
     "undo": "Desfazer",
@@ -3409,26 +4074,256 @@
     "exportSuccess": "Tela exportada",
     "exportError": "Falha ao exportar a tela",
     "aiPreview": "Prévia das alterações da IA",
-    "tools": { "label": "Ferramentas da tela", "select": "Selecionar", "hand": "Mão", "connector": "Conector", "pen": "Caneta", "highlighter": "Marca-texto", "eraser": "Borracha" },
-    "toolbox": { "ai": "Gerar com IA", "aiPrompt": "Com base na minha descrição, gere no canvas atual um diagrama com nós e conexões nativos que possam ser editados separadamente: ", "shapes": "Formas", "media": "Mídia", "drawing": "Desenho", "close": "Fechar painel", "commonShapes": "Formas comuns", "flowchartShapes": "Fluxograma", "dataShapes": "Dados e armazenamento", "favorites": "Favoritos", "recent": "Recentes", "searchShapes": "Pesquisar formas", "noShapes": "Nenhuma forma encontrada", "favorite": "Favoritar forma", "unfavorite": "Remover dos favoritos", "customComponents": "Meus componentes", "deleteCustomComponent": "Excluir componente personalizado", "saveCustomComponent": "Salvar componente", "saveCustomComponentDescription": "Salve os nós selecionados e suas conexões internas como um componente reutilizável.", "customComponentName": "Nome do componente", "customComponentDefaultName": "Meu componente", "customComponentSaved": "Componente personalizado salvo", "connectionShape": "Escolher forma conectada", "connectionShapeDescription": "Crie uma forma e conecte-a ao nó atual.", "aiDescription": "Descreva o diagrama a gerar ou modificar", "aiGenerate": "Enviar para IA", "aiScopes": { "append": "Adicionar", "replace": "Substituir", "selection": "Seleção", "appendPrompt": "Mantenha o conteúdo atual e adicione este diagrama: ", "replacePrompt": "Substitua o canvas atual e gere este diagrama: ", "selectionPrompt": "Modifique apenas os nós e conexões selecionados: "}, "aiPresets": { "flowchart": "Fluxograma", "flowchartPrompt": "Crie um fluxograma claro de processo de negócio", "architecture": "Arquitetura", "architecturePrompt": "Crie um diagrama em camadas da arquitetura do sistema", "sequence": "Fluxo sequencial", "sequencePrompt": "Expresse uma sequência de interação com nós e conexões editáveis separadamente", "mindmap": "Mapa mental", "mindmapPrompt": "Crie um mapa mental que se ramifica a partir de um tema central" } },
-    "brush": { "penTitle": "Caneta", "highlighterTitle": "Marca-texto", "strokeTitle": "Traço do pincel", "color": "Cor", "size": "Largura do pincel" },
-    "nodes": { "process": "Processo", "decision": "Decisão", "terminator": "Início / Fim", "inputOutput": "Entrada / Saída", "document": "Documento", "multiDocument": "Vários documentos", "database": "Banco de dados", "predefinedProcess": "Processo predefinido", "manualInput": "Entrada manual", "preparation": "Preparação", "delay": "Atraso", "display": "Exibição", "connector": "Conector na página", "offPageConnector": "Conector fora da página", "internalStorage": "Armazenamento interno", "storedData": "Dados armazenados", "text": "Texto", "note": "Referência de nota", "record": "Registro", "image": "Imagem", "link": "Link da web", "todo": "Tarefa", "group": "Grupo", "chart": "Gráfico de dados" },
-    "chart": {
-      "createTitle": "Criar gráfico de dados", "editTitle": "Editar gráfico de dados", "description": "Insira os dados diretamente. O nó conclui o processamento em segundo plano.", "titleLabel": "Título do gráfico", "titlePlaceholder": "Deixe em branco para gerar automaticamente", "titleDescription": "Títulos automáticos são gerados novamente sempre que os dados do gráfico são processados.", "typeLabel": "Tipo de gráfico", "dataLabel": "Dados", "dataPlaceholder": "Mês,Desktop,Mobile\nJaneiro,186,80\nFevereiro,305,200", "dataDescription": "Aceita descrições em linguagem natural, CSV, TSV, tabelas Markdown e JSON.", "generate": "Gerar visualização", "generating": "Analisando", "preview": "Visualização", "primarySeries": "Campo de valor", "summary": "{rows} linhas · {series} séries", "emptyPreviewTitle": "Visualização não gerada", "emptyPreviewDescription": "Insira os dados e gere uma visualização para confirmar o tipo e o conteúdo.", "cancel": "Cancelar", "insert": "Inserir na tela", "update": "Gerar novamente", "nodeLoading": "Gerando gráfico…", "nodeErrorTitle": "Falha ao gerar o gráfico", "nodeErrorHint": "Clique duas vezes no nó para editar os dados e tentar novamente.",
-      "types": { "auto": "Detectar automaticamente", "area": "Gráfico de área", "bar": "Gráfico de barras", "line": "Gráfico de linhas", "pie": "Gráfico de pizza", "radar": "Gráfico de radar", "radial": "Gráfico radial" },
-      "notes": { "label": "Referenciar notas", "placeholder": "Selecionar notas", "selected": "{count} notas selecionadas", "title": "Fontes de dados do gráfico", "description": "Selecione uma ou mais notas como fontes de dados do gráfico.", "search": "Pesquisar notas", "empty": "Nenhuma nota encontrada", "manualInput": "Entrada manual" },
-      "recommendations": { "time-series": "Série temporal detectada; gráfico de linhas recomendado", "continuous": "Dados cumulativos detectados; gráfico de área recomendado", "proportion": "Proporções detectadas; gráfico de pizza recomendado", "progress": "Valores de progresso detectados; gráfico radial recomendado", "multidimensional": "Comparação multidimensional detectada; gráfico de radar recomendado", "categorical": "Dados categóricos detectados; gráfico de barras recomendado", "ai": "Recomendado pela IA com base na semântica dos dados" },
-      "appearance": { "title": "Aparência do gráfico", "variant": "Contêiner", "palette": "Paleta", "showTitle": "Mostrar título", "showLegend": "Mostrar legenda", "showGrid": "Mostrar grade", "showXAxis": "Mostrar eixo de categorias", "showYAxis": "Mostrar eixo de valores", "variants": { "card": "Cartão", "minimal": "Minimalista", "transparent": "Transparente" }, "palettes": { "system": "Sistema", "cool": "Fria", "warm": "Quente", "monochrome": "Monocromática" } },
-      "errors": { "CHART_NEEDS_HEADER_AND_ROW": "Forneça um cabeçalho e pelo menos uma linha.", "CHART_NEEDS_TWO_COLUMNS": "Forneça pelo menos duas colunas.", "CHART_INVALID_MARKDOWN_TABLE": "A tabela Markdown é inválida.", "CHART_JSON_ARRAY_REQUIRED": "O JSON deve ser uma matriz de objetos ou conter uma matriz data.", "CHART_EMPTY_DATA": "Os dados não podem estar vazios.", "CHART_NUMERIC_SERIES_REQUIRED": "Nenhuma série numérica foi encontrada.", "CHART_MISSING_NUMERIC_VALUE": "Uma série numérica contém valor vazio ou não numérico.", "CHART_EMPTY_INPUT": "Insira alguns dados.", "CHART_AI_REQUIRED": "Esta entrada requer análise por IA.", "CHART_AI_ADDED_VALUE": "A IA retornou um número ausente da entrada e a geração foi bloqueada.", "CHART_AI_SERIES_MISMATCH": "A IA retornou séries com comprimentos inconsistentes.", "CHART_AI_INVALID_JSON": "A IA não retornou dados de gráfico válidos.", "CHART_AI_NOT_CONFIGURED": "Configure primeiro um modelo de IA principal ou do editor.", "CHART_GENERATION_INTERRUPTED": "A geração anterior foi interrompida.", "CHART_UNKNOWN_ERROR": "Não foi possível gerar o gráfico. Verifique os dados e tente novamente." }
+    "tools": {
+      "label": "Ferramentas da tela",
+      "select": "Selecionar",
+      "hand": "Mão",
+      "connector": "Conector",
+      "pen": "Caneta",
+      "highlighter": "Marca-texto",
+      "eraser": "Borracha"
     },
-    "linkNode": { "urlPrompt": "Digite o endereço da web", "labelPrompt": "Digite o título do link" },
-    "utilityNodes": { "title": "Nós utilitários", "description": "Adicione imagem, link ou tarefa." },
-    "arrange": { "title": "Alinhar e agrupar", "description": "Organize os nós selecionados.", "alignHorizontal": "Alinhar centros horizontais", "alignVertical": "Alinhar centros verticais", "distributeHorizontal": "Distribuir horizontalmente", "distributeVertical": "Distribuir verticalmente", "group": "Criar grupo" },
-    "group": { "defaultLabel": "Grupo" },
-    "edge": { "title": "Estilo da conexão", "description": "Ajuste o caminho e o rótulo da conexão selecionada.", "orthogonal": "Ortogonal", "straight": "Reta", "curve": "Curva", "editLabel": "Editar rótulo", "labelPrompt": "Digite o rótulo da conexão", "labelDescription": "O rótulo aparece no centro da conexão. Deixe vazio para remover.", "saveLabel": "Salvar rótulo" },
-    "selection": { "tools": "Ferramentas do nó", "style": "Estilo do nó", "color": "Destaque", "customColor": "Cor personalizada", "border": "Borda", "solid": "Sólida", "dashed": "Tracejada", "dotted": "Pontilhada", "borderWidth": "Espessura da borda", "fill": "Fundo", "transparent": "Transparente", "customFill": "Cor de fundo personalizada", "lock": "Bloquear nós", "unlock": "Desbloquear nós", "copyStyle": "Copiar estilo", "pasteStyle": "Colar estilo", "styleCopied": "Estilo do nó copiado", "stylePasted": "Estilo do nó aplicado", "imagePasted": "Imagem colada na tela", "imagePasteError": "Não foi possível colar a imagem", "chatContext": "Seleção da tela: {nodes} nós, {edges} conexões", "chatContextNodes": "{nodes} nós", "chatContextNodesAndRelations": "{nodes} nós · {relations} relações", "removeChatContext": "Remover seleção da tela" },
-    "layer": { "front": "Trazer para frente", "forward": "Avançar uma camada", "backward": "Recuar uma camada", "back": "Enviar para trás" },
-    "noteNode": { "title": "Adicionar referência de nota", "description": "Escolha uma nota no gerenciador de arquivos. Clique duas vezes no nó para abrir o arquivo original.", "search": "Buscar notas...", "empty": "Nenhuma nota encontrada", "group": "Notas do espaço de trabalho", "added": "Nota “{name}” adicionada" },
+    "toolbox": {
+      "ai": "Gerar com IA",
+      "aiPrompt": "Com base na minha descrição, gere no canvas atual um diagrama com nós e conexões nativos que possam ser editados separadamente: ",
+      "shapes": "Formas",
+      "media": "Mídia",
+      "drawing": "Desenho",
+      "close": "Fechar painel",
+      "commonShapes": "Formas comuns",
+      "flowchartShapes": "Fluxograma",
+      "dataShapes": "Dados e armazenamento",
+      "favorites": "Favoritos",
+      "recent": "Recentes",
+      "searchShapes": "Pesquisar formas",
+      "noShapes": "Nenhuma forma encontrada",
+      "favorite": "Favoritar forma",
+      "unfavorite": "Remover dos favoritos",
+      "customComponents": "Meus componentes",
+      "deleteCustomComponent": "Excluir componente personalizado",
+      "saveCustomComponent": "Salvar componente",
+      "saveCustomComponentDescription": "Salve os nós selecionados e suas conexões internas como um componente reutilizável.",
+      "customComponentName": "Nome do componente",
+      "customComponentDefaultName": "Meu componente",
+      "customComponentSaved": "Componente personalizado salvo",
+      "connectionShape": "Escolher forma conectada",
+      "connectionShapeDescription": "Crie uma forma e conecte-a ao nó atual.",
+      "aiDescription": "Descreva o diagrama a gerar ou modificar",
+      "aiGenerate": "Enviar para IA",
+      "aiScopes": {
+        "append": "Adicionar",
+        "replace": "Substituir",
+        "selection": "Seleção",
+        "appendPrompt": "Mantenha o conteúdo atual e adicione este diagrama: ",
+        "replacePrompt": "Substitua o canvas atual e gere este diagrama: ",
+        "selectionPrompt": "Modifique apenas os nós e conexões selecionados: "
+      },
+      "aiPresets": {
+        "flowchart": "Fluxograma",
+        "flowchartPrompt": "Crie um fluxograma claro de processo de negócio",
+        "architecture": "Arquitetura",
+        "architecturePrompt": "Crie um diagrama em camadas da arquitetura do sistema",
+        "sequence": "Fluxo sequencial",
+        "sequencePrompt": "Expresse uma sequência de interação com nós e conexões editáveis separadamente",
+        "mindmap": "Mapa mental",
+        "mindmapPrompt": "Crie um mapa mental que se ramifica a partir de um tema central"
+      }
+    },
+    "brush": {
+      "penTitle": "Caneta",
+      "highlighterTitle": "Marca-texto",
+      "strokeTitle": "Traço do pincel",
+      "color": "Cor",
+      "size": "Largura do pincel"
+    },
+    "nodes": {
+      "process": "Processo",
+      "decision": "Decisão",
+      "terminator": "Início / Fim",
+      "inputOutput": "Entrada / Saída",
+      "document": "Documento",
+      "multiDocument": "Vários documentos",
+      "database": "Banco de dados",
+      "predefinedProcess": "Processo predefinido",
+      "manualInput": "Entrada manual",
+      "preparation": "Preparação",
+      "delay": "Atraso",
+      "display": "Exibição",
+      "connector": "Conector na página",
+      "offPageConnector": "Conector fora da página",
+      "internalStorage": "Armazenamento interno",
+      "storedData": "Dados armazenados",
+      "text": "Texto",
+      "note": "Referência de nota",
+      "record": "Registro",
+      "image": "Imagem",
+      "link": "Link da web",
+      "todo": "Tarefa",
+      "group": "Grupo",
+      "chart": "Gráfico de dados"
+    },
+    "chart": {
+      "createTitle": "Criar gráfico de dados",
+      "editTitle": "Editar gráfico de dados",
+      "description": "Insira os dados diretamente. O nó conclui o processamento em segundo plano.",
+      "titleLabel": "Título do gráfico",
+      "titlePlaceholder": "Deixe em branco para gerar automaticamente",
+      "titleDescription": "Títulos automáticos são gerados novamente sempre que os dados do gráfico são processados.",
+      "typeLabel": "Tipo de gráfico",
+      "dataLabel": "Dados",
+      "dataPlaceholder": "Mês,Desktop,Mobile\nJaneiro,186,80\nFevereiro,305,200",
+      "dataDescription": "Aceita descrições em linguagem natural, CSV, TSV, tabelas Markdown e JSON.",
+      "generate": "Gerar visualização",
+      "generating": "Analisando",
+      "preview": "Visualização",
+      "primarySeries": "Campo de valor",
+      "summary": "{rows} linhas · {series} séries",
+      "emptyPreviewTitle": "Visualização não gerada",
+      "emptyPreviewDescription": "Insira os dados e gere uma visualização para confirmar o tipo e o conteúdo.",
+      "cancel": "Cancelar",
+      "insert": "Inserir na tela",
+      "update": "Gerar novamente",
+      "nodeLoading": "Gerando gráfico…",
+      "nodeErrorTitle": "Falha ao gerar o gráfico",
+      "nodeErrorHint": "Clique duas vezes no nó para editar os dados e tentar novamente.",
+      "types": {
+        "auto": "Detectar automaticamente",
+        "area": "Gráfico de área",
+        "bar": "Gráfico de barras",
+        "line": "Gráfico de linhas",
+        "pie": "Gráfico de pizza",
+        "radar": "Gráfico de radar",
+        "radial": "Gráfico radial"
+      },
+      "notes": {
+        "label": "Referenciar notas",
+        "placeholder": "Selecionar notas",
+        "selected": "{count} notas selecionadas",
+        "title": "Fontes de dados do gráfico",
+        "description": "Selecione uma ou mais notas como fontes de dados do gráfico.",
+        "search": "Pesquisar notas",
+        "empty": "Nenhuma nota encontrada",
+        "manualInput": "Entrada manual"
+      },
+      "recommendations": {
+        "time-series": "Série temporal detectada; gráfico de linhas recomendado",
+        "continuous": "Dados cumulativos detectados; gráfico de área recomendado",
+        "proportion": "Proporções detectadas; gráfico de pizza recomendado",
+        "progress": "Valores de progresso detectados; gráfico radial recomendado",
+        "multidimensional": "Comparação multidimensional detectada; gráfico de radar recomendado",
+        "categorical": "Dados categóricos detectados; gráfico de barras recomendado",
+        "ai": "Recomendado pela IA com base na semântica dos dados"
+      },
+      "appearance": {
+        "title": "Aparência do gráfico",
+        "variant": "Contêiner",
+        "palette": "Paleta",
+        "showTitle": "Mostrar título",
+        "showLegend": "Mostrar legenda",
+        "showGrid": "Mostrar grade",
+        "showXAxis": "Mostrar eixo de categorias",
+        "showYAxis": "Mostrar eixo de valores",
+        "variants": {
+          "card": "Cartão",
+          "minimal": "Minimalista",
+          "transparent": "Transparente"
+        },
+        "palettes": {
+          "system": "Sistema",
+          "cool": "Fria",
+          "warm": "Quente",
+          "monochrome": "Monocromática"
+        }
+      },
+      "errors": {
+        "CHART_NEEDS_HEADER_AND_ROW": "Forneça um cabeçalho e pelo menos uma linha.",
+        "CHART_NEEDS_TWO_COLUMNS": "Forneça pelo menos duas colunas.",
+        "CHART_INVALID_MARKDOWN_TABLE": "A tabela Markdown é inválida.",
+        "CHART_JSON_ARRAY_REQUIRED": "O JSON deve ser uma matriz de objetos ou conter uma matriz data.",
+        "CHART_EMPTY_DATA": "Os dados não podem estar vazios.",
+        "CHART_NUMERIC_SERIES_REQUIRED": "Nenhuma série numérica foi encontrada.",
+        "CHART_MISSING_NUMERIC_VALUE": "Uma série numérica contém valor vazio ou não numérico.",
+        "CHART_EMPTY_INPUT": "Insira alguns dados.",
+        "CHART_AI_REQUIRED": "Esta entrada requer análise por IA.",
+        "CHART_AI_ADDED_VALUE": "A IA retornou um número ausente da entrada e a geração foi bloqueada.",
+        "CHART_AI_SERIES_MISMATCH": "A IA retornou séries com comprimentos inconsistentes.",
+        "CHART_AI_INVALID_JSON": "A IA não retornou dados de gráfico válidos.",
+        "CHART_AI_NOT_CONFIGURED": "Configure primeiro um modelo de IA principal ou do editor.",
+        "CHART_GENERATION_INTERRUPTED": "A geração anterior foi interrompida.",
+        "CHART_UNKNOWN_ERROR": "Não foi possível gerar o gráfico. Verifique os dados e tente novamente."
+      }
+    },
+    "linkNode": {
+      "urlPrompt": "Digite o endereço da web",
+      "labelPrompt": "Digite o título do link"
+    },
+    "utilityNodes": {
+      "title": "Nós utilitários",
+      "description": "Adicione imagem, link ou tarefa."
+    },
+    "arrange": {
+      "title": "Alinhar e agrupar",
+      "description": "Organize os nós selecionados.",
+      "alignHorizontal": "Alinhar centros horizontais",
+      "alignVertical": "Alinhar centros verticais",
+      "distributeHorizontal": "Distribuir horizontalmente",
+      "distributeVertical": "Distribuir verticalmente",
+      "group": "Criar grupo"
+    },
+    "group": {
+      "defaultLabel": "Grupo"
+    },
+    "edge": {
+      "title": "Estilo da conexão",
+      "description": "Ajuste o caminho e o rótulo da conexão selecionada.",
+      "orthogonal": "Ortogonal",
+      "straight": "Reta",
+      "curve": "Curva",
+      "editLabel": "Editar rótulo",
+      "labelPrompt": "Digite o rótulo da conexão",
+      "labelDescription": "O rótulo aparece no centro da conexão. Deixe vazio para remover.",
+      "saveLabel": "Salvar rótulo"
+    },
+    "selection": {
+      "tools": "Ferramentas do nó",
+      "style": "Estilo do nó",
+      "color": "Destaque",
+      "customColor": "Cor personalizada",
+      "border": "Borda",
+      "solid": "Sólida",
+      "dashed": "Tracejada",
+      "dotted": "Pontilhada",
+      "borderWidth": "Espessura da borda",
+      "fill": "Fundo",
+      "transparent": "Transparente",
+      "customFill": "Cor de fundo personalizada",
+      "lock": "Bloquear nós",
+      "unlock": "Desbloquear nós",
+      "copyStyle": "Copiar estilo",
+      "pasteStyle": "Colar estilo",
+      "styleCopied": "Estilo do nó copiado",
+      "stylePasted": "Estilo do nó aplicado",
+      "imagePasted": "Imagem colada na tela",
+      "imagePasteError": "Não foi possível colar a imagem",
+      "chatContext": "Seleção da tela: {nodes} nós, {edges} conexões",
+      "chatContextNodes": "{nodes} nós",
+      "chatContextNodesAndRelations": "{nodes} nós · {relations} relações",
+      "removeChatContext": "Remover seleção da tela"
+    },
+    "layer": {
+      "front": "Trazer para frente",
+      "forward": "Avançar uma camada",
+      "backward": "Recuar uma camada",
+      "back": "Enviar para trás"
+    },
+    "noteNode": {
+      "title": "Adicionar referência de nota",
+      "description": "Escolha uma nota no gerenciador de arquivos. Clique duas vezes no nó para abrir o arquivo original.",
+      "search": "Buscar notas...",
+      "empty": "Nenhuma nota encontrada",
+      "group": "Notas do espaço de trabalho",
+      "added": "Nota “{name}” adicionada"
+    },
     "footer": {
       "nodes": "{count} nós",
       "edges": "{count} conexões",
@@ -3439,10 +4334,34 @@
       "fit": "Ajustar visualização",
       "layout": "Organizar automaticamente",
       "export": "Exportar",
-      "import": { "title": "Importar", "file": "Escolher arquivo", "content": "Inserir conteúdo", "contentTitle": "Importar conteúdo da tela", "contentDescription": "Aceita NoteGen Canvas JSON ou fluxograma Mermaid. A importação substitui a tela atual.", "contentPlaceholder": "Cole o conteúdo Canvas JSON ou Mermaid…", "confirm": "Importar para a tela atual" },
-      "exportMenu": { "record": "Exportar como registro de ilustração", "recordError": "Falha ao salvar o registro de ilustração", "computer": "Salvar no computador", "source": "Arquivos editáveis", "png2x": "PNG · 2× alta resolução", "png4x": "PNG · 4× ultra resolução", "svg": "SVG · vetorial", "canvasFile": "NoteGen Canvas JSON", "mermaid": "Fluxograma Mermaid" }
+      "import": {
+        "title": "Importar",
+        "file": "Escolher arquivo",
+        "content": "Inserir conteúdo",
+        "contentTitle": "Importar conteúdo da tela",
+        "contentDescription": "Aceita NoteGen Canvas JSON ou fluxograma Mermaid. A importação substitui a tela atual.",
+        "contentPlaceholder": "Cole o conteúdo Canvas JSON ou Mermaid…",
+        "confirm": "Importar para a tela atual"
+      },
+      "exportMenu": {
+        "record": "Exportar como registro de ilustração",
+        "recordError": "Falha ao salvar o registro de ilustração",
+        "computer": "Salvar no computador",
+        "source": "Arquivos editáveis",
+        "png2x": "PNG · 2× alta resolução",
+        "png4x": "PNG · 4× ultra resolução",
+        "svg": "SVG · vetorial",
+        "canvasFile": "NoteGen Canvas JSON",
+        "mermaid": "Fluxograma Mermaid"
+      }
     },
-    "contextMenu": { "selectAll": "Selecionar tudo", "copy": "Copiar", "paste": "Colar", "duplicate": "Duplicar", "delete": "Excluir seleção" },
+    "contextMenu": {
+      "selectAll": "Selecionar tudo",
+      "copy": "Copiar",
+      "paste": "Colar",
+      "duplicate": "Duplicar",
+      "delete": "Excluir seleção"
+    },
     "empty": {
       "title": "Nenhuma tela ainda",
       "description": "Crie uma tela para organizar ideias com diagramas e desenho livre."
@@ -4253,7 +5172,12 @@
       "canvasTasks": "Extrair relações de tarefas",
       "canvasSource": "Markdown selecionado:",
       "canvasPromptSuffix": "Leia a tela em branco atual e use as ferramentas da tela. Mostre uma prévia e aguarde confirmação antes de aplicar.",
-      "canvasPrompts": { "flowchart": "Transforme o texto selecionado em um fluxograma claro.", "mindmap": "Transforme o texto selecionado em um mapa mental estruturado.", "timeline": "Identifique datas, fases e marcos e gere uma linha do tempo.", "tasks": "Extraia tarefas, dependências e ordem e gere um diagrama de relações." },
+      "canvasPrompts": {
+        "flowchart": "Transforme o texto selecionado em um fluxograma claro.",
+        "mindmap": "Transforme o texto selecionado em um mapa mental estruturado.",
+        "timeline": "Identifique datas, fases e marcos e gere uma linha do tempo.",
+        "tasks": "Extraia tarefas, dependências e ordem e gere um diagrama de relações."
+      },
       "translate": "Traduzir",
       "translateSubtitle": "Traduzir para",
       "quoteToChat": "Citar no Chat",
@@ -4298,7 +5222,13 @@
       "generating": "Gerando...",
       "abort": "Abortar"
     },
-    "canvasDrop": { "hint": "Solte para inserir a imagem da tela", "generating": "Gerando imagem da tela…", "success": "Tela inserida", "successDescription": "Imagem estática criada: {path}", "failed": "Não foi possível inserir a tela" },
+    "canvasDrop": {
+      "hint": "Solte para inserir a imagem da tela",
+      "generating": "Gerando imagem da tela…",
+      "success": "Tela inserida",
+      "successDescription": "Imagem estática criada: {path}",
+      "failed": "Não foi possível inserir a tela"
+    },
     "image": {
       "insert": "Inserir imagem",
       "uploading": "Enviando...",

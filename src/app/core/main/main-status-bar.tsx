@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChatFooter } from './chat/chat-footer'
 import { FileFooter } from './file/file-footer'
+import { PluginStatusBarItems } from '@/components/plugins/plugin-status-bar-items'
 
 const EDITOR_STATUS_SLOT_ID = 'main-editor-status-slot'
 
@@ -13,10 +14,12 @@ export function MainStatusBar() {
       <div className="h-full min-w-0 shrink-0">
         <FileFooter />
       </div>
+      <PluginStatusBarItems alignment="left" />
       <div
         id={EDITOR_STATUS_SLOT_ID}
         className="flex h-full min-w-0 flex-1 items-center"
       />
+      <PluginStatusBarItems alignment="right" />
       <div className="h-full min-w-0 shrink-0">
         <ChatFooter embedded />
       </div>

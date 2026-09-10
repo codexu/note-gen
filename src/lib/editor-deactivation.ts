@@ -19,6 +19,7 @@ let activeEditorDurableSaveFlusher: ActiveEditorDurableSaveFlusher | null = null
 let editorPathMutationFlusher: EditorPathMutationFlusher | null = null
 let editorPathWriteTransactionRunner: EditorPathWriteTransactionRunner | null = null
 const editorPathMutationRevisions = new Map<string, number>()
+const editorPathMutationLocks = new Set<{ paths: readonly string[]; workspaceRoot: string }>()
 
 type NormalizedEditorPath = {
   kind: 'absolute' | 'relative' | 'opaque'
@@ -189,6 +190,27 @@ export function workspaceRootsReferToSameLocation(left: string, right: string): 
     && normalizedRight?.kind === 'absolute'
     && editorPathsReferToSameFile(left, right)
   )
+}
+
+export function isEditorPathMutationLocked(path: string, workspaceRoot?: string): boolean {
+  return [...editorPathMutationLocks].some(lock => (
+    (!workspaceRoot || workspaceRootsReferToSameLocation(workspaceRoot.toLowerCase(), lock.workspaceRoot.toLowerCase()))
+    && lock.paths.some(lockedPath => editorPathsCouldReferToSameFile(path, lockedPath, lock.workspaceRoot))
+  ))
+}
+
+/** A conservative alias check for mutations on case-insensitive filesystems. */
+export function editorPathsCouldReferToSameFile(left: string, right: string, workspaceRoot?: string): boolean {
+  return editorPathsReferToSameFile(left, right, workspaceRoot)
+    || editorPathsReferToSameFile(left.toLowerCase(), right.toLowerCase(), workspaceRoot?.toLowerCase())
+}
+
+/** Prevent a closed file from being opened while its plugin disk mutation is in progress. */
+export function lockEditorPathsForMutation(paths: readonly string[], workspaceRoot: string): (() => void) | null {
+  if (paths.some(path => isEditorPathMutationLocked(path, workspaceRoot))) return null
+  const lock = { paths: [...paths], workspaceRoot }
+  editorPathMutationLocks.add(lock)
+  return () => { editorPathMutationLocks.delete(lock) }
 }
 
 export async function getCurrentEditorWorkspaceRoot(): Promise<string> {

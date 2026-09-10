@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { platform } from '@tauri-apps/plugin-os'
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { Store } from '@tauri-apps/plugin-store'
 import { MoreHorizontal, Pin, PinOff } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -36,10 +38,14 @@ import {
 import { prepareActiveEditorDeactivation } from '@/lib/editor-deactivation'
 import { cn } from '@/lib/utils'
 import { setRuntimeWorkspaceRoot } from '@/lib/workspace'
+import { PluginCommandPalette } from '@/components/plugins/plugin-command-palette'
+import { PluginHostBridge } from '@/components/plugins/plugin-host-bridge'
+import useSettingStore, { DEVELOPER_MODE_CHANGED_EVENT } from '@/stores/setting'
 
 export default function EditorWindowPage() {
   const t = useTranslations('editorWindow')
   const tEditor = useTranslations('editor')
+  const locale = useLocale()
   const [session, setSession] = useState<EditorWindowSession | null>(null)
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -47,6 +53,7 @@ export default function EditorWindowPage() {
   const [dirty, setDirty] = useState(false)
   const [isMacOS, setIsMacOS] = useState(false)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
+  const [pluginSettingsReady, setPluginSettingsReady] = useState(false)
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
   const closingRef = useRef(false)
   const sessionRef = useRef<EditorWindowSession | null>(null)
@@ -111,6 +118,28 @@ export default function EditorWindowPage() {
   }, [])
 
   useEffect(() => {
+    let disposed = false
+    let removeListener: (() => void) | undefined
+    void listen<boolean>(DEVELOPER_MODE_CHANGED_EVENT, (event) => {
+      useSettingStore.setState({ developerMode: event.payload === true })
+    }).then(async (unlisten) => {
+      removeListener = unlisten
+      const store = await Store.load('store.json')
+      const developerMode = await store.get<boolean>('developerMode') === true
+      if (!disposed) {
+        useSettingStore.setState({ developerMode })
+        setPluginSettingsReady(true)
+      }
+    }).catch(() => {
+      if (!disposed) setPluginSettingsReady(true)
+    })
+    return () => {
+      disposed = true
+      removeListener?.()
+    }
+  }, [])
+
+  useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('session')
     setIsMacOS(platform() === 'macos')
     if (!id) {
@@ -123,7 +152,7 @@ export default function EditorWindowPage() {
         setError(t('missing'))
         return
       }
-      setRuntimeWorkspaceRoot(storedSession.workspaceRoot)
+      setRuntimeWorkspaceRoot(storedSession.workspaceRoot, storedSession.workspaceIsCustom ?? true)
       const initialContent = await readTextFile(storedSession.absolutePath)
       sessionRef.current = storedSession
       contentRef.current = initialContent
@@ -234,6 +263,12 @@ export default function EditorWindowPage() {
           standalone
         />
       </div>
+      <PluginHostBridge
+        ready={pluginSettingsReady && Boolean(session)}
+        locale={locale}
+        surface="editor-window"
+      />
+      <PluginCommandPalette />
       <AlertDialog
         open={discardDialogOpen}
         onOpenChange={open => {

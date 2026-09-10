@@ -4,7 +4,7 @@ import { Editor } from '@tiptap/react'
 import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { toast } from '@/hooks/use-toast'
-import { markdownToPlainText } from '@/lib/editor-statistics'
+import { markdownToPlainText } from '@/lib/markdown-to-plain-text'
 import { parseMarkdownToJson, renderMarkdownToHtml } from '../markdown-export'
 import {
   DropdownMenu,

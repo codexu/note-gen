@@ -55,6 +55,7 @@ import useChatStore from '@/stores/chat'
 
 interface MobileRecordDetailProps {
   markId: number
+  isActive: boolean
 }
 
 const LargeRecordMarkdownEditor = dynamic(
@@ -116,7 +117,7 @@ function DetailField({
   )
 }
 
-export function MobileRecordDetail({ markId }: MobileRecordDetailProps) {
+export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps) {
   const t = useTranslations()
   const router = useRouter()
   const pathname = usePathname()
@@ -509,6 +510,8 @@ export function MobileRecordDetail({ markId }: MobileRecordDetailProps) {
                         showFooterBar={false}
                         mobileMode
                         enableLargeDocumentMode
+                        isActive={isActive}
+                        exposeToPluginHost={false}
                       />
                     </div>
                   ) : (
@@ -549,6 +552,8 @@ export function MobileRecordDetail({ markId }: MobileRecordDetailProps) {
                         showFooterBar={false}
                         mobileMode
                         enableLargeDocumentMode
+                        isActive={isActive}
+                        exposeToPluginHost={false}
                       />
                     </div>
                   ) : (

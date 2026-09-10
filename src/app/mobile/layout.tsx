@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import AppStatus from "@/components/app-status"
 import useMarkStore from "@/stores/mark"
 import useCanvasStore from "@/stores/canvas"
+import { PluginHostBridge } from "@/components/plugins/plugin-host-bridge"
 
 const WritingScreen = dynamic(
   () => import('./writing/writing-screen').then(module => module.WritingScreen),
@@ -110,6 +111,7 @@ export default function RootLayout({
   const { initCollapsibleList } = useArticleStore()
   const { initVectorDb } = useVectorStore()
   const { currentLocale } = useI18n()
+  const [pluginsReady, setPluginsReady] = useState(false)
   useEffect(() => {
     if (isWritingRoute) {
       setHasWritingCache(true)
@@ -178,6 +180,7 @@ export default function RootLayout({
         initMainHosting()
         await initAllDatabases()
         if (cancelled) return
+        setPluginsReady(true)
         const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
         await refreshSelfHostedSyncRuntime()
         const { runMemoryMaintenance } = await import('@/lib/memory/auto-memory')
@@ -268,7 +271,7 @@ export default function RootLayout({
                     className={isWritingRoute ? "h-full w-full min-w-0" : "hidden"}
                     aria-hidden={!isWritingRoute}
                   >
-                    <WritingScreen />
+                    <WritingScreen isActive={isWritingRoute} />
                   </div>
                 ) : null}
                 {cachedMarkId !== null ? (
@@ -276,7 +279,7 @@ export default function RootLayout({
                     className={isRecordDetailRoute ? "h-full w-full min-w-0" : "hidden"}
                     aria-hidden={!isRecordDetailRoute}
                   >
-                    <MobileRecordDetail markId={cachedMarkId} />
+                    <MobileRecordDetail markId={cachedMarkId} isActive={isRecordDetailRoute} />
                   </div>
                 ) : null}
                 {cachedCanvasId ? (
@@ -308,6 +311,7 @@ export default function RootLayout({
           <SyncConfirmDialog />
           <MobileUpdateChecker />
           <MemoryAutoNotifications />
+          <PluginHostBridge ready={pluginsReady} locale={currentLocale} />
         </TextSizeProvider>
       </ThemeProvider>
     </MobileModeProvider>

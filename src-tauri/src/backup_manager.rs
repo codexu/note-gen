@@ -76,6 +76,14 @@ fn canonical_if_exists(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+fn is_plugin_local_state_entry(name: &str) -> bool {
+    name == "plugins"
+        || name == "plugins.json"
+        || name == "plugin-data.json"
+        || name.starts_with("plugins.json.")
+        || name.starts_with("plugin-data.json.")
+}
+
 fn should_skip_app_data_entry(path: &Path) -> bool {
     matches!(
         path.file_name().and_then(|name| name.to_str()),
@@ -90,7 +98,7 @@ fn should_skip_app_data_entry(path: &Path) -> bool {
     ) || path
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "temp_import")
+        .is_some_and(|name| name == "temp_import" || is_plugin_local_state_entry(name))
 }
 
 fn path_is_within(path: &Path, parent: &Path) -> bool {
@@ -191,6 +199,7 @@ fn write_managed_archive(
     workspace_dir: Option<&Path>,
     backup_dir: &Path,
     manifest: &ManagedBackupManifest,
+    plugin_user_data: &[u8],
 ) -> Result<(), String> {
     let file = fs::File::create(archive_path)
         .map_err(|error| format!("Failed to create backup archive: {error}"))?;
@@ -203,6 +212,11 @@ fn write_managed_archive(
         .map_err(|error| format!("Failed to serialize backup manifest: {error}"))?;
     zip.write_all(&manifest_json)
         .map_err(|error| format!("Failed to write backup manifest: {error}"))?;
+
+    zip.start_file("plugin-user-data.json", options)
+        .map_err(|error| format!("Failed to add plugin data: {error}"))?;
+    zip.write_all(plugin_user_data)
+        .map_err(|error| format!("Failed to write plugin data: {error}"))?;
 
     add_directory_to_zip(
         &mut zip,
@@ -409,6 +423,7 @@ pub async fn create_managed_backup(
             workspace_was_custom: custom_workspace.is_some(),
         };
 
+        let plugin_user_data = crate::plugins::snapshot_plugin_user_data(&app_handle, workspace_path.as_deref()).await?;
         write_managed_archive(
             &temporary_path,
             &app_data_dir,
@@ -418,6 +433,7 @@ pub async fn create_managed_backup(
             workspace_for_separate_archive,
             &backup_directory,
             &manifest,
+            &plugin_user_data,
         )?;
         fs::rename(&temporary_path, &final_path)
             .map_err(|error| format!("Failed to publish completed backup: {error}"))?;
@@ -478,7 +494,11 @@ fn extract_archive(path: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_directory(source: &Path, destination: &Path, skip_article: bool) -> Result<(), String> {
+fn copy_directory(
+    source: &Path,
+    destination: &Path,
+    skip_app_local_state: bool,
+) -> Result<(), String> {
     fs::create_dir_all(destination)
         .map_err(|error| format!("Failed to create restore destination: {error}"))?;
     for entry in
@@ -486,7 +506,9 @@ fn copy_directory(source: &Path, destination: &Path, skip_article: bool) -> Resu
     {
         let entry = entry.map_err(|error| format!("Failed to read restored entry: {error}"))?;
         let source_path = entry.path();
-        if skip_article && source_path.file_name().and_then(|name| name.to_str()) == Some("article")
+        let entry_name = source_path.file_name().and_then(|name| name.to_str());
+        if skip_app_local_state
+            && entry_name.is_some_and(|name| name == "article" || is_plugin_local_state_entry(name))
         {
             continue;
         }
@@ -561,6 +583,8 @@ fn preserve_device_local_settings(
         "managedBackupLastSuccessAt",
         "managedBackupLastError",
         "deviceId",
+        "developerMode",
+        "developerPerformanceInfo",
         "assetsPath",
         "workspaceHistory",
         "workspaceSyncRepos",
@@ -662,6 +686,7 @@ pub fn restore_managed_backup(
             None
         };
 
+        crate::plugins::restore_plugin_user_data(&app_handle, &staging_dir.join("plugin-user-data.json"), recovered_workspace_path.as_deref())?;
         Ok(ManagedBackupRestoreResult {
             recovered_workspace_path,
         })

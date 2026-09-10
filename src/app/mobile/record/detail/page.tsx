@@ -7,5 +7,5 @@ export default function MobileRecordDetailPage() {
   const searchParams = useSearchParams()
   const markId = Number(searchParams.get('id'))
 
-  return <MobileRecordDetail markId={markId} />
+  return <MobileRecordDetail markId={markId} isActive />
 }

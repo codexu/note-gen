@@ -1,9 +1,17 @@
 'use client'
 
+import type { Editor } from '@tiptap/core'
+import { PluginIcon } from '@/components/plugins/plugin-icon'
+import { usePluginEditorCommands } from '@/components/plugins/use-plugin-editor-commands'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  executePluginCommand,
+  type RegisteredPluginCommand,
+} from '@/lib/plugins/command-registry'
+import { toast } from '@/hooks/use-toast'
 
 type MobileSheetMode =
   | 'insert'
@@ -19,6 +27,8 @@ type MobileSheetMode =
   | null
 
 interface MobileEditorMoreSheetProps {
+  editor?: Editor | null
+  pluginsEnabled?: boolean
   open: boolean
   mode: MobileSheetMode
   imageSrc: string
@@ -39,25 +49,32 @@ function ActionButton({
   description,
   onClick,
   destructive = false,
+  icon,
+  disabled,
 }: {
   label: string
   description?: string
   onClick: () => void
   destructive?: boolean
+  icon?: string
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       className={`w-full rounded-xl border px-3 py-3 text-left ${destructive ? 'border-destructive/30 text-destructive' : 'border-border text-foreground'}`}
       onClick={onClick}
     >
-      <span className="block text-sm font-medium">{label}</span>
+      <span className="flex items-center gap-2 text-sm font-medium">{icon ? <PluginIcon name={icon} className="size-4" /> : null}{label}</span>
       {description ? <span className="mt-1 block text-xs text-muted-foreground">{description}</span> : null}
     </button>
   )
 }
 
 export function MobileEditorMoreSheet({
+  editor,
+  pluginsEnabled = false,
   open,
   mode,
   imageSrc,
@@ -72,6 +89,20 @@ export function MobileEditorMoreSheet({
   onSubmitCustomAiInstruction,
   onAction,
 }: MobileEditorMoreSheetProps) {
+  const contributions = usePluginEditorCommands('mobile/writing/overflow', editor)
+  const pluginCommands = pluginsEnabled ? contributions : []
+
+  const runPluginCommand = (command: RegisteredPluginCommand) => {
+    onOpenChange(false)
+    void executePluginCommand(command.id).catch((error) => {
+      toast({
+        title: command.title,
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      })
+    })
+  }
+
   const titleMap: Record<Exclude<MobileSheetMode, null>, string> = {
     insert: '插入内容',
     format: '文本格式',
@@ -164,6 +195,16 @@ export function MobileEditorMoreSheet({
               <ActionButton label="行内公式" onClick={() => onAction('insert-inline-math')} />
               <ActionButton label="块级公式" onClick={() => onAction('insert-block-math')} />
               <ActionButton label="Mermaid 图表" onClick={() => onAction('insert-mermaid')} />
+              {pluginCommands.map((command) => (
+                <ActionButton
+                  key={command.id}
+                  label={command.title}
+                  description={command.description}
+                  icon={command.icon}
+                  disabled={command.disabled}
+                  onClick={() => runPluginCommand(command)}
+                />
+              ))}
             </>
           )}
 

@@ -3,7 +3,7 @@
 import { ThemeProvider } from "@/components/theme-provider"
 import { CloseBehaviorGuard } from "@/components/close-behavior-guard"
 import useSettingStore from "@/stores/setting"
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { initAllDatabases } from "@/db"
 import dayjs from "dayjs"
 import zh from "dayjs/locale/zh-cn";
@@ -44,6 +44,9 @@ import { settingSections, type SettingSection, useSettingsDialogStore } from "@/
 import { MemoryAutoNotifications } from "@/components/memories/memory-auto-notifications"
 import { WebClipperBridge } from "@/components/web-clipper-bridge"
 import { LocalMcpBridge } from "@/components/local-mcp-bridge"
+import { PluginCommandPalette } from "@/components/plugins/plugin-command-palette"
+import { PluginHostBridge } from "@/components/plugins/plugin-host-bridge"
+import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host"
 
 export default function RootLayout({
   children,
@@ -64,6 +67,7 @@ export default function RootLayout({
   const { openSettings } = useSettingsDialogStore()
   const t = useTranslations()
   const { toast } = useToast()
+  const [pluginsReady, setPluginsReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -326,6 +330,7 @@ export default function RootLayout({
         // 先完成数据库和默认工作区初始化，避免首次启动时其他逻辑抢先读取空目录或未建表数据库。
         await initAllDatabases()
         if (cancelled) return
+        setPluginsReady(true)
         const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
         await refreshSelfHostedSyncRuntime()
         const { runMemoryMaintenance } = await import('@/lib/memory/auto-memory')
@@ -468,6 +473,9 @@ export default function RootLayout({
         <MemoryAutoNotifications />
         <WebClipperBridge />
         <LocalMcpBridge />
+        <PluginHostBridge ready={pluginsReady} locale={currentLocale} />
+        <PluginCommandPalette />
+        <PluginDialogHost />
         <CloseBehaviorGuard />
       </TextSizeProvider>
     </ThemeProvider>

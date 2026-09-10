@@ -184,6 +184,7 @@ pub fn run() {
             plugin_read_entry,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_read_locale,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_read_usage,
             plugin_open_or_create_note,
             plugin_read_workspace_note,

@@ -60,7 +60,7 @@ export function SettingTab({
   const t = useTranslations('settings')
   const messages = useMessages()
   const [query, setQuery] = useState(() => mobileSettingQueryCache)
-  const notMobilePages = ['about', 'backup', 'shortcuts']
+  const notMobilePages = ['about', 'backup', 'shortcuts', 'plugins']
   
   const config = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()

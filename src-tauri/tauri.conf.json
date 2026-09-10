@@ -55,7 +55,7 @@
       "icons/icon.ico"
     ],
     "iOS": {
-      "bundleVersion": "0.36.0",
+      "bundleVersion": "0.37.0",
       "developmentTeam": "RGZC4ZTJMU",
       "template": "src-tauri/ios-project.yml"
     },

@@ -18,7 +18,7 @@
     "macos-app-store-build": "tauri build --config src-tauri/tauri.macos-app-store.conf.json",
     "plugin-api:check-version": "node -e \"const fs=require('node:fs');const files=['packages/plugin-api/src/index.ts','src-tauri/src/plugins.rs'];const versions=files.map((file)=>{const tail=fs.readFileSync(file,'utf8').split('PLUGIN_API_VERSION')[1];const match=tail&&tail.match(/[0-9]+[.][0-9]+[.][0-9]+/);if(!match)throw new Error('Missing plugin API version in '+file);return match[0]});if(new Set(versions).size!==1)throw new Error('Plugin API versions differ: '+versions.join(' != '));\"",
     "plugin-api:build": "pnpm run plugin-api:check-version && pnpm --filter @notegen/plugin-api build",
-    "plugin-market:check-key": "./scripts/check-plugin-market-public-key.sh"
+    "plugin-market:check-key": "bash ./scripts/check-plugin-market-public-key.sh"
   },
   "dependencies": {
     "@antv/infographic": "^0.2.7",

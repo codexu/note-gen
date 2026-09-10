@@ -67,6 +67,7 @@ export const MarkdownParagraph = Node.create<MarkdownParagraphOptions>({
     if (
       content.length === 1 &&
       content[0].type === 'text' &&
+      typeof content[0].text === 'string' &&
       (
         content[0].text === EMPTY_PARAGRAPH_MARKDOWN
         || content[0].text === NBSP_CHAR

@@ -306,7 +306,7 @@ function SortableOutlineItem({
             type="button"
             onClick={() => onSelect(heading.id)}
             onDoubleClick={() => onStartEdit(heading.id)}
-            onPointerDown={dragDisabled ? undefined : listeners?.onPointerDown}
+            onPointerDown={dragDisabled ? undefined : (event) => listeners?.onPointerDown?.(event)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === 'F2') {
                 event.preventDefault()

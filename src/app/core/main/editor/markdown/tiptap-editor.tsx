@@ -694,11 +694,14 @@ function moveEditorBlockByOffset(target: EditorBlockTarget | null, direction: -1
 
 function getEditorBlockMarkdown(target: EditorBlockTarget | null) {
   const resolvedTarget = resolveEditorBlockTarget(target)
-  if (!resolvedTarget || !resolvedTarget.editor.markdown) {
+  if (!resolvedTarget) {
     return null
   }
 
   const { editor, from, to } = resolvedTarget
+  if (!editor.markdown) {
+    return null
+  }
 
   return editor.markdown.serialize({
     type: 'doc',

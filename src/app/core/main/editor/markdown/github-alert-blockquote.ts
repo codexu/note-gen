@@ -7,6 +7,7 @@ import {
   type MarkdownToken,
 } from '@tiptap/core'
 import type MarkdownIt from 'markdown-it'
+import type Token from 'markdown-it/lib/token.mjs'
 
 export const GITHUB_ALERT_TYPES = [
   'NOTE',
@@ -132,7 +133,7 @@ function renderGitHubAlertTitle(alertType: GitHubAlertType, alertTitle?: string 
 }
 
 function addGitHubAlertAttributes(
-  token: MarkdownIt.Token,
+  token: Token,
   alertType: GitHubAlertType,
   alertTitle?: string | null,
 ) {
@@ -142,7 +143,7 @@ function addGitHubAlertAttributes(
   if (alertTitle) token.attrSet('data-github-alert-title', alertTitle)
 }
 
-function findMatchingBlockquoteClose(tokens: MarkdownIt.Token[], startIndex: number) {
+function findMatchingBlockquoteClose(tokens: Token[], startIndex: number) {
   let depth = 0
 
   for (let index = startIndex; index < tokens.length; index++) {

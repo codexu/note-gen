@@ -1774,6 +1774,9 @@ async function deleteRemoteEditorFile(
   relativePath: string,
   expectedHash: string | null,
 ) {
+  const localRoot = binding.localRoot
+  if (!localRoot) throw new Error('remote_delete_workspace_root_missing')
+
   const { default: useArticleStore } = await import('@/stores/article')
   const activePath = useArticleStore.getState().activeFilePath
   if (editorPathsReferToSameFile(activePath, relativePath) && !prepareActiveEditorDeactivation()) {
@@ -1784,7 +1787,7 @@ async function deleteRemoteEditorFile(
     relativePath,
     async ({ hasQueuedSave }) => {
       if (getEditorPathMutationRevision(relativePath) !== initialMutationRevision) return false
-      const absolutePath = await join(binding.localRoot!, relativePath)
+      const absolutePath = await join(localRoot, relativePath)
       const fileExists = await exists(absolutePath)
       const previousContent = fileExists ? await readTextFile(absolutePath) : null
       if (hasQueuedSave()) return false
@@ -1817,7 +1820,7 @@ async function deleteRemoteEditorFile(
       }
 
       try {
-        await useArticleStore.getState().cleanTabsByDeletedFile(relativePath, binding.localRoot)
+        await useArticleStore.getState().cleanTabsByDeletedFile(relativePath, localRoot)
       } catch (error) {
         await rollbackRemoteEditorSnapshot(
           binding,

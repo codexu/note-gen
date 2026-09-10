@@ -12,7 +12,7 @@ on:
 
 permissions: read-all
 
-model: small
+model: gpt-5-mini
 
 max-turns: 12
 max-ai-credits: 50

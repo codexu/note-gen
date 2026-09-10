@@ -194,6 +194,16 @@ GitHub Releases are also available as a fallback mirror:
 
 You do not need to configure every feature before writing your first note.
 
+## Related repositories
+
+| Repository | Purpose |
+| --- | --- |
+| [note-gen-docs](https://github.com/codexu/note-gen-docs) | Official website, bilingual documentation, and download pages. |
+| [note-gen-server](https://github.com/codexu/note-gen-server) | Sync service and account management, with support for self-hosting. |
+| [note-gen-clipper](https://github.com/codexu/note-gen-clipper) | Browser extension for saving selected text, images, and page links to NoteGen. |
+| [note-gen-plugin-sdk](https://github.com/codexu/note-gen-plugin-sdk) | TypeScript API, project scaffolding, CLI, and test tools for developing NoteGen plugins. |
+| [note-gen-plugins](https://github.com/codexu/note-gen-plugins) | Official plugin source code and plugin marketplace publishing tools. |
+
 ## Contributing
 
 NoteGen is open source and contributions are welcome.

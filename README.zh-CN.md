@@ -198,6 +198,16 @@ AI 生成的画布不会变成一张无法修改的图片，其中的节点、�
 
 不需要先完成所有配置，才能开始写第一篇笔记。
 
+## 相关仓库
+
+| 仓库 | 用途 |
+| --- | --- |
+| [note-gen-docs](https://github.com/codexu/note-gen-docs) | 官网、中英文使用文档与下载页面。 |
+| [note-gen-server](https://github.com/codexu/note-gen-server) | 同步服务与账号管理，支持自行部署。 |
+| [note-gen-clipper](https://github.com/codexu/note-gen-clipper) | 浏览器剪藏扩展，将选中文字、图片和网页链接保存到 NoteGen。 |
+| [note-gen-plugin-sdk](https://github.com/codexu/note-gen-plugin-sdk) | 插件开发所需的 TypeScript API、项目脚手架、CLI 和测试工具。 |
+| [note-gen-plugins](https://github.com/codexu/note-gen-plugins) | 官方插件源码与插件市场发布工具。 |
+
 ## 参与贡献
 
 NoteGen 是一个开源项目，欢迎参与代码、翻译、文档和产品体验方面的改进。

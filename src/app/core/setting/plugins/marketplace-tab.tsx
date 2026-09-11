@@ -45,6 +45,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import type { PluginMarketEntry } from '@/lib/plugins/types'
+import { compareSemver } from '@/lib/plugins/manifest'
 import { usePluginStore } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
 import { getLatestDesktopRelease, getPluginMarketText } from './plugin-display'
@@ -176,6 +177,9 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled }: {
         <ItemGroup>
           {plugins.map((entry) => {
             const release = getLatestDesktopRelease(entry, appVersion)
+            const displayedRelease = release ?? [...entry.releases]
+              .filter(candidate => candidate.revoked === undefined && candidate.platforms.includes('desktop'))
+              .sort((left, right) => compareSemver(right.version, left.version))[0]
             const installedPlugin = installedById.get(entry.id)
             const busy = operationPluginId === entry.id
             return (
@@ -202,11 +206,15 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled }: {
                     size="sm"
                     disabled={catalog?.stale || !release || Boolean(installedPlugin) || Boolean(operationPluginId)}
                     onClick={() => setReviewEntry(catalog?.plugins.find(plugin => plugin.id === entry.id) ?? entry)}
-                    aria-label={t('market.installAria', { name: entry.name })}
+                    aria-label={(catalog?.stale || !release) && displayedRelease
+                      ? `${entry.name}: ${t('details.minAppVersion')} ${displayedRelease.minAppVersion}`
+                      : t('market.installAria', { name: entry.name })}
                   >
                     {busy ? <Spinner data-icon="inline-start" /> : <PackagePlus data-icon="inline-start" />}
                     {catalog?.stale || !release
-                      ? t('market.unavailable')
+                      ? displayedRelease
+                        ? `NoteGen ≥ ${displayedRelease.minAppVersion}`
+                        : t('market.unavailable')
                       : installedPlugin
                         ? t('actions.installed')
                         : busy

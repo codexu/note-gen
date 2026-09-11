@@ -1,7 +1,7 @@
 'use client'
 
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Tag } from '@/db/tags'
 import { useTranslations } from 'next-intl'
 
@@ -25,15 +25,15 @@ export function RecordSaveTarget({ selectedTagId, tags, onTagChange }: RecordSav
         {t('record.capture.saveTarget')}
       </Label>
       <Select value={String(selectedTag?.id ?? selectedTagId)} onValueChange={(value) => onTagChange(Number(value))}>
-        <SelectTrigger id="record-save-target" className="h-9">
+        <SelectTrigger id="record-save-target" className="h-9 max-w-full [&_[data-slot=select-value]]:truncate">
           <SelectValue placeholder={t('record.capture.saveTargetPlaceholder')} />
         </SelectTrigger>
         <SelectContent>
-          {tags.map((tag) => (
+          <SelectGroup>{tags.map((tag) => (
             <SelectItem key={tag.id} value={String(tag.id)}>
               {tag.name}
             </SelectItem>
-          ))}
+          ))}</SelectGroup>
         </SelectContent>
       </Select>
     </div>

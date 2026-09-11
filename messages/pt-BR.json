@@ -2663,7 +2663,7 @@
         },
         "quickRecordText": {
           "title": "Gravação Rápida de Texto",
-          "desc": "Abrir rapidamente a janela principal e alternar para a gravação de texto."
+          "desc": "Abra uma janela de texto redimensionável sem exibir a janela principal."
         }
       }
     },
@@ -5419,5 +5419,10 @@
     "loadingLayout": "Restaurando layout do editor…",
     "undo": "Desfazer",
     "redo": "Refazer"
+  },
+  "quickRecordWindow": {
+    "loadError": "Não foi possível carregar as configurações. Tente novamente.",
+    "saveError": "Salvamento não confirmado. Tente novamente; o rascunho será mantido e não será salvo duas vezes.",
+    "retry": "Tentar novamente"
   }
 }

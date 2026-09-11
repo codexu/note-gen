@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-record-capability",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["quick-record"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "store:default",
+    "clipboard:read-all"
+  ]
+}

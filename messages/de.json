@@ -2905,7 +2905,7 @@
         },
         "quickRecordText": {
           "title": "Schnelle Textaufnahme",
-          "desc": "Öffnet schnell das Hauptfenster und wechselt zur Textaufnahme."
+          "desc": "Ein separates, größenveränderbares Textfenster öffnen, ohne das Hauptfenster anzuzeigen."
         }
       }
     },
@@ -5401,5 +5401,10 @@
     "loadingLayout": "Editorlayout wird wiederhergestellt…",
     "undo": "Rückgängig",
     "redo": "Wiederholen"
+  },
+  "quickRecordWindow": {
+    "loadError": "Aufnahmeeinstellungen konnten nicht geladen werden. Bitte erneut versuchen.",
+    "saveError": "Speicherung nicht bestätigt. Erneut versuchen; der Entwurf bleibt erhalten und wird nicht doppelt gespeichert.",
+    "retry": "Erneut versuchen"
   }
 }

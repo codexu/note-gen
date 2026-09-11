@@ -3046,7 +3046,7 @@
         },
         "quickRecordText": {
           "title": "Quick Record Text",
-          "desc": "Quickly open the main window and switch to text recording."
+          "desc": "Open a resizable text capture window without bringing up the main window."
         }
       }
     },
@@ -5543,5 +5543,10 @@
     "loadingLayout": "Restoring editor layout…",
     "undo": "Undo",
     "redo": "Redo"
+  },
+  "quickRecordWindow": {
+    "loadError": "Could not load capture settings. Please retry.",
+    "saveError": "Save not confirmed. Retry to confirm; your draft is kept and will not be saved twice.",
+    "retry": "Retry"
   }
 }

@@ -319,6 +319,7 @@ export default function RootLayout({
   useEffect(() => {
     let cancelled = false
     let stopManagedBackup: (() => void) | undefined
+    let stopQuickRecord: (() => void) | undefined
 
     void reportAppStart()
 
@@ -352,7 +353,12 @@ export default function RootLayout({
         await useArticleStore.getState().initVectorIndexedFiles()
         if (cancelled) return
 
-        initQuickRecordText()
+        const cleanupQuickRecord = await initQuickRecordText()
+        if (cancelled) {
+          cleanupQuickRecord()
+          return
+        }
+        stopQuickRecord = cleanupQuickRecord
         initShowWindow()
         initMcp()
 
@@ -369,6 +375,7 @@ export default function RootLayout({
     return () => {
       cancelled = true
       stopManagedBackup?.()
+      stopQuickRecord?.()
     }
   }, [])
 

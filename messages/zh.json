@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "语言",
-          "desc": "选择应用的显示语言"
+          "desc": "选择应用的显示语言",
+          "findInPlugins": "在插件中找到您要的语言"
         },
         "scale": {
           "title": "界面缩放",
@@ -222,6 +223,10 @@
             "title": "启用托盘",
             "desc": "关闭窗口时选择最小化到托盘或直接关闭软件"
           }
+        },
+        "themePackage": {
+          "title": "主题包",
+          "default": "内置配色"
         }
       },
       "tools": {
@@ -632,7 +637,7 @@
         "requiredField": "请填写此项",
         "invalidValue": "请输入有效的值"
       },
-      "title": "插件",
+      "title": "插件管理",
       "desc": "发现、安装、授权并配置 NoteGen 扩展。插件代码目前仅在桌面端运行。",
       "loading": "正在加载插件...",
       "initializationFailed": "插件初始化失败",
@@ -927,6 +932,9 @@
           "editor/slash": "斜杠命令菜单",
           "editor/selection": "选中文本菜单",
           "mobile/writing/overflow": "移动端更多菜单",
+          "title-bar-left": "顶部左侧",
+          "title-bar-center": "顶部中间",
+          "title-bar-right": "顶部右侧",
           "status-bar": "状态栏"
         }
       }
@@ -3051,6 +3059,7 @@
       }
     },
     "navigationGroups": {
+      "extensions": "拓展",
       "basic": "基础设置",
       "ai": "AI",
       "data": "数据与存储"

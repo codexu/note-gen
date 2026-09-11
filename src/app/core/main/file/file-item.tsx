@@ -1,3 +1,4 @@
+import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { isMobileDevice } from '@/lib/check'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
@@ -933,7 +934,7 @@ export function FileItem({
                   onDragStart={handleDragStart}
                   className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
                 >
-                  <div className="relative flex shrink-0 items-center">{renderFileTypeIcon()}</div>
+                  <div className="relative flex shrink-0 items-center">{<PluginFileIcon path={path} fallback={renderFileTypeIcon()} className={`${iconSize} shrink-0`} />}</div>
                   <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
                 <FileTreeDecorations
@@ -985,7 +986,7 @@ export function FileItem({
                   onDragStart={handleDragStart}
                   className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
                 >
-                  <div className="relative flex shrink-0 items-center">{renderFileTypeIcon()}</div>
+                  <div className="relative flex shrink-0 items-center">{<PluginFileIcon path={path} fallback={renderFileTypeIcon()} className={`${iconSize} shrink-0`} />}</div>
                   <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
                 <FileTreeDecorations

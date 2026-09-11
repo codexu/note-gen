@@ -182,6 +182,8 @@ pub fn run() {
             plugin_rollback,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_read_entry,
+            plugins::plugin_read_resource,
+            plugins::plugin_read_preview_chunk,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_read_locale,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

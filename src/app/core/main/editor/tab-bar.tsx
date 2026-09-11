@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ExternalLink, FilePlus2, FileText, Folder, Maximize2, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
@@ -139,9 +140,9 @@ function SortableTabWithMenu({
           ) : isCanvasTab ? (
             <Palette className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           ) : tab.isFolder ? (
-            <Folder className="size-4 shrink-0 text-amber-500" />
+            <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
           ) : (
-            <FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+            <PluginFileIcon path={tab.path} fallback={<FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />} />
           )}
           {tab.pinned && <Pin className="size-3.5 shrink-0 text-primary" />}
           <span className={cn('truncate', tab.preview && 'italic')}>{tab.name}</span>

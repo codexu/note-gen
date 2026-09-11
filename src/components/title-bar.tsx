@@ -7,6 +7,7 @@ import { isMobileDevice } from '@/lib/check'
 import { Settings, Minus, Square, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
+import { PluginTitleBar } from './plugins/plugin-title-bar'
 import { PinToggle } from './pin-toggle'
 import AppStatus from './app-status'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -221,10 +222,15 @@ export function TitleBar() {
           </TooltipProvider>
         </div>
 
-        <div className="min-w-[120px] flex-1" data-tauri-drag-region />
+        <PluginTitleBar location="title-bar-left" />
+
+        <div className="flex min-w-[120px] flex-1 items-center justify-center self-stretch px-[60px]" data-tauri-drag-region>
+          <PluginTitleBar location="title-bar-center" />
+        </div>
 
         {/* 右侧按钮 */}
         <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+          <PluginTitleBar location="title-bar-right" />
           {/* 左侧边栏切换按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>

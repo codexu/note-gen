@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import baseConfig from '../config'
-import { useMessages, useTranslations } from 'next-intl'
-import { Search } from 'lucide-react'
+import { useLocale, useMessages, useTranslations } from 'next-intl'
+import { Box, Search } from 'lucide-react'
 import useUpdateStore from '@/stores/update'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
@@ -13,6 +13,12 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { hasPluginSettingsContent } from '@/lib/plugins/display-preferences'
+import { useShallow } from 'zustand/react/shallow'
+import { usePluginStore } from '@/stores/plugins'
+import { usePluginLocalization } from '@/lib/plugins/localization'
+import { getInstalledPluginText, resolvePluginText } from '../plugins/plugin-display'
+import type { PluginSettingSection } from '@/stores/settings-dialog'
 
 function collectSearchTerms(value: unknown): string[] {
   if (typeof value === 'string') return [value]
@@ -24,6 +30,10 @@ function collectSearchTerms(value: unknown): string[] {
 export function SettingTab() {
   const t = useTranslations('settings')
   const messages = useMessages()
+  const locale = useLocale()
+  const settingsPlugins = usePluginStore(useShallow(state => state.installed.filter(plugin =>
+    state.isEnabled(plugin.manifest.id) && hasPluginSettingsContent(plugin))))
+  const localizationRevision = usePluginLocalization(settingsPlugins, locale)
   const { hasUpdate } = useUpdateStore()
   const [query, setQuery] = useState('')
   
@@ -31,7 +41,7 @@ export function SettingTab() {
   const config = useMemo(() => {
     const settingMessages = messages.settings as Record<string, unknown> | undefined
 
-    return baseConfig.map(item => {
+    const builtins = baseConfig.map(item => {
       if ('group' in item) {
         return {
           ...item,
@@ -44,7 +54,21 @@ export function SettingTab() {
         searchTerms: collectSearchTerms(settingMessages?.[item.anchor]),
       }
     })
-  }, [messages.settings, t])
+    if (!settingsPlugins.length) return builtins
+    const plugins = [...settingsPlugins].sort((a, b) => a.manifest.id.localeCompare(b.manifest.id)).map(plugin => {
+      const text = getInstalledPluginText(plugin, locale)
+      return {
+        anchor: `plugin:${plugin.manifest.id}` as PluginSettingSection,
+        icon: <Box className="size-4" />,
+        title: text.name,
+        searchTerms: [plugin.manifest.id, text.description, ...(plugin.manifest.contributes.settings ?? []).flatMap(setting => [
+          resolvePluginText(plugin.manifest.id, setting.title, locale),
+          resolvePluginText(plugin.manifest.id, setting.description, locale),
+        ])],
+      }
+    })
+    return [...builtins, ...plugins]
+  }, [messages.settings, t, settingsPlugins, locale, localizationRevision])
 
   const filteredConfig = useMemo(() => {
     const searchText = query.trim().toLocaleLowerCase()

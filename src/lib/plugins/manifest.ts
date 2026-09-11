@@ -1,3 +1,4 @@
+import { validatePluginResources } from '@notegen/plugin-api'
 import { z } from 'zod'
 import {
   PLUGIN_API_VERSION,
@@ -124,7 +125,7 @@ const menuSchema = z.object({
 const viewSchema = z.object({
   id: namespacedIdSchema,
   title: localizedTextSchema,
-  location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab']),
+  location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab', 'settings', 'title-bar-left', 'title-bar-center', 'title-bar-right']),
   icon: z.string().min(1).max(80).optional(),
 }).strict()
 
@@ -137,9 +138,13 @@ const manifestSchema = z.object({
   apiVersion: semverRangeSchema,
   minAppVersion: semverSchema,
   platforms: z.array(z.enum(['desktop', 'ios', 'android'])).min(1).max(3),
+  resources: z.unknown().optional().superRefine((value, ctx) => {
+    if (value === undefined) return
+    try { validatePluginResources(value) } catch (error) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: String(error) }) }
+  }),
   entry: relativeFileSchema.refine((entry) => entry.endsWith('.js'), {
     message: 'entry must be a JavaScript file',
-  }),
+  }).optional(),
   activationEvents: z.array(z.string()).max(100),
   permissions: z.object({
     'editor.read': permissionDeclarationSchema.optional(),
@@ -430,6 +435,10 @@ export function parsePluginManifest(value: unknown): PluginManifestV1 {
   }
 
   const manifest = result.data as PluginManifestV1
+  if (!manifest.entry && (!manifest.resources || !Object.values(manifest.resources).some(items => items.length) || manifest.activationEvents.length || Object.values(manifest.contributes).some(items => items.length) || Object.keys(manifest.permissions).some(key => key !== 'attachments.read') || (!manifest.resources.documentPreviews?.length && Object.keys(manifest.permissions).length))) {
+    throw new PluginError('InvalidManifest', 'A resource package must declare resources without runtime contributions')
+  }
+  if (manifest.resources?.documentPreviews?.length && !manifest.permissions['attachments.read']) throw new PluginError('InvalidManifest', 'Previews require attachments.read')
   validatePermissionScopes(manifest)
   validateContributions(manifest)
   validateLocalization(manifest)

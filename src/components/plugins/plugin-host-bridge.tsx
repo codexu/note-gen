@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { pluginHost } from '@/lib/plugins/host'
 import type { PluginHostSurface } from '@/lib/plugins/host'
 import { usePluginStore } from '@/stores/plugins'
@@ -14,13 +14,16 @@ export function PluginHostBridge({
   locale: string
   surface?: PluginHostSurface
 }) {
+  const localeRef = useRef(locale)
+  localeRef.current = locale
+  useEffect(() => { if (ready) pluginHost.setLocale(locale) }, [locale, ready])
   useEffect(() => {
     if (!ready) return
     let disposed = false
     let failed = false
     const start = () => {
       failed = false
-      void pluginHost.initialize(locale, surface).catch((error) => {
+      void pluginHost.initialize(localeRef.current, surface).catch((error) => {
         if (disposed) return
         failed = true
         usePluginStore.getState().addLog({
@@ -39,7 +42,7 @@ export function PluginHostBridge({
       unsubscribe()
       pluginHost.stop()
     }
-  }, [locale, ready, surface])
+  }, [ready, surface])
 
   return null
 }

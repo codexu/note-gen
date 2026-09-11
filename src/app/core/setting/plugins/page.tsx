@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getLatestDesktopRelease, hasNewerVersion } from './plugin-display'
 import { loadPluginMessages } from '@/lib/plugins/localization'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { usePluginStore } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
 import { SettingType } from '../components/setting-base'
@@ -27,6 +28,9 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
   const logs = usePluginStore((state) => state.logs)
   const developerMode = useSettingStore(state => state.developerMode)
   const [tab, setTab] = useState('installed')
+  const [marketQuery, setMarketQuery] = useState('')
+  const discoveryRequest = useSettingsDialogStore(state => state.pluginDiscoveryRequest)
+  const clearDiscoveryRequest = useSettingsDialogStore(state => state.clearPluginDiscoveryRequest)
   const [enablePluginId, setEnablePluginId] = useState<string | null>(null)
   function offerEnablement(pluginId: string) {
     setEnablePluginId(pluginId)
@@ -56,6 +60,13 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
       setInitializationError(reason instanceof Error ? reason.message : String(reason))
     }
   }
+
+  useEffect(() => {
+    if (!discoveryRequest || mobile) return
+    setMarketQuery(discoveryRequest.query)
+    setTab('market')
+    clearDiscoveryRequest()
+  }, [discoveryRequest, mobile, clearDiscoveryRequest])
 
   useEffect(() => {
     void initializePage()
@@ -112,7 +123,7 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
               {logs.some(entry => entry.level === 'error') ? <CircleAlert aria-label={t('labels.attention')} /> : null}
             </TabsTrigger> : null}
           </TabsList>
-          {!mobile ? <TabsContent value="market"><MarketplaceTab onInstalled={offerEnablement} /></TabsContent> : null}
+          {!mobile ? <TabsContent value="market"><MarketplaceTab query={marketQuery} onQueryChange={setMarketQuery} onInstalled={offerEnablement} /></TabsContent> : null}
           <TabsContent value="installed" className="flex flex-col gap-4">
             <InstalledPluginsTab enablePluginId={enablePluginId} onEnablePromptHandled={() => setEnablePluginId(null)} />
           </TabsContent>

@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "Language",
-          "desc": "Choose the application's display language"
+          "desc": "Choose the application's display language",
+          "findInPlugins": "Find your language in plugins"
         },
         "scale": {
           "title": "Interface Scale",
@@ -222,6 +223,10 @@
             "title": "Enable Tray",
             "desc": "Choose to minimize to tray or close app when window is closed"
           }
+        },
+        "themePackage": {
+          "title": "Theme package",
+          "default": "Built-in colors"
         }
       },
       "tools": {
@@ -632,7 +637,7 @@
         "requiredField": "This field is required",
         "invalidValue": "Enter a valid value"
       },
-      "title": "Plugins",
+      "title": "Plugin Management",
       "desc": "Discover, install, authorize, and configure extensions for NoteGen. Plugin code currently runs only on desktop.",
       "loading": "Loading plugins...",
       "initializationFailed": "Plugins could not be initialized",
@@ -927,6 +932,9 @@
           "editor/slash": "Slash command menu",
           "editor/selection": "Text selection menu",
           "mobile/writing/overflow": "Mobile overflow menu",
+          "title-bar-left": "Title bar left",
+          "title-bar-center": "Title bar center",
+          "title-bar-right": "Title bar right",
           "status-bar": "Status bar"
         }
       }
@@ -3051,6 +3059,7 @@
       }
     },
     "navigationGroups": {
+      "extensions": "Extensions",
       "basic": "Basic",
       "ai": "AI",
       "data": "Data & Storage"

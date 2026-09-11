@@ -22,6 +22,8 @@ export const PLUGIN_RPC_METHODS = [
   'workspace.getCurrent',
   'calendar.resolveDay',
   'notes.read',
+  'fileIcons.setRules',
+  'fileIcons.clear',
   'attachments.read',
   'attachments.create',
   'notes.openOrCreate',

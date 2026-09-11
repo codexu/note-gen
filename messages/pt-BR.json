@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "Idioma",
-          "desc": "Escolha o idioma de exibição do aplicativo"
+          "desc": "Escolha o idioma de exibição do aplicativo",
+          "findInPlugins": "Encontre seu idioma nos plugins"
         },
         "scale": {
           "title": "Escala da Interface",
@@ -222,6 +223,10 @@
             "border": "Cor da borda",
             "shadow": "Cor da sombra"
           }
+        },
+        "themePackage": {
+          "title": "Pacote de tema",
+          "default": "Cores integradas"
         }
       },
       "tools": {
@@ -2740,7 +2745,7 @@
         "requiredField": "Este campo é obrigatório",
         "invalidValue": "Insira um valor válido"
       },
-      "title": "Plugins",
+      "title": "Gerenciamento de plugins",
       "desc": "Encontre, instale, autorize e configure extensões para o NoteGen. Por enquanto, os plugins são executados apenas no desktop.",
       "loading": "Carregando plugins...",
       "initializationFailed": "Não foi possível inicializar os plugins",
@@ -3035,11 +3040,15 @@
           "editor/slash": "Menu de comandos com barra",
           "editor/selection": "Menu de seleção de texto",
           "mobile/writing/overflow": "Menu de mais opções no celular",
+          "title-bar-left": "Barra de título à esquerda",
+          "title-bar-center": "Barra de título ao centro",
+          "title-bar-right": "Barra de título à direita",
           "status-bar": "Barra de status"
         }
       }
     },
     "navigationGroups": {
+      "extensions": "Extensões",
       "basic": "Configurações básicas",
       "ai": "IA",
       "data": "Dados e armazenamento"

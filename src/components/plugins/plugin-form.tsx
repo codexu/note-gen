@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl'
 import type { PluginFormBlock, PluginFormField, PluginFormValue } from '@notegen/plugin-api'
 import { PluginNotePicker } from './plugin-note-picker'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { PluginSettingsRow, usePluginSettingsLayout } from './plugin-settings-layout'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,6 +22,7 @@ function visible(field: PluginFormField, values: Record<string, PluginFormValue>
 
 export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: string }) {
   const t = useTranslations('settings.plugins.ui')
+  const settingsLayout = usePluginSettingsLayout()
   const prefix = useId()
   const key = pluginFormKey(scope, block.id)
   const session = usePluginFormStore(state => state.sessions[key])
@@ -115,13 +118,16 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
   }
 
   return <form aria-busy={busy} noValidate onSubmit={event => { event.preventDefault(); void submit() }}>
-    <FieldGroup>
+    <FieldGroup className={settingsLayout ? "gap-3" : undefined}>
       {block.fields.map(field => {
         if (!visible(field, values)) return null
         const id = `${prefix}-${field.id}`
         const invalid = Boolean(errors[field.id])
         const describedBy = [field.description ? `${id}-description` : null, invalid ? `${id}-error` : null].filter(Boolean).join(' ') || undefined
         const disabled = busy || Boolean(field.disabled)
+        if (field.type === 'checkbox' && settingsLayout) return <PluginSettingsRow key={field.id} id={id} title={<>{field.label}{field.required ? ' *' : ''}</>} description={field.description} descriptionId={`${id}-description`} error={errors[field.id]} errorId={`${id}-error`} disabled={disabled} invalid={invalid} toggle>
+          <Switch id={id} checked={values[field.id] === true} disabled={disabled} aria-invalid={invalid} aria-describedby={describedBy} aria-required={field.required} onCheckedChange={value => update(field.id, value)} />
+        </PluginSettingsRow>
         if (field.type === 'checkbox') return (
           <Field key={field.id} orientation="horizontal" data-invalid={invalid} data-disabled={disabled}>
             <Checkbox id={id} checked={values[field.id] === true} disabled={disabled} aria-invalid={invalid} aria-describedby={describedBy} aria-required={field.required} onCheckedChange={value => update(field.id, value === true)} />
@@ -132,9 +138,7 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
             </FieldContent>
           </Field>
         )
-        return <Field key={field.id} data-invalid={invalid} data-disabled={disabled}>
-          <FieldLabel htmlFor={id}>{field.label}{field.required ? ' *' : ''}</FieldLabel>
-          {field.type === 'note-picker' ? <PluginNotePicker id={id} label={field.label} options={field.options} value={String(values[field.id] ?? '')} disabled={disabled} invalid={invalid} describedBy={describedBy} onChange={value => update(field.id, value)} /> : field.type === 'select' ? <Select value={String(values[field.id] ?? '')} disabled={disabled} onValueChange={value => update(field.id, value)}>
+        const control = (field.type === 'note-picker' ? <PluginNotePicker id={id} label={field.label} options={field.options} value={String(values[field.id] ?? '')} disabled={disabled} invalid={invalid} describedBy={describedBy} onChange={value => update(field.id, value)} /> : field.type === 'select' ? <Select value={String(values[field.id] ?? '')} disabled={disabled} onValueChange={value => update(field.id, value)}>
               <SelectTrigger id={id} aria-invalid={invalid} aria-describedby={describedBy} aria-required={field.required}><SelectValue /></SelectTrigger>
               <SelectContent><SelectGroup>{field.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
@@ -142,14 +146,18 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
                 : <Input id={id} type={field.type === 'number' ? 'number' : field.type === 'search' ? 'search' : field.type === 'date' ? 'date' : 'text'} value={String(values[field.id] ?? '')} disabled={disabled} aria-invalid={invalid} aria-describedby={describedBy} aria-required={field.required}
                   min={field.type === 'number' ? field.min : undefined} max={field.type === 'number' ? field.max : undefined} step={field.type === 'number' ? 'any' : undefined}
                   placeholder={'placeholder' in field ? field.placeholder : undefined} maxLength={'maxLength' in field ? field.maxLength ?? 10_000 : undefined}
-                  onChange={event => update(field.id, event.target.value)} />}
+                  onChange={event => update(field.id, event.target.value)} />)
+        if (settingsLayout) return <PluginSettingsRow key={field.id} id={id} title={<>{field.label}{field.required ? ' *' : ''}</>} description={field.description} descriptionId={`${id}-description`} error={errors[field.id]} errorId={`${id}-error`} disabled={disabled} invalid={invalid} wide={field.type === 'textarea'}>{control}</PluginSettingsRow>
+        return <Field key={field.id} data-invalid={invalid} data-disabled={disabled}>
+          <FieldLabel htmlFor={id}>{field.label}{field.required ? ' *' : ''}</FieldLabel>
+          {control}
           {field.description ? <FieldDescription id={`${id}-description`}>{field.description}</FieldDescription> : null}
           <FieldError id={`${id}-error`}>{errors[field.id]}</FieldError>
         </Field>
       })}
       <FieldError>{failure}</FieldError>
       {message ? <p role="status" className="whitespace-pre-wrap text-sm">{message}</p> : null}
-      <Button type="submit" disabled={busy || block.submitDisabled} className="self-start">{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>
+      <Button type="submit" disabled={busy || block.submitDisabled} className={settingsLayout ? "self-end" : "self-start"}>{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>
     </FieldGroup>
   </form>
 }

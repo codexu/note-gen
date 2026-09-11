@@ -1,3 +1,4 @@
+import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { beginDeferredFileActivation, DirTree } from "@/stores/article";
@@ -1019,7 +1020,7 @@ export function FolderItem({
                     onDragStart={handleDragStart}
                     className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
                   >
-                    {isSkillsFolder(item.name) ? (
+                    <PluginFileIcon path={path} kind="folder" className={`${iconSize} shrink-0`} fallback={isSkillsFolder(item.name) ? (
                       <Sparkles className={`${iconSize} shrink-0 text-primary`} />
                     ) : collapsibleList.includes(path) ? (
                       assetsFolderName === item.name
@@ -1029,7 +1030,7 @@ export function FolderItem({
                       assetsFolderName === item.name
                         ? <FolderDot className={`${iconSize} shrink-0`} />
                         : <Folder className={`${iconSize} shrink-0`} />
-                    )}
+                    )} />
                     <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
                   </div>
                   <FileTreeDecorations

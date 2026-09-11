@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type SettingSection =
+export type BuiltinSettingSection =
   | 'about'
   | 'general'
   | 'record'
@@ -22,6 +22,13 @@ export type SettingSection =
   | 'shortcuts'
   | 'imageMethod'
   | 'audio'
+
+export type PluginSettingSection = `plugin:${string}`
+export type SettingSection = BuiltinSettingSection | PluginSettingSection
+
+export function isPluginSettingSection(section: string): section is PluginSettingSection {
+  return section.startsWith('plugin:') && section.length > 'plugin:'.length
+}
 
 export const settingSections: SettingSection[] = [
   'about',
@@ -50,6 +57,9 @@ export const settingSections: SettingSection[] = [
 interface SettingsDialogState {
   open: boolean
   activeSection: SettingSection
+  pluginDiscoveryRequest: { query: string } | null
+  openPluginDiscovery: (query: string) => void
+  clearPluginDiscoveryRequest: () => void
   openSettings: (section?: SettingSection) => void
   closeSettings: () => void
   setActiveSection: (section: SettingSection) => void
@@ -58,6 +68,13 @@ interface SettingsDialogState {
 export const useSettingsDialogStore = create<SettingsDialogState>((set) => ({
   open: false,
   activeSection: 'about',
+  pluginDiscoveryRequest: null,
+  openPluginDiscovery: (query) => set({
+    open: true,
+    activeSection: 'plugins',
+    pluginDiscoveryRequest: { query },
+  }),
+  clearPluginDiscoveryRequest: () => set({ pluginDiscoveryRequest: null }),
   openSettings: (section) => set((state) => ({
     open: true,
     activeSection: section ?? state.activeSection,

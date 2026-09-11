@@ -17,6 +17,7 @@ import {
 } from '@notegen/plugin-api'
 import { usePluginStore } from '@/stores/plugins'
 import { useSidebarStore } from '@/stores/sidebar'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import useArticleStore from '@/stores/article'
 import { getPluginManifestFingerprint } from './internal-types'
 import { clearPluginForms, clearAllPluginForms, reconcilePluginForm, pluginFormKey, usePluginFormStore } from './form-state'
@@ -57,6 +58,8 @@ export function dismissPluginDialog(id: string, reason: PluginDialogCloseEvent['
 interface PluginUiState {
   hostRevision: number
   views: Record<string, PluginUiDocument>
+  hiddenTitleBarViews: string[]
+  setTitleBarVisible: (key: string, visible: boolean) => void
   activeRightView: string | null
   editorTabs: string[]
   activeEditorView: string | null
@@ -225,6 +228,8 @@ function serializedUi(value: unknown): string {
 export const usePluginUiStore = create<PluginUiState>((set) => ({
   hostRevision: 0,
   views: {},
+  hiddenTitleBarViews: [],
+  setTitleBarVisible: (key, visible) => set(state => ({ hiddenTitleBarViews: visible ? state.hiddenTitleBarViews.filter(item => item !== key) : [...new Set([...state.hiddenTitleBarViews, key])] })),
   activeRightView: null,
   editorTabs: [],
   activeEditorView: null,
@@ -243,6 +248,7 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
   requestFocus: (key) => set(state => ({ focusRequest: { key, sequence: (state.focusRequest?.sequence ?? 0) + 1 } })),
   setDialog: (dialog) => set({ dialog }),
   clearPlugin: (pluginId) => set((state) => ({
+    hiddenTitleBarViews: state.hiddenTitleBarViews.filter(key => !key.startsWith(`${pluginId}:`)),
     views: Object.fromEntries(Object.entries(state.views).filter(([key]) => !key.startsWith(`${pluginId}:`))),
     activeRightView: state.activeRightView?.startsWith(`${pluginId}:`) ? null : state.activeRightView,
     editorTabs: state.editorTabs.filter(key => !key.startsWith(`${pluginId}:`)),
@@ -316,6 +322,9 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
   const stopUi = usePluginUiStore.subscribe((state, previous) => {
     if (state.activeEditorView !== previous.activeEditorView || state.activeRightView !== previous.activeRightView || state.editorTabs !== previous.editorTabs) cancel()
   })
+  const stopSettings = useSettingsDialogStore.subscribe((state, previous) => {
+    if (state.open !== previous.open || state.activeSection !== previous.activeSection) cancel()
+  })
   if (typeof document !== 'undefined') { document.addEventListener('pointerdown', cancel, true); document.addEventListener('keydown', cancel, true) }
   const guard = () => {
     assertCurrent()
@@ -331,7 +340,9 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
     guard()
   }
   const sidebar = useSidebarStore.getState()
-  if (view.location === 'left-sidebar') {
+  if (view.location === 'settings') {
+    apply(() => useSettingsDialogStore.getState().openSettings(`plugin:${pluginId}`))
+  } else if (view.location === 'left-sidebar') {
     if (!sidebar.leftSidebarVisible) await apply(() => sidebar.toggleLeftSidebar())
     guard()
     await apply(() => sidebar.setLeftSidebarTab(key))
@@ -339,6 +350,8 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
     if (!sidebar.rightSidebarVisible) await apply(() => sidebar.toggleRightSidebar())
     guard()
     apply(() => usePluginUiStore.getState().setActiveRightView(key))
+  } else if (view.location.startsWith('title-bar-')) {
+    apply(() => usePluginUiStore.getState().setTitleBarVisible(key, true))
   } else {
     const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
     if (!await prepareActiveEditorDeactivationDurably(useArticleStore.getState().activeFilePath)) throw new PluginError('EditorBusy', 'The editor cannot be deactivated safely')
@@ -348,7 +361,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
   guard()
   usePluginUiStore.getState().requestFocus(key)
   } finally {
-    stopSidebar(); stopUi()
+    stopSidebar(); stopUi(); stopSettings()
     if (typeof document !== 'undefined') { document.removeEventListener('pointerdown', cancel, true); document.removeEventListener('keydown', cancel, true) }
   }
 }
@@ -378,7 +391,11 @@ export async function closePluginView(pluginId: string, viewId: string): Promise
   const key = `${pluginId}:${viewId}`
   clearPluginForms(key)
   const state = usePluginUiStore.getState()
-  if (view.location === 'editor-tab') state.closeEditorView(key)
+  if (view.location === 'settings') {
+    const settings = useSettingsDialogStore.getState()
+    if (settings.activeSection === `plugin:${pluginId}`) settings.closeSettings()
+  } else if (view.location.startsWith('title-bar-')) state.setTitleBarVisible(key, false)
+  else if (view.location === 'editor-tab') state.closeEditorView(key)
   else if (view.location === 'right-sidebar' && state.activeRightView === key) state.setActiveRightView(null)
   else if (view.location === 'left-sidebar' && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
 }
@@ -388,7 +405,10 @@ export function getPluginViewState(pluginId: string, viewId: string): PluginView
   const key = `${pluginId}:${viewId}`
   const state = usePluginUiStore.getState()
   const sidebar = useSidebarStore.getState()
-  const visible = view.location === 'editor-tab' ? state.activeEditorView === key
+  const settings = useSettingsDialogStore.getState()
+  const visible = view.location === 'settings' ? settings.open && settings.activeSection === `plugin:${pluginId}` && usePluginStore.getState().isEnabled(pluginId)
+    : view.location.startsWith('title-bar-') ? !state.hiddenTitleBarViews.includes(key)
+    : view.location === 'editor-tab' ? state.activeEditorView === key
     : view.location === 'left-sidebar' ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
       : sidebar.rightSidebarVisible && state.activeRightView === key
   return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location) }
@@ -410,7 +430,8 @@ export function onPluginViewChange(pluginId: string, listener: (state: PluginVie
   const stopUi = usePluginUiStore.subscribe(emitChanges)
   const stopSidebar = useSidebarStore.subscribe(emitChanges)
   const stopPreferences = usePluginStore.subscribe(emitChanges)
-  return { dispose: () => { stopUi(); stopSidebar(); stopPreferences() } }
+  const stopSettings = useSettingsDialogStore.subscribe(emitChanges)
+  return { dispose: () => { stopUi(); stopSidebar(); stopPreferences(); stopSettings() } }
 }
 
 export function closePluginDialog(pluginId: string, id: string): void {

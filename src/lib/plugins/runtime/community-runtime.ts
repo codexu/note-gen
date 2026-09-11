@@ -1,3 +1,4 @@
+import { clearRuntimeFileIcons } from '@/lib/plugins/resources'
 import {
   PluginError,
   type PluginCommandArgument,
@@ -239,6 +240,7 @@ export class CommunityPluginRuntime {
       this.activationReject?.(new PluginError('Cancelled', 'Plugin activation was cancelled'))
     }
     this.controller.abort()
+    clearRuntimeFileIcons(this.plugin.manifest.id, this.controller.signal)
     this.state = 'stopped'
     this.activationResolve = null
     this.activationReject = null

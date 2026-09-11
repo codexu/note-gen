@@ -35,7 +35,7 @@
     "@hookform/resolvers": "^3.9.1",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@mozilla/readability": "^0.6.0",
-    "@notegen/plugin-api": "0.1.2",
+    "@notegen/plugin-api": "0.1.6",
     "@octokit/core": "^6.1.2",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@shadcn/react": "^0.2.1",
@@ -150,7 +150,8 @@
     "yaml": "^2.8.0",
     "yjs": "13.6.31",
     "zod": "^3.23.8",
-    "zustand": "^5.0.1"
+    "zustand": "^5.0.1",
+    "@formatjs/icu-messageformat-parser": "2.11.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

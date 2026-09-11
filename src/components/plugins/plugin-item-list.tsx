@@ -15,6 +15,8 @@ import { PluginIcon } from './plugin-icon'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/enhanced-context-menu'
 import { executePluginCommand } from '@/lib/plugins/command-registry'
 import { cn } from '@/lib/utils'
+import { usePluginSettingsLayout } from './plugin-settings-layout'
+import { Item as SettingsItem, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { toast } from 'sonner'
 
 type Item = PluginItemListBlock['items'][number]
@@ -26,6 +28,8 @@ function ItemRow({ item, block, pending, spacious, run }: {
   spacious: boolean
   run: (command: string, argument: PluginCommandArgument) => Promise<void>
 }) {
+  const settingsLayout = usePluginSettingsLayout()
+  const RowContainer = settingsLayout ? 'div' : 'li'
   const t = useTranslations('settings.plugins.ui')
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: pending || !block.reorderCommand || item.disabled })
   const dragFileRow = Boolean(block.reorderCommand) && item.checked === undefined
@@ -34,10 +38,22 @@ function ItemRow({ item, block, pending, spacious, run }: {
   const [confirmation, setConfirmation] = useState<PluginUiAction | null>(null)
   const invoke = (action: PluginUiAction) => run(action.command, { ...argument, ...(action.argument === undefined ? {} : { argument: action.argument }), actionId: action.id })
   const select = (action: PluginUiAction) => { if (action.confirmation) { confirmationGeneration.current = block.generation; setConfirmation(action) } else void invoke(action) }
-  return <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('list-none', isDragging && 'opacity-40')}>
+  return <RowContainer role={settingsLayout ? 'listitem' : undefined} ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('list-none', isDragging && 'opacity-40')}>
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={!block.actions?.length}>
-        <div ref={dragFileRow ? setActivatorNodeRef : undefined}
+        {settingsLayout ? <SettingsItem variant="outline" data-disabled={pending || item.disabled}>
+          {block.reorderCommand ? <Button ref={setActivatorNodeRef} type="button" variant="ghost" size="icon-sm" {...attributes} {...listeners} aria-label={`${block.reorderLabel}: ${item.label}`} disabled={pending || item.disabled} className="touch-none cursor-grab"><GripVertical /></Button> : null}
+          {item.checked !== undefined && block.toggleCommand ? <Checkbox checked={item.checked} aria-label={item.label} disabled={pending || item.disabled} onCheckedChange={checked => void run(block.toggleCommand!, { ...argument, checked: checked === true })} /> : null}
+          {item.icon ? <ItemMedia variant="icon"><PluginIcon name={item.icon} /></ItemMedia> : null}
+          <ItemContent className="min-w-0">
+            <ItemTitle className="line-clamp-none break-words">{block.openCommand ? <button type="button" className="text-left underline-offset-4 hover:underline focus-visible:outline-ring" disabled={pending || item.disabled} onClick={() => !isDragging && block.openCommand && void run(block.openCommand, argument)}>{item.label}</button> : item.label}</ItemTitle>
+            {item.description ? <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">{item.description}</ItemDescription> : null}
+            {item.metadata ? <ItemDescription className="line-clamp-none break-words">{item.metadata}</ItemDescription> : null}
+          </ItemContent>
+          {block.actions?.length ? <ItemActions className="ml-auto">
+            <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label={`${t('moreActions')}: ${item.label}`} disabled={pending || item.disabled}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{block.actions.map(action => <DropdownMenuItem key={action.id} disabled={pending || item.disabled || action.disabled} onSelect={() => select(action)}>{action.icon ? <PluginIcon name={action.icon} /> : null}{action.label}</DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
+          </ItemActions> : null}
+        </SettingsItem> : <div ref={dragFileRow ? setActivatorNodeRef : undefined}
           {...(dragFileRow ? attributes : { tabIndex: 0 })} {...(dragFileRow ? listeners : {})}
           aria-label={dragFileRow ? `${block.reorderLabel}: ${item.label}` : undefined}
           className={cn('group relative flex min-h-8 min-w-0 items-center gap-2 rounded-md hover:bg-accent focus-within:bg-accent', spacious ? 'min-h-16 px-3 py-2.5' : 'px-1', dragFileRow && 'touch-none select-none')}>
@@ -59,7 +75,7 @@ function ItemRow({ item, block, pending, spacious, run }: {
           {block.actions?.length && (!dragFileRow || spacious) ? <span className={cn('shrink-0', spacious && 'absolute right-2 top-2')} onPointerDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
             <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" title={t('moreActions')} aria-label={`${t('moreActions')}: ${item.label}`} disabled={pending || item.disabled} className="md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>{block.actions.map(action => <DropdownMenuItem key={action.id} disabled={pending || item.disabled || action.disabled} onSelect={() => select(action)}>{action.icon ? <PluginIcon name={action.icon} /> : null}{action.label}</DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
           </span> : null}
-        </div>
+        </div>}
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuGroup>
@@ -70,10 +86,12 @@ function ItemRow({ item, block, pending, spacious, run }: {
       </ContextMenuContent>
     </ContextMenu>
     {confirmation?.confirmation && confirmationGeneration.current === block.generation ? <AlertDialog open onOpenChange={open => { if (!open) setConfirmation(null) }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{confirmation.confirmation.title}</AlertDialogTitle><AlertDialogDescription>{confirmation.confirmation.description ?? confirmation.confirmation.title}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>{confirmation.confirmation.cancelLabel}</AlertDialogCancel><AlertDialogAction onClick={() => void invoke(confirmation)}>{confirmation.confirmation.confirmLabel}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> : null}
-  </li>
+  </RowContainer>
 }
 
 export function PluginItemList({ block, scope }: { block: PluginItemListBlock; scope: string }) {
+  const settingsLayout = usePluginSettingsLayout()
+  const List = settingsLayout ? ItemGroup : 'ul'
   // Sortable note lists keep consistent spacing even when a note has no preview.
   const spacious = block.items.every(item => item.checked === undefined)
     && (Boolean(block.reorderCommand) || block.items.some(item => Boolean(item.description || item.metadata)))
@@ -99,11 +117,12 @@ export function PluginItemList({ block, scope }: { block: PluginItemListBlock; s
     void run(block.reorderCommand, { generation: block.generation, itemIds: arrayMove(ids, from, to) })
   }
   return <section aria-label={block.label} aria-busy={pending} className="min-w-0">
+    {settingsLayout ? <h3 className="mb-3 text-base font-semibold">{block.label}</h3> : null}
     {block.items.length ? <DndContext id={`${scope}:${block.id}`} sensors={sensors} collisionDetection={closestCenter} onDragStart={() => { dragGeneration.current = block.generation }} onDragCancel={() => { dragGeneration.current = null }} onDragEnd={reorder}>
       <SortableContext items={block.items.map(item => item.id)} strategy={verticalListSortingStrategy}>
-        <ul aria-label={block.label} className={cn('flex min-w-0 flex-col', spacious ? 'gap-1 py-1' : 'gap-0.5')}>
+        <List aria-label={block.label} className={cn('flex min-w-0 flex-col', settingsLayout ? 'gap-3' : spacious ? 'gap-1 py-1' : 'gap-0.5')}>
           {block.items.map(item => <ItemRow key={item.id} item={item} block={block} pending={pending} spacious={spacious} run={run} />)}
-        </ul>
+        </List>
       </SortableContext>
     </DndContext> : <p className="px-3 py-8 text-center text-sm text-muted-foreground">{block.emptyText}</p>}
   </section>

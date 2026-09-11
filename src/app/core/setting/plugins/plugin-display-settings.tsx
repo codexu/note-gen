@@ -2,7 +2,9 @@
 
 import { useId, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { FieldError, FieldGroup } from '@/components/ui/field'
+import { PluginSettingsRow } from '@/components/plugins/plugin-settings-layout'
+import { SettingSection } from '../components/setting-base'
 import { Switch } from '@/components/ui/switch'
 import { usePluginStore } from '@/stores/plugins'
 import type { InstalledPlugin } from '@/lib/plugins/types'
@@ -24,16 +26,13 @@ export function PluginDisplaySettings({ plugin }: { plugin: InstalledPlugin }) {
     catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setSaving(false) }
   }
-  return <FieldSet>
-    <FieldLegend>{t('title')}</FieldLegend>
-    <FieldDescription>{t('description')}</FieldDescription>
-    <FieldGroup>
-      {locations.map(location => <Field key={location} orientation="responsive" data-disabled={saving}>
-        <FieldContent><FieldLabel htmlFor={`${id}-${location}`}>{t(`locations.${location}`)}</FieldLabel></FieldContent>
+  return <SettingSection title={t('title')} desc={t('description')}>
+    <FieldGroup className="gap-3">
+      {locations.map(location => <PluginSettingsRow key={location} id={`${id}-${location}`} title={t(`locations.${location}`)} disabled={saving} toggle>
         <Switch id={`${id}-${location}`} checked={isPluginDisplayVisible(settings, plugin.manifest.id, location)} disabled={saving}
           onCheckedChange={visible => void update(location, visible)} />
-      </Field>)}
+      </PluginSettingsRow>)}
     </FieldGroup>
     <FieldError>{error}</FieldError>
-  </FieldSet>
+  </SettingSection>
 }

@@ -22,17 +22,18 @@ import {
   Blocks,
 } from "lucide-react"
 import type { ReactNode } from 'react'
-import type { SettingSection } from '@/stores/settings-dialog'
+import type { BuiltinSettingSection } from '@/stores/settings-dialog'
 
 export type SettingNavigationGroup =
   | 'basic'
   | 'ai'
   | 'data'
+  | 'extensions'
 
 export type SettingNavigationItem =
   | {
       icon: ReactNode
-      anchor: SettingSection
+      anchor: BuiltinSettingSection
     }
   | {
       group: SettingNavigationGroup
@@ -73,10 +74,6 @@ const baseConfig: SettingNavigationItem[] = [
   {
     icon: <Volume2 className="size-4" />,
     anchor: 'audio',
-  },
-  {
-    icon: <Blocks className="size-4" />,
-    anchor: 'plugins',
   },
   {
     group: 'ai',
@@ -131,7 +128,14 @@ const baseConfig: SettingNavigationItem[] = [
   {
     icon: <FolderOpen className="size-4" />,
     anchor: 'file',
-  }
+  },
+  {
+    group: 'extensions',
+  },
+  {
+    icon: <Blocks className="size-4" />,
+    anchor: 'plugins',
+  },
 ]
 
 export default baseConfig

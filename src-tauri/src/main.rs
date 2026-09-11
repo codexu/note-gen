@@ -176,6 +176,8 @@ fn main() {
             plugin_uninstall,
             plugin_rollback,
             plugin_read_entry,
+            plugins::plugin_read_resource,
+            plugins::plugin_read_preview_chunk,
             plugin_read_locale,
             plugin_read_usage,
             plugin_open_or_create_note,

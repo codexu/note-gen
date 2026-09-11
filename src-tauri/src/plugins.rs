@@ -29,7 +29,7 @@ use url::Url;
 use uuid::Uuid;
 use zip::{CompressionMethod, ZipArchive};
 
-const PLUGIN_API_VERSION: &str = "0.1.1";
+const PLUGIN_API_VERSION: &str = "0.1.4";
 const PLUGIN_STATE_SCHEMA_VERSION: u32 = 1;
 const MARKET_SCHEMA_VERSION: u32 = 1;
 const INTEGRITY_SCHEMA_VERSION: u32 = 1;
@@ -281,7 +281,10 @@ pub struct PluginManifestV1 {
     pub api_version: String,
     pub min_app_version: String,
     pub platforms: Vec<PluginPlatform>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub entry: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resources: Option<Value>,
     pub activation_events: Vec<String>,
     pub permissions: BTreeMap<String, PluginPermissionDeclaration>,
     pub contributes: PluginContributions,
@@ -1060,7 +1063,7 @@ fn validate_package_path(raw: &str, directory: bool) -> PluginResult<String> {
     if !directory {
         let lower = path.to_lowercase();
         let forbidden_suffixes = [
-            ".exe", ".dll", ".dylib", ".so", ".node", ".wasm", ".msi", ".dmg", ".pkg",
+            ".exe", ".dll", ".dylib", ".so", ".node", ".msi", ".dmg", ".pkg",
             ".deb", ".rpm", ".apk", ".ipa", ".app", ".jar", ".class", ".bat", ".cmd",
             ".ps1", ".sh", ".map", ".pem", ".p12", ".pfx",
         ];
@@ -1274,9 +1277,12 @@ fn manifest_object<'a>(
 
 fn validate_manifest_json_shape(value: &Value) -> PluginResult<()> {
     let manifest = manifest_object(value, "$")?;
+    if manifest.get("entry").and_then(Value::as_str) == Some("") {
+        return Err(plugin_error("InvalidManifest", "Omit entry for a resource package; empty entry is invalid"));
+    }
     reject_explicit_null_fields(
         manifest,
-        &["description", "defaultLocale", "author", "repository", "license"],
+        &["description", "defaultLocale", "author", "repository", "license", "resources"],
         "$",
     )?;
 
@@ -1508,44 +1514,46 @@ fn validate_manifest(
         ));
     }
 
-    let entry = validate_package_path(&manifest.entry, false)?;
-    if entry.len() > 240 || !entry.ends_with(".js") {
-        return Err(plugin_error(
-            "InvalidManifest",
-            "Plugin entry must be a JavaScript ESM file",
-        ));
+    validate_resources(manifest, package_root, files)?;
+    if !manifest.entry.is_empty() {
+        let entry = validate_package_path(&manifest.entry, false)?;
+        if entry.len() > 240 || !entry.ends_with(".js") {
+            return Err(plugin_error(
+                "InvalidManifest",
+                "Plugin entry must be a JavaScript ESM file",
+            ));
+        }
+        let entry_file = files.get(&entry).ok_or_else(|| {
+            plugin_error(
+                "InvalidManifest",
+                "Plugin entry does not exist in the verified package",
+            )
+        })?;
+        if entry_file.size > MAX_ENTRY_SOURCE_BYTES {
+            return Err(plugin_error(
+                "PackageTooLarge",
+                "Plugin entry exceeds the 5 MiB source limit",
+            ));
+        }
+        let entry_bytes = read_limited_file(
+            &package_root.join(&entry),
+            MAX_ENTRY_SOURCE_BYTES,
+            "plugin entry",
+        )?;
+        ensure_bytes_match_actual(&entry_bytes, Some(entry_file), "plugin entry")?;
+        let entry_source = std::str::from_utf8(&entry_bytes).map_err(|_| {
+            plugin_error(
+                "InvalidManifest",
+                "Plugin entry must contain valid UTF-8 JavaScript",
+            )
+        })?;
+        if entry_source.contains('\0') {
+            return Err(plugin_error(
+                "InvalidManifest",
+                "Plugin entry contains invalid null characters",
+            ));
+        }
     }
-    let entry_file = files.get(&entry).ok_or_else(|| {
-        plugin_error(
-            "InvalidManifest",
-            "Plugin entry does not exist in the verified package",
-        )
-    })?;
-    if entry_file.size > MAX_ENTRY_SOURCE_BYTES {
-        return Err(plugin_error(
-            "PackageTooLarge",
-            "Plugin entry exceeds the 5 MiB source limit",
-        ));
-    }
-    let entry_bytes = read_limited_file(
-        &package_root.join(&entry),
-        MAX_ENTRY_SOURCE_BYTES,
-        "plugin entry",
-    )?;
-    ensure_bytes_match_actual(&entry_bytes, Some(entry_file), "plugin entry")?;
-    let entry_source = std::str::from_utf8(&entry_bytes).map_err(|_| {
-        plugin_error(
-            "InvalidManifest",
-            "Plugin entry must contain valid UTF-8 JavaScript",
-        )
-    })?;
-    if entry_source.contains('\0') {
-        return Err(plugin_error(
-            "InvalidManifest",
-            "Plugin entry contains invalid null characters",
-        ));
-    }
-
     validate_permissions(manifest)?;
     validate_contributions(manifest)?;
     validate_activation_events(manifest)?;
@@ -1780,7 +1788,7 @@ fn validate_contributions(manifest: &PluginManifestV1) -> PluginResult<()> {
             ));
         }
         validate_localized_text(&view.title, "contributes.views.title", 240)?;
-        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab") {
+        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab" | "settings" | "title-bar-left" | "title-bar-center" | "title-bar-right") {
             return Err(plugin_error("InvalidManifest", "Plugin view location is unsupported"));
         }
         if view.icon.as_ref().is_some_and(|icon| {
@@ -7049,4 +7057,175 @@ pub async fn plugin_network_fetch(
     tokio::time::timeout(Duration::from_millis(timeout_ms), operation)
         .await
         .map_err(|_| plugin_error("Timeout", "Network request timed out"))?
+}
+
+// Kept alongside the SDK resources contract; package paths and hashes remain native authority.
+fn resource_object<'a>(value: &'a Value, allowed: &[&str]) -> PluginResult<&'a JsonMap<String, Value>> {
+    let object = value.as_object().ok_or_else(|| plugin_error("InvalidManifest", "Expected resource object"))?;
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(plugin_error("InvalidManifest", "Unknown resource field"));
+    }
+    Ok(object)
+}
+fn resource_text<'a>(value: &'a Value, maximum: usize) -> PluginResult<&'a str> {
+    let text = value.as_str().ok_or_else(|| plugin_error("InvalidManifest", "Expected resource text"))?;
+    validate_text(text, "resource", maximum)?;
+    Ok(text)
+}
+fn resource_path(value: &Value) -> PluginResult<String> {
+    let text = resource_text(value, 240)?;
+    if text.len() > 240 || text.contains(':') { return Err(plugin_error("InvalidManifest", "Invalid resource path")); }
+    validate_package_path(text, false)
+}
+fn resource_extension(value: &Value) -> bool {
+    value.as_str().map(|s| !s.is_empty() && s.len() <= 32 && s.as_bytes()[0].is_ascii_alphanumeric()
+        && s.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')).unwrap_or(false)
+}
+fn resource_paths(resources: &Value) -> PluginResult<BTreeSet<String>> {
+    let mut paths = BTreeSet::new();
+    if let Some(languages) = resources.get("languages").and_then(Value::as_array) {
+        for language in languages { paths.insert(resource_path(&language["messages"])?); }
+    }
+    if let Some(previews) = resources.get("documentPreviews").and_then(Value::as_array) {
+        for preview in previews {
+            paths.insert(resource_path(&preview["script"])?);
+            if let Some(assets) = preview.get("assets").and_then(Value::as_array) {
+                for asset in assets { paths.insert(resource_path(asset)?); }
+            }
+        }
+    }
+    Ok(paths)
+}
+fn validate_language_tree(value: &Value, depth: usize) -> PluginResult<()> {
+    if depth > 20 { return Err(plugin_error("InvalidManifest", "Language nesting limit exceeded")); }
+    let object = value.as_object().ok_or_else(|| plugin_error("InvalidManifest", "Expected language object"))?;
+    for (key, child) in object {
+        if key.is_empty() || key.contains('.') || ["__proto__", "constructor", "prototype"].contains(&key.as_str()) {
+            return Err(plugin_error("InvalidManifest", "Invalid language key"));
+        }
+        if let Some(text) = child.as_str() {
+            if text.encode_utf16().count() > 16384 { return Err(plugin_error("InvalidManifest", "Language message too long")); }
+        } else { validate_language_tree(child, depth + 1)?; }
+    }
+    Ok(())
+}
+fn validate_resources(manifest: &PluginManifestV1, root: &Path, files: &BTreeMap<String, ActualFile>) -> PluginResult<()> {
+    let invalid = || plugin_error("InvalidManifest", "Invalid plugin resources");
+    for path in files.keys().filter(|path| path.to_lowercase().ends_with(".wasm")) {
+        let declared = manifest.resources.as_ref().and_then(|r| r.get("documentPreviews")).and_then(Value::as_array)
+            .map(|previews| previews.iter().any(|preview| preview.get("assets").and_then(Value::as_array)
+                .map(|assets| assets.iter().any(|asset| asset.as_str() == Some(path.as_str()))).unwrap_or(false))).unwrap_or(false);
+        if !declared { return Err(plugin_error("InvalidManifest", "WASM must be a declared preview asset")); }
+    }
+    let Some(resources) = &manifest.resources else {
+        if manifest.entry.is_empty() { return Err(invalid()); }
+        return Ok(());
+    };
+    let object = resource_object(resources, &["themes", "languages", "fileIcons", "documentPreviews"])?;
+    let mut count = 0;
+    for (kind, values) in object {
+        let items = values.as_array().ok_or_else(invalid)?;
+        if items.len() > if kind == "fileIcons" { 500 } else { 30 } { return Err(invalid()); }
+        count += items.len();
+        let mut ids = BTreeSet::new();
+        for item in items {
+            if kind != "fileIcons" {
+                resource_text(&item["name"], 160)?;
+                let id = resource_text(&item[if kind == "languages" { "locale" } else { "id" }], 160)?;
+                if !id.as_bytes()[0].is_ascii_alphanumeric() || !id.bytes().all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)) || !ids.insert(id) { return Err(invalid()); }
+            }
+            match kind.as_str() {
+                "themes" => {
+                    resource_object(item, &["id", "name", "light", "dark"])?;
+                    for mode in ["light", "dark"] {
+                        let palette = resource_object(&item[mode], &["background", "foreground", "card", "cardForeground", "primary", "primaryForeground", "secondary", "secondaryForeground", "third", "thirdForeground", "muted", "mutedForeground", "accent", "accentForeground", "border", "shadow"])?;
+                        for color in palette.values() {
+                            let hsl = color.as_array().ok_or_else(invalid)?;
+                            if hsl.len() != 3 || hsl.iter().enumerate().any(|(i,n)| n.as_f64().map(|v| !v.is_finite() || v < 0.0 || v > if i == 0 { 360.0 } else { 100.0 }).unwrap_or(true)) { return Err(invalid()); }
+                        }
+                    }
+                }
+                "languages" => {
+                    resource_object(item, &["locale", "name", "messages"])?;
+                    let locale = resource_text(&item["locale"], 160)?;
+                    let parts: Vec<_> = locale.split('-').collect();
+                    if !(2..=8).contains(&parts[0].len()) || !parts[0].bytes().all(|c| c.is_ascii_lowercase())
+                        || parts.iter().skip(1).any(|p| p.is_empty() || p.len() > 8 || !p.bytes().all(|c| c.is_ascii_alphanumeric())) { return Err(invalid()); }
+                    let path = resource_path(&item["messages"])?;
+                    if !path.ends_with(".json") { return Err(invalid()); }
+                    let bytes = read_limited_file(&root.join(&path), MAX_ENTRY_SOURCE_BYTES, "language resource")?;
+                    ensure_bytes_match_actual(&bytes, files.get(&path), "language resource")?;
+                    let (messages, _): (Value, Value) = parse_strict_type(&bytes, "language resource")?;
+                    validate_language_tree(&messages, 0)?;
+                }
+                "fileIcons" => {
+                    resource_object(item, &["kind", "path", "extension", "icon"])?;
+                    if ![Some("file"), Some("folder")].contains(&item["kind"].as_str()) { return Err(invalid()); }
+                    if let Some(path) = item.get("path") { resource_path(path)?; }
+                    if let Some(extension) = item.get("extension") {
+                        if item["kind"] != "file" || !resource_extension(extension) { return Err(invalid()); }
+                    }
+                    let icon = resource_object(&item["icon"], &["name", "emoji"])?;
+                    if icon.len() != 1 { return Err(invalid()); }
+                    let text = resource_text(icon.values().next().ok_or_else(invalid)?, if icon.contains_key("name") { 80 } else { 64 })?;
+                    if icon.contains_key("name") && (text.len() > 80 || !text.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')) { return Err(invalid()); }
+                    if icon.contains_key("emoji") && (text.encode_utf16().count() > 16 || !regex::Regex::new(r"\p{Extended_Pictographic}|\p{Regional_Indicator}").map_err(|_| invalid())?.is_match(text)) { return Err(invalid()); }
+                }
+                "documentPreviews" => {
+                    resource_object(item, &["id", "name", "extensions", "script", "assets"])?;
+                    let extensions = item["extensions"].as_array().ok_or_else(invalid)?;
+                    if extensions.is_empty() || extensions.len() > 30 || extensions.iter().any(|x| !resource_extension(x)) { return Err(invalid()); }
+                    if !resource_path(&item["script"])?.ends_with(".js") { return Err(invalid()); }
+                    if let Some(assets) = item.get("assets") {
+                        let assets = assets.as_array().ok_or_else(invalid)?;
+                        if assets.len() > 100 { return Err(invalid()); }
+                        for path in assets { resource_path(path)?; }
+                    }
+                    if !manifest.permissions.contains_key("attachments.read") { return Err(plugin_error("InvalidManifest", "Previews require attachments.read")); }
+                }
+                _ => return Err(invalid()),
+            }
+        }
+    }
+    if manifest.entry.is_empty() {
+        if count == 0 || !manifest.activation_events.is_empty() || !manifest.contributes.commands.is_empty()
+            || !manifest.contributes.settings.is_empty() || !manifest.contributes.views.is_empty() || !manifest.contributes.menus.is_empty() || !manifest.contributes.status_bar.is_empty()
+            || manifest.permissions.keys().any(|key| key != "attachments.read")
+            || (resources.get("documentPreviews").and_then(Value::as_array).map(|x| x.is_empty()).unwrap_or(true) && !manifest.permissions.is_empty()) { return Err(invalid()); }
+    }
+    for path in resource_paths(resources)? {
+        let expected = files.get(&path).ok_or_else(invalid)?;
+        if expected.size > MAX_ENTRY_SOURCE_BYTES { return Err(plugin_error("PackageTooLarge", "Resource exceeds 5 MiB")); }
+        let bytes = read_limited_file(&root.join(&path), MAX_ENTRY_SOURCE_BYTES, "plugin resource")?;
+        ensure_bytes_match_actual(&bytes, Some(expected), "plugin resource")?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn plugin_read_resource(app: AppHandle, plugin_id: String, path: String, expected_version: String, expected_content_hash: String) -> PluginResult<String> {
+    let verified = verify_installed_package(&app, &plugin_id, None)?;
+    assert_expected_installed_package(&verified, &expected_version, &expected_content_hash)?;
+    let resources = verified.content.manifest.resources.as_ref().ok_or_else(|| plugin_error("NotFound", "No plugin resources"))?;
+    let path = validate_package_path(&path, false)?;
+    if !resource_paths(resources)?.contains(&path) { return Err(plugin_error("PermissionDenied", "Resource is not declared")); }
+    let bytes = read_limited_file(&verified.directory.join(&path), MAX_ENTRY_SOURCE_BYTES, "plugin resource")?;
+    ensure_bytes_match_actual(&bytes, verified.content.files.get(&path), "plugin resource")?;
+    Ok(STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+pub fn plugin_read_preview_chunk(workspace_root: String, relative_path: String, offset: u64, length: u64) -> PluginResult<String> {
+    if length == 0 || length > 1_048_576 || offset > 268_435_456 { return Err(plugin_error("QuotaExceeded", "Invalid preview read range")); }
+    let path = validate_package_path(&relative_path, false)?;
+    let root = canonical_workspace_root(&workspace_root)?;
+    let target = resolve_workspace_note_target(&root, &path, false)?;
+    let mut file = File::open(&target).map_err(|_| plugin_error("NotFound", "Preview document does not exist"))?;
+    let metadata = file.metadata().map_err(|_| io_error("inspect preview document"))?;
+    if !metadata.is_file() || metadata.len() > 268_435_456 { return Err(plugin_error("QuotaExceeded", "Preview limit is 256 MiB")); }
+    file.seek(SeekFrom::Start(offset)).map_err(|_| io_error("seek preview document"))?;
+    let mut bytes = Vec::new();
+    file.take(length).read_to_end(&mut bytes).map_err(|_| io_error("read preview document"))?;
+    if resolve_workspace_note_target(&root, &path, false)? != target { return Err(plugin_error("InvalidPath", "Preview path changed")); }
+    Ok(STANDARD.encode(bytes))
 }

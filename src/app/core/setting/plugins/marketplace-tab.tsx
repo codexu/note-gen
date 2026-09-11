@@ -66,7 +66,11 @@ function MarketplaceSkeleton() {
   )
 }
 
-export function MarketplaceTab({ onInstalled }: { onInstalled?: (pluginId: string) => void }) {
+export function MarketplaceTab({ query, onQueryChange, onInstalled }: {
+  query: string
+  onQueryChange: (value: string) => void
+  onInstalled?: (pluginId: string) => void
+}) {
   const t = useTranslations('settings.plugins')
   const locale = useLocale()
   const catalog = usePluginStore((state) => state.catalog)
@@ -77,7 +81,6 @@ export function MarketplaceTab({ onInstalled }: { onInstalled?: (pluginId: strin
   const appVersion = useSettingStore((state) => state.version)
   const refreshMarket = usePluginStore((state) => state.refreshMarket)
   const installFromMarket = usePluginStore((state) => state.installFromMarket)
-  const [query, setQuery] = useState('')
   const [operationError, setOperationError] = useState<string | null>(null)
   const [reviewEntry, setReviewEntry] = useState<PluginMarketEntry | null>(null)
 
@@ -135,7 +138,7 @@ export function MarketplaceTab({ onInstalled }: { onInstalled?: (pluginId: strin
     <div className="flex flex-col gap-4" aria-busy={marketLoading}>
       <PluginListToolbar
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={onQueryChange}
         placeholder={t('market.searchPlaceholder')}
         searchLabel={t('market.searchLabel')}
         refreshing={marketLoading}

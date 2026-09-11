@@ -18,7 +18,7 @@ export function InterfaceSettings({ mobile = false }: { mobile?: boolean }) {
       <SettingSection title={t('appearance.title')} desc={t('appearance.desc')}>
         <div className="flex flex-col gap-3">
           <ThemeSettings />
-          <LanguageSettings />
+          <LanguageSettings mobile={mobile} />
           <FontFamilySettings />
           <CustomThemeSettings />
         </div>

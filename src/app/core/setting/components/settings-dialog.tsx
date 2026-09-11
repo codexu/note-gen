@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import {
   Dialog,
@@ -12,6 +12,8 @@ import { Tabs, TabsContent } from '@/components/ui/tabs'
 import useSettingStore from '@/stores/setting'
 import {
   settingSections,
+  isPluginSettingSection,
+  type BuiltinSettingSection,
   type SettingSection,
   useSettingsDialogStore,
 } from '@/stores/settings-dialog'
@@ -37,8 +39,12 @@ import BackupPage from '../backup/page'
 import TemplatePage from '../template/page'
 import WebSearchSettingPage from '../webSearch/page'
 import { SettingTab } from './setting-tab'
+import { hasPluginSettingsContent } from '@/lib/plugins/display-preferences'
+import { useShallow } from 'zustand/react/shallow'
+import { usePluginStore } from '@/stores/plugins'
+import { PluginSettingsPage } from '../plugins/plugin-settings-page'
 
-const settingPages: Record<SettingSection, ComponentType> = {
+const settingPages: Record<BuiltinSettingSection, ComponentType> = {
   about: AboutPage,
   general: GeneralSettingsPage,
   record: RecordSettingPage,
@@ -64,6 +70,9 @@ const settingPages: Record<SettingSection, ComponentType> = {
 
 export function SettingsDialog() {
   const t = useTranslations('settings')
+  const settingsPlugins = usePluginStore(useShallow(state => state.installed.filter(plugin =>
+    state.isEnabled(plugin.manifest.id) && hasPluginSettingsContent(plugin))))
+  const initialized = usePluginStore(state => state.initialized)
   const { lastSettingPage, setLastSettingPage } = useSettingStore()
   const {
     open,
@@ -73,9 +82,19 @@ export function SettingsDialog() {
   } = useSettingsDialogStore()
   const contentRef = useRef<HTMLDivElement>(null)
   const [mountedSections, setMountedSections] = useState<SettingSection[]>([activeSection])
-  const sectionsToRender = mountedSections.includes(activeSection)
-    ? mountedSections
-    : [...mountedSections, activeSection]
+  const pluginSectionAvailable = useCallback((section: string) => settingsPlugins.some(plugin =>
+    `plugin:${plugin.manifest.id}` === section), [settingsPlugins])
+  const selectedSection = isPluginSettingSection(activeSection) && initialized && !pluginSectionAvailable(activeSection)
+    ? 'plugins' : activeSection
+  const sectionsToRender = [...new Set([...mountedSections, selectedSection])].filter(section =>
+    !isPluginSettingSection(section) || pluginSectionAvailable(section))
+
+  useEffect(() => {
+    if (initialized && isPluginSettingSection(activeSection) && !pluginSectionAvailable(activeSection)) {
+      setActiveSection('plugins')
+      setLastSettingPage('plugins')
+    }
+  }, [initialized, pluginSectionAvailable, activeSection, setActiveSection, setLastSettingPage])
 
   useEffect(() => {
     if (open) return
@@ -86,13 +105,18 @@ export function SettingsDialog() {
         : lastSettingPage === 'webClipper'
           ? 'record'
           : lastSettingPage
-    if (settingSections.includes(storedSection as SettingSection)) {
+    if (isPluginSettingSection(storedSection)) {
+      if (!initialized) return
+      const nextSection = pluginSectionAvailable(storedSection) ? storedSection : 'plugins'
+      setActiveSection(nextSection)
+      if (nextSection !== storedSection) setLastSettingPage(nextSection)
+    } else if (settingSections.includes(storedSection as SettingSection)) {
       setActiveSection(storedSection as SettingSection)
     }
     if (lastSettingPage === 'dev' || lastSettingPage === 'chat' || lastSettingPage === 'webClipper') {
       setLastSettingPage(lastSettingPage === 'webClipper' ? 'record' : 'general')
     }
-  }, [lastSettingPage, open, setActiveSection, setLastSettingPage])
+  }, [lastSettingPage, open, setActiveSection, setLastSettingPage, initialized, pluginSectionAvailable])
 
   useLayoutEffect(() => {
     const scrollViewport = contentRef.current?.querySelector<HTMLElement>('[data-setting-scroll] [data-slot="scroll-area-viewport"]')
@@ -117,22 +141,22 @@ export function SettingsDialog() {
         <DialogDescription className="sr-only">{t('title')}</DialogDescription>
         <Tabs
           orientation="vertical"
-          value={activeSection}
+          value={selectedSection}
           onValueChange={handleSectionChange}
           className="h-full min-h-0 w-full flex-1 gap-0"
         >
           <SettingTab />
           {sectionsToRender.map((section) => {
-            const SettingPage = settingPages[section]
+            const SettingPage = isPluginSettingSection(section) ? null : settingPages[section]
             return (
               <TabsContent
                 key={section}
-                ref={section === activeSection ? contentRef : undefined}
+                ref={section === selectedSection ? contentRef : undefined}
                 value={section}
                 forceMount
                 className="h-full min-h-0 min-w-0 flex-1 overflow-hidden data-[state=inactive]:hidden"
               >
-                <SettingPage />
+                {isPluginSettingSection(section) ? <PluginSettingsPage pluginId={section.slice('plugin:'.length)} /> : SettingPage ? <SettingPage /> : null}
               </TabsContent>
             )
           })}

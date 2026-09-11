@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginThemeSelector } from '@/components/plugins/plugin-theme-selector'
 import { useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
@@ -205,6 +206,7 @@ export function CustomThemeSettings() {
 
   return (
     <>
+      <PluginThemeSelector />
       <Item variant="outline">
         <ItemMedia variant="icon"><Palette /></ItemMedia>
         <ItemContent>

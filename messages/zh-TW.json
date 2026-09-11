@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "語言",
-          "desc": "選擇應用的顯示語言"
+          "desc": "選擇應用的顯示語言",
+          "findInPlugins": "在外掛中找到您要的語言"
         },
         "scale": {
           "title": "界面縮放",
@@ -222,6 +223,10 @@
               "name": "米黄暗"
             }
           }
+        },
+        "themePackage": {
+          "title": "主題套件",
+          "default": "內建配色"
         }
       },
       "tools": {
@@ -2715,7 +2720,7 @@
         "requiredField": "請填寫此項",
         "invalidValue": "請輸入有效的值"
       },
-      "title": "外掛程式",
+      "title": "外掛管理",
       "desc": "探索、安裝、授權並設定 NoteGen 擴充功能。外掛程式碼目前僅在桌面端執行。",
       "loading": "正在載入外掛程式...",
       "initializationFailed": "外掛程式初始化失敗",
@@ -3010,6 +3015,9 @@
           "editor/slash": "斜線命令選單",
           "editor/selection": "選取文字選單",
           "mobile/writing/overflow": "行動版更多選單",
+          "title-bar-left": "頂部左側",
+          "title-bar-center": "頂部中間",
+          "title-bar-right": "頂部右側",
           "status-bar": "狀態列"
         }
       }
@@ -3047,6 +3055,7 @@
       }
     },
     "navigationGroups": {
+      "extensions": "拓展",
       "basic": "基礎設定",
       "ai": "AI",
       "data": "資料與儲存"

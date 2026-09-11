@@ -26,11 +26,11 @@ import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldError,
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { PluginSettingsRow } from '@/components/plugins/plugin-settings-layout'
 import { PluginDisplaySettings } from './plugin-display-settings'
 import { PluginListToolbar } from './plugin-list-toolbar'
 import {
@@ -82,7 +82,7 @@ function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength
 }
 
-function PluginSettingField({
+export function PluginSettingField({
   plugin,
   setting,
 }: {
@@ -111,6 +111,7 @@ function PluginSettingField({
 
   const title = resolvePluginText(plugin.manifest.id, setting.title, locale)
   const description = resolvePluginText(plugin.manifest.id, setting.description, locale)
+  const describedBy = [description ? `${inputId}-description` : null, error ? `${inputId}-error` : null].filter(Boolean).join(' ') || undefined
   const maxStringBytes = setting.type === 'string' ? setting.maxLength : undefined
   const draftBytes = setting.type === 'string' ? utf8ByteLength(draft) : 0
   const draftExceedsByteLimit = maxStringBytes !== undefined && draftBytes > maxStringBytes
@@ -178,58 +179,14 @@ function PluginSettingField({
     setError(null)
   }
 
-  if (setting.type === 'boolean') {
-    return (
-      <Field orientation="responsive" data-invalid={Boolean(error)}>
-        <FieldContent>
-          <FieldLabel htmlFor={inputId}>{title}</FieldLabel>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
-          <FieldDescription>{t(`settings.scopes.${setting.scope}`)}</FieldDescription>
-          <FieldError>{error}</FieldError>
-        </FieldContent>
-        <div className="flex items-center gap-2">
-          {saving ? <Spinner /> : null}
-          <Switch
-            id={inputId}
-            checked={value === true}
-            aria-invalid={Boolean(error)}
-            disabled={saving}
-            onCheckedChange={(checked) => void save(checked)}
-          />
-        </div>
-      </Field>
-    )
-  }
-
-  if (setting.type === 'select') {
-    return (
-      <Field orientation="responsive" data-invalid={Boolean(error)}>
-        <FieldContent>
-          <FieldLabel htmlFor={inputId}>{title}</FieldLabel>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
-          <FieldDescription>{t(`settings.scopes.${setting.scope}`)}</FieldDescription>
-          <FieldError>{error}</FieldError>
-        </FieldContent>
-        <div className="flex items-center gap-2">
-          {saving ? <Spinner /> : null}
-          <Select value={String(value)} disabled={saving} onValueChange={(nextValue) => void save(nextValue)}>
-            <SelectTrigger id={inputId} className="w-48 max-w-full" aria-invalid={Boolean(error)}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {setting.options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {resolvePluginText(plugin.manifest.id, option.label, locale)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      </Field>
-    )
-  }
+  const metadata = <div className="flex items-center gap-2"><Badge variant="outline">{t(`settings.scopes.${setting.scope}`)}</Badge>{saving ? <Spinner /> : null}</div>
+  if (setting.type === 'boolean' || setting.type === 'select') return <PluginSettingsRow id={inputId} title={title} description={description} descriptionId={`${inputId}-description`} errorId={`${inputId}-error`} metadata={metadata} error={error} disabled={saving} toggle={setting.type === 'boolean'}>
+    {setting.type === 'boolean' ? <Switch id={inputId} checked={value === true} aria-describedby={describedBy} aria-invalid={Boolean(error)} disabled={saving} onCheckedChange={checked => void save(checked)} />
+      : <Select value={String(value)} disabled={saving} onValueChange={nextValue => void save(nextValue)}>
+        <SelectTrigger id={inputId} aria-describedby={describedBy} aria-invalid={Boolean(error)}><SelectValue /></SelectTrigger>
+        <SelectContent><SelectGroup>{setting.options.map(option => <SelectItem key={option.value} value={option.value}>{resolvePluginText(plugin.manifest.id, option.label, locale)}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>}
+  </PluginSettingsRow>
 
   const multiline = setting.type === 'string' && (setting.maxLength ?? 0) > 1_000
   const control = multiline ? (
@@ -238,7 +195,7 @@ function PluginSettingField({
       value={draft}
       disabled={saving}
       maxRows={8}
-      aria-invalid={Boolean(error) || draftExceedsByteLimit}
+      aria-describedby={describedBy} aria-invalid={Boolean(error) || draftExceedsByteLimit}
       placeholder={'placeholder' in setting && setting.placeholder
         ? resolvePluginText(plugin.manifest.id, setting.placeholder, locale)
         : undefined}
@@ -256,7 +213,7 @@ function PluginSettingField({
       min={setting.type === 'number' ? setting.min : undefined}
       max={setting.type === 'number' ? setting.max : undefined}
       step={setting.type === 'number' ? setting.step : undefined}
-      aria-invalid={Boolean(error) || draftExceedsByteLimit}
+      aria-describedby={describedBy} aria-invalid={Boolean(error) || draftExceedsByteLimit}
       placeholder={'placeholder' in setting && setting.placeholder
         ? resolvePluginText(plugin.manifest.id, setting.placeholder, locale)
         : undefined}
@@ -270,28 +227,13 @@ function PluginSettingField({
     />
   )
 
-  return (
-    <Field data-invalid={Boolean(error) || draftExceedsByteLimit}>
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel htmlFor={inputId}>{title}</FieldLabel>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">{t(`settings.scopes.${setting.scope}`)}</Badge>
-          {saving ? <Spinner /> : null}
-        </div>
-      </div>
-      {description ? <FieldDescription>{description}</FieldDescription> : null}
-      {control}
-      {(setting.type === 'workspace-file' || setting.type === 'workspace-folder') ? (
-        <FieldDescription>{t('settings.relativePathHelp')}</FieldDescription>
-      ) : null}
-      {maxStringBytes !== undefined ? (
-        <FieldDescription aria-live="polite">
-          {t('settings.byteUsage', { used: draftBytes, max: maxStringBytes })}
-        </FieldDescription>
-      ) : null}
-      <FieldError>{error}</FieldError>
-    </Field>
-  )
+  return <PluginSettingsRow id={inputId} title={title} description={description} descriptionId={`${inputId}-description`} errorId={`${inputId}-error`} metadata={<>
+    {metadata}
+    {(setting.type === 'workspace-file' || setting.type === 'workspace-folder') ? <FieldDescription>{t('settings.relativePathHelp')}</FieldDescription> : null}
+    {maxStringBytes !== undefined ? <FieldDescription aria-live="polite">{t('settings.byteUsage', { used: draftBytes, max: maxStringBytes })}</FieldDescription> : null}
+  </>} error={error} invalid={draftExceedsByteLimit} disabled={saving} wide={multiline}>
+    {control}
+  </PluginSettingsRow>
 }
 
 function hasReviewedCurrentManifest(plugin: InstalledPlugin, workspaceState?: PluginWorkspaceState): boolean {
@@ -592,7 +534,7 @@ export function InstalledPluginsTab({ enablePluginId, onEnablePromptHandled }: {
                             {(plugin.manifest.contributes.settings?.length ?? 0) > 0 ? (
                               <div className="flex flex-col gap-3">
                                 <p className="text-sm text-muted-foreground">{t('settings.desc')}</p>
-                                <FieldGroup>
+                                <FieldGroup className="gap-3">
                                   {plugin.manifest.contributes.settings?.map((setting) => (
                                     <PluginSettingField
                                       key={`${currentWorkspaceId}:${getPluginManifestFingerprint(plugin)}:${setting.key}`}

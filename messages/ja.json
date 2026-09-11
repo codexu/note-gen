@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "言語",
-          "desc": "アプリケーションの表示言語を選択"
+          "desc": "アプリケーションの表示言語を選択",
+          "findInPlugins": "プラグインで言語を探す"
         },
         "scale": {
           "title": "インターフェーススケール",
@@ -222,6 +223,10 @@
               "name": "米黄暗"
             }
           }
+        },
+        "themePackage": {
+          "title": "テーマパッケージ",
+          "default": "標準カラー"
         }
       },
       "tools": {
@@ -2715,7 +2720,7 @@
         "requiredField": "この項目は必須です",
         "invalidValue": "有効な値を入力してください"
       },
-      "title": "プラグイン",
+      "title": "プラグイン管理",
       "desc": "NoteGen の拡張機能を探し、インストール、権限の許可、設定を行えます。現在、プラグインはデスクトップ版でのみ実行できます。",
       "loading": "プラグインを読み込み中...",
       "initializationFailed": "プラグインを初期化できませんでした",
@@ -3010,6 +3015,9 @@
           "editor/slash": "スラッシュコマンドメニュー",
           "editor/selection": "選択テキストのメニュー",
           "mobile/writing/overflow": "モバイルのその他メニュー",
+          "title-bar-left": "タイトルバー左",
+          "title-bar-center": "タイトルバー中央",
+          "title-bar-right": "タイトルバー右",
           "status-bar": "ステータスバー"
         }
       }
@@ -3047,6 +3055,7 @@
       }
     },
     "navigationGroups": {
+      "extensions": "拡張機能",
       "basic": "基本設定",
       "ai": "AI",
       "data": "データとストレージ"

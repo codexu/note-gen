@@ -1,3 +1,4 @@
+import { preparePluginResources } from '@/lib/plugins/resources'
 import {
   PluginError,
   type PluginActivationEvent,
@@ -98,6 +99,8 @@ export class PluginHost {
   private settingsUnsubscribe: (() => void) | null = null
   private editorSubscription: PluginDisposable | null = null
   private noteSubscription: PluginDisposable | null = null
+  private resourceVersions = new Map<string, string>()
+  private resourceDisposables = new Map<string, () => void>()
   private contributionDisposables = new Map<string, PluginDisposable>()
   private contributionVersions = new Map<string, string>()
   private runtimes = new Map<string, ActiveRuntime>()
@@ -197,12 +200,24 @@ export class PluginHost {
     await this.reconcile()
   }
 
+  setLocale(locale: string): void {
+    if (this.locale === locale) return
+    this.locale = locale
+    if (this.initialized) void this.reconcile().catch(error => this.logHostError(error))
+  }
+
   async changeWorkspace(): Promise<void> {
     const generation = ++this.lifecycleGeneration
     this.workspaceTransitioning = true
     this.cancelPendingActivations()
     this.stopAllRuntimes()
     this.clearContributions()
+    for (const [pluginId, dispose] of this.resourceDisposables) {
+      dispose()
+      usePluginStore.getState().setRuntimeState(pluginId, 'inactive')
+    }
+    this.resourceDisposables.clear()
+    this.resourceVersions.clear()
     try {
       await usePluginStore.getState().refreshWorkspace()
       if (!this.initialized || generation !== this.lifecycleGeneration) return
@@ -306,6 +321,7 @@ export class PluginHost {
     if (!this.supportsCurrentSurface(plugin)) {
       throw new PluginError('UnavailableOnPlatform', 'Plugin is unavailable in this window')
     }
+    if (!plugin.manifest.entry) return
     const existing = this.runtimes.get(pluginId)
     if (existing?.signature === expectedRuntimeSignature) return
     if (existing) {
@@ -463,6 +479,12 @@ export class PluginHost {
     this.cancelPendingActivations()
     this.stopAllRuntimes()
     this.clearContributions()
+    for (const [pluginId, dispose] of this.resourceDisposables) {
+      dispose()
+      usePluginStore.getState().setRuntimeState(pluginId, 'inactive')
+    }
+    this.resourceDisposables.clear()
+    this.resourceVersions.clear()
     this.editorSubscription?.dispose()
     this.editorSubscription = null
     this.noteSubscription?.dispose()
@@ -529,6 +551,12 @@ export class PluginHost {
       const version = plugin ? pluginContributionSignature(plugin, this.locale) : ''
       if (!enabledIds.has(pluginId) || this.contributionVersions.get(pluginId) !== version) {
         disposable.dispose()
+        if (!enabledIds.has(pluginId) || !plugin || this.resourceVersions.get(pluginId) !== getPluginManifestFingerprint(plugin)) {
+          this.resourceDisposables.get(pluginId)?.()
+          this.resourceDisposables.delete(pluginId)
+          this.resourceVersions.delete(pluginId)
+          if (!this.runtimes.has(pluginId)) store.setRuntimeState(pluginId, 'inactive')
+        }
         clearPluginUi(pluginId)
         this.contributionDisposables.delete(pluginId)
         this.contributionVersions.delete(pluginId)
@@ -536,9 +564,10 @@ export class PluginHost {
     }
 
     for (const plugin of store.installed) {
-      if (!enabledIds.has(plugin.manifest.id) || this.contributionDisposables.has(plugin.manifest.id)) continue
+      if (!enabledIds.has(plugin.manifest.id) || (this.contributionDisposables.has(plugin.manifest.id) && this.resourceDisposables.has(plugin.manifest.id))) continue
       try {
         const messages = await loadPluginMessages(plugin, this.locale)
+        const registerResources = this.resourceDisposables.has(plugin.manifest.id) ? null : await preparePluginResources(plugin)
         if (!this.initialized || generation !== this.lifecycleGeneration) return
         const currentPlugin = usePluginStore.getState().installed.find(
           (item) => item.manifest.id === plugin.manifest.id,
@@ -552,6 +581,15 @@ export class PluginHost {
           continue
         }
         this.ensureContributions(plugin, messages)
+        if (registerResources) {
+          this.resourceDisposables.set(plugin.manifest.id, registerResources())
+          this.resourceVersions.set(plugin.manifest.id, getPluginManifestFingerprint(plugin))
+        }
+        if (!plugin.manifest.entry) {
+          store.setRuntimeState(plugin.manifest.id, 'active')
+          if (plugin.pendingActivation) await store.confirmPendingUpdate(plugin.manifest.id, plugin.activeVersion)
+          continue
+        }
         if (!this.runtimes.has(plugin.manifest.id) && !this.activations.has(plugin.manifest.id)) {
           store.setRuntimeState(plugin.manifest.id, 'inactive')
         }
@@ -560,6 +598,10 @@ export class PluginHost {
         if (error instanceof PluginError && ['Cancelled', 'WorkspaceChanged'].includes(error.code)) continue
         if (this.surface === 'main') {
           await store.recordFailure(plugin.manifest.id, 'InvalidManifest', safeMessage(error))
+          store.setRuntimeState(plugin.manifest.id, 'failed')
+          if (!plugin.manifest.entry && plugin.pendingActivation) {
+            try { await store.rollback(plugin.manifest.id) } catch (rollbackError) { this.logHostError(rollbackError) }
+          }
         } else {
           this.logHostError(error)
         }
@@ -722,7 +764,7 @@ export class PluginHost {
   }
 
   private supportsCurrentSurface(plugin: InstalledPlugin): boolean {
-    return this.surface === 'main' || plugin.manifest.activationEvents.includes('onEditor:markdown')
+    return Boolean(plugin.manifest.resources) || this.surface === 'main' || plugin.manifest.activationEvents.includes('onEditor:markdown')
   }
 
   private getStoreSignature(): string {

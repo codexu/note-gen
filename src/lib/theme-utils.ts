@@ -1,4 +1,4 @@
-import { CustomThemeColors, HSLValue } from '@/types/theme'
+import { CustomThemeColors, HSLValue, THEME_VARIABLE_MAP } from '@/types/theme'
 
 /**
  * 将 HSL 值转换为 CSS 变量格式
@@ -13,71 +13,33 @@ function hslToCssValue(hsl: HSLValue): string {
  * 这个函数会同时应用亮色和暗色主题的自定义颜色
  * 暗色主题的颜色通过设置在 .dark 类上的样式来实现
  */
-export function applyThemeColors(colors: CustomThemeColors): void {
-  const root = document.documentElement
-
-  // 获取或创建用于暗色主题自定义颜色的 style 标签
-  let darkStyleTag = document.getElementById('custom-dark-theme')
-  if (!darkStyleTag) {
-    darkStyleTag = document.createElement('style')
-    darkStyleTag.id = 'custom-dark-theme'
-    document.head.appendChild(darkStyleTag)
-  }
-
-  // 构建暗色主题的 CSS 规则
-  let darkCssRules = '.dark {\n'
-
-  // 应用亮色主题的自定义颜色到 :root（内联样式）
-  Object.entries(colors.light).forEach(([key, value]) => {
-    const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`
-    if (value) {
-      root.style.setProperty(cssVar, hslToCssValue(value))
-    } else {
-      // 如果值为 null，移除自定义值（恢复默认）
-      root.style.removeProperty(cssVar)
-    }
-  })
-
-  // 构建暗色主题的 CSS 规则
-  Object.entries(colors.dark).forEach(([key, value]) => {
-    const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`
-    if (value) {
-      darkCssRules += `  ${cssVar}: ${hslToCssValue(value)};\n`
-    }
-    // 如果值为 null，不添加到规则中，让 CSS 默认值生效
-  })
-
-  darkCssRules += '}'
-
-  // 更新暗色主题的样式
-  darkStyleTag.textContent = darkCssRules
+let themeBase: { light: Partial<CustomThemeColors['light']>; dark: Partial<CustomThemeColors['dark']> } | null = null
+let userColors: CustomThemeColors | null = null
+export function setPluginThemeBase(base: typeof themeBase): void {
+  themeBase = base
+  renderThemeColors()
 }
-
-/**
- * 移除所有自定义主题颜色
- */
+function renderThemeColors(): void {
+  if (typeof document === 'undefined') return
+  for (const variable of Object.values(THEME_VARIABLE_MAP.light)) document.documentElement.style.removeProperty(variable)
+  let style = document.getElementById('custom-dark-theme')
+  if (!style) { style = document.createElement('style'); style.id = 'custom-dark-theme'; document.head.appendChild(style) }
+  // Both modes use rules on the root. Inline light values would defeat dark-mode rules.
+  style.textContent = (['light', 'dark'] as const).map(mode => {
+    const palette = { ...themeBase?.[mode] }
+    for (const [key, value] of Object.entries(userColors?.[mode] ?? {})) {
+      if (value) palette[key as keyof typeof palette] = value as HSLValue
+    }
+    return `${mode === 'light' ? ':root' : ':root.dark'} {${Object.entries(palette).filter(([, v]) => v).map(([key, value]) => `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${hslToCssValue(value as HSLValue)};`).join('')}}`
+  }).join('\n')
+}
+export function applyThemeColors(colors: CustomThemeColors): void {
+  userColors = colors
+  renderThemeColors()
+}
 export function removeThemeColors(): void {
-  const root = document.documentElement
-
-  // 移除 :root 上的所有自定义颜色变量
-  const lightVars = [
-    'background', 'foreground', 'card', 'cardForeground',
-    'primary', 'primaryForeground', 'secondary', 'secondaryForeground',
-    'third', 'thirdForeground',
-    'muted', 'mutedForeground', 'accent', 'accentForeground', 'border',
-    'shadow'
-  ]
-
-  lightVars.forEach(key => {
-    const cssVar = `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`
-    root.style.removeProperty(cssVar)
-  })
-
-  // 移除暗色主题的样式标签
-  const darkStyleTag = document.getElementById('custom-dark-theme')
-  if (darkStyleTag) {
-    darkStyleTag.remove()
-  }
+  userColors = null
+  renderThemeColors()
 }
 
 /**

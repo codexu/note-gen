@@ -1,3 +1,5 @@
+import { setRuntimeFileIcons, clearRuntimeFileIcons } from './resources'
+import type { PluginFileIconRule } from '@notegen/plugin-api'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import {
   PLUGIN_API_VERSION,
@@ -1362,6 +1364,7 @@ export function createPluginContext(options: {
       throw new PluginError('Cancelled', 'The plugin is disabled')
     }
   }
+  disposables.push({ dispose: () => clearRuntimeFileIcons(pluginId, signal) })
   const guardCurrent = async (permission?: PluginPermissionName, path?: string) => {
     guard()
     await assertCurrentPluginAuthority(pluginId, workspaceBinding, permission, path)
@@ -1427,6 +1430,10 @@ export function createPluginContext(options: {
         await guardCurrent()
         return day
       },
+    },
+    fileIcons: {
+      setRules: async rules => { await guardCurrent(); setRuntimeFileIcons(pluginId, rules, signal) },
+      clear: async () => { await guardCurrent(); clearRuntimeFileIcons(pluginId, signal) },
     },
     attachments: {
       read: async (options) => {
@@ -1743,6 +1750,9 @@ export async function invokePluginCapability(
         timeZone: requireString(record.timeZone, 'timeZone'),
         dayStartsAt: requireString(record.dayStartsAt, 'dayStartsAt'),
       })
+    case 'fileIcons.setRules':
+      return context.fileIcons.setRules(record.rules as unknown as PluginFileIconRule[])
+    case 'fileIcons.clear': return context.fileIcons.clear()
     case 'attachments.read':
       return context.attachments.read({ path: requireString(record.path, 'path') })
     case 'attachments.create':
@@ -1879,4 +1889,23 @@ export function toPluginError(error: unknown): PluginError {
   }
   const message = error instanceof Error ? error.message : String(error)
   return new PluginError('RuntimeFailure', message)
+}
+
+/** Preview capability is bound to one visible document and one installed package. */
+export async function readPluginPreviewChunk(
+  pluginId: string, binding: PluginWorkspaceBinding, expectedFingerprint: string,
+  pathValue: string, offset: number, length: number,
+): Promise<Uint8Array> {
+  const path = normalizeRelativeMarkdownPath(`${pathValue}.md`).slice(0, -3)
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 1 || length > 1_048_576) throw new PluginError('QuotaExceeded', 'Invalid preview read range')
+  const guard = async () => {
+    const plugin = await assertCurrentPluginAuthority(pluginId, binding, 'attachments.read', path)
+    if (getPluginManifestFingerprint(plugin) !== expectedFingerprint) throw new PluginError('Cancelled', 'Preview package changed')
+  }
+  await guard()
+  const workspace = await getCurrentWorkspaceSnapshot()
+  await guard()
+  const base64 = await invokePluginBackend<string>('plugin_read_preview_chunk', { workspaceRoot: workspace.root, relativePath: path, offset, length })
+  await guard()
+  return Uint8Array.from(atob(base64), c => c.charCodeAt(0))
 }

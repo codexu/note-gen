@@ -168,3 +168,11 @@ export async function readPluginUsage(pluginId: string, locale: string, identity
     pluginId, locale, expectedVersion: identity.version, expectedContentHash: identity.contentHash,
   })
 }
+
+export async function readPluginResource(plugin: InstalledPlugin, path: string): Promise<Uint8Array> {
+  const base64 = await invokePluginBackend<string>('plugin_read_resource', {
+    pluginId: plugin.manifest.id, path,
+    expectedVersion: plugin.activeVersion, expectedContentHash: plugin.contentHash,
+  })
+  return Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+}

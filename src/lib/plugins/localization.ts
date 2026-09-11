@@ -22,10 +22,11 @@ function notifyMessagesChanged() {
 
 /** Load display metadata independently of runtime activation and refresh consumers. */
 export function usePluginLocalization(plugins: InstalledPlugin[], locale: string) {
-  useSyncExternalStore(subscribe, snapshot, () => 0)
+  const currentRevision = useSyncExternalStore(subscribe, snapshot, () => 0)
   useEffect(() => {
     void Promise.allSettled(plugins.map(plugin => loadPluginMessages(plugin, locale)))
   }, [plugins, locale])
+  return currentRevision
 }
 
 function normalizedLocale(locale: string): string {

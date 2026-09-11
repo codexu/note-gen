@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   DEFAULT_LOCALE,
+  PLUGIN_LANGUAGES_CHANGED,
   LANGUAGE_STORAGE_KEY,
   isSupportedLocale,
   normalizeLocale,
@@ -11,8 +12,10 @@ export function useI18n() {
   const [currentLocale, setCurrentLocale] = useState<SupportedLocale>(DEFAULT_LOCALE);
 
   useEffect(() => {
-    const savedLanguage = normalizeLocale(localStorage.getItem(LANGUAGE_STORAGE_KEY));
-    setCurrentLocale(savedLanguage);
+    const refresh = () => setCurrentLocale(normalizeLocale(localStorage.getItem(LANGUAGE_STORAGE_KEY)));
+    refresh();
+    window.addEventListener(PLUGIN_LANGUAGES_CHANGED, refresh);
+    return () => window.removeEventListener(PLUGIN_LANGUAGES_CHANGED, refresh);
   }, []);
 
   const changeLanguage = (locale: string) => {
@@ -21,7 +24,7 @@ export function useI18n() {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale);
     setCurrentLocale(nextLocale);
     // 刷新页面以应用新语言
-    window.location.reload();
+    window.dispatchEvent(new Event(PLUGIN_LANGUAGES_CHANGED));
   };
 
   return {

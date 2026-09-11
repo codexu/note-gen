@@ -41,6 +41,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.1.0)
+      '@formatjs/icu-messageformat-parser':
+        specifier: 2.11.2
+        version: 2.11.2
       '@headless-tree/core':
         specifier: 1.7.0
         version: 1.7.0
@@ -57,8 +60,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@notegen/plugin-api':
-        specifier: 0.1.2
-        version: 0.1.2
+        specifier: 0.1.6
+        version: 0.1.6
       '@octokit/core':
         specifier: ^6.1.2
         version: 6.1.6
@@ -1358,8 +1361,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@notegen/plugin-api@0.1.2':
-    resolution: {integrity: sha512-9wgl0RLw2xTVR45jkQjqUrCoFNttREz1bxMhiFHTbkHDHSFrmuvUjMIUdcep+164e4lZiE0cJnvrxPdU9cbpSQ==}
+  '@notegen/plugin-api@0.1.6':
+    resolution: {integrity: sha512-6kwW0Jm1VdQAAlg5IDy+CZsQmIHzYoIi4U2oktllGesorD8Gtf/lWaGypZZh8CrZCjWUt621zBzAGRDIcd9fFQ==}
     engines: {node: '>=20'}
 
   '@octokit/auth-token@5.1.2':
@@ -7931,7 +7934,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@notegen/plugin-api@0.1.2': {}
+  '@notegen/plugin-api@0.1.6': {}
 
   '@octokit/auth-token@5.1.2': {}
 

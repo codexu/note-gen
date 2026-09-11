@@ -43,6 +43,7 @@ import { TabBar, type TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
+import { PluginDocumentPreview } from '@/components/plugins/plugin-document-preview'
 import { UnsupportedFile } from './unsupported-file'
 import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
@@ -1656,7 +1657,7 @@ export function EditorLayout() {
           {itemType === 'folder' && <FolderView folderPath={tab.path} />}
           {itemType === 'image' && <ImageEditor filePath={tab.path} isActive={active} />}
           {itemType === 'markdown' && <MdEditor tabContentsRef={tabContentsRef} filePath={tab.path} isActive={active} disabled={detachingTabId === tab.id} />}
-          {itemType === 'unknown' && <UnsupportedFile filePath={tab.path} />}
+          {itemType === 'unknown' && <PluginDocumentPreview path={tab.path} isActive={active} />}
         </div>
       </TabContentErrorBoundary>
     )

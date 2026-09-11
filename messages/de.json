@@ -80,7 +80,8 @@
         },
         "language": {
           "title": "Sprache",
-          "desc": "Wähle die Anzeigesprache der App aus"
+          "desc": "Wähle die Anzeigesprache der App aus",
+          "findInPlugins": "Sprache in Plugins finden"
         },
         "scale": {
           "title": "Oberflächenskalierung",
@@ -222,6 +223,10 @@
             "title": "Tray aktivieren",
             "desc": "Wähle, ob die App in den Tray minimiert oder beendet wird, wenn das Fenster geschlossen wird"
           }
+        },
+        "themePackage": {
+          "title": "Themenpaket",
+          "default": "Integrierte Farben"
         }
       },
       "tools": {
@@ -632,7 +637,7 @@
         "requiredField": "Dieses Feld ist erforderlich",
         "invalidValue": "Geben Sie einen gültigen Wert ein"
       },
-      "title": "Plugins",
+      "title": "Plugin-Verwaltung",
       "desc": "Erweiterungen für NoteGen entdecken, installieren, freigeben und konfigurieren. Plugins werden derzeit nur auf dem Desktop ausgeführt.",
       "loading": "Plugins werden geladen...",
       "initializationFailed": "Plugins konnten nicht initialisiert werden",
@@ -927,6 +932,9 @@
           "editor/slash": "Slash-Befehlsmenü",
           "editor/selection": "Textauswahlmenü",
           "mobile/writing/overflow": "Mobiles Mehr-Menü",
+          "title-bar-left": "Titelleiste links",
+          "title-bar-center": "Titelleiste Mitte",
+          "title-bar-right": "Titelleiste rechts",
           "status-bar": "Statusleiste"
         }
       }
@@ -2910,6 +2918,7 @@
       }
     },
     "navigationGroups": {
+      "extensions": "Erweiterungen",
       "basic": "Grundlegendes",
       "ai": "KI",
       "data": "Daten & Speicher"

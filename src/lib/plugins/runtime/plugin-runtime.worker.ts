@@ -491,6 +491,7 @@ const context = Object.freeze({
     },
   }),
   calendar: Object.freeze({ resolveDay: (options) => rpc('calendar.resolveDay', options) }),
+  fileIcons: Object.freeze({ setRules: (rules) => rpc('fileIcons.setRules', { rules }), clear: () => rpc('fileIcons.clear', {}) }),
   attachments: Object.freeze({
     read: (options) => rpc('attachments.read', options),
     create: (options) => rpc('attachments.create', options),

@@ -16,8 +16,7 @@
     "sync:self-hosted-schema": "pnpm dlx openapi-typescript@7.13.0 ${NOTEGEN_SERVER_OPENAPI_URL:-http://localhost:3000/openapi.json} -o src/lib/self-hosted-sync/generated/openapi.ts",
     "ios-build": "npm run sync-version && pnpm tauri ios build --open",
     "macos-app-store-build": "tauri build --config src-tauri/tauri.macos-app-store.conf.json",
-    "plugin-api:check-version": "node -e \"const fs=require('node:fs');const files=['packages/plugin-api/src/index.ts','src-tauri/src/plugins.rs'];const versions=files.map((file)=>{const tail=fs.readFileSync(file,'utf8').split('PLUGIN_API_VERSION')[1];const match=tail&&tail.match(/[0-9]+[.][0-9]+[.][0-9]+/);if(!match)throw new Error('Missing plugin API version in '+file);return match[0]});if(new Set(versions).size!==1)throw new Error('Plugin API versions differ: '+versions.join(' != '));\"",
-    "plugin-api:build": "pnpm run plugin-api:check-version && pnpm --filter @notegen/plugin-api build",
+    "plugin-api:check-version": "python3 scripts/check-plugin-contract.py",
     "plugin-market:check-key": "bash ./scripts/check-plugin-market-public-key.sh"
   },
   "dependencies": {
@@ -36,7 +35,7 @@
     "@hookform/resolvers": "^3.9.1",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@mozilla/readability": "^0.6.0",
-    "@notegen/plugin-api": "workspace:*",
+    "@notegen/plugin-api": "0.1.2",
     "@octokit/core": "^6.1.2",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@shadcn/react": "^0.2.1",

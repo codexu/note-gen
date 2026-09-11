@@ -57,8 +57,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@notegen/plugin-api':
-        specifier: workspace:*
-        version: link:packages/plugin-api
+        specifier: 0.1.2
+        version: 0.1.2
       '@octokit/core':
         specifier: ^6.1.2
         version: 6.1.6
@@ -449,12 +449,6 @@ importers:
         version: 1.4.0
       typescript:
         specifier: ^5
-        version: 5.8.3
-
-  packages/plugin-api:
-    devDependencies:
-      typescript:
-        specifier: ^5.8.3
         version: 5.8.3
 
 packages:
@@ -1363,6 +1357,10 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@notegen/plugin-api@0.1.2':
+    resolution: {integrity: sha512-9wgl0RLw2xTVR45jkQjqUrCoFNttREz1bxMhiFHTbkHDHSFrmuvUjMIUdcep+164e4lZiE0cJnvrxPdU9cbpSQ==}
+    engines: {node: '>=20'}
 
   '@octokit/auth-token@5.1.2':
     resolution: {integrity: sha512-JcQDsBdg49Yky2w2ld20IHAlwr8d/d8N6NiOXbtuoPCqzbsiJgF633mVUw3x4mo0H5ypataQIX7SFu3yy44Mpw==}
@@ -7932,6 +7930,8 @@ snapshots:
       fastq: 1.19.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@notegen/plugin-api@0.1.2': {}
 
   '@octokit/auth-token@5.1.2': {}
 

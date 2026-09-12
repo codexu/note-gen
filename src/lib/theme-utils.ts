@@ -26,9 +26,9 @@ function renderThemeColors(): void {
   if (!style) { style = document.createElement('style'); style.id = 'custom-dark-theme'; document.head.appendChild(style) }
   // Both modes use rules on the root. Inline light values would defeat dark-mode rules.
   style.textContent = (['light', 'dark'] as const).map(mode => {
-    const palette = { ...themeBase?.[mode] }
+    const palette: Record<string, HSLValue | null | undefined> = { ...themeBase?.[mode] }
     for (const [key, value] of Object.entries(userColors?.[mode] ?? {})) {
-      if (value) palette[key as keyof typeof palette] = value as HSLValue
+      if (value) palette[key] = value as HSLValue
     }
     return `${mode === 'light' ? ':root' : ':root.dark'} {${Object.entries(palette).filter(([, v]) => v).map(([key, value]) => `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${hslToCssValue(value as HSLValue)};`).join('')}}`
   }).join('\n')

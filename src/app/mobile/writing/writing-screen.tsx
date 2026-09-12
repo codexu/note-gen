@@ -106,7 +106,7 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
   }, [])
 
   return (
-    <div id="mobile-writing" className='w-full h-full flex flex-col'>
+    <div id="mobile-writing" className='w-full h-full min-h-0 flex flex-col overflow-clip'>
       <div
         className={cn('min-h-0 flex-1', view !== 'files' && 'hidden')}
         aria-hidden={view !== 'files'}
@@ -121,11 +121,11 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
         />
       </div>
       <div
-        className={cn('min-h-0 flex-1 flex-col', view === 'editor' ? 'flex' : 'hidden')}
+        className={cn('min-h-0 flex-1 flex-col overflow-clip', view === 'editor' ? 'flex' : 'hidden')}
         aria-hidden={view !== 'editor'}
       >
         <EditorHeader onBack={closeEditor} />
-        <div className='min-h-0 flex-1 overflow-hidden'>
+        <div className='min-h-0 flex-1 overflow-clip'>
           <MobileEditor ref={editorRef} isActive={isActive && view === 'editor'} />
         </div>
       </div>

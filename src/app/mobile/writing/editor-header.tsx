@@ -19,7 +19,7 @@ export function EditorHeader({ onBack }: EditorHeaderProps) {
   const fileName = activeFilePath.split('/').pop() || tMobile('editor')
 
   return (
-    <header className="mobile-page-header flex w-full items-center gap-2 border-b bg-background px-2 text-sm">
+    <header className="mobile-page-header flex w-full shrink-0 items-center gap-2 border-b bg-background px-2 text-sm">
       <div className="flex min-w-0 flex-1 items-center gap-1">
         <Button
           variant="ghost"

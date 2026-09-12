@@ -41,7 +41,8 @@ export function DeveloperDiagnostics() {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [logCount, setLogCount] = useState(() => getRuntimeLogs().length)
-  const desktop = supportsNativeDeveloperTools()
+  const android = readSystemInformation().platform === 'android'
+  const canExport = supportsNativeDeveloperTools() || android
 
   useEffect(() => subscribeRuntimeLogs(setLogCount), [])
 
@@ -108,7 +109,7 @@ export function DeveloperDiagnostics() {
     try {
       const destination = await save({
         defaultPath: `notegen-redacted-diagnostics-${Date.now()}.json`,
-        filters: [{ name: 'JSON', extensions: ['json'] }],
+        filters: [{ name: 'JSON', extensions: [android ? 'application/json' : 'json'] }],
       })
       if (!destination) return
       await writeTextFile(destination, preview)
@@ -147,13 +148,13 @@ export function DeveloperDiagnostics() {
       </Card>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] max-w-3xl">
+        <DialogContent className="h-[min(760px,calc(100dvh-2rem))] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{t('previewTitle')}</DialogTitle>
             <DialogDescription>{t('reviewWarning')}</DialogDescription>
           </DialogHeader>
           <Textarea
-            className="min-h-80 resize-none font-mono text-xs"
+            className="h-full min-h-0 field-sizing-fixed resize-none overscroll-contain select-text font-mono text-xs"
             value={preview}
             readOnly
             aria-label={t('previewTitle')}
@@ -163,7 +164,7 @@ export function DeveloperDiagnostics() {
               {copied ? <Check data-icon="inline-start" /> : <ClipboardCopy data-icon="inline-start" />}
               {copied ? t('copied') : t('copy')}
             </Button>
-            {desktop ? (
+            {canExport ? (
               <Button onClick={() => void exportPreview()}>
                 <Download data-icon="inline-start" />{t('export')}
               </Button>

@@ -265,7 +265,7 @@ export default function RootLayout({
           <AppStatus />
           <TooltipProvider>
             <div className="mobile-app-shell flex flex-col">
-              <main className="mobile-app-main flex flex-1 w-full overflow-hidden">
+              <main className="mobile-app-main flex flex-1 w-full overflow-clip">
                 {hasWritingCache ? (
                   <div
                     className={isWritingRoute ? "h-full w-full min-w-0" : "hidden"}

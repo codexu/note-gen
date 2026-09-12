@@ -55,6 +55,7 @@ export function AppFootbar() {
   const t = useTranslations()
   const [quickActionOpen, setQuickActionOpen] = useState(false)
   const organizeRef = useRef<{ openOrganize: () => void }>(null)
+  const pendingOrganizeRef = useRef(false)
   const { isRecording, recordingDuration } = useRecordingStore()
   const activeFilePath = useArticleStore(state => state.activeFilePath)
   const activeMarkId = useMarkStore(state => state.activeMarkId)
@@ -114,6 +115,7 @@ export function AppFootbar() {
       : Math.max(routeActiveIndex, 0)
 
   async function menuHandler(item: FootbarItem) {
+    pendingOrganizeRef.current = false
     if (item.isQuickAction) {
       if (isRecording) {
         setQuickActionOpen(false)
@@ -139,10 +141,8 @@ export function AppFootbar() {
   }
 
   function handleMobileOrganize() {
+    pendingOrganizeRef.current = true
     setQuickActionOpen(false)
-    window.requestAnimationFrame(() => {
-      organizeRef.current?.openOrganize()
-    })
   }
 
   return (
@@ -159,7 +159,20 @@ export function AppFootbar() {
         }}
       />
       <Drawer open={quickActionOpen} onOpenChange={setQuickActionOpen}>
-        <DrawerContent>
+        <DrawerContent
+          onCloseAutoFocus={event => {
+            if (!pendingOrganizeRef.current) return
+            event.preventDefault()
+            // Wait for the drawer's modal/focus locks to be released before
+            // mounting the dialog. A frame after setOpen(false) is too early
+            // because the drawer remains mounted during its exit animation.
+            window.requestAnimationFrame(() => {
+              if (!pendingOrganizeRef.current) return
+              pendingOrganizeRef.current = false
+              organizeRef.current?.openOrganize()
+            })
+          }}
+        >
           <DrawerHeader className="sr-only">
             <DrawerTitle>{t('navigation.mobileDock.quickRecord')}</DrawerTitle>
           </DrawerHeader>

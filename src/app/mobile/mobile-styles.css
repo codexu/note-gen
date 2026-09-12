@@ -102,12 +102,15 @@ select,
   user-select: none;
 }
 
+/* Keep focus/selection scrolling inside page content, not the app frame. */
 .mobile-app-shell {
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
   height: var(--mobile-viewport-height, 100vh);
   min-height: 0;
-  overflow: hidden;
+  overflow: clip;
   transform: translateY(var(--mobile-viewport-offset-top, 0px));
   padding-top: env(safe-area-inset-top);
   background: hsl(var(--background));

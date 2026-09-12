@@ -34,8 +34,11 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
     activeFilePath,
     currentArticle,
     loading: articleLoading,
+    aiGeneratingFilePath,
+    aiTerminateFn,
   } = useArticleStore()
 
+  const aiStreaming = Boolean(activeFilePath && aiGeneratingFilePath === activeFilePath)
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(Boolean(activeFilePath))
   const [isEditorReady, setIsEditorReady] = useState(false)
@@ -139,6 +142,21 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
     }
   }, [workspacePath])
 
+  // External editor replacements suppress TipTap's onChange. Keep the mobile
+  // save snapshot current even when a stream arrives before TipTap mounts.
+  useEffect(() => {
+    const handleExternalContentUpdate = (nextContent: string) => {
+      const targetPath = useArticleStore.getState().activeFilePath
+      if (!targetPath || targetPath !== activePathRef.current) return
+      awaitingInitialContentRef.current = false
+      contentRef.current = nextContent
+      setContent(nextContent)
+      setIsLoading(false)
+    }
+    emitter.on('external-content-update', handleExternalContentUpdate)
+    return () => emitter.off('external-content-update', handleExternalContentUpdate)
+  }, [])
+
   // 保存文件
   const doSave = useCallback(async () => {
     if (savePromiseRef.current) {
@@ -214,6 +232,10 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
         mobileMode
         applyLayoutPreferences
         isActive={isActive}
+        editable={!aiStreaming}
+        autoScroll={aiStreaming}
+        showOverlay={aiStreaming}
+        onTerminate={() => aiTerminateFn?.()}
       />
     </div>
   )

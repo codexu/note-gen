@@ -478,8 +478,6 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const terminateGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
-      abortControllerRef.current = null
-      setLoading(false)
     }
   }, [])
 
@@ -522,6 +520,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     organizingRef.current = true
     setOpen(false)
     setLoading(true)
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    const signal = controller.signal
 
     // Prepare file path outside try block for access in finally
     const timestamp = new Date().getTime()
@@ -544,7 +545,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       await loadFileTree()
       await setActiveFilePath(
         filePath,
-        true,
+        shouldAutoSyncOnInitialRead({ isNewFile: true }),
         { deactivationAlreadyPrepared: true },
       )
 
@@ -682,58 +683,120 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         ${templateContent}
       `
 
-      // Emit AI streaming start event with target file path
+      // A navigation during preparation must not start a stream into another note.
+      if (signal.aborted || useArticleStore.getState().activeFilePath !== filePath) return
+
+      setSkipSyncOnSave(true)
+      setAiGeneratingFilePath(filePath)
+      setAiTerminateFn(terminateGeneration)
       emitter.emit('editor-ai-streaming', {
         isStreaming: true,
         targetFilePath: filePath,
-        terminate: () => {
-          terminateGeneration()
-        }
+        terminate: terminateGeneration,
       })
 
-      // 5. Stream generation to editor
-
-      // Skip sync for AI-generated content
-      setSkipSyncOnSave(true)
-      setAiGeneratingFilePath(filePath)
-      setAiTerminateFn(() => {
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort()
-          abortControllerRef.current = null
-          setLoading(false)
-        }
-      })
-
-      abortControllerRef.current = new AbortController()
-      const signal = abortControllerRef.current.signal
-      const targetFilePath = filePath // 保存目标文件路径
-
+      // Keep only the latest snapshot. fetchAiStream does not await its callback,
+      // so async work here must be drained explicitly before saving/renaming.
       let fullContent = ''
+      let savedContent = ''
+      let displayedContent = ''
+      let receivedContent = false
+      let receivedThinking = false
+      let savedFirstContent = false
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let pendingWrite: Promise<void> = Promise.resolve()
+      let writeError: unknown
+      let writeFailed = false
       let streamFinished = false
-      await fetchAiStream(request_content, async (content) => {
-        // Check if user switched to a different file - stop writing if so
-        const currentActivePath = useArticleStore.getState().activeFilePath
-        if (currentActivePath !== targetFilePath) {
-          return
-        }
-
-        fullContent = content
-        // Update editor content in real-time without reloading file
-        markEditorPathMutation(targetFilePath)
-        setCurrentArticle(content)
-        emitter.emit('external-content-update', content)
-        // Also write to file
-        await runEditorPathWriteTransaction(targetFilePath, async () => {
+      const unsubscribe = useArticleStore.subscribe((state) => {
+        if (state.activeFilePath !== filePath) controller.abort()
+      })
+      const displayContent = () => {
+        if (fullContent === displayedContent || useArticleStore.getState().activeFilePath !== filePath) return
+        displayedContent = fullContent
+        markEditorPathMutation(filePath)
+        setCurrentArticle(fullContent)
+        emitter.emit('external-content-update', fullContent)
+      }
+      const flushContent = async () => {
+        const content = fullContent
+        if (content === savedContent) return
+        const written = await runEditorPathWriteTransaction(filePath, async () => {
+          markEditorPathMutation(filePath)
           if (workspace.isCustom) {
             await writeTextFile(pathOptions.path, content)
           } else {
             await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
           }
-          markEditorPathMutation(targetFilePath)
+          markEditorPathMutation(filePath)
           return true
         })
-      }, signal)
-      streamFinished = true
+        if (!written) throw new Error('Generated note could not be saved')
+        savedContent = content
+        if (!savedFirstContent) {
+          savedFirstContent = true
+          console.info('[OrganizeNotes] First content saved', { characters: content.length })
+        }
+      }
+      let flushing = false
+      const scheduleFlush = () => {
+        if (timer !== undefined || streamFinished || signal.aborted) return
+        // Longer documents need fewer full Markdown parses on the UI thread.
+        const delay = fullContent.length > 50_000 ? 1_000 : 300
+        timer = setTimeout(() => {
+          timer = undefined
+          displayContent()
+          // Rendering must keep progressing while an earlier disk write waits.
+          if (flushing || fullContent === savedContent) return
+          flushing = true
+          pendingWrite = flushContent().catch((error: unknown) => {
+            writeFailed = true
+            writeError = error
+            controller.abort()
+          }).finally(() => {
+            flushing = false
+            if (fullContent !== savedContent) scheduleFlush()
+          })
+        }, delay)
+      }
+      try {
+        console.info('[OrganizeNotes] Starting AI stream')
+        const result = await fetchAiStream(request_content, (content) => {
+          if (signal.aborted || content === fullContent) return
+          if (!receivedContent && content) {
+            receivedContent = true
+            console.info('[OrganizeNotes] First content received', { characters: content.length })
+          }
+          fullContent = content
+          scheduleFlush()
+        }, signal, undefined, undefined, undefined, undefined, () => {
+          if (!receivedThinking) {
+            receivedThinking = true
+            console.info('[OrganizeNotes] Model is returning reasoning before content')
+          }
+        })
+        if (!signal.aborted && (!result || result !== fullContent)) {
+          throw new Error('Note generation did not complete successfully')
+        }
+      } finally {
+        streamFinished = true
+        if (timer !== undefined) clearTimeout(timer)
+        displayContent()
+        console.info('[OrganizeNotes] Stream ended; draining saves', {
+          aborted: signal.aborted,
+          characters: fullContent.length,
+          receivedThinking,
+        })
+        await pendingWrite
+        try {
+          if (writeFailed) throw writeError
+          // Preserve the last received text on completion, cancellation or error.
+          await flushContent()
+        } finally {
+          unsubscribe()
+        }
+      }
+      if (signal.aborted || useArticleStore.getState().activeFilePath !== filePath) return
 
       // Re-enable sync after AI generation
       setSkipSyncOnSave(false)
@@ -795,11 +858,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
 
         // Update file tree and active file
         await loadFileTree()
-        await setActiveFilePath(
-          newFilePath,
-          shouldAutoSyncOnInitialRead({ isNewFile: true }),
-          pathChanged ? { deactivationAlreadyPrepared: true } : undefined,
-        )
+        if (useArticleStore.getState().activeFilePath === filePath) {
+          await setActiveFilePath(
+            newFilePath,
+            shouldAutoSyncOnInitialRead({ isNewFile: true }),
+            pathChanged ? { deactivationAlreadyPrepared: true } : undefined,
+          )
+        }
         if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
           emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath: newFilePath })
         }
@@ -814,7 +879,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         } else {
           await writeTextFile(pathOptions.path, cleanedContent, { baseDir: pathOptions.baseDir })
         }
-        await readArticle(filePath, '', shouldAutoSyncOnInitialRead())
+        if (useArticleStore.getState().activeFilePath === filePath) {
+          await readArticle(filePath, '', shouldAutoSyncOnInitialRead())
+        }
         if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
           emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath })
         }

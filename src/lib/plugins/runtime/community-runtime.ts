@@ -1,3 +1,5 @@
+import { onPluginAiStream } from '@/lib/plugins/ai'
+import emitter from '@/lib/emitter'
 import { clearRuntimeFileIcons } from '@/lib/plugins/resources'
 import {
   PluginError,
@@ -35,7 +37,7 @@ import type {
   PluginWorkerToHostMessage,
 } from '@/lib/plugins/runtime/protocol'
 import { usePluginStore } from '@/stores/plugins'
-import { onPluginViewChange, onPluginDialogClose } from '@/lib/plugins/ui-registry'
+import { onPluginViewChange, onPluginDialogClose, usePluginUiStore } from '@/lib/plugins/ui-registry'
 
 const MAX_NETWORK_TIMEOUT_MS = 30_000
 const ASYNC_OPERATION_GRACE_MS = 15_000
@@ -45,6 +47,8 @@ const MAX_RPC_PER_SECOND = 120
 const MAX_NOTICES_PER_TEN_SECONDS = 5
 const MAX_BRIDGE_PAYLOAD_BYTES = 2 * 1_048_576 + 128 * 1_024
 const EDITOR_WINDOW_UNAVAILABLE_RPC_METHODS: ReadonlySet<PluginRpcMethod> = new Set<PluginRpcMethod>([
+  'ui.prompt', 'ai.generate', 'ai.cancel',
+  'records.list', 'records.read', 'records.tags', 'records.create', 'records.update', 'chat.setDraft',
   'ui.statusBar.update',
   'ui.views.update',
   'ui.views.open',
@@ -167,9 +171,14 @@ export class CommunityPluginRuntime {
       this.activationResolve = resolve
       this.activationReject = reject
     })
-    this.activationTimer = setTimeout(() => {
+    const checkActivationTimeout = () => {
+      if (usePluginUiStore.getState().prompt?.pluginId === this.plugin.manifest.id) {
+        this.activationTimer = setTimeout(checkActivationTimeout, ACTIVATION_TIMEOUT_MS)
+        return
+      }
       this.fail(new PluginError('Timeout', 'Plugin activation timed out'))
-    }, ACTIVATION_TIMEOUT_MS)
+    }
+    this.activationTimer = setTimeout(checkActivationTimeout, ACTIVATION_TIMEOUT_MS)
 
     try {
       // Built separately: Next 15 Turbopack otherwise emits raw TypeScript as an asset.
@@ -194,6 +203,7 @@ export class CommunityPluginRuntime {
       }
       this.post({
         type: 'initialize',
+        surface: this.surface,
         manifest: this.plugin.manifest,
         entrySource,
         locale: this.locale,
@@ -220,12 +230,19 @@ export class CommunityPluginRuntime {
     if (argument !== undefined) requirePluginJsonValue(argument, 'Plugin command argument')
     const requestId = createRequestId()
     return new Promise<PluginCommandResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const checkTimeout = () => {
+        const pending = this.pendingCommands.get(requestId)
+        if (!pending) return
+        if (usePluginUiStore.getState().prompt?.pluginId === this.plugin.manifest.id) {
+          pending.timer = setTimeout(checkTimeout, COMMAND_TIMEOUT_MS)
+          return
+        }
         this.pendingCommands.delete(requestId)
         const error = new PluginError('Timeout', `Plugin command timed out: ${commandId}`)
         reject(error)
         this.fail(error)
-      }, COMMAND_TIMEOUT_MS)
+      }
+      const timer = setTimeout(checkTimeout, COMMAND_TIMEOUT_MS)
       this.pendingCommands.set(requestId, { resolve, reject, timer })
       this.post({ type: 'execute-command', requestId, commandId, argument })
     })
@@ -433,6 +450,24 @@ export class CommunityPluginRuntime {
         try { this.assertCurrent() } catch { return }
         this.post({ type: 'editor-event', event: 'content-changed', value })
       }))
+    }
+
+    if (this.surface === 'main' && canUsePluginPermission(this.plugin.manifest.id, 'ai.generate')) {
+      this.disposables.push(onPluginAiStream(this.plugin.manifest.id, async value => {
+        if (!await canUsePluginPermissionCurrent(this.plugin.manifest.id, 'ai.generate', undefined, this.workspaceBinding)) return
+        try { this.assertCurrent(); this.post({ type: 'ai-event', value }) } catch { /* Runtime stopped. */ }
+      }))
+    }
+
+    if (this.surface === 'main' && canUsePluginPermission(this.plugin.manifest.id, 'records.read')) {
+      const changed = () => {
+        void canUsePluginPermissionCurrent(this.plugin.manifest.id, 'records.read', undefined, this.workspaceBinding).then(granted => {
+          if (!granted || !isPluginWorkspaceBindingCurrent(this.workspaceBinding)) return
+          try { this.assertCurrent(); this.post({ type: 'record-event' }) } catch { /* Runtime stopped. */ }
+        }).catch(() => undefined)
+      }
+      emitter.on('plugin-records-changed', changed)
+      this.disposables.push({ dispose: () => emitter.off('plugin-records-changed', changed) })
     }
 
     const canObserveNotes = canUsePluginPermission(this.plugin.manifest.id, 'notes.list')

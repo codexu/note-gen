@@ -1,3 +1,4 @@
+import emitter from '@/lib/emitter'
 import { getDb } from "./index"
 import { BaseDirectory, exists, mkdir, remove } from "@tauri-apps/plugin-fs"
 import { insertActivityEvent } from './activity'
@@ -48,6 +49,7 @@ async function deleteMarkLocalAssets(marks: Pick<Mark, 'type' | 'url' | 'content
 
 function enqueueRecordsAutoSync(reason: string) {
   enqueueAutoDataSync('records', reason)
+  emitter.emit('plugin-records-changed')
 }
 
 function enqueueMarkKnowledgeIndex(id?: number | null) {
@@ -158,8 +160,9 @@ export async function updateMarkTag(id: number, tagId: number) {
   return result
 }
 
-export async function insertMark(mark: Partial<Mark>) {
+export async function insertMark(mark: Partial<Mark>, beforeWrite?: () => Promise<void>) {
   const db = await getDb();
+  await beforeWrite?.()
   const createdAt = Date.now();
   const sourceId = mark.sourceId ?? crypto.randomUUID()
   const result = await db.execute(
@@ -389,4 +392,23 @@ export async function restoreMarks(ids: number[]) {
     console.error('Error restoring marks:', error);
     throw error;
   }
+}
+
+/** Compare the complete old row in SQL so a plugin cannot overwrite concurrent edits. */
+export async function updatePluginTextRecord(previous: Mark, next: Mark, beforeWrite: () => Promise<void>) {
+  const db = await getDb()
+  await beforeWrite()
+  const result = await db.execute(
+    `update marks set tagId = $1, content = $2, desc = $3
+     where id = $4 and deleted = 0 and type = $5 and tagId = $6
+     and content is $7 and desc is $8 and url is $9 and createdAt = $10 and sourceId is $11 and exists (select 1 from tags where id = $1)`,
+    [next.tagId, next.content, next.desc, previous.id, previous.type, previous.tagId,
+      previous.content ?? null, previous.desc ?? null, previous.url, previous.createdAt, previous.sourceId ?? null],
+  )
+  if (result.rowsAffected) {
+    enqueueRecordsAutoSync('mark:plugin-update')
+    await invalidateMarkKnowledgeIndex(previous.id)
+    enqueueMarkKnowledgeIndex(previous.id)
+  }
+  return result.rowsAffected > 0
 }

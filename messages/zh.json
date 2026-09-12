@@ -626,6 +626,9 @@
     "plugins": {
       "ui": {
         "moreActions": "更多插件操作",
+        "confirmPrompt": "确认",
+        "cancelPrompt": "取消",
+        "searchChoices": "搜索选项",
         "loadingView": "正在加载插件视图…",
         "viewFailed": "无法打开插件视图",
         "retry": "重试",
@@ -802,6 +805,7 @@
         "emptyDesc": "已安装的市场插件和开发版本会显示在这里。"
       },
       "permissionNames": {
+        "ai": { "generate": "使用已配置的 AI 模型（可能产生费用）" },
         "editor": {
           "read": "读取当前编辑器",
           "write": "修改当前编辑器"
@@ -821,6 +825,13 @@
         },
         "network": {
           "fetch": "访问已授权的网站"
+        },
+        "records": {
+          "read": "读取应用记录",
+          "write": "创建和修改应用记录"
+        },
+        "chat": {
+          "write": "填写聊天草稿"
         }
       },
       "permissionScopes": {
@@ -828,7 +839,8 @@
         "workspace-file": "仅限明确授权的工作区文件。",
         "workspace-files": "仅限明确授权的工作区文件。",
         "workspace-folder": "仅限明确授权的工作区目录。",
-        "network-origins": "仅限明确授权的 HTTPS 来源。"
+        "network-origins": "仅限明确授权的 HTTPS 来源。",
+        "application": "应用级能力；记录不受工作区文件夹范围限制。"
       },
       "ux": {
         "discover": "发现",
@@ -935,6 +947,14 @@
           "title-bar-left": "顶部左侧",
           "title-bar-center": "顶部中间",
           "title-bar-right": "顶部右侧",
+          "new-tab": "空白页面板",
+          "document-top": "文档顶部",
+          "document-bottom": "文档底部",
+          "file-panel": "文件栏面板",
+          "editor-toolbar": "编辑器工具栏组件",
+          "chat-input": "聊天输入区",
+          "record-list": "记录列表面板",
+          "status-bar-panel": "状态栏面板",
           "status-bar": "状态栏"
         }
       }

@@ -390,6 +390,8 @@ const commandHandlers = new Map();
 const activeEditorListeners = new Set();
 const contentListeners = new Set();
 const noteListeners = new Set();
+const recordListeners = new Set();
+const aiListeners = new Set();
 const workspaceListeners = new Set();
 const viewListeners = new Set();
 const dialogCloseListeners = new Set();
@@ -496,11 +498,26 @@ const context = Object.freeze({
     read: (options) => rpc('attachments.read', options),
     create: (options) => rpc('attachments.create', options),
   }),
+  ai: Object.freeze({
+    generate: (options) => rpc('ai.generate', options),
+    cancel: (requestId) => rpc('ai.cancel', { requestId }),
+    onDidStream: (listener) => { aiListeners.add(listener); return disposable(() => aiListeners.delete(listener)); },
+  }),
+  records: Object.freeze({
+    list: (options) => rpc('records.list', options ?? {}),
+    read: (id) => rpc('records.read', { id }),
+    tags: () => rpc('records.tags', {}),
+    create: (options) => rpc('records.create', options),
+    update: (options) => rpc('records.update', options),
+    onDidChange: (listener) => { recordListeners.add(listener); return disposable(() => recordListeners.delete(listener)); },
+  }),
+  chat: Object.freeze({ setDraft: (options) => rpc('chat.setDraft', options) }),
   notes: Object.freeze({
     read: (options) => rpc('notes.read', options),
     openOrCreate: (options) => rpc('notes.openOrCreate', options),
     list: (options) => rpc('notes.list', options),
     search: (options) => rpc('notes.search', options),
+    prepareForWrite: (options) => rpc('notes.prepareForWrite', options),
     write: (options) => rpc('notes.write', options),
     move: (options) => rpc('notes.move', options),
     delete: (options) => rpc('notes.delete', options),
@@ -541,6 +558,7 @@ const context = Object.freeze({
     }),
   }),
   ui: Object.freeze({
+    prompt: (options) => rpc('ui.prompt', options),
     showNotice: (message) => rpc('ui.showNotice', { message }),
     statusBar: Object.freeze({
       update(id, state) {
@@ -614,6 +632,15 @@ globalThis.__notegenDispatchEditorEvent = (eventName, eventJson) => {
   for (const listener of listeners) {
     Promise.resolve(listener(event)).catch(reportRuntimeError);
   }
+};
+
+globalThis.__notegenDispatchAiEvent = (eventJson) => {
+  const event = JSON.parse(eventJson);
+  for (const listener of aiListeners) Promise.resolve().then(() => listener(event)).catch(reportRuntimeError);
+};
+
+globalThis.__notegenDispatchRecordEvent = () => {
+  for (const listener of recordListeners) Promise.resolve().then(() => listener()).catch(reportRuntimeError);
 };
 
 globalThis.__notegenDispatchNoteEvent = (eventJson) => {
@@ -737,6 +764,7 @@ async function initialize(message: Extract<PluginHostToWorkerMessage, { type: 'i
       id: message.manifest.id,
       version: message.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
+      capabilities: message.surface === 'editor-window' ? [] : ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts'],
     },
     commands: (message.manifest.contributes.commands ?? []).map((command) => command.id),
     statusItems: (message.manifest.contributes.statusBar ?? []).map((item) => item.id),
@@ -794,6 +822,12 @@ function dispatchMessage(message: PluginHostToWorkerMessage): void {
         `globalThis.__notegenDispatchEditorEvent(${JSON.stringify(message.event)}, ${JSON.stringify(JSON.stringify(message.value))});`,
         'plugin:event.js',
       )
+      break
+    case 'ai-event':
+      evaluate(`globalThis.__notegenDispatchAiEvent(${JSON.stringify(JSON.stringify(message.value))});`, 'plugin:ai-event.js')
+      break
+    case 'record-event':
+      evaluate('globalThis.__notegenDispatchRecordEvent();', 'plugin:record-event.js')
       break
     case 'note-event':
       evaluate(

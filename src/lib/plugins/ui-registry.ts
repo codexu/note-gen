@@ -11,6 +11,8 @@ import {
   type PluginJsonValue,
   type PluginUiDocument,
   type PluginViewState,
+  type PluginPromptOptions,
+  type PluginPromptResult,
   type PluginDisposable,
   type PluginDialogCloseEvent,
   type PluginDialogHandle,
@@ -57,6 +59,7 @@ export function dismissPluginDialog(id: string, reason: PluginDialogCloseEvent['
 
 interface PluginUiState {
   hostRevision: number
+  embeddedContexts: Record<string, string>
   views: Record<string, PluginUiDocument>
   hiddenTitleBarViews: string[]
   setTitleBarVisible: (key: string, visible: boolean) => void
@@ -64,6 +67,7 @@ interface PluginUiState {
   editorTabs: string[]
   activeEditorView: string | null
   focusRequest: { key: string; sequence: number } | null
+  prompt: { id: string; pluginId: string; options: PluginPromptOptions } | null
   dialog: PluginDialogState | null
   setView: (key: string, content: PluginUiDocument) => void
   setActiveRightView: (key: string | null) => void
@@ -149,7 +153,7 @@ const blocksSchema = z.unknown().transform((value, context) => {
   catch { context.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid UI blocks' }); return z.NEVER }
 })
 
-const documentSchema = z.object({ blocks: blocksSchema, expectedForm: z.object({ formId: z.string().min(1).max(160), generation: z.string().min(1).max(160), revision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict().optional() }).strict()
+const documentSchema = z.object({ blocks: blocksSchema, expectedContextId: z.string().min(1).max(160).optional(), expectedForm: z.object({ formId: z.string().min(1).max(160), generation: z.string().min(1).max(160), revision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict().optional() }).strict()
 const dialogSchema = z.object({
   replaceId: z.string().min(1).max(160).optional(),
   title: z.string().min(1).max(240),
@@ -227,6 +231,7 @@ function serializedUi(value: unknown): string {
 
 export const usePluginUiStore = create<PluginUiState>((set) => ({
   hostRevision: 0,
+  embeddedContexts: {},
   views: {},
   hiddenTitleBarViews: [],
   setTitleBarVisible: (key, visible) => set(state => ({ hiddenTitleBarViews: visible ? state.hiddenTitleBarViews.filter(item => item !== key) : [...new Set([...state.hiddenTitleBarViews, key])] })),
@@ -235,6 +240,7 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
   activeEditorView: null,
   focusRequest: null,
   dialog: null,
+  prompt: null,
   setView: (key, content) => set((state) => ({ views: { ...state.views, [key]: content } })),
   setActiveRightView: (activeRightView) => set({ activeRightView }),
   setActiveEditorView: (key) => set(state => ({
@@ -254,6 +260,7 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
     editorTabs: state.editorTabs.filter(key => !key.startsWith(`${pluginId}:`)),
     activeEditorView: state.activeEditorView?.startsWith(`${pluginId}:`) ? null : state.activeEditorView,
     focusRequest: state.focusRequest?.key.startsWith(`${pluginId}:`) ? null : state.focusRequest,
+    prompt: state.prompt?.pluginId === pluginId ? null : state.prompt,
     dialog: state.dialog?.pluginId === pluginId ? null : state.dialog,
   })),
 }))
@@ -272,7 +279,8 @@ function validateDocumentCommands(pluginId: string, content: PluginUiDocument): 
     const referenced = block.type === 'form' ? [block.command, ...(block.changeCommand ? [block.changeCommand] : [])]
       : block.type === 'navigation-list' ? [block.openCommand, block.addCommand, block.removeCommand, block.reorderCommand]
       : block.type === 'toolbar' ? block.actions.map(action => action.command)
-      : block.type === 'item-list' ? [block.openCommand, block.toggleCommand, block.reorderCommand, ...(block.actions ?? []).map(action => action.command)].filter((command): command is string => Boolean(command))
+      : block.type === 'kanban' ? [block.openCardCommand, block.addCardCommand, block.editColumnCommand, block.moveCardCommand, block.reorderColumnsCommand, ...(block.openNoteCommand ? [block.openNoteCommand] : [])]
+        : block.type === 'item-list' ? [block.openCommand, block.toggleCommand, block.reorderCommand, ...(block.actions ?? []).map(action => action.command)].filter((command): command is string => Boolean(command))
       : block.type === 'table' ? block.rows.flatMap(row => row.flatMap(cell => typeof cell === 'string' ? [] : [cell.command]))
       : block.type === 'tree' ? block.items.flatMap(item => item.command ? [item.command] : []) : []
     for (const command of referenced) {
@@ -287,8 +295,36 @@ function validateDocumentCommands(pluginId: string, content: PluginUiDocument): 
   }
 }
 
+export const embeddedViewLocations = ['new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel'] as const
+export function isEmbeddedViewLocation(location: string): boolean {
+  return embeddedViewLocations.some(item => item === location)
+}
+
+/** The mounted surface owns its token; old cleanup cannot erase a newer surface. */
+export function mountEmbeddedView(key: string, contextId: string): () => void {
+  clearPluginForms(key)
+  usePluginUiStore.setState(state => ({
+    embeddedContexts: { ...state.embeddedContexts, [key]: contextId },
+    views: Object.fromEntries(Object.entries(state.views).filter(([id]) => id !== key)),
+  }))
+  return () => {
+    if (usePluginUiStore.getState().embeddedContexts[key] !== contextId) return
+    clearPluginForms(key)
+    usePluginUiStore.setState(state => ({
+      embeddedContexts: Object.fromEntries(Object.entries(state.embeddedContexts).filter(([id]) => id !== key)),
+      views: Object.fromEntries(Object.entries(state.views).filter(([id]) => id !== key)),
+    }))
+  }
+}
+
 export function updatePluginView(pluginId: string, viewId: string, content: PluginUiDocument): void {
-  declaredView(pluginId, viewId)
+  const view = declaredView(pluginId, viewId)
+  if (isEmbeddedViewLocation(view.location)) {
+    const state = getPluginViewState(pluginId, viewId)
+    if (!state.visible || !state.contextId || content.expectedContextId !== state.contextId) {
+      throw new PluginError('StaleRevision', 'Embedded view context changed; read its current state before updating')
+    }
+  }
   const parsed = parseDocument(content)
   assertFormSnapshot(`${pluginId}:${viewId}`, parsed.expectedForm)
   validateDocumentCommands(pluginId, parsed)
@@ -350,7 +386,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
     if (!sidebar.rightSidebarVisible) await apply(() => sidebar.toggleRightSidebar())
     guard()
     apply(() => usePluginUiStore.getState().setActiveRightView(key))
-  } else if (view.location.startsWith('title-bar-')) {
+  } else if (view.location.startsWith('title-bar-') || isEmbeddedViewLocation(view.location)) {
     apply(() => usePluginUiStore.getState().setTitleBarVisible(key, true))
   } else {
     const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
@@ -367,6 +403,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
 }
 
 export function openPluginDialog(pluginId: string, options: PluginDialogOptions): PluginDialogHandle {
+  if (usePluginUiStore.getState().prompt) throw new PluginError('Conflict', 'A prompt is already open')
   const result = dialogSchema.safeParse(options)
   if (!result.success) throw new PluginError('InvalidPath', 'Plugin dialog content is malformed')
   parseDocument(result.data.content)
@@ -394,7 +431,7 @@ export async function closePluginView(pluginId: string, viewId: string): Promise
   if (view.location === 'settings') {
     const settings = useSettingsDialogStore.getState()
     if (settings.activeSection === `plugin:${pluginId}`) settings.closeSettings()
-  } else if (view.location.startsWith('title-bar-')) state.setTitleBarVisible(key, false)
+  } else if (view.location.startsWith('title-bar-') || isEmbeddedViewLocation(view.location)) state.setTitleBarVisible(key, false)
   else if (view.location === 'editor-tab') state.closeEditorView(key)
   else if (view.location === 'right-sidebar' && state.activeRightView === key) state.setActiveRightView(null)
   else if (view.location === 'left-sidebar' && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
@@ -406,23 +443,25 @@ export function getPluginViewState(pluginId: string, viewId: string): PluginView
   const state = usePluginUiStore.getState()
   const sidebar = useSidebarStore.getState()
   const settings = useSettingsDialogStore.getState()
-  const visible = view.location === 'settings' ? settings.open && settings.activeSection === `plugin:${pluginId}` && usePluginStore.getState().isEnabled(pluginId)
+  const visible = isEmbeddedViewLocation(view.location) ? Boolean(state.embeddedContexts[key]) && !state.hiddenTitleBarViews.includes(key) && usePluginStore.getState().isEnabled(pluginId)
+    : view.location === 'settings' ? settings.open && settings.activeSection === `plugin:${pluginId}` && usePluginStore.getState().isEnabled(pluginId)
     : view.location.startsWith('title-bar-') ? !state.hiddenTitleBarViews.includes(key)
     : view.location === 'editor-tab' ? state.activeEditorView === key
     : view.location === 'left-sidebar' ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
       : sidebar.rightSidebarVisible && state.activeRightView === key
-  return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location) }
+  return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location), ...(isEmbeddedViewLocation(view.location) && state.embeddedContexts[key] ? { contextId: state.embeddedContexts[key] } : {}) }
 }
 
 export function onPluginViewChange(pluginId: string, listener: (state: PluginViewState) => void | Promise<void>): PluginDisposable {
   const views = usePluginStore.getState().installed.find(plugin => plugin.manifest.id === pluginId)?.manifest.contributes.views ?? []
-  const previous = new Map(views.map(view => [view.id, getPluginViewState(pluginId, view.id).visible]))
+  const previous = new Map(views.map(view => [view.id, JSON.stringify(getPluginViewState(pluginId, view.id))]))
   const emitChanges = () => {
     for (const view of views) {
       try {
         const state = getPluginViewState(pluginId, view.id)
-        if (previous.get(view.id) === state.visible) continue
-        previous.set(view.id, state.visible)
+        const snapshot = JSON.stringify(state)
+        if (previous.get(view.id) === snapshot) continue
+        previous.set(view.id, snapshot)
         void Promise.resolve().then(() => listener(state)).catch(() => undefined)
       } catch { /* The plugin may have been removed. */ }
     }
@@ -484,4 +523,47 @@ export function clearPluginUi(pluginId: string, preserveViewLocations = false): 
       })
     })
   }
+}
+
+
+const promptBase = { title: z.string().min(1).max(240), description: z.string().max(2000).optional(), confirmLabel: z.string().min(1).max(80).optional() }
+const promptSchema = z.discriminatedUnion('type', [
+  z.object({ ...promptBase, type: z.literal('confirm') }).strict(),
+  z.object({ ...promptBase, type: z.literal('select'), multiple: z.boolean().optional(), options: z.array(z.object({ value: z.string().min(1).max(160), label: z.string().min(1).max(240) }).strict()).min(1).max(100) }).strict(),
+])
+const promptResolvers = new Map<string, (value: PluginPromptResult) => void>()
+export function finishPluginPrompt(id: string, value: PluginPromptResult): void {
+  const prompt = usePluginUiStore.getState().prompt
+  if (prompt?.id !== id) return
+  if (value !== null) {
+    if (prompt.options.type === 'confirm' && typeof value !== 'boolean') return
+    const selection = prompt.options.type === 'select' ? prompt.options : null
+    if (selection && (!Array.isArray(value) || (!selection.multiple && value.length !== 1) || new Set(value).size !== value.length || value.some(item => !selection.options.some(option => option.value === item)))) return
+  }
+  promptResolvers.get(id)?.(value)
+}
+export function requestPluginPrompt(pluginId: string, options: PluginPromptOptions, signal: AbortSignal): Promise<PluginPromptResult> {
+  const parsed = promptSchema.safeParse(options)
+  if (!parsed.success || (parsed.data.type === 'select' && new Set(parsed.data.options.map(option => option.value)).size !== parsed.data.options.length)) throw new PluginError('InvalidPath', 'Invalid prompt options')
+  if (signal.aborted) throw new PluginError('Cancelled', 'Plugin stopped')
+  const state = usePluginUiStore.getState()
+  if (state.dialog || state.prompt) throw new PluginError('Conflict', 'A plugin dialog is already open')
+  const id = crypto.randomUUID()
+  return new Promise(resolve => {
+    let finished = false
+    const finish = (value: PluginPromptResult) => {
+      if (finished) return
+      finished = true
+      stop()
+      signal.removeEventListener('abort', abort)
+      promptResolvers.delete(id)
+      if (usePluginUiStore.getState().prompt?.id === id) usePluginUiStore.setState({ prompt: null })
+      resolve(value)
+    }
+    const abort = () => finish(null)
+    const stop = usePluginUiStore.subscribe(next => { if (next.prompt?.id !== id) finish(null) })
+    promptResolvers.set(id, finish)
+    signal.addEventListener('abort', abort)
+    usePluginUiStore.setState({ prompt: { id, pluginId, options: parsed.data } })
+  })
 }

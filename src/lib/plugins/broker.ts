@@ -1,3 +1,6 @@
+import { generatePluginAi, cancelPluginAi, onPluginAiStream } from './ai'
+import { createRecordsApi } from './records'
+import { setPluginChatDraft } from './chat-bridge'
 import { setRuntimeFileIcons, clearRuntimeFileIcons } from './resources'
 import type { PluginFileIconRule } from '@notegen/plugin-api'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -61,7 +64,7 @@ import {
   usePluginStore,
 } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
-import { openPluginDialog, updatePluginDialog, openPluginView, updatePluginView, closePluginView, getPluginViewState, onPluginViewChange, onPluginDialogClose, closePluginDialog, usePluginUiStore } from '@/lib/plugins/ui-registry'
+import { requestPluginPrompt, openPluginDialog, updatePluginDialog, openPluginView, updatePluginView, closePluginView, getPluginViewState, onPluginViewChange, onPluginDialogClose, closePluginDialog, usePluginUiStore } from '@/lib/plugins/ui-registry'
 import { executeHostCommand } from './host-commands'
 import type { PluginHostCommand, PluginDialogUpdate } from '@notegen/plugin-api'
 import type { PluginDialogOptions, PluginUiDocument } from '@notegen/plugin-api'
@@ -786,6 +789,48 @@ async function reconcileCommittedNoteMutation(
   }
 }
 
+async function prepareNoteForWrite(pluginId: string, pathValue: string, assertCurrent: () => Promise<void>) {
+  const path = normalizeRelativeMarkdownPath(pathValue)
+  const workspace = await getCurrentWorkspaceSnapshot()
+  const access = async () => {
+    await assertCurrent()
+    await assertWorkspaceStillCurrent(workspace)
+    for (const permission of ['notes.read', 'notes.write', 'notes.open'] as const) assertPermission(pluginId, permission, path, workspace.id)
+  }
+  await access()
+  if (typeof window === 'undefined' || !window.location.pathname.startsWith('/core/')) throw new PluginError('EditorBusy', 'Use the desktop main window')
+  // Validate existence before closing any editor. Never close a separate window.
+  await readNote(pluginId, path)
+  if (await hasEditorWindowForPaths([path], workspace.root)) throw new PluginError('EditorBusy', 'Close the separate editor window before opening this note as a plugin document')
+  await access()
+  const matches = (candidate: string) => Boolean(candidate) && editorPathsCouldReferToSameFile(path, candidate, workspace.root)
+  if (matches(useArticleStore.getState().aiGeneratingFilePath ?? '')) throw new PluginError('EditorBusy', 'Wait for AI generation to finish')
+  if (!await prepareActiveEditorPathMutationDurably(useArticleStore.getState().activeFilePath, [path], workspace.root)) throw new PluginError('EditorBusy', 'The editor could not finish saving')
+  await access()
+  const unlock = lockEditorPathsForMutation([path], workspace.root)
+  if (!unlock) throw new PluginError('EditorBusy', 'A file operation is in progress')
+  try {
+    if (await hasEditorWindowForPaths([path], workspace.root)) throw new PluginError('EditorBusy', 'Close the separate editor window first')
+    await access()
+    if (matches(useArticleStore.getState().aiGeneratingFilePath ?? '')) throw new PluginError('EditorBusy', 'Wait for AI generation to finish')
+    // Flush again after acquiring the navigation gate. No new target editor may open.
+    if (!await prepareActiveEditorPathMutationDurably(useArticleStore.getState().activeFilePath, [path], workspace.root)) throw new PluginError('EditorBusy', 'The editor could not finish saving')
+    await access()
+    if (matches(useArticleStore.getState().activeFilePath)) {
+      await useArticleStore.getState().setActiveFilePath('', false, { deactivationAlreadyPrepared: true })
+      await access()
+    }
+    for (const tab of useArticleStore.getState().openTabs.filter(tab => matches(tab.path))) {
+      await access()
+      if (useArticleStore.getState().activeTabId === tab.id) await useArticleStore.getState().setActiveTabId('', { deactivationAlreadyPrepared: true })
+      await access()
+      await useArticleStore.getState().removeTab(tab.id, { deactivationAlreadyPrepared: true })
+    }
+    await access()
+    return await readNote(pluginId, path)
+  } finally { unlock() }
+}
+
 async function writeNote(pluginId: string, options: { path: string; content: string; expectedRevision?: number; create?: boolean }, assertCurrent: () => Promise<void>) {
   const path = normalizeRelativeMarkdownPath(options.path)
   const workspace = await getCurrentWorkspaceSnapshot()
@@ -1376,6 +1421,7 @@ export function createPluginContext(options: {
       id: pluginId,
       version: plugin.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
+      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts'],
     },
     log: {
       info: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'info', message }) },
@@ -1383,6 +1429,18 @@ export function createPluginContext(options: {
       error: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'error', message }) },
     },
     signal,
+    ai: {
+      generate: request => generatePluginAi(pluginId, request, signal, () => guardCurrent('ai.generate')),
+      cancel: async requestId => { await guardCurrent('ai.generate'); cancelPluginAi(pluginId, requestId, signal) },
+      onDidStream: listener => {
+        guard()
+        const disposable = onPluginAiStream(pluginId, async event => { await guardCurrent('ai.generate'); await listener(event) })
+        disposables.push(disposable)
+        return disposable
+      },
+    },
+    records: createRecordsApi(guardCurrent, disposable => disposables.push(disposable)),
+    chat: { setDraft: options => setPluginChatDraft(options, () => guardCurrent('chat.write')) },
     commands: {
       executeHost: async command => {
         await guardCurrent()
@@ -1513,6 +1571,10 @@ export function createPluginContext(options: {
         await guardCurrent('notes.list', listOptions.folder ?? '')
         return listNotes(pluginId, listOptions.folder, listOptions.recursive, listOptions.limit, listOptions.cursor)
       },
+      prepareForWrite: async ({ path }) => {
+        await guardCurrent('notes.write', path)
+        return prepareNoteForWrite(pluginId, path, () => guardCurrent('notes.write', path))
+      },
       write: async (writeOptions) => {
         await guardCurrent('notes.write', writeOptions.path)
         return writeNote(pluginId, writeOptions, () => guardCurrent('notes.write', writeOptions.path))
@@ -1608,6 +1670,7 @@ export function createPluginContext(options: {
       workspace: createStorageArea(pluginId, 'workspace', guardCurrent, guard),
     },
     ui: {
+      prompt: async options => { await guardCurrent(); const result = await requestPluginPrompt(pluginId, options, signal); await guardCurrent(); return result },
       showNotice: async (message) => {
         await guardCurrent()
         sonnerToast(message.slice(0, MAX_NOTICE_LENGTH))
@@ -1743,6 +1806,15 @@ export async function invokePluginCapability(
   const record = isRecord(params) ? params : {}
 
   switch (method) {
+    case 'ui.prompt': return context.ui.prompt(record as unknown as Parameters<PluginContext['ui']['prompt']>[0])
+    case 'ai.generate': return context.ai.generate(record as unknown as Parameters<PluginContext['ai']['generate']>[0])
+    case 'ai.cancel': return context.ai.cancel(requireString(record.requestId, 'requestId'))
+    case 'records.list': return context.records.list(record)
+    case 'records.read': return context.records.read(record.id as number)
+    case 'records.tags': return context.records.tags()
+    case 'records.create': return context.records.create(record as unknown as Parameters<PluginContext['records']['create']>[0])
+    case 'records.update': return context.records.update(record as unknown as Parameters<PluginContext['records']['update']>[0])
+    case 'chat.setDraft': return context.chat.setDraft(record as unknown as Parameters<PluginContext['chat']['setDraft']>[0])
     case 'workspace.getCurrent':
       return context.workspace.getCurrent()
     case 'calendar.resolveDay':
@@ -1780,6 +1852,8 @@ export async function invokePluginCapability(
       })
     case 'notes.search':
       return context.notes.search({ query: requireString(record.query, 'query'), folder: typeof record.folder === 'string' ? record.folder : undefined, caseSensitive: record.caseSensitive === true, limit: typeof record.limit === 'number' ? record.limit : undefined })
+    case 'notes.prepareForWrite':
+      return context.notes.prepareForWrite({ path: requireString(record.path, 'path') })
     case 'notes.write':
       return context.notes.write({
         path: requireString(record.path, 'path'),

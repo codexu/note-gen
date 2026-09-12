@@ -2734,6 +2734,9 @@
     "plugins": {
       "ui": {
         "moreActions": "Mais ações de plugins",
+        "confirmPrompt": "Confirmar",
+        "cancelPrompt": "Cancelar",
+        "searchChoices": "Buscar opções",
         "loadingView": "Carregando visualização do plugin…",
         "viewFailed": "Não foi possível abrir a visualização",
         "retry": "Tentar novamente",
@@ -2910,6 +2913,7 @@
         "emptyDesc": "Os plugins da loja e de desenvolvimento instalados aparecem aqui."
       },
       "permissionNames": {
+        "ai": { "generate": "Usar modelos de IA configurados (pode gerar custos)" },
         "editor": {
           "read": "Ler o editor ativo",
           "write": "Modificar o editor ativo"
@@ -2929,6 +2933,13 @@
         },
         "network": {
           "fetch": "Acessar sites autorizados"
+        },
+        "records": {
+          "read": "Ler registros do aplicativo",
+          "write": "Criar e modificar registros do aplicativo"
+        },
+        "chat": {
+          "write": "Preencher o rascunho do chat"
         }
       },
       "permissionScopes": {
@@ -2936,7 +2947,8 @@
         "workspace-file": "Limitado aos arquivos autorizados.",
         "workspace-files": "Limitado aos arquivos autorizados.",
         "workspace-folder": "Limitado a uma pasta autorizada.",
-        "network-origins": "Limitado às origens HTTPS autorizadas."
+        "network-origins": "Limitado às origens HTTPS autorizadas.",
+        "application": "Recurso de todo o aplicativo; os registros não se limitam às pastas do espaço de trabalho."
       },
       "ux": {
         "discover": "Descobrir",
@@ -3043,6 +3055,14 @@
           "title-bar-left": "Barra de título à esquerda",
           "title-bar-center": "Barra de título ao centro",
           "title-bar-right": "Barra de título à direita",
+          "new-tab": "Painéis da nova aba",
+          "document-top": "Topo do documento",
+          "document-bottom": "Final do documento",
+          "file-panel": "Painel de arquivos",
+          "editor-toolbar": "Componentes da barra do editor",
+          "chat-input": "Entrada do chat",
+          "record-list": "Painéis da lista de registros",
+          "status-bar-panel": "Painéis da barra de status",
           "status-bar": "Barra de status"
         }
       }

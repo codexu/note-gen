@@ -29,7 +29,7 @@ use url::Url;
 use uuid::Uuid;
 use zip::{CompressionMethod, ZipArchive};
 
-const PLUGIN_API_VERSION: &str = "0.1.4";
+const PLUGIN_API_VERSION: &str = "0.1.6";
 const PLUGIN_STATE_SCHEMA_VERSION: u32 = 1;
 const MARKET_SCHEMA_VERSION: u32 = 1;
 const INTEGRITY_SCHEMA_VERSION: u32 = 1;
@@ -1606,6 +1606,7 @@ fn validate_public_metadata_url(raw: &str, field: &str) -> PluginResult<()> {
 fn validate_permissions(manifest: &PluginManifestV1) -> PluginResult<()> {
     for (permission, declaration) in &manifest.permissions {
         let valid = match permission.as_str() {
+            "records.read" | "records.write" | "chat.write" | "ai.generate" => declaration.scope == "application",
             "editor.read" | "editor.write" => declaration.scope == "active-editor",
             "notes.read" | "attachments.read" => matches!(
                 declaration.scope.as_str(),
@@ -1788,7 +1789,7 @@ fn validate_contributions(manifest: &PluginManifestV1) -> PluginResult<()> {
             ));
         }
         validate_localized_text(&view.title, "contributes.views.title", 240)?;
-        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab" | "settings" | "title-bar-left" | "title-bar-center" | "title-bar-right") {
+        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab" | "settings" | "title-bar-left" | "title-bar-center" | "title-bar-right" | "new-tab" | "document-top" | "document-bottom" | "file-panel" | "editor-toolbar" | "chat-input" | "record-list" | "status-bar-panel") {
             return Err(plugin_error("InvalidManifest", "Plugin view location is unsupported"));
         }
         if view.icon.as_ref().is_some_and(|icon| {
@@ -3400,7 +3401,7 @@ fn validate_market_permissions(permissions: &[String]) -> PluginResult<()> {
         if !matches!(
             permission.as_str(),
             "editor.read" | "editor.write" | "notes.read" | "notes.create" | "notes.open"
-                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create"
+                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate"
         ) || !unique.insert(permission)
         {
             return Err(plugin_error(

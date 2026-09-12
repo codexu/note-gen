@@ -2709,6 +2709,9 @@
     "plugins": {
       "ui": {
         "moreActions": "更多外掛操作",
+        "confirmPrompt": "確認",
+        "cancelPrompt": "取消",
+        "searchChoices": "搜尋選項",
         "loadingView": "正在載入外掛視圖…",
         "viewFailed": "無法開啟外掛視圖",
         "retry": "重試",
@@ -2885,6 +2888,7 @@
         "emptyDesc": "已安裝的市集外掛和開發版本會顯示在這裡。"
       },
       "permissionNames": {
+        "ai": { "generate": "使用已設定的 AI 模型（可能產生費用）" },
         "editor": {
           "read": "讀取目前編輯器",
           "write": "修改目前編輯器"
@@ -2904,6 +2908,13 @@
         },
         "network": {
           "fetch": "存取已授權的網站"
+        },
+        "records": {
+          "read": "讀取應用程式記錄",
+          "write": "建立和修改應用程式記錄"
+        },
+        "chat": {
+          "write": "填寫聊天草稿"
         }
       },
       "permissionScopes": {
@@ -2911,7 +2922,8 @@
         "workspace-file": "僅限明確授權的工作區檔案。",
         "workspace-files": "僅限明確授權的工作區檔案。",
         "workspace-folder": "僅限明確授權的工作區資料夾。",
-        "network-origins": "僅限明確授權的 HTTPS 來源。"
+        "network-origins": "僅限明確授權的 HTTPS 來源。",
+        "application": "應用程式層級能力；記錄不受工作區資料夾範圍限制。"
       },
       "ux": {
         "discover": "探索",
@@ -3018,6 +3030,14 @@
           "title-bar-left": "頂部左側",
           "title-bar-center": "頂部中間",
           "title-bar-right": "頂部右側",
+          "new-tab": "空白頁面板",
+          "document-top": "文件頂部",
+          "document-bottom": "文件底部",
+          "file-panel": "檔案欄面板",
+          "editor-toolbar": "編輯器工具列元件",
+          "chat-input": "聊天輸入區",
+          "record-list": "記錄列表面板",
+          "status-bar-panel": "狀態列面板",
           "status-bar": "狀態列"
         }
       }

@@ -626,6 +626,9 @@
     "plugins": {
       "ui": {
         "moreActions": "More plugin actions",
+        "confirmPrompt": "Confirm",
+        "cancelPrompt": "Cancel",
+        "searchChoices": "Search choices",
         "loadingView": "Loading plugin view…",
         "viewFailed": "Unable to open plugin view",
         "retry": "Retry",
@@ -802,6 +805,7 @@
         "emptyDesc": "Installed marketplace and development plugins appear here."
       },
       "permissionNames": {
+        "ai": { "generate": "Use configured AI models (may incur charges)" },
         "editor": {
           "read": "Read the active editor",
           "write": "Modify the active editor"
@@ -821,6 +825,13 @@
         },
         "network": {
           "fetch": "Access approved websites"
+        },
+        "records": {
+          "read": "Read application records",
+          "write": "Create and modify application records"
+        },
+        "chat": {
+          "write": "Fill the chat draft"
         }
       },
       "permissionScopes": {
@@ -828,7 +839,8 @@
         "workspace-file": "Limited to explicitly authorized workspace files.",
         "workspace-files": "Limited to explicitly authorized workspace files.",
         "workspace-folder": "Limited to an explicitly authorized workspace folder.",
-        "network-origins": "Limited to explicitly approved HTTPS origins."
+        "network-origins": "Limited to explicitly approved HTTPS origins.",
+        "application": "Application-wide capability; records are not restricted to workspace folders."
       },
       "ux": {
         "discover": "Discover",
@@ -935,6 +947,14 @@
           "title-bar-left": "Title bar left",
           "title-bar-center": "Title bar center",
           "title-bar-right": "Title bar right",
+          "new-tab": "New tab panels",
+          "document-top": "Document top",
+          "document-bottom": "Document bottom",
+          "file-panel": "File panel",
+          "editor-toolbar": "Editor toolbar components",
+          "chat-input": "Chat input",
+          "record-list": "Record list panels",
+          "status-bar-panel": "Status bar panels",
           "status-bar": "Status bar"
         }
       }

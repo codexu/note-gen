@@ -17,6 +17,8 @@ import type {
  * registry so the protocol type and the QuickJS bridge cannot drift apart.
  */
 export const PLUGIN_RPC_METHODS = [
+  'ui.prompt', 'ai.generate', 'ai.cancel',
+  'records.list', 'records.read', 'records.tags', 'records.create', 'records.update', 'chat.setDraft',
   'commands.executeHost',
   'ui.updateDialog',
   'workspace.getCurrent',
@@ -29,6 +31,7 @@ export const PLUGIN_RPC_METHODS = [
   'notes.openOrCreate',
   'notes.list',
   'notes.search',
+  'notes.prepareForWrite',
   'notes.write',
   'notes.move',
   'notes.delete',
@@ -85,6 +88,7 @@ export type PluginRpcResult = PluginRpcSuccess | PluginRpcFailure
 export type PluginHostToWorkerMessage =
   | {
       type: 'initialize'
+      surface?: 'main' | 'editor-window'
       manifest: PluginManifestV1
       entrySource: string
       locale: string
@@ -102,6 +106,8 @@ export type PluginHostToWorkerMessage =
       event: 'active-editor-changed' | 'content-changed'
       value: EditorActiveChangeEvent | EditorContentChangeEvent
     }
+  | { type: 'ai-event'; value: { requestId: string; text: string } }
+  | { type: 'record-event' }
   | { type: 'note-event'; value: NoteChangeEvent }
   | { type: 'workspace-event'; value: WorkspaceChangeEvent }
   | { type: 'view-event'; value: PluginViewState }

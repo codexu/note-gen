@@ -4,6 +4,7 @@ import type { CanvasDocument } from '@/types/canvas'
 
 // 定义事件类型
 interface Events {
+  'plugin-records-changed': undefined;
   'searchAndScroll': string;
   'ai-completion-loading': boolean;
   'auto-completion-enabled-changed': boolean;

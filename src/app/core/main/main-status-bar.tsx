@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChatFooter } from './chat/chat-footer'
@@ -20,6 +21,7 @@ export function MainStatusBar() {
         className="flex h-full min-w-0 flex-1 items-center"
       />
       <PluginStatusBarItems alignment="right" />
+      <PluginEmbeddedViews location="status-bar-panel" compact popover />
       <div className="h-full min-w-0 shrink-0">
         <ChatFooter embedded />
       </div>

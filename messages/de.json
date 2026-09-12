@@ -626,6 +626,9 @@
     "plugins": {
       "ui": {
         "moreActions": "Weitere Plugin-Aktionen",
+        "confirmPrompt": "Bestätigen",
+        "cancelPrompt": "Abbrechen",
+        "searchChoices": "Optionen suchen",
         "loadingView": "Plugin-Ansicht wird geladen…",
         "viewFailed": "Plugin-Ansicht konnte nicht geöffnet werden",
         "retry": "Erneut versuchen",
@@ -802,6 +805,7 @@
         "emptyDesc": "Hier erscheinen installierte Marktplatz- und Entwicklungs-Plugins."
       },
       "permissionNames": {
+        "ai": { "generate": "Konfigurierte KI-Modelle verwenden (kann Kosten verursachen)" },
         "editor": {
           "read": "Aktiven Editor lesen",
           "write": "Aktiven Editor ändern"
@@ -821,6 +825,13 @@
         },
         "network": {
           "fetch": "Freigegebene Websites aufrufen"
+        },
+        "records": {
+          "read": "Anwendungsaufzeichnungen lesen",
+          "write": "Anwendungsaufzeichnungen erstellen und ändern"
+        },
+        "chat": {
+          "write": "Chatentwurf ausfüllen"
         }
       },
       "permissionScopes": {
@@ -828,7 +839,8 @@
         "workspace-file": "Auf ausdrücklich freigegebene Arbeitsbereichsdateien beschränkt.",
         "workspace-files": "Auf ausdrücklich freigegebene Arbeitsbereichsdateien beschränkt.",
         "workspace-folder": "Auf einen ausdrücklich freigegebenen Arbeitsbereichsordner beschränkt.",
-        "network-origins": "Auf ausdrücklich freigegebene HTTPS-Ursprünge beschränkt."
+        "network-origins": "Auf ausdrücklich freigegebene HTTPS-Ursprünge beschränkt.",
+        "application": "Anwendungsweiter Zugriff; Aufzeichnungen sind nicht auf Arbeitsbereichsordner beschränkt."
       },
       "ux": {
         "discover": "Entdecken",
@@ -935,6 +947,14 @@
           "title-bar-left": "Titelleiste links",
           "title-bar-center": "Titelleiste Mitte",
           "title-bar-right": "Titelleiste rechts",
+          "new-tab": "Neuer-Tab-Panels",
+          "document-top": "Dokumentanfang",
+          "document-bottom": "Dokumentende",
+          "file-panel": "Dateibereich",
+          "editor-toolbar": "Editor-Werkzeugleistenkomponenten",
+          "chat-input": "Chat-Eingabe",
+          "record-list": "Aufzeichnungslisten-Panels",
+          "status-bar-panel": "Statusleisten-Panels",
           "status-bar": "Statusleiste"
         }
       }

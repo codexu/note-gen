@@ -35,7 +35,7 @@
     "@hookform/resolvers": "^3.9.1",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@mozilla/readability": "^0.6.0",
-    "@notegen/plugin-api": "0.1.6",
+    "@notegen/plugin-api": "0.1.8",
     "@octokit/core": "^6.1.2",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@shadcn/react": "^0.2.1",

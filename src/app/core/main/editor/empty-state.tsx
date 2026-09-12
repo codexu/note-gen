@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginEmbeddedView, useEmbeddedPluginViews } from '@/components/plugins/plugin-embedded-views'
 import { FileText, MessageSquareText, Search, FolderOpen, GripVertical, SlidersHorizontal } from 'lucide-react'
 import useArticleStore from '@/stores/article'
 import { useTranslations } from 'next-intl'
@@ -71,7 +72,7 @@ const NEW_TAB_SECTION_IDS = [
 
 const LEGACY_ACTIVITY_SECTION_IDS = ['activitySummary', 'activityHeatmap'] as const
 
-type NewTabSectionId = typeof NEW_TAB_SECTION_IDS[number]
+type NewTabSectionId = typeof NEW_TAB_SECTION_IDS[number] | `plugin:${string}`
 type NewTabSectionVisibility = Record<NewTabSectionId, boolean>
 
 interface NewTabPreferences {
@@ -100,7 +101,7 @@ type StoredNewTabPreferences = StoredNewTabSectionVisibility & {
 }
 
 function isNewTabSectionId(value: unknown): value is NewTabSectionId {
-  return typeof value === 'string' && NEW_TAB_SECTION_IDS.includes(value as NewTabSectionId)
+  return typeof value === 'string' && (NEW_TAB_SECTION_IDS.some(id => id === value) || /^plugin:[A-Za-z0-9._-]+:[A-Za-z0-9._-]+$/.test(value))
 }
 
 function normalizeNewTabOrder(value: unknown): NewTabSectionId[] {
@@ -161,6 +162,7 @@ interface ActionItem {
 
 interface EmptyStateProps {
   enableShortcuts?: boolean
+  contextKey?: string
   onboardingProgress: OnboardingProgress
   activeOnboardingStep: OnboardingStepId | null
   visibleOnboardingStep: OnboardingStepId | null
@@ -172,6 +174,7 @@ interface EmptyStateProps {
 
 export function EmptyState({
   enableShortcuts = true,
+  contextKey = '',
   onboardingProgress,
   activeOnboardingStep,
   visibleOnboardingStep,
@@ -187,6 +190,7 @@ export function EmptyState({
   const { setWorkspacePath } = useSettingStore()
   const [textRecordShortcut, setTextRecordShortcut] = useState('')
   const [preferences, setPreferences] = useState(DEFAULT_NEW_TAB_PREFERENCES)
+  const pluginPanels = useEmbeddedPluginViews('new-tab')
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -203,6 +207,7 @@ export function EmptyState({
       )
       const nextPreferences: NewTabPreferences = {
         visibility: {
+          ...Object.fromEntries(Object.entries(savedVisibility).filter(([key, value]) => key.startsWith('plugin:') && isNewTabSectionId(key) && typeof value === 'boolean')),
           actions: typeof savedVisibility.actions === 'boolean' ? savedVisibility.actions : DEFAULT_NEW_TAB_VISIBILITY.actions,
           onboarding: typeof savedVisibility.onboarding === 'boolean' ? savedVisibility.onboarding : DEFAULT_NEW_TAB_VISIBILITY.onboarding,
           activity: typeof savedVisibility.activity === 'boolean'
@@ -403,12 +408,18 @@ export function EmptyState({
     { id: 'onboarding', label: t('customize.sections.onboarding') },
     { id: 'activity', label: t('customize.sections.activity') },
     { id: 'activityDetail', label: t('customize.sections.activityDetail') },
+    ...pluginPanels.map(item => ({ id: `plugin:${item.key}` as NewTabSectionId, label: item.title })),
   ]
   const sectionLabels = Object.fromEntries(
     customizationSections.map(section => [section.id, section.label]),
   ) as Record<NewTabSectionId, string>
-  const visibleSectionIds = preferences.order.filter(section => (
-    preferences.visibility[section] && (section !== 'onboarding' || showOnboarding)
+  const availableSectionIds = customizationSections.map(section => section.id)
+  const orderedSectionIds = [
+    ...preferences.order.filter(id => availableSectionIds.includes(id)),
+    ...availableSectionIds.filter(id => !preferences.order.includes(id)),
+  ]
+  const visibleSectionIds = orderedSectionIds.filter(section => (
+    preferences.visibility[section] !== false && (section !== 'onboarding' || showOnboarding)
   ))
   const activitySectionIds: NewTabSectionId[] = ['activity', 'activityDetail']
   const firstVisibleActivitySection = visibleSectionIds.find(section => activitySectionIds.includes(section))
@@ -422,10 +433,10 @@ export function EmptyState({
     if (!event.over || event.active.id === event.over.id) return
     const activeId = event.active.id as NewTabSectionId
     const overId = event.over.id as NewTabSectionId
-    const oldIndex = preferences.order.indexOf(activeId)
-    const newIndex = preferences.order.indexOf(overId)
+    const oldIndex = orderedSectionIds.indexOf(activeId)
+    const newIndex = orderedSectionIds.indexOf(overId)
     if (oldIndex < 0 || newIndex < 0) return
-    const next = { ...preferences, order: arrayMove(preferences.order, oldIndex, newIndex) }
+    const next = { ...preferences, order: arrayMove(orderedSectionIds, oldIndex, newIndex) }
     setPreferences(next)
     persistPreferences(next)
   }
@@ -442,14 +453,14 @@ export function EmptyState({
         <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-1rem)]">
           <DropdownMenuLabel>{t('customize.menuLabel')}</DropdownMenuLabel>
           <DropdownMenuGroup>
-            <SortableContext items={preferences.order} strategy={verticalListSortingStrategy}>
-              {preferences.order.map(sectionId => (
+            <SortableContext items={orderedSectionIds} strategy={verticalListSortingStrategy}>
+              {orderedSectionIds.map(sectionId => (
                 <SortableCustomizationItem
                   key={sectionId}
                   id={sectionId}
                   label={sectionLabels[sectionId]}
                   dragLabel={t('customize.dragHandle', { section: sectionLabels[sectionId] })}
-                  checked={preferences.visibility[sectionId]}
+                  checked={preferences.visibility[sectionId] !== false}
                   onCheckedChange={checked => handleSectionVisibilityChange(sectionId, checked)}
                 />
               ))}
@@ -521,7 +532,10 @@ export function EmptyState({
           </header>
 
         <div className="flex flex-col gap-6">
-          {renderedSectionIds.map(sectionId => (
+          {renderedSectionIds.map(sectionId => {
+            const panel = pluginPanels.find(item => `plugin:${item.key}` === sectionId)
+            if (panel) return enableShortcuts ? <PluginEmbeddedView key={sectionId} item={panel} contextKey={contextKey} /> : null
+            return (
             <Card key={sectionId}>
               {sectionId === 'actions' && (
                 <>
@@ -614,7 +628,7 @@ export function EmptyState({
                 </>
               )}
             </Card>
-          ))}
+          )})}
         </div>
 
         <footer className="pb-4 pt-2 text-center">

@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import React from "react"
 import { useTranslations } from "next-intl";
 import type { Mark } from "@/db/marks";
@@ -55,6 +56,7 @@ export const MarkList = React.memo(function MarkList() {
 
   return (
     <PhotoPreviewProvider>
+      <PluginEmbeddedViews location="record-list" active={!trashState} />
       <div className="flex-1 overflow-y-auto overscroll-contain">
         <div className="px-0">
           <div>

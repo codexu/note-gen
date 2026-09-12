@@ -11,6 +11,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { PluginIcon } from './plugin-icon'
 import { PluginSettingsLayoutContext } from './plugin-settings-layout'
 import { Spinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 
 // A leading toolbar belongs to the sidebar header rather than the scrolling list.
 export function PluginViewToolbar({ viewKey }: { viewKey: string }) {
@@ -19,7 +20,7 @@ export function PluginViewToolbar({ viewKey }: { viewKey: string }) {
   return <PluginDeclarativeUi scope={viewKey} document={{ blocks: [first] }} nested />
 }
 
-export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = false, compact = false, title, icon }: { viewKey: string; active?: boolean; toolbarInHeader?: boolean; compact?: boolean; title?: string; icon?: string }) {
+export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = false, compact = false, forcePopover = false, title, icon }: { viewKey: string; active?: boolean; toolbarInHeader?: boolean; compact?: boolean; forcePopover?: boolean; title?: string; icon?: string }) {
   const container = useRef<HTMLDivElement>(null)
   const content = usePluginUiStore(state => state.views[viewKey])
   const hostRevision = usePluginUiStore(state => state.hostRevision)
@@ -47,12 +48,12 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
   }, [focus, viewKey, active])
   if (compact) {
     if (!active) return null
-    const inline = content?.blocks.every(block => ['toolbar', 'actions', 'text', 'badge', 'loading', 'separator', 'progress'].includes(block.type))
-    return <div ref={container} tabIndex={-1} aria-label={title} aria-busy={loading} className="flex h-8 min-w-0 items-center focus-visible:outline-ring">
+    const inline = !forcePopover && content?.blocks.every(block => ['toolbar', 'actions', 'text', 'badge', 'loading', 'separator', 'progress'].includes(block.type))
+    return <div ref={container} tabIndex={-1} aria-label={title} aria-busy={loading} className={cn('flex min-w-0 items-center focus-visible:outline-ring', forcePopover ? 'h-6' : 'h-8')}>
       {error ? <Button variant="ghost" size="sm" title={error} onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button>
         : !content && loading ? <Spinner aria-label={t('loadingView')} />
         : content?.blocks.length ? inline ? <PluginDeclarativeUi scope={viewKey} document={content} compact />
-          : <Popover><PopoverTrigger asChild><Button variant="ghost" size={icon ? 'icon-sm' : 'sm'} aria-label={title} title={title}>{icon ? <PluginIcon name={icon} /> : title}</Button></PopoverTrigger><PopoverContent aria-label={title} side="bottom" className="max-h-[70vh] w-80 overflow-auto"><PluginDeclarativeUi scope={viewKey} document={content} /></PopoverContent></Popover>
+          : <Popover><PopoverTrigger asChild><Button variant="ghost" size={forcePopover ? (icon ? 'icon-xs' : 'xs') : (icon ? 'icon-sm' : 'sm')} aria-label={title} title={title}>{icon ? <PluginIcon name={icon} /> : title}</Button></PopoverTrigger><PopoverContent aria-label={title} side="bottom" className="max-h-[70vh] w-80 overflow-auto"><PluginDeclarativeUi scope={viewKey} document={content} /></PopoverContent></Popover>
         : null}
     </div>
   }

@@ -1,4 +1,7 @@
 "use client"
+import { registerPluginChatComposer } from '@/lib/plugins/chat-bridge'
+import { PluginError } from '@notegen/plugin-api'
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import * as React from "react"
 import { useEffect, useRef, useState, useCallback } from "react"
 import useSettingStore from "@/stores/setting"
@@ -106,6 +109,18 @@ function createImageAttachmentId(prefix: string) {
 
 export const ChatInput = React.memo(function ChatInput() {
   const [text, setText] = useState("")
+  const pluginDraftRef = useRef(text)
+  pluginDraftRef.current = text
+  useEffect(() => registerPluginChatComposer(options => {
+    const current = pluginDraftRef.current
+    if (options.mode === 'replace' && current && !options.overwrite) throw new PluginError('Conflict', 'The chat draft is not empty')
+    const next = options.mode === 'replace' ? options.text : current + options.text
+    if (next.length > 20_000) throw new PluginError('QuotaExceeded', 'Chat draft exceeds its length limit')
+    pluginDraftRef.current = next
+    setText(next)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }), [])
+
   const { primaryModel } = useSettingStore()
   const {
     loading,
@@ -1299,6 +1314,7 @@ ${previewLines.join('\n')}
             </div>
           </div>
         )}
+        <PluginEmbeddedViews location="chat-input" compact />
         <AgentPendingMessageList />
         <ChatContextStrip
           linkedResource={linkedResource}

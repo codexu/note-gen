@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
@@ -1653,15 +1654,20 @@ export function EditorLayout() {
     const itemType = tab.isFolder ? 'folder' : getItemType(tab.path)
     return (
       <TabContentErrorBoundary key={`${workspacePath || '__default__'}:${tab.id}:${tab.path}`} tabName={tab.name} onClose={() => handleCloseTab(groupId, tab.id)}>
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {itemType === 'folder' && <FolderView folderPath={tab.path} />}
-          {itemType === 'image' && <ImageEditor filePath={tab.path} isActive={active} />}
-          {itemType === 'markdown' && <MdEditor tabContentsRef={tabContentsRef} filePath={tab.path} isActive={active} disabled={detachingTabId === tab.id} />}
-          {itemType === 'unknown' && <PluginDocumentPreview path={tab.path} isActive={active} />}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <PluginEmbeddedViews location="document-top" active={active && layout.activeGroupId === groupId && itemType !== 'folder'} contextKey={`${groupId}:${tab.id}:${tab.path}`} />
+          <PluginEmbeddedViews location="editor-toolbar" active={active && layout.activeGroupId === groupId && itemType === 'markdown'} contextKey={`${groupId}:${tab.id}:${tab.path}`} compact />
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            {itemType === 'folder' && <FolderView folderPath={tab.path} />}
+            {itemType === 'image' && <ImageEditor filePath={tab.path} isActive={active} />}
+            {itemType === 'markdown' && <MdEditor tabContentsRef={tabContentsRef} filePath={tab.path} isActive={active} disabled={detachingTabId === tab.id} />}
+            {itemType === 'unknown' && <PluginDocumentPreview path={tab.path} isActive={active} />}
+          </div>
+          <PluginEmbeddedViews location="document-bottom" active={active && layout.activeGroupId === groupId && itemType !== 'folder'} contextKey={`${groupId}:${tab.id}:${tab.path}`} />
         </div>
       </TabContentErrorBoundary>
     )
-  }, [activePluginView, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
+  }, [activePluginView, layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -1720,7 +1726,8 @@ export function EditorLayout() {
     }
     return (
       <EmptyState
-        enableShortcuts={enableShortcuts}
+        enableShortcuts={enableShortcuts && !activePluginView}
+        contextKey={`${layout.activeGroupId}:${layout.groups[layout.activeGroupId]?.activeTabId ?? 'empty'}`}
         onboardingProgress={onboardingProgress}
         activeOnboardingStep={currentOnboardingTask}
         visibleOnboardingStep={activeOnboardingStep}
@@ -1730,7 +1737,7 @@ export function EditorLayout() {
         onResetOnboarding={handleResetOnboarding}
       />
     )
-  }, [activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, onboardingProgress, tGroups])
+  }, [activePluginView, activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, layout.activeGroupId, layout.groups, onboardingProgress, tGroups])
 
   const activeNavigationTab = openTabs.find(tab => tab.id === activeTabId)
   const activeNavigationEntry = layout.navigationHistory[layout.navigationIndex]

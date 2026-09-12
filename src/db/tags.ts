@@ -1,3 +1,4 @@
+import emitter from '@/lib/emitter'
 import { getDb } from "./index"
 import { Store } from '@tauri-apps/plugin-store';
 import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
@@ -13,6 +14,7 @@ export interface Tag {
 
 function enqueueRecordsAutoSync(reason: string) {
   enqueueAutoDataSync('records', reason)
+  emitter.emit('plugin-records-changed')
 }
 
 // 创建 tags 表

@@ -2,6 +2,7 @@ import type { InstalledPlugin, PluginSettingValue } from './types'
 
 export const pluginDisplayLocations = [
   'left-sidebar', 'right-sidebar', 'editor-tab',
+  'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel',
   'title-bar-left', 'title-bar-center', 'title-bar-right', 'file/context',
   'editor/context', 'tab/context', 'editor/toolbar', 'editor/slash',
   'editor/selection', 'mobile/writing/overflow', 'status-bar',

@@ -1,4 +1,5 @@
 'use client'
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import React, { useEffect, useState, useMemo, useRef } from "react"
 import type { ItemInstance } from '@headless-tree/core'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -1051,6 +1052,7 @@ export function FileManager({
       onScroll={handleScroll}
     >
       <div className="flex h-full min-h-full min-w-0 flex-col p-0">
+        <PluginEmbeddedViews location="file-panel" />
         {isDragging && dragItemCount > 0 ? (
           <Badge variant="outline" className="pointer-events-none absolute right-2 top-12">
             {t('context.dropTarget', { name: t('mobile.root'), count: dragItemCount })}

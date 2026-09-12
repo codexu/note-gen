@@ -57,6 +57,7 @@ anydoc = "=0.1.8"
 unicode-normalization = "0.1"
 ring = "0.17"
 semver = "1"
+regex = "1"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
@@ -74,7 +75,6 @@ reqwest_dav = "=0.2.1"
 tauri-plugin-process = "=2.0.0"
 jieba-rs = { version = "0.7", features = ["textrank"] }
 machine-uid = "0.5"
-regex = "1"
 font-kit = "0.14"
 tauri-plugin-autostart = "=2.4.0"
 trash = "=5.2.6"

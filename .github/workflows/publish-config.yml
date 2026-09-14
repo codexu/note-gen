@@ -1,0 +1,134 @@
+name: Publish config center files
+run-name: Publish config center files from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      OSSUTIL_VERSION: 2.3.0
+      OSSUTIL_LINUX_AMD64_SHA256: 3ae4d9fc85a7a6e9f5654d1599766f1a3a42a3692870887b5ae9338d582ef65a
+      OSS_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      OSS_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      OSS_REGION: ${{ secrets.ALIYUN_REGION_ID }}
+      OSS_ENDPOINT: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
+      ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+      ALIYUN_CDN_DOMAIN: ${{ secrets.ALIYUN_CDN_DOMAIN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate config JSON and credentials
+        run: |
+          set -euo pipefail
+          for variable in OSS_ACCESS_KEY_ID OSS_ACCESS_KEY_SECRET OSS_REGION OSS_ENDPOINT ALIYUN_OSS_BUCKET ALIYUN_CDN_DOMAIN; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Missing required secret: $variable"
+              exit 1
+            fi
+          done
+          node <<'NODE'
+          const fs = require('node:fs')
+          const files = ['config/provider-templates.json', 'config/provider-templates-cn.json']
+          for (const file of files) {
+            const payload = JSON.parse(fs.readFileSync(file, 'utf8'))
+            if (!Array.isArray(payload.providers) || payload.providers.length === 0) {
+              throw new Error(`${file} must contain a non-empty providers array`)
+            }
+            for (const provider of payload.providers) {
+              if (typeof provider.key !== 'string' || !provider.key.trim()) throw new Error(`${file}: invalid key`)
+              if (typeof provider.baseURL !== 'string' || !/^https?:\\/\\//.test(provider.baseURL)) throw new Error(`${file}: invalid baseURL`)
+            }
+          }
+          NODE
+
+      - name: Install ossutil
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          curl -fsSLo "ossutil-${OSSUTIL_VERSION}-linux-amd64.zip" "https://gosspublic.alicdn.com/ossutil/v2/${OSSUTIL_VERSION}/ossutil-${OSSUTIL_VERSION}-linux-amd64.zip"
+          echo "${OSSUTIL_LINUX_AMD64_SHA256}  ossutil-${OSSUTIL_VERSION}-linux-amd64.zip" | sha256sum -c -
+          unzip -q "ossutil-${OSSUTIL_VERSION}-linux-amd64.zip"
+          sudo install -m 755 "ossutil-${OSSUTIL_VERSION}-linux-amd64/ossutil" /usr/local/bin/ossutil
+          OSSUTIL_CONFIG="$RUNNER_TEMP/.ossutilconfig"
+          {
+            echo "[default]"
+            echo "accessKeyID=${OSS_ACCESS_KEY_ID}"
+            echo "accessKeySecret=${OSS_ACCESS_KEY_SECRET}"
+            echo "region=${OSS_REGION}"
+            echo "endpoint=${OSS_ENDPOINT}"
+          } > "$OSSUTIL_CONFIG"
+          chmod 600 "$OSSUTIL_CONFIG"
+          echo "OSSUTIL_CONFIG=$OSSUTIL_CONFIG" >> "$GITHUB_ENV"
+
+      - name: Detect remote differences
+        run: |
+          set -euo pipefail
+          changed=false
+          for file in provider-templates.json provider-templates-cn.json; do
+            remote="$RUNNER_TEMP/$file"
+            if ossutil cp "oss://${ALIYUN_OSS_BUCKET}/config/v1/$file" "$remote" -c "$OSSUTIL_CONFIG" --no-progress; then
+              if cmp -s "config/$file" "$remote"; then
+                echo "$file: unchanged"
+              else
+                echo "$file: changed"
+                echo "PUBLISH_${file//[-.]/_}=true" >> "$GITHUB_ENV"
+                changed=true
+              fi
+            else
+              echo "$file: not found remotely"
+              echo "PUBLISH_${file//[-.]/_}=true" >> "$GITHUB_ENV"
+              changed=true
+            fi
+          done
+          echo "CONFIG_CHANGED=$changed" >> "$GITHUB_ENV"
+
+      - name: Prepare manifest
+        if: env.CONFIG_CHANGED == 'true'
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const manifest = JSON.parse(fs.readFileSync('config/config-manifest.json', 'utf8'))
+          const update = (key) => {
+            manifest.configs[key].versionCode += 1
+          }
+          if (process.env.PUBLISH_provider_templates_json === 'true') update('providerTemplates')
+          if (process.env.PUBLISH_provider_templates_cn_json === 'true') update('providerTemplatesChina')
+          manifest.updatedAt = new Date().toISOString()
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/config-manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`)
+          NODE
+
+      - name: Upload config files to OSS
+        if: env.CONFIG_CHANGED == 'true'
+        run: |
+          set -euo pipefail
+          upload() {
+            ossutil cp "$1" "oss://${ALIYUN_OSS_BUCKET}/config/v1/$(basename "$1")" \
+              -c "$OSSUTIL_CONFIG" --force --no-progress \
+              --content-type "application/json; charset=utf-8" --cache-control "public, max-age=60"
+          }
+          [[ "${PUBLISH_provider_templates_json:-false}" == true ]] && upload config/provider-templates.json
+          [[ "${PUBLISH_provider_templates_cn_json:-false}" == true ]] && upload config/provider-templates-cn.json
+          upload "$RUNNER_TEMP/config-manifest.json"
+
+      - name: Refresh config manifest CDN cache
+        if: env.CONFIG_CHANGED == 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/aliyun/aliyun-cli/master/scripts/install.sh | sh
+          aliyun configure set --mode AK \
+            --access-key-id "$OSS_ACCESS_KEY_ID" \
+            --access-key-secret "$OSS_ACCESS_KEY_SECRET" \
+            --region "$OSS_REGION"
+          CDN_DOMAIN="${ALIYUN_CDN_DOMAIN#https://}"
+          CDN_DOMAIN="${CDN_DOMAIN#http://}"
+          CDN_DOMAIN="${CDN_DOMAIN%/}"
+          aliyun cdn RefreshObjectCaches \
+            --ObjectPath "https://${CDN_DOMAIN}/config/v1/config-manifest.json" \
+            --ObjectType File --region "$OSS_REGION"

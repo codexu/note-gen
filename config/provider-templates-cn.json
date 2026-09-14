@@ -9,6 +9,15 @@
       "enabled": true
     },
     {
+      "key": "packycode",
+      "title": "PackyCode",
+      "baseURL": "https://www.packyapi.ai/v1",
+      "apiKeyUrl": "https://www.packyapi.ai/register?aff=NqBq",
+      "icon": "https://files.seeusercontent.com/2026/09/14/qWi0/pasted-image-1789372842907.webp",
+      "promotion": "低至 2 折",
+      "enabled": true
+    },
+    {
       "key": "infistar",
       "title": "Infistar.cc 无限星河",
       "baseURL": "https://infistar.cc/v1",

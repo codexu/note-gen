@@ -45,13 +45,17 @@
 
 ## ❤️ Sponsor
 
-<p align="center">
-  <a href="https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link">
-    <img src="https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png" alt="Infistar.cc 无限星河" width="100%">
-  </a>
-</p>
+### NoteGen & Packy
+
+[![pasted-image-1789372565369.webp](https://files.seeusercontent.com/2026/09/14/Fe9c/pasted-image-1789372565369.webp)](https://www.packyapi.ai/register?aff=NqBq)
+
+PackyCode 是一家稳定、高效的 API 中转服务商，一句话接入主流大模型。统一域名、统一密钥、智能容灾切换，97% 可用性。人民币1:1充值，无汇率无手续费坑，新用户首充立享折扣 + $1免费体验额度，多分组折扣低至 2 折起，提供专属Codex/Claude Code高速通道。 
+
+[点此链接注册，立即开始使用！](https://www.packyapi.ai/register?aff=NqBq)
 
 ### NoteGen × Infistar.cc 无限星河｜全模型 API · 让记录、整理与创作更智能
+
+[![](https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png)](https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link)
 
 感谢 Infistar.cc 无限星河赞助并为 NoteGen 提供模型服务支持！
 

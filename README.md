@@ -45,20 +45,25 @@ A local-first Markdown app that helps you collect scattered information and orga
 
 ## ❤️ Sponsor
 
-<p align="center">
-  <a href="https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link">
-    <img src="https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png" alt="Infistar.cc 无限星河" width="100%">
-  </a>
-</p>
+### NoteGen & Packy
 
-### NoteGen × Infistar.cc 无限星河｜全模型 API · 让记录、整理与创作更智能
+[![pasted-image-1789372565369.webp](https://files.seeusercontent.com/2026/09/14/Fe9c/pasted-image-1789372565369.webp)](https://www.packyapi.ai/register?aff=NqBq)
 
-感谢 Infistar.cc 无限星河赞助并为 NoteGen 提供模型服务支持！
+Access leading AI models through PackyCode with one API endpoint and one API key. Enjoy fast, reliable access with automatic failover and dedicated high-speed routes for Codex and Claude Code.
+Get started with $1 in free credits, a discount on your first top-up, and savings of up to 80% on eligible routes. Pay in RMB with no currency conversion markups or extra top-up fees.
 
-- ⚡ **稳定高效的模型服务：** 提供企业级高并发通道与多节点冗余，价格低至官方渠道 1 折，稳定支持 NoteGen AI 对话、笔记整理、续写润色、翻译总结及 Agent 长任务。
-- 🧠 **一个 API Key 接入主流模型：** 全面支持 ChatGPT、Claude、Gemini、Kimi、GLM、DeepSeek 等模型，兼容 OpenAI 标准接口，可灵活配置主模型、快速补全、写作及知识库模型。
-- 📚 **覆盖知识库与多模态能力：** 支持视觉理解、图片 OCR、Embedding、Rerank、语音识别与语音合成，满足知识库检索和多模态笔记整理需求。
-- 🎁 **NoteGen 用户专属福利：** 通过[专属推广链接](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link)注册并完成首次调用，即可领取 10 美元等值测试额度 / 首充专属优惠！
+[Sign up through the link and start building today.](https://www.packyapi.ai/register?aff=NqBq)
+
+### NoteGen × Infistar.cc Infinity Galaxy
+
+[![](https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png)](https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link)
+
+Thanks to Infistar.cc Infinity Galaxy for sponsoring NoteGen and supporting the project with model services!
+
+- ⚡ **Reliable, efficient model services:** Enterprise-grade high-concurrency channels and multi-node redundancy, with prices as low as 10% of official rates. Stable support for NoteGen AI conversations, note organization, writing continuation and polishing, translation and summarization, and long-running Agent tasks.
+- 🧠 **One API key for leading models:** Full support for models including ChatGPT, Claude, Gemini, Kimi, GLM, and DeepSeek. Compatible with the OpenAI API standard, with flexible configuration for your primary model, quick completion, writing, and knowledge base models.
+- 📚 **Knowledge base and multimodal capabilities:** Supports visual understanding, image OCR, embeddings, reranking, speech recognition, and speech synthesis for knowledge base retrieval and multimodal note organization.
+- 🎁 **Exclusive benefits for NoteGen users:** Register through the [exclusive referral link](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) and complete your first API call to receive a $10-equivalent testing credit or an exclusive first top-up offer!
 
 ## Capture without interrupting your thoughts
 

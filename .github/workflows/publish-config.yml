@@ -123,11 +123,13 @@ jobs:
           [[ "${PUBLISH_provider_templates_cn_json:-false}" == true ]] && upload config/provider-templates-cn.json
           upload "$RUNNER_TEMP/config-manifest.json"
 
+      - name: Install Alibaba Cloud CLI
+        if: env.CONFIG_CHANGED == 'true'
+        uses: aliyun/setup-aliyun-cli-action@v1
       - name: Refresh config manifest CDN cache
         if: env.CONFIG_CHANGED == 'true'
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/aliyun/aliyun-cli/master/scripts/install.sh | sh
           aliyun configure set --mode AK \
             --access-key-id "$OSS_ACCESS_KEY_ID" \
             --access-key-secret "$OSS_ACCESS_KEY_SECRET" \

@@ -42,7 +42,13 @@ jobs:
             }
             for (const provider of payload.providers) {
               if (typeof provider.key !== 'string' || !provider.key.trim()) throw new Error(`${file}: invalid key`)
-              if (typeof provider.baseURL !== 'string' || !/^https?:\\/\\//.test(provider.baseURL)) throw new Error(`${file}: invalid baseURL`)
+              let baseURL
+              try {
+                baseURL = new URL(provider.baseURL)
+              } catch {
+                throw new Error(`${file}: invalid baseURL`)
+              }
+              if (baseURL.protocol !== 'http:' && baseURL.protocol !== 'https:') throw new Error(`${file}: invalid baseURL`)
             }
           }
           NODE

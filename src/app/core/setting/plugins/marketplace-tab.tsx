@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import {
   BadgeCheck,
@@ -67,10 +67,12 @@ function MarketplaceSkeleton() {
   )
 }
 
-export function MarketplaceTab({ query, onQueryChange, onInstalled }: {
+export function MarketplaceTab({ query, onQueryChange, onInstalled, installPluginId, onInstallRequestHandled }: {
   query: string
   onQueryChange: (value: string) => void
   onInstalled?: (pluginId: string) => void
+  installPluginId?: string | null
+  onInstallRequestHandled?: () => void
 }) {
   const t = useTranslations('settings.plugins')
   const locale = useLocale()
@@ -128,6 +130,13 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled }: {
   const reviewPublisher = reviewEntry
     ? catalog?.publishers.find((publisher) => publisher.id === reviewEntry.publisherId)
     : undefined
+
+  useEffect(() => {
+    if (!installPluginId || marketLoading) return
+    const entry = catalog?.plugins.find((plugin) => plugin.id === installPluginId)
+    if (entry && getLatestDesktopRelease(entry, appVersion) && !catalog.stale && !installedById.has(entry.id)) setReviewEntry(entry)
+    onInstallRequestHandled?.()
+  }, [appVersion, catalog, installPluginId, installedById, marketLoading, onInstallRequestHandled])
 
   function openExternal(url: string) {
     void openUrl(url).catch((reason) => {

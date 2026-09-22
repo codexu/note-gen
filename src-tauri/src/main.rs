@@ -10,6 +10,7 @@ mod backup;
 mod backup_manager;
 mod cloud_folder_sync;
 mod database_recovery;
+mod deep_link;
 mod device;
 mod document_parser;
 mod file_open;
@@ -121,6 +122,7 @@ fn main() {
         .manage(PluginManager::default())
         .manage(WebClipperState::new())
         .manage(LocalMcpState::new())
+        .manage(deep_link::PendingPluginInstallRequests::default())
         // 系统级插件
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
@@ -219,6 +221,7 @@ fn main() {
             storefront::get_app_storefront_country_code,
             printing::print_webview,
             file_open::drain_pending_open_files,
+            deep_link::drain_pending_plugin_install_requests,
             system_trash::move_paths_to_trash,
             approve_web_clipper_pairing,
             reject_web_clipper_pairing,

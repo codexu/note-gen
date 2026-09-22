@@ -65,9 +65,29 @@ export default function RootLayout({
   const searchParams = useSearchParams()
   const lastContentPathRef = useRef('/core/main')
   const { openSettings } = useSettingsDialogStore()
+  const openPluginInstall = useSettingsDialogStore((state) => state.openPluginInstall)
   const t = useTranslations()
   const { toast } = useToast()
   const [pluginsReady, setPluginsReady] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    let unlistenPluginInstall: (() => void) | undefined
+    const handlePluginInstall = (request: { pluginId?: unknown }) => {
+      if (typeof request.pluginId === 'string') openPluginInstall(request.pluginId)
+    }
+    const registerPluginInstallListener = async () => {
+      const window = getCurrentWindow()
+      unlistenPluginInstall = await window.listen<{ pluginId: string }>('plugin-install-request', (event) => handlePluginInstall(event.payload))
+      const pending = await invoke<Array<{ pluginId: string }>>('drain_pending_plugin_install_requests')
+      if (!cancelled) pending.forEach(handlePluginInstall)
+    }
+    void registerPluginInstallListener()
+    return () => {
+      cancelled = true
+      unlistenPluginInstall?.()
+    }
+  }, [openPluginInstall])
 
   useEffect(() => {
     let cancelled = false

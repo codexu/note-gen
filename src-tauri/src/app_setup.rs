@@ -1,4 +1,5 @@
 use crate::file_open;
+use crate::deep_link;
 use crate::local_mcp;
 use crate::plugins;
 use crate::screenshot::cleanup_temp_screenshot_dir;
@@ -33,6 +34,8 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     window::apply_startup_visibility(&app_handle);
 
     file_open::handle_initial_open_files(&app_handle);
+    deep_link::listen(&app_handle);
+    deep_link::handle_initial_urls(&app_handle);
 
     web_clipper::start_server(&app_handle);
     local_mcp::start_server(&app_handle);

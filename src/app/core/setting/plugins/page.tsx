@@ -29,6 +29,7 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
   const developerMode = useSettingStore(state => state.developerMode)
   const [tab, setTab] = useState('installed')
   const [marketQuery, setMarketQuery] = useState('')
+  const [marketInstallPluginId, setMarketInstallPluginId] = useState<string | null>(null)
   const discoveryRequest = useSettingsDialogStore(state => state.pluginDiscoveryRequest)
   const clearDiscoveryRequest = useSettingsDialogStore(state => state.clearPluginDiscoveryRequest)
   const [enablePluginId, setEnablePluginId] = useState<string | null>(null)
@@ -66,7 +67,14 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
     setMarketQuery(discoveryRequest.query)
     setTab('market')
     clearDiscoveryRequest()
-  }, [discoveryRequest, mobile, clearDiscoveryRequest])
+    let cancelled = false
+    void refreshMarket(true).then(() => {
+      if (!cancelled && !usePluginStore.getState().marketError) setMarketInstallPluginId(discoveryRequest.query)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [discoveryRequest, mobile, clearDiscoveryRequest, refreshMarket])
 
   useEffect(() => {
     void initializePage()
@@ -123,7 +131,7 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
               {logs.some(entry => entry.level === 'error') ? <CircleAlert aria-label={t('labels.attention')} /> : null}
             </TabsTrigger> : null}
           </TabsList>
-          {!mobile ? <TabsContent value="market"><MarketplaceTab query={marketQuery} onQueryChange={setMarketQuery} onInstalled={offerEnablement} /></TabsContent> : null}
+          {!mobile ? <TabsContent value="market"><MarketplaceTab query={marketQuery} onQueryChange={setMarketQuery} onInstalled={offerEnablement} installPluginId={marketInstallPluginId} onInstallRequestHandled={() => setMarketInstallPluginId(null)} /></TabsContent> : null}
           <TabsContent value="installed" className="flex flex-col gap-4">
             <InstalledPluginsTab enablePluginId={enablePluginId} onEnablePromptHandled={() => setEnablePluginId(null)} />
           </TabsContent>

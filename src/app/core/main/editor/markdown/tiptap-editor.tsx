@@ -82,7 +82,11 @@ import {
   workspaceRootsReferToSameLocation,
 } from '@/lib/editor-deactivation'
 import { QuoteMark } from './quote-mark'
-import { MarkdownParagraph, normalizeMarkdownPlaceholders } from './markdown-paragraph'
+import {
+  MarkdownParagraph,
+  normalizeMarkdownPlaceholders,
+  stripUnsupportedMarkdownControlCharacters,
+} from './markdown-paragraph'
 import { GitHubAlertBlockquoteEditor } from './github-alert-blockquote-view'
 import { StableCodeBlockLowlight } from './code-block-extension'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
@@ -1377,11 +1381,13 @@ const PasteMarkdown = Extension.create({
           },
           handlePaste(_view, event, _slice) {
             void _slice
-            const text = (event as ClipboardEvent).clipboardData?.getData('text/plain')
+            const rawText = (event as ClipboardEvent).clipboardData?.getData('text/plain')
 
-            if (!text) {
+            if (!rawText) {
               return false
             }
+
+            const text = stripUnsupportedMarkdownControlCharacters(rawText)
 
             const { selection, schema } = _view.state
             const codeBlockType = schema.nodes.codeBlock
@@ -1392,6 +1398,12 @@ const PasteMarkdown = Extension.create({
 
             if (isPastingInsideCodeBlock) {
               _view.dispatch(_view.state.tr.insertText(text, selection.from, selection.to))
+              return true
+            }
+
+            const table = parseStandaloneMarkdownTable(text)
+            if (table) {
+              editor.commands.insertContent(table)
               return true
             }
 
@@ -1766,6 +1778,77 @@ const BlurSelectionHighlight = Extension.create({
   },
 })
 
+
+const MARKDOWN_TABLE_SEPARATOR_CELL_RE = /^:?-+:?$/
+const EMPTY_MARKDOWN_PLACEHOLDER_LINES = new Set(['&nbsp;', '&#x20;', '&#32;'])
+
+function isEmptyMarkdownPlaceholderLine(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed === '' || EMPTY_MARKDOWN_PLACEHOLDER_LINES.has(trimmed)
+}
+
+function splitMarkdownTableRow(line: string): string[] | null {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return null
+
+  return trimmed
+    .slice(1, -1)
+    .split('|')
+    .map(cell => cell.trim())
+}
+
+function parseStandaloneMarkdownTable(markdown: string): JSONContent | null {
+  const allLines = markdown.split(/\r?\n/)
+  let firstContentLine = 0
+  let lastContentLine = allLines.length
+
+  while (firstContentLine < lastContentLine && isEmptyMarkdownPlaceholderLine(allLines[firstContentLine] ?? '')) {
+    firstContentLine += 1
+  }
+  while (lastContentLine > firstContentLine && isEmptyMarkdownPlaceholderLine(allLines[lastContentLine - 1] ?? '')) {
+    lastContentLine -= 1
+  }
+
+  const lines = allLines.slice(firstContentLine, lastContentLine)
+  if (lines.length < 2) return null
+
+  const header = splitMarkdownTableRow(lines[0] ?? '')
+  const separator = splitMarkdownTableRow(lines[1] ?? '')
+  if (
+    !header
+    || !separator
+    || header.length === 0
+    || header.length !== separator.length
+    || !separator.every(cell => MARKDOWN_TABLE_SEPARATOR_CELL_RE.test(cell))
+  ) {
+    return null
+  }
+
+  const rows = lines.slice(2).map(splitMarkdownTableRow)
+  if (rows.some(row => !row || row.length !== header.length)) return null
+
+  const createCell = (type: 'tableHeader' | 'tableCell', text: string): JSONContent => ({
+    type,
+    content: [{
+      type: 'paragraph',
+      content: text ? [{ type: 'text', text }] : [],
+    }],
+  })
+
+  return {
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: header.map(cell => createCell('tableHeader', cell)),
+      },
+      ...rows.map(row => ({
+        type: 'tableRow',
+        content: row!.map(cell => createCell('tableCell', cell)),
+      })),
+    ],
+  }
+}
 
 // 简单的启发式函数：检查文本是否看起来像 Markdown
 function looksLikeMarkdown(text: string): boolean {
@@ -2734,26 +2817,28 @@ export function TipTapEditor({
   classifyCanonicalMarkdownRef.current = classifyCanonicalMarkdown
 
   const handleSourceMarkdownChange = useCallback((value: string) => {
+    const normalizedValue = stripUnsupportedMarkdownControlCharacters(value)
     markEditorPathMutation(activeFilePathRef.current)
     selfHostedCollaborationRef.current?.markLocalActivity()
-    sourceMarkdownRef.current = value
-    setSourceMarkdown(value)
+    sourceMarkdownRef.current = normalizedValue
+    setSourceMarkdown(normalizedValue)
     setHasUnparsedSourceChanges(true)
     contentVersionRef.current++
-    onChangeRef.current?.(value)
-    selfHostedCollaborationRef.current?.applyLocal(value)
+    onChangeRef.current?.(normalizedValue)
+    selfHostedCollaborationRef.current?.applyLocal(normalizedValue)
   }, [])
 
   const handleSectionedMarkdownChange = useCallback((value: string) => {
-    if (sourceMarkdownRef.current === value) return
+    const normalizedValue = stripUnsupportedMarkdownControlCharacters(value)
+    if (sourceMarkdownRef.current === normalizedValue) return
     selfHostedCollaborationRef.current?.markLocalActivity()
-    sourceMarkdownRef.current = value
-    setSourceMarkdown(value)
+    sourceMarkdownRef.current = normalizedValue
+    setSourceMarkdown(normalizedValue)
     setHasUnparsedSourceChanges(false)
     contentVersionRef.current++
-    onChangeRef.current?.(value)
-    selfHostedCollaborationRef.current?.applyLocal(value)
-    classifyCanonicalMarkdown(value)
+    onChangeRef.current?.(normalizedValue)
+    selfHostedCollaborationRef.current?.applyLocal(normalizedValue)
+    classifyCanonicalMarkdown(normalizedValue)
   }, [classifyCanonicalMarkdown])
 
   useEffect(() => {

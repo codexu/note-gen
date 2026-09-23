@@ -122,7 +122,6 @@ export async function uploadFile({
     const proxy = await getProxyConfig();
 
     const requestBody: any = {
-      branch: 'main',
       content: base64Content,
       message: message || `Upload ${filename || id}`,
       // 设置提交时间为当前时间
@@ -368,7 +367,6 @@ export async function deleteFile({ path, sha, repo }: { path: string; sha?: stri
       method: 'DELETE',
       headers,
       body: JSON.stringify({
-        branch: 'main',
         message: `Delete ${path}`,
         sha: fileSha
       }),

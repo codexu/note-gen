@@ -25,6 +25,25 @@ function resolveUploadPath(path: string | undefined, filename: string | undefine
   return path?.replace(/^\/+|\/+$/g, '') || fallbackFilename
 }
 
+const DEFAULT_BRANCH_CACHE_TTL = 5 * 60 * 1000
+const defaultBranchCache = new Map<string, { branch: string, cachedAt: number }>()
+
+async function getDefaultBranch(repo: string) {
+  const cached = defaultBranchCache.get(repo)
+  if (cached && Date.now() - cached.cachedAt < DEFAULT_BRANCH_CACHE_TTL) {
+    return cached.branch
+  }
+
+  try {
+    const project = await checkSyncProjectState(repo)
+    const branch = project?.default_branch?.trim() || 'main'
+    defaultBranchCache.set(repo, { branch, cachedAt: Date.now() })
+    return branch
+  } catch {
+    return 'main'
+  }
+}
+
 async function getGitlabApiBaseUrl(): Promise<string> {
   const store = await Store.load('store.json');
   const instanceType = await store.get<GitlabInstanceType>('gitlabInstanceType') || GitlabInstanceType.OFFICIAL;
@@ -103,6 +122,7 @@ export async function uploadFile({
       throw new Error('Gitlab 用户名或项目 ID 未配置');
     }
 
+    const branch = await getDefaultBranch(repo)
     const id = uuid();
     const targetPath = resolveUploadPath(path, filename, id);
     const encodedTargetPath = encodeURIComponent(targetPath);
@@ -127,7 +147,7 @@ export async function uploadFile({
     })
 
     const requestBody = {
-      branch: 'main',
+      branch,
       content: base64Content,
       commit_message: message || `Upload ${filename || id}`,
       encoding: 'base64'
@@ -165,7 +185,7 @@ export async function uploadFile({
     }];
 
     const commitBody = {
-      branch: 'main',
+      branch,
       commit_message: message || `Upload ${filename || id}`,
       actions: commitActions
     };
@@ -189,7 +209,7 @@ export async function uploadFile({
       // 检查是否是文件已存在的错误
       if (commitErrorData.error && commitErrorData.error.includes('already exists')) {
         // 获取当前文件的 SHA
-        const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodedTargetPath}?ref=main`;
+        const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodedTargetPath}?ref=${encodeURIComponent(branch)}`;
         const fileResponse = await fetch(fileUrl, {
           method: 'GET',
           headers,
@@ -204,7 +224,7 @@ export async function uploadFile({
 
         // 使用 PUT 更新文件
         const putBody = {
-          branch: 'main',
+          branch,
           content: base64Content,
           commit_message: message || `Update ${filename || id}`,
           encoding: 'base64',
@@ -266,6 +286,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
       throw new Error('项目 ID 未配置');
     }
 
+    const branch = await getDefaultBranch(repo)
     const baseUrl = await getGitlabApiBaseUrl();
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
@@ -276,7 +297,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
     })
 
     // 先尝试获取单个文件信息
-    const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}?ref=main`;
+    const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`;
 
     try {
       const fileResponse = await fetch(fileUrl, {
@@ -300,7 +321,7 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
     }
 
     // 如果不是单个文件，尝试获取目录列表
-    const url = `${baseUrl}/projects/${projectId}/repository/tree?path=${encodeURIComponent(path)}`;
+    const url = `${baseUrl}/projects/${projectId}/repository/tree?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(branch)}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -359,6 +380,7 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
       throw new Error('项目 ID 未配置');
     }
 
+    const branch = await getDefaultBranch(repo)
     const baseUrl = await getGitlabApiBaseUrl();
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
@@ -386,7 +408,7 @@ export async function deleteFile({ path, repo }: { path: string; sha?: string; r
       method: 'DELETE',
       headers,
       body: JSON.stringify({
-        branch: 'main',
+        branch,
         commit_message: `Delete ${path}`,
         last_commit_id: lastCommitId
       }),

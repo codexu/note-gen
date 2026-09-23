@@ -125,6 +125,26 @@ type GiteeDirectoryFileEntry = Partial<GiteeFile> & {
 type GiteeDirectoryListingResult = GiteeDirectoryFileEntry[] & GiteeDirectoryFileEntry
 type GiteeGetFilesResult = GiteeDirectoryFileEntry | GiteeDirectoryListingResult | null | undefined
 
+const DEFAULT_BRANCH_CACHE_TTL = 5 * 60 * 1000
+const defaultBranchCache = new Map<string, { branch: string, cachedAt: number }>()
+
+async function getDefaultBranch(repo: string, username?: string) {
+  const cacheKey = `${username || ''}/${repo}`
+  const cached = defaultBranchCache.get(cacheKey)
+  if (cached && Date.now() - cached.cachedAt < DEFAULT_BRANCH_CACHE_TTL) {
+    return cached.branch
+  }
+
+  try {
+    const repository = await checkSyncRepoState(repo)
+    const branch = repository?.default_branch?.trim() || 'master'
+    defaultBranchCache.set(cacheKey, { branch, cachedAt: Date.now() })
+    return branch
+  } catch {
+    return 'master'
+  }
+}
+
 function looksLikeFilePath(path?: string) {
   const lastSegment = path?.split('/').filter(Boolean).pop() || ''
   return lastSegment.includes('.')
@@ -188,6 +208,7 @@ export async function uploadFile(
   const accessToken = await store.get('giteeAccessToken')
   const giteeUsername = await store.get('giteeUsername')
   const id = uuid()
+  const branch = await getDefaultBranch(repo, giteeUsername)
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -236,7 +257,7 @@ export async function uploadFile(
         access_token: accessToken,
         content: base64Content,
         message: message || `Upload ${filename || id}`,
-        branch: 'master',
+        branch,
         sha
       }),
       proxy
@@ -263,7 +284,7 @@ export async function uploadFile(
           access_token: accessToken,
           content: base64Content,
           message: message || `Upload ${filename || id}`,
-          branch: 'master',
+          branch,
         }),
         proxy
       };
@@ -510,7 +531,7 @@ export async function getUserInfo() {
 }
 
 // 检查 Gitee 仓库
-export async function checkSyncRepoState(name: string) {
+export async function checkSyncRepoState(name: string): Promise<GiteeRepoInfo | null | undefined> {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) {
@@ -541,7 +562,7 @@ export async function checkSyncRepoState(name: string) {
     
     const response = await fetch(url, requestOptions);
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
+      const data = await response.json() as GiteeRepoInfo;
       return data;
     }
     

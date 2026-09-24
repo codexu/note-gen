@@ -134,7 +134,7 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
   useEffect(() => {
     if (!installPluginId || marketLoading) return
     const entry = catalog?.plugins.find((plugin) => plugin.id === installPluginId)
-    if (entry && getLatestDesktopRelease(entry, appVersion) && !catalog.stale && !installedById.has(entry.id)) setReviewEntry(entry)
+    if (catalog && entry && getLatestDesktopRelease(entry, appVersion) && !catalog.stale && !installedById.has(entry.id)) setReviewEntry(entry)
     onInstallRequestHandled?.()
   }, [appVersion, catalog, installPluginId, installedById, marketLoading, onInstallRequestHandled])
 

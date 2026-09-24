@@ -1,5 +1,17 @@
 
 import Database, { type QueryResult } from '@tauri-apps/plugin-sql'
+import { invoke } from '@tauri-apps/api/core'
+
+export interface RecordStatement {
+  sql: string
+  values: (string | number | boolean | null)[]
+  expectedRows?: number
+}
+
+export async function executeRecordTransaction(statements: RecordStatement[]) {
+  await getDb()
+  await invoke('execute_record_transaction', { statements })
+}
 
 let database: Database | null = null
 let databaseLoading: Promise<Database> | null = null
@@ -35,6 +47,43 @@ async function loadDatabase(): Promise<Database> {
   await nextDatabase.execute(
     'create unique index if not exists idx_marks_source_id on marks(sourceId) where sourceId is not null'
   )
+  await nextDatabase.execute(`
+    create table if not exists record_tag_metadata (
+      markId integer primary key,
+      tagIds text not null,
+      updatedAt integer not null default 0
+    )
+  `)
+  const tagMetadataColumns = await nextDatabase.select<Array<{ name: string }>>('pragma table_info(record_tag_metadata)')
+  if (!tagMetadataColumns.some(column => column.name === 'updatedAt')) {
+    await nextDatabase.execute('alter table record_tag_metadata add column updatedAt integer not null default 0')
+  }
+  // Keep legacy writers (plugins, older clients and structured sync) compatible.
+  // A primary-tag move replaces only that tag; all additional tags survive.
+  await nextDatabase.execute(`
+    create trigger if not exists record_tags_move after update of tagId on marks
+    when OLD.tagId != NEW.tagId
+    begin
+      update record_tag_metadata set tagIds = (
+        select json_group_array(value) from (
+          select cast(value as integer) as value from json_each(tagIds) where value != OLD.tagId
+          union select NEW.tagId
+        )
+      ), updatedAt = cast((julianday('now') - 2440587.5) * 86400000 as integer) where markId = NEW.id;
+      insert or ignore into record_tag_metadata (markId, tagIds, updatedAt)
+      values (NEW.id, json_array(NEW.tagId), cast((julianday('now') - 2440587.5) * 86400000 as integer));
+    end
+  `)
+  await nextDatabase.execute(`
+    create trigger if not exists record_tags_delete after delete on marks
+    begin delete from record_tag_metadata where markId = OLD.id; end
+  `)
+  for (const operation of ['insert', 'update'] as const) {
+    await nextDatabase.execute(`
+      create trigger if not exists record_tags_${operation} after ${operation} on record_tag_metadata
+      begin update marks set sourceId = sourceId where id = NEW.markId; end
+    `)
+  }
 
   return nextDatabase
 }

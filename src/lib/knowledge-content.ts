@@ -2,7 +2,8 @@ import { BaseDirectory, readTextFile } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
 import { getCanvasProject, getCanvasProjects } from '@/db/canvases'
 import { getAllMarks, getMarkById, type Mark } from '@/db/marks'
-import { getTags } from '@/db/tags'
+import { getTags, type Tag } from '@/db/tags'
+import { recordMatchesTag, recordTagIds } from '@/lib/record-tags'
 import { getFilePathOptions } from '@/lib/workspace'
 import type { CanvasDocument, CanvasProject } from '@/types/canvas'
 import {
@@ -35,10 +36,12 @@ function serializeRecord(mark: Mark, tagName: string) {
   ].filter(Boolean).join('\n')
 }
 
-export async function getRecordKnowledgeDocument(mark: Mark): Promise<KnowledgeSourceDocument | null> {
+export async function getRecordKnowledgeDocument(mark: Mark, availableTags?: Tag[]): Promise<KnowledgeSourceDocument | null> {
   if (mark.deleted === 1) return null
-  const tags = await getTags()
-  const tagName = tags.find(tag => tag.id === mark.tagId)?.name || String(mark.tagId)
+  const tags = availableTags ?? await getTags()
+  const tagName = recordTagIds(mark)
+    .map(tagId => tags.find(tag => tag.id === tagId)?.name || String(tagId))
+    .join('、')
   const content = serializeRecord(mark, tagName)
   const sourceKey = createKnowledgeSourceKey('record', mark.id)
   const { chunkText } = await import('@/lib/rag')
@@ -50,7 +53,7 @@ export async function getRecordKnowledgeDocument(mark: Mark): Promise<KnowledgeS
     content,
     contentHash: hashKnowledgeContent(content),
     updatedAt: mark.createdAt,
-    locator: { markId: mark.id, tagId: mark.tagId },
+    locator: { markId: mark.id, tagId: mark.tagId, tagIds: tags.filter(tag => recordMatchesTag(mark, tag.id, tags)).map(tag => tag.id) },
     status: 'pending',
     chunks: chunkText(content).map(chunk => ({ content: chunk })),
   }
@@ -168,8 +171,8 @@ export async function getKnowledgeSourceDocument(sourceKey: string): Promise<Kno
 }
 
 export async function collectRecordKnowledgeDocuments() {
-  const marks = await getAllMarks()
-  const documents = await Promise.all(marks.map(getRecordKnowledgeDocument))
+  const [marks, tags] = await Promise.all([getAllMarks(), getTags()])
+  const documents = await Promise.all(marks.map(mark => getRecordKnowledgeDocument(mark, tags)))
   return documents.filter((document): document is KnowledgeSourceDocument => Boolean(document))
 }
 

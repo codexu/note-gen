@@ -989,12 +989,13 @@ export function EditorLayout() {
     if (
       !layoutReady
       || !activeTabId
-      || !activeFilePath
       || fileTreeWorkspaceKey === null
       || layout.workspaceKey !== fileTreeWorkspaceKey
     ) return
     const activeTab = openTabs.find(tab => tab.id === activeTabId)
-    if (!activeTab || activeTab.path !== activeFilePath) return
+    if (!activeTab) return
+    const tabUsesEmptyPath = isBlankEditorTab(activeTab) || isRecordEditorTab(activeTab) || isCanvasEditorTab(activeTab)
+    if (activeFilePath ? activeTab.path !== activeFilePath : !tabUsesEmptyPath) return
     setLayout(current => {
       const activeGroup = current.groups[current.activeGroupId]
       const targetGroup = activeGroup?.tabIds.includes(activeTabId)
@@ -1006,7 +1007,7 @@ export function EditorLayout() {
         activeTab,
       )
     })
-  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
+  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
 
   const handleActivateGroup = useCallback((groupId: string, tabId?: string) => {
     const tab = openTabs.find(item => item.id === tabId)

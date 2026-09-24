@@ -206,7 +206,7 @@ export async function uploadFile(
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
-  const giteeUsername = await store.get('giteeUsername')
+  const giteeUsername = await store.get<string>('giteeUsername')
   const id = uuid()
   const branch = await getDefaultBranch(repo, giteeUsername)
   

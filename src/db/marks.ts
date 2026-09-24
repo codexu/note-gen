@@ -1,5 +1,6 @@
 import emitter from '@/lib/emitter'
-import { getDb } from "./index"
+import { getDb, executeRecordTransaction, type RecordStatement } from "./index"
+import { normalizeTagName } from './tags'
 import { BaseDirectory, exists, mkdir, remove } from "@tauri-apps/plugin-fs"
 import { insertActivityEvent } from './activity'
 import { truncateActivityText } from '@/lib/activity/events'
@@ -10,12 +11,16 @@ import {
   queueRecordAssetRemoteDeletions,
 } from '@/lib/sync/record-assets'
 import { getRecordImageThumbnailPath } from '@/lib/record-image-thumbnail'
+import { recordTagIds } from '@/lib/record-tags'
 
 export { getMarkLocalAssetPath }
 
 export interface Mark {
   id: number
   tagId: number
+  /** The primary tag remains tagId for compatibility with chats and save targets. */
+  tagIds?: number[]
+  tagUpdatedAt?: number
   type: 'scan' | 'text' | 'image' | 'link' | 'file' | 'recording' | 'todo'
   content?: string
   desc?: string
@@ -26,6 +31,82 @@ export interface Mark {
 }
 
 const MARK_COLUMNS = 'id, tagId, type, content, url, desc, deleted, createdAt, sourceId'
+
+// Match the exact tag or its descendants; substr avoids LIKE wildcard surprises.
+export const RECORD_TAG_MATCH_SQL = `marks.tagId = $1 or exists (
+  select 1 from tags candidate join tags parent on parent.id = $1
+  where (candidate.id = parent.id or substr(candidate.name, 1, length(parent.name) + 1) = parent.name || '/')
+  and (candidate.id = marks.tagId or exists (
+    select 1 from record_tag_metadata metadata, json_each(metadata.tagIds) related
+    where metadata.markId = marks.id and related.value = candidate.id
+  ))
+)`
+
+export async function attachMarkTagIds(marks: Mark[]): Promise<Mark[]> {
+  if (marks.length === 0) return marks
+  const db = await getDb()
+  const tagIdsByMark = new Map<number, number[]>()
+  const tagUpdatedAtByMark = new Map<number, number>()
+  // Stay below SQLite's bind parameter limit for large collections.
+  for (let offset = 0; offset < marks.length; offset += 400) {
+    const batch = marks.slice(offset, offset + 400)
+    const rows = await db.select<Array<{ markId: number; tagIds: string; updatedAt: number }>>(
+      `select markId, tagIds, updatedAt from record_tag_metadata where markId in (${batch.map((_, index) => `$${index + 1}`).join(',')})`,
+      batch.map(mark => mark.id),
+    )
+    for (const row of rows) {
+      tagUpdatedAtByMark.set(row.markId, row.updatedAt)
+      try { tagIdsByMark.set(row.markId, JSON.parse(row.tagIds)) } catch { /* Legacy primary tag remains usable. */ }
+    }
+  }
+  return marks.map(mark => ({ ...mark, tagIds: recordTagIds({ tagId: mark.tagId, tagIds: tagIdsByMark.get(mark.id) }), tagUpdatedAt: tagUpdatedAtByMark.get(mark.id) ?? 0 }))
+}
+
+/** Omitted metadata means preserve existing tags, not clear them. One statement is atomic. */
+export async function saveMarkTagIds(markId: number, tagId: number, tagIds?: number[], updatedAt = 0) {
+  if (!Array.isArray(tagIds)) return
+  const db = await getDb()
+  await db.execute(`
+    insert into record_tag_metadata (markId, tagIds, updatedAt)
+    select id, $2, $3 from marks where id = $1
+    on conflict(markId) do update set tagIds = excluded.tagIds, updatedAt = excluded.updatedAt
+  `, [markId, JSON.stringify(recordTagIds({ tagId, tagIds })), Number.isFinite(updatedAt) ? updatedAt : 0])
+}
+
+/** Tag-only edits never write a stale copy of the record's content. */
+export async function updateRecordTags(id: number, tagIds: number[], expectedTagIds?: number[], newNames: string[] = [], expectedPrimary?: number) {
+  const mark = await getMarkById(id)
+  if (!mark || mark.deleted) throw new Error('Record not found')
+  const db = await getDb()
+  const tags = await db.select<Array<{ id: number }>>('select id from tags')
+  const valid = new Set(tags.map(tag => tag.id))
+  const next = recordTagIds({ tagId: mark.tagId, tagIds: tagIds.filter(tagId => valid.has(tagId)) })
+  const expected = expectedTagIds || recordTagIds(mark)
+  const names = [...new Set(newNames.map(normalizeTagName))]
+  const statements: RecordStatement[] = [{
+    sql: `update marks set sourceId = sourceId where id = $1 and deleted = 0 and tagId = $3 and
+      coalesce((select tagIds from record_tag_metadata where markId = marks.id), json_array(tagId)) = $2`,
+    values: [id, JSON.stringify([...expected].sort((a, b) => a - b)), expectedPrimary ?? mark.tagId],
+    expectedRows: 1,
+  }]
+  for (const name of names) statements.push({
+    sql: 'insert into tags (name) select $1 where not exists (select 1 from tags where name = $1)', values: [name],
+  })
+  statements.push({
+    sql: `insert into record_tag_metadata (markId, tagIds, updatedAt)
+      select id, (select json_group_array(value) from (
+        select tags.id as value from tags where tags.id in (select value from json_each($2))
+          or tags.name in (select value from json_each($3))
+        union select marks.tagId order by value
+      )), $4 from marks where id = $1
+      on conflict(markId) do update set tagIds = excluded.tagIds, updatedAt = excluded.updatedAt`,
+    values: [id, JSON.stringify(next), JSON.stringify(names), Date.now()], expectedRows: 1,
+  })
+  await executeRecordTransaction(statements)
+  enqueueRecordsAutoSync('mark:update-tags')
+  await invalidateMarkKnowledgeIndex(id).catch(error => console.error('Record index invalidation failed:', error))
+  enqueueMarkKnowledgeIndex(id)
+}
 
 async function deleteMarkLocalAsset(assetPath: string) {
   const fileExists = await exists(assetPath, { baseDir: BaseDirectory.AppData })
@@ -105,13 +186,17 @@ export async function initMarksDb() {
 
 export async function getMarks(id: number) {
   const db = await getDb();
-  // 根据 tagId 获取 marks，根据 createdAt 倒序
-  return await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks where tagId = $1 order by createdAt desc`, [id])
+  const marks = await db.select<Mark[]>(`
+    select ${MARK_COLUMNS} from marks
+    where ${RECORD_TAG_MATCH_SQL}
+    order by createdAt desc
+  `, [id])
+  return attachMarkTagIds(marks)
 }
 
-export async function getMarkPreviews(id: number) {
+export async function getMarkPreviews(id?: number) {
   const db = await getDb()
-  return await db.select<Mark[]>(`
+  const marks = await db.select<Mark[]>(`
     select
       id,
       tagId,
@@ -122,14 +207,15 @@ export async function getMarkPreviews(id: number) {
       deleted,
       createdAt
     from marks
-    where tagId = $1 and deleted = 0
+    where ($1 is null or ${RECORD_TAG_MATCH_SQL}) and deleted = 0
     order by createdAt desc
-  `, [id])
+  `, [id ?? null])
+  return attachMarkTagIds(marks)
 }
 
 export async function getTrashMarkPreviews() {
   const db = await getDb()
-  return await db.select<Mark[]>(`
+  const marks = await db.select<Mark[]>(`
     select
       id,
       tagId,
@@ -143,12 +229,13 @@ export async function getTrashMarkPreviews() {
     where deleted = 1
     order by createdAt desc
   `)
+  return attachMarkTagIds(marks)
 }
 
 export async function getMarkById(id: number) {
   const db = await getDb()
   const marks = await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks where id = $1`, [id])
-  return marks[0]
+  return (await attachMarkTagIds(marks))[0]
 }
 
 export async function updateMarkTag(id: number, tagId: number) {
@@ -169,6 +256,7 @@ export async function insertMark(mark: Partial<Mark>, beforeWrite?: () => Promis
     "insert into marks (tagId, type, content, url, desc, createdAt, deleted, sourceId) values ($1, $2, $3, $4, $5, $6, $7, $8)",
     [mark.tagId, mark.type, mark.content, mark.url, mark.desc, createdAt, 0, sourceId]
   )
+  if (result.lastInsertId) await saveMarkTagIds(result.lastInsertId, mark.tagId!, mark.tagIds, Date.now())
 
   const localImagePath = mark.type && mark.url
     ? getMarkLocalAssetPath({ type: mark.type, url: mark.url })
@@ -219,7 +307,7 @@ export async function insertExternalMark(mark: Partial<Mark> & { sourceId: strin
 
 export async function getAllMarks() {
   const db = await getDb();
-  return await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks order by createdAt desc`)
+  return attachMarkTagIds(await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks order by createdAt desc`))
 }
 
 export async function updateMark(mark: Mark) {
@@ -293,6 +381,7 @@ export async function insertMarks(marks: Partial<Mark>[]) {
             "update marks set tagId = $1, type = $2, content = $3, url = $4, desc = $5, createdAt = $6, deleted = $7, sourceId = $8 where id = $9",
             [mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted, sourceId, mark.id]
           );
+          await saveMarkTagIds(mark.id, mark.tagId!, mark.tagIds, mark.tagUpdatedAt)
           continue
         }
 
@@ -301,14 +390,16 @@ export async function insertMarks(marks: Partial<Mark>[]) {
           "insert into marks (id, tagId, type, content, url, desc, createdAt, deleted, sourceId) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
           [mark.id, mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted, sourceId]
         );
+        await saveMarkTagIds(mark.id, mark.tagId!, mark.tagIds, mark.tagUpdatedAt)
         continue
       }
 
       const sourceId = mark.sourceId ?? crypto.randomUUID()
-      await db.execute(
+      const result = await db.execute(
         "insert into marks (tagId, type, content, url, desc, createdAt, deleted, sourceId) values ($1, $2, $3, $4, $5, $6, $7, $8)",
         [mark.tagId, mark.type, mark.content, mark.url, mark.desc, mark.createdAt, mark.deleted, sourceId]
       );
+      if (result.lastInsertId) await saveMarkTagIds(result.lastInsertId, mark.tagId!, mark.tagIds, mark.tagUpdatedAt)
     }
     enqueueRecordsAutoSync('mark:bulk-insert')
     reconcileRecordKnowledgeIndex()
@@ -401,9 +492,11 @@ export async function updatePluginTextRecord(previous: Mark, next: Mark, beforeW
   const result = await db.execute(
     `update marks set tagId = $1, content = $2, desc = $3
      where id = $4 and deleted = 0 and type = $5 and tagId = $6
-     and content is $7 and desc is $8 and url is $9 and createdAt = $10 and sourceId is $11 and exists (select 1 from tags where id = $1)`,
+     and content is $7 and desc is $8 and url is $9 and createdAt = $10 and sourceId is $11
+     and coalesce((select tagIds from record_tag_metadata where markId = marks.id), json_array(tagId)) = $12
+     and exists (select 1 from tags where id = $1)`,
     [next.tagId, next.content, next.desc, previous.id, previous.type, previous.tagId,
-      previous.content ?? null, previous.desc ?? null, previous.url, previous.createdAt, previous.sourceId ?? null],
+      previous.content ?? null, previous.desc ?? null, previous.url, previous.createdAt, previous.sourceId ?? null, JSON.stringify(recordTagIds(previous))],
   )
   if (result.rowsAffected) {
     enqueueRecordsAutoSync('mark:plugin-update')

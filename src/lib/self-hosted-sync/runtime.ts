@@ -789,10 +789,10 @@ async function refreshBindingStores(binding: Binding) {
     const markState = useMarkStore.getState()
     const chatState = useChatStore.getState()
     const currentConversationId = chatState.currentConversationId
+    await useTagStore.getState().fetchTags()
     await Promise.all([
       markState.fetchAllMarks(),
       markState.trashState ? markState.fetchAllTrashMarks() : markState.fetchMarks(),
-      useTagStore.getState().fetchTags(),
       useCanvasStore.getState().loadProjects(),
       chatState.initConversations(),
     ])

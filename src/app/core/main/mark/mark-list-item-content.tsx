@@ -24,7 +24,19 @@ const DEFAULT_TODO: ParsedTodoMark = {
 }
 
 function compactText(value?: string) {
-  return value?.replace(/\s+/g, ' ').trim() || ''
+  return value
+    ?.replace(/&#(x[\da-f]+|\d+);/gi, (entity, code) => {
+      const codePoint = code[0].toLowerCase() === 'x'
+        ? Number.parseInt(code.slice(1), 16)
+        : Number.parseInt(code, 10)
+      return Number.isFinite(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : entity
+    })
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || ''
 }
 
 function splitTitleAndPreview(value?: string) {
@@ -60,10 +72,10 @@ export function getMarkListItemContent(mark: Mark): MarkListItemContent {
   switch (mark.type) {
   case 'text': {
     const fallback = compactText(mark.desc)
-    const { title, preview } = splitTitleAndPreview(mark.content || mark.desc)
+    const content = compactText(mark.content || mark.desc)
     return {
-      title: title || fallback,
-      preview: preview || title || fallback,
+      title: content || fallback,
+      preview: '',
     }
   }
   case 'recording': {
@@ -80,11 +92,9 @@ export function getMarkListItemContent(mark: Mark): MarkListItemContent {
     const content = compactText(mark.content)
     const hasAiDescription = Boolean(desc && desc !== content)
     const displayText = hasAiDescription ? desc : content || desc
-    const { title, preview } = splitTitleAndPreview(displayText)
-
     return {
-      title: title || displayText,
-      preview: preview || '',
+      title: displayText,
+      preview: '',
       imageUrl: mark.url,
     }
   }
@@ -92,16 +102,18 @@ export function getMarkListItemContent(mark: Mark): MarkListItemContent {
     const title = compactText(mark.desc) || compactText(mark.url)
     return {
       title,
-      preview: compactText(mark.url),
+      preview: compactText(mark.content),
       linkUrl: mark.url,
     }
   }
   case 'file': {
     const desc = compactText(mark.desc)
-    const { title, preview } = splitTitleAndPreview(mark.content)
+    const content = compactText(mark.content)
     return {
-      title: desc || title || compactText(mark.url),
-      preview: preview || compactText(mark.url) || desc || title,
+      // A file's description is its stable display name. Its editable content
+      // belongs in the preview so edits are immediately reflected in every list view.
+      title: desc || compactText(mark.url),
+      preview: content || compactText(mark.url),
     }
   }
   case 'todo': {

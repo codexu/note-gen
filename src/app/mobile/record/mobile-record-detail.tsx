@@ -52,6 +52,8 @@ import { cn, isHttpUrl } from '@/lib/utils'
 import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import useChatStore from '@/stores/chat'
+import { RecordTagEditor } from '@/app/core/main/mark/record-tag-editor'
+import { recordTagIds } from '@/lib/record-tags'
 
 interface MobileRecordDetailProps {
   markId: number
@@ -185,6 +187,7 @@ export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps
   const hasChanges = Boolean(draft && savedDraft && JSON.stringify(draft) !== JSON.stringify(savedDraft))
   const isReadOnly = mark?.deleted === 1
   const currentTag = tags.find((tag) => tag.id === draft?.tagId)
+  const currentTags = tags.filter((tag) => mark && recordTagIds(mark).includes(tag.id))
 
   function navigateBack() {
     clearActiveMark()
@@ -228,7 +231,8 @@ export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps
           }
 
       await updateMark(nextMark)
-      setMark(nextMark)
+      const saved = await getMarkById(nextMark.id)
+      setMark(saved || nextMark)
       const mobileContexts = useChatStore.getState().mobileActiveContexts
       if (mobileContexts.markId === nextMark.id) {
         useChatStore.getState().setMobileActiveContexts({ markId: nextMark.id })
@@ -416,7 +420,7 @@ export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps
           <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
             <span className="shrink-0">{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm')}</span>
             <span aria-hidden="true">·</span>
-            <span className="truncate">{currentTag?.name || t('record.mark.detail.tag')}</span>
+            <span className="truncate">{currentTags.map((tag) => tag.name).join(' · ') || currentTag?.name || t('record.mark.detail.tag')}</span>
           </div>
 
           {imageSrc ? (
@@ -459,12 +463,14 @@ export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps
                 id="record-tag"
                 title={t('record.mark.detail.tag')}
                 value={String(draft.tagId)}
-                onValueChange={(value) => setDraft((current) => current ? { ...current, tagId: Number(value) } : current)}
+                onValueChange={(value) => setDraft(current => current ? { ...current, tagId: Number(value) } : current)}
                 disabled={isReadOnly}
                 className="h-11"
                 options={tags.map(tag => ({ value: String(tag.id), label: tag.name }))}
               />
             </DetailField>
+
+            <RecordTagEditor mark={mark} onSaved={saved => setMark(current => current ? { ...current, tagIds: saved.tagIds, tagUpdatedAt: saved.tagUpdatedAt } : current)} />
 
             {mark.type === 'todo' ? (
               <>

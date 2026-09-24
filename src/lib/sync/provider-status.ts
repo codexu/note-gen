@@ -93,7 +93,7 @@ async function checkGiteeStatus(store: Store) {
     }
     const repo = await checkSyncRepoState(target.repo)
     if (!await isProviderCheckTargetCurrent(store, 'gitee', target)) return
-    syncStore.setGiteeSyncRepoInfo(repo)
+    syncStore.setGiteeSyncRepoInfo(repo ?? undefined)
     syncStore.setGiteeSyncRepoState(repo ? SyncStateEnum.success : SyncStateEnum.fail)
   } catch (error) {
     console.error('Failed to check Gitee status:', error)

@@ -83,6 +83,7 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'providerTemplatesCache',
   'remoteSkills.searchCache',
   'lastDownloadedRagSnapshot',
+  'recordFilterTags',
 
   // 文件、画布和应用数据同步的本地进度
   'canvasSyncVersions',

@@ -75,6 +75,8 @@ import { createRecordTab, getRecordTabPath } from "./mark-record-tab"
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta"
 import { TipTapEditor } from "@/app/core/main/editor/markdown/tiptap-editor"
 import { isLargeMarkdownDocument } from "@/app/core/main/editor/markdown/large-markdown"
+import { RecordTagEditor } from './record-tag-editor'
+import { recordTagIds } from '@/lib/record-tags'
 
 const getMarkTitle = (mark: Mark, fallback: string) => {
   const title = mark.desc?.trim() || mark.content?.trim() || mark.url?.trim()
@@ -365,6 +367,8 @@ function MarkDetailToolbar({
   const canMoveTag = !isTrashMark && filteredTags.length > 0
   const canCopyLink = Boolean(mark.url)
   const canRegenerateDesc = !isTrashMark && mark.type !== 'text' && mark.type !== 'todo' && Boolean(mark.content?.trim())
+  const markTagIds = useMemo(() => recordTagIds(mark), [mark])
+  const markTags = useMemo(() => tags.filter((tag) => markTagIds.includes(tag.id)), [markTagIds, tags])
 
   useEffect(() => {
     setTitleValue(getEditableTitle(mark, fallbackTitle))
@@ -397,11 +401,11 @@ function MarkDetailToolbar({
   }, [fetchAllMarks, fetchAllTrashMarks, fetchMarks, isTrashMark])
 
   const handleTransfer = useCallback(async (tagId: number) => {
-    await updateMark({ ...mark, tagId })
+    await updateMark({ ...mark, tagId, tagIds: [...markTagIds.filter((id) => id !== mark.tagId), tagId] })
     await fetchTags()
     getCurrentTag()
     await refreshMarks()
-  }, [fetchTags, getCurrentTag, mark, refreshMarks, updateMark])
+  }, [fetchTags, getCurrentTag, mark, markTagIds, refreshMarks, updateMark])
 
   const handleTitleChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextTitle = event.target.value
@@ -629,6 +633,7 @@ function MarkDetailToolbar({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
+                {!isTrashMark ? <RecordTagEditor mark={mark} /> : null}
                 {isTrashMark ? (
                   <TooltipButton
                     icon={<RotateCcw className="size-4" />}
@@ -716,6 +721,13 @@ function MarkDetailToolbar({
             ) : (
               <div className="h-8" aria-hidden="true" />
             )}
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {markTags.map((tag) => (
+                <Badge key={tag.id} variant="secondary" className="max-w-full truncate font-normal">
+                  {tag.name}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
       </div>

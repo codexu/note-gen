@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Toggle } from "@/components/ui/toggle"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import useMarkStore, { RecordTimePreset } from "@/stores/mark"
 import { cn } from "@/lib/utils"
@@ -58,7 +57,7 @@ export function MarkFilterPopover() {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <PopoverContent side="right" align="start" sideOffset={12} className="w-[320px] rounded-xl border-border/60 bg-popover/95 p-4 shadow-lg">
+      <PopoverContent side="right" align="start" sideOffset={12} className="max-h-[80dvh] w-[min(360px,calc(100vw-24px))] overflow-y-auto p-4">
         <div className="space-y-4">
           <div className="space-y-1">
             <div className="text-sm font-semibold">{t('toolbar.filter.title')}</div>
@@ -122,8 +121,6 @@ export function MarkFilterPopover() {
               ))}
             </div>
           </div>
-
-          <Separator />
 
           <div className="flex justify-end">
             <Button

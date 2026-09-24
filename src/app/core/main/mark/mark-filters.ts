@@ -1,5 +1,7 @@
 import type { Mark } from '@/db/marks'
 import type { RecordSortMode } from '@/lib/record-display-preferences'
+import type { Tag } from '@/db/tags'
+import { normalizeTagRules, matchesTagRules, recordMatchesTag, type TagRules } from '@/lib/record-tags'
 
 type RecordTimePreset = 'all' | 'today' | 'last7Days' | 'last30Days'
 
@@ -8,6 +10,7 @@ type RecordFiltersLike = {
   selectedTypes: Mark['type'][]
   timePreset: RecordTimePreset
   tagId: number | 'all'
+  tagRules: TagRules
 }
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000
@@ -78,6 +81,7 @@ export function normalizeRecordFilters(filters?: Partial<RecordFiltersLike>): Re
     selectedTypes,
     timePreset,
     tagId,
+    tagRules: normalizeTagRules(filters?.tagRules),
   }
 }
 
@@ -87,6 +91,7 @@ export function getTrashRecordFilters(): RecordFiltersLike {
     selectedTypes: [],
     timePreset: 'all',
     tagId: 'all',
+    tagRules: normalizeTagRules(),
   }
 }
 
@@ -97,19 +102,19 @@ export function buildRecordFilterSummary(filters?: Partial<RecordFiltersLike>) {
     hasFilters: Boolean(
       normalized.search.trim() ||
       normalized.selectedTypes.length > 0 ||
-      normalized.timePreset !== 'all' ||
-      normalized.tagId !== 'all'
+      normalized.timePreset !== 'all'
     ),
     search: normalized.search.trim(),
     typeCount: normalized.selectedTypes.length,
     timePreset: normalized.timePreset,
-    hasTag: normalized.tagId !== 'all',
+    hasTag: false,
   }
 }
 
 export function filterMarks(
   marks: Mark[],
-  filters?: Partial<RecordFiltersLike> & { now?: string | Date }
+  filters?: Partial<RecordFiltersLike> & { now?: string | Date },
+  tags: Tag[] = [],
 ) {
   const normalizedFilters = normalizeRecordFilters(filters)
   const search = normalizeText(normalizedFilters.search)
@@ -123,7 +128,7 @@ export function filterMarks(
       return false
     }
 
-    if (tagId !== 'all' && mark.tagId !== tagId) {
+    if (tagId !== 'all' && !recordMatchesTag(mark, tagId, tags)) {
       return false
     }
 
@@ -131,7 +136,7 @@ export function filterMarks(
       return false
     }
 
-    return matchesSearch(mark, search)
+    return matchesSearch(mark, search) && matchesTagRules(mark, normalizedFilters.tagRules, tags)
   })
 }
 

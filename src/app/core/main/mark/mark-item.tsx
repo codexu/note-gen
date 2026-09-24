@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/enhanced-context-menu"
 import dayjs from "dayjs";
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import useMarkStore from "@/stores/mark";
 import useTagStore from "@/stores/tag";
 import { fetchAiDesc } from "@/lib/ai/description";
@@ -108,7 +108,6 @@ const MarkDetailTrigger = React.memo(({
   const { centerPanelVisible, showCenterPanel } = useSidebarStore()
   const { recordTextSize } = useSettingStore()
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
-  const lineHeightRem = useMemo(() => getLineHeightRem(recordTextSize), [recordTextSize])
 
   const fallbackClassName = `mt-2 max-w-full line-clamp-2 ${lineHeight} text-${recordTextSize} break-words [overflow-wrap:anywhere]`
 
@@ -139,13 +138,6 @@ const MarkDetailTrigger = React.memo(({
       display: '-webkit-box',
       WebkitBoxOrient: 'vertical',
       WebkitLineClamp: clampLines,
-      maxHeight: `${lineHeightRem * clampLines}rem`,
-      overflow: 'hidden',
-    }
-    : undefined
-  const clampContainerStyle: React.CSSProperties | undefined = clampLines
-    ? {
-      maxHeight: `${lineHeightRem * clampLines}rem`,
       overflow: 'hidden',
     }
     : undefined
@@ -157,7 +149,6 @@ const MarkDetailTrigger = React.memo(({
           "group relative w-full min-w-0 max-w-full overflow-hidden text-left",
           activeMarkId === mark.id && "text-primary"
         )}
-        style={clampContainerStyle}
       >
         <span
           className={cn(
@@ -173,6 +164,7 @@ const MarkDetailTrigger = React.memo(({
           <Button
             type="button"
             variant="ghost"
+            data-mark-detail-trigger="true"
             aria-label={label}
             aria-pressed={activeMarkId === mark.id}
             onClick={openDetail}
@@ -197,9 +189,9 @@ const MarkDetailTrigger = React.memo(({
     <Button
       type="button"
       variant="link"
+      data-mark-detail-trigger="true"
       aria-pressed={activeMarkId === mark.id}
       onClick={openDetail}
-      style={clampContainerStyle}
       className={cn(
         'h-auto justify-start p-0 font-normal',
         triggerClassName,
@@ -272,27 +264,9 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
   const lineHeightRem = useMemo(() => getLineHeightRem(recordTextSize), [recordTextSize])
   const shouldShowRecordingAction = mark.type === 'recording' && mark.content === NO_TRANSCRIPTION_MESSAGE
-  const recordingPendingTitle = shouldShowRecordingAction
-    ? (sttModel ? recordingT('pendingTranscription') : recordingT('pendingModelConfiguration'))
-    : ''
   const itemContent = useMemo(() => getMarkListItemContent(mark), [mark])
   const listTitleClassName = `block max-w-full truncate text-${recordTextSize} font-semibold ${interactive ? 'hover:underline' : ''}`
   const listPreviewClassName = `max-w-full ${lineHeight} text-${recordTextSize} text-muted-foreground break-words [overflow-wrap:anywhere]`
-  const fileDescription = useMemo(() => {
-    if (mark.type !== 'file') {
-      return ''
-    }
-
-    const content = compactRecordText(mark.content)
-    const title = compactRecordText(itemContent.title)
-    const path = compactRecordText(mark.url)
-
-    if (!content || content === title || content === path) {
-      return ''
-    }
-
-    return content
-  }, [itemContent.title, mark.content, mark.type, mark.url])
   const cardPreviewClampLines = 6
   const cardPreviewClampStyle: React.CSSProperties = {
     display: '-webkit-box',
@@ -398,10 +372,24 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
     }
   }, [captureT, fetchMarks, isReparsingFile, mark])
 
-  const renderListTextBlock = (title: string, preview?: string) => {
+  const renderListTextBlock = (title: string, preview?: string, contentOnly = false) => {
     const displayTitle = compactRecordText(title) || imageStatusText || t(mark.type)
     const displayPreview = compactRecordText(preview)
     const shouldShowPreview = Boolean(displayPreview && displayPreview !== displayTitle)
+
+    if (contentOnly) {
+      return (
+        <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden">
+          <MarkDetailTrigger
+            mark={mark}
+            content={displayTitle}
+            className={listPreviewClassName}
+            clampLines={3}
+            interactive={interactive}
+          />
+        </div>
+      )
+    }
 
     return (
       <div className="mt-2 flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
@@ -416,7 +404,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             mark={mark}
             content={displayPreview}
             className={listPreviewClassName}
-            clampLines={4}
+            clampLines={3}
             interactive={interactive}
           />
         ) : null}
@@ -465,7 +453,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
         {mark.type === 'recording' && mark.url ? (
           <AudioPlayer audioPath={mark.url} compact />
         ) : null}
-        <span className="shrink-0 text-xs text-muted-foreground">{dayjs(mark.createdAt).format('HH:mm')}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{dayjs(mark.createdAt).fromNow()}</span>
       </div>
     )
   }
@@ -503,7 +491,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
           {mark.type === 'todo' && itemContent.todo ? (
             <span className={`size-2 shrink-0 rounded-full ${todoPriorityDotClass}`} />
           ) : null}
-          <span className="ml-auto shrink-0 text-xs">{dayjs(mark.createdAt).format('MM-DD HH:mm')}</span>
+          <span className="ml-auto shrink-0 text-xs">{dayjs(mark.createdAt).fromNow()}</span>
         </div>
         {isImageCard && mark.url ? (
           <div className="relative w-full min-w-0 max-w-full overflow-hidden rounded-md bg-muted">
@@ -521,7 +509,8 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
           </div>
         ) : null}
         <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
-          {mark.type === 'todo' ? interactive ? (
+        {mark.type === 'todo' ? (
+          interactive ? (
             <TodoEditTrigger mark={mark} className={`block max-w-full truncate text-${recordTextSize} font-semibold hover:underline`}>
               {itemContent.title || itemContent.preview || t(mark.type)}
             </TodoEditTrigger>
@@ -529,14 +518,23 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             <span className={`block max-w-full truncate text-${recordTextSize} font-semibold`}>
               {itemContent.title || itemContent.preview || t(mark.type)}
             </span>
-          ) : (
+          )
+        ) : mark.type === 'text' ? (
+          <MarkDetailTrigger
+            mark={mark}
+            content={itemContent.title || t(mark.type)}
+            className={`max-w-full break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`}
+            clampLines={cardPreviewClampLines}
+            interactive={interactive}
+          />
+        ) : (
             <MarkDetailTrigger
               mark={mark}
               content={itemContent.title || itemContent.preview || imageStatusText || t(mark.type)}
               className={`block max-w-full truncate text-${recordTextSize} font-semibold ${interactive ? 'hover:underline' : ''}`}
               interactive={interactive}
             />
-          )}
+        )}
           {!isImageCard && itemContent.preview && mark.type !== 'file' ? mark.type === 'todo' ? (
             interactive ? (
               <div
@@ -566,15 +564,6 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               content={itemContent.preview}
               className={`max-w-full break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`}
               clampLines={cardPreviewClampLines}
-              interactive={interactive}
-            />
-          ) : null}
-          {!isImageCard && mark.type === 'file' && fileDescription ? (
-            <MarkDetailTrigger
-              mark={mark}
-              content={fileDescription}
-              className={`max-w-full break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`}
-              clampLines={3}
               interactive={interactive}
             />
           ) : null}
@@ -622,7 +611,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             <ImageRecordStatusBadge status={imageStatus} label={imageStatusText} compact />
             <span className={`ml-auto shrink-0 text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
-          {renderListTextBlock(itemContent.title || mark.desc || imageStatusText || t(mark.type), itemContent.preview)}
+          {renderListTextBlock(itemContent.title || mark.desc || imageStatusText || t(mark.type), itemContent.preview, true)}
         </div>
     )
     case 'image':
@@ -636,7 +625,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             {isHttpUrl(mark.url) ? <ImageUp className="size-3 text-muted-foreground" /> : null}
             <span className={`ml-auto shrink-0 text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
           </div>
-          {renderListTextBlock(itemContent.title || mark.desc || imageStatusText || t(mark.type), itemContent.preview)}
+          {renderListTextBlock(itemContent.title || mark.desc || imageStatusText || t(mark.type), itemContent.preview, true)}
         </div>
     )
     case 'link':
@@ -676,7 +665,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               </span>
               <span className={`ml-auto shrink-0 text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
-            {renderListTextBlock(recordingPendingTitle || itemContent.title || t(mark.type), itemContent.preview)}
+            {renderListTextBlock(itemContent.title || t(mark.type), undefined, true)}
           </div>
       )
     case 'recording':
@@ -737,18 +726,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               ) : null}
               <span className={`ml-auto shrink-0 text-${recordTextSize}`}>{dayjs(mark.createdAt).fromNow()}</span>
             </div>
-            {renderListTextBlock(itemContent.title || t(mark.type))}
-            {fileDescription ? (
-              <div className="mt-2 min-w-0 max-w-full overflow-hidden">
-                <MarkDetailTrigger
-                  mark={mark}
-                  content={fileDescription}
-                  className={`max-w-full break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`}
-                  clampLines={3}
-                  interactive={interactive}
-                />
-              </div>
-            ) : null}
+            {renderListTextBlock(itemContent.title || t(mark.type), itemContent.preview)}
           </div>
       )
     case 'todo':
@@ -815,12 +793,38 @@ export const MarkItem = React.memo(({
 
     return activeMarkId === mark.id || (isMultiSelectMode && selectedMarkIds.has(activeMarkId))
   }, [activeMarkId, isMultiSelectMode, mark.id, selectedMarkIds])
+  const dragStartedRef = useRef(false)
+
+  const openRecordDetail = useCallback(async () => {
+    const markStore = useMarkStore.getState()
+    const articleStore = useArticleStore.getState()
+    markStore.setActiveMarkId(mark.id)
+    const recordTab = createRecordTab(mark, t(`record.mark.type.${mark.type}`))
+    const existingTab = articleStore.openTabs.find(tab => tab.path === recordTab.path)
+    if (existingTab) {
+      await articleStore.setActiveTabId(existingTab.id)
+    } else {
+      await articleStore.addTab(recordTab)
+    }
+    await articleStore.setActiveFilePath('')
+    if (!useSidebarStore.getState().centerPanelVisible) {
+      await useSidebarStore.getState().showCenterPanel()
+    }
+  }, [mark, t])
+
+  const handleMarkCardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (dragStartedRef.current || !interactive || isMultiSelectMode || isMobile) return
+    const target = event.target instanceof Element ? event.target : null
+    if (target?.closest('button, a, input, textarea, select, [role="button"], [data-mark-detail-trigger], [data-mark-no-open]')) return
+    void openRecordDetail()
+  }, [interactive, isMobile, isMultiSelectMode, openRecordDetail])
 
   const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     if (!interactive || isMultiSelectMode) {
       e.preventDefault()
       return
     }
+    dragStartedRef.current = true
 
     const markdownContent = markToMarkdown(mark);
     e.dataTransfer.setData('text/plain', markdownContent);
@@ -838,6 +842,7 @@ export const MarkItem = React.memo(({
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = '1'
     }
+    window.setTimeout(() => { dragStartedRef.current = false })
   }, []);
 
   const handleDelMark = useCallback(async (e?: React.MouseEvent) => {
@@ -993,8 +998,8 @@ export const MarkItem = React.memo(({
             )
           : variant === 'compact'
             ? cn(
-                'w-full min-w-0 max-w-full overflow-hidden rounded-md py-2',
-                grouped ? 'bg-transparent px-2' : 'border border-border/60 bg-background px-3'
+                'w-full min-w-0 max-w-full overflow-hidden py-1.5',
+                grouped ? 'px-2' : 'px-3'
               )
             : 'w-full min-w-0 max-w-full overflow-hidden border-b border-l-2 border-b-border/60 border-l-transparent bg-background last:border-b-0',
         highlightedMarkId === mark.id && (
@@ -1007,17 +1012,18 @@ export const MarkItem = React.memo(({
             ? 'border-l-2 border-l-primary bg-accent/45'
             : grouped
               ? 'bg-accent/50 ring-1 ring-primary/40'
-              : 'border-primary/60 bg-accent/50 shadow-sm'
+              : 'bg-accent'
         ),
         interactive ? (
           variant === 'list'
             ? (isMobile ? 'cursor-default active:bg-accent/35' : 'cursor-move hover:bg-muted/45')
-            : (isMobile ? 'cursor-default active:bg-accent/40' : 'cursor-move hover:bg-accent/50')
+            : (isMobile ? 'cursor-default active:bg-accent' : 'cursor-move hover:bg-accent')
         ) : 'cursor-default'
       )}
       draggable={interactive && !isMultiSelectMode && !isMobile}
       onDragStart={interactive ? handleDragStart : undefined}
       onDragEnd={interactive ? handleDragEnd : undefined}
+      onClick={handleMarkCardClick}
     >
       <MarkWrapper mark={mark} variant={variant} interactive={interactive} />
       {interactive ? (

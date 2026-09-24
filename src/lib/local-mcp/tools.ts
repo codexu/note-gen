@@ -2,6 +2,7 @@ import { exists, lstat, readDir, readTextFile } from '@tauri-apps/plugin-fs'
 
 import { moveEntryToSystemTrash } from '@/app/core/main/file/system-trash'
 import { getTags } from '@/db/tags'
+import { recordMatchesTag } from '@/lib/record-tags'
 import { delMark, getAllMarks, getMarkById, insertMark, restoreMark, updateMark, type Mark } from '@/db/marks'
 import { getAllConversations, getConversation } from '@/db/conversations'
 import { getChatsByConversation } from '@/db/chats'
@@ -436,8 +437,9 @@ export async function executeLocalMcpTool(toolName: string, rawArguments: unknow
       case 'record_list': {
         const tagId = typeof input.tagId === 'number' ? requiredInteger(input, 'tagId') : undefined
         const includeDeleted = input.includeDeleted === true
+        const tags = await getTags()
         const records = (await getAllMarks()).filter(record =>
-          (tagId === undefined || record.tagId === tagId) && (includeDeleted || record.deleted === 0)
+          (tagId === undefined || recordMatchesTag(record, tagId, tags)) && (includeDeleted || record.deleted === 0)
         )
         await assertWorkspaceUnchanged(workspace)
         return textResult(`找到 ${records.length} 条记录`, { records })

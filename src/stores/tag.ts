@@ -1,4 +1,6 @@
-import { Tag, delTag, getTags, insertTags, deleteAllTags } from '@/db/tags'
+import { Tag, delTag, getTags } from '@/db/tags'
+import { tagSnapshotStatements } from '@/db/record-snapshot'
+import { executeRecordTransaction } from '@/db'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab'
@@ -14,8 +16,11 @@ import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import { setAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
 
 interface RecordDataDownloadOptions {
+  fetchOnly?: boolean
   allowMissingRemote?: boolean
 }
+
+let tagRefresh: Promise<void> = Promise.resolve()
 
 interface TagState {
   currentTagId: number
@@ -65,8 +70,18 @@ const useTagStore = create<TagState>((set, get) => ({
   // 所有 tag
   tags: [],
   fetchTags: async () => {
-    const tags = await getTags()
-    set({ tags })
+    const refresh = tagRefresh.catch(() => {}).then(async () => {
+      const tags = await getTags()
+      const { default: marks } = await import('./mark')
+      await marks.getState().reconcileRecordTagFilters(tags)
+      set({ tags })
+      if (tags.length && !tags.some(tag => tag.id === get().currentTagId)) {
+        await get().setCurrentTagId(tags.find(tag => tag.isLocked)?.id ?? tags[0].id)
+      }
+      get().getCurrentTag()
+    })
+    tagRefresh = refresh
+    await refresh
   },
 
   deleteTag: async (id: number) => {
@@ -275,10 +290,11 @@ const useTagStore = create<TagState>((set, get) => ({
       }
     }
     if (hasRemoteData) {
+      const statements = tagSnapshotStatements(result)
+      if (options.fetchOnly) return result
       setAutoDataSyncApplyingRemote(true)
       try {
-        await deleteAllTags()
-        await insertTags(result)
+        await executeRecordTransaction(statements)
         await get().fetchTags()
         const tags = get().tags
         if (tags.length > 0 && !tags.some(tag => tag.id === get().currentTagId)) {
@@ -290,7 +306,7 @@ const useTagStore = create<TagState>((set, get) => ({
       }
     }
     set({ syncState: false })
-    return result
+    return options.fetchOnly && !hasRemoteData ? getTags() : result
   },
 }))
 

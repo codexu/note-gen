@@ -112,7 +112,8 @@ function matchesScope(source: KnowledgeSource, options: KnowledgeSearchOptions) 
     const folder = options.folderPath.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
     if (!(path === folder || path.startsWith(`${folder}/`))) return false
   }
-  if (typeof options.tagId === 'number' && options.tagId > 0 && source.sourceType === 'record' && source.locator.tagId !== options.tagId) {
+  if (typeof options.tagId === 'number' && options.tagId > 0 && source.sourceType === 'record' &&
+    source.locator.tagId !== options.tagId && !source.locator.tagIds?.includes(options.tagId)) {
     return false
   }
   return true

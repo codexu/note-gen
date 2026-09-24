@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { MoreVertical, Edit2, Trash2 } from 'lucide-react'
+import { MoreVertical, Edit2, FolderPlus, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,11 +14,12 @@ import { useIsMobile } from '@/hooks/use-mobile'
 interface TagMobileActionsProps {
   tag: Tag
   onRename: (tag: Tag) => void
+  onAddChild: (tag: Tag) => void
   onDelete: (tagId: number) => void
   isEditing: boolean
 }
 
-export function TagMobileActions({ tag, onRename, onDelete, isEditing }: TagMobileActionsProps) {
+export function TagMobileActions({ tag, onRename, onAddChild, onDelete, isEditing }: TagMobileActionsProps) {
   const t = useTranslations()
   const isMobile = useIsMobile()
 
@@ -43,6 +44,16 @@ export function TagMobileActions({ tag, onRename, onDelete, isEditing }: TagMobi
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          disabled={isEditing}
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddChild(tag)
+          }}
+        >
+          <FolderPlus data-icon="inline-start" />
+          {t('record.mark.tag.newChildTag')}
+        </DropdownMenuItem>
         <DropdownMenuItem 
           disabled={isEditing}
           onClick={(e) => {

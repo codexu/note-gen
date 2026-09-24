@@ -23,6 +23,7 @@ import { insertTag } from '@/db/tags'
 import { cn, isHttpUrl } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { refreshRemoteRecordsNow } from '@/lib/sync/auto-data-sync-queue'
+import { toast } from '@/hooks/use-toast'
 
 const TIME_OPTIONS: RecordTimePreset[] = ['all', 'today', 'last7Days', 'last30Days']
 const PULL_REFRESH_THRESHOLD = 72
@@ -150,12 +151,13 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
     return {
       ...recordFilters,
       tagId: 'all' as const,
+      tagRules: { include: [], exclude: [], match: 'all' as const },
     }
   }, [trashState, recordFilters])
 
   const filteredRecords = useMemo(() => {
-    return filterMarks(records, mobileRecordFilters)
-  }, [records, mobileRecordFilters])
+    return filterMarks(records, mobileRecordFilters, tags)
+  }, [records, mobileRecordFilters, tags])
 
   const renderedRecords = useMemo(
     () => filteredRecords.slice(0, visibleRecordCount),
@@ -441,13 +443,17 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
   async function handleCreateTag() {
     const value = newTagName.trim()
     if (!value) return
-    const res = await insertTag({ name: value })
-    const newTagId = Number(res.lastInsertId)
-    await fetchTags()
-    await setCurrentTagId(newTagId)
-    setNewTagName('')
-    setCreateTagOpen(false)
-    setTagDrawerOpen(false)
+    try {
+      const res = await insertTag({ name: value })
+      const newTagId = Number(res.lastInsertId)
+      await fetchTags()
+      await setCurrentTagId(newTagId)
+      setNewTagName('')
+      setCreateTagOpen(false)
+      setTagDrawerOpen(false)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
   }
 
   function handleResetFilters() {
@@ -481,6 +487,8 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                       variant={currentTagId === tag.id ? 'default' : 'outline'}
                       className="h-10 w-full justify-start"
                       onClick={async () => {
+                        useMarkStore.getState().setRecordTagRules({ include: [], exclude: [], match: 'all' })
+                        useMarkStore.getState().setRecordTagId('all')
                         await setCurrentTagId(tag.id)
                         setTagDrawerOpen(false)
                       }}
@@ -773,7 +781,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
           <DrawerHeader>
             <DrawerTitle>{t('record.mark.toolbar.filter.title')}</DrawerTitle>
           </DrawerHeader>
-          <div className="flex flex-col gap-3 px-4 pb-4">
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.search')}</div>

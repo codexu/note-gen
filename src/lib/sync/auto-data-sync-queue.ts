@@ -6,6 +6,7 @@ import { decodeBase64ToString, getRemoteFileContent } from '@/lib/sync/remote-fi
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import type { Mark } from '@/db/marks'
 import type { Tag } from '@/db/tags'
+import { mergeRecordTags, preserveLegacyRecordTags, recordTagIds } from '@/lib/record-tags'
 import { downloadRecordAssets, uploadRecordAssets } from '@/lib/sync/record-assets'
 import { recordSyncTiming } from '@/lib/sync/sync-timing'
 import { filterSyncData } from '@/config/sync-exclusions'
@@ -290,6 +291,8 @@ function marksShareCoreIdentity(left: Mark, right: Mark): boolean {
 function getMarkExactKey(mark: Mark): string {
   return JSON.stringify([
     mark.tagId,
+    recordTagIds(mark),
+    mark.tagUpdatedAt || 0,
     mark.type,
     mark.content || '',
     mark.desc || '',
@@ -304,6 +307,8 @@ function getMarkSyncKey(mark: Mark): string {
   return JSON.stringify([
     mark.id,
     mark.tagId,
+    recordTagIds(mark),
+    mark.tagUpdatedAt || 0,
     mark.type,
     mark.content || '',
     mark.desc || '',
@@ -360,6 +365,9 @@ function mergeMarksById(
     const normalizedRemoteMark = {
       ...remoteMark,
       tagId: remoteTagIdMap.get(remoteMark.tagId) ?? remoteMark.tagId,
+      tagIds: Array.isArray(remoteMark.tagIds)
+        ? Array.from(new Set(remoteMark.tagIds.map(tagId => remoteTagIdMap.get(tagId) ?? tagId)))
+        : undefined,
     }
     const sourceDuplicateId = normalizedRemoteMark.sourceId
       ? sourceIdToId.get(normalizedRemoteMark.sourceId)
@@ -367,9 +375,10 @@ function mergeMarksById(
     if (sourceDuplicateId !== undefined) {
       const existingSourceMark = merged.get(sourceDuplicateId)
       if (existingSourceMark) {
-        const nextMark = normalizedRemoteMark.createdAt >= existingSourceMark.createdAt
+        const content = normalizedRemoteMark.createdAt >= existingSourceMark.createdAt
           ? { ...normalizedRemoteMark, id: sourceDuplicateId }
           : existingSourceMark
+        const nextMark = mergeRecordTags(existingSourceMark, normalizedRemoteMark, content)
         merged.set(sourceDuplicateId, nextMark)
         exactKeyToId.set(getMarkExactKey(nextMark), sourceDuplicateId)
         continue
@@ -391,7 +400,8 @@ function mergeMarksById(
     }
 
     if (marksShareCoreIdentity(localMark, normalizedRemoteMark)) {
-      const nextMark = normalizedRemoteMark.createdAt >= localMark.createdAt ? normalizedRemoteMark : localMark
+      const content = normalizedRemoteMark.createdAt >= localMark.createdAt ? normalizedRemoteMark : localMark
+      const nextMark = mergeRecordTags(localMark, normalizedRemoteMark, content)
       merged.set(localMark.id, nextMark)
       exactKeyToId.set(getMarkExactKey(nextMark), localMark.id)
       continue
@@ -795,11 +805,17 @@ export async function downloadAutoDataSyncNow(
 
     if (shouldDownloadRecords) {
       const domainStartedAt = Date.now()
-      tagResult = await useTagStore.getState().downloadTags({ allowMissingRemote: true })
+      tagResult = await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
       markResult = await useMarkStore.getState().downloadMarks({
         allowMissingRemote: true,
         deferRefresh: true,
+        fetchOnly: true,
       })
+      const { getAllMarks } = await import('@/db/marks')
+      const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
+      markResult = preserveLegacyRecordTags(markResult, await getAllMarks())
+      await replaceRecordSnapshot(markResult, tagResult)
+      await useTagStore.getState().fetchTags()
       await downloadCanvases({ allowMissingRemote: true })
       const { default: useCanvasStore } = await import('@/stores/canvas')
       await useCanvasStore.getState().loadProjects()
@@ -999,10 +1015,10 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       ? await Promise.all([tagsDb.getTags(), marksDb.getAllMarks()])
       : [[], []]
     const remoteTags = mergeRecords
-      ? await useTagStore.getState().downloadTags({ allowMissingRemote: true })
+      ? await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
       : []
     const remoteMarks = mergeRecords
-      ? await useMarkStore.getState().downloadMarks({ allowMissingRemote: true })
+      ? await useMarkStore.getState().downloadMarks({ allowMissingRemote: true, preserveLegacyTags: false, fetchOnly: true })
       : []
     const settingsResult = mergeSettings
       ? await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
@@ -1020,14 +1036,13 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
     const mergedMarks = mergeMarksById(localMarks, remoteMarks, tagMergeResult.remoteTagIdMap)
 
     if (mergeRecords) {
-      await tagsDb.deleteAllTags()
-      await tagsDb.insertTags(mergedTags)
-      await marksDb.deleteAllMarks()
-      await marksDb.insertMarks(mergedMarks)
+      const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
+      await replaceRecordSnapshot(mergedMarks, mergedTags)
       await downloadRecordAssets(mergedMarks)
+      await useTagStore.getState().fetchTags()
       await Promise.all([
-        useTagStore.getState().fetchTags(),
         useMarkStore.getState().fetchMarks(),
+        useMarkStore.getState().fetchAllMarks(),
       ])
       useTagStore.getState().getCurrentTag()
     }
@@ -2182,26 +2197,21 @@ async function restoreAutoDataSyncLocalRecordSnapshot(
       { default: useTagStore },
       { default: useMarkStore },
       { default: useCanvasStore },
-      tagsDb,
-      marksDb,
       canvasesDb,
     ] = await Promise.all([
       import('@/stores/tag'),
       import('@/stores/mark'),
       import('@/stores/canvas'),
-      import('@/db/tags'),
-      import('@/db/marks'),
       import('@/db/canvases'),
     ])
 
-    await tagsDb.deleteAllTags()
-    await tagsDb.insertTags(snapshot.tags)
-    await marksDb.deleteAllMarks()
-    await marksDb.insertMarks(snapshot.marks)
+    const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
+    await replaceRecordSnapshot(snapshot.marks, snapshot.tags)
     await canvasesDb.replaceAllCanvasProjects(snapshot.canvases)
+    await useTagStore.getState().fetchTags()
     await Promise.all([
-      useTagStore.getState().fetchTags(),
       useMarkStore.getState().fetchMarks(),
+      useMarkStore.getState().fetchAllMarks(),
       useCanvasStore.getState().loadProjects(),
     ])
     useTagStore.getState().getCurrentTag()

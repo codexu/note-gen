@@ -622,6 +622,17 @@ async function structuredPayload(
   const row = rows[0]
   if (!row) return null
   const references: Record<string, string> = {}
+  if (domain === 'mark' && typeof row.id === 'number') {
+    const { getMarkById } = await import('@/db/marks')
+    const mark = await getMarkById(row.id)
+    if (mark?.tagIds) {
+      row.tagIds = mark.tagIds
+      row.tagUpdatedAt = mark.tagUpdatedAt ?? 0
+      for (const tagId of mark.tagIds) {
+        references[`tag:${tagId}`] = (await ensureObjectMapping(workspaceId, 'tag', String(tagId), 'tag')).objectId
+      }
+    }
+  }
   if ((domain === 'mark' || domain === 'note' || domain === 'message') && row.tagId != null) {
     references.tag = (await ensureObjectMapping(workspaceId, 'tag', String(row.tagId), 'tag')).objectId
   }

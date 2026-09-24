@@ -6,6 +6,7 @@ export interface KnowledgeLocator {
   filePath?: string
   markId?: number
   tagId?: number
+  tagIds?: number[]
   canvasId?: string
   nodeIds?: string[]
 }

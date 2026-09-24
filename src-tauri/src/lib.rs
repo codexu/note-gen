@@ -8,6 +8,7 @@ mod backup;
 mod backup_manager;
 mod cloud_folder_sync;
 mod database_recovery;
+mod record_transaction;
 mod device;
 mod document_parser;
 mod fonts;
@@ -129,6 +130,7 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            record_transaction::execute_record_transaction,
             start_mcp_stdio_server,
             stop_mcp_server,
             send_mcp_message,

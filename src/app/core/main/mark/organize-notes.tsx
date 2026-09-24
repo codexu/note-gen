@@ -3,6 +3,7 @@ import useSettingStore, { GenTemplate, GenTemplateRange } from "@/stores/setting
 import useMarkStore from "@/stores/mark"
 import useArticleStore, { type DirTree } from "@/stores/article"
 import useTagStore from "@/stores/tag"
+import { matchesTagRules, recordMatchesTag } from '@/lib/record-tags'
 import { fetchAiStream } from "@/lib/ai/chat"
 import { cn } from "@/lib/utils"
 import {
@@ -167,6 +168,8 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const { primaryModel, templateList } = useSettingStore()
   const { marks, fetchAllMarks, allMarks } = useMarkStore()
   const { tags, fetchTags } = useTagStore()
+  const tagRules = useMarkStore(state => state.recordFilters.tagRules)
+  const tagScope = useMarkStore(state => state.recordFilters.tagId)
   const { activeFilePath, fileTree, setActiveFilePath, loadFileTree, readArticle, setCurrentArticle, setSkipSyncOnSave, setAiGeneratingFilePath, setAiTerminateFn } = useArticleStore()
   const { setLeftSidebarTab } = useSidebarStore()
   const router = useRouter()
@@ -226,17 +229,10 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   }, [genTemplate])
 
   const recordSourceMarks = useMemo(() => {
-    if (!selectedRecordTagId) {
-      return allMarks.length > 0 ? allMarks : marks
-    }
-
-    const marksForSelectedTag = allMarks.filter(item => item.tagId === selectedRecordTagId)
-    if (marksForSelectedTag.length > 0) {
-      return marksForSelectedTag
-    }
-
-    return marks.filter(item => item.tagId === selectedRecordTagId)
-  }, [allMarks, marks, selectedRecordTagId])
+    return (allMarks.length > 0 ? allMarks : marks).filter(item =>
+      (!selectedRecordTagId || recordMatchesTag(item, selectedRecordTagId, tags)) &&
+      (tagScope === 'all' || recordMatchesTag(item, tagScope, tags)) && matchesTagRules(item, tagRules, tags))
+  }, [allMarks, marks, selectedRecordTagId, tags, tagRules, tagScope])
 
   // 使用 useMemo 优化过滤的记录
   const marksByRange = useMemo(() => {
@@ -561,8 +557,11 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       await fetchAllMarks()
 
       // Get latest marks from store after fetch
+      const latestTagScope = useMarkStore.getState().recordFilters.tagId
       const latestMarks = useMarkStore.getState().allMarks
-        .filter(item => !selectedRecordTagId || item.tagId === selectedRecordTagId)
+        .filter(item => (!selectedRecordTagId || recordMatchesTag(item, selectedRecordTagId, useTagStore.getState().tags)) &&
+          (latestTagScope === 'all' || recordMatchesTag(item, latestTagScope, useTagStore.getState().tags)) &&
+          matchesTagRules(item, useMarkStore.getState().recordFilters.tagRules, useTagStore.getState().tags))
 
       // Calculate marksByRange with latest marks
       let subtractDate: Dayjs
@@ -1141,6 +1140,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
               </div>
             ) : organizeStep === 'records' ? (
               <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3">
+                {tagScope !== 'all' || tagRules.include.length > 0 || tagRules.exclude.length > 0 ? <Badge variant="secondary">{tGlobal('record.tagging.activeRules')}</Badge> : null}
                 <div className={cn(
                   "flex min-w-0 gap-2",
                   isMobile ? "flex-col rounded-2xl border bg-background p-3" : "flex-wrap items-center justify-between"

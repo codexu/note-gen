@@ -1,7 +1,7 @@
 import { PluginError, type PluginContext, type PluginPermissionName, type PluginRecord } from '@notegen/plugin-api'
 import { z } from 'zod'
 import { getDb } from '@/db'
-import { getMarkById, insertMark, updatePluginTextRecord, type Mark } from '@/db/marks'
+import { attachMarkTagIds, getMarkById, insertMark, RECORD_TAG_MATCH_SQL, updatePluginTextRecord, type Mark } from '@/db/marks'
 import emitter from '@/lib/emitter'
 import useMarkStore from '@/stores/mark'
 
@@ -21,7 +21,7 @@ function todo(mark: Mark): { title?: string; description?: string; completed?: b
 }
 async function snapshot(mark: Mark, preview = false): Promise<PluginRecord> {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([
-    mark.id, mark.tagId, mark.type, mark.content ?? null, mark.desc ?? null, mark.url, mark.createdAt, mark.sourceId ?? null, mark.deleted,
+    mark.id, mark.tagId, mark.tagIds || [mark.tagId], mark.type, mark.content ?? null, mark.desc ?? null, mark.url, mark.createdAt, mark.sourceId ?? null, mark.deleted,
   ])))
   const data = mark.type === 'todo' ? todo(mark) : undefined
   // Binary attachments and their app-private paths are not exposed by the record API.
@@ -56,9 +56,11 @@ export function createRecordsApi(guard: (permission: PluginPermissionName) => Pr
     async list(options = {}) {
       const input = parse(listSchema, options)
       await guard('records.read')
-      const db = await getDb()
       const limit = input.limit ?? 20
-      const rows = await db.select<Mark[]>('select * from marks where deleted = 0 and ($1 is null or tagId = $1) order by createdAt desc, id desc limit $2 offset $3', [input.tagId ?? null, limit + 1, input.offset ?? 0])
+      const db = await getDb()
+      const rows = await attachMarkTagIds(await db.select<Mark[]>(`select * from marks where deleted = 0 and (
+        $1 is null or ${RECORD_TAG_MATCH_SQL}
+        ) order by createdAt desc, id desc limit $2 offset $3`, [input.tagId ?? null, limit + 1, input.offset ?? 0]))
       const items = await Promise.all(rows.slice(0, limit).map(row => snapshot(row, true)))
       await guard('records.read')
       return { items, hasMore: rows.length > limit }
@@ -90,7 +92,15 @@ export function createRecordsApi(guard: (permission: PluginPermissionName) => Pr
       if (!['text', 'todo'].includes(previous.type)) throw new PluginError('ReadOnly', 'Only text and todo records support updates')
       if ((await snapshot(previous)).revision !== input.expectedRevision) throw new PluginError('StaleRevision', 'Record changed')
       if (input.tagId !== undefined) await assertTag(input.tagId)
-      const next = { ...previous, tagId: input.tagId ?? previous.tagId, desc: input.description ?? previous.desc }
+      const nextTagId = input.tagId ?? previous.tagId
+      const next = {
+        ...previous,
+        tagId: nextTagId,
+        tagIds: input.tagId === undefined
+          ? previous.tagIds
+          : [...(previous.tagIds || [previous.tagId]).filter(tagId => tagId !== previous.tagId), nextTagId],
+        desc: input.description ?? previous.desc,
+      }
       if (previous.type === 'todo') {
         const data = todo(previous)
         next.content = JSON.stringify({ ...data, title: input.content ?? data.title ?? '', description: input.description ?? data.description ?? '', completed: input.completed ?? data.completed ?? false })
@@ -101,7 +111,7 @@ export function createRecordsApi(guard: (permission: PluginPermissionName) => Pr
       await guard('records.write')
       if (!await updatePluginTextRecord(previous, next, async () => { await guard('records.read'); await guard('records.write') })) throw new PluginError('StaleRevision', 'Record changed')
       refresh()
-      const result = await snapshot(next)
+      const result = await snapshot(await existing(input.id))
       await guard('records.read')
       return result
     },

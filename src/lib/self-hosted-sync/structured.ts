@@ -65,6 +65,15 @@ export async function applyStructuredPayload(
     row.sourceId = String(payload.localKey ?? objectId)
   }
   const references = isRecord(payload.references) ? payload.references : {}
+  let relatedTagIds: number[] | undefined
+  if (typedDomain === 'mark' && Array.isArray(row.tagIds)) {
+    relatedTagIds = []
+    for (const id of row.tagIds) {
+      const reference = references[`tag:${id}`]
+      if (typeof reference !== 'string') throw new Error('structured_dependency_missing:tag')
+      relatedTagIds.push(await mappedNumericId(workspaceId, reference, 'tag'))
+    }
+  }
   if ('tagId' in row && typeof references.tag === 'string') {
     row.tagId = await mappedNumericId(workspaceId, references.tag, 'tag')
   }
@@ -112,6 +121,10 @@ export async function applyStructuredPayload(
        on conflict(${config.key}) do update set ${updates.join(', ')}`,
       columns.map(column => row[column] ?? null)
     )
+    if (typedDomain === 'mark' && relatedTagIds && typeof row.tagId === 'number') {
+      const { saveMarkTagIds } = await import('@/db/marks')
+      await saveMarkTagIds(Number(localKey), row.tagId, relatedTagIds, typeof row.tagUpdatedAt === 'number' ? row.tagUpdatedAt : 0)
+    }
   })
   await upsertMapping(workspaceId, objectId, kind, `${domain}:${mappingKey}`)
 }
@@ -126,7 +139,12 @@ export async function deleteStructuredObject(workspaceId: string, objectId: stri
   const config = DOMAIN_CONFIG[domain as StructuredDomain]
   const localKey = objectMapping.localIdentity.slice(separator + 1)
   const database = await getDb()
-  await suppressSyncTriggers(() => {
+  await suppressSyncTriggers(async () => {
+    if (domain === 'tag') {
+      const { delTag } = await import('@/db/tags')
+      await delTag(Number(localKey), { sync: false })
+      return
+    }
     if (domain === 'mark') {
       return database.execute(
         `update marks set deleted = 1, createdAt = $1

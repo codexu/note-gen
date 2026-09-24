@@ -93,7 +93,7 @@ interface MarkState {
   setMarks: (marks: Mark[]) => void
   fetchMarks: () => Promise<void>
   fetchAllTrashMarks: () => Promise<void>
-  fetchMarkPreviews: () => Promise<void>
+  fetchMarkPreviews: (allTags?: boolean) => Promise<void>
   fetchTrashMarkPreviews: () => Promise<void>
 
   allMarks: Mark[]
@@ -204,7 +204,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
     const decodeRes = await fetchVisibleMarks(true)
     if (request === recordListRequest) set({ marks: decodeRes })
   },
-  fetchMarkPreviews: async () => {
+  fetchMarkPreviews: async (allTags = false) => {
     const request = ++recordListRequest
     const store = await Store.load('store.json')
     const currentTagId = await store.get<number>('currentTagId')
@@ -214,7 +214,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
     }
 
     const rules = get().recordFilters.tagRules
-    const previews = await getMarkPreviews(rules.include.length || rules.exclude.length || get().recordFilters.tagId !== 'all' ? undefined : currentTagId)
+    const previews = await getMarkPreviews(allTags || rules.include.length || rules.exclude.length || get().recordFilters.tagId !== 'all' ? undefined : currentTagId)
     if (request === recordListRequest) set({ marks: previews.map((item) => ({ ...item, content: item.content || '' })) })
   },
   fetchTrashMarkPreviews: async () => {

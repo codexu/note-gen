@@ -8,18 +8,21 @@ import { confirm } from '@tauri-apps/plugin-dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { LocalImage } from '@/components/local-image'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
 import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
+import { MobileRecordTagTree } from './mobile-record-tag-tree'
 import { ArrowDown, Trash2, MoveRight, CheckSquare, Filter, Plus, ListChecks, RotateCcw, Search, ChevronDown, XCircle, ImageIcon, MoreVertical } from 'lucide-react'
 import { filterMarks, getTrashRecordFilters } from '@/app/core/main/mark/mark-filters'
 import { getMarkTypeChipClasses, getMarkTypeListBadgeClasses, MARK_TYPE_OPTIONS } from '@/app/core/main/mark/mark-type-meta'
 import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import { clearTrash, delMark, deleteMarks, delMarkForever, Mark, restoreMark, restoreMarks, updateMarkTag } from '@/db/marks'
-import { insertTag } from '@/db/tags'
+import { insertTag, normalizeTagName } from '@/db/tags'
+import type { RecordTagNode } from '@/lib/record-tag-tree'
 import { cn, isHttpUrl } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { refreshRemoteRecordsNow } from '@/lib/sync/auto-data-sync-queue'
@@ -84,7 +87,9 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
   const [createTagOpen, setCreateTagOpen] = useState(false)
   const [typeFilterOpen, setTypeFilterOpen] = useState(false)
   const [newTagName, setNewTagName] = useState('')
+  const [newTagParent, setNewTagParent] = useState('')
   const [moveTargetMark, setMoveTargetMark] = useState<Mark | null>(null)
+  const [moveSelectedOpen, setMoveSelectedOpen] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const [isPullRefreshing, setIsPullRefreshing] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -121,7 +126,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
     if (trashState) {
       void fetchTrashMarkPreviews()
     } else {
-      void fetchMarkPreviews()
+      void fetchMarkPreviews(true)
     }
   }, [currentTagId, fetchMarkPreviews, fetchTrashMarkPreviews, isRecordDataReady, preview, trashState])
 
@@ -150,10 +155,10 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
 
     return {
       ...recordFilters,
-      tagId: 'all' as const,
+      tagId: currentTagId,
       tagRules: { include: [], exclude: [], match: 'all' as const },
     }
-  }, [trashState, recordFilters])
+  }, [trashState, recordFilters, currentTagId])
 
   const filteredRecords = useMemo(() => {
     return filterMarks(records, mobileRecordFilters, tags)
@@ -255,7 +260,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
     if (trashState) {
       await fetchTrashMarkPreviews()
     } else {
-      await fetchMarkPreviews()
+      await fetchMarkPreviews(true)
     }
   }
 
@@ -422,6 +427,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
       await updateMarkTag(item.id, targetTagId)
     }
     setSelectedIds(new Set())
+    setMoveSelectedOpen(false)
     await refreshRecords()
   }
 
@@ -436,21 +442,59 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
   )
   const currentTagLabel = tags.find((item) => item.id === currentTagId)?.name || t('record.mark.list.title')
 
+  async function resolveTag(node: RecordTagNode) {
+    if (node.tag) return node.tag.id
+    const result = await insertTag({ name: node.path })
+    if (!result.lastInsertId) throw new Error(t('record.tagging.savedRefreshFailed'))
+    await fetchTags()
+    return Number(result.lastInsertId)
+  }
+
+  async function selectTag(node: RecordTagNode) {
+    try {
+      const id = await resolveTag(node)
+      useMarkStore.getState().setRecordTagRules({ include: [], exclude: [], match: 'all' })
+      useMarkStore.getState().setRecordTagId('all')
+      await setCurrentTagId(id)
+      setTagDrawerOpen(false)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
+  }
+
+  async function moveToTag(node: RecordTagNode, selected: boolean) {
+    try {
+      const id = await resolveTag(node)
+      if (selected) await handleMoveSelected(id)
+      else await handleMoveTargetTag(id)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
+  }
+
+  function beginCreateTag(parent = '') {
+    setNewTagParent(parent)
+    setNewTagName('')
+    setCreateTagOpen(true)
+  }
+
   function toggleTypeFilter(type: Mark['type']) {
     toggleRecordType(type)
   }
 
   async function handleCreateTag() {
-    const value = newTagName.trim()
-    if (!value) return
+    if (!newTagName.trim()) return
     try {
+      const value = normalizeTagName(newTagParent ? `${newTagParent}/${newTagName}` : newTagName)
+      if (tags.some(tag => tag.name === value)) throw new Error(t('record.tagging.nameExists'))
       const res = await insertTag({ name: value })
       const newTagId = Number(res.lastInsertId)
       await fetchTags()
       await setCurrentTagId(newTagId)
       setNewTagName('')
-      setCreateTagOpen(false)
+      setNewTagParent('')
       setTagDrawerOpen(false)
+      setCreateTagOpen(false)
     } catch (error) {
       toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
     }
@@ -471,36 +515,50 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
           ) : multiMode ? (
             <div className="truncate px-2 text-sm font-medium">{t('record.mark.toolbar.multiSelectMode')}</div>
           ) : (
-            <Drawer open={tagDrawerOpen} onOpenChange={setTagDrawerOpen}>
-              <Button variant="ghost" className="h-11 min-w-0 px-2 text-sm font-medium" onClick={() => setTagDrawerOpen(true)}>
-                <span className="truncate">{currentTagLabel}</span>
-                <ChevronDown className="ml-1 size-4 shrink-0 text-muted-foreground" />
-              </Button>
+            <Drawer open={tagDrawerOpen} onOpenChange={open => {
+              setTagDrawerOpen(open)
+              if (!open) setCreateTagOpen(false)
+            }}>
+              <DrawerTrigger asChild>
+                <Button variant="ghost" className="h-11 min-w-0 px-2 text-sm font-medium">
+                  <span className="truncate">{currentTagLabel}</span>
+                  <ChevronDown className="ml-1 size-4 shrink-0 text-muted-foreground" />
+                </Button>
+              </DrawerTrigger>
               <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
-                <DrawerHeader>
-                  <DrawerTitle>{t('record.mark.toolbar.filter.tag')}</DrawerTitle>
-                </DrawerHeader>
-                <div className="flex flex-col gap-2 px-4 pb-4">
-                  {tags.map((tag) => (
-                    <Button
-                      key={tag.id}
-                      variant={currentTagId === tag.id ? 'default' : 'outline'}
-                      className="h-10 w-full justify-start"
-                      onClick={async () => {
-                        useMarkStore.getState().setRecordTagRules({ include: [], exclude: [], match: 'all' })
-                        useMarkStore.getState().setRecordTagId('all')
-                        await setCurrentTagId(tag.id)
-                        setTagDrawerOpen(false)
-                      }}
-                    >
-                      {tag.name}
+                {createTagOpen ? <>
+                  <DrawerHeader>
+                    <DrawerTitle>{newTagParent ? t('record.mark.tag.newChildTag') : t('record.mark.tag.newTag')}</DrawerTitle>
+                  </DrawerHeader>
+                  <FieldGroup className="px-4 pb-4">
+                    <Field>
+                      <FieldLabel htmlFor="mobile-record-new-tag">{t('record.tagging.tagName')}</FieldLabel>
+                      {newTagParent ? <div className="text-sm text-muted-foreground">{newTagParent}/</div> : null}
+                      <Input
+                        id="mobile-record-new-tag"
+                        value={newTagName}
+                        onChange={event => setNewTagName(event.target.value)}
+                        placeholder={newTagParent ? t('record.mark.tag.newChildTagPlaceholder', { name: newTagParent }) : t('record.mark.tag.newTagPlaceholder')}
+                        className="h-10"
+                      />
+                    </Field>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="h-10 flex-1" onClick={() => setCreateTagOpen(false)}>{t('common.cancel')}</Button>
+                      <Button className="h-10 flex-1" onClick={handleCreateTag}>{t('record.mark.tag.add')}</Button>
+                    </div>
+                  </FieldGroup>
+                </> : <>
+                  <DrawerHeader>
+                    <DrawerTitle>{t('record.mark.toolbar.filter.tag')}</DrawerTitle>
+                  </DrawerHeader>
+                  <MobileRecordTagTree tags={tags} selectedId={currentTagId} onSelect={selectTag} onCreateChild={beginCreateTag} />
+                  <div className="px-4 pb-4">
+                    <Button variant="outline" className="h-10 w-full justify-start gap-2" onClick={() => beginCreateTag()}>
+                      <Plus className="size-4" />
+                      {t('record.mark.tag.newTag')}
                     </Button>
-                  ))}
-                  <Button variant="outline" className="mt-3 h-10 w-full justify-start gap-2" onClick={() => setCreateTagOpen(true)}>
-                    <Plus className="size-4" />
-                    {t('record.mark.tag.newTag')}
-                  </Button>
-                </div>
+                  </div>
+                </>}
               </DrawerContent>
             </Drawer>
           )}
@@ -529,24 +587,8 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
               >
                 <ListChecks />
               </Button>
-              <MobileActionDrawer
-                title={t('record.mark.toolbar.moveTag')}
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={selectedCount === 0 || !canMoveBetweenTags}
-                    title={t('record.mark.toolbar.moveTag')}
-                  >
-                    <MoveRight />
-                  </Button>
-                }
-                items={tags.map(tag => ({
-                  key: String(tag.id),
-                  label: tag.name,
-                  onSelect: () => handleMoveSelected(tag.id),
-                }))}
-              />
+              <Button variant="ghost" size="icon" disabled={selectedCount === 0 || !canMoveBetweenTags}
+                title={t('record.mark.toolbar.moveTag')} onClick={() => setMoveSelectedOpen(true)}><MoveRight /></Button>
               <Button variant="ghost" size="icon" className="text-destructive" disabled={selectedCount === 0} onClick={handleDeleteSelected} title={t('record.mark.toolbar.delete')}>
                 <Trash2 />
               </Button>
@@ -757,25 +799,6 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
         ) : null}
       </div>
 
-      <Sheet open={createTagOpen} onOpenChange={setCreateTagOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>{t('record.mark.tag.newTag')}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-3">
-            <Input
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              placeholder={t('record.mark.tag.newTagPlaceholder')}
-              className="h-10"
-            />
-            <Button onClick={handleCreateTag} className="h-10 w-full">
-              {t('record.mark.tag.add')}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
       <Drawer open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
         <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
           <DrawerHeader>
@@ -852,17 +875,18 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
       </Drawer>
 
       <Sheet open={Boolean(moveTargetMark)} onOpenChange={(open) => !open && setMoveTargetMark(null)}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
           <SheetHeader>
             <SheetTitle>{t('record.mark.toolbar.moveTag')}</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-2">
-            {tags.filter((tag) => tag.id !== moveTargetMark?.tagId).map((tag) => (
-              <Button key={tag.id} variant="outline" className="h-10 w-full justify-start" onClick={() => handleMoveTargetTag(tag.id)}>
-                {tag.name}
-              </Button>
-            ))}
-          </div>
+          <MobileRecordTagTree tags={tags} disabledId={moveTargetMark?.tagId} onSelect={node => moveToTag(node, false)} />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={moveSelectedOpen} onOpenChange={setMoveSelectedOpen}>
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
+          <SheetHeader><SheetTitle>{t('record.mark.toolbar.moveTag')}</SheetTitle></SheetHeader>
+          <MobileRecordTagTree tags={tags} onSelect={node => moveToTag(node, true)} />
         </SheetContent>
       </Sheet>
     </div>

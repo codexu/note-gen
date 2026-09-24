@@ -29,7 +29,7 @@ import { MobileBackButton } from '@/components/mobile-back-button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
-import { MobileSelectDrawer } from '@/app/mobile/components/mobile-select-drawer'
+import { MobileRecordTagSelect } from './mobile-record-tag-tree'
 import { MobileRecordStream } from '@/app/mobile/record/mobile-record-stream'
 import {
   AlertDialog,
@@ -459,14 +459,14 @@ export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps
 
           <div className="flex flex-col gap-5">
             <DetailField label={t('record.mark.detail.tag')} htmlFor="record-tag">
-              <MobileSelectDrawer
+              <MobileRecordTagSelect
                 id="record-tag"
                 title={t('record.mark.detail.tag')}
-                value={String(draft.tagId)}
-                onValueChange={(value) => setDraft(current => current ? { ...current, tagId: Number(value) } : current)}
+                value={draft.tagId}
+                onValueChange={(value) => setDraft(current => current ? { ...current, tagId: value } : current)}
+                onTagsChanged={fetchTags}
                 disabled={isReadOnly}
-                className="h-11"
-                options={tags.map(tag => ({ value: String(tag.id), label: tag.name }))}
+                tags={tags}
               />
             </DetailField>
 

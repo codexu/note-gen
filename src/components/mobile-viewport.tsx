@@ -143,6 +143,13 @@ export function MobileViewport() {
       setTimer(updateViewportVars, 250)
     }
 
+    const preventInterfacePinchZoom = (event: TouchEvent) => {
+      if (event.touches.length < 2) return
+      const target = event.target
+      if (target instanceof Element && target.closest('.react-flow')) return
+      event.preventDefault()
+    }
+
     updateViewportVars()
 
     window.visualViewport?.addEventListener('resize', updateViewportVars)
@@ -151,6 +158,7 @@ export function MobileViewport() {
     window.addEventListener('orientationchange', handleOrientationChange)
     document.addEventListener('pointerdown', handleEditablePointerStart)
     document.addEventListener('touchstart', handleEditablePointerStart, { passive: true })
+    document.addEventListener('touchmove', preventInterfacePinchZoom, { capture: true, passive: false })
     document.addEventListener('focusin', handleFocusIn)
     document.addEventListener('focusout', handleFocusOut)
 
@@ -161,6 +169,7 @@ export function MobileViewport() {
       window.removeEventListener('orientationchange', handleOrientationChange)
       document.removeEventListener('pointerdown', handleEditablePointerStart)
       document.removeEventListener('touchstart', handleEditablePointerStart)
+      document.removeEventListener('touchmove', preventInterfacePinchZoom, { capture: true })
       document.removeEventListener('focusin', handleFocusIn)
       document.removeEventListener('focusout', handleFocusOut)
       timers.forEach((id) => window.clearTimeout(id))

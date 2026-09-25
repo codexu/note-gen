@@ -14,6 +14,7 @@ export interface InteractiveMenuItem {
   iconElement?: React.ReactNode
   indicator?: React.ReactNode
   disabled?: boolean
+  swipeDisabled?: boolean
 }
 
 export interface InteractiveMenuProps {
@@ -229,6 +230,7 @@ const InteractiveMenu = React.forwardRef<HTMLElement, InteractiveMenuProps>(func
               isActive && "text-[var(--component-active-color)]"
             )}
             disabled={item.disabled}
+            data-swipe-disabled={item.swipeDisabled || undefined}
             type="button"
             onClick={() => handleItemClick(index, item)}
           >

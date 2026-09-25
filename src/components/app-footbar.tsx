@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   InteractiveMenu,
@@ -56,6 +56,9 @@ export function AppFootbar() {
   const [quickActionOpen, setQuickActionOpen] = useState(false)
   const organizeRef = useRef<{ openOrganize: () => void }>(null)
   const pendingOrganizeRef = useRef(false)
+  const dockSwipeStartRef = useRef<{ x: number; y: number } | null>(null)
+  const suppressDockClickRef = useRef(false)
+  const suppressDockClickTimerRef = useRef<number | null>(null)
   const { isRecording, recordingDuration } = useRecordingStore()
   const activeFilePath = useArticleStore(state => state.activeFilePath)
   const activeMarkId = useMarkStore(state => state.activeMarkId)
@@ -83,6 +86,7 @@ export function AppFootbar() {
       icon: Plus,
       iconElement: isRecording ? <RecordingDockIcon /> : undefined,
       isQuickAction: true,
+      swipeDisabled: true,
     },
     {
       id: 'record',
@@ -114,7 +118,7 @@ export function AppFootbar() {
       ? quickActionIndex
       : Math.max(routeActiveIndex, 0)
 
-  async function menuHandler(item: FootbarItem) {
+  const menuHandler = useCallback(async (item: FootbarItem) => {
     pendingOrganizeRef.current = false
     if (item.isQuickAction) {
       if (isRecording) {
@@ -138,6 +142,80 @@ export function AppFootbar() {
     router.push(item.url)
     const store = await Store.load('store.json')
     await store.set('currentPage', item.url)
+  }, [activeCanvasId, activeFilePath, activeMarkId, isRecording, router])
+
+  useEffect(() => {
+    function handleDockSwipe(direction: 'previous' | 'next') {
+      if (quickActionOpen) return
+
+      const pageItems = items.filter(item => !item.isQuickAction)
+      const activeItem = items[routeActiveIndex]
+      const currentPageIndex = pageItems.findIndex(item => item.id === activeItem?.id)
+      const nextPageIndex = currentPageIndex + (direction === 'next' ? 1 : -1)
+      const nextItem = pageItems[nextPageIndex]
+
+      if (nextItem) void menuHandler(nextItem)
+    }
+
+    emitter.on('mobile-dock-swipe', handleDockSwipe)
+    return () => emitter.off('mobile-dock-swipe', handleDockSwipe)
+  }, [items, menuHandler, quickActionOpen, routeActiveIndex])
+
+  useEffect(() => {
+    return () => {
+      if (suppressDockClickTimerRef.current !== null) {
+        window.clearTimeout(suppressDockClickTimerRef.current)
+        suppressDockClickTimerRef.current = null
+      }
+      suppressDockClickRef.current = false
+    }
+  }, [])
+
+  function handleDockTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const target = event.target
+    if (
+      quickActionOpen
+      || event.touches.length !== 1
+      || (target instanceof Element && target.closest('[data-swipe-disabled="true"]'))
+    ) {
+      dockSwipeStartRef.current = null
+      return
+    }
+
+    const touch = event.touches[0]
+    dockSwipeStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  function handleDockTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const start = dockSwipeStartRef.current
+    dockSwipeStartRef.current = null
+    if (!start || event.changedTouches.length !== 1) return
+
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+
+    suppressDockClickRef.current = true
+    if (suppressDockClickTimerRef.current !== null) {
+      window.clearTimeout(suppressDockClickTimerRef.current)
+    }
+    suppressDockClickTimerRef.current = window.setTimeout(() => {
+      suppressDockClickRef.current = false
+      suppressDockClickTimerRef.current = null
+    }, 700)
+    emitter.emit('mobile-dock-swipe', deltaX < 0 ? 'next' : 'previous')
+  }
+
+  function handleDockClickCapture(event: React.MouseEvent<HTMLDivElement>) {
+    if (!suppressDockClickRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    suppressDockClickRef.current = false
+    if (suppressDockClickTimerRef.current !== null) {
+      window.clearTimeout(suppressDockClickTimerRef.current)
+      suppressDockClickTimerRef.current = null
+    }
   }
 
   function handleMobileOrganize() {
@@ -147,17 +225,25 @@ export function AppFootbar() {
 
   return (
     <div className="flex h-full w-full items-center justify-center px-2 min-[380px]:px-3">
-      <InteractiveMenu
-        accentColor={isRecording ? 'rgb(239 68 68)' : undefined}
-        activeIndex={activeIndex}
-        aria-label={t('navigation.navigate')}
+      <div
         className="w-full"
-        items={items}
-        onActiveIndexChange={index => {
-          const item = items[index]
-          if (item) void menuHandler(item)
-        }}
-      />
+        onTouchStart={handleDockTouchStart}
+        onTouchEnd={handleDockTouchEnd}
+        onTouchCancel={() => { dockSwipeStartRef.current = null }}
+        onClickCapture={handleDockClickCapture}
+      >
+        <InteractiveMenu
+          accentColor={isRecording ? 'rgb(239 68 68)' : undefined}
+          activeIndex={activeIndex}
+          aria-label={t('navigation.navigate')}
+          className="w-full"
+          items={items}
+          onActiveIndexChange={index => {
+            const item = items[index]
+            if (item) void menuHandler(item)
+          }}
+        />
+      </div>
       <Drawer open={quickActionOpen} onOpenChange={setQuickActionOpen}>
         <DrawerContent
           onCloseAutoFocus={event => {

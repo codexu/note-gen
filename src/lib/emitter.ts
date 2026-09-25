@@ -59,6 +59,7 @@ interface Events {
   'toolbar-shortcut-todo': unknown;
   'editor-ai-streaming': { isStreaming: boolean; targetFilePath?: string; terminate?: () => void };
   'toolbar-shortcut-recording': unknown;
+  'mobile-dock-swipe': 'previous' | 'next';
   'toolbar-shortcut-scan': unknown;
   'toolbar-shortcut-text': unknown;
   'toolbar-shortcut-link': unknown;

@@ -272,7 +272,7 @@ export function TagManage() {
       <Group>
         <Item disabled={!node.tag} onSelect={() => void moveSibling(node, -1).catch(report)}><ArrowUp />{t('moveUp')}</Item>
         <Item disabled={!node.tag} onSelect={() => void moveSibling(node, 1).catch(report)}><ArrowDown />{t('moveDown')}</Item>
-        <Item variant="destructive" disabled={!node.tag || node.tag.isLocked}
+        <Item variant="destructive" disabled={!node.tag || node.tag.isLocked || node.children.length > 0}
           onSelect={() => node.tag && beginAction({ kind: 'delete', tag: node.tag })}><Trash2 />{old('delete')}</Item>
       </Group>
     </>

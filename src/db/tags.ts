@@ -1,8 +1,9 @@
 import emitter from '@/lib/emitter'
-import { getDb, executeRecordTransaction } from "./index"
+import { getDb } from "./index"
 import { Store } from '@tauri-apps/plugin-store';
 import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
 import { tagPathMatches } from '@/lib/record-tags'
+import { normalizeTagBoolean } from '@/lib/tag-sync'
 
 export interface Tag {
   id: number
@@ -57,11 +58,42 @@ export async function initTagsDb() {
     await store.save()
   }
 
+  await db.execute(`
+    create trigger if not exists tags_trash_records_before_delete
+    before delete on tags
+    when coalesce(old.isLocked, 0) = 0
+    begin
+      update marks set
+        tagId = case when tagId = old.id then coalesce((
+          select cast(related.value as integer)
+          from record_tag_metadata metadata, json_each(metadata.tagIds) related
+          join tags available on available.id = related.value
+          where metadata.markId = marks.id and related.value != old.id
+          order by available.id limit 1
+        ), (
+          select id from tags where id != old.id order by isLocked desc, id limit 1
+        )) else tagId end,
+        deleted = 1,
+        createdAt = case when deleted = 0
+          then cast((julianday('now') - 2440587.5) * 86400000 as integer)
+          else createdAt end
+      where tagId = old.id or exists (
+        select 1 from record_tag_metadata metadata, json_each(metadata.tagIds) related
+        where metadata.markId = marks.id and related.value = old.id
+      );
+
+      update record_tag_metadata set
+        tagIds = (select json_group_array(value) from json_each(tagIds) where value != old.id),
+        updatedAt = cast((julianday('now') - 2440587.5) * 86400000 as integer)
+      where exists (select 1 from json_each(tagIds) where value = old.id);
+    end
+  `)
+
 }
 
 export async function getTags() {
   const db = await getDb();
-  return db.select<Tag[]>(`
+  const tags = await db.select<Tag[]>(`
     with membership as (
       select id as markId, tagId from marks where deleted = 0
       union
@@ -78,6 +110,11 @@ export async function getTags() {
     select tags.*, coalesce(totals.total, 0) as total from tags
     left join totals on totals.id = tags.id order by tags.sortOrder, tags.id
   `)
+  return tags.map(tag => ({
+    ...tag,
+    isLocked: normalizeTagBoolean(tag.isLocked) ?? false,
+    isPin: normalizeTagBoolean(tag.isPin) ?? false,
+  }))
 }
 
 export async function insertTag(tag: Partial<Tag>) {
@@ -135,26 +172,21 @@ export async function updateTag(tag: Tag) {
 }
 
 export async function delTag(id: number, options: { sync?: boolean } = {}) {
+  await initTagsDb()
   const db = await getDb();
   const tags = await db.select<Tag[]>('select * from tags order by isLocked desc, id')
   const target = tags.find(tag => tag.id === id)
   if (!target) return { rowsAffected: 0 }
   if (target.isLocked || tags.length < 2) throw new Error('Cannot delete the default or last tag')
+  if (tags.some(tag => tag.id !== id && tagPathMatches(tag.name, target.name))) {
+    throw new Error('Cannot delete a tag that has child tags')
+  }
   const fallback = tags.find(tag => tag.id !== id)!
-  // Move records first, including trash, so removing a tag never hides content.
-  await executeRecordTransaction([{
-    sql: `update tags set name = name where id = $1 and isLocked = false
-      and exists (select 1 from tags where id = $2)`, values: [id, fallback.id], expectedRows: 1,
-  }, { sql: `update marks set tagId = coalesce((
-    select cast(related.value as integer) from record_tag_metadata metadata, json_each(metadata.tagIds) related
-    join tags available on available.id = related.value
-    where metadata.markId = marks.id and related.value != $1 order by available.id limit 1
-  ), $2) where tagId = $1`, values: [id, fallback.id] }, {
-    sql: `update record_tag_metadata set tagIds = (
-    select json_group_array(value) from json_each(tagIds) where value != $1
-  ), updatedAt = $2 where exists (select 1 from json_each(tagIds) where value = $1)`, values: [id, Date.now()] }, {
-    sql: 'delete from tags where id = $1', values: [id], expectedRows: 1,
-  }])
+  const result = await db.execute(
+    'delete from tags where id = $1 and isLocked = false and exists (select 1 from tags where id = $2)',
+    [id, fallback.id]
+  )
+  if (result.rowsAffected !== 1) throw new Error('Tag could not be deleted; refresh and try again')
   const store = await Store.load('store.json')
   if (await store.get<number>('currentTagId') === id) {
     await store.set('currentTagId', fallback.id)

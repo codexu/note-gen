@@ -599,11 +599,13 @@ async function structuredPayload(
     const store = await Store.load('store.json')
     const entries = Object.fromEntries(await store.entries()) as Record<string, unknown>
     const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
+    const { getMemoryPolicy } = await import('@/db/memory-policy')
     return {
       version: 1,
       domain,
       localKey,
       value: filterSyncData(entries, { excludeSensitiveConfig }),
+      memoryPolicy: await getMemoryPolicy(),
     }
   }
   const config = STRUCTURED_DOMAINS[domain]

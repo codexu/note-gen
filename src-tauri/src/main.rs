@@ -23,6 +23,7 @@ mod mcp_runtime;
 mod notion_import;
 mod ocr_packages;
 mod printing;
+mod record_transaction;
 mod quick_record;
 mod plugins;
 mod remote_skills;
@@ -138,6 +139,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
+            record_transaction::execute_record_transaction,
             quick_record::remember_quick_record_foreground,
             quick_record::hide_quick_record_window,
             screenshot,

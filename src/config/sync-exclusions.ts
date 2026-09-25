@@ -89,6 +89,7 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'canvasSyncVersions',
   'conversationSyncVersions',
   'conversationSyncInitialized',
+  'memorySyncInitialized',
   'autoDataSyncEnabled',
   'autoRecordSyncEnabled',
   'autoSettingsSyncEnabled',
@@ -115,6 +116,7 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'autoDataSyncLastAppliedRemoteMeta',
   'autoDataSyncRecordSnapshots',
   'autoDataSyncBaselineFingerprints',
+  'autoDataSyncMemorySettingsMigrated',
   // Development builds may have written this local-only diagnostic key.
   'autoConversationSyncDiagnostic',
   'lastRecordTagId',

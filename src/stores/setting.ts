@@ -1187,7 +1187,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
   setGithubUsername: async (githubUsername) => {
     set({ githubUsername })
     const store = await Store.load('store.json');
-    store.set('githubUsername', githubUsername)
+    await store.set('githubUsername', githubUsername)
+    await store.save()
   },
 
   accessToken: '',

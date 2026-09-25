@@ -28,7 +28,7 @@ function resolveUploadPath(path: string | undefined, filename: string | undefine
 const DEFAULT_BRANCH_CACHE_TTL = 5 * 60 * 1000
 const defaultBranchCache = new Map<string, { branch: string, cachedAt: number }>()
 
-async function getDefaultBranch(repo: string) {
+export async function getDefaultBranch(repo: string) {
   const cached = defaultBranchCache.get(repo)
   if (cached && Date.now() - cached.cachedAt < DEFAULT_BRANCH_CACHE_TTL) {
     return cached.branch

@@ -1,4 +1,5 @@
 import { invalidateMemoryCache } from '@/lib/memory/cache-version'
+import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
 import { getDb } from './index'
 
 export interface MemoryPolicy {
@@ -6,6 +7,7 @@ export interface MemoryPolicy {
   generateMemories: boolean
   excludeExternalContext: boolean
   generationStartedAt: number
+  updatedAt: number
 }
 
 let memoryPolicySchemaPromise: Promise<void> | undefined
@@ -79,10 +81,12 @@ export async function getMemoryPolicy(): Promise<MemoryPolicy> {
   const result = await db.select<Array<{
     generateMemories: number
     generationStartedAt: number
+    updatedAt: number
   }>>(
     `select
       generate_memories as generateMemories,
-      generation_started_at as generationStartedAt
+      generation_started_at as generationStartedAt,
+      updated_at as updatedAt
      from memory_global_policy where id = 1`,
     []
   )
@@ -91,6 +95,7 @@ export async function getMemoryPolicy(): Promise<MemoryPolicy> {
     generateMemories: result[0]?.generateMemories !== 0,
     excludeExternalContext: true,
     generationStartedAt: result[0]?.generationStartedAt || Date.now(),
+    updatedAt: result[0]?.updatedAt || Date.now(),
   }
 }
 
@@ -99,6 +104,7 @@ export async function updateMemoryPolicy(
 ): Promise<MemoryPolicy> {
   const current = await getMemoryPolicy()
   const generateMemories = policy.generateMemories ?? current.generateMemories
+  const updatedAt = Date.now()
   const next: MemoryPolicy = {
     useMemories: true,
     generateMemories,
@@ -106,6 +112,7 @@ export async function updateMemoryPolicy(
     generationStartedAt: !current.generateMemories && generateMemories
       ? Date.now()
       : current.generationStartedAt,
+    updatedAt,
   }
   const db = await getDb()
   await db.execute(
@@ -119,9 +126,30 @@ export async function updateMemoryPolicy(
     [
       next.generateMemories ? 1 : 0,
       next.generationStartedAt,
-      Date.now(),
+      updatedAt,
     ]
   )
   invalidateMemoryCache()
+  enqueueAutoDataSync('settings', 'memory-policy:update')
   return next
+}
+
+export async function replaceMemoryPolicy(policy: MemoryPolicy): Promise<void> {
+  await initMemoryPolicyDb()
+  const db = await getDb()
+  await db.execute(
+    `update memory_global_policy
+     set use_memories = 1,
+         generate_memories = $1,
+         exclude_external_context = 1,
+         generation_started_at = $2,
+         updated_at = $3
+     where id = 1`,
+    [
+      policy.generateMemories ? 1 : 0,
+      policy.generationStartedAt,
+      policy.updatedAt,
+    ]
+  )
+  invalidateMemoryCache()
 }

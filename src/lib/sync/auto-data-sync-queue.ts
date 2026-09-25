@@ -7,10 +7,12 @@ import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import type { Mark } from '@/db/marks'
 import type { Tag } from '@/db/tags'
 import { mergeRecordTags, preserveLegacyRecordTags, recordTagIds } from '@/lib/record-tags'
+import { normalizeTagBoolean } from '@/lib/tag-sync'
 import { downloadRecordAssets, uploadRecordAssets } from '@/lib/sync/record-assets'
 import { recordSyncTiming } from '@/lib/sync/sync-timing'
 import { filterSyncData } from '@/config/sync-exclusions'
 import type { CanvasProject } from '@/types/canvas'
+import type { MemorySyncData, MemorySyncRecord } from '@/db/memories'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
 import {
   CANVAS_SYNC_ITEMS_DIRECTORY,
@@ -63,6 +65,7 @@ interface AutoDataSyncTask {
   reason: string
   createdAt: number
   retryCount: number
+  readyAt?: number
   mode: 'auto' | 'manual'
 }
 
@@ -74,6 +77,7 @@ interface AutoDataSyncRemoteMeta {
   domains: AutoDataSyncDomain[]
   lastUploadedDomains: AutoDataSyncDomain[]
   domainStates: Partial<Record<AutoDataSyncDomain, AutoDataSyncRemoteDomainState>>
+  hasExplicitDomainStates: boolean
 }
 
 interface AutoDataSyncRemoteDomainState {
@@ -107,6 +111,7 @@ interface AutoDataSyncRecordSnapshot {
   tags: Tag[]
   marks: Mark[]
   canvases: CanvasProject[]
+  memoryData?: MemorySyncData
 }
 export interface AutoDataSyncDownloadOptions {
   allowRemoteEmptyRecords?: boolean
@@ -131,6 +136,7 @@ const MAX_RETRY_COUNT = 3
 const AUTO_DATA_SYNC_META_PATH = '.data/meta.json'
 const AUTO_DATA_SYNC_TAGS_PATH = '.data/tags.json'
 const AUTO_DATA_SYNC_MARKS_PATH = '.data/marks.json'
+const AUTO_DATA_SYNC_MEMORIES_PATH = '.data/memories.json'
 const AUTO_DATA_SYNC_SETTINGS_PATH = '.data/settings.json'
 const AUTO_DATA_SYNC_DOMAINS: AutoDataSyncDomain[] = ['records', 'settings', 'conversations']
 const AUTO_DATA_SYNC_DIRTY_DOMAINS_KEY = 'autoDataSyncDirtyDomains'
@@ -140,6 +146,7 @@ const AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_KEY = 'autoDataSyncLastLocalUploadMe
 const AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_KEY = 'autoDataSyncLastAppliedRemoteMeta'
 const AUTO_DATA_SYNC_RECORD_SNAPSHOTS_KEY = 'autoDataSyncRecordSnapshots'
 const AUTO_DATA_SYNC_BASELINE_FINGERPRINTS_KEY = 'autoDataSyncBaselineFingerprints'
+const AUTO_DATA_SYNC_MEMORY_SETTINGS_MIGRATED_KEY = 'autoDataSyncMemorySettingsMigrated'
 const AUTO_DATA_SYNC_REMOTE_RECORD_ERASE_MESSAGE = 'Remote records are empty while local records exist. Automatic pull was blocked to avoid data loss.'
 const MAX_AUTO_DATA_SYNC_RECORD_SNAPSHOTS = 5
 const AUTO_DATA_SYNC_RUNTIME_INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -148,6 +155,8 @@ let seq = 0
 let queue: AutoDataSyncTask[] = []
 let processing = false
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let providerRetryTimer: ReturnType<typeof setTimeout> | null = null
+let taskRetryTimer: ReturnType<typeof setTimeout> | null = null
 let remoteMetaCheckTimer: ReturnType<typeof setTimeout> | null = null
 const selfHostedWakeTimers = new Map<AutoDataSyncDomain, ReturnType<typeof setTimeout>>()
 let remoteMetaCheckIntervalIndex = 0
@@ -197,6 +206,12 @@ async function getAutoDataSyncStateValue<T>(store: Store, baseKey: string) {
   if (scopedValue !== undefined && scopedValue !== null) return scopedValue
 
   return await store.get<T>(baseKey)
+}
+
+async function needsMemorySettingsMigration(store: Store): Promise<boolean> {
+  const enabledDomains = await getEnabledAutoDataSyncDomains()
+  return enabledDomains.includes('settings')
+    && await store.get<boolean>(await getAutoDataSyncStateKey(AUTO_DATA_SYNC_MEMORY_SETTINGS_MIGRATED_KEY)) !== true
 }
 
 function getGlobalAutoDataSyncRuntimeState() {
@@ -323,10 +338,14 @@ function getTagSyncKey(tag: Tag): string {
   return JSON.stringify([
     tag.id,
     tag.name,
-    Boolean(tag.isLocked),
-    Boolean(tag.isPin),
+    normalizeTagBoolean(tag.isLocked) ?? false,
+    normalizeTagBoolean(tag.isPin) ?? false,
     Number(tag.sortOrder) || 0,
   ])
+}
+
+function getMemorySyncKey(memory: MemorySyncRecord): string {
+  return stableSerialize(memory)
 }
 
 function stableSerialize(value: unknown): string {
@@ -421,7 +440,25 @@ function mergeMarksById(
 }
 
 function debugAutoDataSync(message: string, details?: Record<string, unknown>) {
-  console.info('[AutoDataSync]', JSON.stringify({ message, ...details }))
+  const payload: Record<string, unknown> = { ...details, message }
+  if (details && Object.prototype.hasOwnProperty.call(details, 'message')) {
+    payload.error = details.message
+  }
+  console.info('[AutoDataSync]', JSON.stringify(payload))
+}
+
+function getAutoDataSyncErrorMessage(error: unknown, fallback: string): string {
+  const redact = (value: string) => value.replace(/([?&]access_token=)[^&\s]+/gi, '$1[redacted]')
+  if (error instanceof Error) return redact(error.message)
+  if (typeof error === 'string' && error.trim()) return redact(error)
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>
+    if (typeof value.message === 'string' && value.message.trim()) return redact(value.message)
+    const details = [value.code, value.status]
+      .filter((part): part is string | number => typeof part === 'string' || typeof part === 'number')
+    return details.length > 0 ? `${fallback} (${details.join(', ')})` : fallback
+  }
+  return fallback
 }
 
 function updateState(next: Partial<AutoDataSyncState>) {
@@ -487,7 +524,7 @@ export function enqueueAutoDataSync(domain: AutoDataSyncDomain, reason = 'change
 
   if (useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
     const wakeSelfHosted = async () => {
-      if (domain === 'settings') {
+      if (domain === 'settings' && !reason.startsWith('memory:')) {
         const { enqueueSelfHostedSettingChange } = await import('@/db/self-hosted-sync')
         await enqueueSelfHostedSettingChange(reason)
       }
@@ -521,6 +558,8 @@ export function enqueueAutoDataSync(domain: AutoDataSyncDomain, reason = 'change
     lastTask.reason = reason
     lastTask.createdAt = Date.now()
     lastTask.mode = mode
+    lastTask.readyAt = undefined
+    lastTask.retryCount = 0
     scheduleProcess()
     updateState({
       status: processing ? 'syncing' : 'queued',
@@ -578,6 +617,10 @@ function cancelPendingAutoDataSyncUpload(reason: string, domains?: AutoDataSyncD
     clearTimeout(debounceTimer)
     debounceTimer = null
   }
+  if (taskRetryTimer) {
+    clearTimeout(taskRetryTimer)
+    taskRetryTimer = null
+  }
 
   queue = domains?.length
     ? queue.filter(task => !domains.includes(task.domain))
@@ -602,6 +645,10 @@ function cancelPendingAutoDataSyncUpload(reason: string, domains?: AutoDataSyncD
 
 export async function prepareAutoDataSyncForRepositoryChange() {
   repositoryChangePauseDepth += 1
+  if (providerRetryTimer) {
+    clearTimeout(providerRetryTimer)
+    providerRetryTimer = null
+  }
   await Promise.all(Array.from(pendingDirtyWrites))
   cancelPendingAutoDataSyncUpload('data-repository-change')
   while (processing) {
@@ -624,7 +671,12 @@ export function finishAutoDataSyncRepositoryChange() {
     status: 'idle',
   })
   void (async () => {
-    if (!await isAutoDataSyncProviderConfigured()) return
+    const store = await Store.load('store.json')
+    if (await store.get<string>('primaryBackupMethod') === 'selfHosted') return
+    if (!await isAutoDataSyncProviderConfigured()) {
+      scheduleProviderRetry()
+      return
+    }
 
     // A repository has its own independent baseline. Existing local data may
     // be clean relative to the previous repository but still be absent from
@@ -731,6 +783,29 @@ export async function downloadAutoDataSyncNow(
   knownRemoteMeta: AutoDataSyncRemoteMeta | null = null,
   options: AutoDataSyncDownloadOptions = {}
 ): Promise<boolean> {
+  const requestedDomains = options.domains ?? await getEnabledAutoDataSyncDomains()
+  if (new Set(requestedDomains).size > 1) {
+    const failedDomains: AutoDataSyncDomain[] = []
+    let lastError: string | null = null
+    for (const domain of new Set(requestedDomains)) {
+      if (!await downloadAutoDataSyncNow(mode, knownRemoteMeta, { ...options, domains: [domain] })) {
+        failedDomains.push(domain)
+        lastError = state.lastError
+      }
+    }
+    if (failedDomains.length > 0) {
+      updateState({
+        isSyncing: false,
+        phase: 'failed',
+        status: 'failed',
+        lastError: lastError || 'Failed to download app data',
+        lastFailedAt: Date.now(),
+        affectedDomains: failedDomains,
+      })
+      return false
+    }
+    return true
+  }
   const downloadStartedAt = Date.now()
   if (!await isAutoDataSyncProviderConfigured()) {
     debugAutoDataSync('download blocked because provider is not configured')
@@ -769,6 +844,8 @@ export async function downloadAutoDataSyncNow(
   }
 
   let localRecordSnapshot: AutoDataSyncRecordSnapshot | null = null
+  let recordSnapshotApplied = false
+  let downloadStage = 'initialize'
   setAutoDataSyncApplyingRemote(true)
   updateState({
     isSyncing: true,
@@ -783,7 +860,9 @@ export async function downloadAutoDataSyncNow(
   try {
     debugAutoDataSync('download started')
     if (shouldDownloadRecords) {
+      downloadStage = 'check-record-safety'
       await assertRemoteRecordsSafeForDownload(store, provider, mode, options)
+      downloadStage = 'save-local-record-snapshot'
       localRecordSnapshot = await createAutoDataSyncLocalRecordSnapshot(`before-download:${mode}`)
     }
     const [
@@ -800,12 +879,15 @@ export async function downloadAutoDataSyncNow(
 
     let tagResult: Tag[] = []
     let markResult: Mark[] = []
+    let memoryResult = true
     let settingsResult = true
     let conversationResult = true
 
     if (shouldDownloadRecords) {
       const domainStartedAt = Date.now()
+      downloadStage = 'download-tags'
       tagResult = await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
+      downloadStage = 'download-marks'
       markResult = await useMarkStore.getState().downloadMarks({
         allowMissingRemote: true,
         deferRefresh: true,
@@ -814,12 +896,19 @@ export async function downloadAutoDataSyncNow(
       const { getAllMarks } = await import('@/db/marks')
       const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
       markResult = preserveLegacyRecordTags(markResult, await getAllMarks())
+      downloadStage = 'replace-record-snapshot'
       await replaceRecordSnapshot(markResult, tagResult)
+      recordSnapshotApplied = true
+      downloadStage = 'refresh-tags'
       await useTagStore.getState().fetchTags()
+      downloadStage = 'download-canvases'
       await downloadCanvases({ allowMissingRemote: true })
       const { default: useCanvasStore } = await import('@/stores/canvas')
+      downloadStage = 'refresh-canvas-store'
       await useCanvasStore.getState().loadProjects()
+      downloadStage = 'download-record-assets'
       await downloadRecordAssets(markResult)
+      downloadStage = 'refresh-marks'
       await Promise.all([
         useMarkStore.getState().fetchMarks(),
         useMarkStore.getState().fetchAllMarks(),
@@ -833,7 +922,18 @@ export async function downloadAutoDataSyncNow(
 
     if (shouldDownloadSettings) {
       const domainStartedAt = Date.now()
+      downloadStage = 'download-settings'
       settingsResult = await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
+      if (settingsResult) {
+        downloadStage = 'download-memories'
+        memoryResult = await downloadMemorySyncData(store, provider)
+        const { default: useMemoriesStore } = await import('@/stores/memories')
+        await Promise.all([
+          useMemoriesStore.getState().loadMemories(),
+          useMemoriesStore.getState().loadStats(),
+          useMemoriesStore.getState().loadPolicy(),
+        ])
+      }
       recordSyncTiming('domainDownload', domainStartedAt, {
         domain: 'settings',
         success: settingsResult,
@@ -841,6 +941,7 @@ export async function downloadAutoDataSyncNow(
     }
     if (shouldDownloadConversations) {
       const domainStartedAt = Date.now()
+      downloadStage = 'download-conversations'
       conversationResult = await downloadConversations({ allowMissingRemote: true })
       recordSyncTiming('domainDownload', domainStartedAt, {
         domain: 'conversations',
@@ -851,22 +952,26 @@ export async function downloadAutoDataSyncNow(
       domains: domainsToDownload,
       tags: tagResult,
       marks: markResult,
+      memories: memoryResult,
       settings: settingsResult,
       conversations: conversationResult,
     })
 
-    if (!tagResult || !markResult || !settingsResult || !conversationResult) {
+    if (!tagResult || !markResult || !memoryResult || !settingsResult || !conversationResult) {
       throw new Error('Failed to download app data')
     }
 
     if (shouldDownloadSettings) {
+      downloadStage = 'refresh-settings-store'
       await useSettingStore.getState().initSettingData()
       debugAutoDataSync('settings state refreshed after download')
     }
 
     if (remoteMeta) {
+      downloadStage = 'apply-remote-meta'
       await markAutoDataSyncRemoteMetaApplied(remoteMeta, domainsToDownload)
     }
+    downloadStage = 'clear-dirty-domains'
     for (const domain of domainsToDownload) {
       await clearAutoDataSyncDirtyDomain(domain)
     }
@@ -885,9 +990,9 @@ export async function downloadAutoDataSyncNow(
     debugAutoDataSync('download completed')
     return true
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to download records and settings'
-    debugAutoDataSync('download failed', { message })
-    if (localRecordSnapshot) {
+    const message = getAutoDataSyncErrorMessage(error, 'Failed to download app data')
+    debugAutoDataSync('download failed', { stage: downloadStage, error: message })
+    if (localRecordSnapshot && recordSnapshotApplied) {
       await restoreAutoDataSyncLocalRecordSnapshot(localRecordSnapshot, `download-failed:${mode}`)
     }
     updateState({
@@ -896,7 +1001,7 @@ export async function downloadAutoDataSyncNow(
       currentDomain: null,
       syncMode: null,
       status: 'failed',
-      lastError: message,
+      lastError: `${downloadStage}: ${message}`,
       lastFailedAt: Date.now(),
       affectedDomains: domainsToDownload,
     })
@@ -967,6 +1072,28 @@ export async function refreshRemoteRecordsNow(): Promise<boolean> {
 }
 
 async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Promise<boolean> {
+  if (new Set(targetDomains).size > 1) {
+    const failedDomains: AutoDataSyncDomain[] = []
+    let lastError: string | null = null
+    for (const domain of new Set(targetDomains)) {
+      if (!await mergeAutoDataSyncDomains([domain])) {
+        failedDomains.push(domain)
+        lastError = state.lastError
+      }
+    }
+    if (failedDomains.length > 0) {
+      updateState({
+        isSyncing: false,
+        phase: 'failed',
+        status: 'failed',
+        lastError: lastError || 'Failed to merge app data',
+        lastFailedAt: Date.now(),
+        affectedDomains: failedDomains,
+      })
+      return false
+    }
+    return true
+  }
   if (processing) {
     debugAutoDataSync('automatic merge skipped because sync is busy')
     return false
@@ -986,6 +1113,8 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
   })
 
   try {
+    const store = await Store.load('store.json')
+    const provider = await getAutoDataSyncProvider(store)
     const mergeRecords = targetDomains.includes('records')
     const mergeSettings = targetDomains.includes('settings')
     const mergeConversations = targetDomains.includes('conversations')
@@ -1002,6 +1131,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       { default: useSettingStore },
       tagsDb,
       marksDb,
+      memoriesDb,
     ] = await Promise.all([
       import('@/stores/tag'),
       import('@/stores/mark'),
@@ -1009,17 +1139,22 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       import('@/stores/setting'),
       import('@/db/tags'),
       import('@/db/marks'),
+      import('@/db/memories'),
     ])
 
     const [localTags, localMarks] = mergeRecords
       ? await Promise.all([tagsDb.getTags(), marksDb.getAllMarks()])
       : [[], []]
+    const localMemoryData = mergeSettings ? await memoriesDb.getMemorySyncData() : null
     const remoteTags = mergeRecords
       ? await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
       : []
     const remoteMarks = mergeRecords
       ? await useMarkStore.getState().downloadMarks({ allowMissingRemote: true, preserveLegacyTags: false, fetchOnly: true })
       : []
+    const remoteMemoryData = mergeSettings
+      ? await getRemoteMemorySyncData(store, provider)
+      : null
     const settingsResult = mergeSettings
       ? await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
       : true
@@ -1034,6 +1169,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
     const tagMergeResult = mergeTags(localTags, remoteTags)
     const mergedTags = tagMergeResult.tags
     const mergedMarks = mergeMarksById(localMarks, remoteMarks, tagMergeResult.remoteTagIdMap)
+    const mergedMemoryData = mergeMemorySyncData(localMemoryData, remoteMemoryData)
 
     if (mergeRecords) {
       const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
@@ -1047,6 +1183,13 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       useTagStore.getState().getCurrentTag()
     }
     if (mergeSettings) {
+      if (mergedMemoryData) await memoriesDb.replaceMemorySyncData(mergedMemoryData)
+      const { default: useMemoriesStore } = await import('@/stores/memories')
+      await Promise.all([
+        useMemoriesStore.getState().loadMemories(),
+        useMemoriesStore.getState().loadStats(),
+        useMemoriesStore.getState().loadPolicy(),
+      ])
       await useSettingStore.getState().initSettingData()
     }
 
@@ -1083,6 +1226,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       localMarks: localMarks.length,
       remoteMarks: remoteMarks.length,
       mergedMarks: mergedMarks.length,
+      mergedMemories: mergedMemoryData?.memories.length || 0,
     })
     return true
   } catch (error) {
@@ -1117,6 +1261,10 @@ export async function initAutoDataSyncRuntime(): Promise<void> {
 
   try {
     const store = await Store.load('store.json')
+    if (await store.get<string>('primaryBackupMethod') === 'selfHosted') {
+      debugAutoDataSync('runtime skipped for self-hosted sync provider')
+      return
+    }
     const lastCompletedAt = await getAutoDataSyncLastCompletedAt(store)
     if (lastCompletedAt > 0) {
       updateState({ lastCompletedAt })
@@ -1146,10 +1294,15 @@ export async function initAutoDataSyncRuntime(): Promise<void> {
         status: 'waiting_provider',
         lastError: null,
       })
+      scheduleProviderRetry()
     } else {
       debugAutoDataSync('runtime initialized')
       startPeriodicAutoDataSyncMetaCheck()
-      void checkRemoteAutoDataSync('startup', { uploadDirtyDomains: true })
+      if (await needsMemorySettingsMigration(store)) {
+        enqueueAutoDataSync('settings', 'memory-settings-migration')
+      } else {
+        void checkRemoteAutoDataSync('startup', { uploadDirtyDomains: true })
+      }
     }
   } catch (error) {
     runtimeInitialized = false
@@ -1165,6 +1318,7 @@ export async function retryAutoDataSync(domain?: AutoDataSyncDomain): Promise<vo
     queue.unshift({
       ...failedTask,
       retryCount: 0,
+      readyAt: undefined,
       mode: 'manual',
     })
     delete failedTasks[failedTask.domain]
@@ -1237,11 +1391,19 @@ export async function isAutoDataSyncProviderConfigured(): Promise<boolean> {
         && await store.get<string>('giteeUsername')
         && await getConfiguredGitRepository('gitee')
       )
-    case 'gitlab':
-      return Boolean(
-        await store.get<string>('gitlabAccessToken')
-        && await getConfiguredGitRepository('gitlab')
-      )
+    case 'gitlab': {
+      const repo = await getConfiguredGitRepository('gitlab')
+      if (!await store.get<string>('gitlabAccessToken')
+        || !await store.get<string>('gitlabUsername')
+        || !repo) return false
+      if (await store.get<string>(`gitlab_${repo}_project_id`)) return true
+      try {
+        const { checkSyncProjectState } = await import('@/lib/sync/gitlab')
+        return Boolean(await checkSyncProjectState(repo))
+      } catch {
+        return false
+      }
+    }
     case 'gitea':
       return Boolean(
         await store.get<string>('giteaAccessToken')
@@ -1283,6 +1445,39 @@ async function scheduleProcess() {
     debounceTimer = null
     void processQueue()
   }, delay)
+}
+
+function scheduleProviderRetry() {
+  if (providerRetryTimer) return
+
+  providerRetryTimer = setTimeout(() => {
+    providerRetryTimer = null
+    void (async () => {
+      try {
+        const store = await Store.load('store.json')
+        if (await store.get<string>('primaryBackupMethod') === 'selfHosted') return
+        if (!await isAutoDataSyncProviderConfigured()) {
+          scheduleProviderRetry()
+          return
+        }
+
+        if (queue.length > 0) {
+          await processQueue()
+          return
+        }
+
+        startPeriodicAutoDataSyncMetaCheck()
+        if (await needsMemorySettingsMigration(store)) {
+          enqueueAutoDataSync('settings', 'memory-settings-migration')
+        } else {
+          await checkRemoteAutoDataSync('startup', { uploadDirtyDomains: true, force: true })
+        }
+      } catch (error) {
+        console.error('Failed to resume auto data sync after provider configuration:', error)
+        scheduleProviderRetry()
+      }
+    })()
+  }, 30_000)
 }
 
 function clearPeriodicAutoDataSyncMetaCheck(): void {
@@ -1387,8 +1582,7 @@ async function processQueue() {
   }
 
   if (!await isAutoDataSyncProviderConfigured()) {
-    queue = []
-    debugAutoDataSync('clear queue because provider is not configured')
+    debugAutoDataSync('wait to process queue because provider is not configured')
     updateState({
       isSyncing: false,
       phase: 'waiting_provider',
@@ -1397,7 +1591,13 @@ async function processQueue() {
       status: 'waiting_provider',
       lastError: null,
     })
+    scheduleProviderRetry()
     return
+  }
+
+  if (providerRetryTimer) {
+    clearTimeout(providerRetryTimer)
+    providerRetryTimer = null
   }
 
   startPeriodicAutoDataSyncMetaCheck()
@@ -1420,19 +1620,27 @@ async function processQueue() {
   debugAutoDataSync('queue processing started', { pendingCount: queue.length })
 
   while (queue.length > 0) {
-    let task = queue.shift()
+    const readyTaskIndex = queue.findIndex(item => !item.readyAt || item.readyAt <= Date.now())
+    if (readyTaskIndex < 0) {
+      const nextReadyAt = Math.min(...queue.map(item => item.readyAt || Date.now()))
+      if (taskRetryTimer) clearTimeout(taskRetryTimer)
+      taskRetryTimer = setTimeout(() => {
+        taskRetryTimer = null
+        void processQueue()
+      }, Math.max(0, nextReadyAt - Date.now()))
+      break
+    }
+    const task = queue.splice(readyTaskIndex, 1)[0]
     if (!task) {
       continue
     }
 
     // A streaming reply can keep conversation data unstable for tens of
-    // seconds. Do not make independent record/settings uploads wait behind it.
+    // seconds. Revisit it later without occupying the other domains' queue.
     if (task.domain === 'conversations' && await isConversationSyncBusy()) {
-      const readyTaskIndex = queue.findIndex(item => item.domain !== 'conversations')
-      if (readyTaskIndex >= 0) {
-        queue.push(task)
-        task = queue.splice(readyTaskIndex, 1)[0]
-      }
+      task.readyAt = Date.now() + 1_000
+      queue.push(task)
+      continue
     }
 
     debugAutoDataSync('task started', {
@@ -1447,9 +1655,6 @@ async function processQueue() {
     const taskStartedAt = Date.now()
 
     try {
-      if (task.domain === 'conversations') {
-        await waitForConversationSyncIdle()
-      }
       updateState({
         isSyncing: true,
         phase: 'checking_remote',
@@ -1465,8 +1670,6 @@ async function processQueue() {
         task.domain === 'records'
         && await shouldPullRemoteRecordsBeforeUpload(store, provider, task.reason)
       ) {
-        const remainingTasks = [...queue]
-        queue = []
         delete failedTasks.records
         delete failedTaskErrors.records
         processing = false
@@ -1478,43 +1681,39 @@ async function processQueue() {
           provider,
         })
         const downloaded = await downloadAutoDataSyncNow(task.mode, null, { domains: ['records'] })
-        if (downloaded && remainingTasks.length > 0) {
-          queue = remainingTasks
-          await processQueue()
+        if (!downloaded) {
+          failedTasks.records = task
+          failedTaskErrors.records = state.lastError || 'Failed to download records'
         }
+        if (queue.length > 0) await processQueue()
         return
       }
 
       const uploadDecision = await guardAutoDataSyncUploadAgainstRemoteNewer(task.domain)
       if (uploadDecision.action === 'merge') {
         const mergeDomains = uploadDecision.domains
-        const remainingDomains = Array.from(new Set([
-          task.domain,
-          ...queue.map(item => item.domain),
-        ].filter(domain => !mergeDomains.includes(domain))))
-        queue = []
         processing = false
         const merged = await mergeAutoDataSyncDomains(mergeDomains)
-        if (merged && remainingDomains.length > 0) {
-          await uploadDirtyAutoDataSyncDomains(remainingDomains, 'after-automatic-domain-merge')
+        if (!merged) {
+          failedTasks[task.domain] = task
+          failedTaskErrors[task.domain] = state.lastError || 'Failed to merge sync domain'
+        } else {
+          clearFailedAutoDataSyncDomains(mergeDomains)
         }
+        if (queue.length > 0) await processQueue()
         return
       }
 
       if (uploadDecision.action === 'pull') {
-        const pulledDomains = new Set(uploadDecision.domains)
-        const remainingDomains = Array.from(new Set([
-          task.domain,
-          ...queue.map(item => item.domain),
-        ].filter(domain => !pulledDomains.has(domain))))
-        queue = []
         processing = false
         const downloaded = await downloadAutoDataSyncNow('auto', uploadDecision.remoteMeta, {
           domains: uploadDecision.domains,
         })
-        if (downloaded && remainingDomains.length > 0) {
-          await uploadDirtyAutoDataSyncDomains(remainingDomains, 'after-remote-domain-pull')
+        if (!downloaded) {
+          failedTasks[task.domain] = task
+          failedTaskErrors[task.domain] = state.lastError || 'Failed to download sync domain'
         }
+        if (queue.length > 0) await processQueue()
         return
       }
 
@@ -1554,8 +1753,9 @@ async function processQueue() {
 
       if (task.retryCount < MAX_RETRY_COUNT) {
         task.retryCount += 1
-        queue.unshift(task)
         const retryDelay = Math.min(5_000 * 2 ** (task.retryCount - 1), 60_000)
+        task.readyAt = Date.now() + retryDelay
+        queue.push(task)
         debugAutoDataSync('task failed, retry scheduled', {
           id: task.id,
           domain: task.domain,
@@ -1563,7 +1763,6 @@ async function processQueue() {
           retryDelayMs: retryDelay,
           message,
         })
-        await new Promise((resolve) => setTimeout(resolve, retryDelay))
         continue
       }
 
@@ -1583,6 +1782,16 @@ async function processQueue() {
   }
 
   processing = false
+  if (queue.length > 0) {
+    updateState({
+      isSyncing: false,
+      phase: 'queued',
+      currentDomain: null,
+      syncMode: null,
+      status: 'queued',
+    })
+    return
+  }
   const failedDomain = failedTasks.records
     ? 'records'
     : failedTasks.settings
@@ -1631,6 +1840,8 @@ async function uploadDomain(domain: AutoDataSyncDomain) {
   const startedAt = Date.now()
   debugAutoDataSync('upload domain started', { domain })
   await ensureAutoDataSyncRemoteDataPath()
+  const store = await Store.load('store.json')
+  const provider = await getAutoDataSyncProvider(store)
 
   if (domain === 'records') {
     const [{ default: useTagStore }, { default: useMarkStore }] = await Promise.all([
@@ -1668,10 +1879,14 @@ async function uploadDomain(domain: AutoDataSyncDomain) {
   }
 
   const { default: useSettingsSyncStore } = await import('@/stores/settingsSync')
+  const { getMemorySyncData } = await import('@/db/memories')
   const result = await useSettingsSyncStore.getState().uploadSettings()
-  debugAutoDataSync('settings upload result', { settings: result })
+  const memoryResult = result
+    ? await uploadMemorySyncData(store, provider, await getMemorySyncData())
+    : false
+  debugAutoDataSync('settings upload result', { settings: result, memories: memoryResult })
 
-  if (!result) {
+  if (!result || !memoryResult) {
     throw new Error('Failed to upload settings')
   }
   recordSyncTiming('domainUpload', startedAt, { domain, success: true })
@@ -1683,20 +1898,6 @@ async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
   const provider = await getAutoDataSyncProvider(store)
   const now = Date.now()
   const deviceId = await getAutoDataSyncDeviceId()
-  const legacyBaseline = await getAutoDataSyncLastCompletedAt(store)
-  for (const domain of AUTO_DATA_SYNC_DOMAINS) {
-    const localUploadKey = await getAutoDataSyncStateKey(
-      `${AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_MS_KEY}:${domain}`,
-    )
-    const appliedRemoteKey = await getAutoDataSyncStateKey(
-      `${AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY}:${domain}`,
-    )
-    const hasDomainBaseline = await store.get<number>(localUploadKey) !== undefined
-      || await store.get<number>(appliedRemoteKey) !== undefined
-    if (!hasDomainBaseline && legacyBaseline > 0) {
-      await store.set(localUploadKey, legacyBaseline)
-    }
-  }
   const previousMetadata = await downloadAutoDataSyncMeta(store, provider).catch(() => null)
   const domainStates: AutoDataSyncRemoteMeta['domainStates'] = {
     ...previousMetadata?.domainStates,
@@ -1719,7 +1920,7 @@ async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
     domainStates,
     files: {
       records: [AUTO_DATA_SYNC_TAGS_PATH, AUTO_DATA_SYNC_MARKS_PATH, CANVAS_SYNC_PATH, CANVAS_SYNC_ITEMS_DIRECTORY],
-      settings: [AUTO_DATA_SYNC_SETTINGS_PATH],
+      settings: [AUTO_DATA_SYNC_SETTINGS_PATH, AUTO_DATA_SYNC_MEMORIES_PATH],
       conversations: [CONVERSATION_SYNC_INDEX_PATH, CONVERSATION_SYNC_DIRECTORY],
       meta: AUTO_DATA_SYNC_META_PATH,
     },
@@ -1760,6 +1961,9 @@ async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
 
   await store.set(await getAutoDataSyncStateKey(AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_MS_KEY), now)
   await store.set(await getAutoDataSyncStateKey(AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_KEY), metadata)
+  if (uploadedDomains.includes('settings')) {
+    await store.set(await getAutoDataSyncStateKey(AUTO_DATA_SYNC_MEMORY_SETTINGS_MIGRATED_KEY), true)
+  }
   for (const domain of uploadedDomains) {
     await store.set(
       await getAutoDataSyncStateKey(`${AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_MS_KEY}:${domain}`),
@@ -1788,6 +1992,12 @@ async function guardAutoDataSyncUploadAgainstRemoteNewer(
   const provider = await getAutoDataSyncProvider(store)
   const remoteMeta = await downloadAutoDataSyncMeta(store, provider)
 
+  // Older releases uploaded memories in the records domain. Merge the existing
+  // remote file once before the first settings upload, regardless of timestamps.
+  if (domain === 'settings' && await needsMemorySettingsMigration(store)) {
+    return { action: 'merge', domains: ['settings'] }
+  }
+
   if (!remoteMeta) {
     debugAutoDataSync('pre-upload remote meta check found no metadata', { provider, domain })
     const hasUntrackedRemoteDomain = await hasUntrackedRemoteDomainBeforeUpload(store, provider, domain)
@@ -1815,10 +2025,7 @@ async function guardAutoDataSyncUploadAgainstRemoteNewer(
     return { action: 'upload' }
   }
 
-  const pendingDomains = Array.from(new Set([
-    domain,
-    ...queue.map(item => item.domain),
-  ]))
+  const pendingDomains = [domain]
   // `lastUploadedDomains` only describes the latest metadata write. Another
   // domain may have a still-unapplied newer version in `domainStates`; using
   // the top-level list here can repeatedly pull an unrelated domain and starve
@@ -1920,11 +2127,13 @@ async function checkRemoteAutoDataSync(
     }
 
     const currentDeviceId = await getAutoDataSyncDeviceId()
-    const candidateRemoteDomains = remoteMeta.lastUploadedDomains.length > 0
-      ? remoteMeta.lastUploadedDomains
+    const candidateRemoteDomains = remoteMeta.hasExplicitDomainStates
+      ? AUTO_DATA_SYNC_DOMAINS.filter(domain => remoteMeta.domainStates[domain])
       : remoteMeta.domains.length > 0
         ? remoteMeta.domains
-        : enabledDomains
+        : remoteMeta.lastUploadedDomains.length > 0
+          ? remoteMeta.lastUploadedDomains
+          : enabledDomains
     const remoteChangedDomains = await getRemoteNewerDomains(
       store,
       remoteMeta,
@@ -1966,8 +2175,11 @@ async function checkRemoteAutoDataSync(
           const downloaded = await downloadAutoDataSyncNow('auto', remoteMeta, {
             domains: remoteChangedDomains,
           })
-          if (downloaded && options.uploadDirtyDomains) {
-            const remainingDirtyDomains = await getAutoDataSyncDirtyDomains(store)
+          const failedDomains = downloaded ? [] : [...state.affectedDomains]
+          const failureMessage = downloaded ? null : state.lastError
+          if (options.uploadDirtyDomains) {
+            const remainingDirtyDomains = (await getAutoDataSyncDirtyDomains(store))
+              .filter(domain => !remoteChangedDomains.includes(domain))
             if (remainingDirtyDomains.length > 0) {
               await uploadDirtyAutoDataSyncDomains(
                 remainingDirtyDomains,
@@ -1975,11 +2187,23 @@ async function checkRemoteAutoDataSync(
               )
             }
           }
+          if (failedDomains.length > 0) {
+            updateState({
+              isSyncing: false,
+              phase: 'failed',
+              status: 'failed',
+              lastError: failureMessage,
+              lastFailedAt: Date.now(),
+              affectedDomains: failedDomains,
+            })
+          }
           return
         }
 
         const merged = await mergeAutoDataSyncDomains(conflictingDomains)
-        if (merged && options.uploadDirtyDomains) {
+        const failedDomains = merged ? [] : [...state.affectedDomains]
+        const failureMessage = merged ? null : state.lastError
+        if (options.uploadDirtyDomains) {
           const remainingDirtyDomains = (await getAutoDataSyncDirtyDomains(store))
             .filter(domain => !conflictingDomains.includes(domain))
           if (remainingDirtyDomains.length > 0) {
@@ -1988,6 +2212,16 @@ async function checkRemoteAutoDataSync(
               `${reason}-after-automatic-domain-merge`,
             )
           }
+        }
+        if (failedDomains.length > 0) {
+          updateState({
+            isSyncing: false,
+            phase: 'failed',
+            status: 'failed',
+            lastError: failureMessage,
+            lastFailedAt: Date.now(),
+            affectedDomains: failedDomains,
+          })
         }
         return
       }
@@ -2034,7 +2268,7 @@ async function checkRemoteAutoDataSync(
   } catch (error) {
     debugAutoDataSync('remote meta check failed', {
       reason,
-      message: error instanceof Error ? error.message : 'unknown error',
+      error: getAutoDataSyncErrorMessage(error, 'Unknown error'),
     })
     updateState({
       isSyncing: false,
@@ -2181,7 +2415,7 @@ async function createAutoDataSyncLocalRecordSnapshot(reason: string): Promise<Au
   } catch (error) {
     debugAutoDataSync('local record snapshot failed', {
       reason,
-      message: error instanceof Error ? error.message : 'unknown error',
+      error: getAutoDataSyncErrorMessage(error, 'Unknown error'),
     })
     return null
   }
@@ -2191,6 +2425,7 @@ async function restoreAutoDataSyncLocalRecordSnapshot(
   snapshot: AutoDataSyncRecordSnapshot,
   reason: string
 ) {
+  let restoreStage = 'initialize'
   try {
     setAutoDataSyncApplyingRemote(true)
     const [
@@ -2198,23 +2433,42 @@ async function restoreAutoDataSyncLocalRecordSnapshot(
       { default: useMarkStore },
       { default: useCanvasStore },
       canvasesDb,
+      memoriesDb,
     ] = await Promise.all([
       import('@/stores/tag'),
       import('@/stores/mark'),
       import('@/stores/canvas'),
       import('@/db/canvases'),
+      import('@/db/memories'),
     ])
 
     const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
+    restoreStage = 'replace-record-snapshot'
     await replaceRecordSnapshot(snapshot.marks, snapshot.tags)
+    restoreStage = 'restore-canvases'
     await canvasesDb.replaceAllCanvasProjects(snapshot.canvases)
+    restoreStage = 'refresh-tags'
     await useTagStore.getState().fetchTags()
+    if (snapshot.memoryData) {
+      restoreStage = 'restore-memories'
+      await memoriesDb.replaceMemorySyncData(snapshot.memoryData)
+    }
+    restoreStage = 'refresh-local-stores'
     await Promise.all([
       useMarkStore.getState().fetchMarks(),
       useMarkStore.getState().fetchAllMarks(),
       useCanvasStore.getState().loadProjects(),
     ])
     useTagStore.getState().getCurrentTag()
+    if (snapshot.memoryData) {
+      restoreStage = 'refresh-memory-store'
+      const { default: useMemoriesStore } = await import('@/stores/memories')
+      await Promise.all([
+        useMemoriesStore.getState().loadMemories(),
+        useMemoriesStore.getState().loadStats(),
+        useMemoriesStore.getState().loadPolicy(),
+      ])
+    }
     debugAutoDataSync('local record snapshot restored', {
       reason,
       snapshotReason: snapshot.reason,
@@ -2222,12 +2476,14 @@ async function restoreAutoDataSyncLocalRecordSnapshot(
       tagsCount: snapshot.tags.length,
       marksCount: snapshot.marks.length,
       canvasesCount: snapshot.canvases.length,
+      memoriesCount: snapshot.memoryData?.memories.length || 0,
     })
   } catch (error) {
     debugAutoDataSync('local record snapshot restore failed', {
       reason,
       createdAtMs: snapshot.createdAtMs,
-      message: error instanceof Error ? error.message : 'unknown error',
+      stage: restoreStage,
+      error: getAutoDataSyncErrorMessage(error, 'Unknown error'),
     })
   } finally {
     setAutoDataSyncApplyingRemote(false)
@@ -2240,12 +2496,11 @@ async function hasUntrackedRemoteDomainBeforeUpload(
   domain: AutoDataSyncDomain
 ) {
   if (domain === 'settings') {
-    const remoteSettingsContent = await downloadAutoDataSyncRemoteFileContent(
-      store,
-      provider,
-      AUTO_DATA_SYNC_SETTINGS_PATH,
-    )
-    return Boolean(remoteSettingsContent)
+    const [remoteSettingsContent, remoteMemoryContent] = await Promise.all([
+      downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_SETTINGS_PATH),
+      downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_MEMORIES_PATH),
+    ])
+    return Boolean(remoteSettingsContent || remoteMemoryContent)
   }
 
   if (domain === 'conversations') {
@@ -2359,6 +2614,118 @@ function parseRemoteJsonRecord(content: string | null): Record<string, unknown> 
   }
 }
 
+function parseMemorySyncData(content: string | null): MemorySyncData | null {
+  const parsed = parseRemoteJsonRecord(content)
+  if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.memories)) return null
+  const policy = parsed.policy
+  if (
+    typeof policy !== 'object'
+    || policy === null
+    || Array.isArray(policy)
+    || typeof (policy as Record<string, unknown>).generateMemories !== 'boolean'
+    || !isFiniteNumber((policy as Record<string, unknown>).generationStartedAt)
+    || !isFiniteNumber((policy as Record<string, unknown>).updatedAt)
+  ) {
+    return null
+  }
+
+  const memories = parsed.memories
+  if (!memories.every(isMemorySyncRecord)) return null
+  const ids = new Set<string>()
+  for (const memory of memories) {
+    if (ids.has(memory.id)) return null
+    ids.add(memory.id)
+  }
+  return {
+    schemaVersion: 1,
+    memories: memories as MemorySyncRecord[],
+    policy: {
+      useMemories: true,
+      generateMemories: (policy as Record<string, unknown>).generateMemories as boolean,
+      excludeExternalContext: true,
+      generationStartedAt: (policy as Record<string, unknown>).generationStartedAt as number,
+      updatedAt: (policy as Record<string, unknown>).updatedAt as number,
+    },
+  }
+}
+
+function isMemorySyncRecord(value: unknown): value is MemorySyncRecord {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const memory = value as Record<string, unknown>
+  const optionalString = (field: string) =>
+    memory[field] === undefined || memory[field] === null || typeof memory[field] === 'string'
+  const optionalNumber = (field: string) =>
+    memory[field] === undefined || memory[field] === null || isFiniteNumber(memory[field])
+
+  return typeof memory.id === 'string' && memory.id.length > 0
+    && typeof memory.content === 'string'
+    && (memory.category === 'preference' || memory.category === 'memory')
+    && (memory.kind === 'preference' || memory.kind === 'fact' || memory.kind === 'experience' || memory.kind === 'decision')
+    && (memory.scopeType === 'global' || memory.scopeType === 'workspace')
+    && (memory.scopeType !== 'workspace' || (typeof memory.scopeId === 'string' && memory.scopeId.length > 0))
+    && (memory.applyMode === 'always' || memory.applyMode === 'relevant')
+    && (memory.status === 'active' || memory.status === 'pending' || memory.status === 'archived')
+    && (memory.origin === 'manual' || memory.origin === 'explicit_chat' || memory.origin === 'auto_chat')
+    && isFiniteNumber(memory.confidence) && memory.confidence >= 0 && memory.confidence <= 1
+    && (memory.sensitivity === 'normal' || memory.sensitivity === 'suspected_sensitive')
+    && isFiniteNumber(memory.createdAt)
+    && isFiniteNumber(memory.updatedAt)
+    && optionalString('scopeId')
+    && optionalString('conflictKey')
+    && optionalString('replacedId')
+    && optionalNumber('archivedAt')
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+async function getRemoteMemorySyncData(
+  store: Store,
+  provider: AutoDataSyncProvider,
+): Promise<MemorySyncData | null> {
+  const content = await downloadAutoDataSyncRemoteFileContent(
+    store,
+    provider,
+    AUTO_DATA_SYNC_MEMORIES_PATH,
+  )
+  if (!content) return null
+  const data = parseMemorySyncData(content)
+  if (!data) throw new Error('Remote memories file is invalid')
+  return data
+}
+
+async function downloadMemorySyncData(store: Store, provider: AutoDataSyncProvider): Promise<boolean> {
+  const data = await getRemoteMemorySyncData(store, provider)
+  if (!data) return true
+  const { replaceMemorySyncData } = await import('@/db/memories')
+  await replaceMemorySyncData(data)
+  return true
+}
+
+function mergeMemorySyncData(
+  local: MemorySyncData | null,
+  remote: MemorySyncData | null,
+): MemorySyncData | null {
+  if (!local) return remote
+  if (!remote) return local
+
+  const byId = new Map(local.memories.map(memory => [memory.id, memory]))
+  for (const memory of remote.memories) {
+    const localMemory = byId.get(memory.id)
+    if (!localMemory || memory.updatedAt >= localMemory.updatedAt) {
+      byId.set(memory.id, memory)
+    }
+  }
+  return {
+    schemaVersion: 1,
+    memories: Array.from(byId.values()),
+    policy: remote.policy.updatedAt >= local.policy.updatedAt
+      ? remote.policy
+      : local.policy,
+  }
+}
+
 async function getAutoDataSyncContentFingerprints(
   store: Store,
   provider: AutoDataSyncProvider,
@@ -2404,20 +2771,24 @@ async function getAutoDataSyncContentFingerprints(
     return remote ? { local, remote } : null
   }
 
-  const remoteSettingsContent = await downloadAutoDataSyncRemoteFileContent(
-    store,
-    provider,
-    AUTO_DATA_SYNC_SETTINGS_PATH
-  )
+  const [remoteSettingsContent, remoteMemoriesContent] = await Promise.all([
+    downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_SETTINGS_PATH),
+    downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_MEMORIES_PATH),
+  ])
   const remoteSettings = parseRemoteJsonRecord(remoteSettingsContent)
-  if (!remoteSettings) {
+  const remoteMemoryData = remoteMemoriesContent ? parseMemorySyncData(remoteMemoriesContent) : null
+  if (!remoteSettings || (remoteMemoriesContent && !remoteMemoryData)) {
     return null
   }
 
   const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
   return {
     local,
-    remote: stableSerialize(filterSyncData(remoteSettings, { excludeSensitiveConfig })),
+    remote: stableSerialize({
+      settings: filterSyncData(remoteSettings, { excludeSensitiveConfig }),
+      memories: remoteMemoryData?.memories.map(getMemorySyncKey).sort() || [],
+      memoryPolicy: remoteMemoryData?.policy || null,
+    }),
   }
 }
 
@@ -2449,7 +2820,13 @@ async function getLocalAutoDataSyncDomainFingerprint(
 
   const localSettings = Object.fromEntries(await store.entries()) as Record<string, unknown>
   const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
-  return stableSerialize(filterSyncData(localSettings, { excludeSensitiveConfig }))
+  const { getMemorySyncData } = await import('@/db/memories')
+  const memoryData = await getMemorySyncData()
+  return stableSerialize({
+    settings: filterSyncData(localSettings, { excludeSensitiveConfig }),
+    memories: memoryData.memories.map(getMemorySyncKey).sort(),
+    memoryPolicy: memoryData.policy,
+  })
 }
 
 async function getAutoDataSyncBaselineFingerprints(store: Store) {
@@ -2565,15 +2942,15 @@ async function downloadAutoDataSyncRemoteFileContent(
       return decodeRemoteGitFileContent(file, path)
     }
     case 'gitlab': {
-      const { getFileContent } = await import('@/lib/sync/gitlab')
+      const { getDefaultBranch, getFileContent } = await import('@/lib/sync/gitlab')
       const repo = await getDataSyncRepoName(provider)
-      const file = await getFileContent({ path, ref: 'main', repo })
+      const file = await getFileContent({ path, ref: await getDefaultBranch(repo), repo })
       return decodeRemoteGitFileContent(file, path)
     }
     case 'gitea': {
-      const { getFileContent } = await import('@/lib/sync/gitea')
+      const { getFiles } = await import('@/lib/sync/gitea')
       const repo = await getDataSyncRepoName(provider)
-      const file = await getFileContent({ path, ref: 'main', repo })
+      const file = await getFiles({ path, repo })
       return decodeRemoteGitFileContent(file, path)
     }
     case 's3': {
@@ -2697,16 +3074,16 @@ async function downloadAutoDataSyncMetaUncached(
       break
     }
     case 'gitlab': {
-      const { getFileContent } = await import('@/lib/sync/gitlab')
+      const { getDefaultBranch, getFileContent } = await import('@/lib/sync/gitlab')
       const repo = await getDataSyncRepoName(provider)
-      const file = await getFileContent({ path: AUTO_DATA_SYNC_META_PATH, ref: 'main', repo })
+      const file = await getFileContent({ path: AUTO_DATA_SYNC_META_PATH, ref: await getDefaultBranch(repo), repo })
       content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
       break
     }
     case 'gitea': {
-      const { getFileContent } = await import('@/lib/sync/gitea')
+      const { getFiles } = await import('@/lib/sync/gitea')
       const repo = await getDataSyncRepoName(provider)
-      const file = await getFileContent({ path: AUTO_DATA_SYNC_META_PATH, ref: 'main', repo })
+      const file = await getFiles({ path: AUTO_DATA_SYNC_META_PATH, repo })
       content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
       break
     }
@@ -2800,6 +3177,9 @@ function parseAutoDataSyncMeta(content: string | null): AutoDataSyncRemoteMeta |
       domains,
       lastUploadedDomains,
       domainStates,
+      hasExplicitDomainStates: typeof data.domainStates === 'object'
+        && data.domainStates !== null
+        && !Array.isArray(data.domainStates),
     }
   } catch {
     return null
@@ -2885,8 +3265,7 @@ async function getAutoDataSyncDomainLastCompletedAt(store: Store, domain: AutoDa
     getStoredNumber(store, `${AUTO_DATA_SYNC_LAST_LOCAL_UPLOAD_META_MS_KEY}:${domain}`),
     getStoredNumber(store, `${AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY}:${domain}`),
   ])
-  const domainBaseline = Math.max(lastLocalUploadAt, lastAppliedRemoteAt)
-  return domainBaseline > 0 ? domainBaseline : getAutoDataSyncLastCompletedAt(store)
+  return Math.max(lastLocalUploadAt, lastAppliedRemoteAt)
 }
 
 async function getRemoteMetaDecision(
@@ -2899,7 +3278,7 @@ async function getRemoteMetaDecision(
   const remoteDomainState = domain ? remoteMeta.domainStates[domain] : undefined
   const remoteUpdatedAtMs = remoteDomainState?.updatedAtMs ?? remoteMeta.updatedAtMs
   const remoteDeviceId = remoteDomainState?.deviceId ?? remoteMeta.deviceId
-  const localBaseline = domain
+  const localBaseline = domain && remoteMeta.hasExplicitDomainStates
     ? await getAutoDataSyncDomainLastCompletedAt(store, domain)
     : await getAutoDataSyncLastCompletedAt(store)
   const remoteFromCurrentDevice = remoteDeviceId === deviceId
@@ -2994,6 +3373,9 @@ async function markAutoDataSyncRemoteMetaApplied(
       await getAutoDataSyncStateKey(`${AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY}:${domain}`),
       updatedAtMs,
     )
+  }
+  if (domains.includes('settings')) {
+    await store.set(await getAutoDataSyncStateKey(AUTO_DATA_SYNC_MEMORY_SETTINGS_MIGRATED_KEY), true)
   }
   await store.save()
   debugAutoDataSync('remote meta applied locally', {
@@ -3169,6 +3551,56 @@ async function uploadCloudFolderMetaFile(store: Store, content: string) {
     provider: 'cloudFolder',
     path: AUTO_DATA_SYNC_META_PATH,
   })
+}
+
+async function uploadMemorySyncData(
+  store: Store,
+  provider: AutoDataSyncProvider,
+  data: MemorySyncData,
+): Promise<boolean> {
+  const content = JSON.stringify(data)
+  switch (provider) {
+    case 'github':
+    case 'gitee':
+    case 'gitlab':
+    case 'gitea': {
+      const repo = await getDataSyncRepoName(provider)
+      const sync = provider === 'github'
+        ? await import('@/lib/sync/github')
+        : provider === 'gitee'
+          ? await import('@/lib/sync/gitee')
+          : provider === 'gitlab'
+            ? await import('@/lib/sync/gitlab')
+            : await import('@/lib/sync/gitea')
+      const existingFile = await sync.getFiles({ path: AUTO_DATA_SYNC_MEMORIES_PATH, repo })
+      return Boolean(await sync.uploadFile({
+        file: content,
+        repo,
+        path: AUTO_DATA_SYNC_MEMORIES_PATH,
+        filename: 'memories.json',
+        sha: getRemoteFileSha(existingFile),
+        message: 'Update synced memories',
+      }))
+    }
+    case 's3': {
+      const config = await store.get<S3Config>('s3SyncConfig')
+      if (!config) return false
+      const { s3Upload } = await import('@/lib/sync/s3')
+      return Boolean(await s3Upload(config, AUTO_DATA_SYNC_MEMORIES_PATH, content))
+    }
+    case 'webdav': {
+      const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+      if (!config) return false
+      const { webdavUpload } = await import('@/lib/sync/webdav')
+      return Boolean(await webdavUpload(config, AUTO_DATA_SYNC_MEMORIES_PATH, content))
+    }
+    case 'cloudFolder': {
+      const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+      if (!config) return false
+      const { cloudFolderUpload } = await import('@/lib/sync/cloud-folder')
+      return Boolean(await cloudFolderUpload(config, AUTO_DATA_SYNC_MEMORIES_PATH, content))
+    }
+  }
 }
 
 async function getAutoDataSyncDeviceId() {

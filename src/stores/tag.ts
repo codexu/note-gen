@@ -10,6 +10,7 @@ import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/
 import { cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
 import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
+import { normalizeTagSnapshot } from '@/lib/tag-sync'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
@@ -290,6 +291,7 @@ const useTagStore = create<TagState>((set, get) => ({
       }
     }
     if (hasRemoteData) {
+      result = normalizeTagSnapshot(result)
       const statements = tagSnapshotStatements(result)
       if (options.fetchOnly) return result
       setAutoDataSyncApplyingRemote(true)

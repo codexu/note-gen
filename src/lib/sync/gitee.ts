@@ -519,6 +519,7 @@ export async function getUserInfo() {
     
     // 保存用户名到存储
     await store.set('giteeUsername', data.login);
+    await store.save();
     
     return data;
   } catch {

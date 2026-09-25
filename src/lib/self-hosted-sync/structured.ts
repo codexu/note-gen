@@ -53,6 +53,19 @@ export async function applyStructuredPayload(
   const domain = String(payload.domain ?? '')
   if (domain === 'setting') {
     await applySettings(payload.value)
+    if (isRecord(payload.memoryPolicy)
+      && typeof payload.memoryPolicy.generateMemories === 'boolean'
+      && typeof payload.memoryPolicy.generationStartedAt === 'number'
+      && typeof payload.memoryPolicy.updatedAt === 'number') {
+      const { replaceMemoryPolicy } = await import('@/db/memory-policy')
+      await replaceMemoryPolicy({
+        useMemories: true,
+        generateMemories: payload.memoryPolicy.generateMemories,
+        excludeExternalContext: true,
+        generationStartedAt: payload.memoryPolicy.generationStartedAt,
+        updatedAt: payload.memoryPolicy.updatedAt,
+      })
+    }
     await upsertMapping(workspaceId, objectId, kind, `setting:${String(payload.localKey ?? 'snapshot')}`)
     return
   }

@@ -325,6 +325,7 @@ export async function getUserInfo(token?: string) {
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       await store.set('githubUsername', data.login);
+      await store.save();
       return { data } as OctokitResponse<any>;
     }
     

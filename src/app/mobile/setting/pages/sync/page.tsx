@@ -19,6 +19,7 @@ import { DataSyncOverview } from '@/app/core/setting/sync/components/data-sync-o
 import { MobileSelectDrawer } from '@/app/mobile/components/mobile-select-drawer'
 import { OneDriveCloudFolderSync } from '@/app/mobile/setting/pages/sync/android-cloud-folder-sync'
 import { ICloudFolderSync } from '@/app/mobile/setting/pages/sync/ios-cloud-folder-sync'
+import { RecordSyncStatusBanner } from '@/components/record-sync-status-banner'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Switch } from '@/components/ui/switch'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
@@ -379,6 +380,7 @@ export default function SyncPage() {
         onConversationSyncChange={setAutoConversationSyncEnabled}
         onSensitiveConfigChange={handleExcludeSensitiveConfigChange}
       />
+      {autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
     </div>
   )
 }

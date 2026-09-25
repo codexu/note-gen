@@ -26,6 +26,7 @@ interface RecordSyncStatusBannerProps {
   settingsHref?: string
   onSettingsClick?: () => void
   compact?: boolean
+  showWaitingProvider?: boolean
   className?: string
 }
 
@@ -122,6 +123,7 @@ export function RecordSyncStatusBanner({
   settingsHref,
   onSettingsClick,
   compact = false,
+  showWaitingProvider = false,
   className,
 }: RecordSyncStatusBannerProps) {
   const t = useTranslations('record.syncStatus')
@@ -161,7 +163,7 @@ export function RecordSyncStatusBanner({
       return false
     }
 
-    if (phase === 'waiting_provider') {
+    if (phase === 'waiting_provider' && !showWaitingProvider) {
       return false
     }
 
@@ -174,7 +176,7 @@ export function RecordSyncStatusBanner({
     }
 
     return true
-  }, [phase, showSuccess, syncState.currentDomain])
+  }, [phase, showSuccess, showWaitingProvider, syncState.affectedDomains, syncState.currentDomain])
 
   if (!shouldShow) {
     return null
@@ -215,7 +217,7 @@ export function RecordSyncStatusBanner({
             {t('retry')}
           </Button>
         ) : null}
-        {phase === 'failed' || phase === 'waiting_provider' ? (
+        {(phase === 'failed' || phase === 'waiting_provider') && (onSettingsClick || settingsHref) ? (
           <Button
             type="button"
             variant="ghost"

@@ -1,7 +1,9 @@
 import { fetchEmbedding, getEmbeddingModelDescriptor } from '@/lib/ai/embedding'
 import { invalidateMemoryCache } from '@/lib/memory/cache-version'
-import { getDb } from './index'
-import { initMemoryPolicyDb } from './memory-policy'
+import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
+import { Store } from '@tauri-apps/plugin-store'
+import { executeRecordTransaction, getDb } from './index'
+import { getMemoryPolicy, initMemoryPolicyDb, type MemoryPolicy } from './memory-policy'
 
 export type MemoryCategory = 'preference' | 'memory'
 export type MemoryKind = 'preference' | 'fact' | 'experience' | 'decision'
@@ -36,6 +38,22 @@ export interface Memory {
   archivedAt?: number
   createdAt: number
   updatedAt: number
+}
+
+export type MemorySyncRecord = Omit<Memory,
+  'embedding'
+  | 'embeddingModel'
+  | 'embeddingDimensions'
+  | 'indexingStatus'
+  | 'accessCount'
+  | 'lastAccessedAt'
+  | 'lastRecallReason'
+>
+
+export interface MemorySyncData {
+  schemaVersion: 1
+  memories: MemorySyncRecord[]
+  policy: MemoryPolicy
 }
 
 export type MemoryJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
@@ -85,6 +103,15 @@ const PREFERENCE_KEYWORDS = [
   '中文', '英文', '清单体', '段落', '简洁', '详细', 'tl;dr',
   '格式', '风格', '语言', '回答', '输出', '回复',
 ]
+const MEMORY_SYNC_EXCLUDED_FIELDS = new Set([
+  'embedding',
+  'embeddingModel',
+  'embeddingDimensions',
+  'indexingStatus',
+  'accessCount',
+  'lastAccessedAt',
+  'lastRecallReason',
+])
 let memoryReindexRunning = false
 
 const MEMORY_SELECT = `
@@ -140,6 +167,10 @@ function categoryForKind(kind: MemoryKind): MemoryCategory {
 
 function kindForCategory(category: MemoryCategory): MemoryKind {
   return category === 'preference' ? 'preference' : 'fact'
+}
+
+function enqueueMemorySync(reason: string) {
+  enqueueAutoDataSync('settings', `memory:${reason}`)
 }
 
 async function addColumn(columnSql: string) {
@@ -222,6 +253,18 @@ export async function initMemoriesDb() {
 
   await initMemoryPolicyDb()
 
+  const syncStore = await Store.load('store.json')
+  const syncInitialized = await syncStore.get<boolean>('memorySyncInitialized')
+  if (!syncInitialized) {
+    await syncStore.set('memorySyncInitialized', true)
+    await syncStore.save()
+    const existingMemories = await db.select<Array<{ total: number }>>(
+      'select count(*) as total from memories',
+    )
+    if ((existingMemories[0]?.total || 0) > 0) {
+      enqueueMemorySync('sync-initialized')
+    }
+  }
 }
 
 async function buildEmbedding(
@@ -343,6 +386,7 @@ export async function upsertMemory(
   )
   invalidateMemoryCache()
   void reindexPendingMemories()
+  enqueueMemorySync('create')
   return { id, replaced: false, indexingStatus: indexed.status }
 }
 
@@ -491,6 +535,7 @@ export async function updateMemory(id: string, updates: MemoryUpdateInput): Prom
   )
   invalidateMemoryCache()
   if (indexed.status !== 'ready') void reindexPendingMemories()
+  enqueueMemorySync('update')
 }
 
 export async function archiveMemory(id: string): Promise<void> {
@@ -511,6 +556,7 @@ export async function undoMemoryChange(id: string): Promise<void> {
     [now, id]
   )
   invalidateMemoryCache()
+  enqueueMemorySync('undo')
 }
 
 export async function approveMemory(id: string): Promise<void> {
@@ -538,12 +584,76 @@ export async function permanentlyDeleteMemory(id: string): Promise<void> {
   const db = await getDb()
   await db.execute('delete from memories where id = $1', [id])
   invalidateMemoryCache()
+  enqueueMemorySync('permanently-delete')
 }
 
 export async function clearAllMemories(): Promise<void> {
   const db = await getDb()
   await db.execute('delete from memories')
   invalidateMemoryCache()
+  enqueueMemorySync('clear')
+}
+
+export async function getMemorySyncData(): Promise<MemorySyncData> {
+  const [memories, policy] = await Promise.all([
+    getAllMemories({ includeInactive: true }),
+    getMemoryPolicy(),
+  ])
+
+  return {
+    schemaVersion: 1,
+    memories: memories.map(memory => Object.fromEntries(
+      Object.entries(memory).filter(([key]) => !MEMORY_SYNC_EXCLUDED_FIELDS.has(key))
+    ) as MemorySyncRecord),
+    policy,
+  }
+}
+
+export async function replaceMemorySyncData(data: MemorySyncData): Promise<void> {
+  await initMemoryPolicyDb()
+  const statements = [
+    { sql: 'delete from memories', values: [] },
+    ...data.memories.map(memory => ({
+      sql: `insert into memories (
+        id, content, embedding, category, replaced_id, access_count,
+        last_accessed_at, created_at, updated_at, kind, scope_type, scope_id,
+        apply_mode, status, origin, confidence, conflict_key,
+        embedding_model, embedding_dimensions, indexing_status, sensitivity,
+        last_recall_reason, archived_at
+      ) values (
+        $1, $2, '', $3, $4, 0, 0, $5, $6, $7, $8, $9,
+        $10, $11, $12, $13, $14, null, null, 'pending', $15, null, $16
+      )`,
+      values: [
+        memory.id,
+        memory.content,
+        memory.category,
+        memory.replacedId ?? null,
+        memory.createdAt,
+        memory.updatedAt,
+        memory.kind,
+        memory.scopeType,
+        memory.scopeId ?? null,
+        memory.applyMode,
+        memory.status,
+        memory.origin,
+        memory.confidence,
+        memory.conflictKey ?? null,
+        memory.sensitivity,
+        memory.archivedAt ?? null,
+      ],
+    })),
+    {
+      sql: `update memory_global_policy
+            set use_memories = 1, generate_memories = $1,
+                exclude_external_context = 1, generation_started_at = $2,
+                updated_at = $3 where id = 1`,
+      values: [data.policy.generateMemories ? 1 : 0, data.policy.generationStartedAt, data.policy.updatedAt],
+    },
+  ]
+  await executeRecordTransaction(statements)
+  invalidateMemoryCache()
+  void reindexPendingMemories()
 }
 
 export async function getMemoryStats(): Promise<{
@@ -638,10 +748,10 @@ export async function reconcileMemoryEmbeddingModel(): Promise<number> {
   const result = await db.execute(
     `update memories
      set embedding = '', embedding_model = $1, embedding_dimensions = null,
-         indexing_status = 'pending', updated_at = $2
+         indexing_status = 'pending'
      where status in ('active', 'pending')
        and coalesce(embedding_model, '') <> $1`,
-    [descriptor.model, Date.now()]
+    [descriptor.model]
   )
   if (result.rowsAffected > 0) invalidateMemoryCache()
   return result.rowsAffected
@@ -666,14 +776,13 @@ export async function reindexPendingMemories(limit = 20): Promise<number> {
       await db.execute(
         `update memories
          set embedding = $1, embedding_model = $2, embedding_dimensions = $3,
-             indexing_status = $4, updated_at = $5
-         where id = $6`,
+             indexing_status = $4
+         where id = $5`,
         [
           indexed.embedding,
           indexed.model,
           indexed.dimensions,
           indexed.status === 'pending' ? 'failed' : indexed.status,
-          Date.now(),
           memory.id,
         ]
       )

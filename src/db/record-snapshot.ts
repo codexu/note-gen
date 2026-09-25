@@ -2,6 +2,7 @@ import type { Mark } from './marks'
 import type { Tag } from './tags'
 import { executeRecordTransaction, type RecordStatement } from './index'
 import { recordTagIds } from '@/lib/record-tags'
+import { normalizeTagSnapshot } from '@/lib/tag-sync'
 
 const recordTypes = new Set(['scan', 'text', 'image', 'link', 'file', 'recording', 'todo'])
 const positiveId = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
@@ -31,15 +32,9 @@ export function validateRecordSnapshot(value: unknown): asserts value is Mark[] 
 }
 
 export function tagSnapshotStatements(value: unknown): RecordStatement[] {
-  if (!Array.isArray(value)) throw new Error('Invalid remote tags')
-  const ids = new Set<number>()
+  const tags = normalizeTagSnapshot(value)
   const statements: RecordStatement[] = [{ sql: 'delete from tags where isLocked = false', values: [] }]
-  for (const tag of value) {
-    if (!tag || !positiveId(tag.id) || ids.has(tag.id) || typeof tag.name !== 'string' ||
-      (tag.sortOrder != null && !Number.isFinite(tag.sortOrder)) ||
-      ![undefined, null, false, true, 0, 1].includes(tag.isLocked) ||
-      ![undefined, null, false, true, 0, 1].includes(tag.isPin)) throw new Error('Invalid remote tag snapshot')
-    ids.add(tag.id)
+  for (const tag of tags) {
     if (tag.isLocked) continue
     statements.push({
       sql: `insert into tags (id, name, isLocked, isPin, sortOrder) values ($1, $2, 0, $3, $4)

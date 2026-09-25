@@ -4722,6 +4722,7 @@
         "title": "Visualização de arquivos e sincronização",
         "more": "Mais",
         "fileView": "Visualização de arquivos",
+        "syncFiles": "Sincronização de arquivos",
         "showAssetsFolders": "Mostrar pastas de recursos",
         "showKnowledgeBaseStatus": "Mostrar status da base de conhecimento",
         "files": "Arquivos remotos",

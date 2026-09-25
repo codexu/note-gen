@@ -1,7 +1,7 @@
 'use client'
 
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, Upload } from 'lucide-react'
+import { ArrowDownAZ, Calendar, Clock, Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, SortAsc, SortDesc, Upload } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -10,13 +10,28 @@ import { Switch } from '@/components/ui/switch'
 import { ResponsiveActionMenu } from '@/components/responsive-action-menu'
 import { toast } from '@/hooks/use-toast'
 import useArticleStore from '@/stores/article'
+import type { SortDirection, SortType } from '@/stores/article'
 import useCloudLibraryStore from '@/stores/cloud-library'
 import useVectorStore from '@/stores/vector'
 import { cn } from '@/lib/utils'
 import { getSyncConfiguration } from './file-tree-action-policy'
 
-export function CloudLibraryMenu({ className }: { className?: string }) {
+type CloudLibraryMenuSortOptions = {
+  direction: SortDirection
+  setDirection: (direction: SortDirection) => Promise<void>
+  setType: (type: SortType) => Promise<void>
+  type: SortType
+}
+
+export function CloudLibraryMenu({
+  className,
+  sortOptions,
+}: {
+  className?: string
+  sortOptions?: CloudLibraryMenuSortOptions
+}) {
   const t = useTranslations('article.file.cloudLibrary')
+  const tToolbar = useTranslations('article.file.toolbar')
   const tSync = useTranslations('settings.sync')
   const router = useRouter()
   const {
@@ -198,6 +213,7 @@ export function CloudLibraryMenu({ className }: { className?: string }) {
           key: 'show-assets-folders',
           label: t('showAssetsFolders'),
           icon: <FolderDot />,
+          groupLabel: t('fileView'),
           keepOpen: true,
           onSelect: () => setShowAssetsFolders(!showAssetsFolders),
           selected: showAssetsFolders,
@@ -234,13 +250,48 @@ export function CloudLibraryMenu({ className }: { className?: string }) {
             />
           ),
         },
-        { key: 'upload-files', label: t('uploadFiles'), icon: <Upload />, onSelect: handleUploadAll, disabled: busy },
+        ...(sortOptions ? [{
+          key: 'sort-name',
+          label: tToolbar('sortByName'),
+          icon: <ArrowDownAZ />,
+          selected: sortOptions.type === 'name',
+          separatorBefore: true,
+          groupLabel: tToolbar('sort'),
+          onSelect: () => sortOptions.setType('name'),
+        }, {
+          key: 'sort-created',
+          label: tToolbar('sortByCreated'),
+          icon: <Calendar />,
+          selected: sortOptions.type === 'created',
+          onSelect: () => sortOptions.setType('created'),
+        }, {
+          key: 'sort-modified',
+          label: tToolbar('sortByModified'),
+          icon: <Clock />,
+          selected: sortOptions.type === 'modified',
+          onSelect: () => sortOptions.setType('modified'),
+        }, {
+          key: 'sort-direction',
+          label: sortOptions.direction === 'asc' ? tToolbar('sortDesc') : tToolbar('sortAsc'),
+          icon: sortOptions.direction === 'asc' ? <SortDesc /> : <SortAsc />,
+          onSelect: () => sortOptions.setDirection(sortOptions.direction === 'asc' ? 'desc' : 'asc'),
+        }] : []),
+        {
+          key: 'upload-files',
+          label: t('uploadFiles'),
+          icon: <Upload />,
+          separatorBefore: true,
+          groupLabel: t('syncFiles'),
+          onSelect: handleUploadAll,
+          disabled: busy,
+        },
         { key: 'download-files', label: t('downloadFiles'), icon: <Download />, onSelect: handlePullAll, disabled: busy },
         {
           key: 'auto-vector',
           label: t('autoUpdate'),
           icon: <DatabaseZap />,
           separatorBefore: true,
+          groupLabel: t('knowledgeBase'),
           keepOpen: true,
           onSelect: () => setAutoVectorEnabled(!isAutoVectorEnabled),
           end: (

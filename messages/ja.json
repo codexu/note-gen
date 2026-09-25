@@ -4739,6 +4739,7 @@
         "title": "ファイル表示と同期",
         "more": "その他",
         "fileView": "ファイル表示",
+        "syncFiles": "ファイル同期",
         "showAssetsFolders": "アセットフォルダーを表示",
         "showKnowledgeBaseStatus": "知識ベースの状態を表示",
         "files": "リモートファイル",

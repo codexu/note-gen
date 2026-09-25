@@ -4822,6 +4822,7 @@
         "title": "File View & Sync",
         "more": "More",
         "fileView": "File View",
+        "syncFiles": "File Sync",
         "showAssetsFolders": "Show Asset Folders",
         "showKnowledgeBaseStatus": "Show Knowledge Base Status",
         "files": "Remote Files",

@@ -16,6 +16,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -35,6 +36,7 @@ export type ResponsiveActionMenuItem = {
   separatorBefore?: boolean
   keepOpen?: boolean
   multiline?: boolean
+  groupLabel?: ReactNode
 }
 
 interface ResponsiveActionMenuProps {
@@ -65,6 +67,7 @@ export function ResponsiveActionMenu({
             {items.map(item => (
               <Fragment key={item.key}>
                 {item.separatorBefore ? <DropdownMenuSeparator /> : null}
+                {item.groupLabel ? <DropdownMenuLabel>{item.groupLabel}</DropdownMenuLabel> : null}
                 <DropdownMenuItem
                   className={cn(item.multiline && 'gap-4 px-3 py-3')}
                   disabled={item.disabled}
@@ -102,6 +105,11 @@ export function ResponsiveActionMenu({
           {items.map(item => (
             <Fragment key={item.key}>
               {item.separatorBefore ? <Separator className="my-1" /> : null}
+              {item.groupLabel ? (
+                <div className="px-3 py-1 text-xs font-medium text-muted-foreground" role="heading" aria-level={3}>
+                  {item.groupLabel}
+                </div>
+              ) : null}
               <Button
                 type="button"
                 variant={item.destructive ? 'destructive' : 'ghost'}

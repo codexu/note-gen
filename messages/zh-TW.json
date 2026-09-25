@@ -4729,6 +4729,7 @@
         "title": "檔案檢視與同步",
         "more": "更多",
         "fileView": "檔案檢視",
+        "syncFiles": "檔案同步",
         "showAssetsFolders": "顯示資源資料夾",
         "showKnowledgeBaseStatus": "顯示知識庫狀態",
         "files": "遠端檔案",

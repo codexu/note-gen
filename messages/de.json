@@ -4681,6 +4681,7 @@
         "title": "Dateiansicht & Synchronisierung",
         "more": "Mehr",
         "fileView": "Dateiansicht",
+        "syncFiles": "Dateisynchronisierung",
         "showAssetsFolders": "Asset-Ordner anzeigen",
         "showKnowledgeBaseStatus": "Wissensdatenbank-Status anzeigen",
         "files": "Remote-Dateien",

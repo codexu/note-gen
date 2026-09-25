@@ -110,6 +110,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     showAssetsFolders,
     cleanTabsByDeletedFile,
     cleanTabsByDeletedFolder,
+    sortDirection,
+    sortType,
+    setSortDirection,
+    setSortType,
   } = useArticleStore()
   const assetsPath = useSettingStore(state => state.assetsPath)
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
@@ -173,9 +177,20 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       .sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1
         if (!a.isDirectory && b.isDirectory) return 1
-        return a.name.localeCompare(b.name, undefined, { numeric: true })
+
+        if (sortType === 'none' || sortType === 'name') {
+          const result = a.name.localeCompare(b.name, undefined, { numeric: true })
+          return sortType === 'name' && sortDirection === 'desc' ? -result : result
+        }
+
+        const aTimestamp = Date.parse(sortType === 'created' ? a.createdAt || '' : a.modifiedAt || '')
+        const bTimestamp = Date.parse(sortType === 'created' ? b.createdAt || '' : b.modifiedAt || '')
+        const result = Number.isNaN(aTimestamp) || Number.isNaN(bTimestamp)
+          ? a.name.localeCompare(b.name, undefined, { numeric: true })
+          : aTimestamp - bTimestamp
+        return sortDirection === 'asc' ? result : -result
       })
-  }, [assetsFolderName, fileTree, currentDir, showAssetsFolders, showCloudFiles, syncStaticAssets])
+  }, [assetsFolderName, fileTree, currentDir, showAssetsFolders, showCloudFiles, sortDirection, sortType, syncStaticAssets])
 
   const visibleEntries = useMemo(() => {
     const mapped: BrowserEntry[] = rawEntries.map((node) => {
@@ -1235,7 +1250,15 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
           >
             <RefreshCw className={`size-4 ${isBrowserRefreshing ? 'animate-spin' : ''}`} />
           </Button>
-          <CloudLibraryMenu className="size-9 shrink-0" />
+          <CloudLibraryMenu
+            className="size-9 shrink-0"
+            sortOptions={{
+              type: sortType,
+              direction: sortDirection,
+              setType: setSortType,
+              setDirection: setSortDirection,
+            }}
+          />
         </div>
       </header>
 
@@ -1278,7 +1301,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
 
         <div
                 className={cn(
-                  "relative flex-1",
+                  "mobile-under-dock-scroll relative flex-1",
                   dragEntry ? "overflow-visible" : "overflow-y-auto overflow-x-hidden"
                 )}
                 data-vaul-no-drag

@@ -4822,6 +4822,7 @@
         "title": "文件视图与同步",
         "more": "更多",
         "fileView": "文件视图",
+        "syncFiles": "同步文件",
         "showAssetsFolders": "显示资源文件夹",
         "showKnowledgeBaseStatus": "显示知识库状态",
         "files": "远程文件",

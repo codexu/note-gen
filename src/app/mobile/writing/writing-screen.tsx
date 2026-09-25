@@ -16,6 +16,7 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
   const pathname = usePathname()
   const activeFilePath = useArticleStore(state => state.activeFilePath)
   const initCollapsibleList = useArticleStore(state => state.initCollapsibleList)
+  const initSortSettings = useArticleStore(state => state.initSortSettings)
   const [view, setView] = useState<WritingView>('files')
   const initializedRef = useRef(false)
   const wasWritingRouteRef = useRef(false)
@@ -35,6 +36,7 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
 
     const initialize = async () => {
       await initCollapsibleList()
+      await initSortSettings()
       if (cancelled) return
       initializedRef.current = true
       const restoredPath = useArticleStore.getState().activeFilePath
@@ -48,7 +50,7 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
     return () => {
       cancelled = true
     }
-  }, [initCollapsibleList])
+  }, [initCollapsibleList, initSortSettings])
 
   useEffect(() => {
     const wasWritingRoute = wasWritingRouteRef.current

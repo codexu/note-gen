@@ -90,23 +90,29 @@ export function MemoryItem({ memory }: MemoryItemProps) {
 
   return (
     <>
-      <Item variant="outline" size="sm">
-        <ItemContent>
-          <div className="flex flex-wrap gap-1.5">
-            <Badge variant={memory.status === 'active' ? 'default' : 'secondary'}>
+      <Item variant="outline" size="sm" className="grid grid-cols-[minmax(0,1fr)_2.5rem] items-center">
+        <ItemContent className="min-w-0 gap-2 md:gap-1">
+          <div className="order-2 flex flex-wrap gap-1.5 md:order-first">
+            <Badge variant={memory.status === 'active' ? 'default' : 'secondary'} className="hidden md:inline-flex">
               {t(`statuses.${memory.status}`)}
             </Badge>
-            <Badge variant="outline">{t(`kinds.${memory.kind}`)}</Badge>
-            <Badge variant="outline">{t(`scopes.${memory.scopeType}`)}</Badge>
+            {memory.status !== 'active' && (
+              <Badge variant="secondary" className="md:hidden">{t(`statuses.${memory.status}`)}</Badge>
+            )}
+            <Badge variant="outline" className="hidden md:inline-flex">{t(`kinds.${memory.kind}`)}</Badge>
+            <Badge variant="outline" className="hidden md:inline-flex">{t(`scopes.${memory.scopeType}`)}</Badge>
             {memory.applyMode === 'always' && (
               <Badge variant="secondary"><Pin />{t('always')}</Badge>
             )}
             {memory.sensitivity === 'suspected_sensitive' && (
               <Badge variant="destructive"><ShieldAlert />{t('sensitive.badge')}</Badge>
             )}
+            {memory.indexingStatus !== 'ready' && (
+              <Badge variant="outline" className="md:hidden">{t(`indexing.${memory.indexingStatus}`)}</Badge>
+            )}
           </div>
-          <ItemTitle className="line-clamp-2">{memory.content}</ItemTitle>
-          <ItemDescription>
+          <ItemTitle className="order-1 line-clamp-none w-full whitespace-normal break-words md:order-none md:line-clamp-2 md:w-fit">{memory.content}</ItemTitle>
+          <ItemDescription className="order-3 hidden md:block">
             {memory.lastRecallReason
               ? t('lastRecallReason', { reason: memory.lastRecallReason })
               : t('neverRecalled')}
@@ -114,12 +120,22 @@ export function MemoryItem({ memory }: MemoryItemProps) {
             {t('accessCount', { count: memory.accessCount })}
             {memory.indexingStatus !== 'ready' && ` · ${t(`indexing.${memory.indexingStatus}`)}`}
           </ItemDescription>
+          {memory.status === 'pending' && (
+            <Button
+              variant="outline"
+              className="order-4 mt-1 h-10 w-full md:hidden"
+              onClick={() => void approveMemory(memory.id)}
+            >
+              <Check data-icon="inline-start" />
+              {t('actions.approve')}
+            </Button>
+          )}
         </ItemContent>
-        <ItemActions>
+        <ItemActions className="col-start-2 row-start-1 self-center justify-self-end">
           <ResponsiveActionMenu
             title={t('actions.more')}
             trigger={
-              <Button variant="ghost" size="icon-sm" aria-label={t('actions.more')}>
+              <Button variant="ghost" size="icon-sm" className="size-10 md:size-8" aria-label={t('actions.more')}>
                 <Ellipsis />
               </Button>
             }
@@ -152,12 +168,14 @@ export function MemoryItem({ memory }: MemoryItemProps) {
       </Item>
 
       <Dialog open={editing} onOpenChange={setEditing}>
-        <DialogContent>
+        <DialogContent className="overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('editTitle')}</DialogTitle>
             <DialogDescription>{t('editDescription')}</DialogDescription>
           </DialogHeader>
-          <MemoryForm memory={memory} onSuccess={() => setEditing(false)} />
+          <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-0">
+            <MemoryForm memory={memory} onSuccess={() => setEditing(false)} />
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1,9 +1,21 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 const MobileSettingLayoutContext = createContext(false)
+export interface MobileSettingAction {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+}
+
+const MobileSettingActionContext = createContext<{
+  action: MobileSettingAction | null
+  setAction: (action: MobileSettingAction | null) => void
+}>({ action: null, setAction: () => {} })
 
 export function SettingLayoutProvider({
   mobile,
@@ -12,10 +24,45 @@ export function SettingLayoutProvider({
   mobile: boolean
   children: React.ReactNode
 }) {
+  const [action, setAction] = useState<MobileSettingAction | null>(null)
+
   return (
     <MobileSettingLayoutContext.Provider value={mobile}>
-      {children}
+      <MobileSettingActionContext.Provider value={{ action, setAction }}>
+        {children}
+      </MobileSettingActionContext.Provider>
     </MobileSettingLayoutContext.Provider>
+  )
+}
+
+export function useMobileSettingAction(action: MobileSettingAction | null) {
+  const { setAction } = useContext(MobileSettingActionContext)
+
+  useEffect(() => {
+    setAction(action)
+    return () => setAction(null)
+  }, [action, setAction])
+}
+
+export function MobileSettingActionOutlet() {
+  const { action } = useContext(MobileSettingActionContext)
+
+  return (
+    <div className="flex size-10 shrink-0 items-center justify-center">
+      {action && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          aria-label={action.label}
+          title={action.label}
+          onClick={action.onClick}
+        >
+          {action.icon}
+        </Button>
+      )}
+    </div>
   )
 }
 

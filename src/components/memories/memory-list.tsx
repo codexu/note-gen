@@ -33,6 +33,7 @@ import { ResponsiveSelect } from '@/components/responsive-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useMobileSettingAction } from '@/app/core/setting/components/setting-base'
 import type {
   MemoryKind,
   MemoryScopeType,
@@ -62,6 +63,13 @@ export function MemoryList() {
   const [kind, setKind] = useState<FilterValue<MemoryKind>>('all')
   const [scope, setScope] = useState<FilterValue<MemoryScopeType>>('all')
   const [status, setStatus] = useState<MemoryStatus>('active')
+  const mobileAddAction = useMemo(() => ({
+    label: t('addMemory'),
+    icon: <Plus />,
+    onClick: () => setOpen(true),
+  }), [t])
+
+  useMobileSettingAction(mobileAddAction)
 
   useEffect(() => {
     void Promise.all([loadMemories(), loadPolicy(), loadStats()])
@@ -76,19 +84,25 @@ export function MemoryList() {
       && (!normalized || memory.content.toLocaleLowerCase().includes(normalized))
     )
   }, [kind, memories, query, scope, status])
-  const hasMemoriesInStatus = memories.some(memory => memory.status === status)
+  const statusCounts = useMemo(() => ({
+    active: memories.filter(memory => memory.status === 'active').length,
+    pending: memories.filter(memory => memory.status === 'pending').length,
+    archived: memories.filter(memory => memory.status === 'archived').length,
+  }), [memories])
+  const hasMemoriesInStatus = statusCounts[status] > 0
   const hasActiveFilters = Boolean(query.trim())
     || kind !== 'all'
     || scope !== 'all'
 
   const pending = memories.filter(memory => memory.status === 'pending')
+  const mobileMemories = memories.filter(memory => memory.status !== 'archived')
   const approveAllPending = async () => {
     await Promise.all(pending.map(memory => approveMemory(memory.id)))
     toast.success(t('approvedAll', { count: pending.length }))
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-5 md:gap-6">
       <Item variant="outline">
         <ItemContent>
           <ItemTitle>{t('policy.generate')}</ItemTitle>
@@ -96,107 +110,139 @@ export function MemoryList() {
         </ItemContent>
         <ItemActions>
           <Switch
+            aria-label={t('policy.generate')}
             checked={policy?.generateMemories ?? true}
             onCheckedChange={checked => void updatePolicy({ generateMemories: checked })}
           />
         </ItemActions>
       </Item>
 
-      <MemoryStats />
+      <div className="hidden md:block"><MemoryStats /></div>
 
-      <Tabs value={status} onValueChange={value => setStatus(value as MemoryStatus)}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <TabsList>
-            <TabsTrigger value="active">{t('statuses.active')}</TabsTrigger>
-            <TabsTrigger value="pending">
-              {t('statuses.pending')} ({pending.length})
-            </TabsTrigger>
-            <TabsTrigger value="archived">{t('statuses.archived')}</TabsTrigger>
-          </TabsList>
-          <div className="flex gap-2">
-            {status === 'pending' && pending.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => void approveAllPending()}>
-                {t('actions.approveAll')}
-              </Button>
-            )}
-            <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex flex-col gap-3 md:hidden">
+          {pending.length > 0 && (
+            <Button variant="outline" className="h-11 w-full" onClick={() => void approveAllPending()}>
+              {t('actions.approveAll')}
+            </Button>
+          )}
+          {loading ? (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : mobileMemories.length > 0 ? (
+            <ItemGroup className="gap-2">
+              {mobileMemories.map(memory => <MemoryItem key={memory.id} memory={memory} />)}
+            </ItemGroup>
+          ) : (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Brain /></EmptyMedia>
+                <EmptyTitle>{t('empty')}</EmptyTitle>
+                <EmptyDescription>{t('emptyHint')}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </div>
+
+        <Tabs value={status} onValueChange={value => setStatus(value as MemoryStatus)} className="hidden min-w-0 md:flex">
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+            <TabsList className="order-2 h-11 w-full md:order-none md:h-8 md:w-fit">
+              {(['active', 'pending', 'archived'] as MemoryStatus[]).map(tab => (
+                <TabsTrigger key={tab} value={tab} className="min-w-0">
+                  {t(`statuses.${tab}`)}
+                  <span className="text-xs text-muted-foreground md:hidden">{statusCounts[tab]}</span>
+                  {tab === 'pending' && <span className="hidden md:inline">({pending.length})</span>}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <div className="order-1 flex gap-2 md:order-none">
+              {status === 'pending' && pending.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => void approveAllPending()}>
+                  {t('actions.approveAll')}
+                </Button>
+              )}
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus data-icon="inline-start" />
                   {t('addMemory')}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{t('form.title')}</DialogTitle>
-                  <DialogDescription>{t('form.description')}</DialogDescription>
-                </DialogHeader>
-                <MemoryForm onSuccess={() => setOpen(false)} />
-              </DialogContent>
-            </Dialog>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(220px,1fr)_repeat(2,auto)]">
-          <InputGroup>
-            <InputGroupAddon><Search /></InputGroupAddon>
-            <InputGroupInput
-              value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder={t('filters.search')}
+          <div className="mt-4 grid min-w-0 grid-cols-[minmax(220px,1fr)_repeat(2,auto)] gap-2">
+            <InputGroup>
+              <InputGroupAddon><Search /></InputGroupAddon>
+              <InputGroupInput
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder={t('filters.search')}
+              />
+            </InputGroup>
+            <ResponsiveSelect
+              title={t('filters.allKinds')}
+              value={kind}
+              onValueChange={value => setKind(value as FilterValue<MemoryKind>)}
+              options={[
+                { value: 'all', label: t('filters.allKinds') },
+                { value: 'preference', label: t('kinds.preference') },
+                { value: 'fact', label: t('kinds.fact') },
+                { value: 'experience', label: t('kinds.experience') },
+                { value: 'decision', label: t('kinds.decision') },
+              ]}
             />
-          </InputGroup>
-          <ResponsiveSelect
-            title={t('filters.allKinds')}
-            value={kind}
-            onValueChange={value => setKind(value as FilterValue<MemoryKind>)}
-            options={[
-              { value: 'all', label: t('filters.allKinds') },
-              { value: 'preference', label: t('kinds.preference') },
-              { value: 'fact', label: t('kinds.fact') },
-              { value: 'experience', label: t('kinds.experience') },
-              { value: 'decision', label: t('kinds.decision') },
-            ]}
-          />
-          <ResponsiveSelect
-            title={t('filters.allScopes')}
-            value={scope}
-            onValueChange={value => setScope(value as FilterValue<MemoryScopeType>)}
-            options={[
-              { value: 'all', label: t('filters.allScopes') },
-              { value: 'global', label: t('scopes.global') },
-              { value: 'workspace', label: t('scopes.workspace') },
-            ]}
-          />
-        </div>
+            <ResponsiveSelect
+              title={t('filters.allScopes')}
+              value={scope}
+              onValueChange={value => setScope(value as FilterValue<MemoryScopeType>)}
+              options={[
+                { value: 'all', label: t('filters.allScopes') },
+                { value: 'global', label: t('scopes.global') },
+                { value: 'workspace', label: t('scopes.workspace') },
+              ]}
+            />
+          </div>
 
-        {(['active', 'pending', 'archived'] as MemoryStatus[]).map(tab => (
-          <TabsContent key={tab} value={tab} className="mt-4">
-            {loading ? (
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            ) : filtered.length > 0 ? (
-              <ItemGroup className="gap-2">
-                {filtered.map(memory => <MemoryItem key={memory.id} memory={memory} />)}
-              </ItemGroup>
-            ) : (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon"><Brain /></EmptyMedia>
-                  <EmptyTitle>
-                    {hasMemoriesInStatus && hasActiveFilters ? t('noMatches') : t('empty')}
-                  </EmptyTitle>
-                  <EmptyDescription>
-                    {hasMemoriesInStatus && hasActiveFilters ? t('noMatchesHint') : t('emptyHint')}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+          {(['active', 'pending', 'archived'] as MemoryStatus[]).map(tab => (
+            <TabsContent key={tab} value={tab} className="mt-4 min-w-0">
+              {loading ? (
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : filtered.length > 0 ? (
+                <ItemGroup className="gap-2">
+                  {filtered.map(memory => <MemoryItem key={memory.id} memory={memory} />)}
+                </ItemGroup>
+              ) : (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon"><Brain /></EmptyMedia>
+                    <EmptyTitle>
+                      {hasMemoriesInStatus && hasActiveFilters ? t('noMatches') : t('empty')}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {hasMemoriesInStatus && hasActiveFilters ? t('noMatchesHint') : t('emptyHint')}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+
+        <DialogContent className="overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('form.title')}</DialogTitle>
+            <DialogDescription>{t('form.description')}</DialogDescription>
+          </DialogHeader>
+          <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-0">
+            <MemoryForm onSuccess={() => setOpen(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

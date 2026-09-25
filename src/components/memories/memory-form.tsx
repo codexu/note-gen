@@ -121,6 +121,7 @@ export function MemoryForm({ memory, onSuccess }: MemoryFormProps) {
         <ResponsiveSelect
           id="memory-kind"
           title={t('form.kindLabel')}
+          className="h-11 md:h-10"
           value={kind}
           onValueChange={value => setKind(value as MemoryKind)}
           options={[
@@ -137,6 +138,7 @@ export function MemoryForm({ memory, onSuccess }: MemoryFormProps) {
         <ResponsiveSelect
           id="memory-scope"
           title={t('form.scopeLabel')}
+          className="h-11 md:h-10"
           value={scopeType}
           onValueChange={value => setScopeType(value as MemoryScopeType)}
           options={[
@@ -161,7 +163,7 @@ export function MemoryForm({ memory, onSuccess }: MemoryFormProps) {
         </ItemActions>
       </Item>
 
-      <Button onClick={handleSubmit} disabled={submitting || !content.trim()}>
+      <Button className="h-11 md:h-auto" onClick={handleSubmit} disabled={submitting || !content.trim()}>
         {submitting && <Spinner data-icon="inline-start" />}
         {memory ? t('form.update') : t('form.save')}
       </Button>

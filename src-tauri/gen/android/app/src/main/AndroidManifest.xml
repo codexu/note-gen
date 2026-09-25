@@ -15,6 +15,7 @@
       android:name=".MainActivity"
       android:label="NoteGen"
       android:exported="true"
+      android:configChanges="uiMode"
       android:windowSoftInputMode="adjustResize"
       tools:node="merge"
       tools:replace="android:windowSoftInputMode">

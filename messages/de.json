@@ -3769,6 +3769,13 @@
             "createNote": "Notiz \"{name}\" erstellt.",
             "createFile": "Datei \"{name}\" erstellt."
           },
+          "question": {
+            "single": "Einzelauswahl",
+            "multiple": "Mehrfachauswahl",
+            "done": "Auswahl abschließen",
+            "notificationTitle": "NoteGen wartet auf deine Antwort",
+            "notificationBody": "Der Agent benötigt weitere Informationen."
+          },
           "confirmation": {
             "title": "Aktion bestätigen",
             "description": "Der Agent möchte die folgende Aktion ausführen. Bitte bestätige, um fortzufahren.",

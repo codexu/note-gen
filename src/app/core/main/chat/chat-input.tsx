@@ -22,6 +22,7 @@ import { ImageIcon } from "lucide-react"
 import { isMobileDevice } from '@/lib/check'
 import type { PendingQuote } from "@/stores/chat"
 import { AgentApprovalPanel } from "./agent-approval-panel"
+import { AgentQuestionPanel } from "./agent-question-panel"
 import { cancelPendingAgentAction, confirmPendingAgentAction } from "./agent-approval-actions"
 import { AgentPermissionModeSelect } from "./agent-permission-mode"
 import { AgentPendingMessageList } from "./agent-pending-message-list"
@@ -1273,6 +1274,7 @@ ${previewLines.join('\n')}
         onConfirm={confirmPendingAgentAction}
         onCancel={cancelPendingAgentAction}
       />
+      <AgentQuestionPanel />
       <div
         className={cn(
           "group relative z-10 flex w-full flex-col overflow-hidden border",

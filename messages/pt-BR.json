@@ -3848,6 +3848,13 @@
           },
           "thought": "Pensamento",
           "action": "Ação",
+          "question": {
+            "single": "Escolha única",
+            "multiple": "Múltipla escolha",
+            "done": "Concluir seleção",
+            "notificationTitle": "O NoteGen aguarda sua resposta",
+            "notificationBody": "O Agent precisa de mais informações."
+          },
           "confirmation": {
             "title": "Confirmar Ação",
             "description": "O agente deseja executar a seguinte ação. Por favor, confirme para continuar.",

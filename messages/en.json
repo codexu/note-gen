@@ -3910,6 +3910,13 @@
             "createNote": "Created note \"{name}\".",
             "createFile": "Created file \"{name}\"."
           },
+          "question": {
+            "single": "Single choice",
+            "multiple": "Multiple choice",
+            "done": "Done selecting",
+            "notificationTitle": "NoteGen is waiting for your answer",
+            "notificationBody": "The Agent needs more information from you."
+          },
           "confirmation": {
             "title": "Confirm Action",
             "description": "The agent wants to perform the following action. Please confirm to continue.",

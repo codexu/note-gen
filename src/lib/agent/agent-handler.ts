@@ -9,6 +9,7 @@ import type { AgentResourceAdapter } from './agent-resource-adapter'
 import type { AiConfig } from '@/app/core/setting/config'
 
 export interface AgentHandlerConfig {
+  requestUserQuestion?: import('./types').AgentToolExecutionContext['requestUserQuestion']
   stateAdapter: AgentStateAdapter
   resourceAdapter: AgentResourceAdapter
   activeChatId?: number
@@ -200,6 +201,7 @@ export class AgentHandler {
         requestConfirmation: async (toolName, params, context) => {
           return await this.config.requestConfirmation?.(toolName, params, context) || 'denied'
         },
+        requestUserQuestion: this.config.requestUserQuestion,
       })
 
       this.acceptingSteering = false
@@ -240,6 +242,7 @@ export class AgentHandler {
 
   stop() {
     this.stopped = true
+    this.config.stateAdapter.setState({ pendingQuestion: undefined })
     const state = this.config.stateAdapter.getState()
     const pending = state.pendingConfirmation
     if (pending) {
@@ -263,6 +266,8 @@ export class AgentHandler {
     if (!this.acceptingSteering) {
       return false
     }
+
+    this.config.stateAdapter.setState({ pendingQuestion: undefined })
 
     const state = this.config.stateAdapter.getState()
     const pending = state.pendingConfirmation

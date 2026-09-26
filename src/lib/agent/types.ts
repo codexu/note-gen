@@ -124,6 +124,7 @@ export interface AgentSkillSummary {
 }
 
 export interface AgentToolExecutionContext {
+  requestUserQuestion?: (questions: AgentUserQuestion[], signal?: AbortSignal) => Promise<AgentUserAnswer[] | null>
   signal?: AbortSignal
   runId: string
   context: AgentContextSnapshot
@@ -169,6 +170,7 @@ export type AgentRunStatus =
   | 'thinking'
   | 'calling_tool'
   | 'waiting_approval'
+  | 'waiting_answer'
   | 'applying_change'
   | 'recovering'
   | 'steering'
@@ -255,7 +257,19 @@ export interface AgentSteeringPayload {
 
 export type AgentApprovalDecision = 'approved' | 'denied' | 'steered'
 
+export interface AgentUserQuestion {
+  question: string
+  options: Array<{ label: string; description?: string }>
+  multiSelect: boolean
+}
+
+export interface AgentUserAnswer {
+  question: string
+  selected: string[]
+}
+
 export interface AgentRuntimeCallbacks {
+  requestUserQuestion?: AgentToolExecutionContext['requestUserQuestion']
   onStatus?: (status: AgentRunStatus) => void
   onSteeringDelivered?: (payloads: AgentSteeringPayload[]) => void
   onTrace?: (event: AgentTraceEvent) => void
@@ -337,6 +351,12 @@ export interface ConfirmationRecord {
 }
 
 export interface AgentState {
+  pendingQuestion?: {
+    id: string
+    conversationId?: number
+    questions: AgentUserQuestion[]
+    response?: AgentUserAnswer[] | null
+  }
   activeChatId?: number
   activeModelId?: string
   activeModelName?: string

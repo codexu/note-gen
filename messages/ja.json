@@ -3773,6 +3773,13 @@
           },
           "thought": "思考",
           "action": "行動",
+          "question": {
+            "single": "単一選択",
+            "multiple": "複数選択",
+            "done": "選択完了",
+            "notificationTitle": "NoteGen が回答を待っています",
+            "notificationBody": "Agent が追加情報を求めています。"
+          },
           "confirmation": {
             "title": "操作の確認",
             "description": "エージェントが以下の操作を実行しようとしています。続行するには確認してください。",

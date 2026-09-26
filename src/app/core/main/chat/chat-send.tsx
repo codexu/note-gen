@@ -365,6 +365,38 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   }
 
   // Agent 模式处理
+  const requestUserQuestion = (questions: import('@/lib/agent/types').AgentUserQuestion[], signal?: AbortSignal, conversationId?: number): Promise<import('@/lib/agent/types').AgentUserAnswer[] | null> => {
+    if (signal?.aborted) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      const id = crypto.randomUUID()
+      let settled = false
+      let unsubscribe = () => {}
+      const finish = (answers: import('@/lib/agent/types').AgentUserAnswer[] | null) => {
+        if (settled) return
+        settled = true
+        unsubscribe()
+        signal?.removeEventListener('abort', abort)
+        if (useChatStore.getState().agentState.pendingQuestion?.id === id) {
+          setAgentState({ pendingQuestion: undefined, status: 'calling_tool' })
+        }
+        resolve(answers)
+      }
+      const abort = () => finish(null)
+      setAgentState({ pendingQuestion: { id, conversationId, questions }, status: 'waiting_answer', isThinking: false })
+      unsubscribe = useChatStore.subscribe((state) => {
+        const pending = state.agentState.pendingQuestion
+        if (pending?.id !== id) finish(null)
+        else if (pending.response !== undefined) finish(pending.response)
+      })
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+      void notifyPendingAgentApproval({
+        title: t('record.chat.input.agent.question.notificationTitle'),
+        body: t('record.chat.input.agent.question.notificationBody'),
+      })
+    })
+  }
+
   async function handleAgentMode(
     request: AgentRequestSnapshot,
     userMessage: Chat,
@@ -484,6 +516,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
       activeCanvasId: activeCanvasId || undefined,
       permissionMode: agentPermissionMode,
       requestConfirmation,
+      requestUserQuestion: (questions, signal) => requestUserQuestion(questions, signal, placeholderMessage.conversationId),
       currentQuote: request.quoteData
         ? {
             fileName: request.quoteData.fileName,
@@ -1136,7 +1169,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
     const request = createRequestSnapshot(overrideText)
     if (!request.inputValue.trim() && request.images.length === 0 && request.fileAttachments.length === 0) return
     const wasStreaming = agentSession.isStreaming
-    const isReplacingPendingApproval = Boolean(useChatStore.getState().agentState.pendingConfirmation)
+    const isReplacingPendingApproval = Boolean(useChatStore.getState().agentState.pendingConfirmation || useChatStore.getState().agentState.pendingQuestion)
     if (!wasStreaming) {
       manualStopRequestedRef.current = false
       contextOverflowRetryRef.current = 0

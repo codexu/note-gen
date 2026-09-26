@@ -46,6 +46,7 @@ import { attachmentTools } from './tools/attachment-tools'
 import { imageTools } from './tools/image-tools'
 import { canvasTools } from './tools/canvas-tools'
 import { webTools } from './tools/web-tools'
+import { askUserQuestionTool } from './tools/ask-user-question'
 import { knowledgeTools } from './tools/knowledge-tools'
 import {
   executeRegisteredSkillScript,
@@ -1875,6 +1876,7 @@ function buildMcpListToolsTool(): AgentTool {
 
 function buildTools(): AgentTool[] {
   return [
+    askUserQuestionTool,
     adaptLegacyTool({
       name: 'editor_get_state',
       title: '读取编辑器状态',

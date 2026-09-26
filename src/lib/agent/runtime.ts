@@ -25,6 +25,7 @@ import type {
   AgentStep,
   AgentTool,
   AgentToolResult,
+  AgentToolExecutionContext,
   ToolCall,
   ToolResult,
 } from './types'
@@ -54,10 +55,11 @@ async function executeAgentTool(
   args: Record<string, unknown>,
   runId: string,
   signal: AbortSignal | undefined,
-  context: AgentContextSnapshot
+  context: AgentContextSnapshot,
+  requestUserQuestion?: AgentToolExecutionContext['requestUserQuestion']
 ): Promise<AgentToolResult> {
   try {
-    return await tool.execute(args, { runId, signal, context })
+    return await tool.execute(args, { runId, signal, context, requestUserQuestion })
   } catch (error) {
     if (isRequestAbortError(error)) {
       throw error
@@ -919,7 +921,8 @@ export class AgentRuntime {
         args,
         runId,
         this.abortController?.signal,
-        context
+        context,
+        callbacks.requestUserQuestion
       )
     }
     const appendToolResult = (
@@ -1964,6 +1967,7 @@ export class AgentRuntime {
               }
             : await executeToolWithBudget(tool, args)
           const folderAttachmentProgress = getFolderAttachmentProgress(tool.name, args, result)
+          if (this.stopped) throw new Error('USER_STOPPED')
           const duration = Date.now() - startedAt
           agentDebugLog('tool_execute_end', {
             runId,
@@ -2007,6 +2011,19 @@ export class AgentRuntime {
             message: [result.message, folderAttachmentProgress].filter(Boolean).join('\n\n'),
           })
           if (updatedTrace) callbacks.onTrace?.(updatedTrace)
+
+          // Cancelling a question ends this turn, rather than letting later
+          // tools in the same batch act on information the user did not supply.
+          if (tool.name === 'ask_user_question' && result.error === 'USER_CANCELLED_QUESTION' && !this.steeringRequested) {
+            finalContent = changes.length > 0
+              ? `已取消提问，本轮不再继续执行；此前已有 ${changes.length} 项改动，请以改动记录为准。`
+              : '已取消提问，本轮不再继续执行。'
+            callbacks.onStatus?.('completed')
+            callbacks.onFinalAnswerRender?.(finalContent)
+            const finalTrace = recorder.add({ type: 'final', title: '已取消提问', status: 'success', message: finalContent })
+            callbacks.onTrace?.(finalTrace)
+            return { runId, content: finalContent, stopped: false, steps, toolCalls, changes, trace: recorder.all() }
+          }
 
           await agentEventBus.emit('post-tool-use', {
             runId,

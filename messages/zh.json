@@ -3823,6 +3823,13 @@
             "createNote": "已创建笔记《{name}》。",
             "createFile": "已创建文件《{name}》。"
           },
+          "question": {
+            "single": "单选",
+            "multiple": "多选",
+            "done": "完成选择",
+            "notificationTitle": "NoteGen 等待你的回答",
+            "notificationBody": "Agent 有问题需要你补充信息。"
+          },
           "confirmation": {
             "title": "确认操作",
             "description": "Agent 想要执行以下操作，请确认后继续。",

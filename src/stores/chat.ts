@@ -208,6 +208,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         maxIterations: 15,
         currentIteration: 0,
         pendingConfirmation: undefined,
+        pendingQuestion: undefined,
         confirmationHistory: [],
         loadedSkills: undefined,
         selectedSkills: undefined,

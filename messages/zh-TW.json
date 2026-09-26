@@ -3779,6 +3779,13 @@
           },
           "thought": "思考",
           "action": "行動",
+          "question": {
+            "single": "單選",
+            "multiple": "多選",
+            "done": "完成選擇",
+            "notificationTitle": "NoteGen 等待你的回答",
+            "notificationBody": "Agent 有問題需要你補充資訊。"
+          },
           "confirmation": {
             "title": "確認操作",
             "description": "Agent 想要執行以下操作，請確認後繼續。",

@@ -285,6 +285,7 @@ export class AgentPromptAssembler {
       '## Available Tools',
       'Structured tool definitions contain the authoritative descriptions and parameters. Use these exact names:',
       formatToolCatalog(tools),
+      'When missing information would materially change the result, ask concise questions in the user’s language. For open-ended clarification, output the question as a normal chat response and wait for the next user message. Use ask_user_question only when concrete choices are needed: provide 2–6 distinct options per question, with single or multiple selection. Do not add free-text or Other options. Wait for the actual answers before acting. Do not ask about details already supplied, use this tool for permission approval, or infer an answer from cancellation. If the user cancels, do not repeat the same question or make changes that depend on the missing answer.',
       formatKnowledgeGuidance(tools),
       formatActiveFile(context),
       formatActiveCanvas(context),

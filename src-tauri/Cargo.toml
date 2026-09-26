@@ -58,6 +58,7 @@ unicode-normalization = "0.1"
 ring = "0.17"
 semver = "1"
 regex = "1"
+tauri-plugin-notification = "2"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]

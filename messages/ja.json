@@ -3759,6 +3759,10 @@
             "confirmed": "確認済み",
             "cancelled": "キャンセル済み",
             "session": "このセッションで許可",
+            "notification": {
+              "title": "NoteGen で確認が必要です",
+              "description": "Agent が操作の確認を待っています。"
+            },
             "params": {
               "name": "Skill 名",
               "skill_id": "Skill ID",

@@ -3765,6 +3765,10 @@
             "confirmed": "已確認",
             "cancelled": "已取消",
             "session": "本次對話允許",
+            "notification": {
+              "title": "NoteGen 需要你的確認",
+              "description": "Agent 正在等待你確認一項操作。"
+            },
             "params": {
               "name": "Skill 名稱",
               "skill_id": "Skill ID",

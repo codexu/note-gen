@@ -3809,6 +3809,10 @@
             "confirmed": "已确认",
             "cancelled": "已取消",
             "session": "本次会话允许",
+            "notification": {
+              "title": "NoteGen 需要你的确认",
+              "description": "Agent 正在等待你确认一项操作。"
+            },
             "fallback": {
               "title": "即将执行操作",
               "description": "请确认这次操作的目标和内容。"

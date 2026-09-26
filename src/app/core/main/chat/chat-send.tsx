@@ -13,6 +13,7 @@ import { AgentHandler } from "@/lib/agent/agent-handler"
 import { agentSessionManager } from '@/lib/agent/agent-session-manager'
 import { isRequestAbortError } from "@/lib/agent/runtime"
 import { agentDebugLog, previewText } from "@/lib/agent/debug-log"
+import { notifyPendingAgentApproval } from "@/lib/agent/approval-notification"
 import { getToolByName } from "@/lib/agent/tools"
 import { getSessionApprovalScope, matchesSessionApproval } from "@/lib/agent/session-approval"
 import { ImageAttachment } from "./image-attachments"
@@ -326,6 +327,10 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           sessionApprovalType: sessionApprovalScope?.type,
           sessionApprovalKey: sessionApprovalScope?.permissionKey,
         }
+      })
+      void notifyPendingAgentApproval({
+        title: t("record.chat.input.agent.confirmation.notification.title"),
+        body: t("record.chat.input.agent.confirmation.notification.description"),
       })
       
       // 轮询检查用户是否已确认或取消

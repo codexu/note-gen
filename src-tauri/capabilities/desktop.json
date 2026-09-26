@@ -35,6 +35,7 @@
     "opener:default",
     "opener:allow-open-url",
     "opener:allow-open-path",
-    "autostart:default"
+    "autostart:default",
+    "notification:default"
   ]
 }

@@ -3755,6 +3755,10 @@
             "confirmed": "Bestätigt",
             "cancelled": "Abgebrochen",
             "session": "Für diese Sitzung zulassen",
+            "notification": {
+              "title": "NoteGen benötigt deine Bestätigung",
+              "description": "Der Agent wartet auf deine Bestätigung einer Aktion."
+            },
             "fallback": {
               "title": "Aktion überprüfen",
               "description": "Bitte bestätige das Ziel und den Inhalt dieser Aktion."

@@ -122,6 +122,7 @@
     },
     "os:default",
     "dialog:default",
+    "notification:default",
     "http:default",
     {
       "identifier": "opener:allow-open-path",

@@ -3834,6 +3834,10 @@
             "confirmed": "Confirmado",
             "cancelled": "Cancelado",
             "session": "Permitir nesta sessão",
+            "notification": {
+              "title": "O NoteGen precisa da sua aprovação",
+              "description": "O Agent está aguardando sua aprovação para uma ação."
+            },
             "params": {
               "name": "Nome do Skill",
               "skill_id": "ID do Skill",

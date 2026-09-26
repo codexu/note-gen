@@ -3896,6 +3896,10 @@
             "confirmed": "Confirmed",
             "cancelled": "Cancelled",
             "session": "Allow for this session",
+            "notification": {
+              "title": "NoteGen needs your approval",
+              "description": "The Agent is waiting for you to approve an action."
+            },
             "fallback": {
               "title": "Review action",
               "description": "Please confirm the target and content of this action."

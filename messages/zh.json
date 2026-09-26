@@ -2809,6 +2809,8 @@
         "history": "历史路径",
         "removeHistory": "移除历史记录",
         "switchFailed": "切换工作区失败，已恢复原工作区",
+        "iosAccessRequired": "请重新选择此 iOS 工作区目录以恢复访问权限。",
+        "iosFolderMismatch": "所选 iOS 目录与此工作区不匹配。",
         "selectFromHistory": "从历史记录中选择工作区",
         "clearHistory": "清空历史记录",
         "actions": "操作",

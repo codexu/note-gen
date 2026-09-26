@@ -60,6 +60,7 @@ export interface AndroidFolderAccess {
 }
 
 const IOS_WORKSPACE_FOLDER_ACCESS_KEY = 'iosWorkspaceFolderAccess'
+const IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY = 'iosWorkspaceFolderAccessHistory'
 const SYNC_DIRECTORY = '.notegen/sync-v1'
 
 function oneDriveSyncKey(key: string): string {
@@ -108,8 +109,35 @@ export async function getIOSWorkspaceFolderAccess(): Promise<IOSFolderAccess | n
 
 export async function setIOSWorkspaceFolderAccess(access: IOSFolderAccess | null): Promise<void> {
   const store = await Store.load('store.json')
+  const currentAccess = await store.get<IOSFolderAccess>(IOS_WORKSPACE_FOLDER_ACCESS_KEY)
+  const history = await store.get<Record<string, IOSFolderAccess>>(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY) ?? {}
+  if (currentAccess) history[currentAccess.path] = currentAccess
+  if (access) {
+    history[access.path] = access
+  }
   await store.set(IOS_WORKSPACE_FOLDER_ACCESS_KEY, access)
+  if (currentAccess || access) {
+    await store.set(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY, history)
+  }
   await store.save()
+}
+
+export async function restoreIOSWorkspaceFolderAccess(path: string): Promise<IOSFolderAccess | null> {
+  const store = await Store.load('store.json')
+  const activeAccess = await store.get<IOSFolderAccess>(IOS_WORKSPACE_FOLDER_ACCESS_KEY)
+  if (activeAccess?.path === path) return activeAccess
+
+  const history = await store.get<Record<string, IOSFolderAccess>>(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY) ?? {}
+  const savedAccess = history[path]
+  if (!savedAccess?.bookmarkBase64) return null
+
+  const restoredAccess = await restoreIOSSyncFolder(savedAccess.bookmarkBase64)
+  await store.set(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY, {
+    ...history,
+    [restoredAccess.path]: restoredAccess,
+  })
+  await store.save()
+  return restoredAccess
 }
 
 export async function restoreSavedIOSFolderAccess(): Promise<void> {
@@ -121,6 +149,11 @@ export async function restoreSavedIOSFolderAccess(): Promise<void> {
   if (workspaceAccess?.bookmarkBase64) {
     const restoredWorkspace = await restoreIOSSyncFolder(workspaceAccess.bookmarkBase64)
     await store.set(IOS_WORKSPACE_FOLDER_ACCESS_KEY, restoredWorkspace)
+    const workspaceAccessHistory = await store.get<Record<string, IOSFolderAccess>>(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY) ?? {}
+    await store.set(IOS_WORKSPACE_FOLDER_ACCESS_HISTORY_KEY, {
+      ...workspaceAccessHistory,
+      [restoredWorkspace.path]: restoredWorkspace,
+    })
     const { waitForLocalMcpWorkspaceWrites } = await import('@/lib/local-mcp/workspace-guard')
     await waitForLocalMcpWorkspaceWrites()
     await store.set('workspacePath', restoredWorkspace.path)

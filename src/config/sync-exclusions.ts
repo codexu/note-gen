@@ -129,6 +129,7 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'cloudFolderSyncConfig',
   'oneDriveAuthTokens',
   'iosWorkspaceFolderAccess',
+  'iosWorkspaceFolderAccessHistory',
   // 工作区和资源目录是设备本地状态，任何隐私设置下都不能跨设备覆盖。
   'workspacePath',
   'workspaceHistory',

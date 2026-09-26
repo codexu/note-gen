@@ -586,6 +586,8 @@ fn preserve_device_local_settings(
         "developerMode",
         "developerPerformanceInfo",
         "assetsPath",
+        "iosWorkspaceFolderAccess",
+        "iosWorkspaceFolderAccessHistory",
         "workspaceHistory",
         "workspaceSyncRepos",
         "githubCustomSyncRepo",

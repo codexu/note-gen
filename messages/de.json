@@ -2668,6 +2668,8 @@
         "history": "Verlaufspfade",
         "removeHistory": "Aus Verlauf entfernen",
         "switchFailed": "Fehler beim Wechseln des Workspaces. Der vorherige Workspace wurde wiederhergestellt.",
+        "iosAccessRequired": "Wähle diesen iOS-Workspace-Ordner erneut aus, um den Zugriff wiederherzustellen.",
+        "iosFolderMismatch": "Der ausgewählte iOS-Ordner stimmt nicht mit diesem Workspace überein.",
         "selectFromHistory": "Workspace aus Verlauf auswählen",
         "clearHistory": "Verlauf löschen",
         "actions": "Aktionen",

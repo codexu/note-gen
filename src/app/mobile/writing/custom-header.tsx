@@ -7,8 +7,9 @@ import { platform as getRuntimePlatform } from '@tauri-apps/plugin-os'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { cloneDeep } from 'lodash-es'
-import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, RefreshCw, Scissors, Search, Trash2, Unplug } from 'lucide-react'
+import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2, Unplug } from 'lucide-react'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
+import { WorkspaceSwitcher } from '@/app/core/setting/file/setting-workspace'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import emitter from '@/lib/emitter'
@@ -1207,7 +1208,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
         <div className="flex shrink-0 items-center">
           <MobileMeSheet />
         </div>
-        <div className="min-w-0 flex-1 truncate text-center font-medium">
+        <div className="min-w-0 flex-1 truncate text-left font-medium" title={currentDirLabel}>
           {currentDirLabel}
         </div>
         <div className="flex shrink-0 items-center">
@@ -1239,19 +1240,11 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
           >
             <FolderPlus className="size-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-9 shrink-0"
-            onClick={() => refreshTree(currentDir)}
-            title={tToolbar('refresh')}
-            aria-label={tToolbar('refresh')}
-            disabled={isBrowserRefreshing}
-          >
-            <RefreshCw className={`size-4 ${isBrowserRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
+          <WorkspaceSwitcher compact />
           <CloudLibraryMenu
             className="size-9 shrink-0"
+            onRefresh={() => void refreshTree(currentDir)}
+            refreshing={isBrowserRefreshing}
             sortOptions={{
               type: sortType,
               direction: sortDirection,

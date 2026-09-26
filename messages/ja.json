@@ -2378,6 +2378,8 @@
         "history": "履歴パス",
         "removeHistory": "履歴から削除",
         "switchFailed": "ワークスペースの切り替えに失敗し、元のワークスペースを復元しました",
+        "iosAccessRequired": "アクセスを復元するには、この iOS ワークスペースフォルダを再選択してください。",
+        "iosFolderMismatch": "選択した iOS フォルダがこのワークスペースと一致しません。",
         "selectFromHistory": "履歴からワークスペースを選択",
         "clearHistory": "履歴をクリア",
         "actions": "アクション",

@@ -2809,6 +2809,8 @@
         "history": "History Paths",
         "removeHistory": "Remove from history",
         "switchFailed": "Failed to switch workspace. The previous workspace was restored.",
+        "iosAccessRequired": "Select this iOS workspace folder again to restore access.",
+        "iosFolderMismatch": "The selected iOS folder does not match this workspace.",
         "selectFromHistory": "Select workspace from history",
         "clearHistory": "Clear History",
         "actions": "Actions",

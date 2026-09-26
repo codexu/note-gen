@@ -1,7 +1,7 @@
 'use client'
 
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { ArrowDownAZ, Calendar, Clock, Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, SortAsc, SortDesc, Upload } from 'lucide-react'
+import { ArrowDownAZ, Calendar, Clock, Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, RefreshCw, SortAsc, SortDesc, Upload } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -26,9 +26,13 @@ type CloudLibraryMenuSortOptions = {
 export function CloudLibraryMenu({
   className,
   sortOptions,
+  onRefresh,
+  refreshing = false,
 }: {
   className?: string
   sortOptions?: CloudLibraryMenuSortOptions
+  onRefresh?: () => void
+  refreshing?: boolean
 }) {
   const t = useTranslations('article.file.cloudLibrary')
   const tToolbar = useTranslations('article.file.toolbar')
@@ -209,6 +213,13 @@ export function CloudLibraryMenu({
         </Button>
       }
       items={[
+        ...(onRefresh ? [{
+          key: 'refresh-files',
+          label: tToolbar('refresh'),
+          icon: <RefreshCw />,
+          onSelect: onRefresh,
+          disabled: refreshing,
+        }] : []),
         {
           key: 'show-assets-folders',
           label: t('showAssetsFolders'),

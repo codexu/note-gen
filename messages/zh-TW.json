@@ -2378,6 +2378,8 @@
         "history": "歷史路徑",
         "removeHistory": "移除歷史記錄",
         "switchFailed": "切換工作區失敗，已恢復原工作區",
+        "iosAccessRequired": "請重新選擇此 iOS 工作區目錄以恢復存取權限。",
+        "iosFolderMismatch": "所選 iOS 目錄與此工作區不相符。",
         "selectFromHistory": "從歷史記錄中選擇工作區",
         "clearHistory": "清空歷史記錄",
         "actions": "操作",

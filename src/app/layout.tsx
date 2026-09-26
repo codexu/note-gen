@@ -9,18 +9,21 @@ import { getSyncPushQueue } from "@/lib/sync/sync-push-queue";
 import { ConsoleFilter } from "@/components/console-filter";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DeveloperModeController } from "@/components/developer-mode-controller";
+import { AppLockGate } from "@/components/app-lock-gate";
+
+function AppRuntime({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (['/editor-window', '/quick-record', '/print'].some(path => window.location.pathname.startsWith(path))) return
+    getSyncPushQueue()
+  }, [])
+  return <>{children}</>
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 初始化同步推送队列
-  useEffect(() => {
-    if (['/editor-window', '/quick-record'].some(path => window.location.pathname.startsWith(path))) return
-    getSyncPushQueue()
-  }, [])
-
   return (
     <>
       <html lang="en" suppressHydrationWarning>
@@ -51,7 +54,9 @@ export default function RootLayout({
           <Suspense>
             <TooltipProvider>
               <NextIntlProvider>
-                {children}
+                <AppLockGate>
+                  <AppRuntime>{children}</AppRuntime>
+                </AppLockGate>
               </NextIntlProvider>
             </TooltipProvider>
           </Suspense>

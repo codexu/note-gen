@@ -37,6 +37,8 @@ import { ConfigFileActions } from './config-file-actions'
 import { AlertTriangle, Code2, Database, FolderX, Gauge, MonitorCog, Network } from 'lucide-react'
 import { SettingSection } from '../components/setting-base'
 import { DeveloperDiagnostics } from './developer-diagnostics'
+import { SystemPermissions } from './system-permissions'
+import { AppLockSettings } from './app-lock-settings'
 
 export function AdvancedSettings({ showConfigFileActions = true }: { showConfigFileActions?: boolean }) {
   const t = useTranslations('settings.dev')
@@ -132,6 +134,9 @@ export function AdvancedSettings({ showConfigFileActions = true }: { showConfigF
           {showConfigFileActions ? <ConfigFileActions /> : null}
         </ItemGroup>
       </SettingSection>
+
+      <SystemPermissions />
+      <AppLockSettings />
 
       <SettingSection title={t('developerTitle')} desc={t('developerDesc')}>
         <ItemGroup className="gap-3">

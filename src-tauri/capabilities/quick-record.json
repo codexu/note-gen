@@ -9,6 +9,11 @@
     "core:window:allow-hide",
     "core:window:allow-close",
     "store:default",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$APPDATA/app-lock.json" }]
+    },
     "clipboard:read-all"
   ]
 }

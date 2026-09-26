@@ -199,7 +199,7 @@ async function createEditorWindow(
 
   const editorWindow = new WebviewWindow(`editor-${id}`, {
     url: `/editor-window?session=${encodeURIComponent(id)}`,
-    title: tab.name,
+    title: 'NoteGen',
     width: 920,
     height: 720,
     center: true,
@@ -235,7 +235,7 @@ export async function restoreEditorWindows() {
     openingEditorWindowPaths.add(session.absolutePath)
     const editorWindow = new WebviewWindow(label, {
       url: `/editor-window?session=${encodeURIComponent(session.id)}`,
-      title: session.tab.name,
+      title: 'NoteGen',
       width: 920,
       height: 720,
       dragDropEnabled: false,

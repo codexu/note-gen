@@ -1136,6 +1136,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
     const request = createRequestSnapshot(overrideText)
     if (!request.inputValue.trim() && request.images.length === 0 && request.fileAttachments.length === 0) return
     const wasStreaming = agentSession.isStreaming
+    const isReplacingPendingApproval = Boolean(useChatStore.getState().agentState.pendingConfirmation)
     if (!wasStreaming) {
       manualStopRequestedRef.current = false
       contextOverflowRetryRef.current = 0
@@ -1146,7 +1147,9 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
 
     try {
       await agentSession.prompt(request, {
-        streamingBehavior: wasStreaming ? 'followUp' : undefined,
+        streamingBehavior: wasStreaming
+          ? isReplacingPendingApproval ? 'steer' : 'followUp'
+          : undefined,
       })
     } finally {
       if (!wasStreaming) {

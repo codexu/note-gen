@@ -3649,6 +3649,7 @@
         "placeholder": {
           "default": "Digite uma mensagem...",
           "pending": "Digite uma mensagem e ajuste-a na lista de pendências após enviar...",
+          "approval": "Digite instruções revisadas para substituir a ação pendente...",
           "noApiKey": "Nenhuma Chave de API configurada, não é possível usar o chat de IA...",
           "on": "Sugestões de IA ativadas",
           "off": "Sugestões de IA desativadas",

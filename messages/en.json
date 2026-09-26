@@ -3703,6 +3703,7 @@
         "placeholder": {
           "default": "Type a message...",
           "pending": "Type a message, then adjust it in the pending list...",
+          "approval": "Type revised instructions to replace the pending action...",
           "noApiKey": "No API Key configured, can't use AI chat...",
           "on": "AI suggestions on",
           "off": "AI suggestions off",

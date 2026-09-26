@@ -170,6 +170,7 @@ export const ChatInput = React.memo(function ChatInput() {
   const t = useTranslations()
   const defaultPlaceholder = t('record.chat.input.placeholder.default')
   const pendingPlaceholder = t('record.chat.input.placeholder.pending')
+  const approvalPlaceholder = t('record.chat.input.placeholder.approval')
   const [inputHistory, setInputHistory] = useLocalStorage<string[]>('chat-input-history', [])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [tempInput, setTempInput] = useState('')
@@ -1351,7 +1352,9 @@ ${previewLines.join('\n')}
             disabled={!primaryModel}
             value={text}
             onChange={handleComposerTextChange}
-            placeholder={loading ? pendingPlaceholder : defaultPlaceholder}
+            placeholder={agentState.pendingConfirmation
+              ? approvalPlaceholder
+              : loading ? pendingPlaceholder : defaultPlaceholder}
             onKeyDown={(e) => {
               const textarea = e.target as HTMLTextAreaElement
               const cursorPosition = textarea.selectionStart

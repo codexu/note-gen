@@ -3562,6 +3562,7 @@
         "placeholder": {
           "default": "Schreibe eine Nachricht...",
           "pending": "Nachricht eingeben und anschließend in der Warteliste anpassen...",
+          "approval": "Geänderte Anweisungen eingeben, um die ausstehende Aktion zu ersetzen...",
           "noApiKey": "Kein API-Key konfiguriert, KI-Chat kann nicht verwendet werden...",
           "on": "KI-Vorschläge an",
           "off": "KI-Vorschläge aus",

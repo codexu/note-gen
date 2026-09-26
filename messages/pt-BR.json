@@ -892,6 +892,7 @@
       "language": "Idioma",
       "checkUpdate": "Verificar Atualizações",
       "checkError": "Falha ao verificar atualizações",
+      "installError": "Falha ao baixar ou instalar a atualização",
       "releaseLoadError": "Falha ao carregar o histórico de atualizações",
       "updateAvailable": "Atualizar para nova versão",
       "updateIgnored": "Esta versão está ignorada",

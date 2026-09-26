@@ -1,4 +1,9 @@
 {
+  "requestErrors": {
+    "aiRequestFailed": "AI request failed",
+    "embeddingRequestFailed": "Embedding request failed",
+    "unknownError": "The service returned no error details"
+  },
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",

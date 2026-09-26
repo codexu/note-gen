@@ -41,7 +41,7 @@ export async function fetchAiTranslate(text: string, targetLanguage: string): Pr
     
     return completion.choices[0]?.message?.content || ''
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 

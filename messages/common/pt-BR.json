@@ -1,4 +1,9 @@
 {
+  "requestErrors": {
+    "aiRequestFailed": "Falha na solicitação de IA",
+    "embeddingRequestFailed": "Falha na solicitação de embeddings",
+    "unknownError": "O serviço não retornou detalhes do erro"
+  },
   "save": "Salvar",
   "cancel": "Cancelar",
   "delete": "Excluir",

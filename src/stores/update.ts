@@ -41,7 +41,7 @@ interface UpdateState {
   setIgnoredVersion: (version: string) => Promise<void>
   clearIgnoredVersion: () => Promise<void>
   
-  checkForUpdates: () => Promise<void>
+  checkForUpdates: (options?: { throwOnError?: boolean }) => Promise<void>
   ignoreCurrentVersion: () => Promise<void>
   
   initUpdateStore: () => Promise<void>
@@ -129,7 +129,7 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
     set({ ignoredVersion: '', hasUpdate: Boolean(update) })
   },
   
-  checkForUpdates: async () => {
+  checkForUpdates: async (options) => {
     try {
       const update = await check({
         timeout: 5000,
@@ -150,8 +150,9 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
           hasUpdate: false
         })
       }
-    } catch {
-      // 检查更新失败，忽略错误
+    } catch (error) {
+      // 启动时保持静默，设置页由调用方显示带上下文的错误。
+      if (options?.throwOnError) throw error
     }
   },
   

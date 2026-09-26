@@ -1111,6 +1111,7 @@
       "language": "語言",
       "checkUpdate": "檢查更新",
       "checkError": "檢查更新失敗",
+      "installError": "下載或安裝更新失敗",
       "releaseLoadError": "更新記錄載入失敗",
       "updateAvailable": "更新至最新版本",
       "updateIgnored": "已忽略此版本",

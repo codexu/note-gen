@@ -1291,6 +1291,7 @@
       "language": "Language",
       "checkUpdate": "Check for Updates",
       "checkError": "Failed to check for updates",
+      "installError": "Failed to download or install the update",
       "releaseLoadError": "Failed to load update history",
       "updateAvailable": "Update to new version",
       "updateIgnored": "This version is ignored",

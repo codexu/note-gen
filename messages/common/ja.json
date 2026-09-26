@@ -1,4 +1,9 @@
 {
+  "requestErrors": {
+    "aiRequestFailed": "AI リクエストに失敗しました",
+    "embeddingRequestFailed": "埋め込みベクトルのリクエストに失敗しました",
+    "unknownError": "サービスからエラーの詳細が返されませんでした"
+  },
   "save": "保存",
   "cancel": "キャンセル",
   "delete": "削除",

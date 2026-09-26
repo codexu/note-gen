@@ -201,7 +201,7 @@ export async function fetchEmbedding(
     
     return null;
   } catch (error) {
-    handleAIError(error, !options?.silent);
+    await handleAIError(error, !options?.silent, 'embeddingRequestFailed');
     return null;
   }
 }

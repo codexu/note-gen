@@ -43,7 +43,7 @@ Output:`
 
     return sanitizeAiRewriteOutput(completion.choices[0]?.message?.content || '')
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -80,7 +80,7 @@ Output:`
 
     return sanitizeAiRewriteOutput(completion.choices[0]?.message?.content || '')
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -117,7 +117,7 @@ Output:`
 
     return sanitizeAiRewriteOutput(completion.choices[0]?.message?.content || '')
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 

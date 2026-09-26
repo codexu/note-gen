@@ -194,9 +194,13 @@ export default function Updater() {
 
   async function checkUpdate(forceRefresh = false) {
     setChecking(true);
+    setLastCheckedAt(null);
+    let checkingVersion = true;
 
     try {
-      await checkForUpdates();
+      await checkForUpdates({ throwOnError: true });
+      setLastCheckedAt(new Date());
+      checkingVersion = false;
       setReleaseLoadStatus('loading');
       setReleaseLoadError(null);
 
@@ -218,18 +222,20 @@ export default function Updater() {
       setReleaseNotes(nextReleaseNotes);
       setReleaseLoadStatus('ready');
     } catch (error) {
-      const description = getErrorDescription(error) || t('releaseLoadError');
-      setReleaseNotes([]);
-      setReleaseLoadStatus('error');
-      setReleaseLoadError(description);
+      const title = t(checkingVersion ? 'checkError' : 'releaseLoadError');
+      const description = getErrorDescription(error) || title;
+      if (!checkingVersion) {
+        setReleaseNotes([]);
+        setReleaseLoadStatus('error');
+        setReleaseLoadError(description);
+      }
       toast({
-        title: t('checkError'),
+        title,
         description,
-        variant: 'destructive'
+        variant: 'destructive',
+        classNames: { description: 'whitespace-pre-wrap [overflow-wrap:anywhere]' }
       });
     } finally {
-      const checkedAt = new Date();
-      setLastCheckedAt(checkedAt);
       setChecking(false);
     }
   }
@@ -246,9 +252,10 @@ export default function Updater() {
       await relaunch();
     } catch (error) {
       toast({
-        title: t('checkError'),
+        title: t('installError'),
         description: getErrorDescription(error),
-        variant: 'destructive'
+        variant: 'destructive',
+        classNames: { description: 'whitespace-pre-wrap [overflow-wrap:anywhere]' }
       });
       setLoading(false);
     }

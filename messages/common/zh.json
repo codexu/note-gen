@@ -1,4 +1,9 @@
 {
+  "requestErrors": {
+    "aiRequestFailed": "AI 请求失败",
+    "embeddingRequestFailed": "嵌入向量请求失败",
+    "unknownError": "服务未返回错误详情"
+  },
   "save": "保存",
   "cancel": "取消",
   "delete": "删除",

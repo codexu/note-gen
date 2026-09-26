@@ -67,7 +67,7 @@ export async function fetchAi(
 
     return completion.choices[0].message.content || ''
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -467,7 +467,7 @@ export async function fetchAiStream(
     return fullContent
   } catch (error) {
     console.error('[fetchAiStream] Error:', error)
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -514,6 +514,6 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
     
     return ''
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }

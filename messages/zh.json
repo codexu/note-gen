@@ -1542,6 +1542,7 @@
       "language": "语言",
       "checkUpdate": "检查更新",
       "checkError": "检查更新失败",
+      "installError": "下载或安装更新失败",
       "releaseLoadError": "更新记录加载失败",
       "updateAvailable": "更新至最新版本",
       "updateIgnored": "已忽略此版本",

@@ -1291,6 +1291,7 @@
       "language": "Sprache",
       "checkUpdate": "Nach Updates suchen",
       "checkError": "Fehler bei der Suche nach Updates",
+      "installError": "Download oder Installation des Updates fehlgeschlagen",
       "releaseLoadError": "Fehler beim Laden des Update-Verlaufs",
       "updateAvailable": "Auf neue Version aktualisieren",
       "updateIgnored": "Diese Version wird ignoriert",

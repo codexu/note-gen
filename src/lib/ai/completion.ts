@@ -157,7 +157,7 @@ Continuation:`
     const result = completion.choices[0].message.content || ''
     return cleanupCompletion(result)
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 

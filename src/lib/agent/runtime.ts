@@ -2236,7 +2236,7 @@ export class AgentRuntime {
 
       callbacks.onStatus?.('failed')
       finalizeInterruptedModelTrace('error', '模型响应失败')
-      const message = handleAIError(error, false) || (error instanceof Error ? error.message : String(error))
+      const message = await handleAIError(error, false) || (error instanceof Error ? error.message : String(error))
       const errorTrace = recorder.add({
         type: 'error',
         title: '执行失败',

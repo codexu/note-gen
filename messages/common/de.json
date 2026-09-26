@@ -1,4 +1,9 @@
 {
+  "requestErrors": {
+    "aiRequestFailed": "KI-Anfrage fehlgeschlagen",
+    "embeddingRequestFailed": "Embedding-Anfrage fehlgeschlagen",
+    "unknownError": "Der Dienst hat keine Fehlerdetails zurückgegeben"
+  },
   "save": "Speichern",
   "cancel": "Abbrechen",
   "delete": "Löschen",

@@ -27,7 +27,7 @@ export async function fetchAiDesc(text: string) {
     
     return completion.choices[0].message.content || ''
   } catch (error) {
-    handleAIError(error, false)
+    await handleAIError(error, false)
     return null
   }
 }
@@ -104,7 +104,7 @@ export async function fetchAiDescByImage(
   try {
     return await analyzeImagesWithVlm([base64], prompt, maxTokens, signal)
   } catch (error) {
-    handleAIError(error, false)
+    await handleAIError(error, false)
     return null
   }
 }

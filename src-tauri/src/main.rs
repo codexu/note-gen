@@ -35,6 +35,7 @@ mod skill_runtime;
 mod skills;
 mod storefront;
 mod system_trash;
+mod system_permissions;
 mod tray;
 mod web_clipper;
 mod window;
@@ -140,6 +141,9 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
+            system_permissions::get_system_media_permissions,
+            #[cfg(target_os = "macos")]
+            system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
             quick_record::remember_quick_record_foreground,
             quick_record::hide_quick_record_window,

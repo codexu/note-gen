@@ -27,6 +27,29 @@
     },
     "others": "Avançado",
     "general": {
+      "permissions": {
+        "openSettings": "Abrir configurações do sistema",
+        "openSettingsError": "Não foi possível abrir as configurações de permissões",
+        "title": "Permissões do sistema",
+        "desc": "Gerencie as permissões do sistema usadas pelo app.",
+        "notification": "Notificações",
+        "notificationDesc": "Receba um aviso quando o Agent aguardar aprovação em segundo plano.",
+        "authorize": "Solicitar acesso",
+        "error": "Não foi possível gerenciar a permissão do sistema",
+        "status": {
+          "systemManaged": "Gerenciado pelo sistema",
+          "loading": "Carregando…",
+          "granted": "Autorizado",
+          "notGranted": "Não autorizado",
+          "unavailable": "Permissão de notificações indisponível neste ambiente",
+          "denied": "Negado",
+          "restricted": "Restrito pelo sistema"
+        },
+        "screen": "Gravação de tela",
+        "screenDesc": "Usada para registros de capturas de tela.",
+        "microphone": "Microfone",
+        "microphoneDesc": "Usado para registros de áudio."
+      },
       "title": "Configurações Gerais",
       "desc": "Aqui, você pode configurar as definições básicas do aplicativo, incluindo tema da interface, idioma e outras opções.",
       "behavior": {

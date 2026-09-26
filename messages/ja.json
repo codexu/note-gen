@@ -27,6 +27,29 @@
     },
     "others": "その他",
     "general": {
+      "permissions": {
+        "openSettings": "システム設定を開く",
+        "openSettingsError": "システム権限の設定を開けません",
+        "title": "システム権限",
+        "desc": "アプリのシステム権限を管理します。",
+        "notification": "通知",
+        "notificationDesc": "Agent がバックグラウンドで操作の確認を待つときに通知します。",
+        "authorize": "許可を要求",
+        "error": "システム権限を操作できません",
+        "status": {
+          "systemManaged": "システムで管理",
+          "loading": "読み込み中…",
+          "granted": "許可済み",
+          "notGranted": "未許可",
+          "unavailable": "この環境では通知権限を取得できません",
+          "denied": "拒否済み",
+          "restricted": "システムによる制限"
+        },
+        "screen": "画面収録",
+        "screenDesc": "スクリーンショット記録に使用します。",
+        "microphone": "マイク",
+        "microphoneDesc": "録音記録に使用します。"
+      },
       "title": "一般設定",
       "desc": "ここでは、アプリケーションの基本設定を構成できます。インターフェースのテーマ、言語などのオプションが含まれます。",
       "behavior": {

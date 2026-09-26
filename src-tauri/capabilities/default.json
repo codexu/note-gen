@@ -134,6 +134,10 @@
     },
     "opener:default",
     "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "app-settings:" }]
+    },
     "clipboard-manager:allow-write-text"
   ]
 }

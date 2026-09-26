@@ -27,6 +27,29 @@
     },
     "others": "高級",
     "general": {
+      "permissions": {
+        "openSettings": "開啟系統設定",
+        "openSettingsError": "無法開啟系統權限設定",
+        "title": "系統權限",
+        "desc": "管理應用程式使用的系統權限。",
+        "notification": "通知",
+        "notificationDesc": "Agent 在背景等待操作確認時提醒你。",
+        "authorize": "請求授權",
+        "error": "無法操作系統權限",
+        "status": {
+          "systemManaged": "由系統管理",
+          "loading": "讀取中…",
+          "granted": "已授權",
+          "notGranted": "未授權",
+          "unavailable": "目前環境無法讀取通知權限",
+          "denied": "已拒絕",
+          "restricted": "受系統限制"
+        },
+        "screen": "螢幕錄製",
+        "screenDesc": "用於截圖記錄。",
+        "microphone": "麥克風",
+        "microphoneDesc": "用於錄音記錄。"
+      },
       "title": "常規設置",
       "desc": "在這裡，你可以配置應用的基本設置，包括界面主題、語言等選項。",
       "behavior": {

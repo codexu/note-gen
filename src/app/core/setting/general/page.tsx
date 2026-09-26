@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react'
 import { InterfaceSettings } from './interface-settings'
 import { AdvancedSettings } from './advanced-settings'
 import { SystemBehaviorSettings } from './system-behavior-settings'
+import { SystemPermissions } from './system-permissions'
 
 export default function GeneralSettingsPage() {
   const t = useTranslations('settings.general')
@@ -18,6 +19,7 @@ export default function GeneralSettingsPage() {
       icon={<Settings className="size-4 lg:size-6" />}
     >
       <SystemBehaviorSettings />
+      <SystemPermissions />
       <InterfaceSettings />
       <AdvancedSettings />
     </SettingType>

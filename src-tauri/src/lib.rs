@@ -32,6 +32,7 @@ mod skill_runtime;
 mod skills;
 mod storefront;
 mod system_trash;
+mod system_permissions;
 
 use ai::{
     ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multipart_request,
@@ -131,6 +132,9 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
+            system_permissions::get_system_media_permissions,
+            #[cfg(target_os = "macos")]
+            system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
             start_mcp_stdio_server,
             stop_mcp_server,

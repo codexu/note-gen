@@ -27,6 +27,29 @@
     },
     "others": "Advanced",
     "general": {
+      "permissions": {
+        "openSettings": "Open system settings",
+        "openSettingsError": "Unable to open system permission settings",
+        "title": "System permissions",
+        "desc": "Manage system permissions used by the app.",
+        "notification": "Notifications",
+        "notificationDesc": "Receive an alert when the Agent is waiting for approval in the background.",
+        "authorize": "Request access",
+        "error": "Unable to manage system permission",
+        "status": {
+          "systemManaged": "Managed by system",
+          "loading": "Loading…",
+          "granted": "Granted",
+          "notGranted": "Not granted",
+          "unavailable": "Notification permission is unavailable in this environment",
+          "denied": "Denied",
+          "restricted": "Restricted by system"
+        },
+        "screen": "Screen recording",
+        "screenDesc": "Used for screenshot records.",
+        "microphone": "Microphone",
+        "microphoneDesc": "Used for audio records."
+      },
       "title": "General Settings",
       "desc": "Here, you can configure basic application settings, including interface theme, language and other options.",
       "behavior": {

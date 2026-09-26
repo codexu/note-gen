@@ -36,6 +36,16 @@
     "opener:allow-open-url",
     "opener:allow-open-path",
     "autostart:default",
-    "notification:default"
+    "notification:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "x-apple.systempreferences:com.apple.preference.notifications" },
+        { "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" },
+        { "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" },
+        { "url": "ms-settings:notifications" },
+        { "url": "ms-settings:privacy-microphone" }
+      ]
+    }
   ]
 }

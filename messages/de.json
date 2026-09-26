@@ -27,6 +27,29 @@
     },
     "others": "Erweitert",
     "general": {
+      "permissions": {
+        "openSettings": "Systemeinstellungen öffnen",
+        "openSettingsError": "Systemberechtigungseinstellungen konnten nicht geöffnet werden",
+        "title": "Systemberechtigungen",
+        "desc": "Systemberechtigungen der App verwalten.",
+        "notification": "Benachrichtigungen",
+        "notificationDesc": "Hinweis, wenn der Agent im Hintergrund auf eine Bestätigung wartet.",
+        "authorize": "Zugriff anfordern",
+        "error": "Systemberechtigung konnte nicht verwaltet werden",
+        "status": {
+          "systemManaged": "Vom System verwaltet",
+          "loading": "Wird geladen…",
+          "granted": "Erlaubt",
+          "notGranted": "Nicht erlaubt",
+          "unavailable": "Benachrichtigungsberechtigung ist hier nicht verfügbar",
+          "denied": "Abgelehnt",
+          "restricted": "Vom System eingeschränkt"
+        },
+        "screen": "Bildschirmaufnahme",
+        "screenDesc": "Für Screenshot-Einträge.",
+        "microphone": "Mikrofon",
+        "microphoneDesc": "Für Audioaufnahmen."
+      },
       "title": "Allgemeine Einstellungen",
       "desc": "Hier kannst du grundlegende App-Einstellungen konfigurieren, einschließlich Oberflächendesign, Sprache und anderen Optionen.",
       "behavior": {

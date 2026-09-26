@@ -27,6 +27,29 @@
     },
     "others": "高级",
     "general": {
+      "permissions": {
+        "openSettings": "打开系统设置",
+        "openSettingsError": "无法打开系统权限设置",
+        "title": "系统权限",
+        "desc": "管理应用使用的系统权限。",
+        "notification": "通知",
+        "notificationDesc": "Agent 在后台等待操作确认时提醒你。",
+        "authorize": "请求授权",
+        "error": "无法操作系统权限",
+        "status": {
+          "systemManaged": "由系统管理",
+          "loading": "读取中…",
+          "granted": "已授权",
+          "notGranted": "未授权",
+          "unavailable": "当前环境无法读取通知权限",
+          "denied": "已拒绝",
+          "restricted": "受系统限制"
+        },
+        "screen": "屏幕录制",
+        "screenDesc": "用于截图记录。",
+        "microphone": "麦克风",
+        "microphoneDesc": "用于录音记录。"
+      },
       "title": "常规设置",
       "desc": "在这里，你可以配置应用的基本设置，包括界面主题、语言等选项。",
       "behavior": {

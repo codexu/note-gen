@@ -100,6 +100,8 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   // 开发者能力只控制当前设备，不能由其他设备远程开启。
   'developerMode',
   'developerPerformanceInfo',
+  // User CSS can alter or hide the entire interface, so another device must not apply it remotely.
+  'customCss',
   'excludeSensitiveConfig',
   'syncedFileShas',
   'lastSyncTimes',
@@ -145,7 +147,6 @@ export const SENSITIVE_SYNC_EXCLUDED_FIELDS: string[] = [
   'appFontFamily',
   'uiScale',
   'contentTextScale',
-  'customCss',
   'primaryBackupMethod',
   'aiModelList',
   's3SyncConfig',

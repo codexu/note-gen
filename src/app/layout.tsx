@@ -10,6 +10,7 @@ import { ConsoleFilter } from "@/components/console-filter";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DeveloperModeController } from "@/components/developer-mode-controller";
 import { AppLockGate } from "@/components/app-lock-gate";
+import { CustomCssController } from "@/components/custom-css-controller";
 
 function AppRuntime({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -51,6 +52,7 @@ export default function RootLayout({
         <body suppressHydrationWarning>
           <ConsoleFilter />
           <DeveloperModeController />
+          <CustomCssController />
           <Suspense>
             <TooltipProvider>
               <NextIntlProvider>

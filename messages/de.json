@@ -176,13 +176,15 @@
         },
         "customCss": {
           "title": "Benutzerdefiniertes CSS",
-          "desc": "Füge eigenen CSS-Code hinzu, um die Standardstile der Anwendung zu überschreiben",
+          "desc": "Passe die gesamte App an, einschließlich Markdown, Seitenleisten und Einstellungen",
           "button": "CSS bearbeiten",
           "dialogTitle": "Benutzerdefiniertes CSS",
-          "dialogDesc": "Gib unten eigenen CSS-Code ein, um die Standardstile der Anwendung zu überschreiben. Klicke auf Speichern, um die Änderungen anzuwenden.",
+          "dialogDesc": "Gespeichertes CSS gilt auf diesem Gerät für die gesamte App. Lösche es hier, um die Standardstile wiederherzustellen.",
           "placeholder": "Eigenen CSS-Code hier eingeben",
           "save": "Speichern",
-          "cancel": "Abbrechen"
+          "cancel": "Abbrechen",
+          "reset": "Löschen und zurücksetzen",
+          "saveError": "Benutzerdefiniertes CSS konnte nicht gespeichert werden"
         },
         "customTheme": {
           "title": "Benutzerdefinierte Designfarben",

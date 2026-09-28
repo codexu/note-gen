@@ -83,6 +83,7 @@ import {
 } from '@/lib/canvas/preferences'
 
 export const DEVELOPER_MODE_CHANGED_EVENT = 'notegen://developer-mode-changed'
+export const CUSTOM_CSS_CHANGED_EVENT = 'notegen://custom-css-changed'
 
 export enum GenTemplateRange {
   All = 'all',
@@ -328,6 +329,9 @@ interface SettingState {
   customThemeColors: CustomThemeColors
   setCustomThemeColors: (colors: CustomThemeColors) => Promise<void>
   resetCustomThemeColors: () => Promise<void>
+
+  customCss: string
+  setCustomCss: (css: string) => Promise<void>
 
   // 记录工具栏配置
   recordToolbarConfig: RecordToolbarItem[]
@@ -955,6 +959,8 @@ const useSettingStore = create<SettingState>((set, get) => ({
           } else {
             hydratedSettings[key] = res as RecordToolbarItem[]
           }
+        } else if (key === 'customCss') {
+          hydratedSettings[key] = typeof res === 'string' ? res : ''
         } else if (key !== 'aiModelList') {
           hydratedSettings[key] = res
         }
@@ -1692,6 +1698,15 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     // 清除自定义主题颜色
     removeThemeColors()
+  },
+
+  customCss: '',
+  setCustomCss: async (css: string) => {
+    const store = await Store.load('store.json')
+    await store.set('customCss', css)
+    await store.save()
+    set({ customCss: css })
+    await emit(CUSTOM_CSS_CHANGED_EVENT, css).catch(() => undefined)
   },
 
   // 自定义仓库名称设置

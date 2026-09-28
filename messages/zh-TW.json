@@ -176,13 +176,15 @@
         },
         "customCss": {
           "title": "自訂 CSS",
-          "desc": "添加自訂 CSS 樣式來覆蓋應用的默認樣式",
+          "desc": "自訂整個應用的樣式，包括 Markdown 正文、側邊欄和設定介面",
           "button": "編輯 CSS",
           "dialogTitle": "自訂 CSS",
-          "dialogDesc": "在下方輸入自訂 CSS 代碼，可以覆蓋應用的默認樣式。修改後點擊保存即可生效。",
+          "dialogDesc": "CSS 儲存後會作用於目前裝置的整個應用。若樣式影響使用，可在此清空並恢復預設。",
           "placeholder": "在此輸入自訂 CSS 代碼。",
-          "save": "保存",
-          "cancel": "取消"
+          "save": "儲存",
+          "cancel": "取消",
+          "reset": "清空並恢復預設",
+          "saveError": "自訂 CSS 儲存失敗"
         },
         "tray": {
           "enabled": {

@@ -14,6 +14,7 @@ import {
   undoDepth,
 } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
+import { css } from '@codemirror/lang-css'
 import {
   bracketMatching,
   defaultHighlightStyle,
@@ -39,6 +40,7 @@ import {
   highlightSpecialChars,
   keymap,
   lineNumbers,
+  placeholder as editorPlaceholder,
   WidgetType,
 } from '@codemirror/view'
 import { useEffect, useRef } from 'react'
@@ -52,6 +54,8 @@ export interface SourceMarkdownRemoteCursor {
 }
 
 interface SourceMarkdownEditorProps {
+  language?: 'markdown' | 'css'
+  placeholder?: string
   value: string
   onChange: (value: string) => void
   onSelectionChange?: (selection: { from: number; to: number }) => void
@@ -255,6 +259,8 @@ function createEditorTheme(fontSize: number, lineHeight: number) {
 }
 
 export function SourceMarkdownEditor({
+  language = 'markdown',
+  placeholder,
   value,
   onChange,
   onSelectionChange,
@@ -284,6 +290,8 @@ export function SourceMarkdownEditor({
   const appliedValueRef = useRef(value)
   const isApplyingExternalValueRef = useRef(false)
   const editableCompartmentRef = useRef(new Compartment())
+  const languageCompartmentRef = useRef(new Compartment())
+  const placeholderCompartmentRef = useRef(new Compartment())
   const gutterCompartmentRef = useRef(new Compartment())
   const wrappingCompartmentRef = useRef(new Compartment())
   const themeCompartmentRef = useRef(new Compartment())
@@ -334,7 +342,8 @@ export function SourceMarkdownEditor({
           indentOnInput(),
           bracketMatching(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-          markdown(),
+          languageCompartmentRef.current.of(language === 'css' ? css() : markdown()),
+          placeholderCompartmentRef.current.of(placeholder ? editorPlaceholder(placeholder) : []),
           remoteCursorDecorations,
           highlightActiveLine(),
           highlightSelectionMatches(),
@@ -461,6 +470,17 @@ export function SourceMarkdownEditor({
       view.destroy()
     }
   }, [])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: [
+        languageCompartmentRef.current.reconfigure(language === 'css' ? css() : markdown()),
+        placeholderCompartmentRef.current.reconfigure(placeholder ? editorPlaceholder(placeholder) : []),
+      ],
+    })
+  }, [language, placeholder])
 
   useEffect(() => {
     const view = viewRef.current

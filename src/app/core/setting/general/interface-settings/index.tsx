@@ -9,6 +9,7 @@ import { ContentTextScaleSettings } from './content-text-scale'
 import { FileManagerTextSizeSettings } from './file-manager-text-size'
 import { RecordTextSizeSettings } from './record-text-size'
 import { CustomThemeSettings } from './custom-theme'
+import { CustomCssSettings } from './custom-css'
 
 export function InterfaceSettings({ mobile = false }: { mobile?: boolean }) {
   const t = useTranslations('settings.general.interface')
@@ -21,6 +22,7 @@ export function InterfaceSettings({ mobile = false }: { mobile?: boolean }) {
           <LanguageSettings mobile={mobile} />
           <FontFamilySettings />
           <CustomThemeSettings />
+          <CustomCssSettings />
         </div>
       </SettingSection>
       <SettingSection title={t('reading.title')} desc={t('reading.desc')}>

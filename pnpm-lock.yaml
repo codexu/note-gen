@@ -17,6 +17,9 @@ importers:
       '@codemirror/commands':
         specifier: ^6.7.1
         version: 6.8.1
+      '@codemirror/lang-css':
+        specifier: ^6.3.1
+        version: 6.3.1
       '@codemirror/lang-markdown':
         specifier: ^6.5.2
         version: 6.5.2

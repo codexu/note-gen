@@ -176,13 +176,15 @@
         },
         "customCss": {
           "title": "自定义 CSS",
-          "desc": "添加自定义 CSS 样式来覆盖应用的默认样式",
+          "desc": "自定义整个应用的样式，包括 Markdown 正文、侧栏和设置界面",
           "button": "编辑 CSS",
           "dialogTitle": "自定义 CSS",
-          "dialogDesc": "在下方输入自定义 CSS 代码，可以覆盖应用的默认样式。修改后点击保存即可生效。",
+          "dialogDesc": "CSS 保存后会作用于当前设备的整个应用。若样式影响使用，可在此清空恢复默认。",
           "placeholder": "在此输入自定义 CSS 代码。",
           "save": "保存",
-          "cancel": "取消"
+          "cancel": "取消",
+          "reset": "清空并恢复默认",
+          "saveError": "自定义 CSS 保存失败"
         },
         "customTheme": {
           "title": "自定义主题颜色",

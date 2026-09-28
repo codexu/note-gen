@@ -176,13 +176,15 @@
         },
         "customCss": {
           "title": "CSS Personalizado",
-          "desc": "Adicione estilos CSS personalizados para substituir os estilos padrão do aplicativo",
+          "desc": "Personalize todo o aplicativo, incluindo Markdown, barras laterais e configurações",
           "button": "Editar CSS",
           "dialogTitle": "CSS Personalizado",
-          "dialogDesc": "Insira o código CSS personalizado abaixo para substituir os estilos padrão do aplicativo. Clique em salvar para aplicar as alterações.",
+          "dialogDesc": "O CSS salvo se aplica a todo o aplicativo neste dispositivo. Limpe-o aqui para restaurar os estilos padrão.",
           "placeholder": "Insira o código CSS personalizado aqui",
           "save": "Salvar",
-          "cancel": "Cancelar"
+          "cancel": "Cancelar",
+          "reset": "Limpar e restaurar padrões",
+          "saveError": "Não foi possível salvar o CSS personalizado"
         },
         "tray": {
           "enabled": {

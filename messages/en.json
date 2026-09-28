@@ -176,13 +176,15 @@
         },
         "customCss": {
           "title": "Custom CSS",
-          "desc": "Add custom CSS styles to override the application's default styles",
+          "desc": "Customize the entire app, including Markdown, sidebars, and settings",
           "button": "Edit CSS",
           "dialogTitle": "Custom CSS",
-          "dialogDesc": "Enter custom CSS code below to override the application's default styles. Click save to apply changes.",
+          "dialogDesc": "Saved CSS applies across the app on this device. Clear it here to restore the default styles.",
           "placeholder": "Enter custom CSS code here",
           "save": "Save",
-          "cancel": "Cancel"
+          "cancel": "Cancel",
+          "reset": "Clear and restore defaults",
+          "saveError": "Could not save custom CSS"
         },
         "customTheme": {
           "title": "Custom Theme Colors",

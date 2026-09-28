@@ -2980,14 +2980,14 @@
       },
       "permissionNames": {
         "ai": { "generate": "Usar modelos de IA configurados (pode gerar custos)" },
+        "clipboard": { "write": "Escrever na área de transferência" },
+        "files": { "export": "Exportar arquivos pela janela de salvamento" },
         "editor": {
+          "style": "Estilizar o conteúdo das notas",
           "read": "Ler o editor ativo",
           "write": "Modificar o editor ativo"
         },
-        "clipboard": { "write": "Escrever na área de transferência" },
-        "files": { "export": "Exportar arquivos pela janela de salvamento" },
         "notes": {
-          "style": "Estilizar o conteúdo das notas",
           "read": "Ler notas",
           "create": "Criar notas",
           "open": "Abrir notas",

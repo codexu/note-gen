@@ -2955,14 +2955,14 @@
       },
       "permissionNames": {
         "ai": { "generate": "使用已設定的 AI 模型（可能產生費用）" },
+        "clipboard": { "write": "寫入剪貼簿" },
+        "files": { "export": "透過儲存對話框匯出檔案" },
         "editor": {
+          "style": "設定筆記正文樣式",
           "read": "讀取目前編輯器",
           "write": "修改目前編輯器"
         },
-        "clipboard": { "write": "寫入剪貼簿" },
-        "files": { "export": "透過儲存對話框匯出檔案" },
         "notes": {
-          "style": "設定筆記正文樣式",
           "read": "讀取筆記",
           "create": "建立筆記",
           "open": "開啟筆記",

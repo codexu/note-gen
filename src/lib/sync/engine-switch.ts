@@ -30,6 +30,7 @@ export async function inspectSyncEngineSwitch(
     "select count(*) as total from self_hosted_outbox where state in ('pending', 'retry')"
   )
   const remoteObjectCount = async (platform: SyncPlatform) => {
+    if (platform === 'local') return 0
     if (platform === 'selfHosted') {
       const [row] = await database.select<Array<{ total: number }>>(
         `select count(*) as total from self_hosted_object_mappings

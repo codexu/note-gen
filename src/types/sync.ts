@@ -1,4 +1,4 @@
-export type SyncPlatform = 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
+export type SyncPlatform = 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
 
 export type SyncPlatformType = {
   platform: SyncPlatform
@@ -6,9 +6,10 @@ export type SyncPlatformType = {
   icon: string
 }
 
-export const SYNC_PLATFORMS: SyncPlatform[] = ['github', 'gitee', 'gitlab', 'gitea', 's3', 'webdav', 'cloudFolder', 'selfHosted']
+export const SYNC_PLATFORMS: SyncPlatform[] = ['local', 'github', 'gitee', 'gitlab', 'gitea', 's3', 'webdav', 'cloudFolder', 'selfHosted']
 
 export const SYNC_PLATFORM_INFO: Record<SyncPlatform, SyncPlatformType> = {
+  local: { platform: 'local', name: 'Local', icon: 'hard-drive' },
   github: { platform: 'github', name: 'Github', icon: 'github' },
   gitee: { platform: 'gitee', name: 'Gitee', icon: 'gitee' },
   gitlab: { platform: 'gitlab', name: 'GitLab', icon: 'gitlab' },

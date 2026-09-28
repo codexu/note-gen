@@ -191,6 +191,8 @@ export default function SyncPage() {
 
   function getCurrentSyncState(platform: SyncPlatform) {
     switch (platform) {
+      case 'local':
+        return SyncStateEnum.success
       case 'github':
         return syncRepoState
       case 'gitee':
@@ -217,6 +219,7 @@ export default function SyncPage() {
   }
 
   function getProviderLabel(platform: MobileSyncPlatform) {
+    if (platform === 'local') return t('settings.sync.local.title')
     if (platform === 'iCloud') return t('settings.sync.iCloud.title')
     if (platform === 'oneDrive' || platform === 'cloudFolder') return t('settings.sync.oneDrive.title')
     if (platform === 'selfHosted') return t('settings.sync.selfHosted.title')
@@ -242,6 +245,15 @@ export default function SyncPage() {
 
   function renderSyncContent() {
     switch (tab) {
+      case 'local':
+        return (
+          <Item variant="outline">
+            <ItemContent>
+              <ItemTitle>{t('settings.sync.local.title')}</ItemTitle>
+              <ItemDescription>{t('settings.sync.local.description')}</ItemDescription>
+            </ItemContent>
+          </Item>
+        )
       case 'github':
         return <GithubSync />
       case 'gitee':
@@ -281,7 +293,7 @@ export default function SyncPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        {t('settings.sync.desc')}
+        {selectedSyncPlatform === 'local' ? t('settings.sync.local.description') : t('settings.sync.desc')}
       </p>
 
       <section className="flex flex-col gap-3">
@@ -320,7 +332,7 @@ export default function SyncPage() {
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-3">
+      {tab !== 'local' ? <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">{t('settings.sync.noteSettings')}</h2>
 
         <Item variant="outline">
@@ -367,9 +379,9 @@ export default function SyncPage() {
           </ItemActions>
         </Item>
 
-      </section>
+      </section> : null}
 
-      <DataSyncOverview
+      {tab !== 'local' ? <DataSyncOverview
         mobile
         autoRecordSyncEnabled={autoRecordSyncEnabled}
         autoSettingsSyncEnabled={autoSettingsSyncEnabled}
@@ -379,8 +391,8 @@ export default function SyncPage() {
         onSettingsSyncChange={setAutoSettingsSyncEnabled}
         onConversationSyncChange={setAutoConversationSyncEnabled}
         onSensitiveConfigChange={handleExcludeSensitiveConfigChange}
-      />
-      {autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
+      /> : null}
+      {tab !== 'local' && autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
     </div>
   )
 }

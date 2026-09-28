@@ -11,6 +11,7 @@ import {
   FolderSync,
   GitBranch,
   GitFork,
+  HardDrive,
   Loader2,
   Network,
   RefreshCcw,
@@ -73,6 +74,7 @@ import useSyncStore from '@/stores/sync'
 import { SYNC_PLATFORMS, SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
 
 const PLATFORM_ICONS: Record<SyncPlatform, LucideIcon> = {
+  local: HardDrive,
   github: GitBranch,
   gitee: GitFork,
   gitlab: Network,
@@ -213,6 +215,7 @@ export default function SyncPage() {
   }, [setPrimaryBackupMethod])
 
   const checkPlatformStatus = useCallback(async (targetPlatform: SyncPlatform) => {
+    if (targetPlatform === 'local') return
     if (checkingPlatformsRef.current.has(targetPlatform)) return
 
     checkingPlatformsRef.current.add(targetPlatform)
@@ -234,6 +237,8 @@ export default function SyncPage() {
     if (checkingPlatforms.has(targetPlatform)) return SyncStateEnum.checking
 
     switch (targetPlatform) {
+      case 'local':
+        return SyncStateEnum.success
       case 'github':
         return syncRepoState
       case 'gitee':
@@ -256,6 +261,7 @@ export default function SyncPage() {
   const currentSyncState = getSyncState(platform)
   const isAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
   const getPlatformName = (targetPlatform: SyncPlatform) => {
+    if (targetPlatform === 'local') return t('settings.sync.local.title')
     if (targetPlatform === 'cloudFolder') return t('settings.sync.cloudFolder.title')
     if (targetPlatform === 'selfHosted') return t('settings.sync.selfHosted.title')
     return SYNC_PLATFORM_INFO[targetPlatform].name
@@ -281,6 +287,14 @@ export default function SyncPage() {
 
   function renderSyncContent() {
     switch (platform) {
+      case 'local':
+        return (
+          <Card>
+            <CardHeader>
+              <CardDescription>{t('settings.sync.local.description')}</CardDescription>
+            </CardHeader>
+          </Card>
+        )
       case 'github':
         return <GithubSync />
       case 'gitee':
@@ -399,12 +413,12 @@ export default function SyncPage() {
                       </Badge>
                     ) : null}
                   </CardTitle>
-                  <CardDescription>{t('settings.sync.platformDesc')}</CardDescription>
+                  {platform !== 'local' ? <CardDescription>{t('settings.sync.platformDesc')}</CardDescription> : null}
                 </div>
               </div>
               <CardAction>
                 <div className="flex items-center gap-2">
-                  {renderStatusBadge(currentSyncState)}
+                  {platform !== 'local' ? renderStatusBadge(currentSyncState) : null}
                   <UsePlatformButton
                     platform={platform}
                     disabled={currentSyncState !== SyncStateEnum.success}
@@ -414,7 +428,7 @@ export default function SyncPage() {
             </CardHeader>
           </Card>
 
-          <Tabs orientation="horizontal" value={activeTab} onValueChange={setActiveTab}>
+          {platform === 'local' ? renderSyncContent() : <Tabs orientation="horizontal" value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid h-9 w-full grid-cols-2">
               <TabsTrigger className="!justify-center" value="connection">
                 <Settings2 data-icon="inline-start" />
@@ -515,7 +529,7 @@ export default function SyncPage() {
               )}
 
             </TabsContent>
-          </Tabs>
+          </Tabs>}
         </div>
       </div>
     </SettingType>

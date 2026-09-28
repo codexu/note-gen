@@ -1274,6 +1274,10 @@
       "currentPlatform": "Em uso",
       "experimental": "Experimental",
       "setCurrentPlatform": "Usar este provedor",
+      "local": {
+        "title": "Armazenamento local",
+        "description": "Notas, registros e configurações ficam apenas neste dispositivo. As configurações remotas existentes são mantidas para você voltar quando quiser."
+      },
       "engineSwitchReviewTitle": "Revise as diferenças antes de trocar",
       "engineSwitchReviewDescription": "A sincronização atual será pausada antes da troca. Há {changes} alterações locais, {commands} comandos pendentes, {currentRemote} objetos no remoto atual e {nextRemote} no destino. Nenhum remoto será excluído automaticamente. Continue após revisar as diferenças.",
       "selfHosted": {

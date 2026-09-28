@@ -86,14 +86,14 @@ export function MobileMeSheet() {
   }, [])
 
   const syncing = useMemo(() => (
-    primaryBackupMethod !== 'selfHosted'
+    primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local'
     && (syncingFiles.size > 0
       || autoDataSyncState.phase === 'uploading'
       || autoDataSyncState.phase === 'downloading')
   ), [autoDataSyncState.phase, primaryBackupMethod, syncingFiles])
   const indicator = useMemo(() => {
     if (hasMobileUpdate) return true
-    if (primaryBackupMethod === 'selfHosted') return false
+    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') return false
     const recordProblem = autoRecordSyncEnabled
       && (autoDataSyncState.phase === 'waiting_provider'
         || (autoDataSyncState.affectedDomains.includes('records')
@@ -112,7 +112,7 @@ export function MobileMeSheet() {
   ])
 
   useEffect(() => {
-    if (primaryBackupMethod === 'selfHosted') {
+    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') {
       setShowSyncIndicator(false)
       return
     }

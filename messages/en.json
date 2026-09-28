@@ -1685,6 +1685,10 @@
       "setCurrentPlatform": "Use This Provider",
       "engineSwitchReviewTitle": "Review differences before switching",
       "engineSwitchReviewDescription": "The current sync runtime will pause before switching. There are {changes} local changes and {commands} pending commands; the current remote has {currentRemote} objects and the target remote has {nextRemote}. Neither remote is deleted automatically. Continue after reviewing the differences.",
+      "local": {
+        "title": "Local storage",
+        "description": "Notes, records, and settings stay on this device. Existing remote settings are kept so you can switch back at any time."
+      },
       "selfHosted": {
         "title": "Self-hosted",
         "experimentalWarningTitle": "Self-hosted sync is experimental",

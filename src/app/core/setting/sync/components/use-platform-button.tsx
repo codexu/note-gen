@@ -30,8 +30,8 @@ export function UsePlatformButton({
   async function handleClick() {
     setIsSaving(true)
     try {
-      const review = await inspectSyncEngineSwitch(primaryBackupMethod, platform)
-      if (review.requiresReview) {
+      const review = platform === 'local' ? null : await inspectSyncEngineSwitch(primaryBackupMethod, platform)
+      if (review?.requiresReview) {
         const accepted = await confirm(
           t('settings.sync.engineSwitchReviewDescription', {
             changes: review.pendingLocalChanges,

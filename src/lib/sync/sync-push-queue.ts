@@ -110,6 +110,7 @@ class SyncPushQueue {
     // 动态读取 autoSync 设置
     const state = useSettingStore.getState()
     if (!state) return 0
+    if (state.primaryBackupMethod === 'local') return 0
 
     const { autoSync } = state
 
@@ -184,6 +185,7 @@ class SyncPushQueue {
    */
   addTask(path: string) {
     if (this.workspaceSwitchPauseDepth > 0) return
+    if (useSettingStore.getState().primaryBackupMethod === 'local') return
 
     const now = Date.now()
     const task: PushTask = {

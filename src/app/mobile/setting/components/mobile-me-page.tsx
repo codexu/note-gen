@@ -436,12 +436,13 @@ export function MobileMePage({
   const profileProviderType = useMemo<'git' | 'storage' | 'unconfigured'>(() => {
     const hasGitIdentity = Boolean(profile.avatarUrl)
     if (hasGitIdentity) return 'git'
-    if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav' || primaryBackupMethod === 'cloudFolder') return 'storage'
+    if (primaryBackupMethod === 'local' || primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav' || primaryBackupMethod === 'cloudFolder') return 'storage'
     if (syncStatus === tMe('sync.unconfigured')) return 'unconfigured'
     return 'git'
   }, [profile.avatarUrl, primaryBackupMethod, syncStatus, tMe])
 
   const providerName = useMemo(() => {
+    if (primaryBackupMethod === 'local') return tMe('sync.localOnly')
     if (syncStatus === tMe('sync.unconfigured')) {
       return tMe('sync.localOnly')
     }

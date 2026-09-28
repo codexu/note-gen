@@ -517,6 +517,7 @@ export function isAutoDataSyncApplyingRemote(): boolean {
 }
 
 export function enqueueAutoDataSync(domain: AutoDataSyncDomain, reason = 'change', mode: 'auto' | 'manual' = 'auto') {
+  if (useSettingStore.getState().primaryBackupMethod === 'local') return
   if (applyingRemote || repositoryChangePauseDepth > 0) {
     debugAutoDataSync('skip enqueue while applying remote data', { domain, reason, mode })
     return
@@ -672,7 +673,7 @@ export function finishAutoDataSyncRepositoryChange() {
   })
   void (async () => {
     const store = await Store.load('store.json')
-    if (await store.get<string>('primaryBackupMethod') === 'selfHosted') return
+    if (['selfHosted', 'local'].includes(await store.get<string>('primaryBackupMethod') || '')) return
     if (!await isAutoDataSyncProviderConfigured()) {
       scheduleProviderRetry()
       return
@@ -1261,8 +1262,8 @@ export async function initAutoDataSyncRuntime(): Promise<void> {
 
   try {
     const store = await Store.load('store.json')
-    if (await store.get<string>('primaryBackupMethod') === 'selfHosted') {
-      debugAutoDataSync('runtime skipped for self-hosted sync provider')
+    if (['selfHosted', 'local'].includes(await store.get<string>('primaryBackupMethod') || '')) {
+      debugAutoDataSync('runtime skipped for local or self-hosted sync provider')
       return
     }
     const lastCompletedAt = await getAutoDataSyncLastCompletedAt(store)
@@ -1379,6 +1380,8 @@ export async function isAutoDataSyncProviderConfigured(): Promise<boolean> {
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
 
   switch (provider) {
+    case 'local':
+      return false
     case 'github':
       return Boolean(
         await store.get<string>('accessToken')
@@ -1455,7 +1458,7 @@ function scheduleProviderRetry() {
     void (async () => {
       try {
         const store = await Store.load('store.json')
-        if (await store.get<string>('primaryBackupMethod') === 'selfHosted') return
+        if (['selfHosted', 'local'].includes(await store.get<string>('primaryBackupMethod') || '')) return
         if (!await isAutoDataSyncProviderConfigured()) {
           scheduleProviderRetry()
           return

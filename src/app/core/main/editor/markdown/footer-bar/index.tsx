@@ -71,7 +71,7 @@ export function FooterBar({
               <span>{tSourceMode(viewMode)}</span>
             </Button>
           ) : null}
-          {primaryBackupMethod !== 'selfHosted' ? (
+          {primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local' ? (
             <>
               <HistorySheet editor={editor} prepareExternalAction={prepareExternalAction} onMarkdownChange={onMarkdownChange} />
               <SyncButton getMarkdown={getMarkdown} prepareExternalAction={prepareExternalAction} />

@@ -219,6 +219,8 @@ export async function checkSyncProviderStatus(platform: SyncPlatform) {
   const store = await Store.load('store.json')
 
   switch (platform) {
+    case 'local':
+      return
     case 'github':
       return checkGithubStatus(store)
     case 'gitee':

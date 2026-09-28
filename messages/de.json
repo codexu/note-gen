@@ -1682,6 +1682,10 @@
       "platformSettings": "Sync-Anbieter",
       "currentPlatform": "In Verwendung",
       "setCurrentPlatform": "Diesen Anbieter verwenden",
+      "local": {
+        "title": "Lokale Speicherung",
+        "description": "Notizen, Aufzeichnungen und Einstellungen bleiben auf diesem Gerät. Vorhandene Remote-Einstellungen bleiben für einen späteren Wechsel erhalten."
+      },
       "connectionTab": "Verbindung",
       "syncOptionsTab": "Sync-Optionen",
       "settings": "Sync-Einstellungen",

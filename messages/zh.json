@@ -1685,6 +1685,10 @@
       "setCurrentPlatform": "设为使用平台",
       "engineSwitchReviewTitle": "切换同步方案前检查差异",
       "engineSwitchReviewDescription": "将暂停当前同步运行时并切换方案。本地还有 {changes} 项变更、{commands} 条待发送命令；当前远端 {currentRemote} 个对象，目标远端 {nextRemote} 个对象。两侧远端数据都不会自动删除。确认已检查差异后继续。",
+      "local": {
+        "title": "本地存储",
+        "description": "笔记、记录和设置仅保存在当前设备，不连接远端同步服务。已有远端配置会保留，可随时切回。"
+      },
       "selfHosted": {
         "title": "自托管",
         "experimentalWarningTitle": "自托管同步仍处于实验阶段",

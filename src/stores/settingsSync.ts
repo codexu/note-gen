@@ -13,8 +13,8 @@ import { cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
 import { setAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 
-type SettingsSyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
-type GitSettingsSyncProvider = Exclude<SettingsSyncProvider, 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>
+type SettingsSyncProvider = 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
+type GitSettingsSyncProvider = Exclude<SettingsSyncProvider, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>
 type RemoteFileEntry = {
   name?: string
   path?: string
@@ -75,6 +75,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
     try {
       const store = await Store.load('store.json')
       const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
+      if (primaryBackupMethod === 'local') return false
       if (primaryBackupMethod === 'selfHosted') {
         const [{ enqueueSelfHostedSettingChange }, { getSelfHostedSyncRuntime }] = await Promise.all([
           import('@/db/self-hosted-sync'), import('@/lib/self-hosted-sync/runtime'),
@@ -225,6 +226,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
     try {
       const store = await Store.load('store.json')
       const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
+      if (primaryBackupMethod === 'local') return false
       if (primaryBackupMethod === 'selfHosted') {
         const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
         await getSelfHostedSyncRuntime().wake('settings:manual-download')

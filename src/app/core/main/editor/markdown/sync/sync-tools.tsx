@@ -40,7 +40,7 @@ export function SyncTools({ editor, markdown, getMarkdown, prepareExternalAction
     openSettings('sync')
   }
 
-  if (syncContext.primaryBackupMethod === 'selfHosted') return null
+  if (syncContext.primaryBackupMethod === 'selfHosted' || syncContext.primaryBackupMethod === 'local') return null
 
   if (configured) {
     return (

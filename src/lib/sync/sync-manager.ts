@@ -982,6 +982,8 @@ export async function isSyncConfigured(
 
     // 检查对应平台的访问令牌（确保不是空字符串）
     switch (platform) {
+      case 'local':
+        return false
       case 'github': {
         const token = await store.get<string>('accessToken')
         const username = await store.get<string>('githubUsername')

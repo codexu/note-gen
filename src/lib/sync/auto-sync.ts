@@ -620,7 +620,7 @@ export async function getRemoteCommitInfo(path: string): Promise<{
   try {
     const store = await Store.load('store.json')
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
-    if (primaryBackupMethod === 'selfHosted') return null
+    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') return null
     const repo = await getSyncRepoName(primaryBackupMethod as 'github' | 'gitee' | 'gitlab' | 'gitea')
     
     let commits: any[] = []
@@ -998,6 +998,9 @@ export async function hasNetworkConnection(): Promise<boolean> {
     let proxy: Proxy | undefined = undefined
 
     switch (primaryBackupMethod) {
+      case 'local':
+        clearTimeout(timeoutId)
+        return false
       case 'github':
         token = await store.get<string>('accessToken') || ''
         url = 'https://api.github.com/user'

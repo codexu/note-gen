@@ -133,7 +133,7 @@ async function getFileTransferConcurrency(): Promise<number> {
 }
 
 async function getGitRepository(
-  platform: Exclude<SyncPlatform, 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>,
+  platform: Exclude<SyncPlatform, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>,
   scope: RemoteRepositoryScope,
 ) {
   return scope === 'data'
@@ -158,7 +158,7 @@ function normalizeGitEntries(value: unknown): GitRemoteEntry[] {
 }
 
 async function listGitRemoteFiles(
-  platform: Exclude<SyncPlatform, 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>,
+  platform: Exclude<SyncPlatform, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>,
   options: RemoteLibraryOptions
 ): Promise<RemoteLibraryFile[]> {
   const repo = await getSyncRepoName(platform)
@@ -265,7 +265,7 @@ async function listObjectStorageFiles(
 async function listRemoteLibraryFilesRaw(options: RemoteLibraryOptions): Promise<RemoteLibraryFile[]> {
   const store = await Store.load('store.json')
   const platform = options.platform ?? await getPlatform(store)
-  if (platform === 'selfHosted') return []
+  if (platform === 'selfHosted' || platform === 'local') return []
   if (platform === 'cloudFolder') {
     const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
     if (!config?.path || !supportsCloudFolderWorkspace(config)) return []
@@ -573,8 +573,8 @@ async function downloadRemoteBytesRaw(
     return file.content
   }
 
-  if (platform === 'selfHosted') {
-    throw new Error('自托管同步不使用旧远端工作区下载接口')
+  if (platform === 'selfHosted' || platform === 'local') {
+    throw new Error('当前同步方式不支持远端工作区下载')
   }
 
   const repo = await getGitRepository(platform, scope)
@@ -622,7 +622,7 @@ export async function downloadRemoteBytes(
   }
 }
 
-async function getExistingRemoteSha(platform: Exclude<SyncPlatform, 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>, path: string, repo: string) {
+async function getExistingRemoteSha(platform: Exclude<SyncPlatform, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>, path: string, repo: string) {
   let entry: unknown
   switch (platform) {
     case 'github':
@@ -703,8 +703,8 @@ async function uploadRemoteContentRaw(
     return result.etag
   }
 
-  if (platform === 'selfHosted') {
-    throw new Error('自托管同步不使用旧远端工作区上传接口')
+  if (platform === 'selfHosted' || platform === 'local') {
+    throw new Error('当前同步方式不支持远端工作区上传')
   }
 
   const repo = await getGitRepository(platform, scope)
@@ -796,7 +796,7 @@ async function remoteFileExistsRaw(
     return scope === 'data' ? Boolean(await cloudFolderHeadObject(config, path)) : false
   }
 
-  if (platform === 'selfHosted') return false
+  if (platform === 'selfHosted' || platform === 'local') return false
 
   const repo = await getGitRepository(platform, scope)
   return Boolean(await getExistingRemoteSha(platform, path, repo))
@@ -848,7 +848,7 @@ export async function deleteRemoteFile(
     return false
   }
 
-  if (platform === 'selfHosted') return false
+  if (platform === 'selfHosted' || platform === 'local') return false
 
   const repo = await getGitRepository(platform, scope)
   const sha = await getExistingRemoteSha(platform, path, repo)

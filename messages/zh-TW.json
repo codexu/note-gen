@@ -1251,6 +1251,10 @@
       "setCurrentPlatform": "設為使用平台",
       "engineSwitchReviewTitle": "切換同步方案前檢查差異",
       "engineSwitchReviewDescription": "將暫停目前的同步執行環境並切換方案。本機還有 {changes} 項變更、{commands} 條待傳送命令；目前遠端 {currentRemote} 個物件，目標遠端 {nextRemote} 個物件。兩側遠端資料都不會自動刪除。確認差異後繼續。",
+      "local": {
+        "title": "本機儲存",
+        "description": "筆記、記錄和設定僅儲存在目前裝置，不連接遠端同步服務。既有遠端設定會保留，可隨時切回。"
+      },
       "selfHosted": {
         "title": "自託管",
         "experimentalWarningTitle": "自託管同步仍處於實驗階段",

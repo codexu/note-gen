@@ -1251,6 +1251,10 @@
       "setCurrentPlatform": "使用するプラットフォームに設定",
       "engineSwitchReviewTitle": "同期方法を切り替える前に差分を確認",
       "engineSwitchReviewDescription": "現在の同期ランタイムを停止して切り替えます。ローカル変更 {changes} 件、未送信コマンド {commands} 件、現在のリモート {currentRemote} オブジェクト、切替先 {nextRemote} オブジェクトです。リモートデータは自動削除されません。差分を確認して続行してください。",
+      "local": {
+        "title": "ローカル保存",
+        "description": "ノート、記録、設定はこの端末にのみ保存されます。既存のリモート設定は保持され、いつでも切り替えられます。"
+      },
       "selfHosted": {
         "title": "セルフホスト",
         "experimentalWarningTitle": "セルフホスト同期は実験的機能です",

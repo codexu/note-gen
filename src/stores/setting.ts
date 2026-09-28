@@ -266,8 +266,8 @@ interface SettingState {
   setGiteaUsername: (giteaUsername: string) => Promise<void>
 
   // 主要备份方式设置
-  primaryBackupMethod: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
-  setPrimaryBackupMethod: (method: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted') => Promise<void>
+  primaryBackupMethod: 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
+  setPrimaryBackupMethod: (method: 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted') => Promise<void>
 
   lastSettingPage: string
   setLastSettingPage: (page: string) => Promise<void>
@@ -1507,7 +1507,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
   // 默认使用 GitHub 作为主要备份方式
   primaryBackupMethod: 'github',
-  setPrimaryBackupMethod: async (method: 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted') => {
+  setPrimaryBackupMethod: async (method: 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted') => {
     if (method === get().primaryBackupMethod) return
 
     const [{ getSyncPushQueue }, autoDataSyncQueue] = await Promise.all([

@@ -53,6 +53,7 @@ export function useSyncSettings(): UseSyncSettingsReturn {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [platformStatus, setPlatformStatus] = useState<Record<SyncPlatform, SyncPlatformStatus>>({
+    local: { ...defaultPlatformStatus },
     github: { ...defaultPlatformStatus },
     gitee: { ...defaultPlatformStatus },
     gitlab: { ...defaultPlatformStatus },

@@ -82,6 +82,9 @@ export async function getSyncConfiguration(): Promise<{
   if (!platform) {
     return { platform: 'github', configured: false, reason: 'unsupported-platform' }
   }
+  if (platform === 'local') {
+    return { platform, configured: false }
+  }
 
   if (platform === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')
@@ -143,7 +146,7 @@ export async function getSyncConfiguration(): Promise<{
     return { platform, configured }
   }
 
-  const credentials: Record<Exclude<SyncPlatform, 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>, [string, string]> = {
+  const credentials: Record<Exclude<SyncPlatform, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>, [string, string]> = {
     github: ['accessToken', 'githubUsername'],
     gitee: ['giteeAccessToken', 'giteeUsername'],
     gitlab: ['gitlabAccessToken', 'gitlabUsername'],

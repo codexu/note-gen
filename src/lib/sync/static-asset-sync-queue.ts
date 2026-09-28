@@ -288,7 +288,7 @@ async function drainPendingTasks(force: boolean): Promise<void> {
   if (!hasReadyTask) return
 
   const provider = useSettingStore.getState().primaryBackupMethod
-  if (provider === 'selfHosted') {
+  if (provider === 'selfHosted' || provider === 'local') {
     for (const [key, task] of pendingTasks) {
       if (task.workspaceKey === workspaceKey) pendingTasks.delete(key)
     }

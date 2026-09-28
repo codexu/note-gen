@@ -3,7 +3,7 @@ import { endOfWeek, startOfWeek } from 'date-fns'
 import type { ActivityCalendarData, ActivityDaySummary } from '@/lib/activity/types'
 import { SyncStateEnum } from '@/lib/sync/github.types'
 
-type SyncProvider = 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
+type SyncProvider = 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
 
 interface BuildProfileCardDataInput {
   primaryBackupMethod: SyncProvider
@@ -182,6 +182,8 @@ export function getBackupMethodStatus({
 }: QuickLinkStatusInput) {
   const isConnected = (() => {
     switch (primaryBackupMethod) {
+      case 'local':
+        return true
       case 'github':
         return syncRepoState === SyncStateEnum.success
       case 'gitee':

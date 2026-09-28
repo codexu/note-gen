@@ -78,7 +78,9 @@ export function useSyncAvailability() {
   }, [credentials, refresh, settingsOpen])
 
   let status: SyncAvailabilityStatus
-  if (configurationChecking) {
+  if (state.platform === 'local') {
+    status = 'not-configured'
+  } else if (configurationChecking) {
     status = 'checking'
   } else if (state.reason === 'reauthentication-required') {
     status = 'unavailable'

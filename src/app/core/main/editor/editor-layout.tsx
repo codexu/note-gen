@@ -216,9 +216,6 @@ interface EditorGroupPaneProps {
   onMoveToNewWindow: (groupId: string, tabId: string) => void
   onPinTab: (tabId: string) => void
   onUnpinTab: (tabId: string) => void
-  onNavigateBack: () => void
-  onNavigateForward: () => void
-  navigationReady: boolean
   onToggleMaximize: (groupId: string) => void
   onCloseGroup: (groupId: string) => void
   renderActiveContent: (tab: TabInfo, active: boolean, groupId: string) => React.ReactNode
@@ -228,7 +225,7 @@ interface EditorGroupPaneProps {
 function EditorGroupPane({
   group, tabs, activeLayout, dragging, onActivateGroup, onNewTab, onCloseTab,
   onKeepTabs, onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab,
-  onNavigateBack, onNavigateForward, navigationReady, onToggleMaximize, onCloseGroup,
+  onToggleMaximize, onCloseGroup,
   renderActiveContent, renderEmpty,
 }: EditorGroupPaneProps) {
   const groupTabs = group.tabIds
@@ -264,10 +261,6 @@ function EditorGroupPane({
         onMoveToNewWindow={tabId => onMoveToNewWindow(group.id, tabId)}
         onPinTab={onPinTab}
         onUnpinTab={onUnpinTab}
-        canNavigateBack={navigationReady && Boolean(getEditorBackNavigationTarget(activeLayout))}
-        canNavigateForward={navigationReady && Boolean(getEditorForwardNavigationTarget(activeLayout))}
-        onNavigateBack={onNavigateBack}
-        onNavigateForward={onNavigateForward}
         onToggleMaximize={() => onToggleMaximize(group.id)}
         canCloseGroup={!groupTabs.some(tab => tab.pinned)}
         onCloseGroup={() => onCloseGroup(group.id)}
@@ -1736,25 +1729,6 @@ export function EditorLayout() {
     )
   }, [activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, layout.activeGroupId, layout.groups, onboardingProgress, tGroups])
 
-  const activeNavigationTab = openTabs.find(tab => tab.id === activeTabId)
-  const activeNavigationEntry = layout.navigationHistory[layout.navigationIndex]
-  const activeNavigationGroup = layout.groups[layout.activeGroupId]
-  const pendingNavigation = pendingEditorNavigationRef.current
-  const navigationReady = Boolean(
-    activeFilePath
-    && activeNavigationGroup?.activeTabId === activeTabId
-    && activeNavigationTab?.path === activeFilePath
-    && activeNavigationEntry?.path === activeFilePath
-  ) || Boolean(
-    pendingNavigation
-    && pendingNavigation.operationId === navigationOperationRef.current
-    && pendingNavigation.workspaceKey === layout.workspaceKey
-    && pendingNavigation.groupId === layout.activeGroupId
-    && pendingNavigation.activeTabId === activeTabId
-    && pendingNavigation.activeFilePath === activeFilePath
-    && activeNavigationGroup?.activeTabId === activeTabId
-  )
-
   const renderLayoutNode = useCallback((node: EditorLayoutNode): React.ReactNode => {
     if (node.type === 'group') {
       const group = layout.groups[node.groupId]
@@ -1774,9 +1748,6 @@ export function EditorLayout() {
           onMoveToNewWindow={handleMoveToNewWindow}
           onPinTab={handlePinTab}
           onUnpinTab={handleUnpinTab}
-          onNavigateBack={() => { void handleNavigateHistory('back') }}
-          onNavigateForward={() => { void handleNavigateHistory('forward') }}
-          navigationReady={navigationReady}
           onToggleMaximize={handleToggleMaximize}
           onCloseGroup={handleCloseGroup}
           renderActiveContent={renderContentPanel}
@@ -1814,7 +1785,7 @@ export function EditorLayout() {
         })}
       </ResizablePanelGroup>
     )
-  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNavigateHistory, handleNewTab, handlePinTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, navigationReady, openTabs, renderContentPanel, renderEmpty, setLayout])
+  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handlePinTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
 
   if (!layoutReady) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{tGroups('loadingLayout')}</div>
   const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''

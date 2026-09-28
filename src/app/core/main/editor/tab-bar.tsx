@@ -2,7 +2,7 @@
 
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ExternalLink, FilePlus2, FileText, Folder, Maximize2, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, Undo2, X } from 'lucide-react'
+import { ExternalLink, FilePlus2, FileText, Folder, Maximize2, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
@@ -60,10 +60,6 @@ interface TabBarProps {
   onMoveToNewWindow: (tabId: string) => void
   onPinTab: (tabId: string) => void
   onUnpinTab: (tabId: string) => void
-  canNavigateBack: boolean
-  canNavigateForward: boolean
-  onNavigateBack: () => void
-  onNavigateForward: () => void
   onToggleMaximize: () => void
   canCloseGroup: boolean
   onCloseGroup: () => void
@@ -207,8 +203,7 @@ export function TabBar({
   groupId, tabs, activeTabId, isActiveGroup, isMaximized,
   onTabSwitch, onNewTab, onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onCloseLeftTabs, onCloseRightTabs, onSplitTab, onMoveToNewWindow,
-  onPinTab, onUnpinTab, canNavigateBack, canNavigateForward,
-  onNavigateBack, onNavigateForward, onToggleMaximize, canCloseGroup, onCloseGroup,
+  onPinTab, onUnpinTab, onToggleMaximize, canCloseGroup, onCloseGroup,
 }: TabBarProps) {
   const { showEditorUndoRedo } = useSettingStore()
   const t = useTranslations('tabContext')
@@ -233,8 +228,6 @@ export function TabBar({
     ? activeTab.canvasId || getCanvasIdFromTabPath(activeTab.path)
     : null
   const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl+'
-  const navigateBackShortcut = currentPlatform === 'macos' ? '⌘[' : 'Alt+←'
-  const navigateForwardShortcut = currentPlatform === 'macos' ? '⌘]' : 'Alt+→'
 
   const queryCanUndoRedo = useCallback(() => {
     if (!isActiveGroup) return
@@ -338,12 +331,6 @@ export function TabBar({
 
   return (
     <div className="flex h-12 shrink-0 items-center border-b bg-background">
-      {isActiveGroup && (
-        <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
-          <TooltipButton icon={<ArrowLeft />} tooltipText={`${t('navigateBack')} (${navigateBackShortcut})`} side="bottom" buttonClassName="size-7" disabled={!canNavigateBack} onClick={onNavigateBack} />
-          <TooltipButton icon={<ArrowRight />} tooltipText={`${t('navigateForward')} (${navigateForwardShortcut})`} side="bottom" buttonClassName="size-7" disabled={!canNavigateForward} onClick={onNavigateForward} />
-        </div>
-      )}
       {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && (
         <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
           <TooltipButton icon={<Undo2 />} tooltipText={`${t('undo')} (${modKey}Z)`} side="bottom" buttonClassName="size-7" disabled={!canUndo} onClick={() => runUndoRedo(false)} />

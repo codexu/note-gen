@@ -19,8 +19,12 @@ import {
 } from '@notegen/plugin-api'
 import { usePluginStore } from '@/stores/plugins'
 import { useSidebarStore } from '@/stores/sidebar'
+import useArticleStore from '@/stores/article'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { getPluginManifestFingerprint } from './internal-types'
+import { pluginEditorTabPath } from './editor-tab'
+import { resolvePluginViewTitle } from '@/app/core/setting/plugins/plugin-display'
+import { loadPluginMessages } from './localization'
 import { clearPluginForms, clearAllPluginForms, reconcilePluginForm, pluginFormKey, usePluginFormStore } from './form-state'
 
 interface PluginDialogState extends PluginDialogOptions { pluginId: string; id: string }
@@ -141,7 +145,14 @@ const legacyBlockSchema = z.discriminatedUnion('type', [
 
 function parseBlocks(value: unknown, depth = 0): PluginUiBlock[] {
   if (depth > 6 || !Array.isArray(value) || value.length > 50) throw new PluginError('InvalidPath', 'Invalid UI nesting or block count')
-  return value.map(block => parsePluginUiExtension(block, children => parseBlocks(children, depth + 1)) ?? legacyBlockSchema.parse(block))
+  return value.map(block => {
+    // Keep the host parser compatible with the currently published 0.1.9 SDK
+    // until the embedded-view block reaches the public package.
+    if (block && typeof block === 'object' && !Array.isArray(block) && (block as { type?: unknown }).type === 'embedded-view') {
+      return z.object({ type: z.literal('embedded-view'), id: z.string().min(1).max(160) }).strict().parse(block) as unknown as PluginUiBlock
+    }
+    return parsePluginUiExtension(block, children => parseBlocks(children, depth + 1)) ?? legacyBlockSchema.parse(block)
+  })
 }
 const blocksSchema = z.unknown().transform((value, context) => {
   try { const blocks = parseBlocks(value); flattenPluginUiBlocks(blocks); return blocks }
@@ -325,7 +336,6 @@ export function updatePluginView(pluginId: string, viewId: string, content: Plug
 export async function openPluginView(pluginId: string, viewId: string, assertCurrent: () => void = () => {}, activate = false): Promise<void> {
   assertCurrent()
   const view = declaredView(pluginId, viewId)
-  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   if (!isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location)) return
   const sequence = ++navigationSequence
@@ -362,7 +372,17 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
   const sidebar = useSidebarStore.getState()
   if (view.location === 'settings') {
     apply(() => useSettingsDialogStore.getState().openSettings(`plugin:${pluginId}`))
-  } else if (view.location === 'left-sidebar' || legacyEditorTab) {
+  } else if ((view.location as string) === 'editor-tab') {
+    const locale = typeof document === 'undefined' ? 'en' : document.documentElement.lang || 'en'
+    await loadPluginMessages(installed, locale)
+    guard()
+    const title = resolvePluginViewTitle(installed, view, locale)
+    const path = pluginEditorTabPath(pluginId, viewId)
+    await apply(() => useArticleStore.getState().addTab({ id: path, path, name: title, isFolder: false, kind: 'plugin' }))
+    if (useArticleStore.getState().activeTabId !== path) throw new PluginError('Cancelled', 'Editor tab could not be opened')
+    await apply(() => useArticleStore.getState().setActiveFilePath('', true, { deactivationAlreadyPrepared: true }))
+    guard()
+  } else if (view.location === 'left-sidebar') {
     if (!sidebar.leftSidebarVisible) await apply(() => sidebar.toggleLeftSidebar())
     guard()
     await apply(() => sidebar.setLeftSidebarTab(key))
@@ -404,7 +424,6 @@ export function openPluginDialog(pluginId: string, options: PluginDialogOptions)
 export async function closePluginView(pluginId: string, viewId: string): Promise<void> {
   cancelPluginViewNavigation()
   const view = declaredView(pluginId, viewId)
-  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   clearPluginForms(key)
   const state = usePluginUiStore.getState()
@@ -413,12 +432,24 @@ export async function closePluginView(pluginId: string, viewId: string): Promise
     if (settings.activeSection === `plugin:${pluginId}`) settings.closeSettings()
   } else if (view.location.startsWith('title-bar-') || isEmbeddedViewLocation(view.location)) state.setTitleBarVisible(key, false)
   else if (view.location === 'right-sidebar' && state.activeRightView === key) state.setActiveRightView(null)
-  else if ((view.location === 'left-sidebar' || legacyEditorTab) && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
+  else if ((view.location as string) === 'editor-tab') {
+    const article = useArticleStore.getState()
+    const tab = article.openTabs.find(item => item.path === pluginEditorTabPath(pluginId, viewId))
+    if (tab) {
+      const wasActive = article.activeTabId === tab.id
+      await article.removeTab(tab.id)
+      if (wasActive && !useArticleStore.getState().openTabs.some(item => item.id === tab.id)) {
+        const fallback = useArticleStore.getState().openTabs.at(-1)
+        await useArticleStore.getState().setActiveTabId(fallback?.id ?? '', { deactivationAlreadyPrepared: true })
+        await useArticleStore.getState().setActiveFilePath(fallback && !['blank', 'record', 'canvas', 'plugin'].includes(fallback.kind ?? '') ? fallback.path : '', true, { deactivationAlreadyPrepared: true, createIfMissing: false })
+      }
+    }
+  }
+  else if (view.location === 'left-sidebar' && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
 }
 
 export function getPluginViewState(pluginId: string, viewId: string): PluginViewState {
   const view = declaredView(pluginId, viewId)
-  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   const state = usePluginUiStore.getState()
   const sidebar = useSidebarStore.getState()
@@ -426,7 +457,8 @@ export function getPluginViewState(pluginId: string, viewId: string): PluginView
   const visible = isEmbeddedViewLocation(view.location) ? Boolean(state.embeddedContexts[key]) && !state.hiddenTitleBarViews.includes(key) && usePluginStore.getState().isEnabled(pluginId)
     : view.location === 'settings' ? settings.open && settings.activeSection === `plugin:${pluginId}` && usePluginStore.getState().isEnabled(pluginId)
     : view.location.startsWith('title-bar-') ? !state.hiddenTitleBarViews.includes(key)
-    : view.location === 'left-sidebar' || legacyEditorTab ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
+    : (view.location as string) === 'editor-tab' ? useArticleStore.getState().activeTabId === pluginEditorTabPath(pluginId, viewId) && usePluginStore.getState().isEnabled(pluginId)
+    : view.location === 'left-sidebar' ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
       : view.location === 'right-sidebar' ? sidebar.rightSidebarVisible && state.activeRightView === key
         : false
   return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location), ...(isEmbeddedViewLocation(view.location) && state.embeddedContexts[key] ? { contextId: state.embeddedContexts[key] } : {}) }
@@ -447,10 +479,11 @@ export function onPluginViewChange(pluginId: string, listener: (state: PluginVie
     }
   }
   const stopUi = usePluginUiStore.subscribe(emitChanges)
+  const stopTabs = useArticleStore.subscribe(emitChanges)
   const stopSidebar = useSidebarStore.subscribe(emitChanges)
   const stopPreferences = usePluginStore.subscribe(emitChanges)
   const stopSettings = useSettingsDialogStore.subscribe(emitChanges)
-  return { dispose: () => { stopUi(); stopSidebar(); stopPreferences(); stopSettings() } }
+  return { dispose: () => { stopUi(); stopTabs(); stopSidebar(); stopPreferences(); stopSettings() } }
 }
 
 export function closePluginDialog(pluginId: string, id: string): void {

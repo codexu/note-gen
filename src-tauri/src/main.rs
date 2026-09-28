@@ -26,6 +26,7 @@ mod printing;
 mod record_transaction;
 mod quick_record;
 mod plugins;
+mod plugin_terminal;
 mod remote_skills;
 mod screenshot;
 mod self_hosted_crypto;
@@ -122,6 +123,7 @@ fn main() {
         .manage(SkillProcessManager::default())
         .manage(RemoteSkillManager::default())
         .manage(PluginManager::default())
+        .manage(plugin_terminal::PluginTerminalManager::default())
         .manage(WebClipperState::new())
         .manage(LocalMcpState::new())
         .manage(deep_link::PendingPluginInstallRequests::default())
@@ -190,6 +192,10 @@ fn main() {
             plugins::plugin_read_preview_chunk,
             plugin_read_locale,
             plugin_read_usage,
+            plugin_terminal::plugin_terminal_open,
+            plugin_terminal::plugin_terminal_write,
+            plugin_terminal::plugin_terminal_resize,
+            plugin_terminal::plugin_terminal_close,
             plugin_open_or_create_note,
             plugin_read_workspace_note,
             plugins::plugin_read_attachment,

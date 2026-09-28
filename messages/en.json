@@ -867,6 +867,7 @@
         "ai": { "generate": "Use configured AI models (may incur charges)" },
         "clipboard": { "write": "Write to the clipboard" },
         "files": { "export": "Export files through a save dialog" },
+        "terminal": { "open": "Open a local terminal with full device access" },
         "editor": {
           "style": "Style note content",
           "read": "Read the active editor",
@@ -895,6 +896,15 @@
         "chat": {
           "write": "Fill the chat draft"
         }
+      },
+      "embeddedView": {
+        "title": "Plugin interface",
+        "loading": "Loading plugin interface…",
+        "unavailable": "Plugin interface unavailable",
+        "notEnabled": "The plugin is not enabled or authorized in this workspace.",
+        "missingResource": "The plugin is missing its declared interface resource.",
+        "loadTimeout": "The plugin interface timed out while loading.",
+        "initTimeout": "The plugin interface timed out while initializing."
       },
       "permissionScopes": {
         "active-editor": "Limited to the active Markdown editor.",
@@ -998,6 +1008,7 @@
         "locations": {
           "left-sidebar": "Left sidebar tabs",
           "right-sidebar": "Right sidebar tabs",
+          "editor-tab": "Editor tabs",
           "file/context": "File context menu",
           "editor/context": "Editor context menu",
           "tab/context": "Tab context menu",
@@ -5671,6 +5682,7 @@
     "closeRight": "Close Right",
     "pinTab": "Pin Tab",
     "unpinTab": "Unpin Tab",
+    "restartPluginTab": "Restart {name}",
     "navigateBack": "Go Back",
     "navigateForward": "Go Forward",
     "previewTab": "Preview Tab",
@@ -5686,6 +5698,9 @@
     "closeGroup": "Close Editor Group",
     "groupActions": "Editor Group Actions",
     "newTab": "New Tab",
+    "newNote": "New Note",
+    "newRecord": "New Record",
+    "newCanvas": "New Canvas",
     "emptyGroup": "Drop a tab here, or open a note from the file list",
     "loadingLayout": "Restoring editor layout…",
     "undo": "Undo",

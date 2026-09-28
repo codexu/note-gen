@@ -5,6 +5,7 @@ import { PluginExtendedUi } from './plugin-extended-ui'
 import { PluginAction } from './plugin-action'
 import { PluginNavigationList } from './plugin-navigation-list'
 import { PluginForm } from './plugin-form'
+import { PluginSandboxedView } from './plugin-sandboxed-view'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
@@ -48,7 +49,9 @@ export function PluginDeclarativeUi({ document, scope, nested = false, compact =
   const settingsLayout = usePluginSettingsLayout()
   const t = useTranslations('settings.plugins.ui')
   if (!document || document.blocks.length === 0) return <Empty><EmptyHeader><EmptyDescription>{t('empty')}</EmptyDescription></EmptyHeader></Empty>
-  return <div className={cn('flex min-w-0 flex-col gap-4 break-words', settingsLayout ? nested ? 'contents' : 'p-0 gap-5' : compact ? 'h-8 flex-row items-center gap-1 whitespace-nowrap [&>*]:shrink-0' : nested ? 'contents' : document.blocks.length === 1 && (document.blocks[0].type === 'navigation-list' || document.blocks[0].type === 'item-list') ? 'p-1' : 'p-3')}>{document.blocks.map((block, index) => {
+  const embeddedOnly = document.blocks.length === 1 && (document.blocks[0] as { type: string }).type === 'embedded-view'
+  return <div className={cn('flex min-w-0 flex-col gap-4 break-words', embeddedOnly ? 'h-full min-h-0 w-full gap-0' : settingsLayout ? nested ? 'contents' : 'p-0 gap-5' : compact ? 'h-8 flex-row items-center gap-1 whitespace-nowrap [&>*]:shrink-0' : nested ? 'contents' : document.blocks.length === 1 && (document.blocks[0].type === 'navigation-list' || document.blocks[0].type === 'item-list') ? 'p-1' : 'p-3')}>{document.blocks.map((block, index) => {
+    if ((block as { type: string }).type === 'embedded-view') return <PluginSandboxedView key={`embedded-view:${(block as { id: string }).id}`} scope={scope} resourceId={(block as { id: string }).id} />
     if (block.type === 'document-preview' || block.type === 'kanban' || block.type === 'layout' || block.type === 'section' || block.type === 'tabs' || block.type === 'toolbar' || block.type === 'item-list' || block.type === 'markdown' || block.type === 'badge' || block.type === 'empty' || block.type === 'loading') return <PluginExtendedUi key={'id' in block ? `${block.type}:${block.id}` : index} block={block} scope={scope} compact={compact} render={blocks => <PluginDeclarativeUi scope={scope} document={{ blocks }} nested />} />
     if (block.type === 'navigation-list') return <PluginNavigationList key={`navigation:${block.id}`} block={block} scope={scope} />
     if (block.type === 'separator') return <Separator key={index} orientation={compact ? "vertical" : "horizontal"} className={compact ? "h-4" : undefined} />

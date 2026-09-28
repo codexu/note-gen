@@ -29,7 +29,7 @@ use url::Url;
 use uuid::Uuid;
 use zip::{CompressionMethod, ZipArchive};
 
-const PLUGIN_API_VERSION: &str = "0.1.7";
+const PLUGIN_API_VERSION: &str = "0.1.8";
 const PLUGIN_STATE_SCHEMA_VERSION: u32 = 1;
 const MARKET_SCHEMA_VERSION: u32 = 1;
 const INTEGRITY_SCHEMA_VERSION: u32 = 1;
@@ -244,6 +244,8 @@ pub struct PluginViewContribution {
     pub location: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -1606,7 +1608,7 @@ fn validate_public_metadata_url(raw: &str, field: &str) -> PluginResult<()> {
 fn validate_permissions(manifest: &PluginManifestV1) -> PluginResult<()> {
     for (permission, declaration) in &manifest.permissions {
         let valid = match permission.as_str() {
-            "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" => declaration.scope == "application",
+            "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open" => declaration.scope == "application",
             "editor.read" | "editor.write" => declaration.scope == "active-editor",
             "notes.read" | "attachments.read" => matches!(
                 declaration.scope.as_str(),
@@ -1796,6 +1798,9 @@ fn validate_contributions(manifest: &PluginManifestV1) -> PluginResult<()> {
             icon.is_empty() || icon.len() > 80 || !icon.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
         }) {
             return Err(plugin_error("InvalidManifest", "Plugin view icon is invalid"));
+        }
+        if view.order.is_some_and(|order| !(-10000..=10000).contains(&order)) {
+            return Err(plugin_error("InvalidManifest", "Plugin view order is invalid"));
         }
     }
     Ok(())
@@ -3401,7 +3406,7 @@ fn validate_market_permissions(permissions: &[String]) -> PluginResult<()> {
         if !matches!(
             permission.as_str(),
             "editor.read" | "editor.write" | "notes.read" | "notes.create" | "notes.open"
-                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style"
+                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open"
         ) || !unique.insert(permission)
         {
             return Err(plugin_error(
@@ -7095,6 +7100,12 @@ fn resource_paths(resources: &Value) -> PluginResult<BTreeSet<String>> {
             }
         }
     }
+    if let Some(views) = resources.get("embeddedViews").and_then(Value::as_array) {
+        for view in views {
+            paths.insert(resource_path(&view["script"])?);
+            paths.insert(resource_path(&view["style"])?);
+        }
+    }
     Ok(paths)
 }
 fn validate_language_tree(value: &Value, depth: usize) -> PluginResult<()> {
@@ -7122,7 +7133,7 @@ fn validate_resources(manifest: &PluginManifestV1, root: &Path, files: &BTreeMap
         if manifest.entry.is_empty() { return Err(invalid()); }
         return Ok(());
     };
-    let object = resource_object(resources, &["themes", "languages", "fileIcons", "documentPreviews"])?;
+    let object = resource_object(resources, &["themes", "languages", "fileIcons", "documentPreviews", "embeddedViews"])?;
     let mut count = 0;
     for (kind, values) in object {
         let items = values.as_array().ok_or_else(invalid)?;
@@ -7183,6 +7194,14 @@ fn validate_resources(manifest: &PluginManifestV1, root: &Path, files: &BTreeMap
                         for path in assets { resource_path(path)?; }
                     }
                     if !manifest.permissions.contains_key("attachments.read") { return Err(plugin_error("InvalidManifest", "Previews require attachments.read")); }
+                }
+                "embeddedViews" => {
+                    resource_object(item, &["id", "name", "script", "style"])?;
+                    if !resource_path(&item["script"])?.ends_with(".js")
+                        || !resource_path(&item["style"])?.ends_with(".css")
+                        || !manifest.platforms.contains(&PluginPlatform::Desktop) {
+                        return Err(plugin_error("InvalidManifest", "Embedded views require desktop support"));
+                    }
                 }
                 _ => return Err(invalid()),
             }

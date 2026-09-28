@@ -23,6 +23,8 @@ mod notion_import;
 mod ocr_packages;
 mod printing;
 mod plugins;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod plugin_terminal;
 mod remote_skills;
 mod self_hosted_crypto;
 mod self_hosted_files;
@@ -119,7 +121,7 @@ pub fn run() {
         .manage(PluginManager::default());
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let builder = builder.manage(SkillProcessManager::default());
+    let builder = builder.manage(SkillProcessManager::default()).manage(plugin_terminal::PluginTerminalManager::default());
 
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android_cloud_folder::init());
@@ -172,6 +174,14 @@ pub fn run() {
             plugin_storage_get,
             plugin_storage_set,
             plugin_storage_remove,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_terminal::plugin_terminal_open,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_terminal::plugin_terminal_write,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_terminal::plugin_terminal_resize,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_terminal::plugin_terminal_close,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_list_installed,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

@@ -528,7 +528,7 @@ export interface EditorViewState {
   largeDocumentVisualOverride?: boolean
 }
 
-export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank'
+export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank' | 'plugin'
 export type EditorTabDisposition = 'preview' | 'regular' | 'pinned'
 export type FileTabOpenMode = 'preview' | 'pinned'
 
@@ -638,7 +638,7 @@ function isBlankOpenTabPath(path: string): boolean {
 }
 
 function isVirtualOpenTabPath(path: string): boolean {
-  return isBlankOpenTabPath(path) || isRecordOpenTabPath(path) || isCanvasOpenTabPath(path)
+  return isBlankOpenTabPath(path) || isRecordOpenTabPath(path) || isCanvasOpenTabPath(path) || path.startsWith('plugin://view/')
 }
 
 function isRecordOpenTab(tab?: OpenTabInfo | null): boolean {

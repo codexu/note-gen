@@ -867,6 +867,7 @@
         "ai": { "generate": "Konfigurierte KI-Modelle verwenden (kann Kosten verursachen)" },
         "clipboard": { "write": "In die Zwischenablage schreiben" },
         "files": { "export": "Dateien über einen Speicherdialog exportieren" },
+        "terminal": { "open": "Lokales Terminal mit vollem Gerätezugriff öffnen" },
         "editor": {
           "style": "Notizinhalt gestalten",
           "read": "Aktiven Editor lesen",
@@ -895,6 +896,15 @@
         "chat": {
           "write": "Chatentwurf ausfüllen"
         }
+      },
+      "embeddedView": {
+        "title": "Plugin-Oberfläche",
+        "loading": "Plugin-Oberfläche wird geladen…",
+        "unavailable": "Plugin-Oberfläche nicht verfügbar",
+        "notEnabled": "Das Plugin ist in diesem Arbeitsbereich nicht aktiviert oder autorisiert.",
+        "missingResource": "Dem Plugin fehlt die deklarierte Oberflächenressource.",
+        "loadTimeout": "Zeitüberschreitung beim Laden der Plugin-Oberfläche.",
+        "initTimeout": "Zeitüberschreitung beim Initialisieren der Plugin-Oberfläche."
       },
       "permissionScopes": {
         "active-editor": "Auf den aktiven Markdown-Editor beschränkt.",
@@ -998,6 +1008,7 @@
         "locations": {
           "left-sidebar": "Tabs der linken Seitenleiste",
           "right-sidebar": "Tabs der rechten Seitenleiste",
+          "editor-tab": "Editor-Tabs",
           "file/context": "Datei-Kontextmenü",
           "editor/context": "Editor-Kontextmenü",
           "tab/context": "Tab-Kontextmenü",
@@ -5529,6 +5540,7 @@
     "closeRight": "Rechts schließen",
     "pinTab": "Tab anheften",
     "unpinTab": "Tab lösen",
+    "restartPluginTab": "{name} neu starten",
     "navigateBack": "Zurück",
     "navigateForward": "Vorwärts",
     "previewTab": "Vorschau-Tab",
@@ -5544,6 +5556,9 @@
     "closeGroup": "Editorgruppe schließen",
     "groupActions": "Aktionen für Editorgruppe",
     "newTab": "Neuer Tab",
+    "newNote": "Neue Notiz",
+    "newRecord": "Neuer Eintrag",
+    "newCanvas": "Neue Leinwand",
     "emptyGroup": "Tab hier ablegen oder eine Notiz aus der Dateiliste öffnen",
     "loadingLayout": "Editorlayout wird wiederhergestellt…",
     "undo": "Rückgängig",

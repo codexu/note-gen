@@ -5,6 +5,7 @@ import { readPluginResource } from './backend'
 import type { InstalledPlugin } from './internal-types'
 import { setPluginThemeBase } from '@/lib/theme-utils'
 import { registerPluginLanguages, unregisterPluginLanguages, validateLanguageOverrides } from '@/i18n/config'
+import { validateHostPluginResources } from './manifest'
 
 export interface RegisteredResources { plugin: InstalledPlugin; resources: PluginResources }
 const THEME_KEY = 'plugin-theme'
@@ -47,7 +48,7 @@ export function selectPluginTheme(key: string) {
 export async function preparePluginResources(plugin: InstalledPlugin) {
   const resources = plugin.manifest.resources
   if (!resources) return () => () => undefined
-  validatePluginResources(resources)
+  validateHostPluginResources(resources)
   const languages: { locale: string; name: string; messages: AbstractIntlMessages }[] = []
   for (const language of resources.languages ?? []) {
     const bytes = await readPluginResource(plugin, language.messages)

@@ -2957,6 +2957,7 @@
         "ai": { "generate": "使用已設定的 AI 模型（可能產生費用）" },
         "clipboard": { "write": "寫入剪貼簿" },
         "files": { "export": "透過儲存對話框匯出檔案" },
+        "terminal": { "open": "開啟可存取整台裝置的本機終端" },
         "editor": {
           "style": "設定筆記正文樣式",
           "read": "讀取目前編輯器",
@@ -2985,6 +2986,15 @@
         "chat": {
           "write": "填寫聊天草稿"
         }
+      },
+      "embeddedView": {
+        "title": "外掛介面",
+        "loading": "正在載入外掛介面…",
+        "unavailable": "外掛介面無法使用",
+        "notEnabled": "外掛尚未在此工作區啟用或授權。",
+        "missingResource": "外掛缺少已宣告的介面資源。",
+        "loadTimeout": "外掛介面載入逾時。",
+        "initTimeout": "外掛介面初始化逾時。"
       },
       "permissionScopes": {
         "active-editor": "僅限目前作用中的 Markdown 編輯器。",
@@ -3088,6 +3098,7 @@
         "locations": {
           "left-sidebar": "左側邊欄分頁",
           "right-sidebar": "右側邊欄分頁",
+          "editor-tab": "編輯器分頁",
           "file/context": "檔案右鍵選單",
           "editor/context": "編輯器右鍵選單",
           "tab/context": "分頁右鍵選單",
@@ -5570,6 +5581,7 @@
     "closeRight": "關閉右側",
     "pinTab": "固定分頁",
     "unpinTab": "取消固定分頁",
+    "restartPluginTab": "重新啟動{name}",
     "navigateBack": "返回",
     "navigateForward": "前進",
     "previewTab": "預覽分頁",
@@ -5585,6 +5597,9 @@
     "closeGroup": "關閉編輯器群組",
     "groupActions": "編輯器群組操作",
     "newTab": "新分頁",
+    "newNote": "新增筆記",
+    "newRecord": "新增記錄",
+    "newCanvas": "新增畫布",
     "emptyGroup": "將分頁拖曳到此處，或從檔案清單開啟筆記",
     "loadingLayout": "正在還原編輯器版面配置…",
     "undo": "復原",

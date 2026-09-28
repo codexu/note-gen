@@ -1,7 +1,7 @@
 import type { InstalledPlugin, PluginSettingValue } from './types'
 
 export const pluginDisplayLocations = [
-  'left-sidebar', 'right-sidebar',
+  'left-sidebar', 'right-sidebar', 'editor-tab',
   'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel',
   'title-bar-left', 'title-bar-center', 'title-bar-right', 'file/context',
   'editor/context', 'tab/context', 'editor/toolbar', 'editor/slash',
@@ -12,9 +12,9 @@ type DeviceSettings = Record<string, Record<string, PluginSettingValue>>
 
 // Host-owned keys cannot collide with namespaced plugin settings.
 export const pluginDisplayKey = (location: PluginDisplayLocation) => `@host.display.${location}`
-export function isPluginDisplayVisible(settings: DeviceSettings, pluginId: string, location: PluginDisplayLocation | 'editor-tab' | 'settings'): boolean {
+export function isPluginDisplayVisible(settings: DeviceSettings, pluginId: string, location: PluginDisplayLocation | 'settings'): boolean {
   if (location === 'settings') return true
-  const key = location === 'editor-tab' ? '@host.display.editor-tab' : pluginDisplayKey(location)
+  const key = pluginDisplayKey(location)
   return settings[pluginId]?.[key] !== false
 }
 export function getPluginDisplayLocations(plugin: InstalledPlugin): PluginDisplayLocation[] {

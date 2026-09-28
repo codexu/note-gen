@@ -4,7 +4,7 @@ import {
   Search, Plus, Minus, Trash2, Pencil, Copy, Check, X, FileText, Folder, FolderOpen,
   Star, Pin, Tag, Settings, MoreHorizontal, ArrowUp, ArrowDown, Download, Upload,
   ExternalLink, List, ListTodo, Table2, Columns3, Clock, BookOpen, Code, Sparkles,
-  type LucideIcon,
+  Terminal, type LucideIcon,
 } from 'lucide-react'
 
 // Keep supported icons explicit so plugin manifests cannot import arbitrary modules.
@@ -49,6 +49,7 @@ const icons = new Map<string, LucideIcon>([
   ['list-checks', ListChecks],
   ['refresh-cw', RefreshCw],
   ['shuffle', Shuffle],
+  ['terminal', Terminal],
 ])
 
 export function getPluginIcon(name?: string): LucideIcon {

@@ -24,7 +24,7 @@ export function PluginViewToolbar({ viewKey }: { viewKey: string }) {
   return <PluginDeclarativeUi scope={viewKey} document={{ blocks: [first] }} nested />
 }
 
-export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = false, compact = false, forcePopover = false, title, icon }: { viewKey: string; active?: boolean; toolbarInHeader?: boolean; compact?: boolean; forcePopover?: boolean; title?: string; icon?: string }) {
+export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = false, compact = false, forcePopover = false, fill = false, title, icon }: { viewKey: string; active?: boolean; toolbarInHeader?: boolean; compact?: boolean; forcePopover?: boolean; fill?: boolean; title?: string; icon?: string }) {
   const container = useRef<HTMLDivElement>(null)
   const content = usePluginUiStore(state => state.views[viewKey])
   const hostRevision = usePluginUiStore(state => state.hostRevision)
@@ -73,7 +73,7 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
         : null}
     </div>
   }
-  return <PluginSettingsLayoutContext.Provider value={settingsLayout}><div ref={container} tabIndex={-1} aria-busy={loading} className={settingsLayout ? "min-w-0 focus-visible:outline-ring" : "h-full min-h-0 min-w-0 overflow-auto focus-visible:outline-ring"}>
+  return <PluginSettingsLayoutContext.Provider value={settingsLayout}><div ref={container} tabIndex={-1} aria-busy={loading} className={settingsLayout ? "min-w-0 focus-visible:outline-ring" : cn("h-full min-h-0 min-w-0 overflow-auto focus-visible:outline-ring", fill && "w-full flex-1 overflow-hidden")}>
     {loading ? <div role="status" className="flex items-center gap-2 p-4"><Spinner />{t('loadingView')}</div> : null}
     {error ? <div className="p-4"><Alert variant="destructive"><AlertTitle>{t('viewFailed')}</AlertTitle><AlertDescription className="flex flex-col gap-2"><span className="break-words">{error}</span><Button variant="outline" size="sm" className="self-start" onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button></AlertDescription></Alert></div> : null}
     {content || (!loading && !error) ? <PluginDeclarativeUi key={viewKey} scope={viewKey} document={toolbarInHeader && content?.blocks[0]?.type === 'toolbar' ? { ...content, blocks: content.blocks.slice(1) } : content} /> : null}

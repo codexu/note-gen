@@ -43,7 +43,7 @@ export function LeftSidebar() {
     const state = workspaceId ? workspaceStates[workspaceId]?.[plugin.manifest.id] : undefined
     const enabled = isPluginEnabledInWorkspace(plugin, state)
     return enabled ? (plugin.manifest.contributes.views ?? [])
-      .filter((view) => (view.location === 'left-sidebar' || (view.location as string) === 'editor-tab') && isPluginDisplayVisible(displaySettings, plugin.manifest.id, view.location))
+      .filter((view) => view.location === 'left-sidebar' && isPluginDisplayVisible(displaySettings, plugin.manifest.id, view.location))
       .map((view) => ({ title: resolvePluginViewTitle(plugin, view, locale, state?.settings), icon: getPluginIcon(view.icon), id: `${plugin.manifest.id}:${view.id}` })) : []
   })
   const allTabs = [

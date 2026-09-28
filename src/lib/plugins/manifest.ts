@@ -24,6 +24,21 @@ const localizedTextSchema = z.string().min(1).max(240)
 const namespacedIdSchema = z.string().min(3).max(220)
 
 const relativeFileSchema = z.string().min(1).max(240).regex(RELATIVE_FILE_PATTERN)
+const embeddedViewSchema = z.object({
+  id: z.string().min(1).max(160).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+  name: z.string().min(1).max(160),
+  script: relativeFileSchema.refine(path => path.endsWith('.js')),
+  style: relativeFileSchema.refine(path => path.endsWith('.css')),
+}).strict()
+
+export function validateHostPluginResources(value: unknown): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plugin resources')
+  const { embeddedViews, ...other } = value as Record<string, unknown>
+  validatePluginResources(other)
+  if (embeddedViews === undefined) return
+  const views = z.array(embeddedViewSchema).max(30).parse(embeddedViews)
+  if (new Set(views.map(view => view.id)).size !== views.length) throw new Error('Duplicate embedded view id')
+}
 
 const permissionDeclarationSchema = z.object({
   scope: z.enum([
@@ -126,9 +141,9 @@ const menuSchema = z.object({
 const viewSchema = z.object({
   id: namespacedIdSchema,
   title: localizedTextSchema,
-  // `editor-tab` is accepted for existing manifests and routed to the left sidebar.
   location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab', 'settings', 'title-bar-left', 'title-bar-center', 'title-bar-right', 'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel']),
   icon: z.string().min(1).max(80).optional(),
+  order: z.number().int().min(-10000).max(10000).optional(),
 }).strict()
 
 const manifestSchema = z.object({
@@ -142,7 +157,7 @@ const manifestSchema = z.object({
   platforms: z.array(z.enum(['desktop', 'ios', 'android'])).min(1).max(3),
   resources: z.unknown().optional().superRefine((value, ctx) => {
     if (value === undefined) return
-    try { validatePluginResources(value) } catch (error) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: String(error) }) }
+    try { validateHostPluginResources(value) } catch (error) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: String(error) }) }
   }),
   entry: relativeFileSchema.refine((entry) => entry.endsWith('.js'), {
     message: 'entry must be a JavaScript file',
@@ -156,6 +171,7 @@ const manifestSchema = z.object({
     'clipboard.write': permissionDeclarationSchema.optional(),
     'files.export': permissionDeclarationSchema.optional(),
     'editor.style': permissionDeclarationSchema.optional(),
+    'terminal.open': permissionDeclarationSchema.optional(),
     'editor.read': permissionDeclarationSchema.optional(),
     'editor.write': permissionDeclarationSchema.optional(),
     'notes.read': permissionDeclarationSchema.optional(),
@@ -282,7 +298,7 @@ function isNamespaced(value: string, pluginId: string): boolean {
 }
 
 function validatePermissionScopes(manifest: PluginManifestV1): void {
-  const allowedScopes: Record<PluginPermissionName, readonly string[]> = {
+  const allowedScopes: Record<PluginPermissionName | 'terminal.open', readonly string[]> = {
     'records.read': ['application'],
     'records.write': ['application'],
     'chat.write': ['application'],
@@ -290,6 +306,7 @@ function validatePermissionScopes(manifest: PluginManifestV1): void {
     'clipboard.write': ['application'],
     'files.export': ['application'],
     'editor.style': ['application'],
+    'terminal.open': ['application'],
     'editor.read': ['active-editor'],
     'editor.write': ['active-editor'],
     'notes.read': ['workspace-file', 'workspace-files', 'workspace-folder'],
@@ -306,7 +323,7 @@ function validatePermissionScopes(manifest: PluginManifestV1): void {
 
   for (const [permission, declaration] of Object.entries(manifest.permissions)) {
     if (!declaration) continue
-    if (!allowedScopes[permission as PluginPermissionName].includes(declaration.scope)) {
+    if (!allowedScopes[permission as PluginPermissionName | 'terminal.open'].includes(declaration.scope)) {
       throw new PluginError(
         'InvalidManifest',
         `${permission} does not support the ${declaration.scope} scope`,
@@ -455,6 +472,10 @@ export function parsePluginManifest(value: unknown): PluginManifestV1 {
     throw new PluginError('InvalidManifest', 'A resource package must declare resources without runtime contributions')
   }
   if (manifest.resources?.documentPreviews?.length && !manifest.permissions['attachments.read']) throw new PluginError('InvalidManifest', 'Previews require attachments.read')
+  if ((manifest.resources as unknown as { embeddedViews?: unknown[] } | undefined)?.embeddedViews?.length
+    && !manifest.platforms.includes('desktop')) {
+    throw new PluginError('InvalidManifest', 'Embedded views require desktop support')
+  }
   validatePermissionScopes(manifest)
   validateContributions(manifest)
   validateLocalization(manifest)

@@ -43,10 +43,12 @@ import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
 import { PluginDocumentPreview } from '@/components/plugins/plugin-document-preview'
+import { PluginViewSurface } from '@/components/plugins/plugin-view-surface'
+import { parsePluginEditorTabPath } from '@/lib/plugins/editor-tab'
 import { UnsupportedFile } from './unsupported-file'
 import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
-import { getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
+import { createCanvasTab, getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
 import { focusEditorWindowForPath, openEditorWindow } from '@/lib/editor-windows'
 import {
   editorPathIsSameOrDescendant,
@@ -216,6 +218,7 @@ interface EditorGroupPaneProps {
   onMoveToNewWindow: (groupId: string, tabId: string) => void
   onPinTab: (tabId: string) => void
   onUnpinTab: (tabId: string) => void
+  onRestartPluginTab: (tabId: string) => void
   onToggleMaximize: (groupId: string) => void
   onCloseGroup: (groupId: string) => void
   renderActiveContent: (tab: TabInfo, active: boolean, groupId: string) => React.ReactNode
@@ -224,10 +227,15 @@ interface EditorGroupPaneProps {
 
 function EditorGroupPane({
   group, tabs, activeLayout, dragging, onActivateGroup, onNewTab, onCloseTab,
-  onKeepTabs, onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab,
+  onKeepTabs, onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab, onRestartPluginTab,
   onToggleMaximize, onCloseGroup,
   renderActiveContent, renderEmpty,
 }: EditorGroupPaneProps) {
+  const tCanvas = useTranslations('canvas')
+  const newFile = useArticleStore(state => state.newFile)
+  const addTab = useArticleStore(state => state.addTab)
+  const setLeftSidebarTab = useSidebarStore(state => state.setLeftSidebarTab)
+  const createProject = useCanvasStore(state => state.createProject)
   const groupTabs = group.tabIds
     .map(tabId => tabs.find(tab => tab.id === tabId))
     .filter((tab): tab is TabInfo => Boolean(tab))
@@ -246,6 +254,9 @@ function EditorGroupPane({
         isMaximized={activeLayout.maximizedGroupId === group.id}
         onTabSwitch={tabId => onActivateGroup(group.id, tabId)}
         onNewTab={() => onNewTab(group.id)}
+        onNewNote={() => { void setLeftSidebarTab('files').then(() => newFile()) }}
+        onNewRecord={() => emitter.emit('quickRecordTextHandler')}
+        onNewCanvas={() => { void createProject('blank', tCanvas('templates.blank')).then(project => { if (project) void addTab(createCanvasTab(project)) }) }}
         onCloseTab={tabId => onCloseTab(group.id, tabId)}
         onCloseOtherTabs={tabId => onKeepTabs(group.id, [tabId])}
         onCloseAllTabs={() => onKeepTabs(group.id, [])}
@@ -261,6 +272,7 @@ function EditorGroupPane({
         onMoveToNewWindow={tabId => onMoveToNewWindow(group.id, tabId)}
         onPinTab={onPinTab}
         onUnpinTab={onUnpinTab}
+        onRestartPluginTab={onRestartPluginTab}
         onToggleMaximize={() => onToggleMaximize(group.id)}
         canCloseGroup={!groupTabs.some(tab => tab.pinned)}
         onCloseGroup={() => onCloseGroup(group.id)}
@@ -350,6 +362,10 @@ export function EditorLayout() {
   const [layoutReady, setLayoutReady] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [detachingTabId, setDetachingTabId] = useState('')
+  const [pluginTabRevisions, setPluginTabRevisions] = useState<Record<string, number>>({})
+  const handleRestartPluginTab = useCallback((tabId: string) => {
+    setPluginTabRevisions(current => ({ ...current, [tabId]: (current[tabId] ?? 0) + 1 }))
+  }, [])
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress>(createDefaultOnboardingProgress())
   const [currentOnboardingTask, setCurrentOnboardingTask] = useState<OnboardingStepId | null>(null)
   const [activeOnboardingStep, setActiveOnboardingStep] = useState<OnboardingStepId | null>(null)
@@ -594,6 +610,7 @@ export function EditorLayout() {
   const isRecordEditorTab = useCallback((tab: TabInfo) => tab.kind === 'record' || isRecordTabPath(tab.path), [])
   const isCanvasEditorTab = useCallback((tab: TabInfo) => tab.kind === 'canvas' || isCanvasTabPath(tab.path), [])
   const isBlankEditorTab = useCallback((tab: TabInfo) => tab.kind === 'blank', [])
+  const isPluginEditorTab = useCallback((tab: TabInfo) => tab.kind === 'plugin' || parsePluginEditorTabPath(tab.path) !== null, [])
   const getRecordIdForTab = useCallback((tab: TabInfo) => tab.markId ?? getRecordIdFromTabPath(tab.path), [])
   const isFolderPath = useCallback((path: string) => !(path.split(/[\\/]/).pop() || '').includes('.'), [])
 
@@ -668,7 +685,7 @@ export function EditorLayout() {
 
       const missingCandidates: TabInfo[] = []
       for (const tab of restoredTabs) {
-        if (isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isBlankEditorTab(tab)) continue
+        if (isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isBlankEditorTab(tab) || isPluginEditorTab(tab)) continue
         const treeItem = findPathInTree(tab.path, restoredFileTree)
         if (treeItem?.isLocale === false) continue
         const existsOnDisk = await checkPathExists(tab.path, validationWorkspaceRoot)
@@ -766,6 +783,7 @@ export function EditorLayout() {
     isBlankEditorTab,
     isCanvasEditorTab,
     isRecordEditorTab,
+    isPluginEditorTab,
     layoutReady,
   ])
 
@@ -804,7 +822,7 @@ export function EditorLayout() {
       return true
     }
     const persistActiveTab = setActiveTabId(tab.id, preparedOptions)
-    if (isBlankEditorTab(tab)) {
+    if (isBlankEditorTab(tab) || isPluginEditorTab(tab)) {
       clearActiveMark()
       setActiveCanvasId(null)
       await Promise.all([persistActiveTab, setActiveFilePath('', true, preparedOptions)])
@@ -822,7 +840,7 @@ export function EditorLayout() {
       await Promise.all([persistActiveTab, setActiveFilePath(tab.path, true, preparedOptions)])
     }
     return true
-  }, [canDeactivateActiveEditor, clearActiveMark, getRecordIdForTab, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, setActiveCanvasId, setActiveFilePath, setActiveMarkId, setActiveTabId, setLayout])
+  }, [canDeactivateActiveEditor, clearActiveMark, getRecordIdForTab, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, setActiveCanvasId, setActiveFilePath, setActiveMarkId, setActiveTabId, setLayout])
 
   useEffect(() => {
     if (!layoutReady || !activeFilePath || isRecordTabPath(activeFilePath)) return
@@ -984,7 +1002,7 @@ export function EditorLayout() {
     ) return
     const activeTab = openTabs.find(tab => tab.id === activeTabId)
     if (!activeTab) return
-    const tabUsesEmptyPath = isBlankEditorTab(activeTab) || isRecordEditorTab(activeTab) || isCanvasEditorTab(activeTab)
+    const tabUsesEmptyPath = isBlankEditorTab(activeTab) || isRecordEditorTab(activeTab) || isCanvasEditorTab(activeTab) || isPluginEditorTab(activeTab)
     if (activeFilePath ? activeTab.path !== activeFilePath : !tabUsesEmptyPath) return
     setLayout(current => {
       const activeGroup = current.groups[current.activeGroupId]
@@ -997,12 +1015,12 @@ export function EditorLayout() {
         activeTab,
       )
     })
-  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
+  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
 
   const handleActivateGroup = useCallback((groupId: string, tabId?: string) => {
     const tab = openTabs.find(item => item.id === tabId)
     const tabActiveFilePath = tab && (
-      isBlankEditorTab(tab) || isRecordEditorTab(tab) || isCanvasEditorTab(tab)
+      isBlankEditorTab(tab) || isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isPluginEditorTab(tab)
     )
       ? ''
       : tab?.path ?? ''
@@ -1020,7 +1038,7 @@ export function EditorLayout() {
       return
     }
     void activateTab(groupId, tab)
-  }, [activateTab, activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, openTabs, setLayout])
+  }, [activateTab, activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, openTabs, setLayout])
 
   const removeGlobalTabIfUnused = useCallback((nextLayout: EditorWorkspaceLayout, tabId: string) => {
     if (!tabIsReferenced(nextLayout, tabId)) {
@@ -1633,6 +1651,10 @@ export function EditorLayout() {
   }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
+    if (isPluginEditorTab(tab)) {
+      const view = parsePluginEditorTabPath(tab.path)
+      return <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">{view ? <PluginViewSurface key={`${tab.id}:${pluginTabRevisions[tab.id] ?? 0}`} viewKey={`${view.pluginId}:${view.viewId}`} active={active} fill /> : <UnsupportedFile filePath={tab.path} />}</div>
+    }
     if (isRecordEditorTab(tab)) {
       const markId = getRecordIdForTab(tab)
       return <div className="flex min-h-0 flex-1 overflow-hidden">{markId !== null ? <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} /> : <UnsupportedFile filePath={tab.path} />}</div>
@@ -1657,7 +1679,7 @@ export function EditorLayout() {
         </div>
       </TabContentErrorBoundary>
     )
-  }, [layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
+  }, [layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, pluginTabRevisions, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -1748,6 +1770,7 @@ export function EditorLayout() {
           onMoveToNewWindow={handleMoveToNewWindow}
           onPinTab={handlePinTab}
           onUnpinTab={handleUnpinTab}
+          onRestartPluginTab={handleRestartPluginTab}
           onToggleMaximize={handleToggleMaximize}
           onCloseGroup={handleCloseGroup}
           renderActiveContent={renderContentPanel}
@@ -1785,7 +1808,7 @@ export function EditorLayout() {
         })}
       </ResizablePanelGroup>
     )
-  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handlePinTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
+  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handlePinTab, handleRestartPluginTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
 
   if (!layoutReady) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{tGroups('loadingLayout')}</div>
   const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''

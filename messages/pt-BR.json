@@ -2982,6 +2982,7 @@
         "ai": { "generate": "Usar modelos de IA configurados (pode gerar custos)" },
         "clipboard": { "write": "Escrever na área de transferência" },
         "files": { "export": "Exportar arquivos pela janela de salvamento" },
+        "terminal": { "open": "Abrir terminal local com acesso total ao dispositivo" },
         "editor": {
           "style": "Estilizar o conteúdo das notas",
           "read": "Ler o editor ativo",
@@ -3010,6 +3011,15 @@
         "chat": {
           "write": "Preencher o rascunho do chat"
         }
+      },
+      "embeddedView": {
+        "title": "Interface do plugin",
+        "loading": "Carregando a interface do plugin…",
+        "unavailable": "Interface do plugin indisponível",
+        "notEnabled": "O plugin não está ativado ou autorizado neste espaço de trabalho.",
+        "missingResource": "O plugin não tem o recurso de interface declarado.",
+        "loadTimeout": "Tempo esgotado ao carregar a interface do plugin.",
+        "initTimeout": "Tempo esgotado ao inicializar a interface do plugin."
       },
       "permissionScopes": {
         "active-editor": "Limitado ao editor Markdown ativo.",
@@ -3113,6 +3123,7 @@
         "locations": {
           "left-sidebar": "Abas da barra lateral esquerda",
           "right-sidebar": "Abas da barra lateral direita",
+          "editor-tab": "Abas do editor",
           "file/context": "Menu de contexto de arquivos",
           "editor/context": "Menu de contexto do editor",
           "tab/context": "Menu de contexto de abas",
@@ -5547,6 +5558,7 @@
     "closeRight": "Fechar à Direita",
     "pinTab": "Fixar Aba",
     "unpinTab": "Desafixar Aba",
+    "restartPluginTab": "Reiniciar {name}",
     "navigateBack": "Voltar",
     "navigateForward": "Avançar",
     "previewTab": "Aba de Pré-visualização",
@@ -5562,6 +5574,9 @@
     "closeGroup": "Fechar Grupo de Editores",
     "groupActions": "Ações do Grupo de Editores",
     "newTab": "Nova Aba",
+    "newNote": "Nova nota",
+    "newRecord": "Novo registro",
+    "newCanvas": "Nova tela",
     "emptyGroup": "Solte uma aba aqui ou abra uma nota na lista de arquivos",
     "loadingLayout": "Restaurando layout do editor…",
     "undo": "Desfazer",

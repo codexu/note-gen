@@ -867,6 +867,7 @@
         "ai": { "generate": "使用已配置的 AI 模型（可能产生费用）" },
         "clipboard": { "write": "写入剪贴板" },
         "files": { "export": "通过保存对话框导出文件" },
+        "terminal": { "open": "打开可访问整台设备的本地终端" },
         "editor": {
           "style": "设置笔记正文样式",
           "read": "读取当前编辑器",
@@ -895,6 +896,15 @@
         "chat": {
           "write": "填写聊天草稿"
         }
+      },
+      "embeddedView": {
+        "title": "插件界面",
+        "loading": "正在加载插件界面…",
+        "unavailable": "插件界面不可用",
+        "notEnabled": "插件尚未在此工作区启用或授权。",
+        "missingResource": "插件缺少声明的界面资源。",
+        "loadTimeout": "插件界面加载超时。",
+        "initTimeout": "插件界面初始化超时。"
       },
       "permissionScopes": {
         "active-editor": "仅限当前活动的 Markdown 编辑器。",
@@ -998,6 +1008,7 @@
         "locations": {
           "left-sidebar": "左侧边栏 Tab",
           "right-sidebar": "右侧边栏 Tab",
+          "editor-tab": "编辑器标签页",
           "file/context": "文件右键菜单",
           "editor/context": "编辑器右键菜单",
           "tab/context": "标签页右键菜单",
@@ -5671,6 +5682,7 @@
     "closeRight": "关闭右侧",
     "pinTab": "固定标签页",
     "unpinTab": "取消固定标签页",
+    "restartPluginTab": "重新启动{name}",
     "navigateBack": "后退",
     "navigateForward": "前进",
     "previewTab": "预览标签页",
@@ -5686,6 +5698,9 @@
     "closeGroup": "关闭编辑器组",
     "groupActions": "编辑器组操作",
     "newTab": "新标签页",
+    "newNote": "新建笔记",
+    "newRecord": "新建记录",
+    "newCanvas": "新建画布",
     "emptyGroup": "将标签页拖到此处，或从文件列表打开笔记",
     "loadingLayout": "正在恢复编辑器布局…",
     "undo": "撤销",

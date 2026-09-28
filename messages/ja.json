@@ -2957,6 +2957,7 @@
         "ai": { "generate": "設定済み AI モデルを使う（料金が発生する場合があります）" },
         "clipboard": { "write": "クリップボードに書き込む" },
         "files": { "export": "保存ダイアログでファイルをエクスポート" },
+        "terminal": { "open": "端末全体にアクセスできるローカルターミナルを開く" },
         "editor": {
           "style": "ノート本文のスタイルを設定",
           "read": "現在のエディターを読む",
@@ -2985,6 +2986,15 @@
         "chat": {
           "write": "チャットの下書きを入力する"
         }
+      },
+      "embeddedView": {
+        "title": "プラグイン画面",
+        "loading": "プラグイン画面を読み込み中…",
+        "unavailable": "プラグイン画面を利用できません",
+        "notEnabled": "このワークスペースでプラグインが有効または承認されていません。",
+        "missingResource": "プラグインに宣言済みの画面リソースがありません。",
+        "loadTimeout": "プラグイン画面の読み込みがタイムアウトしました。",
+        "initTimeout": "プラグイン画面の初期化がタイムアウトしました。"
       },
       "permissionScopes": {
         "active-editor": "現在の Markdown エディターに限定されます。",
@@ -3088,6 +3098,7 @@
         "locations": {
           "left-sidebar": "左サイドバーのタブ",
           "right-sidebar": "右サイドバーのタブ",
+          "editor-tab": "エディタータブ",
           "file/context": "ファイルのコンテキストメニュー",
           "editor/context": "エディターのコンテキストメニュー",
           "tab/context": "タブのコンテキストメニュー",
@@ -5580,6 +5591,7 @@
     "closeRight": "右を閉じる",
     "pinTab": "タブを固定",
     "unpinTab": "タブの固定を解除",
+    "restartPluginTab": "{name}を再起動",
     "navigateBack": "戻る",
     "navigateForward": "進む",
     "previewTab": "プレビュータブ",
@@ -5595,6 +5607,9 @@
     "closeGroup": "エディターグループを閉じる",
     "groupActions": "エディターグループ操作",
     "newTab": "新しいタブ",
+    "newNote": "新しいノート",
+    "newRecord": "新しい記録",
+    "newCanvas": "新しいキャンバス",
     "emptyGroup": "ここにタブをドロップするか、ファイル一覧からノートを開いてください",
     "loadingLayout": "エディターレイアウトを復元しています…",
     "undo": "元に戻す",

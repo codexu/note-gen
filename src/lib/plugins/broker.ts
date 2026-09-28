@@ -1423,7 +1423,7 @@ export function createPluginContext(options: {
       id: pluginId,
       version: plugin.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles'],
+      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal'] as PluginContext['plugin']['capabilities'],
     },
     log: {
       info: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'info', message }) },

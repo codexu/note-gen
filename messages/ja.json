@@ -2780,7 +2780,8 @@
         "closeView": "{name} を閉じる",
         "close": "閉じる",
         "requiredField": "この項目は必須です",
-        "invalidValue": "有効な値を入力してください"
+        "invalidValue": "有効な値を入力してください",
+        "documentExpired": "プレビューの期限が切れました。再生成してください。"
       },
       "title": "プラグイン管理",
       "desc": "NoteGen の拡張機能を探し、インストール、権限の許可、設定を行えます。現在、プラグインはデスクトップ版でのみ実行できます。",
@@ -2952,7 +2953,10 @@
           "read": "現在のエディターを読む",
           "write": "現在のエディターを変更"
         },
+        "clipboard": { "write": "クリップボードに書き込む" },
+        "files": { "export": "保存ダイアログでファイルをエクスポート" },
         "notes": {
+          "style": "ノート本文のスタイルを設定",
           "read": "ノートを読む",
           "create": "ノートを作成",
           "open": "ノートを開く",
@@ -2987,7 +2991,7 @@
       "ux": {
         "discover": "探す",
         "technicalDetails": "技術情報",
-        "importHelp": "単一プラグインのソースまたはビルド済みフォルダーを選択します。.notegen/package を自動検出します。初回インポート前にプラグインのリポジトリで pnpm build を実行してください。",
+        "importHelp": "プラグインのプロジェクトで notegen-plugin dev を実行し、ソースフォルダーを一度だけインポートします。NoteGen は .notegen/package を検出し、その後の成功したビルドを自動で再読み込みします。",
         "permissionNeeded": "フォルダーの許可が必要です",
         "managePlugin": "プラグインを管理"
       },
@@ -3078,7 +3082,6 @@
         "locations": {
           "left-sidebar": "左サイドバーのタブ",
           "right-sidebar": "右サイドバーのタブ",
-          "editor-tab": "エディターのタブ",
           "file/context": "ファイルのコンテキストメニュー",
           "editor/context": "エディターのコンテキストメニュー",
           "tab/context": "タブのコンテキストメニュー",

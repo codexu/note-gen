@@ -492,6 +492,9 @@ const context = Object.freeze({
       return disposable(() => workspaceListeners.delete(listener));
     },
   }),
+  documents: Object.freeze({ render: options => rpc('documents.render', options), release: id => rpc('documents.release', { id }) }),
+  clipboard: Object.freeze({ write: content => rpc('clipboard.write', content) }),
+  files: Object.freeze({ export: options => rpc('files.export', options) }),
   calendar: Object.freeze({ resolveDay: (options) => rpc('calendar.resolveDay', options) }),
   fileIcons: Object.freeze({ setRules: (rules) => rpc('fileIcons.setRules', { rules }), clear: () => rpc('fileIcons.clear', {}) }),
   attachments: Object.freeze({
@@ -528,6 +531,8 @@ const context = Object.freeze({
     },
   }),
   editor: Object.freeze({
+    setStyles: options => rpc('editor.setStyles', options),
+    clearStyles: () => rpc('editor.clearStyles'),
     getActiveEditor: () => rpc('editor.getActiveEditor'),
     getSelection: () => rpc('editor.getSelection'),
     getTextSnapshot: (options) => rpc('editor.getTextSnapshot', options),
@@ -764,7 +769,7 @@ async function initialize(message: Extract<PluginHostToWorkerMessage, { type: 'i
       id: message.manifest.id,
       version: message.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: message.surface === 'editor-window' ? [] : ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts'],
+      capabilities: message.surface === 'editor-window' ? ['document-rendering', 'clipboard-write', 'file-export', 'editor-styles'] : ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles'],
     },
     commands: (message.manifest.contributes.commands ?? []).map((command) => command.id),
     statusItems: (message.manifest.contributes.statusBar ?? []).map((item) => item.id),

@@ -29,7 +29,7 @@ use url::Url;
 use uuid::Uuid;
 use zip::{CompressionMethod, ZipArchive};
 
-const PLUGIN_API_VERSION: &str = "0.1.6";
+const PLUGIN_API_VERSION: &str = "0.1.7";
 const PLUGIN_STATE_SCHEMA_VERSION: u32 = 1;
 const MARKET_SCHEMA_VERSION: u32 = 1;
 const INTEGRITY_SCHEMA_VERSION: u32 = 1;
@@ -1606,7 +1606,7 @@ fn validate_public_metadata_url(raw: &str, field: &str) -> PluginResult<()> {
 fn validate_permissions(manifest: &PluginManifestV1) -> PluginResult<()> {
     for (permission, declaration) in &manifest.permissions {
         let valid = match permission.as_str() {
-            "records.read" | "records.write" | "chat.write" | "ai.generate" => declaration.scope == "application",
+            "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" => declaration.scope == "application",
             "editor.read" | "editor.write" => declaration.scope == "active-editor",
             "notes.read" | "attachments.read" => matches!(
                 declaration.scope.as_str(),
@@ -3401,7 +3401,7 @@ fn validate_market_permissions(permissions: &[String]) -> PluginResult<()> {
         if !matches!(
             permission.as_str(),
             "editor.read" | "editor.write" | "notes.read" | "notes.create" | "notes.open"
-                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate"
+                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style"
         ) || !unique.insert(permission)
         {
             return Err(plugin_error(

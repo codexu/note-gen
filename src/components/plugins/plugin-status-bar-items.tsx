@@ -11,7 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { toast } from '@/hooks/use-toast'
 import type { PluginStatusBarContribution } from '@/lib/plugins/types'
 import { isPluginEnabledInWorkspace } from '@/lib/plugins/internal-types'
@@ -78,7 +78,7 @@ export function PluginStatusBarItems({
               disabled={state.busy}
               aria-busy={Boolean(state.busy)}
               aria-label={state.accessibleLabel ?? state.tooltip ?? text}
-              onClick={() => void executePluginCommand(contribution.command!).catch((error) => {
+              onClick={() => void executePluginUserCommand(contribution.command!).catch((error) => {
                 toast({
                   description: error instanceof Error ? error.message : String(error),
                   variant: 'destructive',

@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Checkbox } from '@/components/ui/checkbox'
 import { PluginIcon } from './plugin-icon'
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/enhanced-context-menu'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { cn } from '@/lib/utils'
 import { usePluginSettingsLayout } from './plugin-settings-layout'
 import { Item as SettingsItem, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
@@ -103,7 +103,7 @@ export function PluginItemList({ block, scope }: { block: PluginItemListBlock; s
     if (busy.current) return
     busy.current = true
     setPending(true)
-    try { await executePluginCommand(command, argument) }
+    try { await executePluginUserCommand(command, argument) }
     catch (error) { toast.error(error instanceof Error ? error.message : String(error)) }
     finally { busy.current = false; setPending(false) }
   }

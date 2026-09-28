@@ -12,7 +12,7 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { cn } from '@/lib/utils'
 
 type Column = PluginKanbanBlock['columns'][number]
@@ -94,7 +94,7 @@ export function PluginKanban({ block, scope }: { block: PluginKanbanBlock; scope
     setPending(true)
     setError('')
     try {
-      const result = await executePluginCommand(command, argument)
+      const result = await executePluginUserCommand(command, argument)
       // A plugin may return a form-style failure instead of throwing.
       if (result && typeof result === 'object' && !Array.isArray(result) && 'message' in result && typeof result.message === 'string') throw new Error(result.message)
       return true

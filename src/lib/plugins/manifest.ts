@@ -126,6 +126,7 @@ const menuSchema = z.object({
 const viewSchema = z.object({
   id: namespacedIdSchema,
   title: localizedTextSchema,
+  // `editor-tab` is accepted for existing manifests and routed to the left sidebar.
   location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab', 'settings', 'title-bar-left', 'title-bar-center', 'title-bar-right', 'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel']),
   icon: z.string().min(1).max(80).optional(),
 }).strict()
@@ -152,6 +153,9 @@ const manifestSchema = z.object({
     'records.write': permissionDeclarationSchema.optional(),
     'chat.write': permissionDeclarationSchema.optional(),
     'ai.generate': permissionDeclarationSchema.optional(),
+    'clipboard.write': permissionDeclarationSchema.optional(),
+    'files.export': permissionDeclarationSchema.optional(),
+    'editor.style': permissionDeclarationSchema.optional(),
     'editor.read': permissionDeclarationSchema.optional(),
     'editor.write': permissionDeclarationSchema.optional(),
     'notes.read': permissionDeclarationSchema.optional(),
@@ -283,6 +287,9 @@ function validatePermissionScopes(manifest: PluginManifestV1): void {
     'records.write': ['application'],
     'chat.write': ['application'],
     'ai.generate': ['application'],
+    'clipboard.write': ['application'],
+    'files.export': ['application'],
+    'editor.style': ['application'],
     'editor.read': ['active-editor'],
     'editor.write': ['active-editor'],
     'notes.read': ['workspace-file', 'workspace-files', 'workspace-folder'],

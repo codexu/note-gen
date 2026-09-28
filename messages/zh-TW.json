@@ -2780,7 +2780,8 @@
         "closeView": "關閉 {name}",
         "close": "關閉",
         "requiredField": "請填寫此項",
-        "invalidValue": "請輸入有效的值"
+        "invalidValue": "請輸入有效的值",
+        "documentExpired": "預覽已過期，請重新產生"
       },
       "title": "外掛管理",
       "desc": "探索、安裝、授權並設定 NoteGen 擴充功能。外掛程式碼目前僅在桌面端執行。",
@@ -2952,7 +2953,10 @@
           "read": "讀取目前編輯器",
           "write": "修改目前編輯器"
         },
+        "clipboard": { "write": "寫入剪貼簿" },
+        "files": { "export": "透過儲存對話框匯出檔案" },
         "notes": {
+          "style": "設定筆記正文樣式",
           "read": "讀取筆記",
           "create": "建立筆記",
           "open": "開啟筆記",
@@ -2987,7 +2991,7 @@
       "ux": {
         "discover": "探索",
         "technicalDetails": "技術資訊",
-        "importHelp": "選擇單一外掛的原始碼目錄或建置目錄。會自動辨識 .notegen/package；首次匯入前請在外掛儲存庫執行 pnpm build。",
+        "importHelp": "在外掛專案執行 notegen-plugin dev，然後匯入一次原始碼目錄。NoteGen 會辨識 .notegen/package，之後成功建置的版本會自動重新載入。",
         "permissionNeeded": "外掛需要目錄授權",
         "managePlugin": "管理外掛"
       },
@@ -3078,7 +3082,6 @@
         "locations": {
           "left-sidebar": "左側邊欄分頁",
           "right-sidebar": "右側邊欄分頁",
-          "editor-tab": "編輯器分頁",
           "file/context": "檔案右鍵選單",
           "editor/context": "編輯器右鍵選單",
           "tab/context": "分頁右鍵選單",

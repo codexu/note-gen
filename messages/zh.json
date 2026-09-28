@@ -694,7 +694,8 @@
         "closeView": "关闭 {name}",
         "close": "关闭",
         "requiredField": "请填写此项",
-        "invalidValue": "请输入有效的值"
+        "invalidValue": "请输入有效的值",
+        "documentExpired": "预览已过期，请重新生成"
       },
       "title": "插件管理",
       "desc": "发现、安装、授权并配置 NoteGen 扩展。插件代码目前仅在桌面端运行。",
@@ -862,7 +863,10 @@
       },
       "permissionNames": {
         "ai": { "generate": "使用已配置的 AI 模型（可能产生费用）" },
+        "clipboard": { "write": "写入剪贴板" },
+        "files": { "export": "通过保存对话框导出文件" },
         "editor": {
+          "style": "设置笔记正文样式",
           "read": "读取当前编辑器",
           "write": "修改当前编辑器"
         },
@@ -901,7 +905,7 @@
       "ux": {
         "discover": "发现",
         "technicalDetails": "技术信息",
-        "importHelp": "选择单个插件的源码目录或构建目录。源码目录会自动识别 .notegen/package；首次导入前请在插件仓库运行 pnpm build。",
+        "importHelp": "在插件项目运行 notegen-plugin dev，然后导入一次源码目录。NoteGen 会识别 .notegen/package，之后成功构建的版本会自动重载。",
         "permissionNeeded": "插件需要目录授权",
         "managePlugin": "管理插件"
       },
@@ -992,7 +996,6 @@
         "locations": {
           "left-sidebar": "左侧边栏 Tab",
           "right-sidebar": "右侧边栏 Tab",
-          "editor-tab": "编辑器 Tab",
           "file/context": "文件右键菜单",
           "editor/context": "编辑器右键菜单",
           "tab/context": "标签页右键菜单",

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl'
 import { MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { toast } from 'sonner'
 import { PluginIcon } from './plugin-icon'
 import { usePluginEditorCommands } from './use-plugin-editor-commands'
@@ -26,7 +26,7 @@ export function PluginEditorToolbar({ editor, location, owner }: { editor: Edito
     // Focus the existing selection; never restore an old selection after an
     // asynchronous command has changed the document.
     editor.view.focus()
-    try { await executePluginCommand(id, { kind: 'editor', editorKind: 'markdown', location }) }
+    try { await executePluginUserCommand(id, { kind: 'editor', editorKind: 'markdown', location }) }
     catch (error) { toast.error(error instanceof Error ? error.message : String(error)) }
     finally { busy.current = false; setPending(false) }
   }

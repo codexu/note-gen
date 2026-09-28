@@ -3,15 +3,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { activatePluginView, usePluginUiStore } from '@/lib/plugins/ui-registry'
 import { PluginDeclarativeUi } from './plugin-declarative-ui'
+import { PluginArticleDrawer } from './plugin-article-drawer'
 import { usePluginStore } from '@/stores/plugins'
 import { useTranslations } from 'next-intl'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { PluginIcon } from './plugin-icon'
 import { PluginSettingsLayoutContext } from './plugin-settings-layout'
 import { Spinner } from '@/components/ui/spinner'
+import { executePluginCommand } from '@/lib/plugins/command-registry'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // A leading toolbar belongs to the sidebar header rather than the scrolling list.
 export function PluginViewToolbar({ viewKey }: { viewKey: string }) {
@@ -33,6 +37,10 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
   const [attempt, setAttempt] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const articleDrawer = content?.blocks.some(block => block.type === 'toolbar' && block.id === 'preview-width') ?? false
+  const articleRefreshCommand = articleDrawer ? content?.blocks.flatMap(block => block.type === 'toolbar' && block.id === 'output' ? block.actions : [])
+    .find(action => action.id === 'refresh')?.command : undefined
   useEffect(() => {
     if (!active) return
     let current = true
@@ -46,6 +54,13 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
   useEffect(() => {
     if (active && focus?.key === viewKey) container.current?.focus()
   }, [focus, viewKey, active])
+  useEffect(() => {
+    if (active && forcePopover && focus?.key === viewKey) setDrawerOpen(true)
+  }, [active, forcePopover, focus, viewKey])
+  useEffect(() => {
+    if (!active || !forcePopover || !drawerOpen || !articleRefreshCommand) return
+    void executePluginCommand(articleRefreshCommand).catch(reason => toast.error(reason instanceof Error ? reason.message : String(reason)))
+  }, [active, forcePopover, drawerOpen, articleRefreshCommand])
   if (compact) {
     if (!active) return null
     const inline = !forcePopover && content?.blocks.every(block => ['toolbar', 'actions', 'text', 'badge', 'loading', 'separator', 'progress'].includes(block.type))
@@ -53,7 +68,8 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
       {error ? <Button variant="ghost" size="sm" title={error} onClick={() => setAttempt(value => value + 1)}>{t('retry')}</Button>
         : !content && loading ? <Spinner aria-label={t('loadingView')} />
         : content?.blocks.length ? inline ? <PluginDeclarativeUi scope={viewKey} document={content} compact />
-          : <Popover><PopoverTrigger asChild><Button variant="ghost" size={forcePopover ? (icon ? 'icon-xs' : 'xs') : (icon ? 'icon-sm' : 'sm')} aria-label={title} title={title}>{icon ? <PluginIcon name={icon} /> : title}</Button></PopoverTrigger><PopoverContent aria-label={title} side="bottom" className="max-h-[70vh] w-80 overflow-auto"><PluginDeclarativeUi scope={viewKey} document={content} /></PopoverContent></Popover>
+          : forcePopover ? <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}><SheetTrigger asChild><Button variant="ghost" size="xs" className="gap-1 px-2" aria-label={title} title={title}>{icon ? <PluginIcon name={icon} /> : null}<span>{title}</span></Button></SheetTrigger><SheetContent side="right" className="!w-[min(960px,90vw)] !max-w-none gap-0 overflow-hidden"><SheetHeader className="shrink-0 border-b pr-12"><SheetTitle>{title}</SheetTitle></SheetHeader>{articleDrawer && content ? <PluginArticleDrawer document={content} scope={viewKey} /> : <div className="min-h-0 flex-1 overflow-y-auto"><PluginDeclarativeUi scope={viewKey} document={content} /></div>}</SheetContent></Sheet>
+          : <Popover><PopoverTrigger asChild><Button variant="ghost" size={icon ? 'icon-sm' : 'sm'} aria-label={title} title={title}>{icon ? <PluginIcon name={icon} /> : title}</Button></PopoverTrigger><PopoverContent aria-label={title} side="bottom" className="max-h-[70vh] w-80 overflow-auto"><PluginDeclarativeUi scope={viewKey} document={content} /></PopoverContent></Popover>
         : null}
     </div>
   }

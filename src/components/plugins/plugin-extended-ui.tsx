@@ -1,6 +1,7 @@
 'use client'
 
 import { PluginKanban } from './plugin-kanban'
+import { PluginArticlePreview } from './plugin-article-preview'
 
 import type { PluginExtendedUiBlock, PluginUiBlock } from '@notegen/plugin-api'
 import type { ReactNode } from 'react'
@@ -35,6 +36,7 @@ export function PluginExtendedUi({ block, scope, render, compact = false }: {
 }) {
   const settingsLayout = usePluginSettingsLayout()
   const [selectedTab, setSelectedTab] = useState('')
+  if (block.type === 'document-preview') return <PluginArticlePreview block={block} scope={scope} />
   if (block.type === 'kanban') return <PluginKanban block={block} scope={scope} />
   if (block.type === 'item-list') return <PluginItemList block={block} scope={scope} />
   if (block.type === 'markdown') return <Markdown text={block.text} />

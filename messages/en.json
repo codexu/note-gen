@@ -694,7 +694,8 @@
         "closeView": "Close {name}",
         "close": "Close",
         "requiredField": "This field is required",
-        "invalidValue": "Enter a valid value"
+        "invalidValue": "Enter a valid value",
+        "documentExpired": "Preview expired. Generate it again."
       },
       "title": "Plugin Management",
       "desc": "Discover, install, authorize, and configure extensions for NoteGen. Plugin code currently runs only on desktop.",
@@ -862,7 +863,10 @@
       },
       "permissionNames": {
         "ai": { "generate": "Use configured AI models (may incur charges)" },
+        "clipboard": { "write": "Write to the clipboard" },
+        "files": { "export": "Export files through a save dialog" },
         "editor": {
+          "style": "Style note content",
           "read": "Read the active editor",
           "write": "Modify the active editor"
         },
@@ -901,7 +905,7 @@
       "ux": {
         "discover": "Discover",
         "technicalDetails": "Technical details",
-        "importHelp": "Choose one plugin's source or built package directory. .notegen/package is detected automatically. Run pnpm build in the plugin repository before the first import.",
+        "importHelp": "Run notegen-plugin dev in the plugin project, then import its source directory once. NoteGen detects .notegen/package and reloads subsequent successful builds automatically.",
         "permissionNeeded": "Folder permission required",
         "managePlugin": "Manage plugins"
       },
@@ -992,7 +996,6 @@
         "locations": {
           "left-sidebar": "Left sidebar tabs",
           "right-sidebar": "Right sidebar tabs",
-          "editor-tab": "Editor tabs",
           "file/context": "File context menu",
           "editor/context": "Editor context menu",
           "tab/context": "Tab context menu",

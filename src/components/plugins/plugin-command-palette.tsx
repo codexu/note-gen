@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/command'
 import { toast } from 'sonner'
 import {
-  executePluginCommand,
+  executePluginUserCommand,
   getPluginCommands,
   subscribePluginCommands,
   type RegisteredPluginCommand,
@@ -43,7 +43,7 @@ export function PluginCommandPalette() {
   const runCommand = async (command: RegisteredPluginCommand) => {
     setOpen(false)
     try {
-      await executePluginCommand(command.id)
+      await executePluginUserCommand(command.id)
     } catch (error) {
       toast.error(command.title, {
         description: error instanceof Error ? error.message : String(error),

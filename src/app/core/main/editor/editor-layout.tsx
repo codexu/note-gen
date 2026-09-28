@@ -37,8 +37,6 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { PluginEditorTabs } from '@/components/plugins/plugin-editor-tabs'
-import { usePluginUiStore } from '@/lib/plugins/ui-registry'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, type TabInfo } from './tab-bar'
 import { ImageEditor } from './image/image-editor'
@@ -299,7 +297,6 @@ function EditorGroupPane({
 }
 
 export function EditorLayout() {
-  const activePluginView = usePluginUiStore(state => state.activeEditorView)
   const {
     activeFilePath, fileTree, fileTreeInitialized, fileTreeWorkspaceKey,
     setActiveFilePath, openTabs, activeTabId,
@@ -1643,7 +1640,6 @@ export function EditorLayout() {
   }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
-    active = active && !activePluginView
     if (isRecordEditorTab(tab)) {
       const markId = getRecordIdForTab(tab)
       return <div className="flex min-h-0 flex-1 overflow-hidden">{markId !== null ? <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} /> : <UnsupportedFile filePath={tab.path} />}</div>
@@ -1668,7 +1664,7 @@ export function EditorLayout() {
         </div>
       </TabContentErrorBoundary>
     )
-  }, [activePluginView, layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
+  }, [layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -1727,7 +1723,7 @@ export function EditorLayout() {
     }
     return (
       <EmptyState
-        enableShortcuts={enableShortcuts && !activePluginView}
+        enableShortcuts={enableShortcuts}
         contextKey={`${layout.activeGroupId}:${layout.groups[layout.activeGroupId]?.activeTabId ?? 'empty'}`}
         onboardingProgress={onboardingProgress}
         activeOnboardingStep={currentOnboardingTask}
@@ -1738,7 +1734,7 @@ export function EditorLayout() {
         onResetOnboarding={handleResetOnboarding}
       />
     )
-  }, [activePluginView, activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, layout.activeGroupId, layout.groups, onboardingProgress, tGroups])
+  }, [activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, layout.activeGroupId, layout.groups, onboardingProgress, tGroups])
 
   const activeNavigationTab = openTabs.find(tab => tab.id === activeTabId)
   const activeNavigationEntry = layout.navigationHistory[layout.navigationIndex]
@@ -1833,7 +1829,7 @@ export function EditorLayout() {
       onDragEnd={handleDragEnd}
     >
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-        <PluginEditorTabs>{renderLayoutNode(layout.root)}</PluginEditorTabs>
+        {renderLayoutNode(layout.root)}
       </div>
       <OnboardingSpotlight
         targetId={activeOnboardingStep ? getOnboardingSpotlightTarget(activeOnboardingStep) : null}

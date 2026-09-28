@@ -1,3 +1,6 @@
+import { renderPluginDocument, releasePluginDocument, clearPluginDocuments } from './documents'
+import { writePluginClipboard, exportPluginFile } from './document-output'
+import { setPluginEditorStyles, clearPluginEditorStyles } from './editor-styles'
 import { generatePluginAi, cancelPluginAi, onPluginAiStream } from './ai'
 import { createRecordsApi } from './records'
 import { setPluginChatDraft } from './chat-bridge'
@@ -64,7 +67,7 @@ import {
   usePluginStore,
 } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
-import { requestPluginPrompt, openPluginDialog, updatePluginDialog, openPluginView, updatePluginView, closePluginView, getPluginViewState, onPluginViewChange, onPluginDialogClose, closePluginDialog, usePluginUiStore } from '@/lib/plugins/ui-registry'
+import { requestPluginPrompt, openPluginDialog, updatePluginDialog, openPluginView, updatePluginView, closePluginView, getPluginViewState, onPluginViewChange, onPluginDialogClose, closePluginDialog } from '@/lib/plugins/ui-registry'
 import { executeHostCommand } from './host-commands'
 import type { PluginHostCommand, PluginDialogUpdate } from '@notegen/plugin-api'
 import type { PluginDialogOptions, PluginUiDocument } from '@notegen/plugin-api'
@@ -1157,7 +1160,6 @@ async function openOrCreateNote(
         deactivationAlreadyPrepared: Boolean(activePath),
       })
       opened = useArticleStore.getState().activeFilePath === path
-      if (opened) usePluginUiStore.getState().setActiveEditorView(null)
     } catch (error) {
       if (nativeResult.status === 'created') {
         throw new PluginError('CreatedNotOpened', 'The note was created but could not be opened', {
@@ -1409,7 +1411,7 @@ export function createPluginContext(options: {
       throw new PluginError('Cancelled', 'The plugin is disabled')
     }
   }
-  disposables.push({ dispose: () => clearRuntimeFileIcons(pluginId, signal) })
+  disposables.push({ dispose: () => { clearRuntimeFileIcons(pluginId, signal); clearPluginDocuments(pluginId, signal); clearPluginEditorStyles(pluginId, signal) } })
   const guardCurrent = async (permission?: PluginPermissionName, path?: string) => {
     guard()
     await assertCurrentPluginAuthority(pluginId, workspaceBinding, permission, path)
@@ -1421,7 +1423,7 @@ export function createPluginContext(options: {
       id: pluginId,
       version: plugin.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts'],
+      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles'],
     },
     log: {
       info: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'info', message }) },
@@ -1439,6 +1441,12 @@ export function createPluginContext(options: {
         return disposable
       },
     },
+    documents: {
+      render: async options => { await guardCurrent(); return renderPluginDocument(pluginId, signal, options, guardCurrent) },
+      release: async id => { await guardCurrent(); releasePluginDocument(pluginId, id, signal) },
+    },
+    clipboard: { write: content => writePluginClipboard(pluginId, signal, content, () => guardCurrent('clipboard.write')) },
+    files: { export: options => exportPluginFile(pluginId, signal, options, () => guardCurrent('files.export')) },
     records: createRecordsApi(guardCurrent, disposable => disposables.push(disposable)),
     chat: { setDraft: options => setPluginChatDraft(options, () => guardCurrent('chat.write')) },
     commands: {
@@ -1608,6 +1616,8 @@ export function createPluginContext(options: {
       },
     },
     editor: {
+      setStyles: async options => { await guardCurrent('editor.style'); setPluginEditorStyles(pluginId, signal, options.css) },
+      clearStyles: async () => { await guardCurrent('editor.style'); clearPluginEditorStyles(pluginId, signal) },
       getActiveEditor: async () => {
         await guardCurrent('editor.read')
         const editor = await getActivePluginEditor()
@@ -1806,6 +1816,12 @@ export async function invokePluginCapability(
   const record = isRecord(params) ? params : {}
 
   switch (method) {
+    case 'documents.render': return context.documents.render(record as unknown as Parameters<PluginContext['documents']['render']>[0])
+    case 'documents.release': return context.documents.release(requireString(record.id, 'id'))
+    case 'clipboard.write': return context.clipboard.write(record as unknown as Parameters<PluginContext['clipboard']['write']>[0])
+    case 'files.export': return context.files.export(record as unknown as Parameters<PluginContext['files']['export']>[0])
+    case 'editor.setStyles': return context.editor.setStyles({ css: requireString(record.css, 'css') })
+    case 'editor.clearStyles': return context.editor.clearStyles()
     case 'ui.prompt': return context.ui.prompt(record as unknown as Parameters<PluginContext['ui']['prompt']>[0])
     case 'ai.generate': return context.ai.generate(record as unknown as Parameters<PluginContext['ai']['generate']>[0])
     case 'ai.cancel': return context.ai.cancel(requireString(record.requestId, 'requestId'))

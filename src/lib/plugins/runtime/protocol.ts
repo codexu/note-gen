@@ -17,6 +17,7 @@ import type {
  * registry so the protocol type and the QuickJS bridge cannot drift apart.
  */
 export const PLUGIN_RPC_METHODS = [
+  'documents.render', 'documents.release', 'clipboard.write', 'files.export', 'editor.setStyles', 'editor.clearStyles',
   'ui.prompt', 'ai.generate', 'ai.cancel',
   'records.list', 'records.read', 'records.tags', 'records.create', 'records.update', 'chat.setDraft',
   'commands.executeHost',

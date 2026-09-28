@@ -20,7 +20,6 @@ import {
 import { usePluginStore } from '@/stores/plugins'
 import { useSidebarStore } from '@/stores/sidebar'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
-import useArticleStore from '@/stores/article'
 import { getPluginManifestFingerprint } from './internal-types'
 import { clearPluginForms, clearAllPluginForms, reconcilePluginForm, pluginFormKey, usePluginFormStore } from './form-state'
 
@@ -64,15 +63,11 @@ interface PluginUiState {
   hiddenTitleBarViews: string[]
   setTitleBarVisible: (key: string, visible: boolean) => void
   activeRightView: string | null
-  editorTabs: string[]
-  activeEditorView: string | null
   focusRequest: { key: string; sequence: number } | null
   prompt: { id: string; pluginId: string; options: PluginPromptOptions } | null
   dialog: PluginDialogState | null
   setView: (key: string, content: PluginUiDocument) => void
   setActiveRightView: (key: string | null) => void
-  setActiveEditorView: (key: string | null) => void
-  closeEditorView: (key: string) => void
   requestFocus: (key: string) => void
   setDialog: (dialog: PluginDialogState | null) => void
   clearPlugin: (pluginId: string) => void
@@ -236,29 +231,17 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
   hiddenTitleBarViews: [],
   setTitleBarVisible: (key, visible) => set(state => ({ hiddenTitleBarViews: visible ? state.hiddenTitleBarViews.filter(item => item !== key) : [...new Set([...state.hiddenTitleBarViews, key])] })),
   activeRightView: null,
-  editorTabs: [],
-  activeEditorView: null,
   focusRequest: null,
   dialog: null,
   prompt: null,
   setView: (key, content) => set((state) => ({ views: { ...state.views, [key]: content } })),
   setActiveRightView: (activeRightView) => set({ activeRightView }),
-  setActiveEditorView: (key) => set(state => ({
-    activeEditorView: key,
-    editorTabs: key && !state.editorTabs.includes(key) ? [...state.editorTabs, key] : state.editorTabs,
-  })),
-  closeEditorView: (key) => set(state => ({
-    editorTabs: state.editorTabs.filter(item => item !== key),
-    activeEditorView: state.activeEditorView === key ? null : state.activeEditorView,
-  })),
   requestFocus: (key) => set(state => ({ focusRequest: { key, sequence: (state.focusRequest?.sequence ?? 0) + 1 } })),
   setDialog: (dialog) => set({ dialog }),
   clearPlugin: (pluginId) => set((state) => ({
     hiddenTitleBarViews: state.hiddenTitleBarViews.filter(key => !key.startsWith(`${pluginId}:`)),
     views: Object.fromEntries(Object.entries(state.views).filter(([key]) => !key.startsWith(`${pluginId}:`))),
     activeRightView: state.activeRightView?.startsWith(`${pluginId}:`) ? null : state.activeRightView,
-    editorTabs: state.editorTabs.filter(key => !key.startsWith(`${pluginId}:`)),
-    activeEditorView: state.activeEditorView?.startsWith(`${pluginId}:`) ? null : state.activeEditorView,
     focusRequest: state.focusRequest?.key.startsWith(`${pluginId}:`) ? null : state.focusRequest,
     prompt: state.prompt?.pluginId === pluginId ? null : state.prompt,
     dialog: state.dialog?.pluginId === pluginId ? null : state.dialog,
@@ -342,6 +325,7 @@ export function updatePluginView(pluginId: string, viewId: string, content: Plug
 export async function openPluginView(pluginId: string, viewId: string, assertCurrent: () => void = () => {}, activate = false): Promise<void> {
   assertCurrent()
   const view = declaredView(pluginId, viewId)
+  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   if (!isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location)) return
   const sequence = ++navigationSequence
@@ -356,7 +340,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
     if (state.leftSidebarVisible !== previous.leftSidebarVisible || state.rightSidebarVisible !== previous.rightSidebarVisible || state.leftSidebarTab !== previous.leftSidebarTab) cancel()
   })
   const stopUi = usePluginUiStore.subscribe((state, previous) => {
-    if (state.activeEditorView !== previous.activeEditorView || state.activeRightView !== previous.activeRightView || state.editorTabs !== previous.editorTabs) cancel()
+    if (state.activeRightView !== previous.activeRightView) cancel()
   })
   const stopSettings = useSettingsDialogStore.subscribe((state, previous) => {
     if (state.open !== previous.open || state.activeSection !== previous.activeSection) cancel()
@@ -378,7 +362,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
   const sidebar = useSidebarStore.getState()
   if (view.location === 'settings') {
     apply(() => useSettingsDialogStore.getState().openSettings(`plugin:${pluginId}`))
-  } else if (view.location === 'left-sidebar') {
+  } else if (view.location === 'left-sidebar' || legacyEditorTab) {
     if (!sidebar.leftSidebarVisible) await apply(() => sidebar.toggleLeftSidebar())
     guard()
     await apply(() => sidebar.setLeftSidebarTab(key))
@@ -388,12 +372,7 @@ export async function openPluginView(pluginId: string, viewId: string, assertCur
     apply(() => usePluginUiStore.getState().setActiveRightView(key))
   } else if (view.location.startsWith('title-bar-') || isEmbeddedViewLocation(view.location)) {
     apply(() => usePluginUiStore.getState().setTitleBarVisible(key, true))
-  } else {
-    const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
-    if (!await prepareActiveEditorDeactivationDurably(useArticleStore.getState().activeFilePath)) throw new PluginError('EditorBusy', 'The editor cannot be deactivated safely')
-    guard()
-    apply(() => usePluginUiStore.getState().setActiveEditorView(key))
-  }
+  } else throw new PluginError('InvalidPath', `Unsupported plugin view location: ${view.location}`)
   guard()
   usePluginUiStore.getState().requestFocus(key)
   } finally {
@@ -425,6 +404,7 @@ export function openPluginDialog(pluginId: string, options: PluginDialogOptions)
 export async function closePluginView(pluginId: string, viewId: string): Promise<void> {
   cancelPluginViewNavigation()
   const view = declaredView(pluginId, viewId)
+  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   clearPluginForms(key)
   const state = usePluginUiStore.getState()
@@ -432,13 +412,13 @@ export async function closePluginView(pluginId: string, viewId: string): Promise
     const settings = useSettingsDialogStore.getState()
     if (settings.activeSection === `plugin:${pluginId}`) settings.closeSettings()
   } else if (view.location.startsWith('title-bar-') || isEmbeddedViewLocation(view.location)) state.setTitleBarVisible(key, false)
-  else if (view.location === 'editor-tab') state.closeEditorView(key)
   else if (view.location === 'right-sidebar' && state.activeRightView === key) state.setActiveRightView(null)
-  else if (view.location === 'left-sidebar' && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
+  else if ((view.location === 'left-sidebar' || legacyEditorTab) && useSidebarStore.getState().leftSidebarTab === key) await useSidebarStore.getState().setLeftSidebarTab('files')
 }
 
 export function getPluginViewState(pluginId: string, viewId: string): PluginViewState {
   const view = declaredView(pluginId, viewId)
+  const legacyEditorTab = (view.location as string) === 'editor-tab'
   const key = `${pluginId}:${viewId}`
   const state = usePluginUiStore.getState()
   const sidebar = useSidebarStore.getState()
@@ -446,9 +426,9 @@ export function getPluginViewState(pluginId: string, viewId: string): PluginView
   const visible = isEmbeddedViewLocation(view.location) ? Boolean(state.embeddedContexts[key]) && !state.hiddenTitleBarViews.includes(key) && usePluginStore.getState().isEnabled(pluginId)
     : view.location === 'settings' ? settings.open && settings.activeSection === `plugin:${pluginId}` && usePluginStore.getState().isEnabled(pluginId)
     : view.location.startsWith('title-bar-') ? !state.hiddenTitleBarViews.includes(key)
-    : view.location === 'editor-tab' ? state.activeEditorView === key
-    : view.location === 'left-sidebar' ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
-      : sidebar.rightSidebarVisible && state.activeRightView === key
+    : view.location === 'left-sidebar' || legacyEditorTab ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
+      : view.location === 'right-sidebar' ? sidebar.rightSidebarVisible && state.activeRightView === key
+        : false
   return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location), ...(isEmbeddedViewLocation(view.location) && state.embeddedContexts[key] ? { contextId: state.embeddedContexts[key] } : {}) }
 }
 

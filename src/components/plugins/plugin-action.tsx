@@ -6,7 +6,7 @@ import type { PluginCommandArgument, PluginActionConfirmation } from '@notegen/p
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { toast } from 'sonner'
 import { useTranslations } from 'next-intl'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
@@ -31,7 +31,7 @@ export function PluginAction({ command, argument, children, disabled, variant = 
     if (disabled || usePendingActions.getState().commands.has(command)) return
     if (confirmation && !confirmed) { setConfirmOpen(true); return }
     usePendingActions.setState(state => ({ commands: new Set([...state.commands, command]) }))
-    try { await executePluginCommand(command, argument); onExecuted?.() }
+    try { await executePluginUserCommand(command, argument); onExecuted?.() }
     catch (error) {
       const permissionDenied = typeof error === 'object' && error !== null && 'code' in error && error.code === 'PermissionDenied'
       toast.error(permissionDenied ? t('ux.permissionNeeded') : t('installed.operationFailed'), {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  executePluginCommand,
+  executePluginUserCommand,
   type RegisteredPluginCommand,
 } from '@/lib/plugins/command-registry'
 import { toast } from '@/hooks/use-toast'
@@ -94,7 +94,7 @@ export function MobileEditorMoreSheet({
 
   const runPluginCommand = (command: RegisteredPluginCommand) => {
     onOpenChange(false)
-    void executePluginCommand(command.id).catch((error) => {
+    void executePluginUserCommand(command.id).catch((error) => {
       toast({
         title: command.title,
         description: error instanceof Error ? error.message : String(error),

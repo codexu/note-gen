@@ -9,7 +9,7 @@ import { SlashCommandItem, suggestionItems, filterItems } from './suggestion'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 import {
-  executePluginCommand,
+  executePluginUserCommand,
 } from '@/lib/plugins/command-registry'
 import { PluginIcon } from '@/components/plugins/plugin-icon'
 import { usePluginEditorCommands } from '@/components/plugins/use-plugin-editor-commands'
@@ -156,7 +156,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
       command: ({ editor: targetEditor, range: targetRange }) => {
         targetEditor.chain().focus().deleteRange(targetRange).run()
         document.dispatchEvent(new CustomEvent('slash-command-hide'))
-        void executePluginCommand(command.id).catch((error) => {
+        void executePluginUserCommand(command.id).catch((error) => {
           toast({
             title: command.title,
             description: error instanceof Error ? error.message : String(error),

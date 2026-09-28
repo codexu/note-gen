@@ -2805,7 +2805,8 @@
         "closeView": "Fechar {name}",
         "close": "Fechar",
         "requiredField": "Este campo é obrigatório",
-        "invalidValue": "Insira um valor válido"
+        "invalidValue": "Insira um valor válido",
+        "documentExpired": "Prévia expirada. Gere novamente."
       },
       "title": "Gerenciamento de plugins",
       "desc": "Encontre, instale, autorize e configure extensões para o NoteGen. Por enquanto, os plugins são executados apenas no desktop.",
@@ -2977,7 +2978,10 @@
           "read": "Ler o editor ativo",
           "write": "Modificar o editor ativo"
         },
+        "clipboard": { "write": "Escrever na área de transferência" },
+        "files": { "export": "Exportar arquivos pela janela de salvamento" },
         "notes": {
+          "style": "Estilizar o conteúdo das notas",
           "read": "Ler notas",
           "create": "Criar notas",
           "open": "Abrir notas",
@@ -3012,7 +3016,7 @@
       "ux": {
         "discover": "Descobrir",
         "technicalDetails": "Detalhes técnicos",
-        "importHelp": "Selecione a pasta de código-fonte ou do pacote de um plugin. .notegen/package é detectado automaticamente. Execute pnpm build no repositório antes da primeira importação.",
+        "importHelp": "Execute notegen-plugin dev no projeto e importe a pasta de código-fonte uma vez. O NoteGen detecta .notegen/package e recarrega automaticamente os builds bem-sucedidos.",
         "permissionNeeded": "Permissão de pasta necessária",
         "managePlugin": "Gerenciar plugins"
       },
@@ -3103,7 +3107,6 @@
         "locations": {
           "left-sidebar": "Abas da barra lateral esquerda",
           "right-sidebar": "Abas da barra lateral direita",
-          "editor-tab": "Abas do editor",
           "file/context": "Menu de contexto de arquivos",
           "editor/context": "Menu de contexto do editor",
           "tab/context": "Menu de contexto de abas",

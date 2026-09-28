@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/enhanced-context-menu'
 import { toast } from '@/hooks/use-toast'
 import {
-  executePluginCommand,
+  executePluginUserCommand,
   getPluginMenuCommands,
   subscribePluginCommands,
 } from '@/lib/plugins/command-registry'
@@ -40,7 +40,7 @@ export function PluginFileMenuItems({ context, location = 'file/context' }: { co
             disabled={command.disabled}
             inset
             menuType="file"
-            onClick={() => void executePluginCommand(command.id, context).catch((error) => {
+            onClick={() => void executePluginUserCommand(command.id, context).catch((error) => {
               toast({
                 title: command.title,
                 description: error instanceof Error ? error.message : String(error),

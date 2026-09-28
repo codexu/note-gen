@@ -1,3 +1,5 @@
+import { clearPluginDocuments } from '../documents'
+import { clearPluginEditorStyles } from '../editor-styles'
 import { onPluginAiStream } from '@/lib/plugins/ai'
 import emitter from '@/lib/emitter'
 import { clearRuntimeFileIcons } from '@/lib/plugins/resources'
@@ -38,6 +40,7 @@ import type {
 } from '@/lib/plugins/runtime/protocol'
 import { usePluginStore } from '@/stores/plugins'
 import { onPluginViewChange, onPluginDialogClose, usePluginUiStore } from '@/lib/plugins/ui-registry'
+import { isPluginExportDialogOpen } from '@/lib/plugins/document-output'
 
 const MAX_NETWORK_TIMEOUT_MS = 30_000
 const ASYNC_OPERATION_GRACE_MS = 15_000
@@ -233,7 +236,7 @@ export class CommunityPluginRuntime {
       const checkTimeout = () => {
         const pending = this.pendingCommands.get(requestId)
         if (!pending) return
-        if (usePluginUiStore.getState().prompt?.pluginId === this.plugin.manifest.id) {
+        if (usePluginUiStore.getState().prompt?.pluginId === this.plugin.manifest.id || isPluginExportDialogOpen(this.controller.signal)) {
           pending.timer = setTimeout(checkTimeout, COMMAND_TIMEOUT_MS)
           return
         }
@@ -258,6 +261,8 @@ export class CommunityPluginRuntime {
     }
     this.controller.abort()
     clearRuntimeFileIcons(this.plugin.manifest.id, this.controller.signal)
+    clearPluginDocuments(this.plugin.manifest.id, this.controller.signal)
+    clearPluginEditorStyles(this.plugin.manifest.id, this.controller.signal)
     this.state = 'stopped'
     this.activationResolve = null
     this.activationReject = null

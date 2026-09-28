@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/context-menu'
 import { toast } from '@/hooks/use-toast'
 import {
-  executePluginCommand,
+  executePluginUserCommand,
 } from '@/lib/plugins/command-registry'
 
 export function PluginEditorContextMenu({
@@ -50,7 +50,7 @@ export function PluginEditorContextMenu({
             <Fragment key={command.id}>{index > 0 && command.group !== commands[index - 1].group ? <ContextMenuSeparator /> : null}
             <ContextMenuItem
               disabled={command.disabled}
-              onSelect={() => void executePluginCommand(command.id, {
+              onSelect={() => void executePluginUserCommand(command.id, {
                 kind: 'editor',
                 editorKind: 'markdown',
               }).catch((error) => {

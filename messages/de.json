@@ -694,7 +694,8 @@
         "closeView": "{name} schließen",
         "close": "Schließen",
         "requiredField": "Dieses Feld ist erforderlich",
-        "invalidValue": "Geben Sie einen gültigen Wert ein"
+        "invalidValue": "Geben Sie einen gültigen Wert ein",
+        "documentExpired": "Vorschau abgelaufen. Bitte erneut erstellen."
       },
       "title": "Plugin-Verwaltung",
       "desc": "Erweiterungen für NoteGen entdecken, installieren, freigeben und konfigurieren. Plugins werden derzeit nur auf dem Desktop ausgeführt.",
@@ -862,7 +863,10 @@
       },
       "permissionNames": {
         "ai": { "generate": "Konfigurierte KI-Modelle verwenden (kann Kosten verursachen)" },
+        "clipboard": { "write": "In die Zwischenablage schreiben" },
+        "files": { "export": "Dateien über einen Speicherdialog exportieren" },
         "editor": {
+          "style": "Notizinhalt gestalten",
           "read": "Aktiven Editor lesen",
           "write": "Aktiven Editor ändern"
         },
@@ -901,7 +905,7 @@
       "ux": {
         "discover": "Entdecken",
         "technicalDetails": "Technische Details",
-        "importHelp": "Quell- oder Paketordner eines Plugins auswählen. .notegen/package wird automatisch erkannt. Vor dem ersten Import pnpm build im Plugin-Repository ausführen.",
+        "importHelp": "Im Plugin-Projekt notegen-plugin dev starten und den Quellordner einmal importieren. NoteGen erkennt .notegen/package und lädt spätere erfolgreiche Builds automatisch neu.",
         "permissionNeeded": "Ordnerberechtigung erforderlich",
         "managePlugin": "Plugins verwalten"
       },
@@ -992,7 +996,6 @@
         "locations": {
           "left-sidebar": "Tabs der linken Seitenleiste",
           "right-sidebar": "Tabs der rechten Seitenleiste",
-          "editor-tab": "Editor-Tabs",
           "file/context": "Datei-Kontextmenü",
           "editor/context": "Editor-Kontextmenü",
           "tab/context": "Tab-Kontextmenü",

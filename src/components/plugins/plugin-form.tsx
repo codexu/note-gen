@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { executePluginCommand } from '@/lib/plugins/command-registry'
+import { executePluginCommand, executePluginUserCommand } from '@/lib/plugins/command-registry'
 import { usePluginFormStore, pluginFormKey, reconcilePluginForm, patchPluginForm } from '@/lib/plugins/form-state'
 
 function visible(field: PluginFormField, values: Record<string, PluginFormValue>): boolean {
@@ -51,9 +51,9 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
           patchPluginForm(key, generation, { failure: error instanceof Error ? error.message : String(error) })
         }
       })
-    }, 250)
+    }, block.submitDisabled ? 0 : 250)
     return () => clearTimeout(timer)
-  }, [block.changeCommand, block.id, key, scope, session])
+  }, [block.changeCommand, block.id, block.submitDisabled, key, scope, session])
 
   function update(id: string, value: PluginFormValue) {
     const current = reconcilePluginForm(scope, block)
@@ -99,7 +99,7 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
     patchPluginForm(key, generation, { busy: true })
     try {
       const dialogId = scope.split(':')[1] === 'dialog' ? scope.split(':')[2] : undefined
-      const result = await executePluginCommand(block.command, { formId: block.id, values: submitted, ...(dialogId ? { dialogId } : {}) })
+      const result = await executePluginUserCommand(block.command, { formId: block.id, values: submitted, ...(dialogId ? { dialogId } : {}) })
       if (usePluginFormStore.getState().sessions[key]?.generation !== generation) return
       if (result && typeof result === 'object' && !Array.isArray(result)) {
         if ('fieldErrors' in result && result.fieldErrors && typeof result.fieldErrors === 'object' && !Array.isArray(result.fieldErrors)) {
@@ -157,7 +157,7 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
       })}
       <FieldError>{failure}</FieldError>
       {message ? <p role="status" className="whitespace-pre-wrap text-sm">{message}</p> : null}
-      <Button type="submit" disabled={busy || block.submitDisabled} className={settingsLayout ? "self-end" : "self-start"}>{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>
+      {block.changeCommand && block.submitDisabled ? null : <Button type="submit" disabled={busy || block.submitDisabled} className={settingsLayout ? "self-end" : "self-start"}>{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>}
     </FieldGroup>
   </form>
 }

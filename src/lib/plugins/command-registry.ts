@@ -1,3 +1,4 @@
+import { withPluginUserAction } from './user-actions'
 import { usePluginStore } from '@/stores/plugins'
 import { isPluginDisplayVisible } from './display-preferences'
 import {
@@ -138,9 +139,10 @@ export function registerPluginCommandHandler(
   }
 }
 
-export async function executePluginCommand(
+async function runPluginCommand(
   commandId: string,
   argument?: PluginCommandArgument,
+  userInvoked = false,
 ): Promise<PluginCommandResult> {
   const contribution = commands.get(commandId)
   if (!contribution) throw new PluginError('NotFound', `Unknown command: ${commandId}`)
@@ -156,7 +158,13 @@ export async function executePluginCommand(
   if (!registered) {
     throw new PluginError('RuntimeFailure', `Plugin did not register ${commandId}`)
   }
-  return registered.handler(argument)
+  const handler = registered.handler
+  if (userInvoked) return withPluginUserAction(contribution.pluginId, async () => handler(argument))
+  return handler(argument)
+}
+
+export function executePluginCommand(commandId: string, argument?: PluginCommandArgument): Promise<PluginCommandResult> {
+  return runPluginCommand(commandId, argument)
 }
 
 export function getPluginCommands(): RegisteredPluginCommand[] {
@@ -184,4 +192,10 @@ export function subscribePluginCommands(listener: () => void): () => void {
     try { listener() } catch { /* A subscriber must not interrupt preference persistence. */ }
   })
   return () => { listeners.delete(listener); stop() }
+}
+
+/** Called only by host UI actions, never by plugin RPC or automatic form-change handlers. */
+export async function executePluginUserCommand(commandId: string, argument?: PluginCommandArgument): Promise<PluginCommandResult> {
+  // Activation finishes before the user-action scope starts.
+  return runPluginCommand(commandId, argument, true)
 }

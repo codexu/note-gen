@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { StatusBarItem } from '../status-bar-order'
 
 interface CanvasFooterProps {
   showGrid: boolean
@@ -51,13 +52,17 @@ function FooterButton({
   active,
   onClick,
   children,
+  sortableId,
+  rank,
 }: {
   label: string
   active?: boolean
   onClick: () => void
   children: React.ReactNode
+  sortableId?: string
+  rank?: number
 }) {
-  return (
+  const control = (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
@@ -74,6 +79,11 @@ function FooterButton({
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
   )
+  return sortableId && rank !== undefined ? <StatusBarItem id={sortableId} rank={rank}>{control}</StatusBarItem> : control
+}
+
+function CanvasTool({ embedded, id, rank, children }: { embedded: boolean; id: string; rank: number; children: React.ReactNode }) {
+  return embedded ? <StatusBarItem id={id} rank={rank}>{children}</StatusBarItem> : children
 }
 
 export function CanvasFooter({
@@ -97,19 +107,19 @@ export function CanvasFooter({
   return (
     <div className={cn(
       'flex h-6 min-h-6 max-h-6 min-w-0 shrink-0 items-center gap-2 overflow-hidden bg-background text-xs text-muted-foreground',
-      embedded ? 'w-auto justify-start' : 'w-full justify-between border-t border-border px-3',
+      embedded ? 'contents' : 'w-full justify-between border-t border-border px-3',
     )}>
-      <div className="flex shrink-0 items-center gap-0.5">
-        <FooterButton label={t('grid')} active={showGrid} onClick={onToggleGrid}>
+      <div className={embedded ? 'contents' : 'flex shrink-0 items-center gap-0.5'}>
+        <FooterButton label={t('grid')} active={showGrid} onClick={onToggleGrid} sortableId={embedded ? 'canvas:grid' : undefined} rank={20}>
           <Grid3X3 />
         </FooterButton>
-        <FooterButton label={t('snap')} active={snapToGrid} onClick={onToggleSnap}>
+        <FooterButton label={t('snap')} active={snapToGrid} onClick={onToggleSnap} sortableId={embedded ? 'canvas:snap' : undefined} rank={21}>
           <Magnet />
         </FooterButton>
-        <FooterButton label={t('layout')} onClick={onLayout}>
+        <FooterButton label={t('layout')} onClick={onLayout} sortableId={embedded ? 'canvas:layout' : undefined} rank={22}>
           <WandSparkles />
         </FooterButton>
-        <DropdownMenu modal={false}>
+        <CanvasTool embedded={embedded} id="canvas:import" rank={23}><DropdownMenu modal={false}>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
@@ -131,8 +141,8 @@ export function CanvasFooter({
               {t('import.content')}
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu modal={false}>
+        </DropdownMenu></CanvasTool>
+        <CanvasTool embedded={embedded} id="canvas:export" rank={24}><DropdownMenu modal={false}>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
@@ -180,11 +190,11 @@ export function CanvasFooter({
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu></CanvasTool>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
-        <div className="flex items-center gap-1.5 px-1">
+      <div className={embedded ? 'contents' : 'flex shrink-0 items-center gap-0.5'}>
+        <CanvasTool embedded={embedded} id="canvas:zoom" rank={60}><div className="flex items-center gap-1.5 px-1">
           <ZoomOut className="size-3" aria-hidden="true" />
           <Slider
             min={0.25}
@@ -197,8 +207,8 @@ export function CanvasFooter({
           />
           <ZoomIn className="size-3" aria-hidden="true" />
           <span className="w-9 text-right tabular-nums">{Math.round(zoom * 100)}%</span>
-        </div>
-        <FooterButton label={t('fit')} onClick={onFitView}>
+        </div></CanvasTool>
+        <FooterButton label={t('fit')} onClick={onFitView} sortableId={embedded ? 'canvas:fit' : undefined} rank={61}>
           <Maximize2 />
         </FooterButton>
       </div>

@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { PluginStatusBarItems } from '@/components/plugins/plugin-status-bar-items'
 import { usePluginStore } from '@/stores/plugins'
 import { WordCount } from './word-count'
+import { StatusBarItem } from '@/app/core/main/status-bar-order'
 
 interface FooterBarProps {
   editor: Editor
@@ -92,13 +93,13 @@ export function FooterBar({
   return (
     <div className={cn(
       'flex h-6 min-w-0 select-none items-center overflow-hidden bg-background text-xs text-muted-foreground',
-      embedded ? 'w-full justify-between gap-2' : 'w-full justify-between border-t border-border px-3',
+      embedded ? 'contents' : 'w-full justify-between border-t border-border px-3',
     )}>
       {/* Left side: Plugin contributions, Copy, Export, Outline */}
-      <div className="flex items-center gap-1">
+      <div className={embedded ? 'contents' : 'flex items-center gap-1'}>
         {!embedded ? <PluginStatusBarItems alignment="left" /> : null}
         {!embedded && viewMode === 'visual' ? <PluginEditorToolbar editor={editor} location="editor/toolbar" /> : null}
-        {onToggleViewMode ? (
+        {onToggleViewMode ? (embedded ? <StatusBarItem id="editor:view-mode" rank={20}>
           <Button
             type="button"
             variant="ghost"
@@ -110,23 +111,36 @@ export function FooterBar({
             {viewMode === 'source' ? <Code2 /> : <Eye />}
             <span>{tSourceMode(viewMode)}</span>
           </Button>
-        ) : null}
-        <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />
-        <ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />
+        </StatusBarItem> : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            title={tSourceMode(viewMode)}
+            aria-label={tSourceMode(viewMode)}
+            onClick={onToggleViewMode}
+          >
+            {viewMode === 'source' ? <Code2 /> : <Eye />}
+            <span>{tSourceMode(viewMode)}</span>
+          </Button>
+        )) : null}
+        {embedded ? <StatusBarItem id="editor:copy" rank={21}><CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} /></StatusBarItem> : <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />}
+        {embedded ? <StatusBarItem id="editor:export" rank={22}><ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} /></StatusBarItem> : <ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />}
         {onToggleOutline ? (
-          <OutlineToggle
+          embedded ? <StatusBarItem id="editor:outline" rank={23}><OutlineToggle
             editor={editor}
             outlineOpen={outlineOpen}
             onToggleOutline={onToggleOutline}
-          />
+          /></StatusBarItem> : <OutlineToggle editor={editor} outlineOpen={outlineOpen} onToggleOutline={onToggleOutline} />
         ) : null}
       </div>
 
       {/* Right side: Sync tools */}
-      <div className="flex min-w-0 items-center gap-1">
-        {showEditorStats && !pluginStatisticsVisible ? <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /> : null}
+      <div className={embedded ? 'contents' : 'flex min-w-0 items-center gap-1'}>
+        {showEditorStats && !pluginStatisticsVisible ? (embedded ? <StatusBarItem id="editor:word-count" rank={60}><WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /></StatusBarItem> : <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact />) : null}
         {!embedded ? <PluginStatusBarItems alignment="right" /> : null}
         <SyncTools
+          embedded={embedded}
           editor={editor}
           markdown={sourceMarkdown}
           getMarkdown={getMarkdown}

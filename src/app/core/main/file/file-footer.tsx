@@ -40,7 +40,6 @@ import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import { useSkillsStore } from '@/stores/skills'
 
-import { useSyncAvailability } from './use-sync-availability'
 import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
 
 export function FileFooter() {
@@ -57,8 +56,6 @@ export function FileFooter() {
     setActiveFilePath,
   } = useArticleStore()
   const tFile = useTranslations('settings.file')
-  const tContext = useTranslations('article.file.context')
-  const sync = useSyncAvailability()
   const [open, setOpen] = useState(false)
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
   const [defaultWorkspacePath, setDefaultWorkspacePath] = useState('')
@@ -71,15 +68,6 @@ export function FileFooter() {
   const currentWorkspacePath = workspacePath
     || defaultWorkspacePath
     || defaultWorkspaceName
-  const syncStatusText = sync.reason === 'reauthentication-required'
-    ? tContext('syncReauthenticationRequired')
-    : sync.status === 'available'
-    ? tContext('syncAvailable', { platform: sync.platform })
-    : sync.status === 'checking'
-      ? tContext('syncChecking', { platform: sync.platform })
-      : sync.status === 'unavailable'
-        ? tContext('syncUnavailable', { platform: sync.platform })
-        : tContext('syncNotConfigured')
 
   useEffect(() => {
     void getDefaultArticleAbsolutePath('')
@@ -184,18 +172,8 @@ export function FileFooter() {
                 size="xs"
                 disabled={switchingWorkspace}
                 className="w-auto min-w-0 max-w-[min(20rem,40vw)] shrink-0 justify-start border-0 bg-transparent px-1.5 text-xs font-normal text-muted-foreground focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-ring/30"
-                aria-label={`${currentWorkspaceName}, ${syncStatusText}`}
+                aria-label={currentWorkspaceName}
               >
-                <span
-                  className={cn(
-                    'size-2 shrink-0 rounded-full',
-                    sync.status === 'available' && 'bg-emerald-500',
-                    sync.status === 'checking' && 'bg-amber-500 animate-pulse',
-                    sync.status === 'unavailable' && 'bg-destructive',
-                    sync.status === 'not-configured' && 'bg-muted-foreground/40'
-                  )}
-                  aria-hidden="true"
-                />
                 {switchingWorkspace ? (
                   <Spinner data-icon="inline-start" className="size-3" />
                 ) : (
@@ -210,7 +188,6 @@ export function FileFooter() {
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4} className="max-w-sm">
             <span className="block break-all">{currentWorkspacePath}</span>
-            <span className="block text-xs opacity-70">{syncStatusText}</span>
           </TooltipContent>
         </Tooltip>
 

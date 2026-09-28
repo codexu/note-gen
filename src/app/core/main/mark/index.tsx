@@ -9,14 +9,11 @@ import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { filterMarks, getTrashRecordFilters } from "./mark-filters";
-import { RecordSyncStatusBanner } from "@/components/record-sync-status-banner"
-import { useSettingsDialogStore } from "@/stores/settings-dialog"
 
 export function NoteSidebar() {
   const t = useTranslations();
   const { trashState, marks, setMarks } = useMarkStore()
   const visibleTrashMarks = React.useMemo(() => filterMarks(marks, getTrashRecordFilters()), [marks])
-  const { openSettings } = useSettingsDialogStore()
 
   async function handleClearTrash() {
     const res = await confirm(`${t('record.trash.confirm')}\n${t('record.trash.syncWarning')}`, {
@@ -31,7 +28,6 @@ export function NoteSidebar() {
 
   return (
     <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
-      <RecordSyncStatusBanner onSettingsClick={() => openSettings('sync')} />
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">

@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChatFooter } from './chat/chat-footer'
 import { FileFooter } from './file/file-footer'
+import { UnifiedSyncStatus } from './unified-sync-status'
 import { PluginStatusBarItems } from '@/components/plugins/plugin-status-bar-items'
 
 const EDITOR_STATUS_SLOT_ID = 'main-editor-status-slot'
@@ -12,6 +13,7 @@ const EDITOR_STATUS_SLOT_ID = 'main-editor-status-slot'
 export function MainStatusBar() {
   return (
     <footer className="scrollbar-hide flex h-6 min-h-6 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-t border-border bg-background px-1 text-xs text-muted-foreground">
+      <UnifiedSyncStatus />
       <div className="h-full min-w-0 shrink-0">
         <FileFooter />
       </div>

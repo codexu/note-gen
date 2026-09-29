@@ -20,11 +20,14 @@ import {
   type PluginPermissionScope,
   type PluginSettingValue,
   type PluginStatusBarUpdate,
+  type PluginViewState,
   type NoteChangeEvent,
   type PluginNetworkResponse,
   type ResolvedDay,
   type SearchNotesResult,
   type SearchNotesOptions,
+  type SearchRelatedNotesOptions,
+  type SearchRelatedNotesResult,
   type PluginAttachment,
 } from '@notegen/plugin-api'
 import { toast as sonnerToast } from 'sonner'
@@ -49,6 +52,7 @@ import {
   onDidChangeActivePluginEditor,
   onDidChangePluginEditorContent,
 } from '@/lib/plugins/editor-bridge'
+import { readPluginEditorTarget } from '@/lib/plugins/editor-targets'
 import { registerPluginCommandHandler } from '@/lib/plugins/command-registry'
 import { invokePluginBackend } from '@/lib/plugins/backend'
 import {
@@ -273,6 +277,15 @@ function normalizeRelativeMarkdownPath(path: string): string {
     throw new PluginError('InvalidPath', 'Expected a safe workspace-relative Markdown path')
   }
   return normalized
+}
+
+function indexedArticleRelativePath(path: string, workspaceRoot: string): string | null {
+  const normalizedPath = path.normalize('NFC').trim().replace(/\\/g, '/').replace(/\/+/g, '/')
+  const normalizedRoot = workspaceRoot.normalize('NFC').trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+  const absolute = normalizedPath.startsWith('/') || /^[A-Za-z]:\//.test(normalizedPath)
+  if (absolute && !normalizedPath.startsWith(`${normalizedRoot}/`)) return null
+  const relativePath = absolute ? normalizedPath.slice(normalizedRoot.length + 1) : normalizedPath
+  try { return normalizeRelativeMarkdownPath(relativePath) } catch { return null }
 }
 
 function normalizeAttachmentPath(path: string): string {
@@ -693,7 +706,7 @@ async function listNotes(pluginId: string, folder = '', recursive = false, limit
   const normalizedFolder = folder ? normalizeGrantPath(folder) : ''
   const workspace = await getCurrentWorkspaceSnapshot()
   assertPermission(pluginId, 'notes.list', normalizedFolder, workspace.id)
-  const result = await invokePluginBackend<{ entries: Array<{ path: string; name: string; size: number }>; truncated: boolean; nextCursor?: string }>(
+  const result = await invokePluginBackend<{ entries: Array<{ path: string; name: string; size: number; modifiedAt?: number }>; truncated: boolean; nextCursor?: string }>(
     'plugin_list_workspace_notes',
     { workspaceRoot: workspace.root, folder: normalizedFolder, recursive, limit, cursor },
   )
@@ -1417,13 +1430,30 @@ export function createPluginContext(options: {
     await assertCurrentPluginAuthority(pluginId, workspaceBinding, permission, path)
     guard()
   }
+  const authorizedViewState = async (state: PluginViewState): Promise<PluginViewState> => {
+    const target = state.target
+    if (!target) return state
+    if (target.kind === 'file-selection') {
+      const allowed = await Promise.all(target.entries.map(entry => canUsePluginPermissionCurrent(pluginId, 'notes.list', entry.path, workspaceBinding)))
+      await guardCurrent()
+      return { ...state, target: { ...target, entries: target.entries.filter((_, index) => allowed[index]) } }
+    }
+    if (target.kind === 'record' || target.kind === 'chat-message') {
+      const permission = target.kind === 'record' ? 'records.read' : 'chat.read'
+      const allowed = await canUsePluginPermissionCurrent(pluginId, permission, undefined, workspaceBinding)
+      await guardCurrent()
+      if (allowed) return state
+      return { id: state.id, location: state.location, visible: state.visible, ...(state.contextId ? { contextId: state.contextId } : {}) }
+    }
+    return state
+  }
 
   return {
     plugin: {
       id: pluginId,
       version: plugin.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal'] as PluginContext['plugin']['capabilities'],
+      capabilities: ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'] as PluginContext['plugin']['capabilities'],
     },
     log: {
       info: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'info', message }) },
@@ -1431,6 +1461,13 @@ export function createPluginContext(options: {
       error: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'error', message }) },
     },
     signal,
+    permissions: {
+      query: async (permission, path) => {
+        guard()
+        const declared = Object.prototype.hasOwnProperty.call(plugin.manifest.permissions, permission)
+        return { declared, granted: declared && canUsePluginPermission(pluginId, permission, path) }
+      },
+    },
     ai: {
       generate: request => generatePluginAi(pluginId, request, signal, () => guardCurrent('ai.generate')),
       cancel: async requestId => { await guardCurrent('ai.generate'); cancelPluginAi(pluginId, requestId, signal) },
@@ -1561,6 +1598,51 @@ export function createPluginContext(options: {
         for (const path of new Set(matches.map(match => match.path))) await guardCurrent('notes.read', path)
         return { matches, truncated }
       },
+      searchRelated: async ({ query, folder = '', limit = 15, excludePaths = [] }: SearchRelatedNotesOptions): Promise<SearchRelatedNotesResult> => {
+        if (typeof window !== 'undefined' && window.location.pathname === '/editor-window') throw new PluginError('UnavailableOnPlatform', 'Related search requires the main window')
+        if (typeof query !== 'string' || !query.trim() || query.length > 500) throw new PluginError('InvalidPath', 'Search query must contain 1–500 characters')
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 30) throw new PluginError('InvalidPath', 'Related search limit must be between 1 and 30')
+        if (typeof folder !== 'string' || folder.startsWith('/') || /^[A-Za-z]:[\\/]/.test(folder)) throw new PluginError('InvalidPath', 'Expected a workspace-relative folder')
+        if (!Array.isArray(excludePaths) || excludePaths.length > 200) throw new PluginError('InvalidPath', 'Expected at most 200 excluded note paths')
+        const excluded = new Set(excludePaths.map(path => normalizeRelativeMarkdownPath(path)))
+        const normalizedFolder = normalizeGrantPath(folder)
+        if (normalizedFolder) normalizeRelativeMarkdownPath(`${normalizedFolder}/__plugin_search__.md`)
+        await guardCurrent('notes.list', normalizedFolder)
+        await guardCurrent('notes.read')
+        const workspace = await getCurrentWorkspaceSnapshot()
+        const { searchKnowledge } = await import('@/lib/knowledge-search')
+        const results = await searchKnowledge(query, {
+          mode: 'rag', sourceTypes: ['article'], sourceMode: 'only', limit,
+          sourceFilter: source => {
+            const path = indexedArticleRelativePath(source.locator.filePath ?? source.sourceId, workspace.root)
+            return path !== null && !excluded.has(path) && pathIsWithin(path, normalizedFolder, 'workspace-folder')
+              && canUsePluginPermission(pluginId, 'notes.read', path)
+          },
+        })
+        await assertWorkspaceStillCurrent(workspace)
+        await guardCurrent('notes.list', normalizedFolder)
+        const matches: Array<SearchRelatedNotesResult['matches'][number]> = []
+        for (const result of results) {
+          const path = indexedArticleRelativePath(result.locator.filePath ?? result.sourceId, workspace.root)
+          if (!path) continue
+          await guardCurrent('notes.read', path)
+          let note
+          try { note = await readNote(pluginId, path) } catch (error) {
+            if (isPluginError(error) && (error.code === 'NotFound' || error.code === 'QuotaExceeded')) continue
+            throw error
+          }
+          await guardCurrent('notes.read', path)
+          const excerpt = result.fragments[0]?.content.trim() ?? ''
+          const content = excerpt && note.content.includes(excerpt) ? excerpt : note.content.trim()
+          const position = content.toLocaleLowerCase().indexOf(query.toLocaleLowerCase())
+          const start = position < 0 ? 0 : Math.max(0, position - 100)
+          matches.push({ path, score: Math.max(0, Math.min(1, result.relevanceScore)),
+            preview: content.slice(start, start + 500) })
+        }
+        await guardCurrent('notes.list', normalizedFolder)
+        for (const match of matches) await guardCurrent('notes.read', match.path)
+        return { matches }
+      },
       read: async ({ path }) => {
         await guardCurrent('notes.read', path)
         const note = await readNote(pluginId, path)
@@ -1630,6 +1712,12 @@ export function createPluginContext(options: {
         await guardCurrent('editor.read')
         return selection
       },
+      getTarget: async token => {
+        await guardCurrent('editor.read')
+        const target = readPluginEditorTarget(pluginId, token)
+        await guardCurrent('editor.read')
+        return target
+      },
       getTextSnapshot: async (snapshotOptions) => {
         await guardCurrent('editor.read')
         const snapshot = await getPluginEditorTextSnapshot(snapshotOptions)
@@ -1695,10 +1783,10 @@ export function createPluginContext(options: {
       views: {
         close: async (itemId) => { await guardCurrent(); await closePluginView(pluginId, itemId); await guardCurrent() },
         focus: async (itemId) => { await guardCurrent(); await openPluginView(pluginId, itemId, guard); await guardCurrent() },
-        getState: async (itemId) => { await guardCurrent(); return getPluginViewState(pluginId, itemId) },
+        getState: async (itemId) => { await guardCurrent(); return authorizedViewState(getPluginViewState(pluginId, itemId)) },
         onDidChange: listener => {
           guard()
-          const disposable = onPluginViewChange(pluginId, async state => { await guardCurrent(); return listener(state) })
+          const disposable = onPluginViewChange(pluginId, async state => { await guardCurrent(); return listener(await authorizedViewState(state)) })
           disposables.push(disposable)
           return disposable
         },
@@ -1833,6 +1921,8 @@ export async function invokePluginCapability(
     case 'chat.setDraft': return context.chat.setDraft(record as unknown as Parameters<PluginContext['chat']['setDraft']>[0])
     case 'workspace.getCurrent':
       return context.workspace.getCurrent()
+    case 'permissions.query':
+      return context.permissions.query(requireString(record.permission, 'permission') as PluginPermissionName, typeof record.path === 'string' ? record.path : undefined)
     case 'calendar.resolveDay':
       return context.calendar.resolveDay({
         timeZone: requireString(record.timeZone, 'timeZone'),
@@ -1868,6 +1958,15 @@ export async function invokePluginCapability(
       })
     case 'notes.search':
       return context.notes.search({ query: requireString(record.query, 'query'), folder: typeof record.folder === 'string' ? record.folder : undefined, caseSensitive: record.caseSensitive === true, limit: typeof record.limit === 'number' ? record.limit : undefined })
+    case 'notes.searchRelated':
+      if (record.excludePaths !== undefined && (!Array.isArray(record.excludePaths) || record.excludePaths.some(path => typeof path !== 'string'))) {
+        throw new PluginError('InvalidPath', 'Expected excluded note paths')
+      }
+      return context.notes.searchRelated({
+        query: requireString(record.query, 'query'), folder: typeof record.folder === 'string' ? record.folder : undefined,
+        limit: typeof record.limit === 'number' ? record.limit : undefined,
+        excludePaths: record.excludePaths as string[] | undefined,
+      })
     case 'notes.prepareForWrite':
       return context.notes.prepareForWrite({ path: requireString(record.path, 'path') })
     case 'notes.write':
@@ -1891,6 +1990,8 @@ export async function invokePluginCapability(
       return context.editor.getActiveEditor()
     case 'editor.getSelection':
       return context.editor.getSelection()
+    case 'editor.getTarget':
+      return context.editor.getTarget(requireString(record.token, 'token'))
     case 'editor.getTextSnapshot':
       return context.editor.getTextSnapshot({
         editorId: requireString(record.editorId, 'editorId'),

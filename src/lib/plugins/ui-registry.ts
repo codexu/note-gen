@@ -63,10 +63,13 @@ export function dismissPluginDialog(id: string, reason: PluginDialogCloseEvent['
 interface PluginUiState {
   hostRevision: number
   embeddedContexts: Record<string, string>
+  embeddedTargets: Record<string, PluginViewState['target']>
   views: Record<string, PluginUiDocument>
   hiddenTitleBarViews: string[]
   setTitleBarVisible: (key: string, visible: boolean) => void
   activeRightView: string | null
+  activeChatMessageKey: string | null
+  setActiveChatMessageKey: (key: string | null) => void
   focusRequest: { key: string; sequence: number } | null
   prompt: { id: string; pluginId: string; options: PluginPromptOptions } | null
   dialog: PluginDialogState | null
@@ -146,11 +149,6 @@ const legacyBlockSchema = z.discriminatedUnion('type', [
 function parseBlocks(value: unknown, depth = 0): PluginUiBlock[] {
   if (depth > 6 || !Array.isArray(value) || value.length > 50) throw new PluginError('InvalidPath', 'Invalid UI nesting or block count')
   return value.map(block => {
-    // Keep the host parser compatible with the currently published 0.1.9 SDK
-    // until the embedded-view block reaches the public package.
-    if (block && typeof block === 'object' && !Array.isArray(block) && (block as { type?: unknown }).type === 'embedded-view') {
-      return z.object({ type: z.literal('embedded-view'), id: z.string().min(1).max(160) }).strict().parse(block) as unknown as PluginUiBlock
-    }
     return parsePluginUiExtension(block, children => parseBlocks(children, depth + 1)) ?? legacyBlockSchema.parse(block)
   })
 }
@@ -238,10 +236,13 @@ function serializedUi(value: unknown): string {
 export const usePluginUiStore = create<PluginUiState>((set) => ({
   hostRevision: 0,
   embeddedContexts: {},
+  embeddedTargets: {},
   views: {},
   hiddenTitleBarViews: [],
   setTitleBarVisible: (key, visible) => set(state => ({ hiddenTitleBarViews: visible ? state.hiddenTitleBarViews.filter(item => item !== key) : [...new Set([...state.hiddenTitleBarViews, key])] })),
   activeRightView: null,
+  activeChatMessageKey: null,
+  setActiveChatMessageKey: (activeChatMessageKey) => set({ activeChatMessageKey }),
   focusRequest: null,
   dialog: null,
   prompt: null,
@@ -251,6 +252,8 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
   setDialog: (dialog) => set({ dialog }),
   clearPlugin: (pluginId) => set((state) => ({
     hiddenTitleBarViews: state.hiddenTitleBarViews.filter(key => !key.startsWith(`${pluginId}:`)),
+    embeddedContexts: Object.fromEntries(Object.entries(state.embeddedContexts).filter(([key]) => !key.startsWith(`${pluginId}:`))),
+    embeddedTargets: Object.fromEntries(Object.entries(state.embeddedTargets).filter(([key]) => !key.startsWith(`${pluginId}:`))),
     views: Object.fromEntries(Object.entries(state.views).filter(([key]) => !key.startsWith(`${pluginId}:`))),
     activeRightView: state.activeRightView?.startsWith(`${pluginId}:`) ? null : state.activeRightView,
     focusRequest: state.focusRequest?.key.startsWith(`${pluginId}:`) ? null : state.focusRequest,
@@ -289,16 +292,17 @@ function validateDocumentCommands(pluginId: string, content: PluginUiDocument): 
   }
 }
 
-export const embeddedViewLocations = ['new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel'] as const
+export const embeddedViewLocations = ['new-tab', 'document-top', 'document-bottom', 'file-panel', 'file-selection-panel', 'editor-toolbar', 'chat-input', 'chat-message-actions', 'record-list', 'record-detail', 'status-bar-panel', 'editor/selection-panel', 'editor-inline'] as const
 export function isEmbeddedViewLocation(location: string): boolean {
   return embeddedViewLocations.some(item => item === location)
 }
 
 /** The mounted surface owns its token; old cleanup cannot erase a newer surface. */
-export function mountEmbeddedView(key: string, contextId: string): () => void {
+export function mountEmbeddedView(key: string, contextId: string, target?: PluginViewState['target']): () => void {
   clearPluginForms(key)
   usePluginUiStore.setState(state => ({
     embeddedContexts: { ...state.embeddedContexts, [key]: contextId },
+    embeddedTargets: { ...state.embeddedTargets, [key]: target },
     views: Object.fromEntries(Object.entries(state.views).filter(([id]) => id !== key)),
   }))
   return () => {
@@ -306,6 +310,7 @@ export function mountEmbeddedView(key: string, contextId: string): () => void {
     clearPluginForms(key)
     usePluginUiStore.setState(state => ({
       embeddedContexts: Object.fromEntries(Object.entries(state.embeddedContexts).filter(([id]) => id !== key)),
+      embeddedTargets: Object.fromEntries(Object.entries(state.embeddedTargets).filter(([id]) => id !== key)),
       views: Object.fromEntries(Object.entries(state.views).filter(([id]) => id !== key)),
     }))
   }
@@ -461,7 +466,7 @@ export function getPluginViewState(pluginId: string, viewId: string): PluginView
     : view.location === 'left-sidebar' ? sidebar.leftSidebarVisible && sidebar.leftSidebarTab === key
       : view.location === 'right-sidebar' ? sidebar.rightSidebarVisible && state.activeRightView === key
         : false
-  return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location), ...(isEmbeddedViewLocation(view.location) && state.embeddedContexts[key] ? { contextId: state.embeddedContexts[key] } : {}) }
+  return { id: viewId, location: view.location, visible: visible && isPluginDisplayVisible(usePluginStore.getState().deviceSettings, pluginId, view.location), ...(isEmbeddedViewLocation(view.location) && state.embeddedContexts[key] ? { contextId: state.embeddedContexts[key], ...(state.embeddedTargets[key] ? { target: state.embeddedTargets[key] } : {}) } : {}) }
 }
 
 export function onPluginViewChange(pluginId: string, listener: (state: PluginViewState) => void | Promise<void>): PluginDisposable {

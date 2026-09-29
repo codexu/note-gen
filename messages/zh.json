@@ -894,6 +894,7 @@
           "write": "创建和修改应用记录"
         },
         "chat": {
+          "read": "读取对话消息信息",
           "write": "填写聊天草稿"
         }
       },
@@ -1015,6 +1016,10 @@
           "editor/toolbar": "编辑器工具栏",
           "editor/slash": "斜杠命令菜单",
           "editor/selection": "选中文本菜单",
+          "editor/node-actions": "编辑器节点操作",
+          "editor/block-actions": "编辑器块操作",
+          "editor/selection-panel": "选区面板",
+          "editor-inline": "编辑器光标旁",
           "mobile/writing/overflow": "移动端更多菜单",
           "title-bar-left": "顶部左侧",
           "title-bar-center": "顶部中间",
@@ -1023,9 +1028,12 @@
           "document-top": "文档顶部",
           "document-bottom": "文档底部",
           "file-panel": "文件栏面板",
+          "file-selection-panel": "选中文件面板",
           "editor-toolbar": "编辑器工具栏组件",
           "chat-input": "聊天输入区",
+          "chat-message-actions": "聊天消息操作",
           "record-list": "记录列表面板",
+          "record-detail": "记录详情",
           "status-bar-panel": "状态栏面板",
           "status-bar": "状态栏"
         }

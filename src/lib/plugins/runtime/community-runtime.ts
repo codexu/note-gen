@@ -51,6 +51,7 @@ const MAX_NOTICES_PER_TEN_SECONDS = 5
 const MAX_BRIDGE_PAYLOAD_BYTES = 2 * 1_048_576 + 128 * 1_024
 const EDITOR_WINDOW_UNAVAILABLE_RPC_METHODS: ReadonlySet<PluginRpcMethod> = new Set<PluginRpcMethod>([
   'ui.prompt', 'ai.generate', 'ai.cancel',
+  'notes.searchRelated',
   'records.list', 'records.read', 'records.tags', 'records.create', 'records.update', 'chat.setDraft',
   'ui.statusBar.update',
   'ui.views.update',

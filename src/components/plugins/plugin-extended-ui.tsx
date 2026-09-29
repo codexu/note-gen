@@ -32,7 +32,7 @@ function Markdown({ text }: { text: string }) {
 }
 
 export function PluginExtendedUi({ block, scope, render, compact = false }: {
-  block: PluginExtendedUiBlock; scope: string; compact?: boolean; render: (blocks: readonly PluginUiBlock[]) => ReactNode
+  block: Exclude<PluginExtendedUiBlock, { type: 'embedded-view' }>; scope: string; compact?: boolean; render: (blocks: readonly PluginUiBlock[]) => ReactNode
 }) {
   const settingsLayout = usePluginSettingsLayout()
   const [selectedTab, setSelectedTab] = useState('')

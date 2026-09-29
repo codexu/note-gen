@@ -42,6 +42,7 @@ import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseModelChangeMarker } from './model-selection'
+import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-views'
 
 interface DisplayedConversationCompaction {
   revision: number
@@ -290,6 +291,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
           <div className='text-sm leading-6 wrap-break-word text-primary-foreground'>
             {children}
           </div>
+          <div onClick={event => event.stopPropagation()}><PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} /></div>
           {shouldShowDelete && (
             <Button
               onClick={(event) => {
@@ -313,6 +315,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
     <div className="flex w-full min-w-0">
       <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden'>
         {children}
+        <PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} />
       </div>
     </div>
   )

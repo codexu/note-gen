@@ -56,6 +56,7 @@ import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { FloatingTableMenu } from './floating-table-menu'
+import { PluginEditorInlineViews } from '@/components/plugins/plugin-embedded-views'
 import { FooterBar } from './footer-bar/index'
 import { Outline } from './outline'
 import { SlashCommand, suggestionOptions } from './slash-command'
@@ -7921,6 +7922,7 @@ export function TipTapEditor({
             {editorDragHandleElement ? createPortal(
               <BlockHandleControls
                 editor={editor}
+                pluginsEnabled={exposeToPluginHost}
                 getActiveType={() => getEditorBlockActiveType(
                   editorBlockMenuTargetRef.current ?? editorDragHandleTargetRef.current,
                 )}
@@ -7970,14 +7972,15 @@ export function TipTapEditor({
             <EditorContent editor={editor} className={cn("relative select-text", scrollable && "h-full")}>
               <SmartFileLink editor={editor} activeFilePath={activeFilePath} />
 
-              {!isMobile && <ImageBubbleMenu editor={editor} />}
+              {!isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
 
               <AISuggestionFloating
                 editor={editor}
                 onPendingChange={handleAiSuggestionPendingChange}
               />
 
-              {!isMobile && <FloatingTableMenu editor={editor} />}
+              {!isMobile && <FloatingTableMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
+              {!isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
 
               {!isMobile && (
                 <BubbleMenuComponent

@@ -33,9 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 
 interface FloatingTableMenuProps {
   editor: Editor
+  pluginsEnabled?: boolean
 }
 
 interface FloatingPosition {
@@ -82,7 +84,7 @@ function TableMenuTrigger({
   )
 }
 
-export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
+export function FloatingTableMenu({ editor, pluginsEnabled = false }: FloatingTableMenuProps) {
   const t = useTranslations('settings.shortcuts.editorShortcuts.commands')
   const [show, setShow] = useState(false)
   const [position, setPosition] = useState<FloatingPosition>({ top: 0, left: 0 })
@@ -234,6 +236,7 @@ export function FloatingTableMenu({ editor }: FloatingTableMenuProps) {
     >
       <TooltipProvider delayDuration={300}>
       <ButtonGroup className="rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
+        {pluginsEnabled ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'table' }} /> : null}
         <DropdownMenu>
           <TableMenuTrigger label={rowMenuLabel}>
             <Rows3 />

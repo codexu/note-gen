@@ -2984,6 +2984,7 @@
           "write": "建立和修改應用程式記錄"
         },
         "chat": {
+          "read": "讀取對話訊息資訊",
           "write": "填寫聊天草稿"
         }
       },
@@ -3105,6 +3106,10 @@
           "editor/toolbar": "編輯器工具列",
           "editor/slash": "斜線命令選單",
           "editor/selection": "選取文字選單",
+          "editor/node-actions": "編輯器節點操作",
+          "editor/block-actions": "編輯器區塊操作",
+          "editor/selection-panel": "選取範圍面板",
+          "editor-inline": "編輯器游標旁",
           "mobile/writing/overflow": "行動版更多選單",
           "title-bar-left": "頂部左側",
           "title-bar-center": "頂部中間",
@@ -3113,9 +3118,12 @@
           "document-top": "文件頂部",
           "document-bottom": "文件底部",
           "file-panel": "檔案欄面板",
+          "file-selection-panel": "已選檔案面板",
           "editor-toolbar": "編輯器工具列元件",
           "chat-input": "聊天輸入區",
+          "chat-message-actions": "聊天訊息操作",
           "record-list": "記錄列表面板",
+          "record-detail": "記錄詳情",
           "status-bar-panel": "狀態列面板",
           "status-bar": "狀態列"
         }

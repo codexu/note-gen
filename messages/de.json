@@ -894,6 +894,7 @@
           "write": "Anwendungsaufzeichnungen erstellen und ändern"
         },
         "chat": {
+          "read": "Metadaten von Chatnachrichten lesen",
           "write": "Chatentwurf ausfüllen"
         }
       },
@@ -1015,6 +1016,10 @@
           "editor/toolbar": "Editor-Symbolleiste",
           "editor/slash": "Slash-Befehlsmenü",
           "editor/selection": "Textauswahlmenü",
+          "editor/node-actions": "Editor-Knotenaktionen",
+          "editor/block-actions": "Editor-Blockaktionen",
+          "editor/selection-panel": "Auswahlbereich",
+          "editor-inline": "Am Editor-Cursor",
           "mobile/writing/overflow": "Mobiles Mehr-Menü",
           "title-bar-left": "Titelleiste links",
           "title-bar-center": "Titelleiste Mitte",
@@ -1023,9 +1028,12 @@
           "document-top": "Dokumentanfang",
           "document-bottom": "Dokumentende",
           "file-panel": "Dateibereich",
+          "file-selection-panel": "Bereich für ausgewählte Dateien",
           "editor-toolbar": "Editor-Werkzeugleistenkomponenten",
           "chat-input": "Chat-Eingabe",
+          "chat-message-actions": "Chatnachrichten-Aktionen",
           "record-list": "Aufzeichnungslisten-Panels",
+          "record-detail": "Aufzeichnungsdetails",
           "status-bar-panel": "Statusleisten-Panels",
           "status-bar": "Statusleiste"
         }

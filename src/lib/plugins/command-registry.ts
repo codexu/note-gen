@@ -143,6 +143,7 @@ async function runPluginCommand(
   commandId: string,
   argument?: PluginCommandArgument,
   userInvoked = false,
+  isCurrent?: () => boolean,
 ): Promise<PluginCommandResult> {
   const contribution = commands.get(commandId)
   if (!contribution) throw new PluginError('NotFound', `Unknown command: ${commandId}`)
@@ -158,6 +159,7 @@ async function runPluginCommand(
   if (!registered) {
     throw new PluginError('RuntimeFailure', `Plugin did not register ${commandId}`)
   }
+  if (isCurrent && !isCurrent()) throw new PluginError('StaleRevision', 'The menu target changed before the command started')
   const handler = registered.handler
   if (userInvoked) return withPluginUserAction(contribution.pluginId, async () => handler(argument))
   return handler(argument)
@@ -195,7 +197,7 @@ export function subscribePluginCommands(listener: () => void): () => void {
 }
 
 /** Called only by host UI actions, never by plugin RPC or automatic form-change handlers. */
-export async function executePluginUserCommand(commandId: string, argument?: PluginCommandArgument): Promise<PluginCommandResult> {
+export async function executePluginUserCommand(commandId: string, argument?: PluginCommandArgument, isCurrent?: () => boolean): Promise<PluginCommandResult> {
   // Activation finishes before the user-action scope starts.
-  return runPluginCommand(commandId, argument, true)
+  return runPluginCommand(commandId, argument, true, isCurrent)
 }

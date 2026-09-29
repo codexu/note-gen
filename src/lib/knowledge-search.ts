@@ -21,6 +21,8 @@ export interface KnowledgeSearchOptions {
   folderPath?: string
   tagId?: number
   limit?: number
+  /** Applied before any indexed content is searched, for authorized callers. */
+  sourceFilter?: (source: KnowledgeSource) => boolean
 }
 
 interface ChunkCandidate {
@@ -154,8 +156,10 @@ export async function searchKnowledge(
     .filter(source => (
       isKnowledgeSourceEnabled(source, settings)
       && matchesScope(source, options)
+      && (!options.sourceFilter || options.sourceFilter(source))
       && (!dateRange || (source.updatedAt >= dateRange.start && source.updatedAt < dateRange.end))
     ))
+  if (sources.length === 0) return []
   const sourceByKey = new Map(sources.map(source => [source.sourceKey, source]))
   const lexicalKeys = new Set(sources.map(source => source.sourceKey))
   const readyVectorKeys = new Set(sources
@@ -169,7 +173,7 @@ export async function searchKnowledge(
     if (!current || candidate.score > current.score) candidates.set(key, candidate)
   }
 
-  if (options.mode !== 'keyword') {
+  if (options.mode !== 'keyword' && readyVectorKeys.size > 0) {
     try {
       const queryEmbedding = await fetchEmbedding(normalizedQuery)
       if (queryEmbedding) {

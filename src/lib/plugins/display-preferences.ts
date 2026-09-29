@@ -2,10 +2,10 @@ import type { InstalledPlugin, PluginSettingValue } from './types'
 
 export const pluginDisplayLocations = [
   'left-sidebar', 'right-sidebar', 'editor-tab',
-  'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel',
+  'new-tab', 'document-top', 'document-bottom', 'file-panel', 'file-selection-panel', 'editor-toolbar', 'chat-input', 'chat-message-actions', 'record-list', 'record-detail', 'status-bar-panel', 'editor/selection-panel', 'editor-inline',
   'title-bar-left', 'title-bar-center', 'title-bar-right', 'file/context',
   'editor/context', 'tab/context', 'editor/toolbar', 'editor/slash',
-  'editor/selection', 'mobile/writing/overflow', 'status-bar',
+  'editor/selection', 'editor/node-actions', 'editor/block-actions', 'mobile/writing/overflow', 'status-bar',
 ] as const
 export type PluginDisplayLocation = typeof pluginDisplayLocations[number]
 type DeviceSettings = Record<string, Record<string, PluginSettingValue>>

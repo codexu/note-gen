@@ -126,6 +126,8 @@ const menuSchema = z.object({
     'editor/context',
     'editor/selection',
     'editor/toolbar',
+    'editor/node-actions',
+    'editor/block-actions',
     'tab/context',
     'file/context',
     'mobile/writing/overflow',
@@ -141,7 +143,7 @@ const menuSchema = z.object({
 const viewSchema = z.object({
   id: namespacedIdSchema,
   title: localizedTextSchema,
-  location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab', 'settings', 'title-bar-left', 'title-bar-center', 'title-bar-right', 'new-tab', 'document-top', 'document-bottom', 'file-panel', 'editor-toolbar', 'chat-input', 'record-list', 'status-bar-panel']),
+  location: z.enum(['left-sidebar', 'right-sidebar', 'editor-tab', 'settings', 'title-bar-left', 'title-bar-center', 'title-bar-right', 'new-tab', 'document-top', 'document-bottom', 'file-panel', 'file-selection-panel', 'editor-toolbar', 'chat-input', 'chat-message-actions', 'record-list', 'record-detail', 'status-bar-panel', 'editor/selection-panel', 'editor-inline']),
   icon: z.string().min(1).max(80).optional(),
   order: z.number().int().min(-10000).max(10000).optional(),
 }).strict()
@@ -166,6 +168,7 @@ const manifestSchema = z.object({
   permissions: z.object({
     'records.read': permissionDeclarationSchema.optional(),
     'records.write': permissionDeclarationSchema.optional(),
+    'chat.read': permissionDeclarationSchema.optional(),
     'chat.write': permissionDeclarationSchema.optional(),
     'ai.generate': permissionDeclarationSchema.optional(),
     'clipboard.write': permissionDeclarationSchema.optional(),
@@ -301,6 +304,7 @@ function validatePermissionScopes(manifest: PluginManifestV1): void {
   const allowedScopes: Record<PluginPermissionName | 'terminal.open', readonly string[]> = {
     'records.read': ['application'],
     'records.write': ['application'],
+    'chat.read': ['application'],
     'chat.write': ['application'],
     'ai.generate': ['application'],
     'clipboard.write': ['application'],

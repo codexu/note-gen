@@ -129,7 +129,7 @@ export function splitPluginPaths(value: string): string[] {
 }
 
 export const permissionOrder: PluginPermissionName[] = [
-  'records.read', 'records.write', 'chat.write', 'ai.generate',
+  'records.read', 'records.write', 'chat.read', 'chat.write', 'ai.generate',
   'clipboard.write', 'files.export', 'editor.style', 'terminal.open' as PluginPermissionName,
   'editor.read',
   'editor.write',

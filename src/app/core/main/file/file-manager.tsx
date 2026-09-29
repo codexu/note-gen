@@ -222,6 +222,14 @@ export function FileManager({
     () => getFileSelectionEntries(fileTree, selectedFilePaths),
     [fileTree, selectedFilePaths]
   )
+  const pluginSelectionTarget = useMemo(() => ({
+    kind: 'file-selection' as const,
+    entries: selectedEntries.map(entry => ({
+      path: entry.path,
+      name: entry.name,
+      kind: entry.isDirectory ? 'folder' as const : 'file' as const,
+    })),
+  }), [selectedEntries])
   const selectedPathSet = useMemo(
     () => new Set(selectedFilePaths),
     [selectedFilePaths]
@@ -1053,6 +1061,7 @@ export function FileManager({
     >
       <div className="flex h-full min-h-full min-w-0 flex-col p-0">
         <PluginEmbeddedViews location="file-panel" />
+        <PluginEmbeddedViews location="file-selection-panel" active={selectedEntries.length > 0} contextKey={selectedFilePaths.join('\u0000')} target={pluginSelectionTarget} />
         {isDragging && dragItemCount > 0 ? (
           <Badge variant="outline" className="pointer-events-none absolute right-2 top-12">
             {t('context.dropTarget', { name: t('mobile.root'), count: dragItemCount })}

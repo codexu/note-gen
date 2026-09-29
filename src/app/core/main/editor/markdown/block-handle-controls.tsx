@@ -17,6 +17,7 @@ import {
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
+import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +63,7 @@ function isEditorBlockConversionType(value: string): value is EditorBlockConvers
 
 interface BlockHandleControlsProps {
   editor: Editor
+  pluginsEnabled?: boolean
   getActiveType: () => EditorBlockConversionType | null
   canConvert: () => boolean
   canMoveUp: () => boolean
@@ -80,6 +82,7 @@ interface BlockHandleControlsProps {
 
 export function BlockHandleControls({
   editor,
+  pluginsEnabled = false,
   getActiveType,
   canConvert,
   canMoveUp,
@@ -177,6 +180,7 @@ export function BlockHandleControls({
             }
           }}
         >
+          {pluginsEnabled ? <PluginEditorToolbar editor={editor} location="editor/block-actions" target={{ nodeKind: activeType?.startsWith('heading') ? 'heading' : activeType?.endsWith('List') ? 'list' : 'paragraph' }} /> : null}
           <DropdownMenuGroup>
             <DropdownMenuItem onSelect={() => runMenuAction(onCopyContent)}>
               <ClipboardCopy />

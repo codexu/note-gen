@@ -3009,6 +3009,7 @@
           "write": "Criar e modificar registros do aplicativo"
         },
         "chat": {
+          "read": "Ler informações das mensagens da conversa",
           "write": "Preencher o rascunho do chat"
         }
       },
@@ -3130,6 +3131,10 @@
           "editor/toolbar": "Barra de ferramentas do editor",
           "editor/slash": "Menu de comandos com barra",
           "editor/selection": "Menu de seleção de texto",
+          "editor/node-actions": "Ações de nós do editor",
+          "editor/block-actions": "Ações de blocos do editor",
+          "editor/selection-panel": "Painel de seleção",
+          "editor-inline": "Ao lado do cursor do editor",
           "mobile/writing/overflow": "Menu de mais opções no celular",
           "title-bar-left": "Barra de título à esquerda",
           "title-bar-center": "Barra de título ao centro",
@@ -3138,9 +3143,12 @@
           "document-top": "Topo do documento",
           "document-bottom": "Final do documento",
           "file-panel": "Painel de arquivos",
+          "file-selection-panel": "Painel de arquivos selecionados",
           "editor-toolbar": "Componentes da barra do editor",
           "chat-input": "Entrada do chat",
+          "chat-message-actions": "Ações da mensagem do chat",
           "record-list": "Painéis da lista de registros",
+          "record-detail": "Detalhes do registro",
           "status-bar-panel": "Painéis da barra de status",
           "status-bar": "Barra de status"
         }

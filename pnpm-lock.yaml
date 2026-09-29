@@ -63,8 +63,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@notegen/plugin-api':
-        specifier: 0.1.10
-        version: 0.1.10
+        specifier: 0.1.11
+        version: 0.1.11
       '@octokit/core':
         specifier: ^6.1.2
         version: 6.1.6
@@ -1367,8 +1367,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@notegen/plugin-api@0.1.10':
-    resolution: {integrity: sha512-S01Q9cKzyr4GDYaBRNA/spmBKPwcJrsj3K0XURLMrl6rGkIcE6uwLY6lOzSl3PhqPOmgDhf+5H+a69F6mq8GtQ==}
+  '@notegen/plugin-api@0.1.11':
+    resolution: {integrity: sha512-9Pw1C3++IoeVrV7jnwyMj26Tyu6KsgS5ifn3MZ+Yg1ykoN/f3Ge9sF+FN9u13FF8csG5oskkyBNmpLMygJplng==}
     engines: {node: '>=20'}
 
   '@octokit/auth-token@5.1.2':
@@ -7946,7 +7946,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@notegen/plugin-api@0.1.10':
+  '@notegen/plugin-api@0.1.11':
     dependencies:
       yaml: 2.8.0
 

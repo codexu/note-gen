@@ -2984,6 +2984,7 @@
           "write": "アプリの記録を作成・変更する"
         },
         "chat": {
+          "read": "チャットメッセージの情報を読み取る",
           "write": "チャットの下書きを入力する"
         }
       },
@@ -3105,6 +3106,10 @@
           "editor/toolbar": "エディターのツールバー",
           "editor/slash": "スラッシュコマンドメニュー",
           "editor/selection": "選択テキストのメニュー",
+          "editor/node-actions": "エディターノードの操作",
+          "editor/block-actions": "エディターブロックの操作",
+          "editor/selection-panel": "選択範囲パネル",
+          "editor-inline": "エディターのカーソル付近",
           "mobile/writing/overflow": "モバイルのその他メニュー",
           "title-bar-left": "タイトルバー左",
           "title-bar-center": "タイトルバー中央",
@@ -3113,9 +3118,12 @@
           "document-top": "文書上部",
           "document-bottom": "文書下部",
           "file-panel": "ファイルパネル",
+          "file-selection-panel": "選択ファイルパネル",
           "editor-toolbar": "エディターツールバーのコンポーネント",
           "chat-input": "チャット入力欄",
+          "chat-message-actions": "チャットメッセージの操作",
           "record-list": "記録一覧のパネル",
+          "record-detail": "記録の詳細",
           "status-bar-panel": "ステータスバーのパネル",
           "status-bar": "ステータスバー"
         }

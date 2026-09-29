@@ -474,6 +474,7 @@ const context = Object.freeze({
     error: message => globalThis.__notegenLog('error', String(message).slice(0, 1000)),
   }),
   signal,
+  permissions: Object.freeze({ query: (permission, path) => rpc('permissions.query', { permission, path }) }),
   commands: Object.freeze({
     executeHost: (command) => rpc('commands.executeHost', { command }),
     handle(commandId, handler) {
@@ -520,6 +521,7 @@ const context = Object.freeze({
     openOrCreate: (options) => rpc('notes.openOrCreate', options),
     list: (options) => rpc('notes.list', options),
     search: (options) => rpc('notes.search', options),
+    searchRelated: (options) => rpc('notes.searchRelated', options),
     prepareForWrite: (options) => rpc('notes.prepareForWrite', options),
     write: (options) => rpc('notes.write', options),
     move: (options) => rpc('notes.move', options),
@@ -535,6 +537,7 @@ const context = Object.freeze({
     clearStyles: () => rpc('editor.clearStyles'),
     getActiveEditor: () => rpc('editor.getActiveEditor'),
     getSelection: () => rpc('editor.getSelection'),
+    getTarget: (token) => rpc('editor.getTarget', { token }),
     getTextSnapshot: (options) => rpc('editor.getTextSnapshot', options),
     applyEdit: (options) => rpc('editor.applyEdit', options),
     applyEdits: (options) => rpc('editor.applyEdits', options),
@@ -769,7 +772,7 @@ async function initialize(message: Extract<PluginHostToWorkerMessage, { type: 'i
       id: message.manifest.id,
       version: message.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: message.surface === 'editor-window' ? ['document-rendering', 'clipboard-write', 'file-export', 'editor-styles'] : ['embedded-views', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal'],
+      capabilities: message.surface === 'editor-window' ? ['document-rendering', 'clipboard-write', 'file-export', 'editor-styles'] : ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'],
     },
     commands: (message.manifest.contributes.commands ?? []).map((command) => command.id),
     statusItems: (message.manifest.contributes.statusBar ?? []).map((item) => item.id),

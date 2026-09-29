@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { PhotoView } from "react-photo-view"
 import { useTranslations } from "next-intl"
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { delMark, delMarkForever, restoreMark, type Mark } from "@/db/marks"
 import { LocalImage } from "@/components/local-image"
 import { PhotoPreviewProvider } from "@/components/photo-preview-provider"
@@ -1010,10 +1011,12 @@ function MarkDetailBody({ mark, isActive }: { mark: Mark; isActive: boolean }) {
 }
 
 function MarkDetailView({ mark, onClose, isActive }: { mark: Mark; onClose: () => void; isActive: boolean }) {
+  const pluginRecordTarget = useMemo(() => ({ kind: 'record' as const, id: mark.id, recordType: mark.type }), [mark.id, mark.type])
   return (
     <PhotoPreviewProvider>
       <div className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden bg-background">
         <MarkDetailToolbar mark={mark} onClose={onClose} />
+        <PluginEmbeddedViews location="record-detail" active={isActive && mark.deleted !== 1} contextKey={String(mark.id)} target={pluginRecordTarget} compact />
         <div className="app-panel-scrollbar min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="min-w-full max-w-full overflow-hidden">
             <MarkDetailBody key={mark.id} mark={mark} isActive={isActive} />

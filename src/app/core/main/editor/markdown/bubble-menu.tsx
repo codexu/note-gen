@@ -1,6 +1,7 @@
 'use client'
 
 import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { Editor } from '@tiptap/react'
 import {
   Bold,
@@ -41,6 +42,8 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from '@/components/ui/input-group'
+
+const EDITOR_SELECTION_TARGET = { kind: 'editor-selection' } as const
 
 const POPULAR_LANGUAGES = [
   { name: 'English', code: 'English', i18nKey: 'languages.English' },
@@ -152,6 +155,8 @@ export function BubbleMenu({
   const linkTextInputId = useId()
   const linkUrlInputId = useId()
   const [show, setShow] = useState(false)
+  const [selectionRevision, setSelectionRevision] = useState(0)
+  const selectionSnapshot = useRef<{ doc: Editor['state']['doc']; from: number; to: number } | null>(null)
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const [showAISubmenu, setShowAISubmenu] = useState(false)
   const [showTranslateSubmenu, setShowTranslateSubmenu] = useState(false)
@@ -528,6 +533,15 @@ export function BubbleMenu({
 
   useEffect(() => {
     const updateHandler = () => updatePosition()
+    const transactionHandler = () => {
+      const { doc, selection } = editor.state
+      const previous = selectionSnapshot.current
+      if (!previous || previous.doc !== doc || previous.from !== selection.from || previous.to !== selection.to) {
+        selectionSnapshot.current = { doc, from: selection.from, to: selection.to }
+        setSelectionRevision(value => value + 1)
+      }
+      updatePosition()
+    }
 
     if (hasTextSelection(editor)) {
       updatePosition()
@@ -536,17 +550,18 @@ export function BubbleMenu({
     }
 
     editor.on('selectionUpdate', updateHandler)
-    editor.on('transaction', updatePosition)
+    editor.on('transaction', transactionHandler)
 
     return () => {
       editor.off('selectionUpdate', updateHandler)
-      editor.off('transaction', updatePosition)
+      editor.off('transaction', transactionHandler)
     }
   }, [editor, hideMenu, updatePosition])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
+      if (event.target instanceof Element && event.target.closest('[data-plugin-selection-popover]')) return
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         hideMenu()
         setIsInteractingWithMenu(false)
@@ -813,6 +828,10 @@ export function BubbleMenu({
         <ToolbarSeparator />
 
         {pluginsEnabled ? <PluginEditorToolbar editor={editor} location="editor/selection" owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && editor.isActive('link') ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'link' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && editor.isActive('codeBlock') ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'codeBlock' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && (editor.isActive('inlineMath') || editor.isActive('blockMath')) ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'math' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled ? <PluginEmbeddedViews location="editor/selection-panel" contextKey={String(selectionRevision)} target={EDITOR_SELECTION_TARGET} compact /> : null}
         {/* 文本格式化 */}
         <div className="flex gap-0.5">
           <ToolbarButton active={isActive('bold')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold /></ToolbarButton>

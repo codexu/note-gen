@@ -7,9 +7,11 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 
 interface ImageBubbleMenuProps {
   editor: Editor
+  pluginsEnabled?: boolean
 }
 
 interface ImageInfo {
@@ -40,7 +42,7 @@ function parseDimensionInput(value: string): number | null {
   return value.trim() ? parseImageDimension(value) : null
 }
 
-export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
+export function ImageBubbleMenu({ editor, pluginsEnabled = false }: ImageBubbleMenuProps) {
   const t = useTranslations('editor.image')
   const [imageInfo, setImageInfo] = useState<ImageInfo | null>(null)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
@@ -224,6 +226,7 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="text-sm font-medium">{t('settings')}</div>
+        {pluginsEnabled && imageInfo ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'image', nodePosition: imageInfo.pos }} /> : null}
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t('cancel')} onClick={closeMenu}>
           <X />
         </Button>

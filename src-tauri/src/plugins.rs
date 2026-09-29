@@ -29,7 +29,7 @@ use url::Url;
 use uuid::Uuid;
 use zip::{CompressionMethod, ZipArchive};
 
-const PLUGIN_API_VERSION: &str = "0.1.8";
+const PLUGIN_API_VERSION: &str = "0.1.9";
 const PLUGIN_STATE_SCHEMA_VERSION: u32 = 1;
 const MARKET_SCHEMA_VERSION: u32 = 1;
 const INTEGRITY_SCHEMA_VERSION: u32 = 1;
@@ -607,6 +607,8 @@ pub struct PluginNoteEntry {
     pub path: String,
     pub name: String,
     pub size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<u64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1608,7 +1610,7 @@ fn validate_public_metadata_url(raw: &str, field: &str) -> PluginResult<()> {
 fn validate_permissions(manifest: &PluginManifestV1) -> PluginResult<()> {
     for (permission, declaration) in &manifest.permissions {
         let valid = match permission.as_str() {
-            "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open" => declaration.scope == "application",
+            "records.read" | "records.write" | "chat.read" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open" => declaration.scope == "application",
             "editor.read" | "editor.write" => declaration.scope == "active-editor",
             "notes.read" | "attachments.read" => matches!(
                 declaration.scope.as_str(),
@@ -1751,7 +1753,7 @@ fn validate_contributions(manifest: &PluginManifestV1) -> PluginResult<()> {
     for menu in &manifest.contributes.menus {
         if !matches!(
             menu.location.as_str(),
-            "editor/slash" | "editor/context" | "editor/selection" | "editor/toolbar" | "tab/context" | "file/context" | "mobile/writing/overflow"
+            "editor/slash" | "editor/context" | "editor/selection" | "editor/toolbar" | "editor/node-actions" | "editor/block-actions" | "tab/context" | "file/context" | "mobile/writing/overflow"
         ) || !command_ids.contains(&menu.command)
         {
             return Err(plugin_error(
@@ -1791,7 +1793,7 @@ fn validate_contributions(manifest: &PluginManifestV1) -> PluginResult<()> {
             ));
         }
         validate_localized_text(&view.title, "contributes.views.title", 240)?;
-        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab" | "settings" | "title-bar-left" | "title-bar-center" | "title-bar-right" | "new-tab" | "document-top" | "document-bottom" | "file-panel" | "editor-toolbar" | "chat-input" | "record-list" | "status-bar-panel") {
+        if !matches!(view.location.as_str(), "left-sidebar" | "right-sidebar" | "editor-tab" | "settings" | "title-bar-left" | "title-bar-center" | "title-bar-right" | "new-tab" | "document-top" | "document-bottom" | "file-panel" | "file-selection-panel" | "editor-toolbar" | "chat-input" | "chat-message-actions" | "record-list" | "record-detail" | "status-bar-panel" | "editor/selection-panel" | "editor-inline") {
             return Err(plugin_error("InvalidManifest", "Plugin view location is unsupported"));
         }
         if view.icon.as_ref().is_some_and(|icon| {
@@ -1917,7 +1919,7 @@ fn is_supported_menu_condition(condition: &str) -> bool {
         let key = key.trim();
         let value = value.trim();
         if boolean_key(key) { return matches!(value, "true" | "false"); }
-        matches!(key, "editor" | "resourceKind" | "resourceExt") && !value.is_empty()
+        matches!(key, "editor" | "resourceKind" | "resourceExt" | "nodeKind") && !value.is_empty()
             && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b'-'))
     }))
 }
@@ -3406,7 +3408,7 @@ fn validate_market_permissions(permissions: &[String]) -> PluginResult<()> {
         if !matches!(
             permission.as_str(),
             "editor.read" | "editor.write" | "notes.read" | "notes.create" | "notes.open"
-                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open"
+                | "notes.list" | "notes.write" | "notes.delete" | "notes.move" | "network.fetch" | "attachments.read" | "attachments.create" | "records.read" | "records.write" | "chat.read" | "chat.write" | "ai.generate" | "clipboard.write" | "files.export" | "editor.style" | "terminal.open"
         ) || !unique.insert(permission)
         {
             return Err(plugin_error(
@@ -6561,6 +6563,10 @@ fn collect_workspace_notes(
             name: child_name,
             path: relative,
             size: metadata.len(),
+            modified_at: metadata.modified().ok()
+                .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+                .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+                .filter(|value| *value <= MAX_JAVASCRIPT_INTEGER),
         });
     }
     Ok(false)

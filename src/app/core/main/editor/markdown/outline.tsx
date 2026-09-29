@@ -722,13 +722,14 @@ export function Outline({
   }, [])
 
   const startHeadingEdit = useCallback((id: string) => {
+    if (!editor.isEditable) return
     const heading = headingsRef.current.find((item) => item.id === id)
     if (!heading) return
 
     setActiveHeadingId(id)
     setEditingHeadingId(id)
     setEditingHeadingText(heading.rawText)
-  }, [])
+  }, [editor])
 
   const cancelHeadingEdit = useCallback(() => {
     setEditingHeadingId(null)
@@ -736,6 +737,7 @@ export function Outline({
   }, [])
 
   const commitHeadingEdit = useCallback((id: string) => {
+    if (!editor.isEditable) return
     const heading = headingsRef.current.find((item) => item.id === id)
     if (!heading) {
       cancelHeadingEdit()

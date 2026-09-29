@@ -21,6 +21,7 @@ interface SearchAndReplaceStorage {
 
 interface SearchReplacePanelProps {
   editor: Editor
+  readOnly?: boolean
   open: boolean
   focusRequest: number
   onOpenChange: (open: boolean) => void
@@ -124,6 +125,7 @@ function prevResult(editor: Editor) {
 }
 
 function replaceCurrent(editor: Editor) {
+  if (!editor.isEditable) return
   try {
     const storage = getSearchAndReplaceStorage(editor)
     if (storage && storage.results.length > 0 && storage.replaceTerm) {
@@ -140,6 +142,7 @@ function replaceCurrent(editor: Editor) {
 }
 
 function replaceAll(editor: Editor) {
+  if (!editor.isEditable) return
   try {
     const storage = getSearchAndReplaceStorage(editor)
     if (storage && storage.results.length > 0 && storage.replaceTerm) {
@@ -174,7 +177,7 @@ function clearSearch(editor: Editor) {
   }
 }
 
-export function SearchReplacePanel({ editor, open, focusRequest, onOpenChange }: SearchReplacePanelProps) {
+export function SearchReplacePanel({ editor, readOnly = false, open, focusRequest, onOpenChange }: SearchReplacePanelProps) {
   const [searchText, setSearchText] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const [caseSensitive, setCaseSensitive] = useState(false)
@@ -412,6 +415,7 @@ export function SearchReplacePanel({ editor, open, focusRequest, onOpenChange }:
           <Replace className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="替换为..."
+            disabled={readOnly}
             value={replaceText}
             onChange={(e) => handleReplaceChange(e.target.value)}
             onKeyDown={(e) => {
@@ -430,7 +434,7 @@ export function SearchReplacePanel({ editor, open, focusRequest, onOpenChange }:
           variant="outline"
           size="sm"
           onClick={handleReplace}
-          disabled={resultCount === 0}
+          disabled={readOnly || resultCount === 0}
           title="替换当前 (Enter)"
         >
           <Replace className="w-3 h-3 mr-1" />
@@ -440,7 +444,7 @@ export function SearchReplacePanel({ editor, open, focusRequest, onOpenChange }:
           variant="outline"
           size="sm"
           onClick={handleReplaceAll}
-          disabled={resultCount === 0}
+          disabled={readOnly || resultCount === 0}
           title="替换全部 (Shift+Enter)"
         >
           <ReplaceAll className="w-3 h-3 mr-1" />

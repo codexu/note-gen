@@ -336,6 +336,11 @@ export function SourceMarkdownEditor({
         doc: value,
         selection: { anchor: initialSelectionFrom, head: initialSelectionTo },
         extensions: [
+          EditorState.transactionFilter.of(transaction => (
+            transaction.docChanged
+            && transaction.startState.facet(EditorState.readOnly)
+            && !isApplyingExternalValueRef.current
+          ) ? [] : transaction),
           highlightSpecialChars(),
           history(),
           drawSelection(),
@@ -394,17 +399,19 @@ export function SourceMarkdownEditor({
       view.scrollDOM.scrollTop = initialScrollTop
     })
     const getUndoRedoState = () => ({
-      undo: undoDepth(view.state) > 0,
-      redo: redoDepth(view.state) > 0,
+      undo: !view.state.facet(EditorState.readOnly) && undoDepth(view.state) > 0,
+      redo: !view.state.facet(EditorState.readOnly) && redoDepth(view.state) > 0,
     })
     onControllerChangeRef.current?.({
       isFocused: () => view.hasFocus,
       undo: () => {
+        if (view.state.facet(EditorState.readOnly)) return false
         const didUndo = undo(view)
         if (didUndo) view.focus()
         return didUndo
       },
       redo: () => {
+        if (view.state.facet(EditorState.readOnly)) return false
         const didRedo = redo(view)
         if (didRedo) view.focus()
         return didRedo
@@ -426,6 +433,7 @@ export function SourceMarkdownEditor({
         return true
       },
       replaceValue: (nextValue, nextSelection) => {
+        if (view.state.facet(EditorState.readOnly)) throw new PluginError('EditorBusy', 'The source editor is read-only')
         const selectionFrom = Math.max(
           0,
           Math.min(nextSelection?.from ?? view.state.selection.main.from, nextValue.length)

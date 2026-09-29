@@ -1,5 +1,7 @@
 'use client'
 
+import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
+
 import { useEditor, EditorContent, type Editor as TipTapReactEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -1885,6 +1887,7 @@ interface TipTapEditorProps {
   onContentDirty?: () => void
   placeholder?: string
   editable?: boolean
+  readOnly?: boolean
   activeFilePath?: string
   standalone?: boolean
   onReady?: () => void
@@ -1969,6 +1972,7 @@ function getMarkdownLineAtPosition(markdown: string, position: number): number {
 }
 
 function getEditorUndoRedoState(editor: CoreEditor): { undo: boolean; redo: boolean } {
+  if (!editor.isEditable) return { undo: false, redo: false }
   return {
     undo: undoDepth(editor.state) > 0,
     redo: redoDepth(editor.state) > 0,
@@ -2007,7 +2011,8 @@ export function TipTapEditor({
   onChange,
   onContentDirty,
   placeholder,
-  editable = true,
+  editable: editingAllowed = true,
+  readOnly: inheritedReadOnly = false,
   activeFilePath = '',
   standalone = false,
   onReady,
@@ -2046,6 +2051,16 @@ export function TipTapEditor({
   const setEditorViewState = useArticleStore((state) => state.setEditorViewState)
   const getEditorViewState = useArticleStore((state) => state.getEditorViewState)
   const isSectionScope = documentScope === 'section'
+  // This is an editor-session reading preference, not a filesystem permission.
+  const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const fileReadOnly = useEditorReadingStore(state => Boolean(
+    state.readOnlyFiles[readingKey(readingWorkspacePath, activeFilePath)],
+  ))
+  const readOnly = inheritedReadOnly || fileReadOnly
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
+  const editable = editingAllowed && !readOnly
+  const applyingReadOnlySnapshotRef = useRef(false)
   const documentMarkdownRef = useRef(documentMarkdown)
   documentMarkdownRef.current = documentMarkdown
   const blockingActivityTokensRef = useRef(new Set<symbol>())
@@ -2125,7 +2140,9 @@ export function TipTapEditor({
   }, [isSectionScope])
 
   const aiSuggestionActivityEndRef = useRef<(() => void) | null>(null)
+  const [hasPendingSuggestion, setHasPendingSuggestion] = useState(false)
   const handleAiSuggestionPendingChange = useCallback((pending: boolean) => {
+    setHasPendingSuggestion(pending)
     if (pending) {
       if (!aiSuggestionActivityEndRef.current) {
         aiSuggestionActivityEndRef.current = beginBlockingActivity(false)
@@ -2705,6 +2722,17 @@ export function TipTapEditor({
           class: 'max-w-full rounded-lg',
         },
       }),
+      Extension.create({
+        name: 'readingMode',
+        addProseMirrorPlugins() {
+          return [new Plugin({
+            // setEditable alone does not stop toolbar/node-view transactions.
+            filterTransaction: transaction => !transaction.docChanged
+              || !readOnlyRef.current
+              || applyingReadOnlySnapshotRef.current,
+          })]
+        },
+      }),
       // 自定义粘贴 Markdown 扩展
       PasteMarkdown,
       BlurSelectionHighlight,
@@ -2775,6 +2803,7 @@ export function TipTapEditor({
     content: string,
     options: { emitUpdate?: boolean; resetHistory?: boolean } = {}
   ): boolean => {
+    applyingReadOnlySnapshotRef.current = true
     try {
       if (options.resetHistory) {
         setEditorContentWithoutUndo(targetEditor, content)
@@ -2795,6 +2824,8 @@ export function TipTapEditor({
       setMarkdownParseError(message)
       setHasUnparsedSourceChanges(true)
       return false
+    } finally {
+      applyingReadOnlySnapshotRef.current = false
     }
   }, [])
 
@@ -2818,6 +2849,7 @@ export function TipTapEditor({
   classifyCanonicalMarkdownRef.current = classifyCanonicalMarkdown
 
   const handleSourceMarkdownChange = useCallback((value: string) => {
+    if (readOnlyRef.current) return
     const normalizedValue = stripUnsupportedMarkdownControlCharacters(value)
     markEditorPathMutation(activeFilePathRef.current)
     selfHostedCollaborationRef.current?.markLocalActivity()
@@ -2830,6 +2862,7 @@ export function TipTapEditor({
   }, [])
 
   const handleSectionedMarkdownChange = useCallback((value: string) => {
+    if (readOnlyRef.current) return
     const normalizedValue = stripUnsupportedMarkdownControlCharacters(value)
     if (sourceMarkdownRef.current === normalizedValue) return
     selfHostedCollaborationRef.current?.markLocalActivity()
@@ -3102,6 +3135,41 @@ export function TipTapEditor({
     sectionedEditorControllerRef.current?.prepareToDeactivate() ?? true
   ), [])
 
+  useEffect(() => {
+    if (isSectionScope || !activeFilePath) return
+    const handleReadingMode = (event: Events['editor-reading-mode']) => {
+      if (event.path !== activeFilePath || event.workspacePath !== readingWorkspacePath) return
+      if (event.phase === 'prepare') {
+        if (event.readOnly && (!editingAllowed || hasPendingSuggestion || editor?.view.composing
+          || activeSectionEditor?.view.composing || sourceEditorControllerRef.current?.isComposing()
+          || !prepareExternalMarkdownAction())) {
+          event.resolve(false)
+          return
+        }
+        try {
+          // Preserve pending serialization before any instance becomes read-only.
+          getCurrentMarkdownSnapshot()
+          event.resolve(true)
+        } catch {
+          event.resolve(false)
+        }
+        return
+      }
+      readOnlyRef.current = event.readOnly
+      editor?.setEditable(editingAllowed && !event.readOnly, false)
+      activeSectionEditor?.setEditable(editingAllowed && !event.readOnly, false)
+      if (event.readOnly) {
+        editor?.commands.blur()
+        activeSectionEditor?.commands.blur()
+        setMobileSheetMode(null)
+        setMathDialogOpen(false)
+      }
+    }
+    emitter.on('editor-reading-mode', handleReadingMode)
+    return () => emitter.off('editor-reading-mode', handleReadingMode)
+  }, [activeFilePath, activeSectionEditor, editingAllowed, editor, getCurrentMarkdownSnapshot,
+    hasPendingSuggestion, isSectionScope, prepareExternalMarkdownAction, readingWorkspacePath])
+
   const handleActiveSectionEditorChange = useCallback((nextEditor: TipTapReactEditor | null) => {
     setActiveSectionEditor(nextEditor)
     if (!nextEditor || !activeFilePath || !isSectionVirtualView) return
@@ -3251,7 +3319,7 @@ export function TipTapEditor({
 
   const handleSourceUndoRedoChange = useCallback((state: { undo: boolean; redo: boolean }) => {
     if (!isActive) return
-    emitter.emit('editor-undo-redo-changed', state)
+    emitter.emit('editor-undo-redo-changed', readOnlyRef.current ? { undo: false, redo: false } : state)
   }, [isActive])
 
   const handleSourceViewStateChange = useCallback((state: SourceMarkdownEditorViewState) => {
@@ -6184,8 +6252,18 @@ export function TipTapEditor({
 
   // Set editable state
   useEffect(() => {
-    editor?.setEditable(editable)
-  }, [editable, editor])
+    editor?.setEditable(editable, false)
+    if (!isActive || isSectionScope) return
+    const historyEditor = activeSectionEditor ?? editor
+    const historyState = !editable
+      ? { undo: false, redo: false }
+      : isSourceView
+        ? sourceEditorControllerRef.current?.getUndoRedoState() ?? { undo: false, redo: false }
+        : historyEditor
+          ? getEditorUndoRedoState(historyEditor)
+          : { undo: false, redo: false }
+    emitter.emit('editor-undo-redo-changed', historyState)
+  }, [activeSectionEditor, editable, editor, isActive, isSectionScope, isSourceView])
 
   // Handle AI continue writing
   useEffect(() => {
@@ -6896,6 +6974,10 @@ export function TipTapEditor({
         resolve({ success: false, insertedLength: 0 })
         return
       }
+      if (readOnlyRef.current) {
+        resolve({ success: false, insertedLength: 0 })
+        return
+      }
       if (isSectionVirtualView && sectionedEditorControllerRef.current?.isBusy()) {
         resolve({ success: false, insertedLength: 0 })
         return
@@ -6903,6 +6985,7 @@ export function TipTapEditor({
 
       if (isSectionVirtualView && typeof position !== 'number') {
         runDeferredEditorCommand(() => {
+          if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
             throw new Error('The editor revision changed before the edit')
           }
@@ -6995,6 +7078,7 @@ export function TipTapEditor({
         // Insert content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         runDeferredEditorCommand(() => {
+          if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
             throw new Error('The editor revision changed before the edit')
           }
@@ -7053,6 +7137,10 @@ export function TipTapEditor({
         resolve({ success: false, insertedLength: 0, error: 'Editor not initialized' })
         return
       }
+      if (readOnlyRef.current) {
+        resolve({ success: false, insertedLength: 0 })
+        return
+      }
       if (isSectionVirtualView && sectionedEditorControllerRef.current?.isBusy()) {
         resolve({ success: false, insertedLength: 0, error: 'Editor is completing another operation' })
         return
@@ -7075,6 +7163,7 @@ export function TipTapEditor({
       )
       if (isSectionVirtualView && content !== undefined && !hasExplicitCanonicalTarget) {
         runDeferredEditorCommand(() => {
+          if (readOnlyRef.current) throw new Error('Editor is read-only')
           flushSectionedMarkdown()
           const activeEditor = sectionedEditorControllerRef.current?.getActiveEditor()
           if (!activeEditor || activeEditor.isDestroyed) {
@@ -7286,6 +7375,7 @@ export function TipTapEditor({
         // Delete old content and insert new content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         runDeferredEditorCommand(() => {
+          if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (replacementMode === 'line' && startLine !== undefined && endLine !== undefined) {
             const currentMarkdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
             const updatedMarkdown = replaceLinesInRange(
@@ -7385,6 +7475,7 @@ export function TipTapEditor({
 
     // Handle undo/redo from TabBar buttons
     const handleUndo = () => {
+      if (readOnlyRef.current) return
       if (isSourceView) {
         sourceEditorControllerRef.current?.undo()
         return
@@ -7399,6 +7490,7 @@ export function TipTapEditor({
     }
 
     const handleRedo = () => {
+      if (readOnlyRef.current) return
       if (isSourceView) {
         sourceEditorControllerRef.current?.redo()
         return
@@ -7482,6 +7574,10 @@ export function TipTapEditor({
 
     // Handle query for undo/redo capability
     const handleCanUndoRedo = ({ resolve }: { resolve: (can: { undo: boolean; redo: boolean }) => void }) => {
+      if (readOnlyRef.current) {
+        resolve({ undo: false, redo: false })
+        return
+      }
       if (isSourceView) {
         resolve(sourceEditorControllerRef.current?.getUndoRedoState() ?? { undo: false, redo: false })
         return
@@ -7516,6 +7612,7 @@ export function TipTapEditor({
         getRevision: () => contentVersionRef.current,
         isComposing: () => isSourceView ? sourceEditorControllerRef.current?.isComposing() ?? true : !isSectionVirtualView && editor.view.composing,
         applyMarkdownEdits: edits => {
+          if (readOnlyRef.current) throw new Error('Editor is read-only')
           const controller = sourceEditorControllerRef.current
           if (!isSourceView || !controller) throw new Error('The source editor is not ready')
           controller.applyEdits(edits)
@@ -7709,7 +7806,7 @@ export function TipTapEditor({
           <span className="text-xs text-muted-foreground">{selfHostedCollaborators.length}</span>
         </div>
       ) : null}
-      {isMobile && effectiveViewMode === 'visual' && !isSectionVirtualView && (
+      {!readOnly && isMobile && effectiveViewMode === 'visual' && !isSectionVirtualView && (
         <MobileEditorContextBar
           mode={mobileContext?.mode ?? 'text'}
           previewText={mobileContext?.mode === 'text' ? mobileContext.previewText : undefined}
@@ -7898,7 +7995,8 @@ export function TipTapEditor({
                 onChange={onSectionChange}
                 onContentDirty={onDirty}
                 placeholder={placeholderText}
-                editable={editable}
+                editable={editingAllowed}
+                readOnly={readOnly}
                 activeFilePath={activeFilePath}
                 onEditorReady={onSectionEditorReady}
                 onBlockingActivityChange={onSectionBlockingActivityChange}
@@ -7919,7 +8017,7 @@ export function TipTapEditor({
           />
         ) : (
           <>
-            {editorDragHandleElement ? createPortal(
+            {!readOnly && editorDragHandleElement ? createPortal(
               <BlockHandleControls
                 editor={editor}
                 pluginsEnabled={exposeToPluginHost}
@@ -7972,17 +8070,17 @@ export function TipTapEditor({
             <EditorContent editor={editor} className={cn("relative select-text", scrollable && "h-full")}>
               <SmartFileLink editor={editor} activeFilePath={activeFilePath} />
 
-              {!isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
+              {!readOnly && !isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
 
-              <AISuggestionFloating
+              {!readOnly && <AISuggestionFloating
                 editor={editor}
                 onPendingChange={handleAiSuggestionPendingChange}
-              />
+              />}
 
-              {!isMobile && <FloatingTableMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
-              {!isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
+              {!readOnly && !isMobile && <FloatingTableMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
+              {!readOnly && !isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
 
-              {!isMobile && (
+              {!readOnly && !isMobile && (
                 <BubbleMenuComponent
                   pluginsEnabled={exposeToPluginHost}
                   editor={editor}
@@ -8000,6 +8098,7 @@ export function TipTapEditor({
 
             <SearchReplacePanel
               editor={editor}
+              readOnly={readOnly}
               open={searchReplaceOpen}
               focusRequest={searchFocusRequest}
               onOpenChange={setSearchReplaceOpen}
@@ -8031,14 +8130,14 @@ export function TipTapEditor({
         </Button>
       )}
 
-      {isMobile && effectiveViewMode === 'visual' && !isSectionVirtualView && showMobileEditorToolbar && !mobileContext && (
+      {!readOnly && isMobile && effectiveViewMode === 'visual' && !isSectionVirtualView && showMobileEditorToolbar && !mobileContext && (
         <MobileWritingToolbar
           activeActions={mobileWritingActiveActions}
           onAction={runMobileWritingAction}
         />
       )}
 
-      {isMobile && (
+      {!readOnly && isMobile && (
         <MobileEditorMoreSheet
           editor={editor}
           pluginsEnabled={exposeToPluginHost}
@@ -8095,6 +8194,7 @@ export function TipTapEditor({
         <MainStatusBarPortal active={isActive} inline={isMobile || standalone}>
           <FooterBar
             editor={activeSectionEditor ?? editor}
+            readOnly={readOnly}
             outlineOpen={isSectionVirtualView ? false : effectiveOutlineOpen}
             onToggleOutline={isSectionVirtualView ? undefined : handleOutlineToggle}
             viewMode={effectiveViewMode}
@@ -8112,7 +8212,7 @@ export function TipTapEditor({
         </MainStatusBarPortal>
       ) : null}
 
-      {!isSectionVirtualView ? <SlashCommandPortal /> : null}
+      {!readOnly && !isSectionVirtualView ? <SlashCommandPortal /> : null}
 
       {mathDialogOpen ? (
         <MathEditorDialog

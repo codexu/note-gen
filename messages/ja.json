@@ -5275,6 +5275,15 @@
     "description": "記録ツールを選択して、素早く記録を作成"
   },
   "editor": {
+    "readingMode": {
+      "busy": "エディターが処理中です。しばらくしてから再試行してください。",
+      "search": "ノートを検索",
+      "label": "ノートを読み取り専用にする",
+      "readOnly": "読み取り専用",
+      "editing": "編集中",
+      "enable": "読み取り専用で開く",
+      "disable": "編集を許可する"
+    },
     "developerPerformance": {
       "documentSize": "文書サイズ",
       "mode": "文書モード",

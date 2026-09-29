@@ -1,3 +1,4 @@
+import { useEditorReadingStore } from '@/stores/editor-reading'
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { isMobileDevice } from '@/lib/check'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/enhanced-context-menu";
@@ -6,7 +7,7 @@ import { Kbd } from "@/components/ui/kbd";
 import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
-import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
+import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { platform } from '@tauri-apps/plugin-os';
@@ -165,6 +166,17 @@ export function FileItem({
 
   const path = computedParentPath(item)
 
+  const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const tReading = useTranslations('editor.readingMode')
+  const canSetReadOnly = /\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template)$/i.test(item.name)
+  const setFileReadOnly = (value: boolean): boolean => {
+    if (!useEditorReadingStore.getState().setReadOnly(readingWorkspacePath, path, value)) {
+      toast({ title: tReading('busy'), variant: 'destructive' })
+      return false
+    }
+    return true
+  }
+
   // 向量状态更新回调
   const handleVectorUpdated = useCallback(() => {
     checkFileVectorIndexed(path)
@@ -262,7 +274,7 @@ export function FileItem({
     setName(e.currentTarget.value)
   }, [])
 
-  async function handleSelectFile() {
+  async function handleSelectFile(readOnly = false) {
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
     const currentPath = computedParentPath(item)
@@ -283,6 +295,8 @@ export function FileItem({
         setEntryLoading(currentPath, false)
       }
     }
+
+    if (canSetReadOnly && !setFileReadOnly(readOnly)) return
 
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
       // 图片文件：设置 activeFilePath，让 EditorLayout 显示图片编辑器
@@ -945,6 +959,12 @@ export function FileItem({
                 />
                 {isMobile && (
                   <MobileActionMenu className="ml-1">
+                    {canSetReadOnly ? (
+                      <MobileMenuItem onClick={() => void handleSelectFile(true)}>
+                        <FileLock className="mr-2 size-4" />
+                        {tReading('enable')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem onClick={handleShowFileManager}>
                       {t('context.viewDirectory')}
                     </MobileMenuItem>
@@ -997,6 +1017,12 @@ export function FileItem({
                 />
                 {isMobile && (
                   <MobileActionMenu className="ml-1">
+                    {canSetReadOnly ? (
+                      <MobileMenuItem onClick={() => void handleSelectFile(true)}>
+                        <FileLock className="mr-2 size-4" />
+                        {tReading('enable')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem onClick={handleShowFileManager}>
                       {t('context.viewDirectory')}
                     </MobileMenuItem>
@@ -1046,6 +1072,12 @@ export function FileItem({
                 <ExternalLink className="mr-2 h-4 w-4" />
                 {tTabs('openInNewWindow')}
               </ContextMenuItem>
+              {canSetReadOnly ? (
+                <ContextMenuItem inset onClick={() => void handleSelectFile(true)} menuType="file">
+                  <FileLock className="mr-2 size-4" />
+                  {tReading('enable')}
+                </ContextMenuItem>
+              ) : null}
               <ContextMenuItem inset onClick={handleShowFileManager} menuType="file">
                 <FolderOpen className="mr-2 h-4 w-4" />
                 {t('context.viewDirectory')}

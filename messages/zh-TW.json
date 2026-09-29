@@ -5265,6 +5265,15 @@
     }
   },
   "editor": {
+    "readingMode": {
+      "busy": "編輯器正在處理操作，請稍後重試",
+      "search": "搜尋筆記",
+      "label": "目前筆記唯讀",
+      "readOnly": "唯讀",
+      "editing": "編輯",
+      "enable": "唯讀開啟",
+      "disable": "取消唯讀"
+    },
     "developerPerformance": {
       "documentSize": "文件大小",
       "mode": "文件模式",

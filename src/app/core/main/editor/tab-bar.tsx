@@ -1,8 +1,10 @@
 'use client'
 
+import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
+
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, FilePlus2, FileText, Folder, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
+import { ExternalLink, FileLock, FilePlus2, FileText, Folder, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
@@ -106,6 +108,9 @@ function SortableTabWithMenu({
     data: { type: 'editor-tab', groupId, tabId: tab.id },
   })
   const t = useTranslations('tabContext')
+  const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const readOnly = useEditorReadingStore(state => Boolean(state.readOnlyFiles[readingKey(readingWorkspacePath, tab.path)]))
+  const tReading = useTranslations('editor.readingMode')
   const recordTypeT = useTranslations('record.mark.type')
   const locale = useLocale()
   const currentIndex = tabs.findIndex(item => item.id === tab.id)
@@ -139,7 +144,7 @@ function SortableTabWithMenu({
             'group relative flex h-12 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 px-3 text-sm transition-colors',
             isActive ? 'bg-muted/40 font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
-          title={tab.preview ? `${t('previewTab')}: ${baseTitle}` : baseTitle}
+          title={`${tab.preview ? `${t('previewTab')}: ` : ''}${baseTitle}${readOnly ? ` (${tReading('readOnly')})` : ''}`}
           onClick={() => onTabSwitch(tab.id)}
           onAuxClick={event => {
             if (event.button !== 1 || !canClose) return
@@ -163,6 +168,8 @@ function SortableTabWithMenu({
             <Palette className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           ) : tab.isFolder ? (
             <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
+          ) : readOnly ? (
+            <FileLock className={cn('size-4 shrink-0', isActive && 'text-primary')} aria-label={tReading('readOnly')} />
           ) : (
             <PluginFileIcon path={tab.path} fallback={<FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />} />
           )}
@@ -191,6 +198,15 @@ function SortableTabWithMenu({
           <ContextMenuItem onClick={() => onRestartPluginTab(tab.id)}><RotateCw />{t('restartPluginTab', { name: displayName })}</ContextMenuItem>
         </ContextMenuGroup><ContextMenuSeparator /></>}
         <ContextMenuGroup>
+          {readOnly && (
+            <ContextMenuItem onClick={() => {
+              if (!useEditorReadingStore.getState().setReadOnly(readingWorkspacePath, tab.path, false)) {
+                toast.error(tReading('busy'))
+              }
+            }}>
+              <LockKeyholeOpen />{tReading('disable')}
+            </ContextMenuItem>
+          )}
           <ContextMenuItem
             disabled={tab.kind === 'blank'}
             onClick={() => tab.pinned ? onUnpinTab(tab.id) : onPinTab(tab.id)}

@@ -5366,6 +5366,15 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "readingMode": {
+      "busy": "编辑器正在处理操作，请稍后重试",
+      "search": "搜索笔记",
+      "label": "当前笔记只读",
+      "readOnly": "只读",
+      "editing": "编辑",
+      "enable": "只读打开",
+      "disable": "取消只读"
+    },
     "developerPerformance": {
       "documentSize": "文档大小",
       "mode": "文档模式",

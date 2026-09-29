@@ -5255,6 +5255,15 @@
     }
   },
   "editor": {
+    "readingMode": {
+      "busy": "O editor está ocupado. Tente novamente em instantes.",
+      "search": "Pesquisar nota",
+      "label": "Nota somente leitura",
+      "readOnly": "Somente leitura",
+      "editing": "Editando",
+      "enable": "Abrir somente leitura",
+      "disable": "Permitir edição"
+    },
     "developerPerformance": {
       "documentSize": "Tamanho do documento",
       "mode": "Modo do documento",

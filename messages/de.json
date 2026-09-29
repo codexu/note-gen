@@ -5224,6 +5224,15 @@
     "description": "Klicken, um ein Aufnahme-Tool auszuwählen und schnell Aufzeichnungen zu erstellen"
   },
   "editor": {
+    "readingMode": {
+      "busy": "Der Editor ist beschäftigt. Bitte versuche es gleich erneut.",
+      "search": "Notiz durchsuchen",
+      "label": "Notiz schreibgeschützt",
+      "readOnly": "Nur lesen",
+      "editing": "Bearbeiten",
+      "enable": "Schreibgeschützt öffnen",
+      "disable": "Bearbeiten erlauben"
+    },
     "developerPerformance": {
       "documentSize": "Dokumentgröße",
       "mode": "Dokumentmodus",

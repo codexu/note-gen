@@ -5366,6 +5366,15 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "readingMode": {
+      "busy": "The editor is busy. Please try again shortly.",
+      "search": "Search note",
+      "label": "Read-only note",
+      "readOnly": "Read only",
+      "editing": "Editing",
+      "enable": "Open read-only",
+      "disable": "Allow editing"
+    },
     "developerPerformance": {
       "documentSize": "Document size",
       "mode": "Document mode",

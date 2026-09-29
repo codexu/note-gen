@@ -2,7 +2,7 @@
 
 import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 import { Editor } from '@tiptap/react'
-import { Code2, Eye } from 'lucide-react'
+import { Code2, Eye, Search } from 'lucide-react'
 import { CopyButton } from './copy-button'
 import { ExportButton } from './export-button'
 import { SyncTools } from '../sync/sync-tools'
@@ -19,9 +19,11 @@ import { PluginStatusBarItems } from '@/components/plugins/plugin-status-bar-ite
 import { usePluginStore } from '@/stores/plugins'
 import { WordCount } from './word-count'
 import { StatusBarItem } from '@/app/core/main/status-bar-order'
+import emitter from '@/lib/emitter'
 
 interface FooterBarProps {
   editor: Editor
+  readOnly?: boolean
   outlineOpen?: boolean
   onToggleOutline?: () => void
   viewMode?: 'visual' | 'source'
@@ -35,6 +37,7 @@ interface FooterBarProps {
 
 export function FooterBar({
   editor,
+  readOnly = false,
   outlineOpen,
   onToggleOutline,
   viewMode = 'visual',
@@ -52,13 +55,17 @@ export function FooterBar({
     ([key, item]) => key.startsWith('top.notegen.editor-statistics:') && item.visible && Boolean(item.text || item.compactText),
   ))
   const tSourceMode = useTranslations('settings.editor.sourceMode')
+  const tReading = useTranslations('editor.readingMode')
+  const prepareWriteAction = () => !readOnly && (prepareExternalAction?.() ?? true)
   if (isMobile) {
     return (
       <div className="mobile-editor-footer flex h-7 select-none items-center justify-between gap-3 border-t border-border bg-background px-3 text-xs text-muted-foreground">
-        <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
-          {showEditorStats ? <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /> : null}
-        </div>
-        <div className="shrink-0 flex items-center gap-2">
+        {!readOnly ? (
+          <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
+            {showEditorStats ? <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /> : null}
+          </div>
+        ) : null}
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           {onToggleViewMode ? (
             <Button
               type="button"
@@ -72,15 +79,33 @@ export function FooterBar({
               <span>{tSourceMode(viewMode)}</span>
             </Button>
           ) : null}
-          {primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local' ? (
+          {readOnly ? (
             <>
-              <HistorySheet editor={editor} prepareExternalAction={prepareExternalAction} onMarkdownChange={onMarkdownChange} />
-              <SyncButton getMarkdown={getMarkdown} prepareExternalAction={prepareExternalAction} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={tReading('search')}
+                title={tReading('search')}
+                onClick={() => emitter.emit('editor-search-trigger')}
+              >
+                <Search />
+              </Button>
+              <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />
+              {onToggleOutline ? (
+                <OutlineToggle editor={editor} outlineOpen={outlineOpen} onToggleOutline={onToggleOutline} />
+              ) : null}
+            </>
+          ) : null}
+          {!readOnly && primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local' ? (
+            <>
+              <HistorySheet editor={editor} prepareExternalAction={prepareWriteAction} onMarkdownChange={onMarkdownChange} />
+              <SyncButton getMarkdown={getMarkdown} prepareExternalAction={prepareWriteAction} />
               <PullButton
                 editor={editor}
                 markdown={sourceMarkdown}
                 getMarkdown={getMarkdown}
-                prepareExternalAction={prepareExternalAction}
+                prepareExternalAction={prepareWriteAction}
                 onMarkdownChange={onMarkdownChange}
               />
             </>
@@ -98,7 +123,7 @@ export function FooterBar({
       {/* Left side: Plugin contributions, Copy, Export, Outline */}
       <div className={embedded ? 'contents' : 'flex items-center gap-1'}>
         {!embedded ? <PluginStatusBarItems alignment="left" /> : null}
-        {!embedded && viewMode === 'visual' ? <PluginEditorToolbar editor={editor} location="editor/toolbar" /> : null}
+        {!readOnly && !embedded && viewMode === 'visual' ? <PluginEditorToolbar editor={editor} location="editor/toolbar" /> : null}
         {onToggleViewMode ? (embedded ? <StatusBarItem id="editor:view-mode" rank={20}>
           <Button
             type="button"
@@ -139,14 +164,14 @@ export function FooterBar({
       <div className={embedded ? 'contents' : 'flex min-w-0 items-center gap-1'}>
         {showEditorStats && !pluginStatisticsVisible ? (embedded ? <StatusBarItem id="editor:word-count" rank={60}><WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /></StatusBarItem> : <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact />) : null}
         {!embedded ? <PluginStatusBarItems alignment="right" /> : null}
-        <SyncTools
+        {!readOnly && <SyncTools
           embedded={embedded}
           editor={editor}
           markdown={sourceMarkdown}
           getMarkdown={getMarkdown}
-          prepareExternalAction={prepareExternalAction}
+          prepareExternalAction={prepareWriteAction}
           onMarkdownChange={onMarkdownChange}
-        />
+        />}
       </div>
     </div>
   )

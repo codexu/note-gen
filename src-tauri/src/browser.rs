@@ -85,7 +85,7 @@ const BROWSER_SCROLLBAR_SCRIPT: &str = r#"
 "#;
 
 // WKWebView does not consistently send target="_blank" link clicks through
-// its new-window delegate. Route those user clicks through navigation instead.
+// its new-window delegate. Route those user clicks through frame navigation.
 #[cfg(target_os = "macos")]
 const BROWSER_NEW_TAB_SCRIPT: &str = r#"
 document.addEventListener('click', event => {
@@ -106,6 +106,27 @@ document.addEventListener('click', event => {
   signal.src = `notegen-open://tab/?url=${encodeURIComponent(destination.href)}`;
   document.documentElement.appendChild(signal);
   setTimeout(() => signal.remove(), 1000);
+}, true);
+"#;
+
+// WebView2's navigation handler observes top-level navigation, not iframe
+// navigation. Use a reserved HTTPS destination and cancel it in Rust.
+#[cfg(target_os = "windows")]
+const BROWSER_NEW_TAB_SCRIPT_WINDOWS: &str = r#"
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0) return;
+  const link = event.target instanceof Element ? event.target.closest('a[href][target="_blank"]') : null;
+  if (!link) return;
+  let destination;
+  try {
+    destination = new URL(link.href, document.baseURI);
+  } catch {
+    return;
+  }
+  if (destination.protocol !== 'http:' && destination.protocol !== 'https:') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  window.location.assign(`https://notegen-browser.invalid/open?url=${encodeURIComponent(destination.href)}`);
 }, true);
 "#;
 
@@ -263,6 +284,8 @@ pub async fn browser_create(
         .initialization_script(BROWSER_SCROLLBAR_SCRIPT);
     #[cfg(target_os = "macos")]
     let builder = builder.initialization_script(BROWSER_NEW_TAB_SCRIPT);
+    #[cfg(target_os = "windows")]
+    let builder = builder.initialization_script(BROWSER_NEW_TAB_SCRIPT_WINDOWS);
     let builder = builder
         .on_new_window(move |target, _features| {
             if parse_web_url(target.as_str()).is_ok() {
@@ -274,6 +297,17 @@ pub async fn browser_create(
             NewWindowResponse::Deny
         })
         .on_navigation(move |target| {
+            if target.scheme() == "https" && target.host_str() == Some("notegen-browser.invalid") && target.path() == "/open" {
+                if let Some((_, destination)) = target.query_pairs().find(|(key, _)| key == "url") {
+                    if parse_web_url(&destination).is_ok() {
+                        let _ = navigation_app.emit_to("main", "browser:new-window", BrowserNewWindow {
+                            source_tab_id: navigation_tab_id.clone(),
+                            url: destination.into_owned(),
+                        });
+                    }
+                }
+                return false;
+            }
             if target.scheme() == "notegen-open" && target.host_str() == Some("tab") {
                 if let Some((_, destination)) = target.query_pairs().find(|(key, _)| key == "url") {
                     if parse_web_url(&destination).is_ok() {

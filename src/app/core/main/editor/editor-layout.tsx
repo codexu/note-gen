@@ -23,6 +23,7 @@ import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/lib/utils'
+import { checkIsTauri } from '@/lib/check'
 import emitter, { type Events } from '@/lib/emitter'
 import useArticleStore, { findFolderInTree, type DirTree } from '@/stores/article'
 import useMarkStore from '@/stores/mark'
@@ -124,6 +125,7 @@ type PendingEditorNavigation = {
   activeTabId: string
   activeFilePath: string
 }
+type BrowserNewWindow = { sourceTabId: string; url: string }
 const CanvasEditor = dynamic(
   () => import('../canvas/canvas-editor').then(module => module.CanvasEditor),
   { ssr: false },
@@ -1232,7 +1234,7 @@ export function EditorLayout() {
     void activateTab(groupId, tab)
   }, [activateTab, addTab, canDeactivateActiveEditor, setLayout, tGroups])
 
-  const handleNewBrowser = useCallback((groupId: string) => {
+  const handleNewBrowser = useCallback((groupId: string, initialUrl?: string) => {
     if (!canDeactivateActiveEditor()) return
     const id = `browser-${crypto.randomUUID()}`
     const tab: TabInfo = {
@@ -1241,6 +1243,7 @@ export function EditorLayout() {
       name: tGroups('newBrowser'),
       isFolder: false,
       kind: 'browser',
+      ...(initialUrl ? { url: initialUrl, name: new URL(initialUrl).hostname } : {}),
     }
     void addTab(tab)
     if (!useArticleStore.getState().openTabs.some(item => item.id === id)) return
@@ -1258,6 +1261,35 @@ export function EditorLayout() {
     })
     void activateTab(groupId, tab)
   }, [activateTab, addTab, canDeactivateActiveEditor, setLayout, tGroups])
+
+  useEffect(() => {
+    if (!layoutReady || !checkIsTauri()) return
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    void import('@tauri-apps/api/event').then(({ listen }) => listen<BrowserNewWindow>('browser:new-window', event => {
+      if (disposed) return
+      const { sourceTabId, url } = event.payload
+      try {
+        const target = new URL(url)
+        if (!['http:', 'https:'].includes(target.protocol) || !target.hostname) return
+      } catch {
+        return
+      }
+      if (!useArticleStore.getState().openTabs.some(tab => tab.id === sourceTabId && tab.kind === 'browser')) return
+      const current = layoutRef.current
+      const group = current.groups[current.activeGroupId]?.tabIds.includes(sourceTabId)
+        ? current.groups[current.activeGroupId]
+        : Object.values(current.groups).find(item => item.tabIds.includes(sourceTabId))
+      if (group) handleNewBrowser(group.id, url)
+    })).then(stop => {
+      if (disposed) stop()
+      else unlisten = stop
+    }).catch(error => console.error('Failed to listen for browser new-window requests:', error))
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [handleNewBrowser, layoutReady])
 
   useEffect(() => {
     if (!layoutReady || openTabs.length > 0) return

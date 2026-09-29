@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::{
-    webview::{PageLoadEvent, WebviewBuilder}, AppHandle, Emitter, LogicalPosition, LogicalSize,
+    webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder}, AppHandle, Emitter, LogicalPosition, LogicalSize,
     Manager, Webview, WebviewUrl,
 };
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -84,6 +84,31 @@ const BROWSER_SCROLLBAR_SCRIPT: &str = r#"
 })();
 "#;
 
+// WKWebView does not consistently send target="_blank" link clicks through
+// its new-window delegate. Route those user clicks through navigation instead.
+#[cfg(target_os = "macos")]
+const BROWSER_NEW_TAB_SCRIPT: &str = r#"
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0) return;
+  const link = event.target instanceof Element ? event.target.closest('a[href][target="_blank"]') : null;
+  if (!link) return;
+  let destination;
+  try {
+    destination = new URL(link.href, document.baseURI);
+  } catch {
+    return;
+  }
+  if (destination.protocol !== 'http:' && destination.protocol !== 'https:') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const signal = document.createElement('iframe');
+  signal.style.display = 'none';
+  signal.src = `notegen-open://tab/?url=${encodeURIComponent(destination.href)}`;
+  document.documentElement.appendChild(signal);
+  setTimeout(() => signal.remove(), 1000);
+}, true);
+"#;
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct BrowserLocation {
@@ -92,6 +117,13 @@ struct BrowserLocation {
     complete: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     title: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct BrowserNewWindow {
+    source_tab_id: String,
+    url: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -224,10 +256,35 @@ pub async fn browser_create(
     let load_tab_id = tab_id.clone();
     let title_app = app.clone();
     let title_tab_id = tab_id;
+    let new_window_app = app.clone();
+    let new_window_tab_id = navigation_tab_id.clone();
     let builder = WebviewBuilder::new(label, WebviewUrl::External(url))
         .focused(false)
-        .initialization_script(BROWSER_SCROLLBAR_SCRIPT)
+        .initialization_script(BROWSER_SCROLLBAR_SCRIPT);
+    #[cfg(target_os = "macos")]
+    let builder = builder.initialization_script(BROWSER_NEW_TAB_SCRIPT);
+    let builder = builder
+        .on_new_window(move |target, _features| {
+            if parse_web_url(target.as_str()).is_ok() {
+                let _ = new_window_app.emit_to("main", "browser:new-window", BrowserNewWindow {
+                    source_tab_id: new_window_tab_id.clone(),
+                    url: target.to_string(),
+                });
+            }
+            NewWindowResponse::Deny
+        })
         .on_navigation(move |target| {
+            if target.scheme() == "notegen-open" && target.host_str() == Some("tab") {
+                if let Some((_, destination)) = target.query_pairs().find(|(key, _)| key == "url") {
+                    if parse_web_url(&destination).is_ok() {
+                        let _ = navigation_app.emit_to("main", "browser:new-window", BrowserNewWindow {
+                            source_tab_id: navigation_tab_id.clone(),
+                            url: destination.into_owned(),
+                        });
+                    }
+                }
+                return false;
+            }
             if target.scheme() != "http" && target.scheme() != "https" {
                 return false;
             }

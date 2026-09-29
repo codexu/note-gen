@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": [
+  "description": "Capability for NoteGen application webviews",
+  "webviews": [
     "main",
     "screenshot",
     "pdf-print-*",

@@ -64,6 +64,7 @@ function isNonFileTabPath(path: string) {
     || path.startsWith('record://')
     || path.startsWith('canvas://')
     || path.startsWith('plugin://view/')
+    || path.startsWith('browser://')
 }
 
 function normalizeNavigationEntry(value: unknown): EditorNavigationEntry | null {
@@ -228,6 +229,7 @@ export function createEditorNavigationEntry(tab: OpenTabInfo): EditorNavigationE
     || tab.kind === 'record'
     || tab.kind === 'canvas'
     || tab.kind === 'plugin'
+    || tab.kind === 'browser'
     || !tab.path
     || isNonFileTabPath(tab.path)
   ) {

@@ -46,6 +46,7 @@ import { chatAgentStateAdapter } from './chat-agent-state-adapter'
 import { chatAgentResourceAdapter } from './chat-agent-resource-adapter'
 import {
   buildAgentSteeringContext,
+  buildBrowserPageContext,
   buildCanvasSelectionContext,
   buildMentionedContext,
   getContextualArticleSnapshot,
@@ -100,6 +101,9 @@ interface ChatSendProps {
   mentionedFiles?: MarkdownFile[];
   mentionedRecords?: AgentQuoteData[];
   mentionedCanvases?: CanvasSelectionContext[];
+  browserTabId?: string | null;
+  browserPageContextOverrides?: string[];
+  browserExpectedUrl?: string | null;
   dockStyle?: boolean;
 }
 
@@ -120,6 +124,9 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   mentionedFiles = [],
   mentionedRecords = [],
   mentionedCanvases = [],
+  browserTabId = null,
+  browserPageContextOverrides = [],
+  browserExpectedUrl = null,
   dockStyle = false,
 }, ref) => {
   const { primaryModel, agentPermissionMode } = useSettingStore()
@@ -162,6 +169,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     mentionedFiles: [...mentionedFiles],
     mentionedRecords: [...mentionedRecords],
     mentionedCanvases: [...mentionedCanvases],
+    browserTabId,
+    browserPageContext: '',
   })
 
   const buildPartialSuccessContent = (result: string, toolCalls: { result?: { success?: boolean; data?: any; error?: string } }[]) => {
@@ -929,6 +938,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
       }
 
       context += buildCanvasSelectionContext(request.canvasSelectionContext)
+      context += request.browserPageContext
       context += await buildMentionedContext({
         files: request.mentionedFiles,
         records: request.mentionedRecords,
@@ -1176,6 +1186,10 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
       repeatedScriptApprovalRef.current = { signature: '', count: 0 }
       setLoading(true)
     }
+    request.browserPageContext = [
+      ...browserPageContextOverrides,
+      await buildBrowserPageContext(request.browserTabId, browserExpectedUrl ?? undefined),
+    ].filter(Boolean).join('\n\n')
     onSent?.()
 
     try {

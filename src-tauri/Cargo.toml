@@ -19,7 +19,7 @@ tauri-build = { version = "2", features = [] }
 tauri-utils = "2"
 
 [dependencies]
-tauri = { version = "2", features = [ "macos-private-api", "protocol-asset", "image-png", "devtools", "tray-icon" ] }
+tauri = { version = "=2.11.6", features = [ "macos-private-api", "protocol-asset", "image-png", "devtools", "tray-icon", "unstable" ] }
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "=1"
@@ -95,14 +95,17 @@ windows = { version = "0.58", features = [
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging"
 ] }
+webview2-com = "=0.38.0"
+windows61 = { package = "windows", version = "=0.61.3", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6.1"
 core-graphics = "0.23"
-objc2-app-kit = { version = "0.3.1", default-features = false, features = ["NSPrintInfo", "NSPrintOperation", "NSResponder", "NSWindow"] }
-objc2-web-kit = { version = "0.3.1", default-features = false, features = ["WKWebView", "objc2-app-kit"] }
+objc2-app-kit = { version = "0.3.1", default-features = false, features = ["NSBitmapImageRep", "NSImage", "NSImageRep", "NSPrintInfo", "NSPrintOperation", "NSResponder", "NSWindow"] }
+objc2-web-kit = { version = "0.3.1", default-features = false, features = ["WKWebView", "WKNavigation", "WKSnapshotConfiguration", "block2", "objc2-app-kit"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 objc2 = "0.6.1"
@@ -110,5 +113,5 @@ objc2-foundation = { version = "0.3.1", default-features = false, features = ["N
 objc2-store-kit = { version = "0.3.2", default-features = false, features = ["std", "SKPaymentQueue", "SKStorefront"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies.tauri]
-version = "2"
+version = "=2.11.6"
 features = []

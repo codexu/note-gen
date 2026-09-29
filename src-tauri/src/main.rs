@@ -8,6 +8,7 @@ mod android_ocr;
 mod app_setup;
 mod backup;
 mod backup_manager;
+mod browser;
 mod cloud_folder_sync;
 mod database_recovery;
 mod deep_link;
@@ -144,6 +145,19 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
+            browser::browser_create,
+            browser::browser_set_theme,
+            browser::browser_set_bounds,
+            browser::browser_set_visible,
+            browser::browser_snapshot,
+            browser::browser_navigate,
+            browser::browser_history,
+            browser::browser_history_state,
+            browser::browser_reload,
+            browser::browser_get_url,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser::browser_get_content,
+            browser::browser_close,
             system_permissions::get_system_media_permissions,
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,

@@ -43,7 +43,7 @@ function validSession(value: unknown): value is EditorWindowSession {
 }
 
 export function canOpenInEditorWindow(tab: OpenTabInfo) {
-  if (tab.kind === 'record' || tab.kind === 'canvas' || tab.kind === 'blank' || tab.kind === 'plugin' || tab.isFolder) return false
+  if (tab.kind === 'record' || tab.kind === 'canvas' || tab.kind === 'blank' || tab.kind === 'plugin' || tab.kind === 'browser' || tab.isFolder) return false
   const extension = tab.path.split('.').pop()?.toLowerCase()
   return Boolean(extension && EDITOR_WINDOW_EXTENSIONS.has(extension))
 }

@@ -47,10 +47,16 @@ import {
 } from './chat-composer-menu'
 import {
   ChatContextStrip,
+  getBrowserContextKey,
+  getCanvasSelectionContextKey,
+  getLinkedResourceContextKey,
   getMentionedContextKey,
+  getQuoteContextKey,
+  getSkillContextKey,
   type MentionedContext,
   type MentionedRecord,
 } from './chat-context-strip'
+import { buildBrowserPageContext } from './agent-session-context'
 import { getMarkListItemContent } from '@/app/core/main/mark/mark-list-item-content'
 import { getRecordIdFromTabPath, getRecordTabPath } from '@/app/core/main/mark/mark-record-tab'
 import { getCanvasIdFromTabPath, getCanvasTabPath } from '@/app/core/main/canvas/canvas-tab'
@@ -146,10 +152,42 @@ export const ChatInput = React.memo(function ChatInput() {
     openTabs,
   } = useArticleStore()
   const isMobile = useIsMobile()
+  const [lockedKeys, setLockedKeys] = useState<string[]>([])
+  const [autoLinkRevision, setAutoLinkRevision] = useState(0)
+  const lockedKeysRef = useRef(lockedKeys)
+  lockedKeysRef.current = lockedKeys
+  const [lockedBrowserPages, setLockedBrowserPages] = useState<{
+    id: string
+    url: string
+    name: string
+    context: string
+  }[]>([])
+  const activeBrowserTab = !isMobile
+    ? openTabs.find(tab => tab.id === activeTabId && tab.kind === 'browser' && tab.url)
+    : undefined
+  const browserPageKey = activeBrowserTab ? `${activeBrowserTab.id}:${activeBrowserTab.url}` : ''
+  const activeBrowserContextKey = activeBrowserTab
+    ? getBrowserContextKey(activeBrowserTab.id, activeBrowserTab.url!)
+    : ''
+  const [dismissedBrowserPageKey, setDismissedBrowserPageKey] = useState('')
+  const currentBrowserTab = browserPageKey && browserPageKey !== dismissedBrowserPageKey
+    && !lockedBrowserPages.some(page => getBrowserContextKey(page.id, page.url) === activeBrowserContextKey)
+    ? activeBrowserTab
+    : undefined
+  const visibleBrowserPages = isMobile ? [] : [
+    ...lockedBrowserPages.map(page => ({ tabId: page.id, title: page.name, url: page.url })),
+    ...(currentBrowserTab ? [{ tabId: currentBrowserTab.id, title: currentBrowserTab.name, url: currentBrowserTab.url! }] : []),
+  ]
+  const activeDesktopTabPath = !isMobile
+    ? openTabs.find(tab => tab.id === activeTabId)?.path || activeFilePath
+    : ''
   const activeContextPaths = React.useMemo(() => {
     if (!isMobile) {
-      const activeTabPath = openTabs.find(tab => tab.id === activeTabId)?.path || activeFilePath
-      return activeTabPath && !activeTabPath.startsWith('blank://') ? [activeTabPath] : []
+      return activeDesktopTabPath
+        && !activeDesktopTabPath.startsWith('blank://')
+        && !activeDesktopTabPath.startsWith('browser://')
+        && !activeDesktopTabPath.startsWith('plugin://')
+        ? [activeDesktopTabPath] : []
     }
 
     return [
@@ -157,15 +195,16 @@ export const ChatInput = React.memo(function ChatInput() {
       mobileActiveContexts.markId === null ? null : getRecordTabPath(mobileActiveContexts.markId),
       mobileActiveContexts.canvasId ? getCanvasTabPath(mobileActiveContexts.canvasId) : null,
     ].filter((path): path is string => Boolean(path))
-  }, [activeFilePath, activeTabId, isMobile, mobileActiveContexts, openTabs])
+  }, [activeDesktopTabPath, isMobile, mobileActiveContexts])
   const contextualActiveFilePath = !isMobile || mobileActiveContexts.articlePath
     ? activeFilePath
     : ''
   const contextualCurrentArticle = contextualActiveFilePath ? currentArticle : ''
   const storedCanvasSelectionContext = useCanvasStore(state => state.selectionContext)
-  const canvasSelectionContext = !isMobile || mobileActiveContexts.canvasId
+  const [lockedCanvasContext, setLockedCanvasContext] = useState<CanvasSelectionContext | null>(null)
+  const canvasSelectionContext = lockedCanvasContext || (!isMobile || mobileActiveContexts.canvasId
     ? storedCanvasSelectionContext
-    : null
+    : null)
   const setCanvasSelectionContext = useCanvasStore(state => state.setSelectionContext)
   const [isComposing, setIsComposing] = useState(false)
   const t = useTranslations()
@@ -176,6 +215,9 @@ export const ChatInput = React.memo(function ChatInput() {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [tempInput, setTempInput] = useState('')
   const [linkedResource, setLinkedResource] = useState<LinkedResource | null>(null)
+  const linkedResourceRef = useRef(linkedResource)
+  linkedResourceRef.current = linkedResource
+  const dismissedNotePathRef = useRef<string | null>(null)
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([])
   const [fileAttachments, setFileAttachments] = useState<RuntimeChatAttachment[]>([])
   const [contextUsageLinkedContent, setContextUsageLinkedContent] = useState('')
@@ -197,7 +239,8 @@ export const ChatInput = React.memo(function ChatInput() {
   const onboardingAgentPromptArmedRef = useRef(false)
   const onboardingTypingTimerRefs = useRef<number[]>([])
   const maxImageSizeLabel = formatFileSize(MAX_IMAGE_ATTACHMENT_SIZE_BYTES)
-  const activeQuote = pendingQuote || editorSelectionQuote
+  const [lockedQuote, setLockedQuote] = useState<PendingQuote | null>(null)
+  const activeQuote = lockedQuote || pendingQuote || editorSelectionQuote
   const visibleActiveTabContexts = React.useMemo(
     () => activeTabContexts.filter(context => {
       if (context.kind === 'record') {
@@ -280,6 +323,7 @@ export const ChatInput = React.memo(function ChatInput() {
       ? `${linkedResource.name}\n${linkedResource.relativePath}`
       : '',
     activeQuote?.fullContent,
+    ...(isMobile ? [] : lockedBrowserPages.map(page => page.context)),
     contextUsageAgentRuntime,
     canvasSelectionContext ? JSON.stringify(canvasSelectionContext) : '',
     ...visibleActiveTabContexts.map(context => {
@@ -303,10 +347,12 @@ export const ChatInput = React.memo(function ChatInput() {
     contextUsageAgentRuntime,
     canvasSelectionContext,
     fileAttachments,
+    isMobile,
     contextUsageLinkedContent,
     linkedResource,
     contextUsageLinkedResourceIsActiveFile,
     linkedResourcePreview,
+    lockedBrowserPages,
     visibleMentionedContexts,
     visibleActiveTabContexts,
   ])
@@ -507,6 +553,18 @@ export const ChatInput = React.memo(function ChatInput() {
 
   // 移除关联文件
   function removeLinkedFile() {
+    if (linkedResource) {
+      const resourceKey = getLinkedResourceContextKey(linkedResource)
+      const fileKey = isLinkedFolder(linkedResource) ? null : `file:${linkedResource.path}`
+      setLockedKeys(current => current.filter(key => key !== resourceKey && key !== fileKey))
+    }
+    if (linkedResource && !isLinkedFolder(linkedResource)) {
+      setMentionedContexts(current => current.filter(context => (
+        context.kind !== 'file'
+        || (context.file.path !== linkedResource.path && context.file.relativePath !== linkedResource.relativePath)
+      )))
+    }
+    if (!isMobile) dismissedNotePathRef.current = linkedResource?.relativePath ?? null
     const linkedResourceIsMobileArticle = Boolean(
       isMobile
       && linkedResource
@@ -524,7 +582,40 @@ export const ChatInput = React.memo(function ChatInput() {
     setLinkedResourcePreview(null)
   }
 
+  function toggleContextLock(key: string) {
+    if (lockedKeys.includes(key)) {
+      setLockedKeys(current => current.filter(item => item !== key))
+      if (key.startsWith('resource:') || activeTabContexts.some(context => getMentionedContextKey(context) === key)) {
+        setAutoLinkRevision(revision => revision + 1)
+      }
+      setLockedBrowserPages(current => current.filter(page => getBrowserContextKey(page.id, page.url) !== key))
+      if (lockedQuote && key === getQuoteContextKey(lockedQuote)) setLockedQuote(null)
+      if (lockedCanvasContext && key === getCanvasSelectionContextKey(lockedCanvasContext)) setLockedCanvasContext(null)
+      return
+    }
+
+    if (currentBrowserTab && key === getBrowserContextKey(currentBrowserTab.id, currentBrowserTab.url!)) {
+      const { id, name } = currentBrowserTab
+      const url = currentBrowserTab.url!
+      setLockedBrowserPages(current => [...current, {
+        id, url, name,
+        context: `## 当前浏览器网页\n网址：${url}\n网页快照尚未完成，请告知用户稍后重试。\n`,
+      }])
+      void buildBrowserPageContext(id, url).then(context => {
+        setLockedBrowserPages(current => current.map(page => page.id === id && page.url === url
+          ? { ...page, context }
+          : page))
+      })
+    }
+    if (activeQuote && key === getQuoteContextKey(activeQuote)) setLockedQuote(activeQuote)
+    if (canvasSelectionContext && key === getCanvasSelectionContextKey(canvasSelectionContext)) {
+      setLockedCanvasContext(canvasSelectionContext)
+    }
+    setLockedKeys(current => current.includes(key) ? current : [...current, key])
+  }
+
   function removeActiveTabContext(key: string) {
+    setLockedKeys(current => current.filter(item => item !== key))
     const removedContext = activeTabContexts.find(context => (
       getMentionedContextKey(context) === key
     ))
@@ -532,6 +623,7 @@ export const ChatInput = React.memo(function ChatInput() {
     setActiveTabContexts(current => (
       current.filter(context => getMentionedContextKey(context) !== key)
     ))
+    setMentionedContexts(current => current.filter(context => getMentionedContextKey(context) !== key))
 
     if (!isMobile || !removedContext) return
     if (removedContext.kind === 'record') {
@@ -542,6 +634,11 @@ export const ChatInput = React.memo(function ChatInput() {
   }
 
   function removeCanvasContext() {
+    if (canvasSelectionContext) {
+      const key = getCanvasSelectionContextKey(canvasSelectionContext)
+      setLockedKeys(current => current.filter(item => item !== key))
+    }
+    setLockedCanvasContext(null)
     const removedCanvasId = canvasSelectionContext?.canvasId
     if (
       isMobile
@@ -579,6 +676,11 @@ export const ChatInput = React.memo(function ChatInput() {
   }
 
   function removeQuote() {
+    if (activeQuote) {
+      const key = getQuoteContextKey(activeQuote)
+      setLockedKeys(current => current.filter(item => item !== key))
+    }
+    setLockedQuote(null)
     clearPendingQuote()
     clearEditorSelectionQuote()
   }
@@ -1005,10 +1107,10 @@ export const ChatInput = React.memo(function ChatInput() {
     setHistoryIndex(-1)
     setAttachedImages([])
     setFileAttachments([])
-    setSelectedSkills([])
-    setMentionedContexts([])
-    clearPendingQuote()
-    if (isMobileDevice_) {
+    setSelectedSkills(current => current.filter(skill => lockedKeys.includes(getSkillContextKey(skill.id))))
+    setMentionedContexts(current => current.filter(context => lockedKeys.includes(getMentionedContextKey(context))))
+    if (!lockedQuote) clearPendingQuote()
+    if (isMobileDevice_ && !lockedQuote) {
       clearEditorSelectionQuote()
     }
     const textarea = document.querySelector('textarea')
@@ -1022,10 +1124,12 @@ export const ChatInput = React.memo(function ChatInput() {
       setText(event as string)
     })
     emitter.on('fileSelected', (event: unknown) => {
+      setLockedKeys(current => current.filter(key => !key.startsWith('resource:')))
       setLinkedResource(event as MarkdownFile)
       setChatLinkedResource(event as MarkdownFile)
     })
     emitter.on('folderSelected', (event: unknown) => {
+      setLockedKeys(current => current.filter(key => !key.startsWith('resource:')))
       setLinkedResource(event as LinkedFolder)
       setChatLinkedResource(event as LinkedFolder)
     })
@@ -1167,7 +1271,8 @@ ${previewLines.join('\n')}
     }
   }
 
-  // 自动关联当前打开的文件、记录和画布。移动端三类上下文可以同时存在。
+  // 桌面端切到网页等非笔记标签时保留已关联笔记；切到另一篇笔记时再更新。
+  // 移动端三类上下文仍按当前选择同步。
   useEffect(() => {
     let cancelled = false
 
@@ -1175,6 +1280,7 @@ ${previewLines.join('\n')}
       const nextActiveContexts: MentionedContext[] = []
       let nextLinkedResource: LinkedResource | null = null
       let nextLinkedResourcePreview: string | null = null
+      let noteContextPath: string | null = null
 
       for (const contextPath of activeContextPaths) {
         const recordId = getRecordIdFromTabPath(contextPath)
@@ -1204,6 +1310,7 @@ ${previewLines.join('\n')}
           continue
         }
 
+        noteContextPath = contextPath
         const workspace = await getWorkspacePath()
         const name = contextPath.split('/').pop() || contextPath
         const fullPath = workspace.isCustom
@@ -1238,7 +1345,26 @@ ${previewLines.join('\n')}
       }
 
       if (cancelled) return
-      setActiveTabContexts(nextActiveContexts)
+      const locked = new Set(lockedKeysRef.current)
+      const currentResource = linkedResourceRef.current
+      const preserveLockedResource = Boolean(currentResource && locked.has(getLinkedResourceContextKey(currentResource)))
+      if (
+        preserveLockedResource
+        && nextLinkedResource
+        && !isLinkedFolder(nextLinkedResource)
+        && nextLinkedResource.path !== currentResource?.path
+      ) {
+        nextActiveContexts.push({ kind: 'file', file: nextLinkedResource })
+      }
+      setActiveTabContexts(current => {
+        const retained = current.filter(context => locked.has(getMentionedContextKey(context)))
+        const retainedKeys = new Set(retained.map(getMentionedContextKey))
+        return [...retained, ...nextActiveContexts.filter(context => !retainedKeys.has(getMentionedContextKey(context)))]
+      })
+      if (!isMobile && !noteContextPath) return
+      if (preserveLockedResource) return
+      if (!isMobile && noteContextPath === dismissedNotePathRef.current) return
+      if (!isMobile) dismissedNotePathRef.current = null
       setLinkedResource(nextLinkedResource)
       setChatLinkedResource(nextLinkedResource)
       setLinkedResourcePreview(nextLinkedResourcePreview)
@@ -1248,7 +1374,7 @@ ${previewLines.join('\n')}
     return () => {
       cancelled = true
     }
-  }, [activeContextPaths, setChatLinkedResource, setLinkedResourcePreview])
+  }, [activeContextPaths, autoLinkRevision, isMobile, setChatLinkedResource, setLinkedResourcePreview])
 
   return (
     <footer
@@ -1322,18 +1448,30 @@ ${previewLines.join('\n')}
         <ChatContextStrip
           linkedResource={linkedResource}
           activeTabContexts={visibleActiveTabContexts}
+          browserPages={visibleBrowserPages}
           quoteData={activeQuote}
           canvasContext={canvasSelectionContext}
           selectedSkills={selectedSkills}
           mentionedContexts={visibleMentionedContexts}
+          lockedKeys={lockedKeys}
+          onToggleLock={toggleContextLock}
           onRemoveLinkedResource={removeLinkedFile}
           onRemoveActiveTabContext={removeActiveTabContext}
+          onRemoveBrowserPage={key => {
+            setLockedKeys(current => current.filter(item => item !== key))
+            setLockedBrowserPages(current => current.filter(page => getBrowserContextKey(page.id, page.url) !== key))
+            if (key === activeBrowserContextKey) {
+              setDismissedBrowserPageKey(browserPageKey)
+            }
+          }}
           onRemoveQuote={removeQuote}
           onRemoveCanvas={removeCanvasContext}
           onRemoveSkill={skillId => {
+            setLockedKeys(current => current.filter(key => key !== getSkillContextKey(skillId)))
             setSelectedSkills(current => current.filter(skill => skill.id !== skillId))
           }}
           onRemoveMentionedContext={key => {
+            setLockedKeys(current => current.filter(item => item !== key))
             setMentionedContexts(current =>
               current.filter(context => getMentionedContextKey(context) !== key)
             )
@@ -1477,6 +1615,9 @@ ${previewLines.join('\n')}
               ].flatMap(context =>
                 context.kind === 'canvas' ? [context.canvas] : []
               )}
+              browserTabId={currentBrowserTab?.id ?? null}
+              browserPageContextOverrides={isMobile ? [] : lockedBrowserPages.map(page => page.context)}
+              browserExpectedUrl={currentBrowserTab?.url ?? null}
               dockStyle={isMobile}
               ref={chatSendRef}
             />

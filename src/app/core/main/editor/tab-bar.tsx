@@ -4,7 +4,7 @@ import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
 
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, FileLock, FilePlus2, FileText, Folder, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
+import { ExternalLink, FileLock, FilePlus2, FileText, Folder, Globe2, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
@@ -45,13 +45,14 @@ export interface TabInfo {
   path: string
   name: string
   isFolder: boolean
-  kind?: 'file' | 'record' | 'canvas' | 'blank' | 'plugin'
+  kind?: 'file' | 'record' | 'canvas' | 'blank' | 'plugin' | 'browser'
   autoCreated?: boolean
   preview?: boolean
   pinned?: boolean
   markId?: number
   markType?: Mark['type']
   canvasId?: string
+  url?: string
 }
 
 interface TabBarProps {
@@ -65,6 +66,7 @@ interface TabBarProps {
   onNewNote: () => void
   onNewRecord: () => void
   onNewCanvas: () => void
+  onNewBrowser: () => void
   onCloseTab: (tabId: string) => void
   onCloseOtherTabs: (tabId: string) => void
   onCloseAllTabs: () => void
@@ -127,7 +129,7 @@ function SortableTabWithMenu({
   const canDetach = canOpenInEditorWindow(tab)
   const canClose = tabs.length > 1 || tab.kind !== 'blank'
   const recordTypeLabel = isRecordTab ? recordTypeT(tab.markType || 'text') : ''
-  const baseTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' || pluginTab ? displayName : tab.path
+  const baseTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' || tab.kind === 'browser' || pluginTab ? displayName : tab.path
   const hasClosableOtherTabs = tabs.some(item => item.id !== tab.id && !item.pinned)
   const hasClosableLeftTabs = tabs.slice(0, currentIndex).some(item => !item.pinned)
   const hasClosableRightTabs = tabs.slice(currentIndex + 1).some(item => !item.pinned)
@@ -160,6 +162,8 @@ function SortableTabWithMenu({
         >
           {tab.kind === 'blank' ? (
             <FilePlus2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          ) : tab.kind === 'browser' ? (
+            <Globe2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           ) : pluginTab ? (
             <PluginIcon name={pluginIcon} className="size-4 shrink-0" />
           ) : isRecordTab ? (
@@ -246,7 +250,7 @@ const MemoizedSortableTabWithMenu = memo(SortableTabWithMenu)
 
 export function TabBar({
   groupId, tabs, activeTabId, isActiveGroup, isMaximized,
-  onTabSwitch, onNewTab, onNewNote, onNewRecord, onNewCanvas, onCloseTab, onCloseOtherTabs, onCloseAllTabs,
+  onTabSwitch, onNewTab, onNewNote, onNewRecord, onNewCanvas, onNewBrowser, onCloseTab, onCloseOtherTabs, onCloseAllTabs,
   onCloseLeftTabs, onCloseRightTabs, onSplitTab, onMoveToNewWindow,
   onPinTab, onUnpinTab, onRestartPluginTab, onToggleMaximize, canCloseGroup, onCloseGroup,
 }: TabBarProps) {
@@ -391,7 +395,7 @@ export function TabBar({
 
   return (
     <div className="flex h-12 shrink-0 items-center border-b bg-background">
-      {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && activeTab.kind !== 'plugin' && (
+      {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && activeTab.kind !== 'plugin' && activeTab.kind !== 'browser' && (
         <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
           <TooltipButton icon={<Undo2 />} tooltipText={`${t('undo')} (${modKey}Z)`} side="bottom" buttonClassName="size-7" disabled={!canUndo} onClick={() => runUndoRedo(false)} />
           <TooltipButton icon={<Redo2 />} tooltipText={`${t('redo')} (${modKey}Shift+Z)`} side="bottom" buttonClassName="size-7" disabled={!canRedo} onClick={() => runUndoRedo(true)} />
@@ -424,6 +428,7 @@ export function TabBar({
                 <DropdownMenuItem onClick={onNewNote}><FileText />{t('newNote')}</DropdownMenuItem>
                 <DropdownMenuItem onClick={onNewRecord}><MessageSquareText />{t('newRecord')}</DropdownMenuItem>
                 <DropdownMenuItem onClick={onNewCanvas}><Palette />{t('newCanvas')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onNewBrowser}><Globe2 />{t('newBrowser')}</DropdownMenuItem>
                 {pluginTabViews.length > 0 && <DropdownMenuSeparator />}
                 {pluginTabViews.map(({ plugin, view, title }) => <DropdownMenuItem key={`${plugin.manifest.id}:${view.id}`} onClick={() => {
                   void openPluginView(plugin.manifest.id, view.id, undefined, true).catch(error => toast.error(error instanceof Error ? error.message : String(error)))

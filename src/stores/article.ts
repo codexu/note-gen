@@ -528,7 +528,7 @@ export interface EditorViewState {
   largeDocumentVisualOverride?: boolean
 }
 
-export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank' | 'plugin'
+export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank' | 'plugin' | 'browser'
 export type EditorTabDisposition = 'preview' | 'regular' | 'pinned'
 export type FileTabOpenMode = 'preview' | 'pinned'
 
@@ -544,6 +544,7 @@ export interface OpenTabInfo {
   markId?: number
   markType?: Mark['type']
   canvasId?: string
+  url?: string
 }
 
 export interface FileTabOpenRequest {
@@ -638,7 +639,7 @@ function isBlankOpenTabPath(path: string): boolean {
 }
 
 function isVirtualOpenTabPath(path: string): boolean {
-  return isBlankOpenTabPath(path) || isRecordOpenTabPath(path) || isCanvasOpenTabPath(path) || path.startsWith('plugin://view/')
+  return isBlankOpenTabPath(path) || isRecordOpenTabPath(path) || isCanvasOpenTabPath(path) || path.startsWith('plugin://view/') || path.startsWith('browser://')
 }
 
 function isRecordOpenTab(tab?: OpenTabInfo | null): boolean {
@@ -854,6 +855,7 @@ interface NoteState {
     options?: { deactivationAlreadyPrepared?: boolean },
   ) => Promise<void>
   replaceTab: (id: string, tab: OpenTabInfo) => Promise<void>
+  updateBrowserTab: (id: string, url: string, name: string) => Promise<void>
   setTabDisposition: (id: string, disposition: EditorTabDisposition) => Promise<void>
   pendingFileTabOpenRequest: FileTabOpenRequest | null
   consumeFileTabOpenRequest: (id: number) => void
@@ -1327,6 +1329,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
       editorViewStates: nextEditorViewStates,
     })
     await persistEditorState({ openTabs: newTabs, activeTabId: id })
+  },
+  updateBrowserTab: async (id, url, name) => {
+    const currentTabs = get().openTabs
+    const target = currentTabs.find(tab => tab.id === id && tab.kind === 'browser')
+    if (!target || (target.url === url && target.name === name)) return
+    const nextTabs = currentTabs.map(tab => tab.id === id ? { ...tab, url, name } : tab)
+    set({ openTabs: nextTabs })
+    await persistEditorState({ openTabs: nextTabs })
   },
   setTabDisposition: async (id, disposition) => {
     const currentTabs = get().openTabs

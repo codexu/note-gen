@@ -39,6 +39,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { MdEditor } from './markdown/md-editor-wrapper'
 import { TabBar, type TabInfo } from './tab-bar'
+import { BrowserPanel } from './browser-panel'
 import { ImageEditor } from './image/image-editor'
 import { EmptyState } from './empty-state'
 import { FolderView } from './folder'
@@ -49,7 +50,7 @@ import { UnsupportedFile } from './unsupported-file'
 import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
 import { createCanvasTab, getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
-import { focusEditorWindowForPath, openEditorWindow } from '@/lib/editor-windows'
+import { canOpenInEditorWindow, focusEditorWindowForPath, openEditorWindow } from '@/lib/editor-windows'
 import {
   editorPathIsSameOrDescendant,
   editorPathsReferToSameFile,
@@ -212,6 +213,7 @@ interface EditorGroupPaneProps {
   dragging: boolean
   onActivateGroup: (groupId: string, tabId?: string) => void
   onNewTab: (groupId: string) => void
+  onNewBrowser: (groupId: string) => void
   onCloseTab: (groupId: string, tabId: string) => void
   onKeepTabs: (groupId: string, keptTabIds: string[]) => void
   onSplitTab: (groupId: string, tabId: string, direction: EditorSplitDirection) => void
@@ -226,7 +228,7 @@ interface EditorGroupPaneProps {
 }
 
 function EditorGroupPane({
-  group, tabs, activeLayout, dragging, onActivateGroup, onNewTab, onCloseTab,
+  group, tabs, activeLayout, dragging, onActivateGroup, onNewTab, onNewBrowser, onCloseTab,
   onKeepTabs, onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab, onRestartPluginTab,
   onToggleMaximize, onCloseGroup,
   renderActiveContent, renderEmpty,
@@ -254,6 +256,7 @@ function EditorGroupPane({
         isMaximized={activeLayout.maximizedGroupId === group.id}
         onTabSwitch={tabId => onActivateGroup(group.id, tabId)}
         onNewTab={() => onNewTab(group.id)}
+        onNewBrowser={() => onNewBrowser(group.id)}
         onNewNote={() => { void setLeftSidebarTab('files').then(() => newFile()) }}
         onNewRecord={() => emitter.emit('quickRecordTextHandler')}
         onNewCanvas={() => { void createProject('blank', tCanvas('templates.blank')).then(project => { if (project) void addTab(createCanvasTab(project)) }) }}
@@ -281,7 +284,7 @@ function EditorGroupPane({
         {groupTabs.map(tab => (
           <div
             key={`${tab.id}:${tab.path}`}
-            className="min-h-0 min-w-0 flex-1 overflow-hidden"
+            className="min-h-0 min-w-0 w-full flex-1 overflow-hidden"
             style={{ display: tab.id === activeTab?.id ? 'flex' : 'none' }}
           >
             {tab.kind !== 'blank'
@@ -611,6 +614,22 @@ export function EditorLayout() {
   const isCanvasEditorTab = useCallback((tab: TabInfo) => tab.kind === 'canvas' || isCanvasTabPath(tab.path), [])
   const isBlankEditorTab = useCallback((tab: TabInfo) => tab.kind === 'blank', [])
   const isPluginEditorTab = useCallback((tab: TabInfo) => tab.kind === 'plugin' || parsePluginEditorTabPath(tab.path) !== null, [])
+  const isBrowserEditorTab = useCallback((tab: TabInfo) => tab.kind === 'browser' || tab.path.startsWith('browser://'), [])
+  const previousBrowserTabsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const current = new Set(openTabs.filter(isBrowserEditorTab).map(tab => tab.id))
+    for (const tabId of previousBrowserTabsRef.current) {
+      if (!current.has(tabId)) void import('@tauri-apps/api/core').then(({ invoke }) => invoke('browser_close', { tabId })).catch(() => {})
+    }
+    previousBrowserTabsRef.current = current
+  }, [isBrowserEditorTab, openTabs])
+
+  useEffect(() => () => {
+    for (const tabId of previousBrowserTabsRef.current) {
+      void import('@tauri-apps/api/core').then(({ invoke }) => invoke('browser_close', { tabId })).catch(() => {})
+    }
+  }, [])
   const getRecordIdForTab = useCallback((tab: TabInfo) => tab.markId ?? getRecordIdFromTabPath(tab.path), [])
   const isFolderPath = useCallback((path: string) => !(path.split(/[\\/]/).pop() || '').includes('.'), [])
 
@@ -685,7 +704,7 @@ export function EditorLayout() {
 
       const missingCandidates: TabInfo[] = []
       for (const tab of restoredTabs) {
-        if (isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isBlankEditorTab(tab) || isPluginEditorTab(tab)) continue
+        if (isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isBlankEditorTab(tab) || isPluginEditorTab(tab) || isBrowserEditorTab(tab)) continue
         const treeItem = findPathInTree(tab.path, restoredFileTree)
         if (treeItem?.isLocale === false) continue
         const existsOnDisk = await checkPathExists(tab.path, validationWorkspaceRoot)
@@ -784,6 +803,7 @@ export function EditorLayout() {
     isCanvasEditorTab,
     isRecordEditorTab,
     isPluginEditorTab,
+    isBrowserEditorTab,
     layoutReady,
   ])
 
@@ -822,7 +842,7 @@ export function EditorLayout() {
       return true
     }
     const persistActiveTab = setActiveTabId(tab.id, preparedOptions)
-    if (isBlankEditorTab(tab) || isPluginEditorTab(tab)) {
+    if (isBlankEditorTab(tab) || isPluginEditorTab(tab) || isBrowserEditorTab(tab)) {
       clearActiveMark()
       setActiveCanvasId(null)
       await Promise.all([persistActiveTab, setActiveFilePath('', true, preparedOptions)])
@@ -840,7 +860,7 @@ export function EditorLayout() {
       await Promise.all([persistActiveTab, setActiveFilePath(tab.path, true, preparedOptions)])
     }
     return true
-  }, [canDeactivateActiveEditor, clearActiveMark, getRecordIdForTab, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, setActiveCanvasId, setActiveFilePath, setActiveMarkId, setActiveTabId, setLayout])
+  }, [canDeactivateActiveEditor, clearActiveMark, getRecordIdForTab, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, isBrowserEditorTab, setActiveCanvasId, setActiveFilePath, setActiveMarkId, setActiveTabId, setLayout])
 
   useEffect(() => {
     if (!layoutReady || !activeFilePath || isRecordTabPath(activeFilePath)) return
@@ -1002,7 +1022,7 @@ export function EditorLayout() {
     ) return
     const activeTab = openTabs.find(tab => tab.id === activeTabId)
     if (!activeTab) return
-    const tabUsesEmptyPath = isBlankEditorTab(activeTab) || isRecordEditorTab(activeTab) || isCanvasEditorTab(activeTab) || isPluginEditorTab(activeTab)
+    const tabUsesEmptyPath = isBlankEditorTab(activeTab) || isRecordEditorTab(activeTab) || isCanvasEditorTab(activeTab) || isPluginEditorTab(activeTab) || isBrowserEditorTab(activeTab)
     if (activeFilePath ? activeTab.path !== activeFilePath : !tabUsesEmptyPath) return
     setLayout(current => {
       const activeGroup = current.groups[current.activeGroupId]
@@ -1015,12 +1035,12 @@ export function EditorLayout() {
         activeTab,
       )
     })
-  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
+  }, [activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, isBrowserEditorTab, layout.activeGroupId, layout.workspaceKey, layoutReady, openTabs, setLayout])
 
   const handleActivateGroup = useCallback((groupId: string, tabId?: string) => {
     const tab = openTabs.find(item => item.id === tabId)
     const tabActiveFilePath = tab && (
-      isBlankEditorTab(tab) || isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isPluginEditorTab(tab)
+      isBlankEditorTab(tab) || isRecordEditorTab(tab) || isCanvasEditorTab(tab) || isPluginEditorTab(tab) || isBrowserEditorTab(tab)
     )
       ? ''
       : tab?.path ?? ''
@@ -1038,7 +1058,7 @@ export function EditorLayout() {
       return
     }
     void activateTab(groupId, tab)
-  }, [activateTab, activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, openTabs, setLayout])
+  }, [activateTab, activeFilePath, activeTabId, fileTreeWorkspaceKey, isBlankEditorTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, isBrowserEditorTab, openTabs, setLayout])
 
   const removeGlobalTabIfUnused = useCallback((nextLayout: EditorWorkspaceLayout, tabId: string) => {
     if (!tabIsReferenced(nextLayout, tabId)) {
@@ -1212,6 +1232,33 @@ export function EditorLayout() {
     void activateTab(groupId, tab)
   }, [activateTab, addTab, canDeactivateActiveEditor, setLayout, tGroups])
 
+  const handleNewBrowser = useCallback((groupId: string) => {
+    if (!canDeactivateActiveEditor()) return
+    const id = `browser-${crypto.randomUUID()}`
+    const tab: TabInfo = {
+      id,
+      path: `browser://${id}`,
+      name: tGroups('newBrowser'),
+      isFolder: false,
+      kind: 'browser',
+    }
+    void addTab(tab)
+    if (!useArticleStore.getState().openTabs.some(item => item.id === id)) return
+    setLayout(current => {
+      const group = current.groups[groupId]
+      if (!group || group.tabIds.includes(id)) return current
+      return {
+        ...current,
+        activeGroupId: groupId,
+        groups: {
+          ...current.groups,
+          [groupId]: { ...group, tabIds: [...group.tabIds, id], activeTabId: id },
+        },
+      }
+    })
+    void activateTab(groupId, tab)
+  }, [activateTab, addTab, canDeactivateActiveEditor, setLayout, tGroups])
+
   useEffect(() => {
     if (!layoutReady || openTabs.length > 0) return
     handleNewTab(layoutRef.current.activeGroupId, true)
@@ -1237,7 +1284,10 @@ export function EditorLayout() {
           || (rect.top + rect.bottom) / 2 < 0
           || (rect.top + rect.bottom) / 2 > window.innerHeight
         : false
-      if (droppedOutsideWindow) void handleMoveToNewWindow(source.groupId, source.tabId)
+      const sourceTab = openTabs.find(tab => tab.id === source.tabId)
+      if (droppedOutsideWindow && sourceTab && canOpenInEditorWindow(sourceTab)) {
+        void handleMoveToNewWindow(source.groupId, source.tabId)
+      }
       return
     }
     if (!canDeactivateActiveEditor()) return
@@ -1651,6 +1701,12 @@ export function EditorLayout() {
   }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
+    if (isBrowserEditorTab(tab)) {
+      const visible = layout.groups[groupId]?.activeTabId === tab.id
+        && (!layout.maximizedGroupId || layout.maximizedGroupId === groupId)
+        && !dragging
+      return <BrowserPanel tabId={tab.id} url={tab.url} visible={visible} />
+    }
     if (isPluginEditorTab(tab)) {
       const view = parsePluginEditorTabPath(tab.path)
       return <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">{view ? <PluginViewSurface key={`${tab.id}:${pluginTabRevisions[tab.id] ?? 0}`} viewKey={`${view.pluginId}:${view.viewId}`} active={active} fill /> : <UnsupportedFile filePath={tab.path} />}</div>
@@ -1679,7 +1735,7 @@ export function EditorLayout() {
         </div>
       </TabContentErrorBoundary>
     )
-  }, [layout.activeGroupId, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, pluginTabRevisions, workspacePath])
+  }, [layout.activeGroupId, layout.groups, layout.maximizedGroupId, dragging, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, isBrowserEditorTab, pluginTabRevisions, workspacePath])
 
   const onboardingAgentPrompt = getOnboardingAgentPrompt({
     intro: tOnboarding('agentPrompt.intro'),
@@ -1704,14 +1760,14 @@ export function EditorLayout() {
     const candidate = findRecentOnboardingFile({
       preferredPath: onboardingResumeFilePath,
       activeFilePath,
-      openTabPaths: openTabs.filter(tab => !isRecordEditorTab(tab) && !isBlankEditorTab(tab)).map(tab => tab.path),
+      openTabPaths: openTabs.filter(tab => !isRecordEditorTab(tab) && !isBlankEditorTab(tab) && !isBrowserEditorTab(tab)).map(tab => tab.path),
       fileTree,
     })
     if (!rightSidebarVisible) await toggleRightSidebar()
     if (candidate) await setActiveFilePath(candidate)
     await new Promise(resolve => window.setTimeout(resolve, 120))
     setOnboardingPromptDraft(onboardingAgentPrompt)
-  }, [activeFilePath, fileTree, isBlankEditorTab, isRecordEditorTab, onboardingAgentPrompt, onboardingResumeFilePath, openTabs, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
+  }, [activeFilePath, fileTree, isBlankEditorTab, isRecordEditorTab, isBrowserEditorTab, onboardingAgentPrompt, onboardingResumeFilePath, openTabs, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
 
   const handleContinueToNextStep = useCallback(() => {
     const step = getActiveOnboardingStep(onboardingProgress)
@@ -1764,6 +1820,7 @@ export function EditorLayout() {
           dragging={dragging}
           onActivateGroup={handleActivateGroup}
           onNewTab={handleNewTab}
+          onNewBrowser={handleNewBrowser}
           onCloseTab={handleCloseTab}
           onKeepTabs={handleKeepTabs}
           onSplitTab={handleSplitTab}
@@ -1808,7 +1865,7 @@ export function EditorLayout() {
         })}
       </ResizablePanelGroup>
     )
-  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handlePinTab, handleRestartPluginTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
+  }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handleNewBrowser, handlePinTab, handleRestartPluginTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
 
   if (!layoutReady) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{tGroups('loadingLayout')}</div>
   const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''

@@ -38,11 +38,11 @@ pub struct OcrProviderInfo {
 }
 
 #[command]
-pub async fn list_ocr_providers(app_handle: AppHandle) -> Result<Vec<OcrProviderInfo>, String> {
+pub async fn list_ocr_providers(_app_handle: AppHandle) -> Result<Vec<OcrProviderInfo>, String> {
     let mut providers = Vec::new();
 
     #[cfg(target_os = "macos")]
-    if macos_builtin_provider_command(&app_handle).is_ok() {
+    if macos_builtin_provider_command(&_app_handle).is_ok() {
         providers.push(OcrProviderInfo {
             id: MACOS_VISION_PROVIDER_ID.to_string(),
             name: MACOS_VISION_PROVIDER_NAME.to_string(),
@@ -64,7 +64,7 @@ pub async fn list_ocr_providers(app_handle: AppHandle) -> Result<Vec<OcrProvider
     }
 
     #[cfg(target_os = "android")]
-    if crate::android_ocr::is_available(&app_handle) {
+    if crate::android_ocr::is_available(&_app_handle) {
         providers.push(OcrProviderInfo {
             id: ANDROID_MLKIT_PROVIDER_ID.to_string(),
             name: ANDROID_MLKIT_PROVIDER_NAME.to_string(),
@@ -75,7 +75,7 @@ pub async fn list_ocr_providers(app_handle: AppHandle) -> Result<Vec<OcrProvider
     }
 
     #[cfg(target_os = "ios")]
-    if crate::ios_ocr::is_available(&app_handle) {
+    if crate::ios_ocr::is_available(&_app_handle) {
         providers.push(OcrProviderInfo {
             id: IOS_VISION_PROVIDER_ID.to_string(),
             name: IOS_VISION_PROVIDER_NAME.to_string(),

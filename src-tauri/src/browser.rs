@@ -392,7 +392,7 @@ pub async fn browser_snapshot(caller: Webview, app: AppHandle, tab_id: String) -
             let page = webview.controller().CoreWebView2().map_err(|error| error.to_string())?;
             let capture_stream = stream.clone();
             let handler = CapturePreviewCompletedHandler::create(Box::new(move |result| {
-                let image = (|| unsafe {
+                let image = (|| {
                     result.map_err(|error| error.to_string())?;
                     let mut stat = std::mem::zeroed();
                     capture_stream.Stat(&mut stat, STATFLAG_NONAME).map_err(|error| error.to_string())?;

@@ -100,6 +100,21 @@ use web_clipper::{
     set_web_clipper_enabled, set_web_clipper_ready, WebClipperState,
 };
 
+#[tauri::command]
+fn open_developer_tools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
+#[tauri::command]
+fn close_developer_tools(window: tauri::WebviewWindow) {
+    window.close_devtools();
+}
+
+#[tauri::command]
+fn is_developer_tools_open(window: tauri::WebviewWindow) -> bool {
+    window.is_devtools_open()
+}
+
 fn main() {
     tauri::Builder::default()
         // 单实例插件必须最先加载，避免 Windows 文件关联二次启动时继续初始化托盘等资源。
@@ -164,6 +179,9 @@ fn main() {
             record_transaction::execute_record_transaction,
             quick_record::remember_quick_record_foreground,
             quick_record::hide_quick_record_window,
+            open_developer_tools,
+            close_developer_tools,
+            is_developer_tools_open,
             screenshot,
             fuzzy_search,
             fuzzy_search_parallel,

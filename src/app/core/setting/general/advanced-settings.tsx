@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, exists, remove } from '@tauri-apps/plugin-fs'
@@ -43,6 +43,9 @@ import { AppLockSettings } from './app-lock-settings'
 export function AdvancedSettings({ showConfigFileActions = true }: { showConfigFileActions?: boolean }) {
   const t = useTranslations('settings.dev')
   const [proxy, setProxy] = useState('')
+  const [systemProxy, setSystemProxy] = useState(false)
+  const [proxyLoaded, setProxyLoaded] = useState(false)
+  const proxySaveQueue = useRef<Promise<void>>(Promise.resolve())
   const [pendingAction, setPendingAction] = useState<'data' | 'files' | null>(null)
   const developerMode = useSettingStore(state => state.developerMode)
   const setDeveloperMode = useSettingStore(state => state.setDeveloperMode)
@@ -95,26 +98,62 @@ export function AdvancedSettings({ showConfigFileActions = true }: { showConfigF
     }
   }
 
-  async function handleProxyBlur() {
-    const store = await Store.load('store.json')
-    await store.set('proxy', proxy.trim())
-    await store.save()
+  function saveProxy(address: string, useSystem: boolean) {
+    // Serialize blur and switch events so an older save cannot restore a manual
+    // address after system proxy has been enabled.
+    proxySaveQueue.current = proxySaveQueue.current.then(async () => {
+      const store = await Store.load('store.json')
+      await store.set('proxyCustomURL', address.trim())
+      // Existing sync/image/skill clients use an empty proxy to let reqwest
+      // discover the system configuration when creating their next client.
+      await store.set('proxy', useSystem ? '' : address.trim())
+      await store.set('systemProxy', useSystem)
+      await store.save()
+    }).catch(() => {
+      toast({ title: t('proxySaveFailed'), variant: 'destructive' })
+    })
   }
 
   useEffect(() => {
     async function loadProxy() {
       const store = await Store.load('store.json')
       const storedProxy = await store.get<string>('proxy')
-      if (storedProxy) setProxy(storedProxy)
+      const useSystem = (await store.get<boolean>('systemProxy')) === true
+      const customProxy = useSystem ? await store.get<string>('proxyCustomURL') : storedProxy
+      setProxy(customProxy || '')
+      setSystemProxy(useSystem)
+      setProxyLoaded(true)
     }
 
-    void loadProxy()
-  }, [])
+    void loadProxy().catch(() => {
+      toast({ title: t('proxyLoadFailed'), variant: 'destructive' })
+    })
+  }, [t, toast])
 
   return (
     <>
       <SettingSection title={t('title')} desc={t('desc')}>
         <ItemGroup className="gap-3">
+          {desktop || systemProxy ? (
+            <Item variant="outline">
+              <ItemMedia variant="icon"><Network /></ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t('systemProxyTitle')}</ItemTitle>
+                <ItemDescription className="line-clamp-none">{t('systemProxyDesc')}</ItemDescription>
+              </ItemContent>
+              <ItemActions className="ml-auto">
+                <Switch
+                  checked={systemProxy}
+                  disabled={!proxyLoaded}
+                  onCheckedChange={(checked) => {
+                    setSystemProxy(checked)
+                    saveProxy(proxy, checked)
+                  }}
+                  aria-label={t('systemProxyTitle')}
+                />
+              </ItemActions>
+            </Item>
+          ) : null}
           <Item variant="outline">
             <ItemMedia variant="icon"><Network /></ItemMedia>
             <ItemContent>
@@ -125,9 +164,11 @@ export function AdvancedSettings({ showConfigFileActions = true }: { showConfigF
               <Input
                 className="w-full sm:w-[280px]"
                 placeholder={t('proxyPlaceholder')}
+                aria-label={t('proxyTitle')}
+                disabled={!proxyLoaded || systemProxy}
                 value={proxy}
                 onChange={(event) => setProxy(event.target.value)}
-                onBlur={() => void handleProxyBlur()}
+                onBlur={() => saveProxy(proxy, systemProxy)}
               />
             </ItemActions>
           </Item>

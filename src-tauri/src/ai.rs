@@ -59,6 +59,7 @@ pub struct AiConfigPayload {
 #[serde(tag = "mode", rename_all = "camelCase")]
 pub enum AiProxyConfig {
     Direct,
+    System,
     Custom { url: String },
 }
 
@@ -122,7 +123,8 @@ fn build_client(config: &AiConfigPayload) -> Result<Client, String> {
             let proxy = Proxy::all(url).map_err(|_| "Invalid proxy URL.".to_string())?;
             builder = builder.proxy(proxy);
         }
-        None => {}
+        // A fresh client discovers the current OS/environment proxy settings.
+        Some(AiProxyConfig::System) | None => {}
     }
 
     builder

@@ -15,6 +15,7 @@ export interface AiRequestConfig {
 
 export type AiProxyConfig =
   | { mode: 'direct' }
+  | { mode: 'system' }
   | { mode: 'custom'; url: string }
 
 const SUPPORTED_PROXY_PROTOCOLS = new Set(['http:', 'https:', 'socks5:', 'socks5h:'])
@@ -303,7 +304,9 @@ export async function resolveAiRequestConfig(aiConfig?: AiConfig): Promise<AiReq
   if (proxyMode === 'inherit') {
     const store = await Store.load('store.json')
     const globalProxyURL = (await store.get<string>('proxy'))?.trim()
-    if (globalProxyURL) {
+    if ((await store.get<boolean>('systemProxy')) === true) {
+      proxy = { mode: 'system' }
+    } else if (globalProxyURL) {
       proxy = { mode: 'custom', url: globalProxyURL }
     }
   } else if (proxyMode === 'custom') {

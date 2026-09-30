@@ -206,6 +206,14 @@
       "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_JL_git_note-gen",
       "icon": "https://files.seeusercontent.com/2026/03/26/L5pg/logo-compshare_.png",
       "enabled": true
+    },
+    {
+      "key": "cheaperinference",
+      "title": "Cheaper Inference",
+      "baseURL": "https://api.cheaperinference.com/v1",
+      "apiKeyUrl": "https://cheaperinference.com/docs",
+      "icon": "https://www.cheaperinference.com/icon.svg",
+      "enabled": true
     }
   ]
 }

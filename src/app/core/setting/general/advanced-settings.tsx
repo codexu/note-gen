@@ -197,7 +197,7 @@ export function AdvancedSettings({ showConfigFileActions = true }: { showConfigF
           </Item>
 
           {developerMode ? (
-            <div className="flex flex-col gap-2 rounded-lg border border-dashed p-2">
+            <div className="flex flex-col gap-2">
               {desktop ? (
                 <Item variant="outline" size="sm">
                   <ItemMedia variant="icon"><MonitorCog /></ItemMedia>

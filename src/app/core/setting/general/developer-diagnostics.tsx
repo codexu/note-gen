@@ -6,11 +6,11 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { arch, locale, platform, version } from '@tauri-apps/plugin-os'
-import { Check, ClipboardCopy, Download, Eye, Trash2 } from 'lucide-react'
+import { Check, ClipboardCopy, Download, Eye, ScrollText, Trash2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import {
   Dialog,
   DialogContent,
@@ -131,21 +131,24 @@ export function DeveloperDiagnostics() {
 
   return (
     <>
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>{t('title')}</CardTitle>
-          <CardDescription>{t('description', { count: logCount })}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={clearLogs}>
-            <Trash2 data-icon="inline-start" />{t('clear')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void buildPreview()} disabled={loading}>
-            {loading ? <Spinner data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
-            {t('preview')}
-          </Button>
-        </CardContent>
-      </Card>
+      <ItemGroup className="gap-2">
+        <Item variant="outline" size="sm">
+          <ItemMedia variant="icon"><ScrollText /></ItemMedia>
+          <ItemContent>
+            <ItemTitle>{t('title')}</ItemTitle>
+            <ItemDescription>{t('description', { count: logCount })}</ItemDescription>
+          </ItemContent>
+          <ItemActions className="ml-auto flex-wrap justify-end">
+            <Button variant="outline" size="sm" onClick={clearLogs}>
+              <Trash2 data-icon="inline-start" />{t('clear')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void buildPreview()} disabled={loading}>
+              {loading ? <Spinner data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
+              {t('preview')}
+            </Button>
+          </ItemActions>
+        </Item>
+      </ItemGroup>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="h-[min(760px,calc(100dvh-2rem))] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">

@@ -33,6 +33,7 @@ import type {
 const ABSOLUTE_MAX_MODEL_ROUNDS = 30
 const MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS = 2
 const MAX_IDENTICAL_READ_RESULT_REPEATS = 2
+const STREAM_RENDER_INTERVAL_MS = 33
 const MUTATING_TOOL_RISKS = new Set(['editor-write', 'file-create', 'file-update', 'delete', 'medium'])
 
 export function isRequestAbortError(error: unknown) {
@@ -1271,12 +1272,29 @@ export class AgentRuntime {
         let finishReason: string | null | undefined
         let toolCallsStarted = false
         let candidateAnswerRendered = false
+        let lastCandidateAnswerRenderAt: number | null = null
+        let lastCandidateAnswerContent = ''
+        let lastStreamYieldAt = Date.now()
         let assistantReasoning = ''
         const assistantReasoningDetails: unknown[] = []
         let streamedText = ''
         let streamedTokenCount = 0
         let lastModelProgressTraceAt = 0
         const streamedToolCalls = new Map<number, StreamingToolCallAccumulator>()
+
+        const renderCandidateAnswer = (force = false) => {
+          if (toolCallsStarted || !assistantContent.trim() || assistantContent === lastCandidateAnswerContent) {
+            return
+          }
+          const now = Date.now()
+          if (!force && lastCandidateAnswerRenderAt !== null && now - lastCandidateAnswerRenderAt < STREAM_RENDER_INTERVAL_MS) {
+            return
+          }
+          callbacks.onCandidateAnswerRender?.(assistantContent)
+          candidateAnswerRendered = true
+          lastCandidateAnswerContent = assistantContent
+          lastCandidateAnswerRenderAt = now
+        }
 
         for await (const chunk of stream) {
           if (this.stopped) {
@@ -1310,13 +1328,7 @@ export class AgentRuntime {
             assistantContent += delta.content
             streamedText += delta.content
             activeModelContent = assistantContent
-            if (
-              !toolCallsStarted &&
-              assistantContent.trim()
-            ) {
-              candidateAnswerRendered = true
-              callbacks.onCandidateAnswerRender?.(assistantContent)
-            }
+            renderCandidateAnswer()
           }
 
           for (const toolCallDelta of delta.tool_calls || []) {
@@ -1365,7 +1377,21 @@ export class AgentRuntime {
             })
             if (progressTrace) callbacks.onTrace?.(progressTrace)
           }
+
+          // Buffered stream chunks can resolve in consecutive microtasks.
+          // Give React and the browser a task boundary to finish pending work.
+          if (now - lastStreamYieldAt >= STREAM_RENDER_INTERVAL_MS) {
+            await new Promise<void>(resolve => setTimeout(resolve, 0))
+            lastStreamYieldAt = Date.now()
+            if (this.stopped) throw new Error('USER_STOPPED')
+            renderCandidateAnswer()
+          }
         }
+        if (this.stopped) throw new Error('USER_STOPPED')
+        // Flush the tail before completing or clearing a candidate response.
+        // All callbacks stay inside this run's try/catch; no render timer can
+        // write stale content after a stop, a new round, or a failed request.
+        renderCandidateAnswer(true)
         streamedTokenCount = estimateTokens(streamedText)
         activeModelStreamedTokenCount = streamedTokenCount
         assistantContent = assistantContent.trim() ? assistantContent : ''
@@ -2244,7 +2270,7 @@ export class AgentRuntime {
         message,
       })
       callbacks.onTrace?.(errorTrace)
-      throw new Error(message)
+      throw new Error(message, { cause: error })
     }
   }
 }

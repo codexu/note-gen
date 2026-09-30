@@ -3,6 +3,7 @@ import type OpenAI from 'openai'
 import type { ModelsPage } from 'openai/resources/models'
 import { Store } from '@tauri-apps/plugin-store'
 import type { AiConfig, ReasoningEffort } from '@/app/core/setting/config'
+import { reserveSponsoredRequest } from './sponsored-model-limits'
 
 type JsonValue = Record<string, unknown>
 
@@ -359,6 +360,9 @@ export async function invokeAiJson<T = JsonValue>(
   payload: Omit<JsonRequestPayload, 'requestId'>,
   signal?: AbortSignal
 ): Promise<T> {
+  if ((payload.method || 'POST') === 'POST' && ['/chat/completions', '/completions', '/responses', '/messages'].includes(payload.path)) {
+    payload = { ...payload, body: await reserveSponsoredRequest(payload.config, payload.body, signal) }
+  }
   const requestId = signal ? createRequestId() : undefined
   const detachAbort = requestId ? attachAbort(signal, requestId) : () => {}
   try {
@@ -416,7 +420,7 @@ export async function invokeAiMultipart<T = JsonValue>(
   }
 }
 
-function createStreamingIterable<T>(
+async function createStreamingIterable<T>(
   request: {
     config: AiRequestConfig
     requestId: string
@@ -424,6 +428,7 @@ function createStreamingIterable<T>(
   },
   signal?: AbortSignal
 ) {
+  request = { ...request, body: await reserveSponsoredRequest(request.config, request.body, signal) }
   const queue = new AsyncQueue<T>()
   const detachAbort = attachAbort(signal, request.requestId)
   const channel = new Channel<StreamEvent<T>>((event) => {

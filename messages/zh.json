@@ -2835,8 +2835,8 @@
       "checkConnection": "检测连接",
       "model": "模型",
       "defaultModels": {
-        "title": "默认免费模型",
-        "desc": "NoteGen 为用户提供免费的 AI 模型服务，由硅基流动提供支持，无需配置即可使用基础功能。",
+        "title": "NoteGen",
+        "desc": "NoteGen 为用户提供免费的 AI 模型服务，由硅基流动和 AIHubMix 提供支持，无需配置即可使用基础功能。",
         "chatModel": {
           "name": "Qwen/Qwen3-8B",
           "type": "对话模型",

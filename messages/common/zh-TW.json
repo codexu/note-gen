@@ -1,4 +1,13 @@
 {
+  "providerSponsor": {
+    "label": "贊助商",
+    "description": "為 NoteGen 使用者提供免費模型額度或服務。"
+  },
+  "noteGenLimited": {
+    "usage": "已用 {used}/{limit}",
+    "unlimited": "不限次數",
+    "description": "預設使用 {model}，每天最多請求 {limit} 次；額度用完後自動使用 {freeModel}。次數按實際模型請求計算（包含 Agent 多輪呼叫），北京時間零點重置。"
+  },
   "requestErrors": {
     "aiRequestFailed": "AI 請求失敗",
     "embeddingRequestFailed": "嵌入向量請求失敗",

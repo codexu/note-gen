@@ -1,4 +1,13 @@
 {
+  "providerSponsor": {
+    "label": "Patrocinador",
+    "description": "Oferece créditos de modelos ou serviços gratuitos aos usuários do NoteGen."
+  },
+  "noteGenLimited": {
+    "usage": "{used}/{limit} usadas",
+    "unlimited": "Solicitações ilimitadas",
+    "description": "Usa {model} por padrão, até {limit} solicitações por dia; depois muda automaticamente para {freeModel}. Cada solicitação conta, incluindo rodadas do agente. Reinicia à meia-noite no horário da China."
+  },
   "requestErrors": {
     "aiRequestFailed": "Falha na solicitação de IA",
     "embeddingRequestFailed": "Falha na solicitação de embeddings",

@@ -41,6 +41,7 @@ jobs:
               throw new Error(`${file} must contain a non-empty providers array`)
             }
             for (const provider of payload.providers) {
+              if (provider.sponsored !== undefined && typeof provider.sponsored !== 'boolean') throw new Error(`${file}: invalid sponsored flag`)
               if (typeof provider.key !== 'string' || !provider.key.trim()) throw new Error(`${file}: invalid key`)
               let baseURL
               try {
@@ -51,6 +52,13 @@ jobs:
               if (baseURL.protocol !== 'http:' && baseURL.protocol !== 'https:') throw new Error(`${file}: invalid baseURL`)
             }
           }
+          const policy = JSON.parse(fs.readFileSync('config/notegen-model-policy.json', 'utf8'))
+          if (policy.schemaVersion !== 1 || typeof policy.title !== 'string' || !policy.title.trim()) throw new Error('Invalid model policy')
+          for (const key of ['limited', 'free']) {
+            if (typeof policy[key]?.model !== 'string' || !policy[key].model.trim()) throw new Error(`Invalid ${key} model`)
+            if (typeof policy[key]?.displayName !== 'string' || !policy[key].displayName.trim()) throw new Error(`Invalid ${key} displayName`)
+          }
+          if (!Number.isSafeInteger(policy.limited.dailyRequestLimit) || policy.limited.dailyRequestLimit < 0) throw new Error('Invalid dailyRequestLimit')
           NODE
 
       - name: Install ossutil
@@ -76,8 +84,11 @@ jobs:
       - name: Detect remote differences
         run: |
           set -euo pipefail
+          # Preserve all live manifest entries, including the legacy default models.
+          ossutil cp "oss://${ALIYUN_OSS_BUCKET}/config/v1/config-manifest.json" "$RUNNER_TEMP/remote-config-manifest.json" \
+            -c "$OSSUTIL_CONFIG" --no-progress
           changed=false
-          for file in provider-templates.json provider-templates-cn.json; do
+          for file in provider-templates.json provider-templates-cn.json notegen-model-policy.json; do
             remote="$RUNNER_TEMP/$file"
             if ossutil cp "oss://${ALIYUN_OSS_BUCKET}/config/v1/$file" "$remote" -c "$OSSUTIL_CONFIG" --no-progress; then
               if cmp -s "config/$file" "$remote"; then
@@ -100,12 +111,27 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('node:fs')
-          const manifest = JSON.parse(fs.readFileSync('config/config-manifest.json', 'utf8'))
+          const local = JSON.parse(fs.readFileSync('config/config-manifest.json', 'utf8'))
+          const manifest = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/remote-config-manifest.json`, 'utf8'))
+          if (manifest.schemaVersion !== 1 || !manifest.configs) throw new Error('Invalid remote manifest; refusing to overwrite')
           const update = (key) => {
-            manifest.configs[key].versionCode += 1
+            const existing = manifest.configs[key]
+            const source = local.configs[key]
+            manifest.configs[key] = {
+              ...source,
+              ...existing,
+              versionCode: Math.max(existing?.versionCode ?? 0, source.versionCode) + 1,
+            }
           }
           if (process.env.PUBLISH_provider_templates_json === 'true') update('providerTemplates')
           if (process.env.PUBLISH_provider_templates_cn_json === 'true') update('providerTemplatesChina')
+          if (process.env.PUBLISH_notegen_model_policy_json === 'true') {
+            update('noteGenModelPolicy')
+            const entry = manifest.configs.noteGenModelPolicy
+            const url = new URL(entry.url)
+            url.searchParams.set('v', String(entry.versionCode))
+            entry.url = url.toString()
+          }
           manifest.updatedAt = new Date().toISOString()
           fs.writeFileSync(`${process.env.RUNNER_TEMP}/config-manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`)
           NODE
@@ -121,6 +147,7 @@ jobs:
           }
           [[ "${PUBLISH_provider_templates_json:-false}" == true ]] && upload config/provider-templates.json
           [[ "${PUBLISH_provider_templates_cn_json:-false}" == true ]] && upload config/provider-templates-cn.json
+          [[ "${PUBLISH_notegen_model_policy_json:-false}" == true ]] && upload config/notegen-model-policy.json
           upload "$RUNNER_TEMP/config-manifest.json"
 
       - name: Install Alibaba Cloud CLI

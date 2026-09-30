@@ -84,6 +84,7 @@ function normalizeProviderTemplatesPayload(payload: unknown): AiConfig[] {
       icon: isNonEmptyString(item.icon) ? item.icon.trim() : undefined,
       apiKeyUrl: isValidUrl(item.apiKeyUrl) ? item.apiKeyUrl.trim() : undefined,
       promotion: isNonEmptyString(item.promotion) ? item.promotion.trim() : undefined,
+      sponsored: item.sponsored === true,
       enabled: true,
       templateSource: (item.templateSource as AiConfig['templateSource']) || 'remote',
     }))
@@ -137,9 +138,9 @@ function enforceStorefrontPolicy(
 }
 
 export async function getCachedProviderTemplates(): Promise<AiConfig[]> {
+  const configKey = await getProviderTemplateConfigKey()
   const store = await Store.load('store.json')
   const cached = await store.get<ProviderTemplateCache>(PROVIDER_TEMPLATE_CACHE_KEY)
-  const configKey = await getProviderTemplateConfigKey()
 
   if (!cached || cached.configKey !== configKey || !cached.content?.providers?.length) {
     return []
@@ -183,9 +184,9 @@ async function fetchProviderTemplatesFromConfigCenter(
 }
 
 export async function loadProviderTemplates(builtinTemplates: AiConfig[]): Promise<AiConfig[]> {
+  const configKey = await getProviderTemplateConfigKey()
   const store = await Store.load('store.json')
   const cached = await store.get<ProviderTemplateCache>(PROVIDER_TEMPLATE_CACHE_KEY)
-  const configKey = await getProviderTemplateConfigKey()
   const matchingCache = cached?.configKey === configKey ? cached : undefined
 
   try {

@@ -20,6 +20,8 @@ import {
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { TooltipButton } from "@/components/tooltip-button"
+import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
+import { NoteGenModelLabel } from '@/components/notegen-model-label'
 
 interface GroupedModel {
   configKey: string
@@ -43,6 +45,7 @@ export function ModelSelect({
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
+  const { detail: limitedDetail, activeModelName: limitedName } = useNoteGenLimitedUsage()
 
   // 获取正确的存储键名
   function getStoreKey(modelKey: string): string {
@@ -207,6 +210,7 @@ export function ModelSelect({
     const selectedItem = groupedModels.find(isModelSelected)
     
     if (selectedItem) {
+      if (selectedItem.configKey === 'note-gen-free') return <span className="truncate"><NoteGenModelLabel model={selectedItem.model.model} builtin limitedName={limitedName} limitedDetail={limitedDetail} /></span>
       return `${selectedItem.model.model}(${selectedItem.configTitle})`
     }
     
@@ -269,7 +273,7 @@ export function ModelSelect({
                       setOpen(false)
                     }}
                   >
-                    {item.model.model}
+                    <NoteGenModelLabel model={item.model.model} builtin={item.configKey === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} />
                   </CommandItem>
                 ))}
               </CommandGroup>

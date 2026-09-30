@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button"
 import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
+import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
+import { NoteGenModelLabel, noteGenModelDisplayName } from '@/components/notegen-model-label'
 import {
   changePrimaryChatModel,
   collectGroupedChatModels,
@@ -39,22 +41,25 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
   const { loading, agentState } = useChatStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
+  const limitedUsage = useNoteGenLimitedUsage()
 
   async function modelSelectChangeHandler(modelId: string) {
     const nextModel = groupedModels.find(item => item.model.id === modelId)
     const previousModel = groupedModels.find(item => item.model.id === primaryModel)
+    const nextName = noteGenModelDisplayName(nextModel?.model.model || modelId, nextModel?.configKey === 'note-gen-free', limitedUsage.activeModelName)
+    const previousName = noteGenModelDisplayName(previousModel?.model.model || primaryModel, previousModel?.configKey === 'note-gen-free', limitedUsage.activeModelName)
     const result = await changePrimaryChatModel({
       modelId,
-      modelName: nextModel?.model.model || modelId,
-      previousModelName: previousModel?.model.model || primaryModel,
+      modelName: nextName,
+      previousModelName: previousName,
     })
     if (result.changed && result.hasConversationHistory) {
       toast({
         title: result.appliesNextTurn
-          ? t('nextTurn', { model: nextModel?.model.model || modelId })
+          ? t('nextTurn', { model: nextName })
           : t('changed', {
-              from: previousModel?.model.model || primaryModel,
-              to: nextModel?.model.model || modelId,
+              from: previousName,
+              to: nextName,
             }),
         description: result.appliesNextTurn
           ? t('changeWarning')
@@ -88,9 +93,10 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
     && agentState.activeModelId !== primaryModel
   )
   const selectedModelLabel = selectedModel?.model.model || t('noModel')
+  const selectedDisplayName = noteGenModelDisplayName(selectedModelLabel, selectedModel?.configKey === 'note-gen-free', limitedUsage.activeModelName)
   const displayedModelLabel = appliesNextTurn
-    ? `${agentState.activeModelName || agentState.activeModelId} → ${selectedModelLabel}`
-    : selectedModelLabel
+    ? `${agentState.activeModelName || agentState.activeModelId} → ${selectedDisplayName}`
+    : selectedDisplayName
 
   return (
     <Popover open={open} onOpenChange={handleSetOpen}>
@@ -100,12 +106,14 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
             variant="ghost"
             size="xs"
             disabled={disabled}
-            className="h-5 min-w-0 max-w-48 gap-1 px-1 text-xs font-normal text-muted-foreground"
+            className="h-5 min-w-0 max-w-80 gap-1 px-1 text-xs font-normal text-muted-foreground"
             aria-label={t('tooltip')}
+            title={displayedModelLabel}
           >
             {selectedModel ? <BotMessageSquare data-icon="inline-start" /> : <BotOff data-icon="inline-start" />}
             <span className="truncate">
-              {displayedModelLabel}
+              {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
+              <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} />
             </span>
             {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
           </Button>
@@ -116,8 +124,9 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
                 <ItemTitle className="min-w-0 truncate">{t('tooltip')}</ItemTitle>
               </ItemContent>
               <ItemActions className="shrink-0">
-                <span className="max-w-28 truncate text-xs text-muted-foreground" title={displayedModelLabel}>
-                  {displayedModelLabel}
+                <span className="max-w-64 truncate text-xs text-muted-foreground" title={displayedModelLabel}>
+                  {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
+                  <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} />
                 </span>
                 {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
                 <ChevronRight />
@@ -156,7 +165,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
                     }}
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium">{item.model.model}</span>
+                      <span className="font-medium"><NoteGenModelLabel model={item.model.model} builtin={item.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} /></span>
                     </div>
                   </CommandItem>
                 ))}

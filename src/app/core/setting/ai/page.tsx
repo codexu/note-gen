@@ -22,7 +22,7 @@ import { getCachedProviderTemplates, getProviderTemplateMatch, loadProviderTempl
 import { isValidProxyURL } from "@/lib/ai/tauri-client";
 import { excludeBuiltInOpenAIProviders, isMainlandChinaAppStore } from "@/lib/ai/storefront-policy";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,18 +57,64 @@ function getProviderPromotion(config: AiConfig, template?: AiConfig | null) {
 }
 
 function getProviderOptionLabel(config: AiConfig, template?: AiConfig | null) {
+  const count = config.models?.filter(model => model.model.trim()).length || 0
+  return <ProviderTitle config={config} template={template} modelCount={count} />
+}
+
+function ProviderTitle({ config, template, modelCount }: { config: AiConfig; template?: AiConfig | null; modelCount?: number }) {
+  const t = useTranslations('common.providerSponsor')
+  const aiText = useTranslations('settings.ai')
+  const shouldReduceMotion = useReducedMotion()
+  const hasModels = modelCount !== undefined && modelCount > 0
+  const transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 240, damping: 28, mass: 0.8 }
+  const sponsored = template ? template.sponsored === true : config.sponsored === true
   const promotion = getProviderPromotion(config, template)
-  return promotion ? `${config.title} · ${promotion}` : config.title
+  return (
+    <motion.span initial="rest" whileHover="hovered" whileFocus="hovered" className="flex min-w-0 w-full items-center justify-start gap-1.5 text-left">
+      <span className="min-w-0 flex-1 truncate" title={config.title}>{config.title}</span>
+      <span className="grid h-5 shrink-0 items-center overflow-hidden">
+        <motion.span
+          className="col-start-1 row-start-1 inline-flex h-full items-center justify-self-end gap-1.5"
+          variants={{
+            rest: { y: '0%', opacity: 1 },
+            hovered: { y: hasModels ? '-100%' : '0%', opacity: hasModels ? 0 : 1 },
+          }}
+          transition={hasModels ? transition : { duration: 0 }}
+        >
+          {sponsored && (
+            <Badge variant="secondary" title={t('description')} aria-label={`${t('label')}: ${t('description')}`}>
+              {t('label')}
+            </Badge>
+          )}
+          {promotion && <ProviderPromotionText promotion={promotion} />}
+        </motion.span>
+        {hasModels && (
+          <motion.span
+            className="pointer-events-none col-start-1 row-start-1 flex h-full items-center justify-self-end"
+            variants={{ rest: { y: '100%', opacity: 0 }, hovered: { y: '0%', opacity: 1 } }}
+            transition={transition}
+            title={aiText('modelCount', { count: modelCount })}
+          >
+            <Badge variant="secondary" className="tabular-nums" aria-label={aiText('modelCount', { count: modelCount })}>
+              {modelCount}
+            </Badge>
+          </motion.span>
+        )}
+      </span>
+    </motion.span>
+  )
 }
 
 function ProviderPromotionText({ promotion }: { promotion: string }) {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <ItemDescription title={promotion}>
       <motion.span
+        title={promotion}
         animate={shouldReduceMotion ? undefined : { backgroundPosition: ['0% 50%', '100% 50%'] }}
-        className="bg-clip-text font-bold text-transparent"
+        className="shrink-0 whitespace-nowrap bg-clip-text text-xs font-medium text-transparent"
         style={{
           backgroundImage: 'linear-gradient(90deg, hsl(var(--promotion-gradient-start)) 0%, hsl(var(--promotion-gradient-middle)) 16.667%, hsl(var(--promotion-gradient-end)) 33.333%, hsl(var(--promotion-gradient-start)) 50%, hsl(var(--promotion-gradient-middle)) 66.667%, hsl(var(--promotion-gradient-end)) 83.333%, hsl(var(--promotion-gradient-start)) 100%)',
           backgroundPosition: '0% 50%',
@@ -76,9 +122,8 @@ function ProviderPromotionText({ promotion }: { promotion: string }) {
         }}
         transition={{ duration: 6, ease: 'linear', repeat: Infinity, repeatType: 'loop' }}
       >
-        优惠 · {promotion}
+        {promotion}
       </motion.span>
-    </ItemDescription>
   )
 }
 
@@ -475,14 +520,20 @@ export default function AiPage({ mobile = false }: { mobile?: boolean }) {
                       const providerTemplate = provider.templateSource === 'custom'
                         ? null
                         : getProviderTemplateMatch(provider, providerTemplates)
-                      const promotion = getProviderPromotion(provider, providerTemplate)
                       return (
-                        <Item className="flex-nowrap" key={provider.key} asChild variant={selected ? 'muted' : 'outline'} size="sm">
-                          <button type="button" onClick={() => {
+                        <Item
+                          className="group/provider flex-nowrap text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                          data-state={selected ? 'on' : 'off'}
+                          key={provider.key}
+                          asChild
+                          variant="outline"
+                          size="sm"
+                        >
+                          <motion.button initial="rest" whileHover="hovered" whileFocus="hovered" type="button" onClick={() => {
                             setSelectedAiConfig(provider.key)
                             setActiveTab('connection')
                           }}>
-                            <ItemMedia variant="default">
+                            <ItemMedia variant="default" className="shrink-0">
                               <Avatar size="sm">
                                 <AvatarImage src={providerTemplate?.icon || provider.icon} alt={provider.title} />
                                 <AvatarFallback
@@ -494,11 +545,9 @@ export default function AiPage({ mobile = false }: { mobile?: boolean }) {
                               </Avatar>
                             </ItemMedia>
                             <ItemContent className="min-w-0">
-                              <ItemTitle>{provider.title}</ItemTitle>
-                              {promotion ? <ProviderPromotionText promotion={promotion} /> : null}
+                              <ItemTitle className="min-w-0 w-full"><ProviderTitle config={provider} template={providerTemplate} modelCount={count} /></ItemTitle>
                             </ItemContent>
-                            {count > 0 ? <ItemActions><Badge variant="outline">{count}</Badge></ItemActions> : null}
-                          </button>
+                          </motion.button>
                         </Item>
                       )
                     })}
@@ -512,28 +561,29 @@ export default function AiPage({ mobile = false }: { mobile?: boolean }) {
 
                   {availableProviderTemplates.map(template => {
                     const templateKey = template.templateKey || template.key
-                    const promotion = getProviderPromotion(template)
                     return (
-                      <Item className="flex-nowrap" key={templateKey} asChild variant="outline" size="sm">
-                        <button
+                      <Item className="group/provider flex-nowrap text-left" key={templateKey} asChild variant="outline" size="sm">
+                        <motion.button
+                          initial="rest"
+                          whileHover="hovered"
+                          whileFocus="hovered"
                           type="button"
                           disabled={Boolean(addingTemplateKey)}
                           onClick={() => void addProviderFromTemplate(template)}
                         >
-                          <ItemMedia variant="default">
+                          <ItemMedia variant="default" className="shrink-0">
                             <Avatar size="sm">
                               <AvatarImage src={template.icon} alt={template.title} />
                               <AvatarFallback>{getPlatformAvatarFallback(template)}</AvatarFallback>
                             </Avatar>
                           </ItemMedia>
                           <ItemContent className="min-w-0">
-                            <ItemTitle>{template.title}</ItemTitle>
-                            {promotion ? <ProviderPromotionText promotion={promotion} /> : null}
+                            <ItemTitle className="min-w-0 w-full"><ProviderTitle config={template} modelCount={0} /></ItemTitle>
                           </ItemContent>
                           {addingTemplateKey === templateKey ? (
                             <ItemActions><LoaderCircle className="animate-spin" /></ItemActions>
                           ) : null}
-                        </button>
+                        </motion.button>
                       </Item>
                     )
                   })}

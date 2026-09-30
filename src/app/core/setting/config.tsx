@@ -178,6 +178,7 @@ export interface AiConfig {
   icon?: string
   apiKeyUrl?: string
   promotion?: string
+  sponsored?: boolean
   customHeaders?: Record<string, string>
   proxyMode?: ProxyMode
   proxyURL?: string

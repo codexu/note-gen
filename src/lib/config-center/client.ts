@@ -63,6 +63,7 @@ function normalizeManifest(payload: unknown): ConfigCenterManifest | null {
       providerTemplates: normalizeManifestEntry(payload.configs.providerTemplates) ?? undefined,
       providerTemplatesChina: normalizeManifestEntry(payload.configs.providerTemplatesChina) ?? undefined,
       noteGenDefaultModels: normalizeManifestEntry(payload.configs.noteGenDefaultModels) ?? undefined,
+      noteGenModelPolicy: normalizeManifestEntry(payload.configs.noteGenModelPolicy) ?? undefined,
     },
   }
 }

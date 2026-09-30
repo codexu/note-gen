@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 
 import type { AiConfig, ModelConfig, ModelType } from '@/app/core/setting/config'
 import { fetchConfigCenterConfig } from '@/lib/config-center/client'
+import { loadNoteGenModelPolicy } from './notegen-model-policy'
 
 export const NOTEGEN_DEFAULT_MODELS_CACHE_KEY = 'noteGenDefaultModelsCache'
 
@@ -107,6 +108,8 @@ function mergeNoteGenDefaultModels(config: AiConfig, remoteModels: ModelConfig[]
     return config
   }
 
+  // The Limited alias must survive older remote configs that still publish Qwen.
+  remoteModels = remoteModels.filter(model => model.modelType !== 'chat')
   const remoteModelById = new Map(remoteModels.map((model) => [model.id, model]))
   const builtinModelIds = new Set(config.models.map((model) => model.id))
 
@@ -151,6 +154,8 @@ async function fetchNoteGenDefaultModelsFromConfigCenter(versionCode?: number | 
 }
 
 export async function loadNoteGenDefaultConfig(builtinConfig: AiConfig): Promise<AiConfig> {
+  const policy = await loadNoteGenModelPolicy()
+  builtinConfig = { ...builtinConfig, title: policy.title }
   const store = await Store.load('store.json')
   const cached = await store.get<NoteGenDefaultModelsCache>(NOTEGEN_DEFAULT_MODELS_CACHE_KEY)
 
@@ -177,6 +182,7 @@ export async function loadNoteGenDefaultConfig(builtinConfig: AiConfig): Promise
 }
 
 export function applyNoteGenDefaultConfig(aiModelList: AiConfig[], noteGenConfig: AiConfig): AiConfig[] {
+  aiModelList = aiModelList.filter(config => !['note-gen-limited', 'note-gen-chat', 'note-gen-vlm'].includes(config.key))
   const hasNoteGenConfig = aiModelList.some((config) => config.key === noteGenConfig.key)
 
   if (!hasNoteGenConfig) {

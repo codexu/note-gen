@@ -253,6 +253,8 @@ NoteGen 使用 BrowserStack 进行兼容性测试。
 
 [硅基流动](https://cloud.siliconflow.cn/i/O2ciJeZw)为项目提供模型服务支持。
 
+[AIHubMix](https://aihubmix.com/?aff=6rfO) 为项目提供赞助模型服务支持。
+
 同时感谢以下服务对 NoteGen 的支持：
 
 - [七牛云](https://www.qiniu.com/products/ai-token-api?utm_source=NoteGen)

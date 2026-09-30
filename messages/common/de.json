@@ -1,4 +1,13 @@
 {
+  "providerSponsor": {
+    "label": "Sponsor",
+    "description": "Stellt NoteGen-Nutzern kostenlose Modellkontingente oder Dienste bereit."
+  },
+  "noteGenLimited": {
+    "usage": "{used}/{limit} genutzt",
+    "unlimited": "Unbegrenzte Anfragen",
+    "description": "Standardmäßig {model} mit bis zu {limit} Anfragen pro Tag, danach automatisch {freeModel}. Jede Modellanfrage zählt, einschließlich Agent-Runden. Zurücksetzung um Mitternacht chinesischer Zeit."
+  },
   "requestErrors": {
     "aiRequestFailed": "KI-Anfrage fehlgeschlagen",
     "embeddingRequestFailed": "Embedding-Anfrage fehlgeschlagen",

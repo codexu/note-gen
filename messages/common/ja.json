@@ -1,4 +1,13 @@
 {
+  "providerSponsor": {
+    "label": "スポンサー",
+    "description": "NoteGen ユーザーに無料のモデル利用枠やサービスを提供しています。"
+  },
+  "noteGenLimited": {
+    "usage": "{used}/{limit} 回使用済み",
+    "unlimited": "回数制限なし",
+    "description": "標準では {model} を1日最大{limit}回使用し、上限に達すると自動的に {freeModel} に切り替わります。Agentの複数回の呼び出しもそれぞれ数えます。中国時間の午前0時にリセットされます。"
+  },
   "requestErrors": {
     "aiRequestFailed": "AI リクエストに失敗しました",
     "embeddingRequestFailed": "埋め込みベクトルのリクエストに失敗しました",

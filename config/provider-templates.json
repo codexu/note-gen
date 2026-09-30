@@ -2,10 +2,20 @@
   "providers": [
     {
       "key": "siliconflow",
+      "sponsored": true,
       "title": "SiliconFlow",
       "baseURL": "https://api.siliconflow.cn/v1",
       "apiKeyUrl": "https://cloud.siliconflow.cn/i/O2ciJeZw",
       "icon": "https://s2.loli.net/2025/09/09/D8Al2raSvewN5xn.jpg",
+      "enabled": true
+    },
+    {
+      "key": "aihubmix",
+      "sponsored": true,
+      "title": "AIHubMix",
+      "baseURL": "https://aihubmix.com/v1",
+      "apiKeyUrl": "https://aihubmix.com/?aff=6rfO",
+      "icon": "https://aihubmix.com/favicon.ico?v=2",
       "enabled": true
     },
     {
@@ -18,11 +28,10 @@
     },
     {
       "key": "infistar",
-      "title": "Infistar.cc 无限星河",
+      "title": "Infistar",
       "baseURL": "https://infistar.cc/v1",
       "apiKeyUrl": "https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link",
       "icon": "https://infistar.cc/favicon.ico",
-      "promotion": "注册送 $10",
       "enabled": true
     },
     {

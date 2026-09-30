@@ -250,6 +250,8 @@ NoteGen is tested with BrowserStack.
 
 [SiliconFlow](https://cloud.siliconflow.cn/i/O2ciJeZw) provides model service support for the project.
 
+[AIHubMix](https://aihubmix.com/?aff=6rfO) sponsors model services for the project.
+
 We also appreciate the service support provided by:
 
 - [Qiniu](https://www.qiniu.com/products/ai-token-api?utm_source=NoteGen)

@@ -1,4 +1,13 @@
 {
+  "providerSponsor": {
+    "label": "Sponsor",
+    "description": "Provides free model credits or services for NoteGen users."
+  },
+  "noteGenLimited": {
+    "usage": "{used}/{limit} used",
+    "unlimited": "Unlimited requests",
+    "description": "Uses {model} by default, up to {limit} requests per day, then automatically switches to {freeModel}. Each model request counts, including agent rounds. Resets at midnight China time."
+  },
   "requestErrors": {
     "aiRequestFailed": "AI request failed",
     "embeddingRequestFailed": "Embedding request failed",

@@ -16,6 +16,8 @@ import {
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
+import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
+import { NoteGenModelLabel, noteGenModelDisplayName } from '@/components/notegen-model-label'
 import {
   changePrimaryChatModel,
   collectGroupedChatModels,
@@ -26,9 +28,13 @@ function ModelListContent({
   groupedByConfig,
   primaryModel,
   onSelect,
+  limitedDetail,
+  limitedName,
 }: {
   groupedByConfig: Record<string, GroupedChatModel[]>
   primaryModel?: string
+  limitedDetail: string
+  limitedName: string
   onSelect: (modelId: string) => void
 }) {
   return (
@@ -51,7 +57,7 @@ function ModelListContent({
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm truncate">{item.model.model}</div>
+                  <div className="font-medium text-sm truncate"><NoteGenModelLabel model={item.model.model} builtin={item.configKey === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} /></div>
                 </div>
                 <div
                   className={cn(
@@ -73,6 +79,7 @@ function ModelListContent({
 }
 
 export function ModelSelector() {
+  const { detail: limitedDetail, activeModelName: limitedName } = useNoteGenLimitedUsage()
   const [groupedModels, setGroupedModels] = useState<GroupedChatModel[]>([])
   const [open, setOpen] = useState(false)
   const { primaryModel, aiModelList, initSettingData } = useSettingStore()
@@ -82,18 +89,20 @@ export function ModelSelector() {
   async function modelSelectChangeHandler(modelId: string) {
     const nextModel = groupedModels.find(item => item.model.id === modelId)
     const previousModel = groupedModels.find(item => item.model.id === primaryModel)
+    const nextName = noteGenModelDisplayName(nextModel?.model.model || modelId, nextModel?.configKey === 'note-gen-free', limitedName)
+    const previousName = noteGenModelDisplayName(previousModel?.model.model || primaryModel, previousModel?.configKey === 'note-gen-free', limitedName)
     const result = await changePrimaryChatModel({
       modelId,
-      modelName: nextModel?.model.model || modelId,
-      previousModelName: previousModel?.model.model || primaryModel,
+      modelName: nextName,
+      previousModelName: previousName,
     })
     if (result.changed && result.hasConversationHistory) {
       toast({
         title: result.appliesNextTurn
-          ? t('nextTurn', { model: nextModel?.model.model || modelId })
+          ? t('nextTurn', { model: nextName })
           : t('changed', {
-              from: previousModel?.model.model || primaryModel,
-              to: nextModel?.model.model || modelId,
+              from: previousName,
+              to: nextName,
             }),
         description: result.appliesNextTurn
           ? t('changeWarning')
@@ -125,9 +134,10 @@ export function ModelSelector() {
     && agentState.activeModelId !== primaryModel
   )
   const selectedModelLabel = selectedModel?.model.model || t('placeholder')
+  const selectedDisplayName = noteGenModelDisplayName(selectedModelLabel, selectedModel?.configKey === 'note-gen-free', limitedName)
   const displayedModelLabel = appliesNextTurn
-    ? `${agentState.activeModelName || agentState.activeModelId} → ${selectedModelLabel}`
-    : selectedModelLabel
+    ? `${agentState.activeModelName || agentState.activeModelId} → ${selectedDisplayName}`
+    : selectedDisplayName
 
   return (
     <>
@@ -139,8 +149,9 @@ export function ModelSelector() {
           <Label className="text-sm font-medium">{t('tooltip')}</Label>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground truncate max-w-40">
-            {displayedModelLabel}
+          <span className="text-sm text-muted-foreground truncate max-w-72" title={displayedModelLabel}>
+            {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
+            <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} />
           </span>
           {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
           <ChevronRight className="size-4 text-muted-foreground shrink-0" />
@@ -154,6 +165,8 @@ export function ModelSelector() {
           </DrawerHeader>
           <div className="p-4">
             <ModelListContent
+              limitedName={limitedName}
+              limitedDetail={limitedDetail}
               groupedByConfig={groupedByConfig}
               primaryModel={primaryModel}
               onSelect={async (modelId) => {

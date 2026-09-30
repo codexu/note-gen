@@ -2375,8 +2375,8 @@
       "voiceDesc": "音声モデルで使用する音声タイプを指定します（例：'alloy'、'echo'、'fable'など）。",
       "voicePlaceholder": "音声タイプを入力してください（例：alloy）",
       "defaultModels": {
-        "title": "デフォルト無料モデル",
-        "desc": "NoteGenはユーザーに無料のAIモデルサービスを提供し、設定なしで基本機能を使用できます。",
+        "title": "NoteGen",
+        "desc": "NoteGenはSiliconFlowとAIHubMixの支援により無料のAIモデルサービスを提供し、設定なしで基本機能を使用できます。",
         "chatModel": {
           "name": "Qwen/Qwen3-8B",
           "type": "チャットモデル",

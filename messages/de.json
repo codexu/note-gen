@@ -2687,8 +2687,8 @@
       "voiceDesc": "Gib den Sprachtyp für Audiomodelle an, z. B. 'alloy', 'echo', 'fable' usw.",
       "voicePlaceholder": "Sprachtyp eingeben, z. B.: alloy",
       "defaultModels": {
-        "title": "Kostenlose Standardmodelle",
-        "desc": "NoteGen stellt Benutzern kostenlose KI-Modelldienste zur Verfügung, die eine Grundfunktionalität ohne Konfiguration ermöglichen.",
+        "title": "NoteGen",
+        "desc": "NoteGen bietet mit Unterstützung von SiliconFlow und AIHubMix kostenlose KI-Modelldienste, die grundlegende Funktionen ohne Konfiguration ermöglichen.",
         "chatModel": {
           "name": "Qwen/Qwen3-8B",
           "type": "Chat-Modell",

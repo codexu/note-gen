@@ -1,0 +1,10 @@
+"$schema" = "schemas/schema.json"
+
+[[permission]]
+identifier = "monitor-all"
+description = "This enables all monitor related commands"
+commands.allow = [
+    "stop_monitor",
+    "start_monitor",
+    "is_monitor_running",
+]

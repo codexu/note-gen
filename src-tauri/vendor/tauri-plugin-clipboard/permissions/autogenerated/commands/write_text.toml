@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-write-text"
+description = "Enables the write_text command without any pre-configured scope."
+commands.allow = ["write_text"]
+
+[[permission]]
+identifier = "deny-write-text"
+description = "Denies the write_text command without any pre-configured scope."
+commands.deny = ["write_text"]

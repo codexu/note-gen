@@ -6,6 +6,16 @@ authors = ["codexu"]
 edition = "2021"
 rust-version = "1.88"
 
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[patch.crates-io]
+# Upstream enables every image codec; keep clipboard formats used by NoteGen.
+tauri-plugin-clipboard = { path = "vendor/tauri-plugin-clipboard" }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

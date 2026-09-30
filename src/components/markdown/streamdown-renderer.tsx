@@ -1,6 +1,5 @@
 'use client'
 
-import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { cjk } from '@streamdown/cjk'
 import type { ComponentProps } from 'react'
@@ -14,6 +13,7 @@ import {
 } from 'streamdown'
 import { normalizeLatexForKatex } from '@/lib/latex'
 import { cn } from '@/lib/utils'
+import { codeHighlighter } from '@/lib/code-highlighter'
 import 'katex/dist/katex.min.css'
 import 'streamdown/styles.css'
 import './streamdown-renderer.css'
@@ -31,7 +31,7 @@ const math = createMathPlugin({
   errorColor: 'var(--color-destructive)',
 })
 
-const plugins: PluginConfig = { cjk, code, math }
+const plugins: PluginConfig = { cjk, code: codeHighlighter, math }
 const linkSafety = { enabled: false }
 const interactiveControls: ControlsConfig = {
   code: {

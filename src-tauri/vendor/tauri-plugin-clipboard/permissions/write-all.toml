@@ -1,0 +1,16 @@
+"$schema" = "schemas/schema.json"
+
+[[permission]]
+identifier = "write-all"
+description = "This enables all write related commands to clipboard"
+commands.allow = [
+    "write_text",
+    "write_html",
+    "write_html_and_text",
+    "write_rtf",
+    "write_image_binary",
+    "write_image_base64",
+    "write_files_uris",
+    "write_files",
+    "clear",
+]

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-text"
+description = "Enables the read_text command without any pre-configured scope."
+commands.allow = ["read_text"]
+
+[[permission]]
+identifier = "deny-read-text"
+description = "Denies the read_text command without any pre-configured scope."
+commands.deny = ["read_text"]

@@ -36,6 +36,7 @@ export function SettingTab() {
   const localizationRevision = usePluginLocalization(settingsPlugins, locale)
   const { hasUpdate } = useUpdateStore()
   const [query, setQuery] = useState('')
+  const [hasScrolledDown, setHasScrolledDown] = useState(false)
   
   // Add translations to the config
   const config = useMemo(() => {
@@ -120,7 +121,7 @@ export function SettingTab() {
   }, [config, query])
 
   return (
-    <div className="flex h-full min-h-0 w-56 shrink-0 flex-col border-r bg-sidebar py-4">
+    <div className="relative flex h-full min-h-0 w-56 shrink-0 flex-col border-r bg-sidebar pt-4">
       <div className="shrink-0 px-3">
         <InputGroup>
           <InputGroupAddon>
@@ -142,8 +143,9 @@ export function SettingTab() {
       ) : (
         <TabsList
           variant="sidebar"
-          className="!h-auto min-h-0 w-full flex-1 items-stretch justify-start overflow-y-auto rounded-none bg-transparent px-3 py-0"
+          className="!h-auto min-h-0 w-full flex-1 items-stretch justify-start overflow-y-auto rounded-none bg-transparent px-3 pt-0 pb-10"
           aria-label={t('title')}
+          onScroll={(event) => setHasScrolledDown(event.currentTarget.scrollTop > 0)}
         >
           {filteredConfig.map((item) => {
             if ('group' in item) {
@@ -178,6 +180,16 @@ export function SettingTab() {
           })}
         </TabsList>
       )}
+      {hasScrolledDown ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-12 z-10 h-10 bg-gradient-to-b from-sidebar via-sidebar/70 to-transparent"
+          aria-hidden="true"
+        />
+      ) : null}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-sidebar via-sidebar/70 to-transparent"
+        aria-hidden="true"
+      />
     </div>
   )
 }

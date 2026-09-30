@@ -45,6 +45,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The legacy tools package is no longer available in the Android SDK repository.
+          packages: 'platform-tools'
 
       - name: Install Android NDK
         run: |

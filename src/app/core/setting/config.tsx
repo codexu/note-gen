@@ -143,7 +143,7 @@ export default baseConfig
 export type ModelType = 'chat' | 'image' | 'video' | 'tts' | 'stt' | 'embedding' | 'rerank';
 export type ProxyMode = 'inherit' | 'direct' | 'custom';
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
-export type WebSearchProvider = 'auto' | 'zhipu' | 'tavily' | 'brave' | 'exa';
+export type WebSearchProvider = 'auto' | 'zhipu' | 'tavily' | 'brave' | 'exa' | 'serply';
 export type WebSearchApiProvider = Exclude<WebSearchProvider, 'auto'>;
 export type WebSearchApiKeys = Partial<Record<WebSearchApiProvider, string>>;
 

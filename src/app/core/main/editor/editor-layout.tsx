@@ -16,6 +16,8 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { Store } from '@tauri-apps/plugin-store'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { Layout } from 'react-resizable-panels'
@@ -1077,7 +1079,12 @@ export function EditorLayout() {
     const group = layoutRef.current.groups[groupId]
     if (!group) return
     const tab = openTabs.find(item => item.id === tabId)
-    if (group.tabIds.length === 1 && tab?.kind === 'blank') return
+    if (
+      group.tabIds.length === 1
+      && tab?.kind === 'blank'
+      && tab.autoCreated
+      && getEditorGroupIds(layoutRef.current.root).length === 1
+    ) return
     const wasActiveGroup = layoutRef.current.activeGroupId === groupId
     if (group.activeTabId === tabId && layoutRef.current.activeGroupId === groupId && !canDeactivateActiveEditor()) return
     let next = removeTabFromEditorGroup(layoutRef.current, groupId, tabId)
@@ -1092,6 +1099,32 @@ export function EditorLayout() {
       void activateTab(next.activeGroupId, nextTab)
     }
   }, [activateTab, activeTabId, canDeactivateActiveEditor, openTabs, removeGlobalTabIfUnused, setLayout])
+
+  useEffect(() => {
+    if (!checkIsTauri()) return
+
+    let disposed = false
+    const unlistenPromise = listen('editor-close-tab-requested', () => {
+      if (disposed) return
+      const currentLayout = layoutRef.current
+      const group = currentLayout.groups[currentLayout.activeGroupId]
+      const tab = openTabs.find(item => item.id === group?.activeTabId)
+      const onlyPlaceholder = group?.tabIds.length === 1
+        && tab?.kind === 'blank'
+        && tab.autoCreated
+        && getEditorGroupIds(currentLayout.root).length === 1
+      if (!group || !tab || onlyPlaceholder) {
+        void getCurrentWindow().hide()
+        return
+      }
+      handleCloseTab(group.id, group.activeTabId)
+    })
+
+    return () => {
+      disposed = true
+      void unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [handleCloseTab, openTabs])
 
   const handleKeepTabs = useCallback((groupId: string, keptTabIds: string[]) => {
     const group = layoutRef.current.groups[groupId]

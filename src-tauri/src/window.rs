@@ -3,6 +3,58 @@ use tauri_plugin_store::StoreExt;
 
 pub const AUTOSTART_ARG: &str = "--autostart";
 
+#[cfg(target_os = "macos")]
+pub fn setup_editor_menu(app: &AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+
+    let menu = Menu::default(app)?;
+    let native_close_text = PredefinedMenuItem::close_window(app, None)?.text()?;
+    let close_tab = MenuItem::with_id(
+        app,
+        "close-editor-tab",
+        "Close",
+        true,
+        Some("CommandOrControl+W"),
+    )?;
+    let mut inserted_close_tab = false;
+
+    // The default macOS menu includes native Close items in both File and Window.
+    // Remove both so neither can hide the main window before the webview handles Cmd+W.
+    for item in menu.items()? {
+        let Some(submenu) = item.as_submenu() else {
+            continue;
+        };
+        for (index, child) in submenu.items()?.iter().enumerate().rev() {
+            let Some(predefined) = child.as_predefined_menuitem() else {
+                continue;
+            };
+            if predefined.text()? != native_close_text {
+                continue;
+            }
+            submenu.remove(predefined)?;
+            if !inserted_close_tab {
+                submenu.insert(&close_tab, index)?;
+                inserted_close_tab = true;
+            }
+        }
+    }
+
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, event| {
+        if event.id().as_ref() != "close-editor-tab" {
+            return;
+        }
+        if let Some(window) = app.windows().values().find(|window| window.is_focused().unwrap_or(false)) {
+            if window.label() == "main" {
+                let _ = window.emit_to("main", "editor-close-tab-requested", ());
+            } else {
+                let _ = window.close();
+            }
+        }
+    });
+    Ok(())
+}
+
 pub fn setup_window_events(app: &AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("main") {
         let window_clone = window.clone();

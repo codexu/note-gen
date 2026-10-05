@@ -6,6 +6,8 @@ import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ExternalLink, FileLock, FilePlus2, FileText, Folder, Globe2, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { checkIsTauri } from '@/lib/check'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
@@ -127,7 +129,7 @@ function SortableTabWithMenu({
   const pluginIcon = pluginView?.icon
   const displayName = plugin && pluginView ? resolvePluginViewTitle(plugin, pluginView, locale, pluginState?.settings) : tab.name
   const canDetach = canOpenInEditorWindow(tab)
-  const canClose = tabs.length > 1 || tab.kind !== 'blank'
+  const canClose = tabs.length > 1 || tab.kind !== 'blank' || !tab.autoCreated
   const recordTypeLabel = isRecordTab ? recordTypeT(tab.markType || 'text') : ''
   const baseTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' || tab.kind === 'browser' || pluginTab ? displayName : tab.path
   const hasClosableOtherTabs = tabs.some(item => item.id !== tab.id && !item.pinned)
@@ -287,7 +289,9 @@ export function TabBar({
   }, [setTabListDropRef])
   const activeTab = tabs.find(tab => tab.id === activeTabId)
   const canSplit = tabs.length > 1 && Boolean(activeTab)
-  const canCloseActiveTab = Boolean(activeTab && (tabs.length > 1 || activeTab.kind !== 'blank'))
+  const canCloseActiveTab = Boolean(activeTab && (
+    tabs.length > 1 || activeTab.kind !== 'blank' || !activeTab.autoCreated || canCloseGroup
+  ))
   const activeCanvasId = activeTab && (activeTab.kind === 'canvas' || isCanvasTabPath(activeTab.path))
     ? activeTab.canvasId || getCanvasIdFromTabPath(activeTab.path)
     : null
@@ -377,13 +381,26 @@ export function TabBar({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isActiveGroup || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'w' || !activeTabId) return
+      if (
+        !isActiveGroup
+        || event.defaultPrevented
+        || event.isComposing
+        || event.altKey
+        || event.shiftKey
+        || !(event.metaKey || event.ctrlKey)
+        || event.key.toLowerCase() !== 'w'
+      ) return
       event.preventDefault()
-      if (!canCloseActiveTab) return
+      event.stopPropagation()
+      if (event.repeat) return
+      if (!canCloseActiveTab) {
+        if (checkIsTauri()) void getCurrentWindow().hide()
+        return
+      }
       onCloseTab(activeTabId)
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
   }, [activeTabId, canCloseActiveTab, isActiveGroup, onCloseTab])
 
   const sortableIds = useMemo(() => tabs.map(tab => `editor-tab:${groupId}:${tab.id}`), [groupId, tabs])

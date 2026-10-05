@@ -27,6 +27,8 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     // 设置窗口事件监听器
     window::setup_window_events(&app_handle)?;
+    #[cfg(target_os = "macos")]
+    window::setup_editor_menu(&app_handle)?;
 
     // 创建系统托盘
     let _tray = create_tray(&app_handle)?;

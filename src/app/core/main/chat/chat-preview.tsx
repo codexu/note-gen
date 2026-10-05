@@ -195,8 +195,7 @@ export default function ChatPreview({ text, streaming = false, containerClassNam
   return (
     <div className={cn('flex-1 max-w-[calc(100vw-30px)] md:max-w-[calc(100vw-440px)]', containerClassName)}>
       <div
-        className="w-full"
-        draggable={isMacOS()}
+        className="w-full select-text"
         onDragStart={handleDragStart}
         style={{ fontSize: `${(16 * contentTextScale) / 100}px` }}
       >

@@ -234,7 +234,7 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
     setIsEnhancing(true)
 
     try {
-      const result = await getContextForQuery(context.linkText, [{ text: context.linkText, weight: 1 }])
+      const result = await getContextForQuery(context.linkText)
       if (requestId !== requestIdRef.current) return
 
       const activePath = normalizeComparablePath(currentRelativePath)

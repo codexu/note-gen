@@ -28,6 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { join } from "@tauri-apps/api/path";
 import { Store } from "@tauri-apps/plugin-store";
 import { createHash } from 'crypto';
+import { getIdentifierTerms, getLexicalTerms, replaceLexicalTerm } from './lexical-tokenizer';
 import { isSkillsFolder } from './skills/utils';
 import { getVectorDocumentKey } from './vector-document-key';
 import {
@@ -377,109 +378,6 @@ const SYNONYM_DICT: Record<string, string[]> = {
 function isStopWord(keyword: string): boolean {
   const cleanKeyword = keyword.trim().toLowerCase();
   return STOP_WORDS.has(cleanKeyword);
-}
-
-/**
- * 查询转换接口
- */
-interface QueryVariant {
-  original: string;  // 原始查询
-  transformed: string; // 转换后的查询
-  source: 'original' | 'synonym';
-}
-
-/**
- * 基于同义词词典扩展查询
- * @param query 原始查询
- * @param maxVariants 最大变体数量
- * @returns 查询变体列表
- */
-function expandWithSynonyms(query: string, maxVariants: number = 3): QueryVariant[] {
-  const variants: QueryVariant[] = [
-    { original: query, transformed: query, source: 'original' }
-  ];
-
-  // 检查查询中的每个词是否在同义词词典中
-  const queryLower = query.toLowerCase();
-  const words = queryLower.split(/\s+/);
-
-  for (const word of words) {
-    // 移除标点符号
-    const cleanWord = word.replace(/[^\w\u4e00-\u9fa5]/g, '');
-
-    if (SYNONYM_DICT[cleanWord]) {
-      const synonyms = SYNONYM_DICT[cleanWord];
-
-      // 为每个同义词生成变体
-      for (const synonym of synonyms) {
-        if (variants.length >= maxVariants) break;
-
-        const transformed = queryLower.replace(new RegExp(cleanWord, 'gi'), synonym);
-
-        // 避免重复
-        if (!variants.some(v => v.transformed === transformed)) {
-          variants.push({
-            original: query,
-            transformed,
-            source: 'synonym'
-          });
-        }
-      }
-    }
-
-    if (variants.length >= maxVariants) break;
-  }
-
-  return variants;
-}
-
-/**
- * 转换查询（生成多个变体）
- * @param keywords 原始关键词列表
- * @param enableExpansion 是否启用查询扩展
- * @param maxVariants 每个关键词的最大变体数量
- * @returns 扩展后的关键词列表
- */
-function transformQueries(
-  keywords: Keyword[],
-  enableExpansion: boolean,
-  maxVariants: number
-): Keyword[] {
-  if (!enableExpansion) {
-    return keywords;
-  }
-
-  const expandedKeywords: Keyword[] = [];
-
-  for (const keyword of keywords) {
-    // 生成查询变体
-    const variants = expandWithSynonyms(keyword.text, maxVariants);
-
-    // 将变体添加到关键词列表
-    for (const variant of variants) {
-      // 避免重复
-      if (!expandedKeywords.some(k => k.text === variant.transformed)) {
-        expandedKeywords.push({
-          text: variant.transformed,
-          weight: keyword.weight // 保持原始权重
-        });
-      }
-    }
-  }
-
-  return expandedKeywords;
-}
-
-function normalizeKeywordWeights(keywords: Keyword[]): Keyword[] {
-  const maxWeight = keywords.reduce((maximum, keyword) => (
-    Math.max(maximum, Number.isFinite(keyword.weight) ? Math.max(0, keyword.weight) : 0)
-  ), 0);
-  return keywords.map(keyword => ({
-    ...keyword,
-    weight: maxWeight > 0
-      ? Math.min(1, Math.max(0, keyword.weight) / maxWeight)
-      : 1
-  }));
 }
 
 /**
@@ -1034,26 +932,43 @@ async function resolveSnippetToChunk(
   };
 }
 
-function buildLexicalQueries(query: string, keywords: Keyword[]): Keyword[] {
-  const queries = [{ text: query.trim(), weight: 1 }, ...keywords];
-  const unique = new Map<string, Keyword>();
-  for (const item of queries) {
-    const key = item.text.trim().toLocaleLowerCase();
-    if (!key || isStopWord(key)) continue;
-    const previous = unique.get(key);
-    if (!previous || item.weight > previous.weight) {
-      unique.set(key, { text: item.text.trim(), weight: item.weight });
-    }
-  }
-  return Array.from(unique.values());
-}
-
-/**
- * 关键词及其权重类型定义
- */
-export interface Keyword {
+interface LexicalQuery {
   text: string;
   weight: number;
+}
+
+/** 保留完整查询，只生成少量完整句子的同义词变体，不依赖关键词排序。 */
+function buildLexicalQueries(query: string, enableExpansion: boolean, maxVariants: number): LexicalQuery[] {
+  const original = query.normalize('NFKC').trim().toLowerCase();
+  const queries: LexicalQuery[] = [{ text: original, weight: 1 }];
+  if (!enableExpansion) return queries;
+
+  const limit = Number.isFinite(maxVariants) ? Math.min(5, Math.max(1, Math.trunc(maxVariants))) : 3;
+  const terms = getLexicalTerms(original);
+  for (const [term, synonyms] of Object.entries(SYNONYM_DICT)) {
+    // 中文词可出现在连续文本中；空格语言必须匹配完整词，避免 ai 匹配到 contain。
+    const matches = /\p{Script=Han}/u.test(term)
+      ? terms.some(candidate => candidate.includes(term))
+      : terms.includes(term);
+    if (!matches || isStopWord(term)) continue;
+    for (const synonym of synonyms) {
+      if (queries.length >= limit) return queries;
+      const text = replaceLexicalTerm(original, term, synonym);
+      if (!queries.some(item => item.text === text)) {
+        queries.push({ text, weight: 0.5 });
+      }
+    }
+  }
+  return queries;
+}
+
+function buildFuzzyQueries(query: string, strategy: RetrievalStrategy): LexicalQuery[] {
+  const terms = strategy.kind === 'short'
+    ? [query.normalize('NFKC').trim(), ...getIdentifierTerms(query)]
+    : getIdentifierTerms(query);
+  return Array.from(new Set(terms.filter(term => term && !isStopWord(term))))
+    .slice(0, 4)
+    .map(text => ({ text, weight: 1 }));
 }
 
 /**
@@ -1081,14 +996,12 @@ export interface RagSearchResponse {
 }
 
 /**
- * 根据完整查询和关键词数组获取相关上下文
+ * 根据完整查询执行词法与语义混合检索
  * @param query 用户的完整查询，用于保留语义意图的向量检索和统一重排
- * @param keywords 关键词数组，用于模糊搜索、BM25 和查询扩展
  * @returns 包含上下文文本和引用文件名的对象
  */
 export async function getContextForQuery(
   query: string,
-  keywords: Keyword[],
   scope: RetrievalScope = {}
 ): Promise<RagSearchResponse> {
   try {
@@ -1122,33 +1035,22 @@ export async function getContextForQuery(
     const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
     const maxQueryVariations = await store.get<number>('ragMaxQueryVariations') ?? 3;
 
-    // 应用查询转换（生成同义词变体）
-    const expandedKeywords = normalizeKeywordWeights(
-      transformQueries(keywords || [], enableQueryExpansion, maxQueryVariations)
-    );
-
-    // 将关键词按权重排序，优先考虑权重高的关键词
-    const sortedKeywords = [...expandedKeywords].sort((a, b) => b.weight - a.weight);
-    const lexicalQueries = buildLexicalQueries(query, sortedKeywords);
+    const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
+    const fuzzyQueries = buildFuzzyQueries(query, strategy);
     const items = await collectMarkdownContents(resolvedScope);
     const allowedVectorKeys = new Set(items.map(item => (
       createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || ''))
     )));
 
-    // 1. 使用逐个关键词进行模糊搜索找到相关文件内容
+    // 1. 短查询和明确标识符使用模糊搜索
     try {
       if (items.length > 0) {
-        // 为每个关键词单独进行搜索
-        for (const keyword of sortedKeywords) {
-          // 跳过停用词的模糊搜索（这些词匹配太多低质量结果）
-          if (isStopWord(keyword.text)) {
-            continue;
-          }
-
-          // 对每个关键词调用Rust的fuzzy_search函数
+        // 限制补充查询数量，避免对长问题逐词扫描全文
+        for (const keyword of fuzzyQueries) {
+          // 短查询或标识符单独补充召回。
           const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
             items,
-            query: keyword.text,  // 单独使用每个关键词
+            query: keyword.text,
             keys: ['title', 'article'],
             threshold: strategy.fuzzyThreshold,
             includeScore: true,
@@ -1160,16 +1062,13 @@ export async function getContextForQuery(
             if (result.score > 0) {
               const item = result.item;
               // 提取匹配的文本片段作为上下文
-              const articleMatches = result.matches.filter(m => m.key === 'article');
-              if (articleMatches.length > 0) {
-                // 使用匹配部分的上下文（周围大约500个字符）
-                const match = articleMatches[0];
-                const content = match.value;
-
-                // 找到第一个匹配位置的索引
+              const match = result.matches.find(m => m.key === 'article');
+              const content = match?.value || item.article || '';
+              if (content.trim()) {
+                // 正文命中截取邻近上下文；仅标题命中时取正文开头。
                 let startIdx = 0;
-                let endIdx = content.length;
-                if (match.indices.length > 0) {
+                let endIdx = Math.min(content.length, 500);
+                if (match && match.indices.length > 0) {
                   const firstMatch = match.indices[0];
                   startIdx = Math.max(0, firstMatch[0] - 250);
                   endIdx = Math.min(content.length, firstMatch[1] + 250);
@@ -1394,7 +1293,25 @@ async function finalizeSearchResults(
   resultCount: number,
   windowSize: number
 ): Promise<RagSearchResponse> {
-  const mergedResults = mergeResultsByDocument(allResults, strategy.weights);
+  const queryTerms = getLexicalTerms(query);
+  const normalizedQuery = query.normalize('NFKC').toLowerCase().trim();
+  const exactIdentifier = strategy.kind === 'exact'
+    && queryTerms.length === 1
+    && queryTerms[0] === normalizedQuery
+    ? normalizedQuery : undefined;
+  // 单独查询错误码、版本号或文件名时，语义相似不能代替该标识符的实际命中。
+  const candidates = exactIdentifier
+    ? allResults.filter(result => (
+        getLexicalTerms(result.content).includes(exactIdentifier)
+        || getLexicalTerms(result.filepath).some(term => (
+          term === exactIdentifier || term.endsWith(`/${exactIdentifier}`)
+        ))
+      ))
+    : allResults;
+  if (candidates.length === 0) {
+    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
+  }
+  const mergedResults = mergeResultsByDocument(candidates, strategy.weights);
   const uniqueResults: SearchResult[] = [];
   const mergedIndices = new Set<number>();
 
@@ -1444,7 +1361,7 @@ async function finalizeSearchResults(
   const selectedCandidateIds = new Set<string>();
 
   for (const type of ['vector', 'bm25', 'fuzzy'] as const) {
-    const typeResults = allResults
+    const typeResults = candidates
       .filter(result => result.type === type)
       .sort((a, b) => a.rank - b.rank);
     const selectedForType = new Set<string>();
@@ -1657,13 +1574,11 @@ async function collectMarkdownContentsInFolder(
 /**
  * 在指定文件夹范围内获取相关上下文
  * @param query 用户的完整查询
- * @param keywords 关键词数组，用于词法检索和查询扩展
  * @param folderPath 文件夹相对路径
  * @returns 包含上下文文本和引用文件名的对象
  */
 export async function getContextForQueryInFolder(
   query: string,
-  keywords: Keyword[],
   folderPath: string
 ): Promise<RagSearchResponse> {
   try {
@@ -1694,13 +1609,8 @@ export async function getContextForQueryInFolder(
     const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
     const maxQueryVariations = await store.get<number>('ragMaxQueryVariations') ?? 3;
 
-    // 应用查询转换（生成同义词变体）
-    const expandedKeywords = normalizeKeywordWeights(
-      transformQueries(keywords || [], enableQueryExpansion, maxQueryVariations)
-    );
-
-    const sortedKeywords = [...expandedKeywords].sort((a, b) => b.weight - a.weight);
-    const lexicalQueries = buildLexicalQueries(query, sortedKeywords);
+    const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
+    const fuzzyQueries = buildFuzzyQueries(query, strategy);
 
     // 收集文件夹范围内的文件
     const items = await collectMarkdownContentsInFolder(folderPath);
@@ -1711,12 +1621,7 @@ export async function getContextForQueryInFolder(
     // 1. 模糊搜索（限定到文件夹）
     try {
       if (items.length > 0) {
-        for (const keyword of sortedKeywords) {
-          // 跳过停用词的模糊搜索
-          if (isStopWord(keyword.text)) {
-            continue;
-          }
-
+        for (const keyword of fuzzyQueries) {
           const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
             items,
             query: keyword.text,
@@ -1729,14 +1634,12 @@ export async function getContextForQueryInFolder(
           for (const [resultIndex, result] of fuzzyResults.entries()) {
             if (result.score > 0) {
               const item = result.item;
-              const articleMatches = result.matches.filter(m => m.key === 'article');
-              if (articleMatches.length > 0) {
-                const match = articleMatches[0];
-                const content = match.value;
-
+              const match = result.matches.find(m => m.key === 'article');
+              const content = match?.value || item.article || '';
+              if (content.trim()) {
                 let startIdx = 0;
-                let endIdx = content.length;
-                if (match.indices.length > 0) {
+                let endIdx = Math.min(content.length, 500);
+                if (match && match.indices.length > 0) {
                   const firstMatch = match.indices[0];
                   startIdx = Math.max(0, firstMatch[0] - 250);
                   endIdx = Math.min(content.length, firstMatch[1] + 250);

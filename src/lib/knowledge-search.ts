@@ -5,6 +5,7 @@ import { fetchEmbedding, rerankDocuments } from '@/lib/ai'
 import { getBM25Index, parseBM25ChunkKey } from '@/lib/bm25'
 import { getKnowledgeSourceDocument } from '@/lib/knowledge-content'
 import { getKnowledgeSettings, isKnowledgeSourceEnabled } from '@/lib/knowledge-settings'
+import { getIdentifierTerms, getLexicalTerms } from '@/lib/lexical-tokenizer'
 import {
   isKnowledgeSourceType,
   type KnowledgeReadPage,
@@ -145,6 +146,9 @@ export async function searchKnowledge(
 ): Promise<KnowledgeSearchCandidate[]> {
   const normalizedQuery = query.trim()
   if (!normalizedQuery) return []
+  const lexicalQuery = normalizedQuery.normalize('NFKC').toLowerCase()
+  const exactIdentifier = getIdentifierTerms(normalizedQuery).includes(lexicalQuery)
+    ? lexicalQuery : undefined
   const store = await Store.load('store.json')
   const resultCount = options.limit ?? await store.get<number>('ragResultCount') ?? 5
   const similarityThreshold = await store.get<number>('ragSimilarityThreshold') ?? 0.25
@@ -168,6 +172,13 @@ export async function searchKnowledge(
   const candidatePoolSize = Math.max(resultCount * 8, 40)
   const candidates = new Map<string, ChunkCandidate>()
   const addCandidate = (candidate: ChunkCandidate) => {
+    if (exactIdentifier) {
+      const source = sourceByKey.get(candidate.sourceKey)
+      const contentMatches = getLexicalTerms(candidate.content).includes(exactIdentifier)
+      const sourceMatches = getLexicalTerms(`${source?.title || ''} ${source?.sourceId || ''}`)
+        .some(term => term === exactIdentifier || term.endsWith(`/${exactIdentifier}`))
+      if (!contentMatches && !sourceMatches) return
+    }
     const key = `${candidate.sourceKey}:${candidate.chunkId}`
     const current = candidates.get(key)
     if (!current || candidate.score > current.score) candidates.set(key, candidate)

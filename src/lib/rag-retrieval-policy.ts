@@ -1,3 +1,5 @@
+import { getIdentifierTerms } from './lexical-tokenizer';
+
 export interface RetrievalWeights {
   fuzzyWeight: number;
   vectorWeight: number;
@@ -53,9 +55,12 @@ export function getRagDisplayFilename(path: string): string {
 }
 
 function hasExactIdentifier(query: string): boolean {
-  return /\b(?=[a-z\d_-]*[a-z])(?=[a-z\d_-]*\d)[a-z\d]+(?:[-_][a-z\d]+)+\b/i.test(query)
-    || /\b\d{2,}\b/.test(query)
-    || /[\w.-]+\.md\b/i.test(query);
+  return getIdentifierTerms(query).some(term => (
+    /[._/+#]/u.test(term)
+    || (/\p{L}/u.test(term) && /\p{N}/u.test(term))
+    || /^[\p{N}]{2,}$/u.test(term)
+    || /\p{N}-\p{N}/u.test(term)
+  ));
 }
 
 function isShortQuery(query: string): boolean {

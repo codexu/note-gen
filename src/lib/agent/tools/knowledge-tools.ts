@@ -16,6 +16,7 @@ const knowledgeSearchTool: AgentTool = {
     'Search NoteGen articles, individual records, and canvases when the answer depends on the user’s saved knowledge, history, plans, prior decisions, or recorded material.',
     'Do not search for general knowledge, pure creation requests, or when the current article, selection, or current canvas already contains enough evidence.',
     'Articles are preferred by default, while clearly requested records or canvases receive a larger candidate share. Use sourceMode=only only when the user explicitly restricts the source.',
+    'Use rag for natural-language questions, paraphrases, and cross-language retrieval. Keyword mode only matches literal text and cannot find translations; use it only for an explicitly requested literal lookup.',
     'Results are lightweight candidates. Read only the sources you will actually use with knowledge_read_sources, then cite those source keys with knowledge_cite_sources.',
   ].join(' '),
   category: 'note',
@@ -23,8 +24,8 @@ const knowledgeSearchTool: AgentTool = {
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'The complete natural-language question.' },
-      mode: { type: 'string', enum: ['rag', 'keyword'] },
+      query: { type: 'string', description: 'The complete question about the content. Omit search instructions and generic test-note prefixes that do not describe the requested knowledge.' },
+      mode: { type: 'string', enum: ['rag', 'keyword'], description: 'rag (default) for questions, semantic meaning, and cross-language search; keyword only for explicitly requested literal text matching.' },
       sourceTypes: {
         type: 'array',
         items: { type: 'string', enum: ['article', 'record', 'canvas'] },

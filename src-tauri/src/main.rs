@@ -17,7 +17,6 @@ mod document_parser;
 mod file_open;
 mod fonts;
 mod fuzzy_search;
-mod keywords;
 mod local_mcp;
 mod mcp;
 mod mcp_runtime;
@@ -56,7 +55,6 @@ use cloud_folder_sync::{
 use device::get_device_id;
 use fonts::list_system_fonts;
 use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
-use keywords::rank_keywords;
 use local_mcp::{
     create_local_mcp_connection, get_local_mcp_status, get_or_create_local_mcp_connection,
     list_local_mcp_connections, rename_local_mcp_connection, reset_local_mcp_access_token,
@@ -185,7 +183,6 @@ fn main() {
             screenshot,
             fuzzy_search,
             fuzzy_search_parallel,
-            rank_keywords,
             export_app_data,
             import_app_data,
             import_app_data_from_file,

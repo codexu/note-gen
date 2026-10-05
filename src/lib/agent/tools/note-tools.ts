@@ -1,7 +1,6 @@
 import { Tool, ToolResult } from '../types'
 import { BaseDirectory, readTextFile, writeTextFile, remove, rename, copyFile, stat, exists } from '@tauri-apps/plugin-fs'
 import { appDataDir } from '@tauri-apps/api/path'
-import { invoke } from '@tauri-apps/api/core'
 import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
 import {
   ensureSafeWorkspaceRelativePath,
@@ -770,24 +769,10 @@ Use folderPath to limit scope to a specific folder.`,
       if (params.mode === 'rag') {
         const { getContextForQuery, getContextForQueryInFolder } = await import('@/lib/rag')
 
-        // 完整问题用于向量检索，关键词用于 BM25、模糊检索和查询扩展。
-        let keywords = [{ text: params.query, weight: 1 }]
-        try {
-          const rankedKeywords = await invoke<Array<{ text: string; weight: number }>>('rank_keywords', {
-            text: params.query,
-            topK: 15,
-          })
-          if (rankedKeywords.length > 0) {
-            keywords = rankedKeywords
-          }
-        } catch (error) {
-          console.warn('Failed to rank note search keywords, using the full query:', error)
-        }
-
-        // 根据是否指定文件夹选择不同的 RAG 方法
+        // 检索层统一处理完整问题的词法召回、语义召回和重排。
         const ragResult = normalizedFolderPath
-          ? await getContextForQueryInFolder(params.query, keywords, normalizedFolderPath)
-          : await getContextForQuery(params.query, keywords)
+          ? await getContextForQueryInFolder(params.query, normalizedFolderPath)
+          : await getContextForQuery(params.query)
 
         // 获取所有文件列表，用于补全路径（向量数据库只存文件名，需要补全相对路径）
         const allFiles = (await getAllMarkdownFiles()).filter(file => isSearchablePath(file.relativePath))

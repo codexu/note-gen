@@ -1,3 +1,5 @@
+import { tokenizeLexicalText } from './lexical-tokenizer';
+
 /**
  * BM25 检索模块
  * 中文友好的 BM25 算法实现，无需外部分词库
@@ -66,38 +68,6 @@ export class BM25Index {
   }
 
   /**
-   * 多语言分词：空格语言保留单词和数字，CJK/Hangul 连续文本生成字符二元组。
-   * 这种方式不依赖特定语言的词典，也能检索编号、日文和阿拉伯文。
-   */
-  private tokenize(text: string): string[] {
-    const tokens: string[] = [];
-    const normalized = text.normalize('NFKC').toLowerCase();
-    const pattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[\p{L}\p{N}]+(?:[-_][\p{L}\p{N}]+)*/gu;
-
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(normalized)) !== null) {
-      const token = match[0];
-      if (/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+$/u.test(token)) {
-        const characters = Array.from(token);
-        if (characters.length === 1) {
-          tokens.push(token);
-        } else {
-          for (let index = 0; index < characters.length - 1; index++) {
-            tokens.push(characters[index] + characters[index + 1]);
-          }
-        }
-      } else {
-        tokens.push(token);
-        if (token.includes('-') || token.includes('_')) {
-          tokens.push(...token.split(/[-_]+/).filter(Boolean));
-        }
-      }
-    }
-
-    return tokens;
-  }
-
-  /**
    * 构建索引
    * @param documents 文档列表
    */
@@ -113,7 +83,7 @@ export class BM25Index {
 
     // 1. 处理每个文档
     for (const doc of documents) {
-      const tokens = this.tokenize(doc.content);
+      const tokens = tokenizeLexicalText(doc.content);
       const tokenFreq = new Map<string, number>();
 
       // 计算词频
@@ -163,7 +133,7 @@ export class BM25Index {
    * @returns 排序后的检索结果
    */
   search(query: string, limit: number = 10): BM25Result[] {
-    const queryTokens = this.tokenize(query);
+    const queryTokens = Array.from(new Set(tokenizeLexicalText(query)));
 
     const results: Map<string, number> = new Map();
 

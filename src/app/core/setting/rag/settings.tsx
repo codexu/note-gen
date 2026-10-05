@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { Store } from "@tauri-apps/plugin-store";
 import { useTranslations } from 'next-intl';
@@ -38,7 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Item, ItemGroup, ItemMedia, ItemContent, ItemTitle, ItemActions, ItemDescription, ItemFooter } from '@/components/ui/item';
 import { SettingSection } from '@/app/core/setting/components/setting-base';
 import { clearVectorDb, initVectorDb } from "@/db/vector";
-import { getContextForQuery, initBM25Search, type Keyword, type RagDiagnosticResult } from '@/lib/rag';
+import { getContextForQuery, initBM25Search, type RagDiagnosticResult } from '@/lib/rag';
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Progress } from '@/components/ui/progress';
@@ -279,8 +278,7 @@ export function Settings() {
     setDiagnosticLoading(true);
     setDiagnosticCompleted(false);
     try {
-      const keywords = await invoke<Keyword[]>('rank_keywords', { text: query, topK: 15 });
-      const result = await getContextForQuery(query, keywords);
+      const result = await getContextForQuery(query);
       setDiagnosticResults(result.diagnostics);
       setDiagnosticCompleted(true);
     } catch (error) {

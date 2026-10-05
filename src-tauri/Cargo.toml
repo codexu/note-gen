@@ -86,7 +86,6 @@ tauri-plugin-clipboard = "2"
 xcap = "=0.6.0"
 reqwest_dav = "=0.2.1"
 tauri-plugin-process = "=2.0.0"
-jieba-rs = { version = "0.7", features = ["textrank"] }
 machine-uid = "0.5"
 font-kit = "0.14"
 tauri-plugin-autostart = "=2.4.0"

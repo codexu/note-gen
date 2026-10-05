@@ -1,4 +1,6 @@
 {
+  "maximizeWindow": "Maximizar janela",
+  "restoreWindow": "Restaurar janela",
   "providerSponsor": {
     "label": "Patrocinador",
     "description": "Oferece créditos de modelos ou serviços gratuitos aos usuários do NoteGen."

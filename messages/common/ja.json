@@ -1,4 +1,6 @@
 {
+  "maximizeWindow": "ウィンドウを最大化",
+  "restoreWindow": "ウィンドウを元のサイズに戻す",
   "providerSponsor": {
     "label": "スポンサー",
     "description": "NoteGen ユーザーに無料のモデル利用枠やサービスを提供しています。"

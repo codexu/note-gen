@@ -1,4 +1,6 @@
 {
+  "maximizeWindow": "Fenster maximieren",
+  "restoreWindow": "Fenster wiederherstellen",
   "providerSponsor": {
     "label": "Sponsor",
     "description": "Stellt NoteGen-Nutzern kostenlose Modellkontingente oder Dienste bereit."

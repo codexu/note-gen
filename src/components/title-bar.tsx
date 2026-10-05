@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { isMobileDevice } from '@/lib/check'
-import { Settings, Minus, Square, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
+import { Settings, Minus, Square, Copy, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
 import { PluginTitleBar } from './plugins/plugin-title-bar'
@@ -43,6 +44,7 @@ type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 export function TitleBar() {
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isMobile, setIsMobile] = useState(true)
+  const [isMaximized, setIsMaximized] = useState(false)
   const { open: settingsOpen, openSettings, closeSettings } = useSettingsDialogStore()
   const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible, toggleLeftSidebar, toggleCenterPanel, toggleRightSidebar } = useSidebarStore()
   
@@ -116,6 +118,45 @@ export function TitleBar() {
 
 
 
+  useEffect(() => {
+    if (isMobile || (currentPlatform !== 'windows' && currentPlatform !== 'linux')) return
+
+    const window = getCurrentWindow()
+    let disposed = false
+    let unlisten: UnlistenFn | undefined
+    let requestId = 0
+
+    const syncMaximized = async () => {
+      const currentRequest = ++requestId
+      try {
+        const maximized = await window.isMaximized()
+        if (!disposed && currentRequest === requestId) setIsMaximized(maximized)
+      } catch (error) {
+        console.error('Error reading maximized window state:', error)
+      }
+    }
+
+    const initialize = async () => {
+      try {
+        const stopListening = await window.onResized(syncMaximized)
+        if (disposed) {
+          stopListening()
+          return
+        }
+        unlisten = stopListening
+      } catch (error) {
+        console.error('Error listening for window resize:', error)
+      }
+      await syncMaximized()
+    }
+
+    void initialize()
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [currentPlatform, isMobile])
+
   const handleMinimize = async () => {
     try {
       const window = getCurrentWindow()
@@ -129,6 +170,7 @@ export function TitleBar() {
     try {
       const window = getCurrentWindow()
       await window.toggleMaximize()
+      setIsMaximized(await window.isMaximized())
     } catch (error) {
       console.error('Error maximizing window:', error)
     }
@@ -338,8 +380,10 @@ export function TitleBar() {
               size="icon"
               className="h-9 w-12 rounded-none hover:bg-accent"
               onClick={handleMaximize}
+              title={isMaximized ? t('common.restoreWindow') : t('common.maximizeWindow')}
+              aria-label={isMaximized ? t('common.restoreWindow') : t('common.maximizeWindow')}
             >
-              <Square className="h-3.5 w-3.5" />
+              {isMaximized ? <Copy data-icon="inline-start" /> : <Square data-icon="inline-start" />}
             </Button>
             <Button
               variant="ghost"

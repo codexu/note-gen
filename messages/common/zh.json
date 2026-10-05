@@ -1,4 +1,6 @@
 {
+  "maximizeWindow": "最大化窗口",
+  "restoreWindow": "还原窗口",
   "providerSponsor": {
     "label": "赞助商",
     "description": "为 NoteGen 用户提供免费模型额度或服务。"

@@ -1,4 +1,6 @@
 {
+  "maximizeWindow": "Maximize window",
+  "restoreWindow": "Restore window",
   "providerSponsor": {
     "label": "Sponsor",
     "description": "Provides free model credits or services for NoteGen users."

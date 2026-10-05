@@ -226,11 +226,9 @@ export function BubbleMenu({
       return false
     }
 
-    // 应用启动或文件恢复时可能会还原一个非空选区，但这不是用户本次主动选择的文本。
+    // 恢复的选区不主动显示菜单，但菜单显示逻辑不能修改编辑器选区。
+    // 原生全选等操作可能不经过这里的 keydown 意图检测。
     if (!hasUserSelectionIntentRef.current) {
-      if (hasTextSelection(editor)) {
-        collapseSelection()
-      }
       hideMenu()
       return false
     }
@@ -299,7 +297,7 @@ export function BubbleMenu({
       hideMenu()
       return false
     }
-  }, [collapseSelection, editor, hideMenu])
+  }, [editor, hideMenu])
 
   useEffect(() => {
     hasUserSelectionIntentRef.current = false

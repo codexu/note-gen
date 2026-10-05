@@ -254,7 +254,31 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--notegen-app-font-family);
+    -webkit-user-select: none;
+    user-select: none;
     @apply bg-background text-foreground;
+  }
+
+  /* Keep application chrome out of text selections while allowing content copying. */
+  :where(
+    input,
+    textarea,
+    select,
+    [contenteditable]:not([contenteditable="false"]),
+    .ProseMirror,
+    .cm-content,
+    .markdown-body,
+    .streamdown-document,
+    .note-wrapper,
+    [data-allow-text-selection]
+  ) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :where(button, [role="button"]) {
+    -webkit-user-select: none;
+    user-select: none;
   }
   html {
     @apply font-sans;

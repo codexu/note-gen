@@ -640,7 +640,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
               </div>
             )}
             {content && (
-              <div className="whitespace-pre-wrap">{content}</div>
+              <div className="select-text whitespace-pre-wrap">{content}</div>
             )}
           </div>
         )}

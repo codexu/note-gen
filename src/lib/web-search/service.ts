@@ -286,6 +286,20 @@ async function searchWithConfiguredProvider(
       signal
     )
     rawSources = asArray(asRecord(asRecord(payload)?.web)?.results)
+  } else if (provider === 'serply') {
+    payload = await fetchJson(
+      `https://api.serply.io/v1/search?q=${encodeURIComponent(query)}&num=${MAX_SEARCH_RESULTS}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': apiKey,
+          'User-Agent': 'NoteGen',
+        },
+      },
+      signal
+    )
+    rawSources = asArray(asRecord(payload)?.results)
   } else {
     payload = await fetchJson('https://api.exa.ai/search', {
       method: 'POST',

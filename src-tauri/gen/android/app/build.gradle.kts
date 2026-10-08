@@ -60,6 +60,8 @@ rust {
 }
 
 dependencies {
+    // Tauri's regenerated MainActivity uses enableEdgeToEdge (Activity 1.8+).
+    implementation("androidx.activity:activity:1.8.2")
     implementation("androidx.webkit:webkit:1.6.1")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.documentfile:documentfile:1.0.1")

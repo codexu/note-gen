@@ -175,9 +175,14 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          VERSION=$(grep -o '"version": *"[^"]*"' src-tauri/tauri.conf.json | head -1 | sed 's/"version": *"\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          node <<'NODE'
+          const fs = require('node:fs')
+          const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'))
+          const [major, minor, patch] = config.version.split('-')[0].split('.').map(Number)
+          const versionCode = config.bundle.android?.versionCode ?? (major * 1000000 + minor * 1000 + patch)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${config.version}\nversionCode=${versionCode}\n`)
+          console.log(`Version: ${config.version} (${versionCode})`)
+          NODE
 
       - name: Sign, Rename, and Verify APK
         env:
@@ -187,7 +192,9 @@ jobs:
           set -euo pipefail
           cd src-tauri
           VERSION="${{ steps.get_version.outputs.version }}"
-          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)/apksigner"
+          VERSION_CODE="${{ steps.get_version.outputs.versionCode }}"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
           APK_DIR="gen/android/app/build/outputs/apk/arm64/release"
           APK_PATH="${APK_DIR}/app-arm64-release-unsigned.apk"
           SIGNED_APK="${APK_DIR}/NoteGen_${VERSION}_android-arm64.apk"
@@ -195,6 +202,15 @@ jobs:
           if [ ! -f "$APK_PATH" ]; then
             echo "❌ APK file not found at $APK_PATH"
             find gen/android/app/build/outputs/apk -maxdepth 3 -type f -name '*.apk' -print || true
+            exit 1
+          fi
+
+          echo "🔍 Verifying APK version against tauri.conf.json..."
+          APK_BADGING=$("$BUILD_TOOLS/aapt" dump badging "$APK_PATH")
+          APK_VERSION=$(printf '%s\n' "$APK_BADGING" | sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p")
+          APK_VERSION_CODE=$(printf '%s\n' "$APK_BADGING" | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p")
+          if [ "$APK_VERSION" != "$VERSION" ] || [ "$APK_VERSION_CODE" != "$VERSION_CODE" ]; then
+            echo "::error::Expected APK version $VERSION ($VERSION_CODE), found $APK_VERSION ($APK_VERSION_CODE). Check the Tauri CLI version and generated tauri.properties."
             exit 1
           fi
 

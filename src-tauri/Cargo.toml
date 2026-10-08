@@ -69,7 +69,7 @@ unicode-normalization = "0.1"
 ring = "0.17"
 semver = "1"
 regex = "1"
-tauri-plugin-notification = "2"
+tauri-plugin-notification = "=2.4.0"
 
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
@@ -85,7 +85,7 @@ tauri-plugin-window-state = "2"
 tauri-plugin-clipboard = "2"
 xcap = "=0.6.0"
 reqwest_dav = "=0.2.1"
-tauri-plugin-process = "=2.0.0"
+tauri-plugin-process = "=2.2.2"
 machine-uid = "0.5"
 font-kit = "0.14"
 tauri-plugin-autostart = "=2.4.0"

@@ -71,6 +71,11 @@ fn handle_window_event(
     window: &tauri::WebviewWindow,
     app_handle: &AppHandle,
 ) {
+    #[cfg(target_os = "windows")]
+    if matches!(event, WindowEvent::Focused(true)) {
+        restore_windows_webview_focus(window);
+    }
+
     let WindowEvent::CloseRequested { api, .. } = event else {
         return;
     };
@@ -88,6 +93,38 @@ fn handle_window_event(
             api.prevent_close();
             let _ = window.hide();
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn restore_windows_webview_focus(window: &tauri::WebviewWindow) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC;
+    use windows61::{core::BOOL, Win32::UI::Input::KeyboardAndMouse::GetFocus};
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let parent_hwnd = hwnd.0 as usize;
+    let mut webviews = window.as_ref().window().webviews();
+    // A visible browser tab sits above the main UI. Try it first, then fall
+    // back to the main webview when all browser tabs are hidden.
+    webviews.sort_by_key(|webview| webview.label() == window.label());
+
+    for webview in webviews {
+        let _ = webview.with_webview(move |platform_webview| unsafe {
+            // Multiwebview mode does not forward parent HWND focus to WebView2.
+            // Ditto can activate that HWND before sending Ctrl+V. Only restore
+            // focus if it is still on the parent; never override a focused child.
+            // Check here on the UI thread, including after queued callbacks.
+            if GetFocus().0 as usize != parent_hwnd {
+                return;
+            }
+            let controller = platform_webview.controller();
+            let mut visible = BOOL::default();
+            if controller.IsVisible(&mut visible).is_ok() && visible.as_bool() {
+                let _ = controller.MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+            }
+        });
     }
 }
 

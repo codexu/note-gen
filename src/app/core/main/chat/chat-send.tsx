@@ -91,6 +91,7 @@ function isUnknownProviderError(error: unknown) {
 
 interface ChatSendProps {
   inputValue: string;
+  preparingAttachments?: boolean;
   onSent?: () => void;
   linkedResource?: LinkedResource | null;
   attachedImages?: ImageAttachment[];
@@ -114,6 +115,7 @@ export interface ChatSendHandle {
 
 export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   inputValue,
+  preparingAttachments = false,
   onSent,
   linkedResource,
   attachedImages = [],
@@ -1176,6 +1178,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
 
   // 对话（Agent 模式）
   async function handleSubmit(overrideText?: string) {
+    if (preparingAttachments) return
     const request = createRequestSnapshot(overrideText)
     if (!request.inputValue.trim() && request.images.length === 0 && request.fileAttachments.length === 0) return
     const wasStreaming = agentSession.isStreaming
@@ -1233,12 +1236,14 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
         variant={dockStyle ? "ghost" : showStop ? "destructive" : "default"}
         size={dockStyle ? "icon" : "sm"}
         icon={showStop ? <Square className="fill-current" /> : <Send />}
-        disabled={!showStop && (!primaryModel || !hasInput)}
+        disabled={!showStop && (preparingAttachments || !primaryModel || !hasInput)}
         tooltipText={showStop
           ? t('record.chat.input.stop')
-          : loading
-            ? t('record.chat.input.agent.deliveryMode.pending.add')
-            : t('record.chat.input.send')}
+          : preparingAttachments
+            ? t('record.chat.input.composerMenu.loading')
+            : loading
+              ? t('record.chat.input.agent.deliveryMode.pending.add')
+              : t('record.chat.input.send')}
         onClick={showStop ? handleStop : () => void handleSubmit()}
         buttonClassName={dockStyle ? cn(
           "size-8 rounded-full border border-border/50 bg-[hsl(var(--component-active-bg))] text-foreground shadow-none hover:bg-[hsl(var(--component-active-bg))] hover:text-foreground",

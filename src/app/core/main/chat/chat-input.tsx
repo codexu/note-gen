@@ -11,7 +11,7 @@ import useArticleStore from "@/stores/article"
 import useCanvasStore from "@/stores/canvas"
 import { useTranslations } from 'next-intl'
 import { useLocalStorage } from 'react-use';
-import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
+import { getDefaultArticleAbsolutePath, getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { ChatSend, type ChatSendHandle } from "./chat-send"
 import { isLinkedFolder, LinkedResource, MarkdownFile, LinkedFolder } from "@/lib/files"
 import emitter from "@/lib/emitter"
@@ -220,6 +220,7 @@ export const ChatInput = React.memo(function ChatInput() {
   const dismissedNotePathRef = useRef<string | null>(null)
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([])
   const [fileAttachments, setFileAttachments] = useState<RuntimeChatAttachment[]>([])
+  const [pendingFolderAttachments, setPendingFolderAttachments] = useState(0)
   const [contextUsageLinkedContent, setContextUsageLinkedContent] = useState('')
   const [isImageDragOver, setIsImageDragOver] = useState(false)
   const [composerMenu, setComposerMenu] = useState<{
@@ -948,6 +949,23 @@ export const ChatInput = React.memo(function ChatInput() {
     }
   }
 
+  async function handleMentionFolder(relativePath: string) {
+    setPendingFolderAttachments(count => count + 1)
+    replaceComposerMenuToken()
+    try {
+      const workspace = await getWorkspacePath()
+      const path = workspace.isCustom
+        ? (await getFilePathOptions(relativePath)).path
+        : await getDefaultArticleAbsolutePath(relativePath)
+      appendFileAttachments([await createFolderAttachment(path)])
+    } catch (error) {
+      console.error('Failed to reference note folder:', error)
+      showImageFailureToast(t('record.chat.input.addAttachment.readFailed', { count: 1 }))
+    } finally {
+      setPendingFolderAttachments(count => count - 1)
+    }
+  }
+
   // 移动端图片选择，交给系统决定从相册还是相机获取
   async function handleSelectFromGallery() {
     if (attachedImages.length >= MAX_IMAGE_ATTACHMENTS) {
@@ -1590,6 +1608,7 @@ ${previewLines.join('\n')}
             <AgentPermissionModeSelect />
             <ChatSend
               inputValue={text}
+              preparingAttachments={pendingFolderAttachments > 0}
               onSent={handleSent}
               linkedResource={linkedResource}
               attachedImages={attachedImages}
@@ -1631,6 +1650,7 @@ ${previewLines.join('\n')}
         query={composerMenu?.query ?? ''}
         onClose={closeComposerMenu}
         onCommandSelect={prompt => replaceComposerMenuToken(prompt)}
+        onFolderSelect={relativePath => { void handleMentionFolder(relativePath) }}
         onFileSelect={file => {
           const duplicatesLinkedFile = Boolean(
             linkedResource

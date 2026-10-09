@@ -3966,8 +3966,9 @@
           },
           "resources": {
             "title": "コンテキストをリンク",
-            "placeholder": "ファイル、記録、キャンバスを検索...",
+            "placeholder": "ファイル、フォルダー、記録、キャンバスを検索...",
             "files": "ファイル",
+            "folders": "フォルダー",
             "records": "記録",
             "canvases": "キャンバス",
             "untitledRecord": "無題の記録",

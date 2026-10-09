@@ -4150,8 +4150,9 @@
           },
           "resources": {
             "title": "Link context",
-            "placeholder": "Search files, records, or canvases...",
+            "placeholder": "Search files, folders, records, or canvases...",
             "files": "Files",
+            "folders": "Folders",
             "records": "Records",
             "canvases": "Canvases",
             "untitledRecord": "Untitled record",

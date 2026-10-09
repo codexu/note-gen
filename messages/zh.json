@@ -4063,8 +4063,9 @@
           },
           "resources": {
             "title": "关联上下文",
-            "placeholder": "搜索文件、记录或画布...",
+            "placeholder": "搜索文件、文件夹、记录或画布...",
             "files": "文件",
+            "folders": "文件夹",
             "records": "记录",
             "canvases": "画布",
             "untitledRecord": "未命名记录",

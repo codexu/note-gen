@@ -213,6 +213,7 @@ function formatAttachments(context: AgentContextSnapshot) {
     'If the user asks about an attachment’s contents, call attachment_read for the relevant item before answering; never infer contents from its name. If the request is unrelated to the attachments, do not read them.',
     'For a folder request, decide which files are relevant from the directory listing. After each read, use the reported discovered/read/unread counts to decide whether more files are needed; never assume the first file represents the entire folder.',
     'When the user asks about an entire folder, inspect enough relevant files to support the answer. The model decides which files are relevant; do not read unrelated files merely because they are attached.',
+    'If the user explicitly asks to read all notes or summarize every note in a folder, recursively call attachment_list for each non-symlink subfolder and read every Markdown note with attachment_read. A folder preview or search result is not complete coverage. Continue reading truncated files in smaller batches or line ranges. Report unread or failed files and any runtime/context limit; never claim to have read the entire folder unless all requested notes were read.',
     ...attachments.map((attachment) => {
       const metadata = [
         `id=${attachment.id}`,

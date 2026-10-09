@@ -10,6 +10,7 @@ import {
 } from "react"
 import {
   FileText,
+  Folder,
   Languages,
   ListTree,
   Package,
@@ -48,6 +49,7 @@ interface ChatComposerMenuProps {
   onClose: () => void
   onCommandSelect: (prompt: string) => void
   onFileSelect: (file: MarkdownFile) => void
+  onFolderSelect: (relativePath: string) => void
   onRecordSelect: (mark: Mark) => void
   onCanvasSelect: (project: CanvasProject) => void
   onSkillSelect: (skill: SkillMetadata) => void
@@ -90,6 +92,7 @@ export const ChatComposerMenu = forwardRef<
   onClose,
   onCommandSelect,
   onFileSelect,
+  onFolderSelect,
   onRecordSelect,
   onCanvasSelect,
   onSkillSelect,
@@ -107,6 +110,19 @@ export const ChatComposerMenu = forwardRef<
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const selectedItemRef = useRef<HTMLButtonElement>(null)
+
+  const folders = useMemo(() => {
+    const paths = new Set<string>()
+    for (const file of files) {
+      const segments = file.relativePath.replace(/\\/g, "/").split("/")
+      for (let depth = 1; depth < segments.length; depth += 1) {
+        paths.add(segments.slice(0, depth).join("/"))
+      }
+    }
+    return [...paths].sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true })
+    )
+  }, [files])
 
   useEffect(() => {
     if (mode !== "resource") return
@@ -169,6 +185,15 @@ export const ChatComposerMenu = forwardRef<
     if (mode !== "resource") return []
 
     return [
+      ...folders.map(relativePath => ({
+        key: `folder:${relativePath}`,
+        group: t("resources.folders"),
+        label: relativePath.split("/").pop() || relativePath,
+        description: relativePath,
+        searchText: relativePath,
+        icon: Folder,
+        onSelect: () => onFolderSelect(relativePath),
+      })),
       ...files.map(file => ({
         key: `file:${file.path}`,
         group: t("resources.files"),
@@ -204,10 +229,12 @@ export const ChatComposerMenu = forwardRef<
     ]
   }, [
     files,
+    folders,
     mode,
     onCanvasSelect,
     onCommandSelect,
     onFileSelect,
+    onFolderSelect,
     onRecordSelect,
     onSkillSelect,
     projects,

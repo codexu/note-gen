@@ -4009,8 +4009,9 @@
           },
           "resources": {
             "title": "Linkkontext",
-            "placeholder": "Dateien, Aufzeichnungen oder Canvases suchen...",
+            "placeholder": "Dateien, Ordner, Aufzeichnungen oder Leinwände suchen...",
             "files": "Dateien",
+            "folders": "Ordner",
             "records": "Aufzeichnungen",
             "canvases": "Canvases",
             "untitledRecord": "Unbenannte Aufzeichnung",

@@ -4041,8 +4041,9 @@
           },
           "resources": {
             "title": "Vincular contexto",
-            "placeholder": "Pesquisar arquivos, registros ou telas...",
+            "placeholder": "Pesquisar arquivos, pastas, registros ou telas...",
             "files": "Arquivos",
+            "folders": "Pastas",
             "records": "Registros",
             "canvases": "Telas",
             "untitledRecord": "Registro sem título",

@@ -3963,8 +3963,9 @@
           },
           "resources": {
             "title": "關聯上下文",
-            "placeholder": "搜尋文件、記錄或畫布...",
+            "placeholder": "搜尋檔案、資料夾、記錄或畫布...",
             "files": "文件",
+            "folders": "資料夾",
             "records": "記錄",
             "canvases": "畫布",
             "untitledRecord": "未命名記錄",

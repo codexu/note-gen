@@ -245,6 +245,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: note-gen-v${{ steps.get_version.outputs.version }}
+          name: NoteGen v${{ steps.get_version.outputs.version }}
           files: src-tauri/gen/android/app/build/outputs/apk/arm64/release/NoteGen_*.apk
           draft: false
           prerelease: false

@@ -41,6 +41,7 @@ import { uploadImage } from "@/lib/imageHosting"
 import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
 
 const SCREENSHOT_DIR = 'screenshot'
+const SCREEN_CAPTURE_PERMISSION_REQUIRED = 'SCREEN_CAPTURE_PERMISSION_REQUIRED'
 const TITLE_BAR_HEIGHT_PX = 36
 const DEFAULT_CROP_BOX_RATIO = 0.5
 
@@ -629,7 +630,11 @@ export function ControlScan() {
                 <div className="flex max-w-md flex-col items-center gap-3 text-center text-white/80">
                   <AlertCircle className="h-8 w-8 text-amber-300" />
                   <p className="text-sm font-medium text-white">{t('record.capture.screenshotCaptureFailed')}</p>
-                  <p className="text-xs leading-relaxed text-white/65">{captureError || t('record.capture.screenshotPermissionHint')}</p>
+                  <p className="text-xs leading-relaxed text-white/65">
+                    {captureError === SCREEN_CAPTURE_PERMISSION_REQUIRED
+                      ? t('record.capture.screenshotPermissionHint')
+                      : captureError}
+                  </p>
                   <Button
                     type="button"
                     variant="secondary"

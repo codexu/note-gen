@@ -39,6 +39,14 @@ pub fn cleanup_temp_screenshot_dir(app: &AppHandle) {
 #[allow(dead_code)]
 #[tauri::command]
 pub fn screenshot(app: AppHandle) -> Result<Vec<ScreenshotImage>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let access = core_graphics::access::ScreenCaptureAccess;
+        if !access.preflight() && !access.request() {
+            return Err("SCREEN_CAPTURE_PERMISSION_REQUIRED".to_string());
+        }
+    }
+
     let temp_screenshot_folder = app
         .path()
         .resolve("temp_screenshot", BaseDirectory::AppData)

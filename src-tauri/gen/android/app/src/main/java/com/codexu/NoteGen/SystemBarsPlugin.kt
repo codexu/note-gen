@@ -5,6 +5,10 @@ import android.graphics.Color
 import android.os.Build
 import android.view.View
 import android.view.WindowInsetsController
+import android.webkit.WebView
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -22,6 +26,38 @@ class SystemBarsArgs {
 
 @TauriPlugin
 class SystemBarsPlugin(private val activity: Activity) : Plugin(activity) {
+    override fun load(webView: WebView) {
+        activity.runOnUiThread {
+            val content = activity.findViewById<View>(android.R.id.content)
+            val initialLeft = content.paddingLeft
+            val initialTop = content.paddingTop
+            val initialRight = content.paddingRight
+            val initialBottom = content.paddingBottom
+
+            // Older WebViews report zero CSS safe-area insets even when Tauri
+            // draws behind the system bars. Size the WebView's container instead.
+            ViewCompat.setOnApplyWindowInsetsListener(content) { view, windowInsets ->
+                val types = WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+                val insets = windowInsets.getInsets(types)
+                view.setPadding(
+                    initialLeft + insets.left,
+                    initialTop + insets.top,
+                    initialRight + insets.right,
+                    initialBottom + insets.bottom
+                )
+
+                // Forward zero system insets to avoid double spacing on newer
+                // WebViews, while preserving keyboard insets and resize events.
+                WindowInsetsCompat.Builder(windowInsets)
+                    .setInsets(types, Insets.NONE)
+                    .setInsetsIgnoringVisibility(types, Insets.NONE)
+                    .build()
+            }
+            ViewCompat.requestApplyInsets(content)
+        }
+    }
+
     @Command
     fun setSystemBars(invoke: Invoke) {
         try {
@@ -29,6 +65,8 @@ class SystemBarsPlugin(private val activity: Activity) : Plugin(activity) {
 
             activity.runOnUiThread {
                 try {
+                    activity.findViewById<View>(android.R.id.content)
+                        .setBackgroundColor(Color.parseColor(args.statusBarColor))
                     activity.window.statusBarColor = Color.parseColor(args.statusBarColor)
                     activity.window.navigationBarColor = Color.parseColor(args.navigationBarColor)
                     updateSystemBarIconAppearance(args.lightStatusBar, args.lightNavigationBar)

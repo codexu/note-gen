@@ -4756,6 +4756,8 @@
         "toggleFolders": "Ordner umschalten",
         "expandAll": "Alle erweitern",
         "collapseAll": "Alle reduzieren",
+        "expandFolderTree": "Erweitern",
+        "collapseFolderTree": "Reduzieren",
         "sortByName": "Nach Namen sortieren",
         "sortByCreated": "Nach Erstelldatum sortieren",
         "sortByModified": "Nach Änderungsdatum sortieren",

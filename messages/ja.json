@@ -4814,6 +4814,8 @@
         "toggleFolders": "フォルダを展開/折りたたみ",
         "expandAll": "すべて展開",
         "collapseAll": "すべて折りたたみ",
+        "expandFolderTree": "展開",
+        "collapseFolderTree": "折りたたみ",
         "sortByName": "名前順で並べ替え",
         "sortByCreated": "作成日時で並べ替え",
         "sortByModified": "更新日時で並べ替え",

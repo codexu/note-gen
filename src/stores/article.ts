@@ -1037,8 +1037,8 @@ interface NoteState {
   collapsibleListInitialized: boolean
   initCollapsibleList: () => Promise<void>
   setCollapsibleList: (name: string, value: boolean) => Promise<void>
-  expandAllFolders: () => Promise<void>
-  collapseAllFolders: () => Promise<void>
+  expandAllFolders: (folderPath?: string) => Promise<void>
+  collapseAllFolders: (folderPath?: string) => Promise<void>
   toggleAllFolders: () => Promise<void>
   clearCollapsibleList: () => Promise<void>
   loadWorkspaceCollapsibleList: () => Promise<string>
@@ -3177,7 +3177,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ collapsibleList: uniq(collapsibleList).filter(item => !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)) })
   },
   
-  expandAllFolders: async () => {
+  expandAllFolders: async (folderPath) => {
+    const isInScope = (path: string) => folderPath === undefined
+      || path === folderPath || path.startsWith(`${folderPath}/`)
     const getAllFolderPaths = (tree: DirTree[], parentPath: string = ''): string[] => {
       let paths: string[] = []
       for (const item of tree) {
@@ -3195,7 +3197,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const loadedPaths = new Set<string>()
     while (true) {
       const pendingPaths = getAllFolderPaths(get().fileTree)
-        .filter(path => !loadedPaths.has(path))
+        .filter(path => isInScope(path) && !loadedPaths.has(path))
       if (pendingPaths.length === 0) break
 
       for (let index = 0; index < pendingPaths.length; index += 4) {
@@ -3207,16 +3209,22 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
 
-    const folderPaths = getAllFolderPaths(get().fileTree)
+    const folderPaths = getAllFolderPaths(get().fileTree).filter(isInScope)
     const store = await getStore()
-    await store.set(await getCollapsibleStoreKey(), folderPaths)
-    set({ collapsibleList: uniq(folderPaths) })
+    const collapsibleList = uniq(folderPath === undefined
+      ? folderPaths
+      : [...get().collapsibleList, ...folderPaths])
+    await store.set(await getCollapsibleStoreKey(), collapsibleList)
+    set({ collapsibleList })
   },
   
-  collapseAllFolders: async () => {
+  collapseAllFolders: async (folderPath) => {
     const store = await getStore()
-    await store.set(await getCollapsibleStoreKey(), [])
-    set({ collapsibleList: [] })
+    const collapsibleList = folderPath === undefined
+      ? []
+      : get().collapsibleList.filter(path => path !== folderPath && !path.startsWith(`${folderPath}/`))
+    await store.set(await getCollapsibleStoreKey(), collapsibleList)
+    set({ collapsibleList })
   },
   
   toggleAllFolders: async () => {

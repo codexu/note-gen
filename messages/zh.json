@@ -4897,6 +4897,8 @@
         "toggleFolders": "文件夹展开折叠",
         "expandAll": "全部展开",
         "collapseAll": "全部折叠",
+        "expandFolderTree": "展开",
+        "collapseFolderTree": "折叠",
         "sortByName": "按名称排序",
         "sortByCreated": "按创建时间排序",
         "sortByModified": "按修改时间排序",

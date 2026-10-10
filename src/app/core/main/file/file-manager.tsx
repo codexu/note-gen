@@ -14,6 +14,7 @@ import useArticleStore, { DirTree } from "@/stores/article"
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs"
 import { Store } from '@tauri-apps/plugin-store'
 import { FileItem } from './file-item'
+import { FileTreeExpansionMenu } from './file-tree-expansion-menu'
 import { FolderItem } from "./folder-item"
 import { writeDroppedFileToRoot } from "./root-drop"
 import { cn } from "@/lib/utils"
@@ -1277,6 +1278,7 @@ export function FileManager({
               <FolderPlus className="mr-2 h-4 w-4" />
               {t('context.newFolder')}
             </ContextMenuItem>
+            <FileTreeExpansionMenu disabled={Boolean(filterQuery.trim())} />
             <PluginFileMenuItems context={{ kind: 'root', selectedPaths: [] }} />
             <ContextMenuSeparator />
             <ContextMenuItem

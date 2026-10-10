@@ -4897,6 +4897,8 @@
         "toggleFolders": "Toggle Folders",
         "expandAll": "Expand All",
         "collapseAll": "Collapse All",
+        "expandFolderTree": "Expand",
+        "collapseFolderTree": "Collapse",
         "sortByName": "Sort by Name",
         "sortByCreated": "Sort by Created",
         "sortByModified": "Sort by Modified",

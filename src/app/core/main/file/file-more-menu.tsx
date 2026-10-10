@@ -319,7 +319,7 @@ export function FileMoreMenu({
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuItem onSelect={hasExpandedVisibleFolders ? collapseAllFolders : expandAllFolders}>
+        <DropdownMenuItem onSelect={() => hasExpandedVisibleFolders ? collapseAllFolders() : expandAllFolders()}>
           {hasExpandedVisibleFolders
             ? <ChevronsDownUp className="mr-2 size-4" />
             : <ChevronsUpDown className="mr-2 size-4" />}

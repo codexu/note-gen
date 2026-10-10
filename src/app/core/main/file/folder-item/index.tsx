@@ -55,6 +55,7 @@ import {
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
+import { FileTreeExpansionMenu } from '../file-tree-expansion-menu'
 
 export function FolderItem({
   item,
@@ -1090,6 +1091,8 @@ export function FolderItem({
           <>
             <NewFile item={item} />
             <NewFolder item={item} />
+            <FileTreeExpansionMenu disabled={expansionLocked} folderPath={path} />
+            <ContextMenuSeparator />
             <ViewDirectory item={item} />
             <PluginFileMenuItems context={{
               kind: 'folder',
@@ -1124,6 +1127,7 @@ export function FolderItem({
             <DeleteFolder item={item} shortcut={deleteKey} />
           </>
         )}
+        {useSelectionMenu && <FileTreeExpansionMenu disabled={expansionLocked} folderPath={path} />}
       </ContextMenuContent>
     </ContextMenu>
   )

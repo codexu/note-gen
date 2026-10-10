@@ -4797,6 +4797,8 @@
         "toggleFolders": "Alternar Pastas",
         "expandAll": "Expandir Tudo",
         "collapseAll": "Recolher Tudo",
+        "expandFolderTree": "Expandir",
+        "collapseFolderTree": "Recolher",
         "sortByName": "Ordenar por Nome",
         "sortByCreated": "Ordenar por Data de Criação",
         "sortByModified": "Ordenar por Data de Modificação",

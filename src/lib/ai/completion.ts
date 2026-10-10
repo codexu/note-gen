@@ -9,18 +9,11 @@ import {
 /**
  * 清理补全结果
  */
-function cleanupCompletion(text: string): string {
+export function sanitizeCompletionOutput(text: string): string {
   return text
-    .trim()
-    .replace(/^```[\s\S]*?```$/g, '')
-    .replace(/^```\w*\s*/g, '')
-    .replace(/\s*```$/g, '')
-    .replace(/^[\s\n]+|[\s\n]+$/g, '')
-    .replace(/^["'""жат]|["'""жат]$/g, '')
-    .replace(/^续写[：:]\s*/i, '')
-    .replace(/^补全[：:]\s*/i, '')
-    .replace(/^Continuation[:\s]*/i, '')
-    .trim()
+    .replace(/^```(?:\w+)?[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/g, '$1')
+    .replace(/^(?:续写|补全)[：:][ \t]*/i, '')
+    .replace(/^Continuation:[ \t]*/i, '')
 }
 
 export type EditorAiGenerationAction = 'section' | 'summary' | 'custom'
@@ -148,14 +141,13 @@ Continuation:`
         }
       ],
       temperature: 0.7,
-      max_tokens: 80,
       top_p: 0.95,
     }, aiConfig), {
       signal: abortSignal
     })
 
     const result = completion.choices[0].message.content || ''
-    return cleanupCompletion(result)
+    return sanitizeCompletionOutput(result)
   } catch (error) {
     return await handleAIError(error) || ''
   }
@@ -199,7 +191,6 @@ Continuation:`
         }
       ],
       temperature: 0.7,
-      max_tokens: 80,
       top_p: 0.95,
       stream: true,
     }, aiConfig), {
@@ -210,11 +201,9 @@ Continuation:`
     for await (const chunk of stream) {
       const content = chunk.choices?.[0]?.delta?.content
       if (content) {
-        const cleaned = cleanupCompletion(content)
-        if (cleaned) {
-          onChunk(cleaned, isFirst)
-          isFirst = false
-        }
+        // Preserve token boundaries, spaces and newlines until the response is complete.
+        onChunk(content, isFirst)
+        isFirst = false
       }
     }
   } catch (error) {

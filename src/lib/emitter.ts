@@ -1,4 +1,5 @@
 import mitt from 'mitt'
+import type { Editor } from '@tiptap/core'
 import type { OnboardingStepId } from '@/app/core/main/editor/onboarding-state'
 import type { CanvasDocument } from '@/types/canvas'
 
@@ -157,6 +158,7 @@ interface Events {
     generatedRange?: { from: number; to: number };
   } | undefined;
   'show-ai-suggestion': {
+    editor: Editor;
     originalText: string;
     suggestedText: string;
     type: string;

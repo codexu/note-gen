@@ -261,7 +261,9 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
       setSuggestion(null)
     }
 
-    const handleShowSuggestion = (data: SuggestionData & PositionData) => {
+    const handleShowSuggestion = (data: SuggestionData & PositionData & { editor: Editor }) => {
+      if (data.editor !== editor) return
+
       anchorPositionRef.current = data.position
       setAiSuggestionHighlight(editor, data.generatedRange)
       setSuggestion({
@@ -349,12 +351,14 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
 
       if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
         event.preventDefault()
+        event.stopPropagation()
         handleAccept()
         return
       }
 
       if (event.key === 'Escape') {
         event.preventDefault()
+        event.stopPropagation()
         handleReject()
       }
     }

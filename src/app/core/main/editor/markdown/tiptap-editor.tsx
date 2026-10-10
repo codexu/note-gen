@@ -66,6 +66,7 @@ import { SlashCommandPortal } from './slash-command/slash-command-portal'
 import type { SlashCommandItem } from './slash-command/suggestion'
 import {
   fetchCompletionStream,
+  sanitizeCompletionOutput,
   fetchEditorAiGenerationStream,
   sanitizeEditorAiGenerationOutput,
   type EditorAiGenerationAction,
@@ -6272,7 +6273,7 @@ export function TipTapEditor({
     let abortController: AbortController | null = null
 
     const handleAIContinue = async (event: Event) => {
-      if (!editor) return
+      if (!editor || editor.isDestroyed || abortController) return
 
       const shouldSuppressKeyboard = isMobile && (event as CustomEvent<{ suppressKeyboard?: boolean }>).detail?.suppressKeyboard === true
       const editorChain = () => shouldSuppressKeyboard ? editor.chain() : editor.chain().focus()
@@ -6298,7 +6299,6 @@ export function TipTapEditor({
         return
       }
 
-      abortController?.abort()
       const currentController = new AbortController()
       abortController = currentController
       const endBlockingActivity = beginBlockingActivity()
@@ -6308,7 +6308,7 @@ export function TipTapEditor({
       let loadingVisible = true
 
       const removeLoadingIndicator = () => {
-        if (!loadingVisible) {
+        if (!loadingVisible || editor.isDestroyed) {
           return
         }
         editorChain()
@@ -6320,7 +6320,9 @@ export function TipTapEditor({
         loadingVisible = false
       }
 
-      editorChain().insertContent(AI_GENERATION_LOADING_TEXT).run()
+      editorChain()
+        .insertContentAt(startPosition, { type: 'text', text: AI_GENERATION_LOADING_TEXT })
+        .run()
       blurEditor()
 
       try {
@@ -6332,7 +6334,7 @@ export function TipTapEditor({
               removeLoadingIndicator()
             }
             editorChain()
-              .insertContentAt(startPosition + accumulatedResult.length, chunk)
+              .insertContentAt(startPosition + accumulatedResult.length, { type: 'text', text: chunk })
               .run()
             blurEditor()
             accumulatedResult += chunk
@@ -6342,22 +6344,23 @@ export function TipTapEditor({
 
         if (currentController.signal.aborted || editor.isDestroyed) return
 
-        if (!accumulatedResult) {
-          removeLoadingIndicator()
-          return
+        const sanitizedResult = sanitizeCompletionOutput(accumulatedResult)
+        if (!sanitizedResult.trim()) {
+          editorChain()
+            .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
+            .run()
+          throw new Error('模型未返回续写内容，请检查模型配置后重试')
         }
 
         editorChain()
-          .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-          .run()
-
-        const docSizeBeforeInsert = editor.state.doc.content.size
-        editorChain()
-          .insertContentAt(startPosition, accumulatedResult, { contentType: 'markdown' })
+          .insertContentAt(
+            { from: startPosition, to: startPosition + accumulatedResult.length },
+            { type: 'text', text: sanitizedResult }
+          )
           .run()
         blurEditor()
 
-        const insertedSize = Math.max(0, editor.state.doc.content.size - docSizeBeforeInsert)
+        const insertedSize = sanitizedResult.length
         const generatedRange = {
           from: startPosition,
           to: startPosition + insertedSize,
@@ -6366,8 +6369,9 @@ export function TipTapEditor({
         editor.commands.setTextSelection(generatedRange.to)
 
         emitter.emit('show-ai-suggestion', {
+          editor,
           originalText: '',
-          suggestedText: accumulatedResult,
+          suggestedText: sanitizedResult,
           type: 'continue',
           position: getEditorPositionRect(editor, generatedRange.to),
           generatedRange,
@@ -6377,14 +6381,16 @@ export function TipTapEditor({
         blurEditor()
 
         // Show error toast (but not for aborted requests)
-        if (error instanceof Error && error.message !== 'Request was aborted.') {
+        if (!currentController.signal.aborted) {
           toast({
             title: '续写失败',
-            description: error.message || '网络错误',
+            description: error instanceof Error ? error.message : String(error),
             variant: 'destructive',
           })
         }
       } finally {
+        removeLoadingIndicator()
+        if (abortController === currentController) abortController = null
         endBlockingActivity()
       }
     }
@@ -6540,6 +6546,7 @@ export function TipTapEditor({
         editor.commands.setTextSelection(generatedRange.to)
 
         emitter.emit('show-ai-suggestion', {
+          editor,
           originalText: '',
           suggestedText: sanitizedResult,
           type: action,

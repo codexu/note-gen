@@ -44,7 +44,7 @@ export async function getDefaultBranch(repo: string) {
   }
 }
 
-async function getGitlabApiBaseUrl(): Promise<string> {
+export async function getGitlabApiBaseUrl(): Promise<string> {
   const store = await Store.load('store.json');
   const instanceType = await store.get<GitlabInstanceType>('gitlabInstanceType') || GitlabInstanceType.OFFICIAL;
 
@@ -146,33 +146,6 @@ export async function uploadFile({
       encodedTargetPath,
     })
 
-    const requestBody = {
-      branch,
-      content: base64Content,
-      commit_message: message || `Upload ${filename || id}`,
-      encoding: 'base64'
-    };
-
-    // 如果是更新文件，需要添加 last_commit_id
-    if (sha) {
-      // 获取文件的最新提交 ID
-      const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${encodeURIComponent(targetPath)}&per_page=1`;
-      const commitsResponse = await fetch(commitsUrl, {
-        method: 'GET',
-        headers,
-        proxy
-      });
-
-      if (commitsResponse.ok) {
-        const commits = await commitsResponse.json() as GitlabCommit[];
-        if (commits.length > 0) {
-          (requestBody as any).last_commit_id = commits[0].id;
-        }
-      }
-    }
-
-    const url = `${baseUrl}/projects/${projectId}/repository/files/${encodedTargetPath}`;
-
     // 首先尝试使用 Commits API 创建文件（会自动创建目录）
     // GitLab Commits API 可以通过一次 commit 创建多个文件，包括父目录
     const commitsApiUrl = `${baseUrl}/projects/${projectId}/repository/commits`;
@@ -199,60 +172,42 @@ export async function uploadFile({
 
     if (commitResponse.status >= 200 && commitResponse.status < 300) {
       const data = await commitResponse.json();
-      return { data } as GitlabResponse<any>;
+      return { data } as GitlabResponse<GitlabCommit>;
     }
 
-    // 如果是 400 错误，可能文件已存在，尝试用 PUT 更新
+    // 如果创建失败且文件已存在，改用 Commits API 更新。
     if (commitResponse.status === 400) {
       const commitErrorData = await commitResponse.json();
 
       // 检查是否是文件已存在的错误
-      if (commitErrorData.error && commitErrorData.error.includes('already exists')) {
-        // 获取当前文件的 SHA
-        const fileUrl = `${baseUrl}/projects/${projectId}/repository/files/${encodedTargetPath}?ref=${encodeURIComponent(branch)}`;
-        const fileResponse = await fetch(fileUrl, {
-          method: 'GET',
+      const commitErrorMessage = commitErrorData.message || commitErrorData.error;
+      if (!sha && typeof commitErrorMessage === 'string' && commitErrorMessage.includes('already exists')) {
+        // 文件路径保留在 JSON 中，避免再次依赖 URL 中编码的目录分隔符。
+        const updateResponse = await fetch(commitsApiUrl, {
+          method: 'POST',
           headers,
+          body: JSON.stringify({
+            ...commitBody,
+            actions: commitActions.map(action => ({ ...action, action: 'update' })),
+          }),
           proxy
         });
 
-        let fileSha = '';
-        if (fileResponse.ok) {
-          const fileData = await fileResponse.json();
-          fileSha = fileData.blob_id || fileData.sha;
+        if (updateResponse.ok) {
+          const data = await updateResponse.json();
+          return { data } as GitlabResponse<GitlabCommit>;
         }
 
-        // 使用 PUT 更新文件
-        const putBody = {
-          branch,
-          content: base64Content,
-          commit_message: message || `Update ${filename || id}`,
-          encoding: 'base64',
-          sha: fileSha
-        };
-
-        const putResponse = await fetch(url, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(putBody),
-          proxy
-        });
-
-        if (putResponse.status >= 200 && putResponse.status < 300) {
-          const data = await putResponse.json();
-          return { data } as GitlabResponse<any>;
-        }
-
-        const putErrorData = await putResponse.json();
+        const updateErrorData = await updateResponse.json();
         throw {
-          status: putResponse.status,
-          message: putErrorData.message || '更新文件失败'
+          status: updateResponse.status,
+          message: updateErrorData.message || updateErrorData.error || '更新文件失败'
         } as GitlabError;
       }
 
       throw {
         status: commitResponse.status,
-        message: commitErrorData.error || '同步失败'
+        message: commitErrorMessage || '同步失败'
       } as GitlabError;
     }
 

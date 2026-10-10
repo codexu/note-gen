@@ -2,7 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
-import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
+import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits, getGitlabApiBaseUrl } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { s3HeadObject, s3Download } from './s3'
 import { webdavHeadObject, webdavDownload } from './webdav'
@@ -1011,8 +1011,11 @@ export async function hasNetworkConnection(): Promise<boolean> {
         break
       case 'gitlab':
         token = await store.get<string>('gitlabAccessToken') || ''
-        const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
-        url = `${gitlabUrl}/api/v4/user`
+        url = `${await getGitlabApiBaseUrl()}/user`
+        const gitlabProxyUrl = await store.get<string>('proxy')
+        if (gitlabProxyUrl) {
+          proxy = { all: gitlabProxyUrl }
+        }
         break
       case 'gitea':
         token = await store.get<string>('giteaAccessToken') || ''
@@ -1082,7 +1085,7 @@ export async function hasNetworkConnection(): Promise<boolean> {
       return false
     }
 
-    const fetchOptions: any = {
+    const fetchOptions: RequestInit & { proxy?: Proxy } = {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -1090,7 +1093,7 @@ export async function hasNetworkConnection(): Promise<boolean> {
       }
     }
 
-    // Gitea 自建实例使用代理
+    // 自建实例与极狐等平台使用配置的代理
     if (proxy) {
       fetchOptions.proxy = proxy
     }

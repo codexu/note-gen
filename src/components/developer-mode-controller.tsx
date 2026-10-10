@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { closeDeveloperTools, openDeveloperTools, supportsNativeDeveloperTools } from '@/lib/developer-tools'
 import { clearRuntimeLogs } from '@/lib/diagnostics/runtime-log-buffer'
+import { isMobileDevice } from '@/lib/check'
 import useSettingStore from '@/stores/setting'
 
 const TEXT_INPUT_TYPES = new Set([
@@ -42,6 +43,7 @@ export function DeveloperModeController() {
 
   useEffect(() => {
     const nativeDeveloperToolsSupported = supportsNativeDeveloperTools()
+    const mobile = isMobileDevice()
     const handleKeyDown = (event: KeyboardEvent) => {
       const isDeveloperShortcut = event.key === 'F12'
         || (event.key.toLowerCase() === 'i' && (event.metaKey || event.ctrlKey) && event.shiftKey)
@@ -60,10 +62,12 @@ export function DeveloperModeController() {
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('contextmenu', handleContextMenu)
+    // Mobile WebViews own the long-press editing and selection menus, including
+    // copying non-editable text. The desktop developer menu guard blocks them.
+    if (!mobile) window.addEventListener('contextmenu', handleContextMenu)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('contextmenu', handleContextMenu)
+      if (!mobile) window.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [developerMode])
 

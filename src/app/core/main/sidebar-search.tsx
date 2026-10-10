@@ -228,6 +228,11 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
   const remoteRootLoadedRef = useRef(false)
   const remoteLoadedPathsRef = useRef(new Set<string>())
   const [query, setQuery] = useState('')
+  const pendingFileRevealPath = useArticleStore(state => state.pendingFileRevealPath)
+
+  useEffect(() => {
+    if (pendingFileRevealPath) setQuery('')
+  }, [pendingFileRevealPath])
   const [exactResults, setExactResults] = useState<SidebarSearchResult[]>([])
   const [relatedResults, setRelatedResults] = useState<SidebarSearchResult[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
@@ -572,16 +577,26 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
         markFileLocal(result.path)
       }
       const parts = result.path.split('/')
+      if (!useArticleStore.getState().fileTreeInitialized) {
+        await useArticleStore.getState().loadFileTree({ skipRemoteSync: true })
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
+      }
       parts.pop()
       let currentPath = ''
       for (const part of parts) {
         currentPath = currentPath ? `${currentPath}/${part}` : part
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
+        await useArticleStore.getState().loadCollapsibleFiles(currentPath, { skipRemoteSync: true })
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
         await setCollapsibleList(currentPath, true)
       }
       if (!isDeferredFileActivationCurrent(activationIntent)) return
       setMatchPosition(result.firstMatchIndex ?? null)
       setPendingSearchKeyword(result.firstMatchIndex !== undefined ? normalizedQuery : '')
       await setActiveFilePath(result.path, true, { tabOpenMode: 'preview' })
+      if (useArticleStore.getState().activeFilePath !== result.path) return
+      useArticleStore.getState().setPendingFileRevealPath(result.path)
+      setQuery('')
     } catch (error) {
       console.error('Failed to open sidebar search result:', error)
       toast({ title: t('search.openFailed'), variant: 'destructive' })

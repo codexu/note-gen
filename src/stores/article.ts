@@ -912,6 +912,8 @@ interface NoteState {
   setLoading: (loading: boolean) => void
 
   activeFilePath: string
+  pendingFileRevealPath: string | null
+  setPendingFileRevealPath: (path: string | null) => void
   setActiveFilePath: (
     name: string,
     autoSync?: boolean,
@@ -1243,6 +1245,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   activeFilePath: '',
+  pendingFileRevealPath: null,
+  setPendingFileRevealPath: (path) => set({ pendingFileRevealPath: path }),
   setActiveFilePath: async (path: string, autoSync = true, options) => {
     fileActivationIntentSequence += 1
     if (editorWorkspaceTransitionInProgress && !options?.workspaceTransitionReset) return
@@ -1289,7 +1293,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       && hasCurrentPendingArticleRead(nextPath)
 
     if (canReusePendingRead) {
-      set({ selectedFilePaths: [], pendingFileTabOpenRequest })
+      set({ selectedFilePaths: [], pendingFileTabOpenRequest, pendingFileRevealPath: null })
       emitter.emit('article-opened', { path: nextPath })
       await persistEditorState({
         activeFilePath: get().activeFilePath,
@@ -1306,6 +1310,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({
       currentArticle: '',
       activeFilePath: nextPath,
+      pendingFileRevealPath: null,
       isPulling: false,
       justPulledFile: false,
       selectedFilePaths: [],

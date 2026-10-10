@@ -416,6 +416,10 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
     const filePath = item.path as string
     
     const setupAndNavigate = async () => {
+      if (!useArticleStore.getState().fileTreeInitialized) {
+        await useArticleStore.getState().loadFileTree({ skipRemoteSync: true })
+        if (!isDeferredFileActivationCurrent(activationIntent)) return
+      }
       // 展开文件夹路径
       const pathParts = filePath.split('/')
       pathParts.pop()
@@ -429,6 +433,9 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
         }
         
         if (currentPath) {
+          if (!isDeferredFileActivationCurrent(activationIntent)) return
+          await useArticleStore.getState().loadCollapsibleFiles(currentPath, { skipRemoteSync: true })
+          if (!isDeferredFileActivationCurrent(activationIntent)) return
           await setCollapsibleList(currentPath, true)
         }
       }
@@ -446,12 +453,18 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
         true,
         isMobileRoute ? undefined : { tabOpenMode: 'preview' },
       )
+      if (useArticleStore.getState().activeFilePath !== filePath) return
+      if (!isMobileRoute) {
+        useArticleStore.getState().setPendingFileRevealPath(filePath)
+      }
       
       // 跳转到对应平台页面
       router.push(isMobileRoute ? '/mobile/writing' : '/core/main')
     }
     
-    void setupAndNavigate()
+    void setupAndNavigate().catch(error => {
+      console.error('Failed to open search result:', error)
+    })
   }
 
   useEffect(() => {

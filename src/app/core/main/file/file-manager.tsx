@@ -171,6 +171,8 @@ export function FileManager({
 
   const {
     activeFilePath,
+    pendingFileRevealPath,
+    setPendingFileRevealPath,
     fileTree,
     loadFileTree,
     setActiveFilePath,
@@ -194,6 +196,8 @@ export function FileManager({
     loadFolderRemoteFiles,
   } = useArticleStore(useShallow((state) => ({
     activeFilePath: state.activeFilePath,
+    pendingFileRevealPath: state.pendingFileRevealPath,
+    setPendingFileRevealPath: state.setPendingFileRevealPath,
     fileTree: state.fileTree,
     loadFileTree: state.loadFileTree,
     setActiveFilePath: state.setActiveFilePath,
@@ -750,12 +754,13 @@ export function FileManager({
   useEffect(() => {
     let disposed = false
     const key = `fileTreeScrollTop:${workspacePath || '__default__'}`
+    const hasPendingReveal = Boolean(useArticleStore.getState().pendingFileRevealPath)
     remoteSearchRootLoadedRef.current = false
     remoteSearchLoadedPathsRef.current.clear()
 
     void Store.load('store.json').then(async store => {
       const scrollTop = await store.get<number>(key) ?? 0
-      if (!disposed && containerRef.current) {
+      if (!disposed && !hasPendingReveal && !useArticleStore.getState().pendingFileRevealPath && containerRef.current) {
         containerRef.current.scrollTop = scrollTop
       }
     })
@@ -1019,6 +1024,23 @@ export function FileManager({
     overscan: 12,
     scrollMargin: treeScrollMargin,
   })
+  useEffect(() => {
+    if (!pendingFileRevealPath || pendingFileRevealPath !== activeFilePath) return
+    if (filterQuery.trim()) {
+      setFilterQuery('')
+      return
+    }
+    const index = treeItems.findIndex(item => item.getItemData().path === pendingFileRevealPath)
+    if (index === -1) return
+
+    const frame = requestAnimationFrame(() => {
+      if (useArticleStore.getState().pendingFileRevealPath !== pendingFileRevealPath) return
+      rowVirtualizer.scrollToIndex(index, { align: 'center' })
+      setSelectedFilePaths([pendingFileRevealPath])
+      setPendingFileRevealPath(null)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeFilePath, filterQuery, pendingFileRevealPath, rowVirtualizer, setPendingFileRevealPath, setSelectedFilePaths, treeItems])
   const visibleResultCount = useMemo(
     () => filterQuery.trim()
       ? getFileTreeSearchMatches(searchIndex, filterQuery).size

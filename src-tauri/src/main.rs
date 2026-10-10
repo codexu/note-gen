@@ -40,6 +40,8 @@ mod system_permissions;
 mod tray;
 mod web_clipper;
 mod window;
+#[cfg(all(target_os = "windows", not(debug_assertions)))]
+mod windows_installer;
 
 use ai::{
     ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multipart_request,

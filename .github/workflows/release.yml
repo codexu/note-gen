@@ -287,9 +287,10 @@ jobs:
             bundlePath: 'src-tauri/target/release/bundle/appimage/NoteGen_*.AppImage'
             noSign: true
           - platform: 'windows-latest'
-            args: ''
+            # Keep manual installs and the legacy windows-x86_64 updater on MSI.
+            args: '--bundles msi'
             name: 'windows'
-            bundlePath: 'src-tauri\target\release\bundle\(nsis|msi)\NoteGen_*.(exe|msi)'
+            bundlePath: 'src-tauri\target\release\bundle\msi\NoteGen_*.msi'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -394,6 +395,7 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+          updaterJsonPreferNsis: false
 
       - name: Verify macOS bundle architectures
         if: matrix.targetArch

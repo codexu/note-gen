@@ -16,6 +16,13 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     cleanup_temp_screenshot_dir(&app_handle);
     plugins::cleanup_plugin_artifacts(&app_handle);
 
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    if let Err(error) =
+        crate::windows_installer::cleanup_legacy_nsis(&app.package_info().version.to_string())
+    {
+        eprintln!("Failed to clean up legacy NoteGen installer: {error}");
+    }
+
     // 在 Windows 和 Linux 上明确禁用系统窗口装饰，使用自定义标题栏
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     {

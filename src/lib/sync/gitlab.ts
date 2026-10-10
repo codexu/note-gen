@@ -14,6 +14,7 @@ import {
   GitlabResponse,
   GitlabRepositoryFile
 } from './gitlab.types';
+import { parseDirectoryEntries, readDirectoryResponse, type RemoteDirectoryEntry } from './directory-listing'
 
 // 获取 Gitlab 实例的 API 基础 URL 
 
@@ -232,6 +233,43 @@ export async function uploadFile({
  * 获取 Gitlab 项目文件列表或单个文件信息
  * @param params 查询参数
  */
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }): Promise<RemoteDirectoryEntry[]> {
+  const store = await Store.load('store.json')
+  const projectId = await store.get<string>(`gitlab_${repo}_project_id`)
+  if (!projectId) throw new Error('GitLab sync is not configured')
+  const branch = await getDefaultBranch(repo)
+  const baseUrl = await getGitlabApiBaseUrl()
+  const headers = await getCommonHeaders()
+  const proxy = await getProxyConfig()
+  const entries: RemoteDirectoryEntry[] = []
+  const seenPaths = new Set<string>()
+  let page = 1
+  while (true) {
+    const params = new URLSearchParams({ path, ref: branch, per_page: '100', page: String(page) })
+    const response = await fetch(`${baseUrl}/projects/${projectId}/repository/tree?${params}`, {
+      method: 'GET', headers, proxy,
+    })
+    if (response.status === 404 && path && page === 1) {
+      // 验证仓库仍然可读，避免把鉴权或配置错误误认为目录已删除。
+      await getDirectoryFiles({ path: '', repo })
+      return []
+    }
+    const batch = parseDirectoryEntries(await readDirectoryResponse(response))
+    for (const entry of batch) {
+      if (seenPaths.has(entry.path)) throw new Error('Repeated GitLab directory page')
+      seenPaths.add(entry.path)
+      entries.push(entry)
+    }
+    const nextPage = response.headers.get('X-Next-Page')
+    if (nextPage === '' || (nextPage === null && batch.length < 100)) return entries
+    const next = nextPage ? Number(nextPage) : page + 1
+    if (!Number.isInteger(next) || next <= page || batch.length === 0) {
+      throw new Error('Invalid GitLab directory pagination')
+    }
+    page = next
+  }
+}
+
 export async function getFiles({ path, repo }: { path: string; repo: string }) {
   try {
     const store = await Store.load('store.json');

@@ -4979,7 +4979,8 @@
         "dragToParent": "Hier ablegen, um eine Ebene nach oben zu verschieben",
         "dragReleaseToMove": "Loslassen, um hierher zu verschieben",
         "moveInvalidTarget": "Kann nicht in diesen Ordner verschoben werden",
-        "moveFailed": "Verschieben fehlgeschlagen"
+        "moveFailed": "Verschieben fehlgeschlagen",
+        "refreshFailed": "Die Dateiliste konnte nicht aktualisiert werden. Prüfe die Netzwerkverbindung und die Synchronisierungseinstellungen und versuche es erneut."
       },
       "deleteConfirm": "Bist du sicher, dass du diese Datei löschen möchtest?"
     },

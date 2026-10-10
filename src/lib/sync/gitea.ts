@@ -15,6 +15,7 @@ import {
   GiteaDirectoryItem,
   GiteaFileContent
 } from './gitea.types';
+import { parseDirectoryEntries, readDirectoryResponse, type RemoteDirectoryEntry } from './directory-listing'
 
 // 获取 Gitea 实例的 API 基础 URL
 
@@ -246,6 +247,22 @@ export async function updateFileContent({
  * 获取 Gitea 仓库文件列表
  * @param params 查询参数
  */
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }): Promise<RemoteDirectoryEntry[]> {
+  const store = await Store.load('store.json')
+  const username = await store.get<string>('giteaUsername')
+  if (!username) throw new Error('Gitea sync is not configured')
+  const baseUrl = await getGiteaApiBaseUrl()
+  const headers = await getCommonHeaders()
+  const proxy = await getProxyConfig()
+  const url = `${baseUrl}/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}/contents/${buildRepoContentPath({ path })}`
+  const response = await fetch(url, { method: 'GET', headers, proxy })
+  if (response.status === 404 && path) {
+    await getDirectoryFiles({ path: '', repo })
+    return []
+  }
+  return parseDirectoryEntries(await readDirectoryResponse(response))
+}
+
 export async function getFiles({ path, repo, sha }: { path: string; repo: string; sha?: string }) {
   try {
     const store = await Store.load('store.json');

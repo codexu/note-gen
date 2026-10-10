@@ -1,10 +1,8 @@
-import { getFiles as getGithubFiles } from '@/lib/sync/github'
-import { GithubContent } from '@/lib/sync/github.types'
-import { getFiles as getGiteeFiles } from '@/lib/sync/gitee'
-import { getFiles as getGiteaFiles } from '@/lib/sync/gitea'
-import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
-import { GiteeFile } from '@/lib/sync/gitee'
-import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
+import type { RemoteDirectoryEntry } from '@/lib/sync/directory-listing'
+import { getDirectoryFiles as getGithubFiles } from '@/lib/sync/github'
+import { getDirectoryFiles as getGiteeFiles } from '@/lib/sync/gitee'
+import { getDirectoryFiles as getGiteaFiles } from '@/lib/sync/gitea'
+import { getDirectoryFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3ListObjects } from '@/lib/sync/s3'
 import { webdavListObjects } from '@/lib/sync/webdav'
@@ -348,6 +346,98 @@ export interface DirTree extends DirEntry {
   syncDirty?: boolean
   syncError?: string
   vectorCalcStatus?: 'idle' | 'calculating' | 'completed'  // 向量计算状态
+}
+
+// 只有完整、成功的远程快照才能清理缓存；本地文件始终保留。
+function mergeRemoteDirectoryEntries(
+  remoteEntries: RemoteDirectoryEntry[],
+  entries: DirTree[],
+  parent?: DirTree,
+) {
+  const remoteByKey = new Map(remoteEntries
+    .filter(entry => entry.name && !entry.name.startsWith('.'))
+    .map(entry => [`${entry.type === 'dir' ? 'directory' : 'file'}:${entry.name}`, entry]))
+
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    const key = `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}`
+    if (remoteByKey.has(key)) continue
+    if (!entry.isLocale) {
+      entries.splice(index, 1)
+    } else {
+      entry.sha = undefined
+      if (entry.children) mergeRemoteDirectoryEntries([], entry.children, entry)
+    }
+  }
+
+  for (const [key, remoteEntry] of remoteByKey) {
+    const existing = entries.find(entry => (
+      `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}` === key
+    ))
+    if (existing) {
+      existing.sha = remoteEntry.sha
+      if (remoteEntry.size !== undefined) existing.size = remoteEntry.size
+      if (remoteEntry.modifiedAt !== undefined) existing.modifiedAt = remoteEntry.modifiedAt
+    } else {
+      entries.push({
+        name: remoteEntry.name,
+        isFile: remoteEntry.type === 'file',
+        isSymlink: false,
+        parent,
+        isDirectory: remoteEntry.type === 'dir',
+        isLocale: false,
+        sha: remoteEntry.sha,
+        size: remoteEntry.size,
+        modifiedAt: remoteEntry.modifiedAt,
+        children: remoteEntry.type === 'dir' ? [] : undefined,
+      })
+    }
+  }
+}
+
+type RemoteObject = Awaited<ReturnType<typeof s3ListObjects>>[number]
+
+function getObjectDirectoryEntries(
+  files: RemoteObject[],
+  path: string,
+  platform: 's3' | 'webdav',
+): RemoteDirectoryEntry[] {
+  const entries = new Map<string, RemoteDirectoryEntry>()
+  for (const file of files) {
+    // S3 key 已移除配置前缀，相对于工作区；WebDAV key 相对于请求目录。
+    const relativePath = platform === 'webdav'
+      ? file.key
+      : path
+        ? file.key.startsWith(`${path}/`) ? file.key.slice(path.length + 1) : ''
+        : file.key
+    if (!relativePath) continue
+    const [name, ...rest] = relativePath.split('/')
+    if (!name || name.startsWith('.')) continue
+    const isDirectory = rest.length > 0
+    const key = `${isDirectory ? 'directory' : 'file'}:${name}`
+    if (entries.has(key)) continue
+    entries.set(key, {
+      name,
+      path: path ? `${path}/${name}` : name,
+      type: isDirectory ? 'dir' : 'file',
+      sha: isDirectory ? '' : file.etag || file.key,
+      size: isDirectory ? undefined : file.size,
+      modifiedAt: isDirectory ? undefined : file.lastModified,
+    })
+  }
+  return [...entries.values()]
+}
+
+function getGitDirectoryEntries(files: RemoteDirectoryEntry[], path: string) {
+  return files.filter(file => {
+    const relativePath = path
+      ? file.path.startsWith(`${path}/`) ? file.path.slice(path.length + 1) : ''
+      : file.path
+    if (!relativePath || relativePath.includes('/') || relativePath !== file.name) {
+      throw new Error('Unexpected remote directory entry path')
+    }
+    return true
+  })
 }
 
 function mergeCloudFolderRemoteEntries(
@@ -2503,7 +2593,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         if (files) {
           const dirs = get().fileTree
 
-          // S3 或 WebDAV 文件处理
+          // 按同步平台合并远程目录快照
           if (primaryBackupMethod === 'cloudFolder') {
             if (path) {
               const currentFolder = getCurrentFolder(path, dirs)
@@ -2518,157 +2608,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
             } else {
               mergeCloudFolderRemoteEntries(files as CloudFolderObject[], path, dirs)
             }
-          } else if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            let prefix = ''
-            if (primaryBackupMethod === 's3') {
-              const config = await store.get<S3Config>('s3SyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            } else {
-              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            }
-            if (!await canApplyRemoteFileTreeRequest(requestContext)) return
-            const fullPrefix = prefix ? `${prefix}/${path}` : path
-
-            s3Files.forEach((file) => {
-              const fileName = file.key.split('/').pop() || file.key
-              if (fileName.startsWith('.')) {
-                return;
-              }
-
-              // 计算相对路径
-              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return
-              }
-
-              const isDirectory = file.key.endsWith('/')
-
-              // 移除 pathPrefix 前缀，转换为本地相对路径
-              let localItemPath = file.key
-              if (prefix && localItemPath.startsWith(prefix + '/')) {
-                localItemPath = localItemPath.substring(prefix.length + 1)
-              }
-
-              let currentFolder: DirTree | undefined
-              if (isDirectory) {
-                currentFolder = getCurrentFolder(localItemPath, dirs)?.parent
-              } else {
-                const filePath = localItemPath.split('/').slice(0, -1).join('/')
-                currentFolder = getCurrentFolder(filePath, dirs)
-              }
-
-              if (localItemPath.includes('/')) {
-                const index = currentFolder?.children?.findIndex(item => item.name === fileName)
-                if (index !== -1 && index !== undefined && currentFolder?.children) {
-                  currentFolder.children[index].sha = file.etag
-                  currentFolder.children[index].size = file.size
-                  currentFolder.children[index].modifiedAt = file.lastModified
-                } else {
-                  currentFolder?.children?.push({
-                    name: fileName,
-                    isFile: !isDirectory,
-                    isSymlink: false,
-                    parent: currentFolder,
-                    isEditing: false,
-                    isDirectory: isDirectory,
-                    sha: file.etag,
-                    size: file.size,
-                    isLocale: false,
-                    modifiedAt: file.lastModified,
-                    children: isDirectory ? [] : undefined
-                  })
-                }
-              } else {
-                const index = dirs.findIndex(item => item.name === fileName)
-                if (index !== -1 && index !== undefined) {
-                  dirs[index].sha = file.etag
-                  dirs[index].size = file.size
-                  dirs[index].modifiedAt = file.lastModified
-                } else {
-                  (dirs as any).push({
-                    name: fileName,
-                    isFile: !isDirectory,
-                    isSymlink: false,
-                    parent: undefined,
-                    isEditing: false,
-                    isDirectory: isDirectory,
-                    sha: file.etag,
-                    size: file.size,
-                    isLocale: false,
-                    modifiedAt: file.lastModified,
-                    children: isDirectory ? [] : undefined
-                  })
-                }
-              }
-            })
           } else {
-            // Git 平台处理逻辑
-            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-              // 过滤以"."开头的文件和文件夹
-              if (file.name.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              const relativePath = path ? file.path.substring(path.length + 1) : file.path
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              const itemPath = file.path;
-              let currentFolder: DirTree | undefined
-              if (file.type === 'dir') {
-                currentFolder = getCurrentFolder(itemPath, dirs)?.parent
-              } else {
-                const filePath = itemPath.split('/').slice(0, -1).join('/')
-                currentFolder = getCurrentFolder(filePath, dirs)
-              }
-              if (itemPath.includes('/')) {
-                const index = currentFolder?.children?.findIndex(item => item.name === file.name)
-                if (index !== -1 && index !== undefined && currentFolder?.children) {
-                  currentFolder.children[index].sha = file.sha
-                  currentFolder.children[index].size = (file as any).size
-                } else {
-                  currentFolder?.children?.push({
-                    name: file.name,
-                    isFile: file.type === 'file',
-                    isSymlink: false,
-                    parent: currentFolder,
-                    isEditing: false,
-                    isDirectory: file.type === 'dir',
-                    sha: file.sha,
-                    size: (file as any).size,
-                    isLocale: false,
-                    children: file.type === 'dir' ? [] : undefined
-                  })
-                }
-              } else {
-                const index = dirs.findIndex(item => item.name === file.name)
-                if (index !== -1 && index !== undefined) {
-                  dirs[index].sha = file.sha
-                  dirs[index].size = (file as any).size
-                } else {
-                  (dirs as any).push({
-                    name: file.name,
-                    isFile: file.type === 'file',
-                    isSymlink: false,
-                    parent: undefined,
-                    isEditing: false,
-                    isDirectory: file.type === 'dir',
-                    sha: file.sha,
-                    size: (file as any).size,
-                    isLocale: false,
-                    children: file.type === 'dir' ? [] : undefined
-                  })
-                }
-              }
-            });
+            const folder = path ? getCurrentFolder(path, dirs) : undefined
+            const entries = folder
+              ? folder.children ?? (folder.children = [])
+              : path ? undefined : dirs
+            if (entries) {
+              const remoteEntries = primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav'
+                ? getObjectDirectoryEntries(files as RemoteObject[], path, primaryBackupMethod)
+                : getGitDirectoryEntries(files as RemoteDirectoryEntry[], path)
+              mergeRemoteDirectoryEntries(remoteEntries, entries, folder)
+            }
           }
           if (isFileTreeRequestCurrent(requestContext)) {
             set({ fileTree: [...dirs] })
@@ -2915,7 +2865,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
         if (currentFolder) {
-          // S3 和 WebDAV 返回的文件格式相同，需要特殊处理
+          // WebDAV 使用目录内相对路径，S3 使用完整对象 key。
           if (primaryBackupMethod === 'cloudFolder') {
             mergeCloudFolderRemoteEntries(
               files as CloudFolderObject[],
@@ -2923,98 +2873,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
               currentFolder.children ?? (currentFolder.children = []),
               currentFolder,
             )
-          } else if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            let prefix = ''
-            if (primaryBackupMethod === 's3') {
-              const config = await store.get<S3Config>('s3SyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            } else {
-              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            }
-            if (!await canApplyRemoteFileTreeRequest(requestContext)) return
-            const fullPrefix = prefix ? `${prefix}/${fullpath}` : fullpath
-
-            s3Files.forEach((file) => {
-              // 提取文件名（key 的最后一部分）
-              const fileName = file.key.split('/').pop() || file.key
-              // 过滤以"."开头的文件和文件夹
-              if (fileName.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              // 例如: fullPrefix='test', file.key='test/file.md' → 加载
-              //      fullPrefix='test', file.key='test/sub/file.md' → 跳过
-              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              // S3 没有文件夹概念，检查 key 是否以 / 结尾来判断是否是"文件夹"
-              const isDirectory = file.key.endsWith('/')
-
-              const index = currentFolder.children?.findIndex(item => item.name === fileName)
-              if (index !== undefined && index !== -1 && currentFolder.children) {
-                currentFolder.children[index].sha = file.etag
-                currentFolder.children[index].size = file.size
-                currentFolder.children[index].modifiedAt = file.lastModified
-              } else {
-                currentFolder.children?.push({
-                  name: fileName,
-                  isFile: !isDirectory,
-                  isSymlink: false,
-                  parent: currentFolder,
-                  isEditing: false,
-                  isDirectory: isDirectory,
-                  sha: file.etag,
-                  size: file.size,
-                  isLocale: false,
-                  modifiedAt: file.lastModified,
-                  children: isDirectory ? [] : undefined
-                })
-              }
-            })
           } else {
-            // Git 平台处理逻辑
-            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-              // 过滤以"."开头的文件和文件夹
-              if (file.name.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              // 例如: fullpath='test', file.path='test/file.md' → 加载
-              //      fullpath='test', file.path='test/sub/file.md' → 跳过
-              const relativePath = fullpath ? file.path.substring(fullpath.length + 1) : file.path
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              const index = currentFolder.children?.findIndex(item => item.name === file.name)
-              if (index !== undefined && index !== -1 && currentFolder.children) {
-                currentFolder.children[index].sha = file.sha
-                currentFolder.children[index].size = (file as any).size
-              } else {
-                currentFolder.children?.push({
-                  name: file.name,
-                  isFile: file.type === 'file',
-                  isSymlink: false,
-                  parent: currentFolder,
-                  isEditing: false,
-                  isDirectory: file.type === 'dir',
-                  sha: file.sha,
-                  size: (file as any).size,
-                  isLocale: false,
-                  children: file.type === 'file' ? undefined : []
-                })
-              }
-            });
+            const remoteEntries = primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav'
+              ? getObjectDirectoryEntries(files as RemoteObject[], fullpath, primaryBackupMethod)
+              : getGitDirectoryEntries(files as RemoteDirectoryEntry[], fullpath)
+            mergeRemoteDirectoryEntries(
+              remoteEntries,
+              currentFolder.children ?? (currentFolder.children = []),
+              currentFolder,
+            )
           }
 
           if (isFileTreeRequestCurrent(requestContext)) {

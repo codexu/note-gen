@@ -711,7 +711,7 @@ export async function webdavListObjects(
   const startedAt = getPerfNow()
   try {
     if (shouldSkipForTemporaryBlock(config, 'listObjects', { prefix })) {
-      return []
+      throw new Error('WebDAV directory request is temporarily blocked')
     }
 
     const baseUrl = buildWebDAVBaseUrl(config)
@@ -727,7 +727,8 @@ export async function webdavListObjects(
       encodedFullPrefix,
     })
 
-    const response = await fetch(`${baseUrl}/${encodedFullPrefix}`, {
+    const directoryUrl = `${baseUrl}/${encodedFullPrefix}`
+    const response = await fetch(directoryUrl, {
       method: 'PROPFIND',
       headers: {
         'Authorization': buildAuthHeader(config.username, config.password),
@@ -745,7 +746,7 @@ export async function webdavListObjects(
     if (response.status === 207) {
       const textStartedAt = getPerfNow()
       const text = await response.text()
-      const results = parsePropfindResponse(text, fullPrefix)
+      const results = parsePropfindResponse(text, directoryUrl)
       debugSyncPerf('webdav.listObjects.parse', {
         prefix,
         responseLength: text.length,
@@ -775,7 +776,7 @@ export async function webdavListObjects(
       if (!isTemporaryBlockStatus(response.status)) {
         console.error('WebDAV ListObjects failed:', response.status, errorText)
       }
-      return []
+      throw new Error(`WebDAV directory request failed: ${response.status}`)
     }
   } catch (error) {
     debugSyncPerf('webdav.listObjects.failed', {
@@ -784,7 +785,7 @@ export async function webdavListObjects(
       totalMs: roundMs(getPerfNow() - startedAt),
     })
     console.error('WebDAV list error:', error)
-    return []
+    throw error
   }
 }
 
@@ -793,76 +794,52 @@ export async function webdavListObjects(
  */
 function parsePropfindResponse(
   xml: string,
-  prefix: string
+  directoryUrl: string
 ): Array<{ key: string; etag: string; lastModified: string; size: number }> {
-  const results: Array<{ key: string; etag: string; lastModified: string; size: number }> = []
-
-  try {
-    // 使用正则解析 XML 响应
-    // 提取所有 response 元素
-    const responseRegex = /<d:response>([\s\S]*?)<\/d:response>/g
-    let match
-
-    while ((match = responseRegex.exec(xml)) !== null) {
-      const responseContent = match[1]
-
-      // 提取 href
-      const hrefMatch = /<d:href>([^<]+)<\/d:href>/.exec(responseContent)
-      // 提取 getetag
-      const etagMatch = /<d:getetag>([^<]+)<\/d:getetag>/.exec(responseContent)
-      // 提取 getlastmodified
-      const lastModMatch = /<d:getlastmodified>([^<]+)<\/d:getlastmodified>/.exec(responseContent)
-      // 提取 getcontentlength
-      const sizeMatch = /<d:getcontentlength>([^<]+)<\/d:getcontentlength>/.exec(responseContent)
-
-      if (hrefMatch) {
-        let href = hrefMatch[1]
-
-        // 坚果云返回的 href 包含 /dav/ 前缀，需要移除
-        if (href.startsWith('/dav/')) {
-          href = href.substring(5) // 移除 /dav/
-        }
-
-        try {
-          href = decodeURIComponent(href)
-        } catch {
-          // 解码失败保持原样
-        }
-
-        const normalizedPrefix = prefix.replace(/^\/+|\/+$/g, '')
-
-        const isDirectory = href.endsWith('/')
-        const hrefWithoutTrailingSlash = href.replace(/\/+$/, '')
-
-        // 跳过当前目录本身，但保留它的直接子目录，供完整远端遍历使用。
-        if (hrefWithoutTrailingSlash === normalizedPrefix) {
-          continue
-        }
-
-        // 移除前缀，还原相对路径
-        if (normalizedPrefix && href.startsWith(`${normalizedPrefix}/`)) {
-          href = href.substring(`${normalizedPrefix}/`.length)
-        } else if (normalizedPrefix && href.startsWith(normalizedPrefix)) {
-          href = href.substring(normalizedPrefix.length)
-        }
-
-        // 移除开头的斜杠
-        href = href.replace(/^\/+/, '').replace(/\/+$/, '')
-
-        if (!href) continue
-
-        results.push({
-          key: isDirectory ? `${href}/` : href,
-          etag: etagMatch ? etagMatch[1].replace(/"/g, '') : '',
-          lastModified: lastModMatch ? lastModMatch[1] : '',
-          size: sizeMatch ? parseInt(sizeMatch[1], 10) : 0
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Error parsing PROPFIND response:', error)
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  if (document.getElementsByTagName('parsererror').length > 0
+    || document.documentElement.localName !== 'multistatus'
+    || document.documentElement.namespaceURI !== 'DAV:') {
+    throw new Error('Invalid WebDAV directory response')
   }
 
+  const results: Array<{ key: string; etag: string; lastModified: string; size: number }> = []
+  // 按命名空间读取，兼容 d:、D: 和默认 DAV 命名空间。
+  for (const response of Array.from(document.getElementsByTagNameNS('DAV:', 'response'))) {
+    const readProperty = (name: string) => (
+      response.getElementsByTagNameNS('DAV:', name)[0]?.textContent?.trim() || ''
+    )
+    const statuses = Array.from(response.getElementsByTagNameNS('DAV:', 'status'))
+    if (statuses.length > 0 && !statuses.some(status => /\s2\d{2}(?:\s|$)/.test(status.textContent || ''))) {
+      throw new Error('WebDAV directory entry could not be read')
+    }
+    const href = readProperty('href')
+    if (!href) throw new Error('WebDAV directory entry is missing its path')
+
+    // 从实际请求目录还原相对路径，兼容绝对 URL 和不同服务端的根路径。
+    const baseUrl = new URL(directoryUrl)
+    const entryUrl = new URL(href, `${directoryUrl.replace(/\/+$/, '')}/`)
+    const directoryPath = decodeURIComponent(baseUrl.pathname).replace(/\/+$/, '')
+    const entryPath = decodeURIComponent(entryUrl.pathname).replace(/\/+$/, '')
+    if (entryUrl.origin !== baseUrl.origin) throw new Error('Unexpected WebDAV directory entry origin')
+    if (entryPath === directoryPath) continue
+    if (!entryPath.startsWith(`${directoryPath}/`)) {
+      throw new Error('Unexpected WebDAV directory entry path')
+    }
+    const relativePath = entryPath.slice(directoryPath.length + 1)
+    if (!relativePath || relativePath.includes('/')) {
+      throw new Error('Unexpected WebDAV directory entry depth')
+    }
+    const isDirectory = entryUrl.pathname.endsWith('/')
+      || response.getElementsByTagNameNS('DAV:', 'collection').length > 0
+
+    results.push({
+      key: isDirectory ? `${relativePath}/` : relativePath,
+      etag: readProperty('getetag').replace(/"/g, ''),
+      lastModified: readProperty('getlastmodified'),
+      size: parseInt(readProperty('getcontentlength'), 10) || 0,
+    })
+  }
   return results
 }
 

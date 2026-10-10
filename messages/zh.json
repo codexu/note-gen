@@ -5121,7 +5121,8 @@
         "dragToParent": "拖到这里移动到上一级",
         "dragReleaseToMove": "松手移动到此处",
         "moveInvalidTarget": "不能移动到该文件夹",
-        "moveFailed": "移动失败"
+        "moveFailed": "移动失败",
+        "refreshFailed": "刷新文件列表失败，请检查网络和同步配置后重试。"
       },
       "deleteConfirm": "确认删除此文件吗？"
     },

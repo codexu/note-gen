@@ -624,131 +624,98 @@ export async function s3ListObjects(
   proxy?: Proxy
 ): Promise<Array<{ key: string; etag: string; lastModified: string; size: number }>> {
   const startedAt = getPerfNow()
-  let previousPerfAt = startedAt
-  const logPerf = (step: string, payload: Record<string, unknown> = {}) => {
-    const now = getPerfNow()
-    debugSyncPerf(`s3.listObjects.${step}`, {
-      prefix,
-      stepMs: roundMs(now - previousPerfAt),
-      totalMs: roundMs(now - startedAt),
-      ...payload,
-    })
-    previousPerfAt = now
-  }
-
   try {
-    logPerf('start')
     const baseUrl = buildS3BaseUrl(config)
-
-    // 处理 pathPrefix
     const configPrefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-    const fullPrefix = configPrefix ? `${configPrefix}/${prefix}` : prefix
-
-    // 构建 ListObjectsV2 URL
-    const listUrl = new URL(baseUrl)
-    listUrl.searchParams.set('list-type', '2')
-    listUrl.searchParams.set('prefix', fullPrefix)
-
-    const urlStr = listUrl.toString()
-
+    const directoryPrefix = prefix.replace(/^\/+|\/+$/g, '')
+    const fullPrefix = [configPrefix, directoryPrefix].filter(Boolean).join('/')
+    const objects: Array<{ key: string; etag: string; lastModified: string; size: number }> = []
+    const seenTokens = new Set<string>()
+    let continuationToken: string | undefined
     const emptyPayload = new ArrayBuffer(0)
     const payloadHash = await crypto.subtle.digest('SHA-256', emptyPayload)
     const payloadHashHex = Array.from(new Uint8Array(payloadHash))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
+      .map(b => b.toString(16).padStart(2, '0')).join('')
 
-    const headers: Record<string, string> = {
-      Host: new URL(urlStr).host,
-      'X-Amz-Content-Sha256': payloadHashHex
-    }
-
-    const { authorization, amzDate } = await generateSignature('GET', urlStr, headers, emptyPayload, config)
-    logPerf('generateSignature')
-
-    const requestHeaders = new Headers()
-    requestHeaders.append('Authorization', authorization)
-    requestHeaders.append('X-Amz-Date', amzDate)
-    requestHeaders.append('X-Amz-Content-Sha256', payloadHashHex)
-
-    const response = await fetch(urlStr, {
-      method: 'GET',
-      headers: requestHeaders,
-      proxy
-    })
-    logPerf('getRequest', {
-      status: response.status,
-    })
-
-    if (response.status === 200) {
-      const xmlText = await response.text()
-      const result = parseListObjectsResponse(xmlText, configPrefix)
-      logPerf('parseResponse', {
-        responseLength: xmlText.length,
-        resultCount: result.length,
+    do {
+      const listUrl = new URL(baseUrl)
+      listUrl.searchParams.set('list-type', '2')
+      listUrl.searchParams.set('prefix', fullPrefix ? `${fullPrefix}/` : '')
+      if (continuationToken) listUrl.searchParams.set('continuation-token', continuationToken)
+      const url = listUrl.toString()
+      const headers: Record<string, string> = {
+        Host: listUrl.host,
+        'X-Amz-Content-Sha256': payloadHashHex,
+      }
+      // 每页的查询参数不同，必须重新签名。
+      const { authorization, amzDate } = await generateSignature('GET', url, headers, emptyPayload, config)
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: authorization,
+          'X-Amz-Date': amzDate,
+          'X-Amz-Content-Sha256': payloadHashHex,
+        },
+        proxy,
       })
-      return result
-    } else {
-      const errorText = await response.text()
-      logPerf('completed', {
-        success: false,
-        status: response.status,
-        bodyLength: errorText.length,
-      })
-      console.error('S3 ListObjects failed:', response.status, errorText)
-      return []
-    }
+      if (response.status !== 200) {
+        throw new Error(`S3 directory request failed: ${response.status}`)
+      }
+      const page = parseListObjectsResponse(await response.text(), configPrefix)
+      objects.push(...page.objects)
+      continuationToken = page.nextToken
+      if (continuationToken) {
+        if (seenTokens.has(continuationToken)) throw new Error('Repeated S3 directory page')
+        seenTokens.add(continuationToken)
+      }
+    } while (continuationToken)
+
+    debugSyncPerf('s3.listObjects.completed', {
+      prefix, resultCount: objects.length, totalMs: roundMs(getPerfNow() - startedAt),
+    })
+    return objects
   } catch (error) {
-    logPerf('failed', {
+    debugSyncPerf('s3.listObjects.failed', {
+      prefix,
       message: error instanceof Error ? error.message : String(error),
+      totalMs: roundMs(getPerfNow() - startedAt),
     })
     console.error('S3 ListObjects error:', error)
-    return []
+    throw error
   }
 }
 
 /**
- * 解析 ListObjectsV2 响应 XML
+ * 解析完整的 ListObjectsV2 页面，失败时不能作为空目录应用。
  */
-function parseListObjectsResponse(
-  xml: string,
-  prefix: string
-): Array<{ key: string; etag: string; lastModified: string; size: number }> {
-  const results: Array<{ key: string; etag: string; lastModified: string; size: number }> = []
-
-  // 提取所有 Contents 节点
-  const contentsRegex = /<Contents>([\s\S]*?)<\/Contents>/g
-  let match
-
-  while ((match = contentsRegex.exec(xml)) !== null) {
-    const content = match[1]
-
-    // 提取 Key
-    const keyMatch = /<Key>(.*?)<\/Key>/.exec(content)
-    // 提取 ETag
-    const etagMatch = /<ETag>(.*?)<\/ETag>/.exec(content)
-    // 提取 LastModified
-    const lastModifiedMatch = /<LastModified>(.*?)<\/LastModified>/.exec(content)
-    // 提取 Size
-    const sizeMatch = /<Size>(.*?)<\/Size>/.exec(content)
-
-    if (keyMatch) {
-      let key = keyMatch[1]
-
-      // 移除 prefix 前缀，还原相对路径
-      if (prefix && key.startsWith(prefix + '/')) {
-        key = key.substring(prefix.length + 1)
-      }
-
-      results.push({
-        key,
-        etag: etagMatch ? etagMatch[1].replace(/"/g, '') : '',
-        lastModified: lastModifiedMatch ? lastModifiedMatch[1] : '',
-        size: sizeMatch ? parseInt(sizeMatch[1], 10) : 0
-      })
-    }
+function parseListObjectsResponse(xml: string, prefix: string) {
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  if (document.getElementsByTagName('parsererror').length > 0
+    || document.documentElement.localName !== 'ListBucketResult') {
+    throw new Error('Invalid S3 directory response')
   }
-
-  return results
+  const readProperty = (element: Element, name: string) => (
+    element.getElementsByTagNameNS('*', name)[0]?.textContent || ''
+  )
+  const root = document.documentElement
+  const truncated = readProperty(root, 'IsTruncated').trim()
+  if (truncated !== 'true' && truncated !== 'false') {
+    throw new Error('Invalid S3 directory pagination')
+  }
+  const nextToken = truncated === 'true' ? readProperty(root, 'NextContinuationToken') : undefined
+  if (truncated === 'true' && !nextToken) throw new Error('Incomplete S3 directory listing')
+  const objects = Array.from(root.getElementsByTagNameNS('*', 'Contents')).map(content => {
+    let key = readProperty(content, 'Key')
+    if (!key) throw new Error('S3 directory entry is missing its key')
+    if (prefix && key.startsWith(`${prefix}/`)) key = key.slice(prefix.length + 1)
+    return {
+      key,
+      etag: readProperty(content, 'ETag').replace(/"/g, ''),
+      lastModified: readProperty(content, 'LastModified'),
+      size: Number(readProperty(content, 'Size')) || 0,
+    }
+  })
+  return { objects, nextToken }
 }
 
 /**

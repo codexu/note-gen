@@ -5121,7 +5121,8 @@
         "dragToParent": "Drop here to move up one level",
         "dragReleaseToMove": "Release to move here",
         "moveInvalidTarget": "Cannot move to this folder",
-        "moveFailed": "Move failed"
+        "moveFailed": "Move failed",
+        "refreshFailed": "Could not refresh the file list. Check your network and sync settings, then try again."
       },
       "deleteConfirm": "Are you sure you want to delete this file?"
     },

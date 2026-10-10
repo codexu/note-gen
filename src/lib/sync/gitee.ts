@@ -3,6 +3,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent, pickNestedFileEntry } from './remote-file'
+import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file'
 // Remove unused imports - these types are not actually used in this file
 
@@ -312,6 +313,20 @@ export async function uploadFile(
       variant: 'destructive',
     })
   }
+}
+
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+  const store = await Store.load('store.json')
+  const token = await store.get<string>('giteeAccessToken')
+  const username = await store.get<string>('giteeUsername')
+  if (!token || !username) throw new Error('Gitee sync is not configured')
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const baseUrl = `https://gitee.com/api/v5/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`
+  return readGitTreeDirectory(path, resource => fetch(
+    `${baseUrl}${resource}?access_token=${encodeURIComponent(token)}`,
+    { method: 'GET', proxy },
+  ))
 }
 
 export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }): Promise<GiteeGetFilesResult> {

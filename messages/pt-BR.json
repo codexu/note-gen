@@ -4898,7 +4898,8 @@
         "dragToParent": "Solte aqui para mover um nível acima",
         "dragReleaseToMove": "Solte para mover aqui",
         "moveInvalidTarget": "Não é possível mover para esta pasta",
-        "moveFailed": "Falha ao mover"
+        "moveFailed": "Falha ao mover",
+        "refreshFailed": "Não foi possível atualizar a lista de arquivos. Verifique a rede e as configurações de sincronização e tente novamente."
       },
       "context": {
         "viewDirectory": "Ver Diretório",

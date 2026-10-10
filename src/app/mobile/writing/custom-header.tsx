@@ -101,6 +101,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     loadFolderRemoteFiles,
     setFileTree,
     reconcileLocalFile,
+    clearFileRemoteState,
     setCollapsibleList,
     moveLocalEntry,
     syncOpenTabsForPathChange,
@@ -1195,11 +1196,16 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       return
     }
 
-    await refreshTree(currentDir)
+    clearFileRemoteState(entry.relativePath)
     toast({
       title: tContext('delete'),
       description: tContext('deleteSyncFileSuccess'),
     })
+    try {
+      await refreshTree(currentDir)
+    } catch (error) {
+      console.error('Refresh after deleting remote file failed:', error)
+    }
   }
 
   return (
@@ -1243,7 +1249,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
           <WorkspaceSwitcher compact />
           <CloudLibraryMenu
             className="size-9 shrink-0"
-            onRefresh={() => void refreshTree(currentDir)}
+            onRefresh={() => void refreshTree(currentDir).catch(error => {
+              console.error('Remote file tree refresh failed:', error)
+              toast({ description: tMobile('refreshFailed'), variant: 'destructive' })
+            })}
             refreshing={isBrowserRefreshing}
             sortOptions={{
               type: sortType,

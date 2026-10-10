@@ -4915,7 +4915,8 @@
         "dragToParent": "ここにドロップして1つ上の階層へ移動",
         "dragReleaseToMove": "離すとここへ移動",
         "moveInvalidTarget": "このフォルダには移動できません",
-        "moveFailed": "移動に失敗しました"
+        "moveFailed": "移動に失敗しました",
+        "refreshFailed": "ファイル一覧を更新できませんでした。ネットワークと同期設定を確認して、再試行してください。"
       },
       "context": {
         "viewDirectory": "ディレクトリを表示",

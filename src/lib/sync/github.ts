@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { GithubError, GithubRepoInfo, OctokitResponse } from './github.types';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent } from './remote-file'
+import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file';
 
 export function uint8ArrayToBase64(data: Uint8Array) {
@@ -134,6 +135,25 @@ export async function uploadFile(
       variant: 'destructive',
     })
   }
+}
+
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+  const store = await Store.load('store.json')
+  const token = await store.get<string>('accessToken')
+  const username = await store.get<string>('githubUsername')
+  if (!token || !username) throw new Error('GitHub sync is not configured')
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const baseUrl = `https://api.github.com/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`
+  return readGitTreeDirectory(path, resource => fetch(`${baseUrl}${resource}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    proxy,
+  }))
 }
 
 export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }) {

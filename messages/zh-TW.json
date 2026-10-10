@@ -4905,7 +4905,8 @@
         "dragToParent": "拖到這裡移動到上一級",
         "dragReleaseToMove": "鬆手移動到此處",
         "moveInvalidTarget": "不能移動到該文件夾",
-        "moveFailed": "移動失敗"
+        "moveFailed": "移動失敗",
+        "refreshFailed": "重新整理檔案清單失敗，請檢查網路和同步設定後重試。"
       },
       "context": {
         "viewDirectory": "查看目錄",

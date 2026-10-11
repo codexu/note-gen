@@ -7,7 +7,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
-use tauri::{ipc::Channel, State};
+use tauri::{ipc::Channel, AppHandle, State};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -112,8 +112,14 @@ fn abort_error() -> String {
     "Request was aborted.".to_string()
 }
 
-fn build_client(config: &AiConfigPayload) -> Result<Client, String> {
-    let mut builder = Client::builder();
+fn build_client(config: &AiConfigPayload, app: &AppHandle) -> Result<Client, String> {
+    let user_agent = format!(
+        "NoteGen/{} ({}; {})",
+        app.package_info().version,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+    );
+    let mut builder = Client::builder().user_agent(user_agent);
 
     match &config.proxy {
         Some(AiProxyConfig::Direct) => {
@@ -185,8 +191,9 @@ async fn read_response_json(response: reqwest::Response) -> Result<Value, String
 async fn run_json_request(
     request: AiJsonRequest,
     manager: &AiRequestManager,
+    app: &AppHandle,
 ) -> Result<Value, String> {
-    let client = build_client(&request.config)?;
+    let client = build_client(&request.config, app)?;
     let url = build_url(&request.config.base_url, &request.path)?;
     let method = Method::from_str(request.method.as_deref().unwrap_or("POST"))
         .map_err(|error| format!("Invalid HTTP method: {error}"))?;
@@ -281,16 +288,18 @@ impl SseDecoder {
 pub async fn ai_json_request(
     request: AiJsonRequest,
     manager: State<'_, AiRequestManager>,
+    app: AppHandle,
 ) -> Result<Value, String> {
-    run_json_request(request, &manager).await
+    run_json_request(request, &manager, &app).await
 }
 
 #[tauri::command]
 pub async fn ai_binary_request(
     request: AiJsonRequest,
     manager: State<'_, AiRequestManager>,
+    app: AppHandle,
 ) -> Result<Vec<u8>, String> {
-    let client = build_client(&request.config)?;
+    let client = build_client(&request.config, &app)?;
     let url = build_url(&request.config.base_url, &request.path)?;
     let method = Method::from_str(request.method.as_deref().unwrap_or("POST"))
         .map_err(|error| format!("Invalid HTTP method: {error}"))?;
@@ -347,8 +356,9 @@ pub async fn ai_binary_request(
 pub async fn ai_multipart_request(
     request: AiMultipartRequest,
     manager: State<'_, AiRequestManager>,
+    app: AppHandle,
 ) -> Result<Value, String> {
-    let client = build_client(&request.config)?;
+    let client = build_client(&request.config, &app)?;
     let url = build_url(&request.config.base_url, &request.path)?;
     let headers = build_headers(&request.config, false)?;
     let cancellation = if let Some(request_id) = &request.request_id {
@@ -401,8 +411,9 @@ pub async fn ai_chat_completion_stream(
     request: AiStreamRequest,
     on_event: Channel<AiStreamEvent>,
     manager: State<'_, AiRequestManager>,
+    app: AppHandle,
 ) -> Result<(), String> {
-    let client = build_client(&request.config)?;
+    let client = build_client(&request.config, &app)?;
     let url = build_url(&request.config.base_url, "/chat/completions")?;
     let headers = build_headers(&request.config, true)?;
     let cancellation = manager.register(&request.request_id).await;

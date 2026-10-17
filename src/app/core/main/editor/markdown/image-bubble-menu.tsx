@@ -54,6 +54,10 @@ export function ImageBubbleMenu({ editor, pluginsEnabled = false }: ImageBubbleM
   const selectedImageRef = useRef<HTMLImageElement | null>(null)
 
   const updateMenuPosition = useCallback(() => {
+    if (editor.isDestroyed) {
+      setMenuPosition(null)
+      return
+    }
     const image = selectedImageRef.current
     const positionContainer = editor.view.dom.parentElement
     const scrollContainer = editor.view.dom.closest<HTMLElement>('.editor-scroll-container')
@@ -177,6 +181,7 @@ export function ImageBubbleMenu({ editor, pluginsEnabled = false }: ImageBubbleM
   }, [closeMenu, editor, imageInfo])
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     const editorElement = editor.view.dom
     const scrollContainer = editorElement.closest<HTMLElement>('.editor-scroll-container')
 
@@ -202,7 +207,9 @@ export function ImageBubbleMenu({ editor, pluginsEnabled = false }: ImageBubbleM
   }, [closeMenu, editor, handleImageClick, updateMenuPosition])
 
   useEffect(() => {
-    if (imageInfo) window.requestAnimationFrame(updateMenuPosition)
+    if (!imageInfo) return
+    const frame = window.requestAnimationFrame(updateMenuPosition)
+    return () => window.cancelAnimationFrame(frame)
   }, [imageInfo, updateMenuPosition])
 
   if (!imageInfo || !menuPosition) return null

@@ -138,6 +138,7 @@ interface Events {
   };
   'start-ai-streaming': {
     originalText: string;
+    originalPreserved?: boolean;
     type: string;
     position: { top: number; left: number; right: number; bottom: number };
     controller?: AbortController;

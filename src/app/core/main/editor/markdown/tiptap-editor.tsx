@@ -5,6 +5,7 @@ import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
 import { useEditor, EditorContent, type Editor as TipTapReactEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { PendingEditorUploads, createUploadPlaceholder, trackEditorRange } from './async-editor-operations'
 import Link from '@tiptap/extension-link'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
@@ -1649,6 +1650,7 @@ const BlurSelectionHighlight = Extension.create({
     }
 
     const setFocused = (view: EditorView) => {
+      if (view.isDestroyed) return
       cancelPendingBlur()
       view.dispatch(view.state.tr.setMeta(blurSelectionPluginKey, {
         focused: true,
@@ -1658,6 +1660,7 @@ const BlurSelectionHighlight = Extension.create({
     }
 
     const setBlurredIfFocusLeftEditor = (view: EditorView) => {
+      if (view.isDestroyed) return
       if (isFocusWithinEditor(view)) {
         setFocused(view)
         return
@@ -2448,6 +2451,7 @@ export function TipTapEditor({
         dropcursor: false,
       }),
       MarkdownParagraph,
+      PendingEditorUploads,
       Placeholder.configure({
         placeholder: placeholderText,
         showOnlyCurrent: true,
@@ -2764,6 +2768,39 @@ export function TipTapEditor({
       }
     },
   })
+
+  const editorOperationEpochRef = useRef(0)
+  const editorRequestsRef = useRef(new Set<AbortController>())
+  const editorOperationCleanupsRef = useRef(new Set<() => void>())
+  useEffect(() => {
+    editorOperationEpochRef.current += 1
+    setIsCanvasDropPending(false)
+    setIsCanvasDragOver(false)
+    const invalidate = () => {
+      editorOperationEpochRef.current += 1
+      for (const controller of editorRequestsRef.current) controller.abort()
+      editorRequestsRef.current.clear()
+      for (const cleanup of editorOperationCleanupsRef.current) cleanup()
+      editorOperationCleanupsRef.current.clear()
+    }
+    editor?.on('destroy', invalidate)
+    editor?.on('unmount', invalidate)
+    return () => {
+      invalidate()
+      editor?.off('destroy', invalidate)
+      editor?.off('unmount', invalidate)
+    }
+  }, [editor, activeFilePath, activeSectionEditor, isActive, isSectionVirtualView])
+
+  const captureEditorOperation = useCallback((controller?: AbortController) => {
+    const epoch = editorOperationEpochRef.current
+    const path = activeFilePathRef.current
+    const sectionEditor = isSectionVirtualView ? sectionedEditorControllerRef.current?.getActiveEditor() : null
+    if (controller) editorRequestsRef.current.add(controller)
+    return () => Boolean(editor && !editor.isDestroyed && isActiveRef.current
+      && epoch === editorOperationEpochRef.current && path === activeFilePathRef.current
+      && (!isSectionVirtualView || sectionedEditorControllerRef.current?.getActiveEditor() === sectionEditor))
+  }, [editor, isSectionVirtualView])
 
   useEffect(() => {
     if (!editor || !developerMode || !developerPerformanceInfo || isSectionScope) return
@@ -3315,7 +3352,12 @@ export function TipTapEditor({
     if (!pendingSourceSearchRef.current) return
 
     pendingSourceSearchRef.current = false
-    window.requestAnimationFrame(() => controller.openSearch())
+    const path = activeFilePathRef.current
+    window.requestAnimationFrame(() => {
+      if (isEditorUnmountingRef.current || !isActiveRef.current
+        || path !== activeFilePathRef.current || sourceEditorControllerRef.current !== controller) return
+      controller.openSearch()
+    })
   }, [setPendingSearchKeyword])
 
   const handleSourceUndoRedoChange = useCallback((state: { undo: boolean; redo: boolean }) => {
@@ -3381,7 +3423,7 @@ export function TipTapEditor({
     const currentPath = activeFilePath
     const parseTimer = window.setTimeout(() => {
       if (
-        activeFilePath !== currentPath
+        activeFilePathRef.current !== currentPath
         || editor.isDestroyed
         || !isActiveRef.current
       ) {
@@ -3540,6 +3582,7 @@ export function TipTapEditor({
     }
 
     const handleGutterMouseMove = (event: MouseEvent) => {
+      if (editor.isDestroyed) return
       if (!event.isTrusted) {
         return
       }
@@ -3618,6 +3661,7 @@ export function TipTapEditor({
     }
 
     const handlePointerDown = (event: PointerEvent) => {
+      if (editor.isDestroyed) return
       if (event.button !== 0 || editorBlockMenuOpenRef.current) {
         return
       }
@@ -3672,6 +3716,7 @@ export function TipTapEditor({
     }
 
     const handlePointerMove = (event: PointerEvent) => {
+      if (editor.isDestroyed) return
       const dragState = editorBlockPointerDragStateRef.current
       if (!dragState || dragState.pointerId !== event.pointerId) {
         return
@@ -3858,7 +3903,7 @@ export function TipTapEditor({
   }, [isMobile, persistEditorViewState])
 
   useEffect(() => {
-    if (!isMobile || !editor) {
+    if (!isMobile || !editor || editor.isDestroyed) {
       setShowMobileScrollTop(false)
       return
     }
@@ -3932,7 +3977,7 @@ export function TipTapEditor({
   }, [persistEditorViewState])
 
   const restoreEditorViewState = useCallback((path: string, attempt: number = 0) => {
-    if (isSectionScope || !editor || !path || !scrollContainerRef.current) {
+    if (isSectionScope || !editor || editor.isDestroyed || !path || path !== activeFilePathRef.current || !scrollContainerRef.current) {
       return
     }
 
@@ -3940,6 +3985,7 @@ export function TipTapEditor({
       return
     }
 
+    const isCurrentOperation = captureEditorOperation()
     const savedViewState = getEditorViewState(path)
 
     if (!savedViewState) {
@@ -3948,6 +3994,7 @@ export function TipTapEditor({
       if (isMobile) {
         scrollContainerRef.current.scrollTop = initialScrollTop
         requestAnimationFrame(() => {
+          if (!isCurrentOperation()) return
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = initialScrollTop
           }
@@ -3971,6 +4018,7 @@ export function TipTapEditor({
         to: savedViewState.selectionTo,
       }
       requestAnimationFrame(() => {
+        if (!isCurrentOperation()) return
         if (!scrollContainerRef.current) return
         scrollContainerRef.current.scrollTop = savedViewState.scrollTop
         restoredViewPathRef.current = path
@@ -3982,6 +4030,7 @@ export function TipTapEditor({
           sectionId: savedViewState.sectionId,
         }
         window.setTimeout(() => {
+          if (!isCurrentOperation()) return
           if (scrollContainerRef.current && restoredViewPathRef.current === path) {
             scrollContainerRef.current.scrollTop = savedViewState.scrollTop
           }
@@ -4003,12 +4052,14 @@ export function TipTapEditor({
 
     if (docSize < wantedSelection && attempt < 5) {
       setTimeout(() => {
+        if (!isCurrentOperation()) return
         restoreEditorViewState(path, attempt + 1)
       }, 16)
       return
     }
 
     requestAnimationFrame(() => {
+      if (!isCurrentOperation()) return
       if (!scrollContainerRef.current) {
         return
       }
@@ -4026,6 +4077,7 @@ export function TipTapEditor({
       }
 
       requestAnimationFrame(() => {
+        if (!isCurrentOperation()) return
         if (!scrollContainerRef.current) {
           return
         }
@@ -4034,11 +4086,13 @@ export function TipTapEditor({
         setIsRestoringMobileView(false)
         if (isMobile) {
           window.setTimeout(() => {
+            if (!isCurrentOperation()) return
             if (scrollContainerRef.current && restoredViewPathRef.current === path) {
               scrollContainerRef.current.scrollTop = savedViewState.scrollTop
             }
           }, 0)
           window.setTimeout(() => {
+            if (!isCurrentOperation()) return
             if (scrollContainerRef.current && restoredViewPathRef.current === path) {
               scrollContainerRef.current.scrollTop = savedViewState.scrollTop
             }
@@ -4060,7 +4114,7 @@ export function TipTapEditor({
         }
       })
     })
-  }, [editor, getEditorViewState, isMobile, isSectionScope, isSectionVirtualView, setEditorViewState])
+  }, [captureEditorOperation, editor, getEditorViewState, isMobile, isSectionScope, isSectionVirtualView, setEditorViewState])
   restoreEditorViewStateRef.current = restoreEditorViewState
 
   useEffect(() => {
@@ -4123,6 +4177,8 @@ export function TipTapEditor({
 
     let scrollTimer: number | null = null
     let viewportSettleAt = 0
+    let scrollFrame: number | null = null
+    const isCurrentOperation = captureEditorOperation()
 
     const scheduleSelectionScroll = (minimumDelay = 0) => {
       if (scrollTimer !== null) {
@@ -4132,7 +4188,11 @@ export function TipTapEditor({
       const delay = Math.max(minimumDelay, viewportSettleAt - Date.now())
       scrollTimer = window.setTimeout(() => {
         scrollTimer = null
-        requestAnimationFrame(scrollMobileSelectionIntoView)
+        if (scrollFrame !== null) cancelAnimationFrame(scrollFrame)
+        scrollFrame = requestAnimationFrame(() => {
+          scrollFrame = null
+          if (isCurrentOperation()) scrollMobileSelectionIntoView()
+        })
       }, delay)
     }
     const handleEditorFocus = () => {
@@ -4151,6 +4211,7 @@ export function TipTapEditor({
     window.visualViewport?.addEventListener('scroll', handleViewportChange)
 
     return () => {
+      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame)
       if (scrollTimer !== null) {
         window.clearTimeout(scrollTimer)
       }
@@ -4159,7 +4220,7 @@ export function TipTapEditor({
       window.visualViewport?.removeEventListener('resize', handleViewportChange)
       window.visualViewport?.removeEventListener('scroll', handleViewportChange)
     }
-  }, [editor, isMobile, isSectionVirtualView, scrollMobileSelectionIntoView])
+  }, [activeFilePath, captureEditorOperation, editor, isActive, isMobile, isSectionVirtualView, scrollMobileSelectionIntoView])
 
   // 普通点击编辑链接；组合键点击直接打开链接。
   useEffect(() => {
@@ -4749,7 +4810,7 @@ export function TipTapEditor({
   }, [editor, imageAltDraft, mobileContext, restoreMobileContextSelection, updateMobileContext])
 
   useEffect(() => {
-    if (!editor || !isMobile) return
+    if (!editor || editor.isDestroyed || !isMobile) return
 
     updateMobileContext()
     editor.on('selectionUpdate', updateMobileContext)
@@ -4791,7 +4852,7 @@ export function TipTapEditor({
   }, [editor, pendingQuote, activeFilePath, isSectionScope, usesCanonicalMarkdown])
 
   useEffect(() => {
-    if (!editor || !isMobile) return
+    if (!editor || editor.isDestroyed || !isMobile) return
 
     const editorDom = editor.view.dom
     const handleMobileImageClick = (event: Event) => {
@@ -4815,13 +4876,17 @@ export function TipTapEditor({
 
     // Use requestAnimationFrame to avoid infinite loop
     let isScrolling = false
+    let frame: number | null = null
+    const isCurrentOperation = captureEditorOperation()
 
     const scrollToBottom = () => {
-      if (!autoScrollRef.current || isScrolling) return
+      if (!isCurrentOperation() || !autoScrollRef.current || isScrolling) return
       isScrolling = true
 
-      requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        frame = null
         try {
+          if (!isCurrentOperation()) return
           if (editorContainerRef.current) {
             const proseMirror = editorContainerRef.current.querySelector('.ProseMirror') as HTMLElement
             if (proseMirror) {
@@ -4839,8 +4904,9 @@ export function TipTapEditor({
 
     return () => {
       editor.off('update', scrollToBottom)
+      if (frame !== null) cancelAnimationFrame(frame)
     }
-  }, [editor])
+  }, [activeFilePath, captureEditorOperation, editor, isActive])
 
   // 应用正文文字大小缩放
   useEffect(() => {
@@ -4864,9 +4930,12 @@ export function TipTapEditor({
   // Handle image paste and file drop
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!editor || !editor.view || !editor.view.dom) return
+    if (!editor || editor.isDestroyed) return
 
     const handlePaste = (event: ClipboardEvent) => {
+      const isCurrentOperation = captureEditorOperation()
+      if (!isCurrentOperation()) return
+      const targetFilePath = activeFilePathRef.current
       const clipboardData = event.clipboardData
       if (!clipboardData) return
 
@@ -4886,33 +4955,18 @@ export function TipTapEditor({
       event.preventDefault()
       const endBlockingActivity = beginBlockingActivity()
 
-      // Insert "Uploading..." text as placeholder
-      const { from } = editor.state.selection
+      const placeholder = createUploadPlaceholder(editor, editor.state.selection.from)
+      editorOperationCleanupsRef.current.add(placeholder.remove)
 
-      editor.chain()
-        .focus()
-        .insertContentAt(from, {
-          type: 'text',
-          text: 'Uploading... ',
-        })
-        .run()
-
-      // Get the position range of the placeholder
-      const placeholderStart = from
-      const placeholderEnd = from + 'Uploading... '.length
-
-      handleImageUpload(imageFile, activeFilePathRef.current)
+      handleImageUpload(imageFile, targetFilePath)
         .then(result => {
-          if (editor.isDestroyed) return
-          // Delete the placeholder text
-          editor.chain()
-            .focus()
-            .deleteRange({ from: placeholderStart, to: placeholderEnd })
-            .run()
-
+          if (!isCurrentOperation()) return
+          const position = placeholder.position()
+          if (position === undefined) return
+          placeholder.remove()
           // Insert the actual image
           editor.chain()
-            .insertContentAt(placeholderStart, {
+            .insertContentAt(position, {
               type: 'image',
               attrs: {
                 src: result.src,
@@ -4923,23 +4977,24 @@ export function TipTapEditor({
             .run()
         })
         .catch(error => {
-          if (editor.isDestroyed) return
-          // Remove the placeholder on error
-          editor.chain()
-            .focus()
-            .deleteRange({ from: placeholderStart, to: placeholderEnd })
-            .run()
-
+          if (!isCurrentOperation()) return
           toast({
             title: tImage('failed'),
             description: error instanceof Error ? error.message : undefined,
             variant: 'destructive',
           })
         })
-        .finally(endBlockingActivity)
+        .finally(() => {
+          placeholder.remove()
+          editorOperationCleanupsRef.current.delete(placeholder.remove)
+          endBlockingActivity()
+        })
     }
 
     const handleDrop = (event: DragEvent) => {
+      const isCurrentOperation = captureEditorOperation()
+      if (!isCurrentOperation()) return
+      const targetFilePath = activeFilePathRef.current
       const dataTransfer = event.dataTransfer
       if (!dataTransfer) return
 
@@ -4968,19 +5023,26 @@ export function TipTapEditor({
         setIsCanvasDropPending(true)
       }
       const endBlockingActivity = beginBlockingActivity()
+      const placeholder = createUploadPlaceholder(editor, insertPos)
+      editorOperationCleanupsRef.current.add(placeholder.remove)
 
       void (async () => {
         if (hasCanvas) {
           const canvasId = getCanvasDragId(dataTransfer)
           const project = canvasId ? await getCanvasProject(canvasId) : null
-          const activeFilePath = activeFilePathRef.current
+          if (!isCurrentOperation()) return
+          const activeFilePath = targetFilePath
           if (!project || !activeFilePath) throw new Error('无法读取画布或当前 Markdown 文件')
           const safeTitle = project.title.replace(/[\\/:*?"<>|]/g, '-').trim() || 'NoteGen-Canvas'
           const imageFile = await canvasDocumentToPngFile(project.document, `${safeTitle}.png`)
+          if (!isCurrentOperation()) return
           const result = await saveImageToWorkspace(imageFile, activeFilePath)
+          if (!isCurrentOperation()) return
+          const position = placeholder.position()
+          if (position === undefined) return
+          placeholder.remove()
           editor.chain()
-            .focus()
-            .insertContentAt(insertPos, {
+            .insertContentAt(position, {
               type: 'image',
               attrs: {
                 src: result.src,
@@ -5000,14 +5062,17 @@ export function TipTapEditor({
           const uploadedImages = await Promise.all(
             droppedImageFiles.map(async file => ({
               file,
-              result: await handleImageUpload(file, activeFilePathRef.current),
+              result: await handleImageUpload(file, targetFilePath),
             }))
           )
 
+          if (!isCurrentOperation()) return
+          const position = placeholder.position()
+          if (position === undefined) return
+          placeholder.remove()
           editor.chain()
-            .focus()
             .insertContentAt(
-              insertPos,
+              position,
               uploadedImages.map(({ file, result }) => ({
                 type: 'image',
                 attrs: {
@@ -5021,7 +5086,11 @@ export function TipTapEditor({
           return
         }
 
-        const links = await getDroppedFileMarkdownLinks(dataTransfer, activeFilePathRef.current)
+        const links = await getDroppedFileMarkdownLinks(dataTransfer, targetFilePath)
+        if (!isCurrentOperation()) return
+        const position = placeholder.position()
+        if (position === undefined) return
+        placeholder.remove()
         const droppedFileNames = droppedFiles
           .map(file => file.name.trim())
           .filter(Boolean)
@@ -5031,7 +5100,7 @@ export function TipTapEditor({
             editor.chain()
               .focus()
               .insertContentAt(
-                insertPos,
+                position,
                 droppedFileNames.map(escapeMarkdownText).join('\n'),
                 { contentType: 'markdown' }
               )
@@ -5051,9 +5120,10 @@ export function TipTapEditor({
 
         editor.chain()
           .focus()
-          .insertContentAt(insertPos, markdown, { contentType: 'markdown' })
+          .insertContentAt(position, markdown, { contentType: 'markdown' })
           .run()
       })().catch(error => {
+        if (!isCurrentOperation()) return
         toast({
           title: hasCanvas
             ? t('canvasDrop.failed')
@@ -5064,14 +5134,16 @@ export function TipTapEditor({
           variant: 'destructive',
         })
       }).finally(() => {
-        if (hasCanvas) setIsCanvasDropPending(false)
+        placeholder.remove()
+        editorOperationCleanupsRef.current.delete(placeholder.remove)
+        if (hasCanvas && isCurrentOperation()) setIsCanvasDropPending(false)
         endBlockingActivity()
       })
     }
 
     // Add event listeners to editor DOM element
     // Check if editor is fully initialized first
-    if (!editor.view || !editor.view.dom) return
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     dom.addEventListener('paste', handlePaste as EventListener)
     dom.addEventListener('drop', handleDrop as EventListener, true)
@@ -5080,12 +5152,12 @@ export function TipTapEditor({
       dom.removeEventListener('paste', handlePaste as EventListener)
       dom.removeEventListener('drop', handleDrop as EventListener, true)
     }
-  }, [beginBlockingActivity, editor, t, tImage])
+  }, [captureEditorOperation, beginBlockingActivity, editor, t, tImage])
 
   // Handle copy event to output Markdown format
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!editor || !editor.view || !editor.view.dom) return
+    if (!editor || editor.isDestroyed) return
 
     const handleCopy = (event: ClipboardEvent) => {
       const { selection } = editor.state
@@ -5130,394 +5202,82 @@ export function TipTapEditor({
     }
   }, [editor])
 
-  // Handle AI Polish - improve selected text (with streaming and suggestion mode)
-  const handleAIPolish = useCallback(async () => {
-    if (!editor) return
-
+  // Leave the original selection intact until a complete result can replace it
+  // in one transaction. Cancelling or leaving the note never needs a late write.
+  const selectionAiRequestRef = useRef<AbortController | null>(null)
+  const runSelectionAiAction = useCallback(async (
+    type: 'polish' | 'concise' | 'expand' | 'translate',
+    request: (text: string, onChunk: (chunk: string) => void, signal: AbortSignal, onThinking: (text: string) => void) => Promise<void>,
+  ) => {
+    if (!editor || editor.isDestroyed || !isActiveRef.current) return
     const { from, to } = editor.state.selection
     const selectedText = editor.state.doc.textBetween(from, to)
-
-    if (!selectedText.trim()) {
-      return
-    }
+    if (!selectedText.trim()) return
     const endBlockingActivity = beginBlockingActivity()
-
-    // Create abort controller for this request
+    selectionAiRequestRef.current?.abort()
     const controller = new AbortController()
-
-    // Delete original text and start streaming
-    editor.chain()
-      .focus()
-      .deleteSelection()
-      .run()
-
-    // Get initial position and start streaming immediately
-    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
-    emitter.emit('start-ai-streaming', {
-      originalText: selectedText,
-      type: 'polish',
-      position: initialCoords,
-      controller,
-    })
-
-    // Track accumulated result
+    selectionAiRequestRef.current = controller
+    const isCurrentOperation = captureEditorOperation(controller)
+    const target = trackEditorRange(editor, from, to, () => controller.abort())
+    editorOperationCleanupsRef.current.add(target.dispose)
     let accumulatedResult = ''
-    const startPosition = editor.state.selection.from
-
+    let completed = false
     try {
-      await fetchAiPolishStream(
-        selectedText,
-        (chunk) => {
-          if (controller.signal.aborted || editor.isDestroyed) return
-          // Insert chunk as plain text during streaming
-          editor.chain()
-            .insertContentAt(startPosition + accumulatedResult.length, chunk)
-            .run()
-
-          // Update tracking
-          accumulatedResult += chunk
-
-          // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
-          emitter.emit('update-ai-streaming-content', {
-            suggestedText: accumulatedResult,
-            position: coords,
-          })
-        },
-        controller.signal,
-        (thinkingText) => {
-          emitter.emit('update-ai-thinking-content', {
-            thinkingText,
-            position: initialCoords,
-          })
-        },
-      )
-
-      if (controller.signal.aborted || editor.isDestroyed) return
-
-      // Streaming complete - replace all content with proper Markdown parsing
-      editor.chain()
-        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .run()
-
-      const docSizeBeforeInsert = editor.state.doc.content.size
-      editor.chain()
-        .insertContentAt(startPosition, accumulatedResult, { contentType: 'markdown' })
-        .run()
-      const generatedRange = getInsertedContentRange(editor, startPosition, docSizeBeforeInsert)
-
-      // Send completion event
-      emitter.emit('ai-streaming-complete', {
-        originalText: selectedText,
-        suggestedText: accumulatedResult,
-        type: 'polish',
-        position: getEditorPositionRect(editor, generatedRange.to),
-        generatedRange,
+      const initialCoords = editor.view.coordsAtPos(to)
+      emitter.emit('start-ai-streaming', {
+        originalText: selectedText, originalPreserved: true, type, position: initialCoords, controller,
       })
-      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      // Restore original text on error
-      editor.chain()
-        .focus()
-        .insertContent(selectedText)
+      await request(selectedText, chunk => {
+        if (controller.signal.aborted || !isCurrentOperation()) return
+        const range = target.range()
+        if (!range) { controller.abort(); return }
+        accumulatedResult += chunk
+        emitter.emit('update-ai-streaming-content', {
+          suggestedText: accumulatedResult, position: editor.view.coordsAtPos(range.to),
+        })
+      }, controller.signal, thinkingText => {
+        if (!controller.signal.aborted && isCurrentOperation()) {
+          emitter.emit('update-ai-thinking-content', { thinkingText, position: initialCoords })
+        }
+      })
+      if (controller.signal.aborted || !isCurrentOperation()) return
+      const range = target.range()
+      if (!range || !accumulatedResult.trim()) return
+      target.dispose()
+      const sizeWithoutSelection = editor.state.doc.content.size - (range.to - range.from)
+      const replaced = editor.chain()
+        .command(({ tr }) => { closeHistory(tr); return true })
+        .insertContentAt(range, accumulatedResult, { contentType: 'markdown' })
         .run()
-      emitter.emit('ai-streaming-complete')
+      if (!replaced) return
+      const generatedRange = getInsertedContentRange(editor, range.from, sizeWithoutSelection)
+      completed = true
+      emitter.emit('ai-streaming-complete', {
+        originalText: selectedText, suggestedText: accumulatedResult, type,
+        position: getEditorPositionRect(editor, generatedRange.to), generatedRange,
+      })
+      if (type !== 'translate') emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
+    } catch (error) {
+      if (isCurrentOperation() && !controller.signal.aborted) console.error('Selection AI request failed:', error)
     } finally {
+      target.dispose()
+      editorOperationCleanupsRef.current.delete(target.dispose)
+      editorRequestsRef.current.delete(controller)
+      // An empty/failed/cancelled response closes the streaming UI without
+      // touching the preserved original. Successful suggestions keep their UI.
+      if (selectionAiRequestRef.current === controller) {
+        selectionAiRequestRef.current = null
+        if (!completed && isCurrentOperation()) emitter.emit('ai-streaming-complete')
+      }
       endBlockingActivity()
     }
-  }, [beginBlockingActivity, editor])
+  }, [beginBlockingActivity, captureEditorOperation, editor])
 
-  // Handle AI Concise - simplify selected text (with streaming and suggestion mode)
-  const handleAIConcise = useCallback(async () => {
-    if (!editor) return
-
-    const { from, to } = editor.state.selection
-    const selectedText = editor.state.doc.textBetween(from, to)
-
-    if (!selectedText.trim()) {
-      return
-    }
-    const endBlockingActivity = beginBlockingActivity()
-
-    // Create abort controller for this request
-    const controller = new AbortController()
-
-    // Delete original text and start streaming
-    editor.chain()
-      .focus()
-      .deleteSelection()
-      .run()
-
-    // Get initial position and start streaming immediately
-    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
-    emitter.emit('start-ai-streaming', {
-      originalText: selectedText,
-      type: 'concise',
-      position: initialCoords,
-      controller,
-    })
-
-    // Track accumulated result
-    let accumulatedResult = ''
-    const startPosition = editor.state.selection.from
-
-    try {
-      await fetchAiConciseStream(
-        selectedText,
-        (chunk) => {
-          if (controller.signal.aborted || editor.isDestroyed) return
-          // Insert chunk as plain text during streaming
-          editor.chain()
-            .insertContentAt(startPosition + accumulatedResult.length, chunk)
-            .run()
-
-          // Update tracking
-          accumulatedResult += chunk
-
-          // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
-          emitter.emit('update-ai-streaming-content', {
-            suggestedText: accumulatedResult,
-            position: coords,
-          })
-        },
-        controller.signal,
-        (thinkingText) => {
-          emitter.emit('update-ai-thinking-content', {
-            thinkingText,
-            position: initialCoords,
-          })
-        },
-      )
-
-      if (controller.signal.aborted || editor.isDestroyed) return
-
-      // Streaming complete - replace all content with proper Markdown parsing
-      editor.chain()
-        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .run()
-
-      const docSizeBeforeInsert = editor.state.doc.content.size
-      editor.chain()
-        .insertContentAt(startPosition, accumulatedResult, { contentType: 'markdown' })
-        .run()
-      const generatedRange = getInsertedContentRange(editor, startPosition, docSizeBeforeInsert)
-
-      // Send completion event
-      emitter.emit('ai-streaming-complete', {
-        originalText: selectedText,
-        suggestedText: accumulatedResult,
-        type: 'concise',
-        position: getEditorPositionRect(editor, generatedRange.to),
-        generatedRange,
-      })
-      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      // Restore original text on error
-      editor.chain()
-        .focus()
-        .insertContent(selectedText)
-        .run()
-      emitter.emit('ai-streaming-complete')
-    } finally {
-      endBlockingActivity()
-    }
-  }, [beginBlockingActivity, editor])
-
-  // Handle AI Expand - expand selected text (with streaming and suggestion mode)
-  const handleAIExpand = useCallback(async () => {
-    if (!editor) return
-
-    const { from, to } = editor.state.selection
-    const selectedText = editor.state.doc.textBetween(from, to)
-
-    if (!selectedText.trim()) {
-      return
-    }
-    const endBlockingActivity = beginBlockingActivity()
-
-    // Create abort controller for this request
-    const controller = new AbortController()
-
-    // Delete original text and start streaming
-    editor.chain()
-      .focus()
-      .deleteSelection()
-      .run()
-
-    // Get initial position and start streaming immediately
-    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
-    emitter.emit('start-ai-streaming', {
-      originalText: selectedText,
-      type: 'expand',
-      position: initialCoords,
-      controller,
-    })
-
-    // Track accumulated result
-    let accumulatedResult = ''
-    const startPosition = editor.state.selection.from
-
-    try {
-      await fetchAiExpandStream(
-        selectedText,
-        (chunk) => {
-          if (controller.signal.aborted || editor.isDestroyed) return
-          // Insert chunk as plain text during streaming
-          editor.chain()
-            .insertContentAt(startPosition + accumulatedResult.length, chunk)
-            .run()
-
-          // Update tracking
-          accumulatedResult += chunk
-
-          // Update floating menu with streaming content and position
-          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
-          emitter.emit('update-ai-streaming-content', {
-            suggestedText: accumulatedResult,
-            position: coords,
-          })
-        },
-        controller.signal,
-        (thinkingText) => {
-          emitter.emit('update-ai-thinking-content', {
-            thinkingText,
-            position: initialCoords,
-          })
-        },
-      )
-
-      if (controller.signal.aborted || editor.isDestroyed) return
-
-      // Streaming complete - replace all content with proper Markdown parsing
-      editor.chain()
-        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .run()
-
-      const docSizeBeforeInsert = editor.state.doc.content.size
-      editor.chain()
-        .insertContentAt(startPosition, accumulatedResult, { contentType: 'markdown' })
-        .run()
-      const generatedRange = getInsertedContentRange(editor, startPosition, docSizeBeforeInsert)
-
-      // Send completion event
-      emitter.emit('ai-streaming-complete', {
-        originalText: selectedText,
-        suggestedText: accumulatedResult,
-        type: 'expand',
-        position: getEditorPositionRect(editor, generatedRange.to),
-        generatedRange,
-      })
-      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      // Restore original text on error
-      editor.chain()
-        .focus()
-        .insertContent(selectedText)
-        .run()
-      emitter.emit('ai-streaming-complete')
-    } finally {
-      endBlockingActivity()
-    }
-  }, [beginBlockingActivity, editor])
-
-  const handleAITranslate = useCallback(async (targetLanguage: string) => {
-    if (!editor) return
-
-    const { from, to } = editor.state.selection
-    const selectedText = editor.state.doc.textBetween(from, to)
-
-    if (!selectedText.trim()) {
-      return
-    }
-    const endBlockingActivity = beginBlockingActivity()
-
-    const controller = new AbortController()
-
-    editor.chain()
-      .focus()
-      .deleteSelection()
-      .run()
-
-    const initialCoords = editor.view.coordsAtPos(editor.state.selection.from)
-    emitter.emit('start-ai-streaming', {
-      originalText: selectedText,
-      type: 'translate',
-      position: initialCoords,
-      controller,
-    })
-
-    let accumulatedResult = ''
-    const startPosition = editor.state.selection.from
-
-    try {
-      await fetchAiTranslateStream(
-        selectedText,
-        targetLanguage,
-        (chunk) => {
-          if (controller.signal.aborted || editor.isDestroyed) return
-          editor.chain()
-            .insertContentAt(startPosition + accumulatedResult.length, chunk)
-            .run()
-
-          accumulatedResult += chunk
-
-          const coords = editor.view.coordsAtPos(startPosition + accumulatedResult.length)
-          emitter.emit('update-ai-streaming-content', {
-            suggestedText: accumulatedResult,
-            position: coords,
-          })
-        },
-        controller.signal,
-        (thinkingText) => {
-          emitter.emit('update-ai-thinking-content', {
-            thinkingText,
-            position: initialCoords,
-          })
-        },
-      )
-
-      if (controller.signal.aborted || editor.isDestroyed) return
-
-      editor.chain()
-        .deleteRange({ from: startPosition, to: startPosition + accumulatedResult.length })
-        .run()
-
-      const docSizeBeforeInsert = editor.state.doc.content.size
-      editor.chain()
-        .insertContentAt(startPosition, accumulatedResult, { contentType: 'markdown' })
-        .run()
-      const generatedRange = getInsertedContentRange(editor, startPosition, docSizeBeforeInsert)
-
-      emitter.emit('ai-streaming-complete', {
-        originalText: selectedText,
-        suggestedText: accumulatedResult,
-        type: 'translate',
-        position: getEditorPositionRect(editor, generatedRange.to),
-        generatedRange,
-      })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      editor.chain()
-        .focus()
-        .insertContent(selectedText)
-        .run()
-      emitter.emit('ai-streaming-complete')
-    } finally {
-      endBlockingActivity()
-    }
-  }, [beginBlockingActivity, editor])
+  const handleAIPolish = useCallback(() => runSelectionAiAction('polish', fetchAiPolishStream), [runSelectionAiAction])
+  const handleAIConcise = useCallback(() => runSelectionAiAction('concise', fetchAiConciseStream), [runSelectionAiAction])
+  const handleAIExpand = useCallback(() => runSelectionAiAction('expand', fetchAiExpandStream), [runSelectionAiAction])
+  const handleAITranslate = useCallback((language: string) => runSelectionAiAction('translate',
+    (text, onChunk, signal, onThinking) => fetchAiTranslateStream(text, language, onChunk, signal, onThinking)), [runSelectionAiAction])
 
   useEffect(() => {
     aiActionHandlersRef.current = {
@@ -5529,21 +5289,14 @@ export function TipTapEditor({
   }, [handleAIPolish, handleAIConcise, handleAIExpand, handleAITranslate])
 
   const insertImageAtSelection = useCallback(async () => {
-    if (!editor) return
+    if (!editor || editor.isDestroyed) return
+    const isCurrentOperation = captureEditorOperation()
+    if (!isCurrentOperation()) return
+    const targetFilePath = activeFilePathRef.current
     const endBlockingActivity = beginBlockingActivity()
 
-    const insertPos = editor.state.selection.from
-    const placeholder = 'Uploading... '
-
-    editor.chain()
-      .focus()
-      .insertContentAt(insertPos, {
-        type: 'text',
-        text: placeholder,
-      })
-      .run()
-
-    const placeholderEnd = insertPos + placeholder.length
+    const placeholder = createUploadPlaceholder(editor, editor.state.selection.from)
+    editorOperationCleanupsRef.current.add(placeholder.remove)
 
     try {
       let fileObject: File | null = null
@@ -5561,6 +5314,7 @@ export function TipTapEditor({
           ],
         })
 
+        if (!isCurrentOperation()) return
         if (typeof file === 'string') {
           const fileData = await readFile(file)
           const ext = file.split('.').pop() || 'png'
@@ -5570,15 +5324,16 @@ export function TipTapEditor({
         }
       }
 
-      if (!fileObject) {
-        editor.chain().focus().deleteRange({ from: insertPos, to: placeholderEnd }).run()
-        return
-      }
+      if (!isCurrentOperation()) return
+      if (!fileObject || placeholder.position() === undefined) return
 
-      const result = await handleImageUpload(fileObject, activeFilePath)
+      const result = await handleImageUpload(fileObject, targetFilePath)
 
-      editor.chain().focus().deleteRange({ from: insertPos, to: placeholderEnd }).run()
-      editor.chain().focus().insertContentAt(insertPos, {
+      if (!isCurrentOperation()) return
+      const position = placeholder.position()
+      if (position === undefined) return
+      placeholder.remove()
+      editor.chain().insertContentAt(position, {
         type: 'image',
         attrs: {
           src: result.src,
@@ -5587,16 +5342,18 @@ export function TipTapEditor({
         },
       }).run()
     } catch (error) {
-      editor.chain().focus().deleteRange({ from: insertPos, to: placeholderEnd }).run()
+      if (!isCurrentOperation()) return
       toast({
         title: tImage('failed'),
         description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       })
     } finally {
+      placeholder.remove()
+      editorOperationCleanupsRef.current.delete(placeholder.remove)
       endBlockingActivity()
     }
-  }, [activeFilePath, beginBlockingActivity, editor, isMobile, tImage])
+  }, [beginBlockingActivity, captureEditorOperation, editor, isMobile, tImage])
 
   useEffect(() => {
     if (isSectionVirtualView || !isActive) return
@@ -5763,9 +5520,10 @@ export function TipTapEditor({
     // Bug fix: Also check that we're initializing for the correct file path
     if (!isInitializedRef.current) {
       // Use setTimeout to avoid flushSync conflict during React render
-      setTimeout(() => {
+      let cancelled = false
+      const initializeTimer = setTimeout(() => {
         // Check if the file path is still the same (handle race condition)
-        if (activeFilePath !== currentPath) return
+        if (cancelled || editor.isDestroyed || activeFilePathRef.current !== currentPath) return
 
         const nextContent = isLargeDocument
           ? sourceMarkdownRef.current
@@ -5801,6 +5559,10 @@ export function TipTapEditor({
           restoreEditorViewState(currentPath)
         }
       }, 0)
+      return () => {
+        cancelled = true
+        clearTimeout(initializeTimer)
+      }
     }
   }, [
     activeFilePath,
@@ -5910,7 +5672,7 @@ export function TipTapEditor({
     const maxReadyAttempts = 20
 
     const applyPendingSearch = () => {
-      if (cancelled) return
+      if (cancelled || editor.isDestroyed) return
 
       if (!isInitializedRef.current || !isReadyRef.current) {
         if (readyAttempts >= maxReadyAttempts) {
@@ -5933,7 +5695,7 @@ export function TipTapEditor({
       editor.view.dispatch(editor.state.tr)
 
       focusTimer = setTimeout(() => {
-        if (cancelled) return
+        if (cancelled || editor.isDestroyed) return
 
         const results = storage.results || []
         const resultIndex = getResultIndexToFocus(results, 0)
@@ -5954,7 +5716,9 @@ export function TipTapEditor({
         editor.view.dispatch(editor.state.tr.setSelection(selection))
         editor.commands.scrollIntoView()
 
+        const documentSnapshot = editor.state.doc
         setTimeout(() => {
+          if (cancelled || editor.isDestroyed || editor.state.doc !== documentSnapshot || result.from > documentSnapshot.content.size) return
           const domPos = editor.view.domAtPos(result.from)
           if (domPos.node instanceof Element) {
             domPos.node.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -6300,6 +6064,7 @@ export function TipTapEditor({
       }
 
       const currentController = new AbortController()
+      const isCurrentOperation = captureEditorOperation(currentController)
       abortController = currentController
       const endBlockingActivity = beginBlockingActivity()
 
@@ -6308,7 +6073,7 @@ export function TipTapEditor({
       let loadingVisible = true
 
       const removeLoadingIndicator = () => {
-        if (!loadingVisible || editor.isDestroyed) {
+        if (!loadingVisible || !isCurrentOperation()) {
           return
         }
         editorChain()
@@ -6329,7 +6094,7 @@ export function TipTapEditor({
         await fetchCompletionStream(
           context,
           (chunk, isFirst) => {
-            if (currentController.signal.aborted || editor.isDestroyed) return
+            if (currentController.signal.aborted || !isCurrentOperation()) return
             if (isFirst) {
               removeLoadingIndicator()
             }
@@ -6342,7 +6107,7 @@ export function TipTapEditor({
           currentController.signal
         )
 
-        if (currentController.signal.aborted || editor.isDestroyed) return
+        if (currentController.signal.aborted || !isCurrentOperation()) return
 
         const sanitizedResult = sanitizeCompletionOutput(accumulatedResult)
         if (!sanitizedResult.trim()) {
@@ -6366,8 +6131,6 @@ export function TipTapEditor({
           to: startPosition + insertedSize,
         }
 
-        editor.commands.setTextSelection(generatedRange.to)
-
         emitter.emit('show-ai-suggestion', {
           editor,
           originalText: '',
@@ -6377,6 +6140,7 @@ export function TipTapEditor({
           generatedRange,
         })
       } catch (error) {
+        if (!isCurrentOperation()) return
         removeLoadingIndicator()
         blurEditor()
 
@@ -6389,6 +6153,7 @@ export function TipTapEditor({
           })
         }
       } finally {
+        editorRequestsRef.current.delete(currentController)
         removeLoadingIndicator()
         if (abortController === currentController) abortController = null
         endBlockingActivity()
@@ -6400,7 +6165,7 @@ export function TipTapEditor({
       document.removeEventListener('tiptap-ai-continue', handleAIContinue)
       abortController?.abort()
     }
-  }, [beginBlockingActivity, editor, isActive, isMobile, isSectionScope, isSectionVirtualView])
+  }, [beginBlockingActivity, captureEditorOperation, editor, isActive, isMobile, isSectionScope, isSectionVirtualView])
 
   // Handle slash-command AI generation actions that operate without selected text.
   useEffect(() => {
@@ -6415,7 +6180,7 @@ export function TipTapEditor({
     }
 
     const handleAIGenerate = async (event: Event) => {
-      if (!editor) return
+      if (!editor || editor.isDestroyed) return
 
       const detail = (event as CustomEvent<{
         action?: unknown
@@ -6466,6 +6231,7 @@ export function TipTapEditor({
 
       abortController?.abort()
       const currentController = new AbortController()
+      const isCurrentOperation = captureEditorOperation(currentController)
       abortController = currentController
       const endBlockingActivity = beginBlockingActivity()
 
@@ -6474,7 +6240,7 @@ export function TipTapEditor({
       let loadingVisible = true
 
       const removeLoadingIndicator = () => {
-        if (!loadingVisible) {
+        if (!loadingVisible || !isCurrentOperation()) {
           return
         }
         editorChain()
@@ -6486,7 +6252,7 @@ export function TipTapEditor({
         loadingVisible = false
       }
 
-      editorChain().insertContent(AI_GENERATION_LOADING_TEXT).run()
+      editorChain().insertContentAt(startPosition, { type: 'text', text: AI_GENERATION_LOADING_TEXT }).run()
       blurEditor()
 
       try {
@@ -6499,12 +6265,12 @@ export function TipTapEditor({
             instruction,
           },
           (chunk, isFirst) => {
-            if (currentController.signal.aborted || editor.isDestroyed) return
+            if (currentController.signal.aborted || !isCurrentOperation()) return
             if (isFirst) {
               removeLoadingIndicator()
             }
             editorChain()
-              .insertContentAt(startPosition + accumulatedResult.length, chunk)
+              .insertContentAt(startPosition + accumulatedResult.length, { type: 'text', text: chunk })
               .run()
             blurEditor()
             accumulatedResult += chunk
@@ -6512,7 +6278,7 @@ export function TipTapEditor({
           currentController.signal
         )
 
-        if (currentController.signal.aborted || editor.isDestroyed) return
+        if (currentController.signal.aborted || !isCurrentOperation()) return
 
         if (!accumulatedResult) {
           removeLoadingIndicator()
@@ -6543,7 +6309,9 @@ export function TipTapEditor({
           to: startPosition + insertedSize,
         }
 
-        editor.commands.setTextSelection(generatedRange.to)
+        // insertContentAt uses Selection.near at the actual insertion end.
+        // A document size delta can point between list nodes, where creating a
+        // TextSelection breaks the list item's subsequent Enter command.
 
         emitter.emit('show-ai-suggestion', {
           editor,
@@ -6554,6 +6322,7 @@ export function TipTapEditor({
           generatedRange,
         })
       } catch (error) {
+        if (!isCurrentOperation()) return
         removeLoadingIndicator()
         blurEditor()
 
@@ -6565,6 +6334,7 @@ export function TipTapEditor({
           })
         }
       } finally {
+        editorRequestsRef.current.delete(currentController)
         endBlockingActivity()
       }
     }
@@ -6574,10 +6344,13 @@ export function TipTapEditor({
       document.removeEventListener('tiptap-ai-generate', handleAIGenerate)
       abortController?.abort()
     }
-  }, [beginBlockingActivity, editor, isActive, isMobile, isSectionVirtualView])
+  }, [beginBlockingActivity, captureEditorOperation, editor, isActive, isMobile, isSectionVirtualView])
 
   // Handle drag and drop from marks
   const handleEditorDrop = useCallback((e: React.DragEvent) => {
+    const isCurrentOperation = captureEditorOperation()
+    if (!editor || !isCurrentOperation()) return
+    const targetFilePath = activeFilePathRef.current
     if (hasCanvasDragData(e.dataTransfer)) {
       setIsCanvasDragOver(false)
     }
@@ -6611,17 +6384,18 @@ export function TipTapEditor({
                 }
 
                 const bytes = await readFile(localAssetPath, { baseDir: BaseDirectory.AppData })
+                if (!isCurrentOperation()) return
                 const fileName = localAssetPath.split('/').pop() || mark.url
                 const imageFile = new File([bytes], fileName, {
                   type: getDroppedMarkImageMimeType(fileName),
                 })
-                const result = await handleImageUpload(imageFile, activeFilePathRef.current)
+                const result = await handleImageUpload(imageFile, targetFilePath)
                 src = result.src
                 relativeSrc = result.relativePath
               }
 
               const insertPos = dropPos ?? editor?.state.selection.from
-              if (insertPos === undefined || editor?.isDestroyed) {
+              if (insertPos === undefined || !isCurrentOperation()) {
                 return
               }
 
@@ -6642,6 +6416,7 @@ export function TipTapEditor({
                 description: mark.desc || '图片记录',
               })
             })().catch(error => {
+              if (!isCurrentOperation()) return
               toast({
                 title: tImage('failed'),
                 description: error instanceof Error ? error.message : undefined,
@@ -6653,7 +6428,7 @@ export function TipTapEditor({
 
           const endBlockingActivity = beginBlockingActivity()
           import('@/lib/mark-to-markdown').then(({ markToMarkdown }) => {
-            if (editor?.isDestroyed) return
+            if (!isCurrentOperation()) return
             const markdown = markToMarkdown(mark)
             if (dropPos !== undefined) {
               editor?.commands.insertContentAt(dropPos, markdown, { contentType: 'markdown' })
@@ -6664,13 +6439,15 @@ export function TipTapEditor({
               title: '已插入记录',
               description: mark.desc || mark.content?.slice(0, 50) || '记录内容'
             })
+          }).catch(error => {
+            if (isCurrentOperation()) console.error('Failed to insert dropped mark:', error)
           }).finally(endBlockingActivity)
         }
       } catch (error) {
         console.error('Failed to parse dropped mark:', error)
       }
     }
-  }, [beginBlockingActivity, editor, tImage])
+  }, [beginBlockingActivity, captureEditorOperation, editor, tImage])
 
   // Handle math formula insertion from slash menu
   useEffect(() => {
@@ -6991,7 +6768,9 @@ export function TipTapEditor({
       }
 
       if (isSectionVirtualView && typeof position !== 'number') {
+        const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
             throw new Error('The editor revision changed before the edit')
@@ -7084,7 +6863,9 @@ export function TipTapEditor({
       try {
         // Insert content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
+        const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
             throw new Error('The editor revision changed before the edit')
@@ -7169,7 +6950,9 @@ export function TipTapEditor({
         || (startLine !== undefined && endLine !== undefined)
       )
       if (isSectionVirtualView && content !== undefined && !hasExplicitCanonicalTarget) {
+        const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           flushSectionedMarkdown()
           const activeEditor = sectionedEditorControllerRef.current?.getActiveEditor()
@@ -7381,7 +7164,9 @@ export function TipTapEditor({
 
         // Delete old content and insert new content with markdown parsing
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
+        const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (replacementMode === 'line' && startLine !== undefined && endLine !== undefined) {
             const currentMarkdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
@@ -7713,6 +7498,7 @@ export function TipTapEditor({
 
     return cleanupListeners
   }, [
+    captureEditorOperation,
     activeFilePath,
     classifyCanonicalMarkdown,
     editor,
@@ -7744,6 +7530,7 @@ export function TipTapEditor({
   }
 
   const handleMobileScrollTop = () => {
+    if (editor.isDestroyed) return
     scrollContainerRef.current?.scrollTo({
       top: 0,
       behavior: 'smooth',
@@ -8079,7 +7866,8 @@ export function TipTapEditor({
 
               {!readOnly && !isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
 
-              {!readOnly && <AISuggestionFloating
+              {!readOnly && isActive && <AISuggestionFloating
+                key={activeFilePath}
                 editor={editor}
                 onPendingChange={handleAiSuggestionPendingChange}
               />}

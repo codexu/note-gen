@@ -213,6 +213,10 @@ export function BubbleMenu({
 
   // 更新定位
   const updatePosition = useCallback(() => {
+    if (editor.isDestroyed) {
+      hideMenu()
+      return false
+    }
     const { selection } = editor.state
     const { from, to } = selection
 
@@ -304,8 +308,10 @@ export function BubbleMenu({
     isPointerSelectingRef.current = false
     hideMenu()
 
+    if (editor.isDestroyed) return
     const editorElement = editor.view.dom
     const ownerDocument = editorElement.ownerDocument
+    let selectionFrame: number | null = null
 
     const handleCompositionStart = () => {
       isComposingRef.current = true
@@ -332,7 +338,10 @@ export function BubbleMenu({
 
       isPointerSelectingRef.current = false
 
-      requestAnimationFrame(() => {
+      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
+      selectionFrame = requestAnimationFrame(() => {
+        selectionFrame = null
+        if (editor.isDestroyed) return
         const hasSelection = hasTextSelection(editor)
         hasUserSelectionIntentRef.current = hasSelection
 
@@ -351,7 +360,10 @@ export function BubbleMenu({
 
       hasUserSelectionIntentRef.current = true
 
-      requestAnimationFrame(() => {
+      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
+      selectionFrame = requestAnimationFrame(() => {
+        selectionFrame = null
+        if (editor.isDestroyed) return
         const hasSelection = hasTextSelection(editor)
         hasUserSelectionIntentRef.current = hasSelection
 
@@ -373,6 +385,7 @@ export function BubbleMenu({
     ownerDocument.addEventListener('touchcancel', finishPointerSelection)
 
     return () => {
+      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
       editorElement.removeEventListener('mousedown', handlePointerStart, true)
       editorElement.removeEventListener('touchstart', handlePointerStart)
       editorElement.removeEventListener('keydown', handleKeyDown, true)
@@ -571,6 +584,7 @@ export function BubbleMenu({
 
   // Update position on scroll
   useEffect(() => {
+    if (editor.isDestroyed) return
     const scrollContainer = editor.view.dom.closest<HTMLElement>('.editor-scroll-container')
     if (!scrollContainer) return
 

@@ -522,6 +522,7 @@ export const SectionedMarkdownEditor = forwardRef<
         installDocument(nextDocument)
         setIsIndexing(false)
         window.requestAnimationFrame(() => {
+          if (cancelled) return
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = preservedScrollTop
           }
@@ -658,19 +659,30 @@ export const SectionedMarkdownEditor = forwardRef<
       compositionListenerCleanupRef.current?.()
 
       const target = currentEditor.view.dom
+      const activationEpoch = externalContentEpochRef.current
+      let activationTimer: number | null = null
       const handleCompositionEnd = () => {
-        compositionListenerCleanupRef.current?.()
         const pendingActivation = pendingActivationRef.current
         pendingActivationRef.current = null
-        if (!pendingActivation) return
-        window.setTimeout(() => reconcileBeforeActivationRef.current(
-          pendingActivation.sectionId,
-          pendingActivation.coordinates,
-          pendingActivation.requestedOffset,
-        ), 0)
+        if (!pendingActivation) {
+          compositionListenerCleanupRef.current?.()
+          return
+        }
+        activationTimer = window.setTimeout(() => {
+          activationTimer = null
+          compositionListenerCleanupRef.current?.()
+          if (currentEditor.isDestroyed || activeEditorRef.current !== currentEditor
+            || activationEpoch !== externalContentEpochRef.current) return
+          reconcileBeforeActivationRef.current(
+            pendingActivation.sectionId,
+            pendingActivation.coordinates,
+            pendingActivation.requestedOffset,
+          )
+        }, 0)
       }
       target.addEventListener('compositionend', handleCompositionEnd, { once: true })
       compositionListenerCleanupRef.current = () => {
+        if (activationTimer !== null) window.clearTimeout(activationTimer)
         target.removeEventListener('compositionend', handleCompositionEnd)
         compositionListenerCleanupRef.current = null
       }
@@ -974,7 +986,8 @@ export const SectionedMarkdownEditor = forwardRef<
                 },
                 onEditorReady: editor => {
                   if (
-                    editorEpoch !== externalContentEpochRef.current
+                    editor.isDestroyed
+                    || editorEpoch !== externalContentEpochRef.current
                     || activeSectionIdRef.current !== section.id
                   ) {
                     return
@@ -1000,12 +1013,15 @@ export const SectionedMarkdownEditor = forwardRef<
                     setActivityRevision(value => value + 1)
                   }
                   editor.on('selectionUpdate', emitSelection)
-                  editor.view.dom.addEventListener('compositionstart', handleCompositionStateChange)
-                  editor.view.dom.addEventListener('compositionend', handleCompositionStateChange)
+                  // Cleanup can run after this editor has been destroyed. Keep
+                  // the bound DOM instead of accessing the old editor's view.
+                  const editorDom = editor.view.dom
+                  editorDom.addEventListener('compositionstart', handleCompositionStateChange)
+                  editorDom.addEventListener('compositionend', handleCompositionStateChange)
                   activeSelectionCleanupRef.current = () => {
                     editor.off('selectionUpdate', emitSelection)
-                    editor.view.dom.removeEventListener('compositionstart', handleCompositionStateChange)
-                    editor.view.dom.removeEventListener('compositionend', handleCompositionStateChange)
+                    editorDom.removeEventListener('compositionstart', handleCompositionStateChange)
+                    editorDom.removeEventListener('compositionend', handleCompositionStateChange)
                     activeSelectionCleanupRef.current = null
                   }
                   emitSelection()
@@ -1014,7 +1030,9 @@ export const SectionedMarkdownEditor = forwardRef<
                   if (pendingFocus?.sectionId === section.id) {
                     pendingFocusRef.current = null
                     window.requestAnimationFrame(() => {
-                      if (editor.isDestroyed || activeSectionIdRef.current !== section.id) return
+                      if (editor.isDestroyed || activeEditorRef.current !== editor
+                        || editorEpoch !== externalContentEpochRef.current
+                        || activeSectionIdRef.current !== section.id) return
                       const position = pendingFocus.coordinates
                         ? editor.view.posAtCoords(pendingFocus.coordinates)?.pos
                         : undefined

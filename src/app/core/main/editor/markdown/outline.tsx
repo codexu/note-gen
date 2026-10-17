@@ -469,7 +469,7 @@ export function Outline({
   const outlineWidth = normalizeOutlineWidth(width)
 
   const getEditorScrollContainer = useCallback((): HTMLElement | null => {
-    if (!editor?.view?.dom) return null
+    if (!editor || editor.isDestroyed) return null
 
     const root = editor.view.dom.closest('.tiptap-editor')
     const scrollContainer = root?.querySelector('.overflow-y-auto')
@@ -483,16 +483,25 @@ export function Outline({
 
   // Check if editor is ready - wait for view to be available
   useEffect(() => {
+    isEditorReadyRef.current = false
+    setIsReady(false)
     if (!editor) {
-      isEditorReadyRef.current = false
       return
     }
 
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    const resetReadiness = () => {
+      clearTimeout(retryTimer)
+      isEditorReadyRef.current = false
+      setIsReady(false)
+    }
     // Check periodically if editor view is available
     const checkEditor = () => {
-      // Check if editor is destroyed
-      if (!editor || ('isDestroyed' in editor && editor.isDestroyed)) {
-        isEditorReadyRef.current = false
+      clearTimeout(retryTimer)
+      if (cancelled) return
+      if (editor.isDestroyed) {
+        resetReadiness()
         return
       }
 
@@ -507,17 +516,28 @@ export function Outline({
         } catch {
           isEditorReadyRef.current = false
           setIsReady(false)
-          setTimeout(checkEditor, 50)
+          retryTimer = setTimeout(checkEditor, 50)
           return
         }
       } else {
         isEditorReadyRef.current = false
         setIsReady(false)
-        setTimeout(checkEditor, 50)
+        retryTimer = setTimeout(checkEditor, 50)
       }
     }
 
+    editor.on('mount', checkEditor)
+    editor.on('unmount', resetReadiness)
+    editor.on('destroy', resetReadiness)
     checkEditor()
+    return () => {
+      cancelled = true
+      clearTimeout(retryTimer)
+      editor.off('mount', checkEditor)
+      editor.off('unmount', resetReadiness)
+      editor.off('destroy', resetReadiness)
+      isEditorReadyRef.current = false
+    }
   }, [editor])
 
   // Keep ref in sync with state
@@ -578,7 +598,7 @@ export function Outline({
   // Update headings when editor content changes
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!isOpen || !editor || !editor.view || !editor.view.dom) {
+    if (!isOpen || !editor || editor.isDestroyed) {
       return
     }
 
@@ -603,7 +623,7 @@ export function Outline({
     return () => {
       editor.off('update', handleUpdate)
     }
-  }, [editor, extractHeadings, isOpen])
+  }, [editor, extractHeadings, isOpen, isReady])
 
   const outlineMeta = useMemo<OutlineMeta>(() => {
     const ancestorIdsById = new Map<string, string[]>()
@@ -931,9 +951,10 @@ export function Outline({
   // Update active heading when selection or scroll changes
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!isOpen || !editor || !editor.view || !editor.view.dom) return
+    if (!isOpen || !editor || editor.isDestroyed) return
 
     const updateActiveHeading = () => {
+      if (editor.isDestroyed) return
       // First try to get heading from cursor position
       const { from } = editor.state.selection
       const activeId = findActiveHeading(from)
@@ -960,14 +981,14 @@ export function Outline({
       editor.off('transaction', updateActiveHeading)
       scrollContainer?.removeEventListener('scroll', handleScroll)
     }
-  }, [editor, findActiveHeading, findActiveHeadingByScroll, getEditorScrollContainer, headings, isOpen])
+  }, [editor, findActiveHeading, findActiveHeadingByScroll, getEditorScrollContainer, headings, isOpen, isReady])
 
   // Scroll to heading when clicked
   const scrollToHeading = useCallback((id: string) => {
     // Use ref to get latest headings to avoid stale closure
     const currentHeadings = headingsRef.current
     const heading = currentHeadings.find(h => h.id === id)
-    if (heading && editor) {
+    if (heading && editor && !editor.isDestroyed) {
       // Use stored position directly - it's calculated from current document
       const targetPos = heading.pos
 
@@ -980,7 +1001,9 @@ export function Outline({
 
       // Then scroll into view
       // Use setTimeout to ensure the selection is applied first
+      const documentSnapshot = editor.state.doc
       setTimeout(() => {
+        if (editor.isDestroyed || editor.state.doc !== documentSnapshot || targetPos > documentSnapshot.content.size) return
         const domNode = editor.view.nodeDOM(targetPos)
         if (domNode instanceof HTMLElement) {
           domNode.scrollIntoView({ behavior: 'smooth', block: 'start' })

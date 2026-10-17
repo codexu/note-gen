@@ -54,6 +54,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function getSelectionCell(editor: Editor): HTMLElement | null {
+  if (editor.isDestroyed) return null
   const { node } = editor.view.domAtPos(editor.state.selection.from)
   const element = node instanceof HTMLElement ? node : node.parentElement
   return element?.closest<HTMLElement>('td, th') ?? null
@@ -91,7 +92,7 @@ export function FloatingTableMenu({ editor, pluginsEnabled = false }: FloatingTa
   const menuRef = useRef<HTMLDivElement>(null)
 
   const updatePosition = useCallback(() => {
-    if (!editor.isActive('table')) {
+    if (editor.isDestroyed || !editor.isActive('table')) {
       setShow(false)
       return
     }
@@ -171,6 +172,7 @@ export function FloatingTableMenu({ editor, pluginsEnabled = false }: FloatingTa
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (editor.isDestroyed) return
       const target = event.target
       if (!(target instanceof Node)) return
       if (menuRef.current?.contains(target)) return

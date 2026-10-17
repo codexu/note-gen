@@ -1,6 +1,7 @@
 'use client'
 
 import { Editor } from '@tiptap/react'
+import { Selection, TextSelection } from '@tiptap/pm/state'
 import { Brain, Check, ChevronRight, CircleX, Loader2, Sparkles, X } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
@@ -18,6 +19,7 @@ interface SuggestionData {
   suggestedText: string
   type: string
   generatedRange?: { from: number; to: number }
+  originalPreserved?: boolean
 }
 
 interface PositionData {
@@ -25,11 +27,13 @@ interface PositionData {
 }
 
 function getScrollContainer(editor: Editor) {
+  if (editor.isDestroyed) return null
   const root = editor.view.dom.closest('.tiptap-editor')
   return root?.querySelector('.overflow-y-auto') as HTMLElement | null
 }
 
 function getEditorRoot(editor: Editor) {
+  if (editor.isDestroyed) return null
   return editor.view.dom.closest('.tiptap-editor') as HTMLElement | null
 }
 
@@ -172,6 +176,7 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
       type: string
       position: { top: number; left: number; right: number; bottom: number }
       controller?: AbortController
+      originalPreserved?: boolean
     }) => {
       clearAiSuggestionHighlight(editor)
       anchorPositionRef.current = data.position
@@ -179,6 +184,7 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
         originalText: data.originalText,
         suggestedText: '',
         type: data.type,
+        originalPreserved: data.originalPreserved,
       })
       setThinkingText('')
       setIsThinkingExpanded(false)
@@ -231,6 +237,8 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
         setIsVisible(true)
       } else {
         clearAiSuggestionHighlight(editor)
+        setSuggestion(null)
+        setIsVisible(false)
       }
 
       setIsStreaming(false)
@@ -247,7 +255,7 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
 
       const current = latestSuggestionRef.current
       clearAiSuggestionHighlight(editor)
-      if (current) {
+      if (current && !current.originalPreserved && !editor.isDestroyed) {
         editor.chain()
           .focus()
           .deleteSelection()
@@ -294,7 +302,16 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
   }, [editor, abortController])
 
   const handleAccept = useCallback(() => {
+    if (editor.isDestroyed || !latestSuggestionRef.current || latestSuggestionRef.current.originalPreserved) return
+    const { selection, tr } = editor.state
+    // Text selections must live inside text blocks, never on a list boundary.
+    // Preserve the insertion command's cursor unless it needs repairing.
+    if (selection instanceof TextSelection && (!selection.$from.parent.inlineContent || !selection.$to.parent.inlineContent)) {
+      editor.view.dispatch(tr.setSelection(Selection.near(selection.$head, -1)))
+    }
     clearAiSuggestionHighlight(editor)
+    editor.commands.focus(undefined, { scrollIntoView: false })
+    latestSuggestionRef.current = null
     anchorPositionRef.current = null
     setThinkingText('')
     setIsVisible(false)
@@ -304,6 +321,15 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
   const handleReject = useCallback(() => {
     const current = latestSuggestionRef.current
     if (!current) return
+    if (current.originalPreserved) {
+      abortController?.abort()
+      anchorPositionRef.current = null
+      setThinkingText('')
+      setIsStreaming(false)
+      setIsVisible(false)
+      setSuggestion(null)
+      return
+    }
 
     clearAiSuggestionHighlight(editor)
 
@@ -333,7 +359,7 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
     setThinkingText('')
     setIsVisible(false)
     setSuggestion(null)
-  }, [editor])
+  }, [abortController, editor])
 
   const handleAbort = useCallback(() => {
     emitter.emit('abort-ai-streaming')
@@ -432,6 +458,11 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
         </div>
       )}
 
+      {isStreaming && suggestion?.originalPreserved && suggestion.suggestedText ? (
+        <div className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words border-b border-border/60 px-3 py-2 text-sm">
+          {suggestion.suggestedText}
+        </div>
+      ) : null}
       <div className="flex items-center gap-2 px-3 py-2.5">
         {isStreaming ? (
           <Loader2 className="size-4 animate-spin text-primary" />

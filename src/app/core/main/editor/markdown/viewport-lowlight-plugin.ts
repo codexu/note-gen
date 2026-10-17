@@ -220,7 +220,7 @@ export function createViewportLowlightPlugin({
 
       function updateDecorations() {
         frameId = null
-        if (!hasPaintedBasicDocument) return
+        if (isDestroyed || editorView.isDestroyed || !hasPaintedBasicDocument) return
 
         // EditorView is created on a detached element and moved into EditorContent
         // afterwards, so resolve the actual scroll root lazily.
@@ -263,6 +263,7 @@ export function createViewportLowlightPlugin({
       }
 
       function scheduleUpdate() {
+        if (isDestroyed || editorView.isDestroyed) return
         if (frameId !== null) cancelAnimationFrame(frameId)
         frameId = requestAnimationFrame(updateDecorations)
       }

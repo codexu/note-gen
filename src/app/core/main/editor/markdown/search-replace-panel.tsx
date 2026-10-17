@@ -69,6 +69,7 @@ function setSearchCaseSensitive(editor: Editor, value: boolean) {
 }
 
 function nextResult(editor: Editor) {
+  if (editor.isDestroyed) return
   try {
     const storage = getSearchAndReplaceStorage(editor)
     if (storage && storage.results.length > 0) {
@@ -81,7 +82,9 @@ function nextResult(editor: Editor) {
         editor.view.dispatch(
           editor.state.tr.setSelection(sel)
         )
+        const documentSnapshot = editor.state.doc
         setTimeout(() => {
+          if (editor.isDestroyed || editor.state.doc !== documentSnapshot || result.from > documentSnapshot.content.size) return
           const domPos = editor.view.domAtPos(result.from)
           if (domPos.node instanceof Element) {
             domPos.node.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -97,6 +100,7 @@ function nextResult(editor: Editor) {
 }
 
 function prevResult(editor: Editor) {
+  if (editor.isDestroyed) return
   try {
     const storage = getSearchAndReplaceStorage(editor)
     if (storage && storage.results.length > 0) {
@@ -109,7 +113,9 @@ function prevResult(editor: Editor) {
         editor.view.dispatch(
           editor.state.tr.setSelection(sel)
         )
+        const documentSnapshot = editor.state.doc
         setTimeout(() => {
+          if (editor.isDestroyed || editor.state.doc !== documentSnapshot || result.from > documentSnapshot.content.size) return
           const domPos = editor.view.domAtPos(result.from)
           if (domPos.node instanceof Element) {
             domPos.node.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -184,6 +190,12 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
   const [resultCount, setResultCount] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const closeFocusFrameRef = useRef<number | null>(null)
+  const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (closeFocusFrameRef.current !== null) cancelAnimationFrame(closeFocusFrameRef.current)
+    if (resultTimerRef.current !== null) clearTimeout(resultTimerRef.current)
+  }, [editor])
   const isMobile = isMobileDevice()
 
   const focusSearchInput = useCallback(() => {
@@ -281,7 +293,9 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
     onOpenChange(false)
 
     if (!isMobile) {
-      requestAnimationFrame(() => {
+      if (closeFocusFrameRef.current !== null) cancelAnimationFrame(closeFocusFrameRef.current)
+      closeFocusFrameRef.current = requestAnimationFrame(() => {
+        closeFocusFrameRef.current = null
         if (!editor.isDestroyed) editor.commands.focus()
       })
     }
@@ -308,8 +322,10 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
     } else if (editor) {
       setSearchTerm(editor, '')
     }
-    setTimeout(() => {
-      updateResults()
+    if (resultTimerRef.current !== null) clearTimeout(resultTimerRef.current)
+    resultTimerRef.current = setTimeout(() => {
+      resultTimerRef.current = null
+      if (!editor.isDestroyed) updateResults()
     }, 0)
   }, [editor, updateResults])
 

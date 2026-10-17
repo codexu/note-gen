@@ -1,9 +1,9 @@
 import { Extension, type Editor, type RawCommands } from '@tiptap/core'
 import { Suggestion, SuggestionPluginKey } from '@tiptap/suggestion'
-import { suggestionOptions, findSlashMatch, setMenuKeyDownHandler } from './suggestion'
+import { suggestionOptions, findSlashMatch } from './suggestion'
 
 // Re-export for use in SlashCommandPortal
-export { setMenuKeyDownHandler }
+export { registerMenuKeyDownHandler } from './suggestion'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

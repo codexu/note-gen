@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, forwardRef, useImperativeHandle, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, forwardRef, useImperativeHandle, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { type Range } from '@tiptap/core'
 import { type Editor } from '@tiptap/react'
 import { useTranslations } from 'next-intl'
@@ -48,6 +48,16 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const groupRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const pointerPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const selectWithPointer = useCallback((event: ReactPointerEvent<HTMLButtonElement>, select: () => void) => {
+    if (event.pointerType === 'touch') return
+    const previous = pointerPositionRef.current
+    const next = { x: event.clientX, y: event.clientY }
+    pointerPositionRef.current = next
+    if (previous?.x === next.x && previous.y === next.y) return
+    select()
+  }, [])
   const pluginCommands = usePluginEditorCommands('editor/slash', editor).filter(command => !command.disabled)
 
   // 构建翻译对象
@@ -212,11 +222,15 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
     const selectedRef = itemRefs.current[selectedIndex]
     if (selectedRef) {
       selectedRef.scrollIntoView({
-        behavior: 'smooth',
+        behavior: 'auto',
         block: 'nearest',
       })
     }
-  }, [selectedIndex])
+  }, [activeGroupIndex, query, selectedIndex])
+
+  useEffect(() => {
+    groupRefs.current[activeGroupIndex]?.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+  }, [activeGroupIndex])
 
   const selectGroup = useCallback((index: number) => {
     setSelectedGroupIndex(index)
@@ -225,7 +239,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
   const selectItem = useCallback(
     (item: SlashCommandItem | undefined) => {
-      if (item) {
+      if (item && !editor.isDestroyed) {
         if (onSelectItem) {
           onSelectItem(item)
         } else {
@@ -279,6 +293,8 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
     ref,
     () => ({
       onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+        if (event.isComposing || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return false
+        if (visibleItems.length === 0) return false
         if (event.key === 'ArrowUp') {
           upHandler()
           return true
@@ -296,13 +312,13 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
           return !hasQuery
         }
         if (event.key === 'Enter') {
-          enterHandler()
+          if (!event.repeat) enterHandler()
           return true
         }
         return false
       },
     }),
-    [upHandler, downHandler, previousGroupHandler, nextGroupHandler, enterHandler, hasQuery]
+    [upHandler, downHandler, previousGroupHandler, nextGroupHandler, enterHandler, hasQuery, visibleItems.length]
   )
 
   if (items.length === 0) {
@@ -317,6 +333,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
           return (
             <button
+              type="button"
               key={item.id ?? `${item.group}-${item.title}-${itemIdx}`}
               ref={(el) => {
                 itemRefs.current[itemIdx] = el
@@ -326,7 +343,8 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
                 isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
               )}
               onClick={() => selectVisibleItem(itemIdx)}
-              onMouseEnter={() => setSelectedIndex(itemIdx)}
+              onMouseDown={event => event.preventDefault()}
+              onPointerMove={event => selectWithPointer(event, () => setSelectedIndex(itemIdx))}
             >
               <span className="flex size-4 shrink-0 items-center justify-center">
                 {item.icon}
@@ -361,13 +379,18 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
             return (
               <button
+                type="button"
                 key={group}
+                ref={element => { groupRefs.current[groupIdx] = element }}
                 className={cn(
                   'flex h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm transition-colors',
                   isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
                 )}
                 onClick={() => selectGroup(groupIdx)}
-                onMouseEnter={() => selectGroup(groupIdx)}
+                onMouseDown={event => event.preventDefault()}
+                onPointerMove={event => selectWithPointer(event, () => {
+                  if (groupIdx !== activeGroupIndex) selectGroup(groupIdx)
+                })}
               >
                 <span className="min-w-0 truncate">{group}</span>
                 <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
@@ -393,6 +416,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
 
             return (
               <button
+                type="button"
                 key={item.id ?? `${item.group}-${item.title}-${itemIdx}`}
                 ref={(el) => {
                   itemRefs.current[itemIdx] = el
@@ -402,7 +426,8 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
                   isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
                 )}
                 onClick={() => selectVisibleItem(itemIdx)}
-                onMouseEnter={() => setSelectedIndex(itemIdx)}
+                onMouseDown={event => event.preventDefault()}
+                onPointerMove={event => selectWithPointer(event, () => setSelectedIndex(itemIdx))}
               >
                 <span className="flex size-4 shrink-0 items-center justify-center">
                   {item.icon}

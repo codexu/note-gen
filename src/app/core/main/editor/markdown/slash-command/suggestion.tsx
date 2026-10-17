@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { SuggestionProps } from '@tiptap/suggestion'
 import { type Editor, type Range } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -882,11 +883,14 @@ function findSlashMatch(config: {
 
 export { findSlashMatch }
 
-// Global callback for menu keyboard handling
-let menuKeyDownHandler: ((props: { event: KeyboardEvent }) => boolean) | null = null
+type MenuKeyDownHandler = (props: { event: KeyboardEvent }) => boolean
+const menuKeyDownHandlers = new WeakMap<EditorView, MenuKeyDownHandler>()
 
-export function setMenuKeyDownHandler(handler: ((props: { event: KeyboardEvent }) => boolean) | null) {
-  menuKeyDownHandler = handler
+export function registerMenuKeyDownHandler(view: EditorView, handler: MenuKeyDownHandler) {
+  menuKeyDownHandlers.set(view, handler)
+  return () => {
+    if (menuKeyDownHandlers.get(view) === handler) menuKeyDownHandlers.delete(view)
+  }
 }
 
 export const suggestionOptions = {
@@ -937,8 +941,9 @@ export const suggestionOptions = {
         document.dispatchEvent(event)
       },
 
-      onKeyDown: (props: { event: KeyboardEvent }) => {
+      onKeyDown: (props: { view: EditorView; event: KeyboardEvent }) => {
         // Call menu's keyDown handler first
+        const menuKeyDownHandler = menuKeyDownHandlers.get(props.view)
         if (menuKeyDownHandler) {
           if (menuKeyDownHandler(props)) {
             return true
@@ -954,8 +959,8 @@ export const suggestionOptions = {
         return false
       },
 
-      onExit: () => {
-        const event = new CustomEvent('slash-command-hide')
+      onExit: (props: SuggestionProps) => {
+        const event = new CustomEvent('slash-command-hide', { detail: { editor: props.editor } })
         document.dispatchEvent(event)
       },
     }

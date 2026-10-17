@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   useRef,
@@ -10,15 +11,17 @@ import {
 } from 'react'
 import { type Range } from '@tiptap/core'
 import { Editor } from '@tiptap/react'
+import { exitSuggestion } from '@tiptap/suggestion'
 import { useTranslations } from 'next-intl'
 import { SendHorizontal } from 'lucide-react'
 import { SlashMenu, SlashMenuRef } from './slash-menu'
 import type { SlashCommandItem } from './suggestion'
-import { setMenuKeyDownHandler } from './index'
+import { registerMenuKeyDownHandler } from './suggestion'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 interface MenuState {
+  session: number
   visible: boolean
   editor: Editor | null
   range: Range | null
@@ -71,9 +74,10 @@ function calculateMenuPosition(clientRect: DOMRect): { top: number; left: number
   return { top, left }
 }
 
-export const SlashCommandPortal = () => {
+export const SlashCommandPortal = ({ editor }: { editor: Editor }) => {
   const t = useTranslations('editor.slashCommand.customPrompt')
   const [state, setState] = useState<MenuState>({
+    session: 0,
     visible: false,
     editor: null,
     range: null,
@@ -86,12 +90,14 @@ export const SlashCommandPortal = () => {
     value: '',
   })
   const menuRef = useRef<SlashMenuRef>(null)
+  const menuSessionRef = useRef(0)
   const menuContainerRef = useRef<HTMLDivElement>(null)
   const customPromptRef = useRef<HTMLFormElement>(null)
   const customPromptInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
 
   const hideMenu = useCallback(() => {
+    menuSessionRef.current += 1
     setState((prev) => ({ ...prev, visible: false }))
     setPosition(null)
   }, [])
@@ -104,7 +110,20 @@ export const SlashCommandPortal = () => {
     })
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    hideMenu()
+    hideCustomPrompt()
+    const closeOwnedMenus = () => { hideMenu(); hideCustomPrompt() }
+    editor.on('destroy', closeOwnedMenus)
+    editor.on('unmount', closeOwnedMenus)
+    return () => {
+      menuSessionRef.current += 1
+      editor.off('destroy', closeOwnedMenus)
+      editor.off('unmount', closeOwnedMenus)
+    }
+  }, [editor, hideCustomPrompt, hideMenu])
+
+  useLayoutEffect(() => {
     const showHandler = (e: Event) => {
       const event = e as CustomEvent<{
         editor: Editor
@@ -113,9 +132,12 @@ export const SlashCommandPortal = () => {
         query: string
         onSelectItem?: (item: SlashCommandItem) => void
       }>
+      if (event.detail.editor !== editor || editor.isDestroyed) return
+      menuSessionRef.current += 1
       const newPosition = calculateMenuPosition(event.detail.clientRect)
       setPosition(newPosition)
       setState({
+        session: menuSessionRef.current,
         visible: true,
         editor: event.detail.editor,
         range: event.detail.range,
@@ -132,6 +154,7 @@ export const SlashCommandPortal = () => {
         clientRect: DOMRect
         query: string
       }>
+      if (event.detail.editor !== editor || editor.isDestroyed) return
       setPosition(calculateMenuPosition(event.detail.clientRect))
       setState((prev) => ({
         ...prev,
@@ -143,7 +166,9 @@ export const SlashCommandPortal = () => {
       }))
     }
 
-    const hideHandler = () => {
+    const hideHandler = (event: Event) => {
+      const owner = (event as CustomEvent<{ editor?: Editor }>).detail?.editor
+      if (owner && owner !== editor) return
       hideMenu()
     }
 
@@ -170,7 +195,7 @@ export const SlashCommandPortal = () => {
       document.removeEventListener('slash-command-hide', hideHandler)
       document.removeEventListener('tiptap-ai-custom-instruction-open', showCustomPromptHandler)
     }
-  }, [hideMenu])
+  }, [editor, hideMenu])
 
   useEffect(() => {
     if (!customPrompt.visible) {
@@ -201,28 +226,32 @@ export const SlashCommandPortal = () => {
   }, [customPrompt.visible, hideCustomPrompt])
 
   // Register keyDown handler when menu becomes visible
-  useEffect(() => {
-    if (state.visible && menuRef.current) {
+  useLayoutEffect(() => {
+    if (state.visible && state.editor === editor && !editor.isDestroyed && menuRef.current) {
+      const session = menuSessionRef.current
       const handler = (props: { event: KeyboardEvent }) => {
+        if (session !== menuSessionRef.current || props.event.isComposing || editor.isDestroyed) return false
         return menuRef.current?.onKeyDown?.(props) ?? false
       }
-      setMenuKeyDownHandler(handler)
-
-      return () => {
-        setMenuKeyDownHandler(null)
-      }
+      return registerMenuKeyDownHandler(editor.view, handler)
     }
-  }, [state.visible])
+  }, [editor, state.editor, state.session, state.visible])
 
-  useEffect(() => {
-    if (!state.visible || !state.onSelectItem) {
+  useLayoutEffect(() => {
+    if (!state.visible || state.editor !== editor || editor.isDestroyed) {
       return
     }
 
+    const session = menuSessionRef.current
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (session !== menuSessionRef.current || event.defaultPrevented || event.isComposing || editor.isDestroyed) return
+      // Typing in the editor goes through Suggestion's handler. Only intercept
+      // here for the block-insert menu or when focus is inside the menu itself.
+      if (!state.onSelectItem && (!(event.target instanceof Node) || !menuContainerRef.current?.contains(event.target))) return
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
+        if (!state.onSelectItem) exitSuggestion(editor.view)
         hideMenu()
         return
       }
@@ -233,7 +262,9 @@ export const SlashCommandPortal = () => {
       }
     }
     const handlePointerDown = (event: MouseEvent) => {
+      if (session !== menuSessionRef.current || editor.isDestroyed) return
       if (!menuContainerRef.current?.contains(event.target as Node)) {
+        if (!state.onSelectItem) exitSuggestion(editor.view)
         hideMenu()
       }
     }
@@ -244,7 +275,7 @@ export const SlashCommandPortal = () => {
       document.removeEventListener('keydown', handleKeyDown, true)
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [hideMenu, state.onSelectItem, state.visible])
+  }, [editor, hideMenu, state.editor, state.onSelectItem, state.session, state.visible])
 
   const handleCustomPromptSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -270,7 +301,7 @@ export const SlashCommandPortal = () => {
     }
   }, [hideCustomPrompt])
 
-  const slashMenuContext = state.visible && state.editor && state.range && state.clientRect && position
+  const slashMenuContext = state.visible && state.editor === editor && !editor.isDestroyed && state.editor && state.range && state.clientRect && position
     ? {
         editor: state.editor,
         range: state.range,
@@ -295,6 +326,7 @@ export const SlashCommandPortal = () => {
           }}
         >
           <SlashMenu
+            key={state.session}
             ref={menuRef}
             editor={slashMenuContext.editor}
             range={slashMenuContext.range}

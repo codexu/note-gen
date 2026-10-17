@@ -8007,7 +8007,7 @@ export function TipTapEditor({
         </MainStatusBarPortal>
       ) : null}
 
-      {!readOnly && !isSectionVirtualView ? <SlashCommandPortal /> : null}
+      {!readOnly && isActive && !isSectionVirtualView ? <SlashCommandPortal editor={editor} /> : null}
 
       {mathDialogOpen ? (
         <MathEditorDialog

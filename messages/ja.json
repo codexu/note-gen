@@ -3024,6 +3024,7 @@
         "enableFirst": "プラグインを有効にすると使用できます。"
       },
       "permissionDialog": {
+        "codeBlockRendering": "有効にすると、このプラグインは対応する言語のコードブロックを読み取り、プレビューを生成します。この機能から他のノート内容、ファイル、ネットワークにはアクセスできません。",
         "selectAll": "すべて選択",
         "folderLabel": "保存フォルダー",
         "chooseFolder": "ワークスペース内のフォルダーを選択",
@@ -5286,6 +5287,25 @@
     "description": "記録ツールを選択して、素早く記録を作成"
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "プラグインを検索",
+      "findPluginFor": "{language} に対応するプラグインを検索",
+      "invalidOutput": "描画結果を表示できません。",
+      "renderer": "レンダラー",
+      "chooseRenderer": "この言語の既定のレンダラーを選択",
+      "preview": "プレビュー",
+      "editSource": "ソースを編集",
+      "retry": "再試行",
+      "failed": "プレビューに失敗しました。",
+      "empty": "図のソースを入力してください。",
+      "loading": "図を描画中…",
+      "imageAlt": "{language} 図のプレビュー",
+      "exportImage": "画像をエクスポート",
+      "exporting": "エクスポート中…",
+      "exportSuccess": "画像をエクスポートしました",
+      "exportFailed": "画像のエクスポートに失敗しました",
+      "svgUnavailable": "このプレビューはビットマップのため、ベクター SVG としてエクスポートできません。"
+    },
     "readingMode": {
       "busy": "エディターが処理中です。しばらくしてから再試行してください。",
       "search": "ノートを検索",

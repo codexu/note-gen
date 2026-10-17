@@ -2004,7 +2004,18 @@ fn validate_locales(
             "Plugin defaultLocale and locales must be declared together",
         ));
     }
+    let renderer_names: Vec<&str> = manifest.resources.as_ref()
+        .and_then(|resources| resources.get("codeBlockRenderers"))
+        .and_then(Value::as_array).map(|renderers| renderers.iter()
+            .filter_map(|renderer| renderer.get("name").and_then(Value::as_str)).collect())
+        .unwrap_or_default();
+    for name in &renderer_names {
+        validate_localized_text(name, "resources.codeBlockRenderers.name", 160)?;
+    }
     if manifest.locales.is_empty() {
+        if renderer_names.iter().any(|name| localization_key(name).is_some()) {
+            return Err(plugin_error("InvalidManifest", "Localized renderer names require locale resources"));
+        }
         for command in &manifest.contributes.commands {
             if localization_key(&command.title).is_some()
                 || command
@@ -2102,6 +2113,9 @@ fn validate_locales(
         plugin_error("InvalidManifest", "Plugin default locale could not be loaded")
     })?;
     let mut referenced = BTreeSet::new();
+    for name in renderer_names {
+        if let Some(key) = localization_key(name) { referenced.insert(key.to_string()); }
+    }
     for command in &manifest.contributes.commands {
         if let Some(key) = localization_key(&command.title) {
             referenced.insert(key.to_string());
@@ -7098,11 +7112,13 @@ fn resource_paths(resources: &Value) -> PluginResult<BTreeSet<String>> {
     if let Some(languages) = resources.get("languages").and_then(Value::as_array) {
         for language in languages { paths.insert(resource_path(&language["messages"])?); }
     }
-    if let Some(previews) = resources.get("documentPreviews").and_then(Value::as_array) {
-        for preview in previews {
-            paths.insert(resource_path(&preview["script"])?);
-            if let Some(assets) = preview.get("assets").and_then(Value::as_array) {
-                for asset in assets { paths.insert(resource_path(asset)?); }
+    for kind in ["documentPreviews", "codeBlockRenderers"] {
+        if let Some(renderers) = resources.get(kind).and_then(Value::as_array) {
+            for renderer in renderers {
+                paths.insert(resource_path(&renderer["script"])?);
+                if let Some(assets) = renderer.get("assets").and_then(Value::as_array) {
+                    for asset in assets { paths.insert(resource_path(asset)?); }
+                }
             }
         }
     }
@@ -7130,16 +7146,21 @@ fn validate_language_tree(value: &Value, depth: usize) -> PluginResult<()> {
 fn validate_resources(manifest: &PluginManifestV1, root: &Path, files: &BTreeMap<String, ActualFile>) -> PluginResult<()> {
     let invalid = || plugin_error("InvalidManifest", "Invalid plugin resources");
     for path in files.keys().filter(|path| path.to_lowercase().ends_with(".wasm")) {
-        let declared = manifest.resources.as_ref().and_then(|r| r.get("documentPreviews")).and_then(Value::as_array)
-            .map(|previews| previews.iter().any(|preview| preview.get("assets").and_then(Value::as_array)
-                .map(|assets| assets.iter().any(|asset| asset.as_str() == Some(path.as_str()))).unwrap_or(false))).unwrap_or(false);
-        if !declared { return Err(plugin_error("InvalidManifest", "WASM must be a declared preview asset")); }
+        let declared = manifest.resources.as_ref().map(|resources| {
+            ["documentPreviews", "codeBlockRenderers"].iter().any(|kind| {
+                resources.get(*kind).and_then(Value::as_array).map(|renderers| renderers.iter().any(|renderer| {
+                    renderer.get("assets").and_then(Value::as_array)
+                        .map(|assets| assets.iter().any(|asset| asset.as_str() == Some(path.as_str()))).unwrap_or(false)
+                })).unwrap_or(false)
+            })
+        }).unwrap_or(false);
+        if !declared { return Err(plugin_error("InvalidManifest", "WASM must be a declared preview or code-block-renderer asset")); }
     }
     let Some(resources) = &manifest.resources else {
         if manifest.entry.is_empty() { return Err(invalid()); }
         return Ok(());
     };
-    let object = resource_object(resources, &["themes", "languages", "fileIcons", "documentPreviews", "embeddedViews"])?;
+    let object = resource_object(resources, &["themes", "languages", "fileIcons", "documentPreviews", "embeddedViews", "codeBlockRenderers"])?;
     let mut count = 0;
     for (kind, values) in object {
         let items = values.as_array().ok_or_else(invalid)?;
@@ -7188,6 +7209,25 @@ fn validate_resources(manifest: &PluginManifestV1, root: &Path, files: &BTreeMap
                     let text = resource_text(icon.values().next().ok_or_else(invalid)?, if icon.contains_key("name") { 80 } else { 64 })?;
                     if icon.contains_key("name") && (text.len() > 80 || !text.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')) { return Err(invalid()); }
                     if icon.contains_key("emoji") && (text.encode_utf16().count() > 16 || !regex::Regex::new(r"\p{Extended_Pictographic}|\p{Regional_Indicator}").map_err(|_| invalid())?.is_match(text)) { return Err(invalid()); }
+                }
+                "codeBlockRenderers" => {
+                    resource_object(item, &["id", "name", "languages", "script", "assets"])?;
+                    let languages = item["languages"].as_array().ok_or_else(invalid)?;
+                    let mut unique = BTreeSet::new();
+                    if languages.is_empty() || languages.len() > 30 || languages.iter().any(|value| {
+                        value.as_str().map(|language| {
+                            language.is_empty() || language.len() > 32 || !language.as_bytes()[0].is_ascii_alphanumeric()
+                                || !language.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"_+.#-".contains(&c))
+                                || !unique.insert(language)
+                        }).unwrap_or(true)
+                    }) { return Err(invalid()); }
+                    if !resource_path(&item["script"])?.ends_with(".js") { return Err(invalid()); }
+                    if let Some(assets) = item.get("assets") {
+                        let assets = assets.as_array().ok_or_else(invalid)?;
+                        let mut unique = BTreeSet::new();
+                        if assets.len() > 100 { return Err(invalid()); }
+                        for path in assets { if !unique.insert(resource_path(path)?) { return Err(invalid()); } }
+                    }
                 }
                 "documentPreviews" => {
                     resource_object(item, &["id", "name", "extensions", "script", "assets"])?;

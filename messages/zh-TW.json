@@ -3024,6 +3024,7 @@
         "enableFirst": "啟用外掛後即可使用。"
       },
       "permissionDialog": {
+        "codeBlockRendering": "啟用後，此外掛程式可讀取其宣告支援的程式碼區塊以產生預覽。算繪介面不會提供其他筆記內容、檔案存取或網路存取能力。",
         "selectAll": "全選",
         "folderLabel": "儲存目錄",
         "chooseFolder": "選擇工作區內的資料夾",
@@ -5276,6 +5277,25 @@
     }
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "搜尋外掛",
+      "findPluginFor": "搜尋支援 {language} 的外掛",
+      "invalidOutput": "無法顯示算繪結果。",
+      "renderer": "算繪器",
+      "chooseRenderer": "請選擇此語言的預設算繪器",
+      "preview": "預覽",
+      "editSource": "編輯原始碼",
+      "retry": "重試預覽",
+      "failed": "預覽失敗。",
+      "empty": "輸入圖表原始碼後即可預覽。",
+      "loading": "正在繪製圖表…",
+      "imageAlt": "{language} 圖表預覽",
+      "exportImage": "匯出圖片",
+      "exporting": "正在匯出…",
+      "exportSuccess": "圖片已匯出",
+      "exportFailed": "圖片匯出失敗",
+      "svgUnavailable": "此預覽為點陣圖，無法匯出向量 SVG。"
+    },
     "readingMode": {
       "busy": "編輯器正在處理操作，請稍後重試",
       "search": "搜尋筆記",

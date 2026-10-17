@@ -65,15 +65,10 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
   useEffect(() => {
     if (!discoveryRequest || mobile) return
     setMarketQuery(discoveryRequest.query)
+    setMarketInstallPluginId(discoveryRequest.installPluginId ?? null)
     setTab('market')
     clearDiscoveryRequest()
-    let cancelled = false
-    void refreshMarket(true).then(() => {
-      if (!cancelled && !usePluginStore.getState().marketError) setMarketInstallPluginId(discoveryRequest.query)
-    })
-    return () => {
-      cancelled = true
-    }
+    void refreshMarket(true)
   }, [discoveryRequest, mobile, clearDiscoveryRequest, refreshMarket])
 
   useEffect(() => {

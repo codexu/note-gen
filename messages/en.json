@@ -930,6 +930,7 @@
         "enableFirst": "Enable the plugin to use this action."
       },
       "permissionDialog": {
+        "codeBlockRendering": "When enabled, this plugin can read code blocks in its declared languages to generate previews. It receives no other note content, file access or network access through this renderer.",
         "selectAll": "Select all",
         "folderLabel": "Storage folder",
         "chooseFolder": "Choose a workspace folder",
@@ -5377,6 +5378,25 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "Search plugins",
+      "findPluginFor": "Search for plugins supporting {language}",
+      "invalidOutput": "The rendered image could not be displayed.",
+      "renderer": "Renderer",
+      "chooseRenderer": "Choose a renderer for this language",
+      "preview": "Preview",
+      "editSource": "Edit source",
+      "retry": "Retry preview",
+      "failed": "Preview failed.",
+      "empty": "Enter diagram source to preview.",
+      "loading": "Rendering diagram…",
+      "imageAlt": "{language} diagram preview",
+      "exportImage": "Export image",
+      "exporting": "Exporting…",
+      "exportSuccess": "Image exported",
+      "exportFailed": "Image export failed",
+      "svgUnavailable": "This preview is a bitmap and cannot be exported as vector SVG."
+    },
     "readingMode": {
       "busy": "The editor is busy. Please try again shortly.",
       "search": "Search note",

@@ -3,17 +3,9 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { createLowlight } from 'lowlight'
 import { getEditorViewportRoot } from './viewport-activation'
+import { getCommonLowlight } from './code-block-languages'
 
 type Lowlight = ReturnType<typeof createLowlight>
-
-let commonLowlightPromise: Promise<Lowlight> | null = null
-
-function getCommonLowlight(): Promise<Lowlight> {
-  commonLowlightPromise ??= import('lowlight').then(({ common, createLowlight }) => (
-    createLowlight(common)
-  ))
-  return commonLowlightPromise
-}
 
 interface HighlightToken {
   classes: string[]

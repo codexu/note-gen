@@ -3049,6 +3049,7 @@
         "enableFirst": "Ative o plugin para usar esta ação."
       },
       "permissionDialog": {
+        "codeBlockRendering": "Ao ativar, este plugin pode ler blocos de código nos idiomas declarados para gerar prévias. Esta interface não fornece acesso a outras notas, arquivos ou à rede.",
         "selectAll": "Selecionar tudo",
         "folderLabel": "Pasta de armazenamento",
         "chooseFolder": "Selecione uma pasta do espaço de trabalho",
@@ -5266,6 +5267,25 @@
     }
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "Buscar plugins",
+      "findPluginFor": "Buscar plugins compatíveis com {language}",
+      "invalidOutput": "Não foi possível exibir a imagem renderizada.",
+      "renderer": "Renderizador",
+      "chooseRenderer": "Escolha o renderizador padrão deste idioma",
+      "preview": "Prévia",
+      "editSource": "Editar código",
+      "retry": "Tentar novamente",
+      "failed": "Falha na prévia.",
+      "empty": "Digite o código do diagrama para visualizar.",
+      "loading": "Renderizando diagrama…",
+      "imageAlt": "Prévia do diagrama {language}",
+      "exportImage": "Exportar imagem",
+      "exporting": "Exportando…",
+      "exportSuccess": "Imagem exportada",
+      "exportFailed": "Falha ao exportar imagem",
+      "svgUnavailable": "Esta prévia é um bitmap e não pode ser exportada como SVG vetorial."
+    },
     "readingMode": {
       "busy": "O editor está ocupado. Tente novamente em instantes.",
       "search": "Pesquisar nota",

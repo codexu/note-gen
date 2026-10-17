@@ -930,6 +930,7 @@
         "enableFirst": "启用插件后即可使用。"
       },
       "permissionDialog": {
+        "codeBlockRendering": "启用后，此插件可读取其声明支持的代码块以生成预览。渲染接口不会提供其他笔记内容、文件访问或网络访问能力。",
         "selectAll": "全选",
         "folderLabel": "保存目录",
         "chooseFolder": "选择工作区内的文件夹",
@@ -5377,6 +5378,25 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "搜索插件",
+      "findPluginFor": "搜索支持 {language} 的插件",
+      "invalidOutput": "渲染结果无法显示。",
+      "renderer": "渲染器",
+      "chooseRenderer": "请选择此语言的默认渲染器",
+      "preview": "预览",
+      "editSource": "编辑源码",
+      "retry": "重试预览",
+      "failed": "预览失败。",
+      "empty": "输入图表源码后可预览。",
+      "loading": "正在渲染图表…",
+      "imageAlt": "{language} 图表预览",
+      "exportImage": "导出图片",
+      "exporting": "正在导出…",
+      "exportSuccess": "图片已导出",
+      "exportFailed": "图片导出失败",
+      "svgUnavailable": "此预览为位图，无法导出矢量 SVG。"
+    },
     "readingMode": {
       "busy": "编辑器正在处理操作，请稍后重试",
       "search": "搜索笔记",

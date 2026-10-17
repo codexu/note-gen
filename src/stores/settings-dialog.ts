@@ -57,7 +57,7 @@ export const settingSections: SettingSection[] = [
 interface SettingsDialogState {
   open: boolean
   activeSection: SettingSection
-  pluginDiscoveryRequest: { query: string } | null
+  pluginDiscoveryRequest: { query: string; installPluginId?: string } | null
   openPluginDiscovery: (query: string) => void
   openPluginInstall: (pluginId: string) => void
   clearPluginDiscoveryRequest: () => void
@@ -78,7 +78,7 @@ export const useSettingsDialogStore = create<SettingsDialogState>((set) => ({
   openPluginInstall: (pluginId) => set({
     open: true,
     activeSection: 'plugins',
-    pluginDiscoveryRequest: { query: pluginId },
+    pluginDiscoveryRequest: { query: pluginId, installPluginId: pluginId },
   }),
   clearPluginDiscoveryRequest: () => set({ pluginDiscoveryRequest: null }),
   openSettings: (section) => set((state) => ({

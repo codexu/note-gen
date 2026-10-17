@@ -1,5 +1,6 @@
 'use client'
 
+import { getCodeBlockRenderers } from '@/lib/plugins/code-block-contract'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { ChevronDown, ShieldCheck } from 'lucide-react'
@@ -269,6 +270,7 @@ export function PermissionConfirmDialog({
         </AlertDialogHeader>
 
         <FieldGroup className="max-h-[min(52vh,30rem)] overflow-y-auto pr-1">
+          {getCodeBlockRenderers(plugin?.manifest.resources).length ? <p className="text-sm text-muted-foreground">{t('permissionDialog.codeBlockRendering')}</p> : null}
           {sharedFolder ? (
             <Field data-invalid={Boolean(boundPermissions.map(permission => pathErrors[permission]).find(Boolean))}>
               <FieldLabel htmlFor={`${formId}-shared-folder`}>{t('permissionDialog.folderLabel')}</FieldLabel>

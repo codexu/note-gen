@@ -1,5 +1,7 @@
 'use client'
 
+import { getCodeBlockRenderers } from '@/lib/plugins/code-block-contract'
+
 import { getPluginRevocation } from '@/lib/plugins/internal-types'
 
 import { useEffect, useId, useState } from 'react'
@@ -239,6 +241,7 @@ export function PluginSettingField({
 function hasReviewedCurrentManifest(plugin: InstalledPlugin, workspaceState?: PluginWorkspaceState): boolean {
   const fingerprint = getPluginManifestFingerprint(plugin)
   const permissions = Object.keys(plugin.manifest.permissions)
+  if (getCodeBlockRenderers(plugin.manifest.resources).length && workspaceState?.enabledFingerprint !== fingerprint) return false
   return permissions.every((permission) => {
     const declaration = plugin.manifest.permissions[permission as PluginPermissionName]
     const grant = workspaceState?.permissions[permission as PluginPermissionName]
@@ -322,7 +325,7 @@ export function InstalledPluginsTab({ enablePluginId, onEnablePromptHandled }: {
       return
     }
     const workspaceState = currentStates[plugin.manifest.id]
-    if (Object.keys(plugin.manifest.permissions).length > 0
+    if ((Object.keys(plugin.manifest.permissions).length > 0 || getCodeBlockRenderers(plugin.manifest.resources).length > 0)
       && !hasReviewedCurrentManifest(plugin, workspaceState)) {
       setPermissionEnablement(enablement)
       setPermissionPlugin(plugin)
@@ -389,7 +392,7 @@ export function InstalledPluginsTab({ enablePluginId, onEnablePromptHandled }: {
             const enabled = isPluginEnabledInWorkspace(plugin, pluginState)
             const requestedInAllWorkspaces = isRequestedInAllWorkspaces(plugin.manifest.id)
             const needsReview = (requestedEnabled || requestedInAllWorkspaces)
-              && Object.keys(plugin.manifest.permissions).length > 0
+              && (Object.keys(plugin.manifest.permissions).length > 0 || getCodeBlockRenderers(plugin.manifest.resources).length > 0)
               && !hasReviewedCurrentManifest(plugin, pluginState)
             const displayedEnablement = requestedInAllWorkspaces
               ? 'all-workspaces'

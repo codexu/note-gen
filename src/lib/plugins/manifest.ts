@@ -1,3 +1,4 @@
+import { getCodeBlockRenderers } from './code-block-contract'
 import { validatePluginResources } from '@notegen/plugin-api'
 import { z } from 'zod'
 import {
@@ -33,8 +34,9 @@ const embeddedViewSchema = z.object({
 
 export function validateHostPluginResources(value: unknown): void {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plugin resources')
-  const { embeddedViews, ...other } = value as Record<string, unknown>
+  const { embeddedViews, codeBlockRenderers, ...other } = value as Record<string, unknown>
   validatePluginResources(other)
+  if (codeBlockRenderers !== undefined) getCodeBlockRenderers(value)
   if (embeddedViews === undefined) return
   const views = z.array(embeddedViewSchema).max(30).parse(embeddedViews)
   if (new Set(views.map(view => view.id)).size !== views.length) throw new Error('Duplicate embedded view id')
@@ -452,6 +454,7 @@ function validateLocalization(manifest: PluginManifestV1): void {
       ...(item.type === 'select' ? item.options.map((option) => option.label) : []),
     ]),
     ...(manifest.contributes.views ?? []).map((item) => item.title),
+    ...getCodeBlockRenderers(manifest.resources).map(renderer => renderer.name),
   ].filter((value): value is string => typeof value === 'string')
 
   for (const text of texts) {
@@ -525,6 +528,7 @@ export function getManifestTranslationKeys(manifest: PluginManifestV1): string[]
       setting.options.forEach((option) => add(option.label))
     }
   }
+  getCodeBlockRenderers(manifest.resources).forEach(renderer => add(renderer.name))
   return [...keys]
 }
 

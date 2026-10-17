@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginReadOnlyCodeBlocks } from '@/components/plugins/plugin-code-block-preview'
 import type { Editor } from '@tiptap/react'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import MarkdownIt from 'markdown-it'
@@ -237,6 +238,7 @@ function SectionPreview({
   onRequestSourceMode: () => void
 }) {
   const t = useTranslations('editor.largeMarkdownMode.sectioned')
+  const previewContentRef = useRef<HTMLDivElement>(null)
   const sourceOnly = section.kind === 'frontmatter' || section.oversized
   const previewKey = `${section.contentHash}:${markdown.length}`
   const [renderedPreview, setRenderedPreview] = useState({ key: '', html: '' })
@@ -299,10 +301,14 @@ function SectionPreview({
       }}
     >
       {html ? (
-        <div
-          className="tiptap ProseMirror sectioned-markdown-preview-content"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <>
+          <div
+            ref={previewContentRef}
+            className="tiptap ProseMirror sectioned-markdown-preview-content"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+          <PluginReadOnlyCodeBlocks root={previewContentRef} html={html} onEdit={onActivate} />
+        </>
       ) : (
         <pre className="max-h-80 overflow-hidden whitespace-pre-wrap break-words font-sans text-sm text-muted-foreground">
           {markdown.slice(0, 2_000)}

@@ -268,7 +268,8 @@
 }
 
 .tiptap-editor .ProseMirror .code-block-language-trigger {
-  width: 78px;
+  width: 144px;
+  flex-shrink: 0;
   height: 26px;
   min-height: 26px;
   padding: 0 6px;
@@ -295,6 +296,7 @@
 
 .code-block-language-trigger-label {
   min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1715,4 +1717,44 @@
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The preview is presentation only; the original code content stays mounted. */
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-preview) > .code-block-toolbar {
+  top: auto;
+  bottom: 8px;
+}
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-preview) pre {
+  padding-bottom: 42px;
+  padding-top: 16px;
+}
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-discovery) > .code-block-toolbar {
+  position: static;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 8px;
+  gap: 6px;
+}
+.tiptap-editor .ProseMirror .code-block-toolbar .plugin-code-block-discovery {
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.tiptap-editor .ProseMirror .code-block-toolbar .plugin-code-block-discovery button {
+  height: auto;
+  min-height: 26px;
+  white-space: normal;
+}
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-discovery) pre {
+  padding-top: 16px;
+}
+.tiptap-editor .ProseMirror .plugin-code-block-preview {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--card));
+}
+.tiptap-editor .ProseMirror .plugin-code-block-preview img {
+  margin: 0 auto;
+  border: 0;
+  border-radius: 0;
 }

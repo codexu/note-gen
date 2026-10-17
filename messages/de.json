@@ -930,6 +930,7 @@
         "enableFirst": "Aktivieren Sie das Plugin, um diese Aktion zu verwenden."
       },
       "permissionDialog": {
+        "codeBlockRendering": "Nach dem Aktivieren kann dieses Plugin Codeblöcke der angegebenen Sprachen für die Vorschau lesen. Diese Schnittstelle gewährt keinen Zugriff auf andere Notizinhalte, Dateien oder das Netzwerk.",
         "selectAll": "Alle auswählen",
         "folderLabel": "Speicherordner",
         "chooseFolder": "Arbeitsbereichsordner auswählen",
@@ -5235,6 +5236,25 @@
     "description": "Klicken, um ein Aufnahme-Tool auszuwählen und schnell Aufzeichnungen zu erstellen"
   },
   "editor": {
+    "codeBlockPreview": {
+      "findPlugin": "Plugins suchen",
+      "findPluginFor": "Plugins für {language} suchen",
+      "invalidOutput": "Das gerenderte Bild konnte nicht angezeigt werden.",
+      "renderer": "Renderer",
+      "chooseRenderer": "Standard-Renderer für diese Sprache wählen",
+      "preview": "Vorschau",
+      "editSource": "Quelltext bearbeiten",
+      "retry": "Erneut versuchen",
+      "failed": "Vorschau fehlgeschlagen.",
+      "empty": "Diagrammquelltext für die Vorschau eingeben.",
+      "loading": "Diagramm wird gerendert…",
+      "imageAlt": "Diagrammvorschau für {language}",
+      "exportImage": "Bild exportieren",
+      "exporting": "Wird exportiert…",
+      "exportSuccess": "Bild exportiert",
+      "exportFailed": "Bildexport fehlgeschlagen",
+      "svgUnavailable": "Diese Vorschau ist eine Bitmap und kann nicht als Vektor-SVG exportiert werden."
+    },
     "readingMode": {
       "busy": "Der Editor ist beschäftigt. Bitte versuche es gleich erneut.",
       "search": "Notiz durchsuchen",

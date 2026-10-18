@@ -132,9 +132,16 @@ export function BlockHandleControls({
     const completedDrag = event.currentTarget.dataset.editorBlockDragFinished === 'true'
     delete event.currentTarget.dataset.editorBlockDragFinished
 
-    if (!completedDrag) {
-      updateOpen(!open)
+    if (completedDrag) {
+      // Pointer dragging can still synthesize a click on the captured trigger.
+      // Cancel it so Radix does not open the menu after a successful drag.
+      event.preventDefault()
+      event.stopPropagation()
+      return
     }
+    // Dragging owns pointerdown, so open the menu only after a completed click.
+    event.preventDefault()
+    updateOpen(!openRef.current)
   }
 
   const handleConvert = (value: string) => {

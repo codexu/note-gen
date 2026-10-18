@@ -15,7 +15,6 @@ import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Typography from '@tiptap/extension-typography'
 import Dropcursor from '@tiptap/extension-dropcursor'
-import DragHandle from '@tiptap/extension-drag-handle'
 import { getSelectionRanges } from '@tiptap/extension-node-range'
 import { renderTableToMarkdown, Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
@@ -26,10 +25,9 @@ import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
 import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent, type MarkdownToken } from '@tiptap/core'
 import { Fragment, Slice, type Node as ProseMirrorNode, type NodeType } from '@tiptap/pm/model'
-import { AllSelection, EditorState, Plugin, PluginKey, TextSelection, type Selection, type Transaction } from '@tiptap/pm/state'
+import { AllSelection, EditorState, Plugin, PluginKey, Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { closeHistory, redoDepth, undoDepth } from '@tiptap/pm/history'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import { dropPoint } from '@tiptap/pm/transform'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
@@ -380,15 +378,19 @@ type EditorBlockTarget = {
 type EditorBlockDragState = EditorBlockTarget & {
   startDoc: CoreEditor['state']['doc']
   targetPos: number | null
+  dropTransaction?: Transaction | null
 }
 
 type EditorBlockPointerDragState = EditorBlockDragState & {
   pointerId: number
   startX: number
   startY: number
+  pointerX: number
+  pointerY: number
   moved: boolean
   indicatorPos: number | null
   preview: HTMLDivElement
+  indicator: HTMLDivElement
   handle: HTMLElement
   controls: HTMLElement
   controlsOffsetY: number
@@ -396,56 +398,9 @@ type EditorBlockPointerDragState = EditorBlockDragState & {
   controlsPosition: string
   controlsLeft: string
   controlsTop: string
+  tableFrom: number | null
+  originalOpacity: string
 }
-
-type EditorBlockDragPreview = {
-  from: number
-  to: number
-  pos: number
-  dom: HTMLDivElement
-}
-
-const editorBlockDragPreviewPluginKey = new PluginKey<DecorationSet>('editorBlockDragPreview')
-
-const EditorBlockDragPreview = Extension.create({
-  name: 'editorBlockDragPreview',
-
-  addProseMirrorPlugins() {
-    return [new Plugin<DecorationSet>({
-      key: editorBlockDragPreviewPluginKey,
-      state: {
-        init: () => DecorationSet.empty,
-        apply(tr, current) {
-          const preview = tr.getMeta(editorBlockDragPreviewPluginKey) as EditorBlockDragPreview | null | undefined
-          if (preview === undefined) {
-            return tr.docChanged ? DecorationSet.empty : current.map(tr.mapping, tr.doc)
-          }
-          if (!preview) {
-            return DecorationSet.empty
-          }
-
-          const decorations: Decoration[] = []
-          let sourcePos = preview.from
-          while (sourcePos < preview.to) {
-            const node = tr.doc.nodeAt(sourcePos)
-            if (!node || sourcePos + node.nodeSize > preview.to) {
-              break
-            }
-            decorations.push(Decoration.node(sourcePos, sourcePos + node.nodeSize, {
-              class: 'tiptap-block-drag-preview-source',
-            }))
-            sourcePos += node.nodeSize
-          }
-          decorations.push(Decoration.widget(preview.pos, () => preview.dom, { side: -1 }))
-          return DecorationSet.create(tr.doc, decorations)
-        },
-      },
-      props: {
-        decorations: state => editorBlockDragPreviewPluginKey.getState(state),
-      },
-    })]
-  },
-})
 
 type ResolvedEditorBlockTarget = EditorBlockTarget & {
   node: ProseMirrorNode
@@ -479,6 +434,14 @@ function resolveEditorBlockTarget(target: EditorBlockTarget | null): ResolvedEdi
   return { ...target, node }
 }
 
+function getEditorTablePositionForRow(editor: CoreEditor, rowFrom: number): number | null {
+  const $position = editor.state.doc.resolve(rowFrom)
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    if ($position.node(depth).type.name === 'table') return $position.before(depth)
+  }
+  return null
+}
+
 function getEditorBlockDragTarget(target: EditorBlockTarget): EditorBlockTarget | null {
   const resolvedTarget = resolveEditorBlockTarget(target)
   if (!resolvedTarget) {
@@ -487,7 +450,9 @@ function getEditorBlockDragTarget(target: EditorBlockTarget): EditorBlockTarget 
 
   const { editor, from: targetFrom, to: targetTo } = resolvedTarget
   const { selection } = editor.state
-  if (selection.empty) {
+  // A blurred editor can retain an old multi-block selection. The hovered
+  // handle must still drag its own block instead of that stale selection.
+  if (!editor.isFocused || selection.empty) {
     return target
   }
 
@@ -623,6 +588,11 @@ function insertEditorBlockBelow(target: EditorBlockTarget | null, command?: Slas
 function openEditorBlockInsertMenu(target: EditorBlockTarget | null, clientRect: DOMRect) {
   const resolvedTarget = resolveEditorBlockTarget(target)
   if (!resolvedTarget) {
+    return
+  }
+
+  if (resolvedTarget.node.type.name === 'tableRow') {
+    resolvedTarget.editor.chain().focus().addRowAfter().run()
     return
   }
 
@@ -821,53 +791,254 @@ function convertEditorBlock(target: EditorBlockTarget | null, type: EditorBlockC
   }
 }
 
-function moveEditorBlock(state: EditorBlockDragState) {
-  const { editor, from, to, startDoc, targetPos } = state
-
-  if (editor.isDestroyed || editor.state.doc !== startDoc || targetPos === null) {
-    return
-  }
-
+function createEditorBlockDropTransaction(state: EditorBlockDragState, targetPos: number) {
+  const { editor, from, to, startDoc } = state
+  if (editor.isDestroyed || editor.state.doc !== startDoc || (targetPos >= from && targetPos <= to)) return null
   const slice = startDoc.slice(from, to)
-  const insertPos = dropPoint(startDoc, targetPos, slice) ?? targetPos
-
-  if (insertPos >= from && insertPos <= to) {
-    return
-  }
-
   const tr = editor.state.tr.deleteRange(from, to)
-  const mappedInsertPos = tr.mapping.map(insertPos)
-  const beforeInsert = tr.doc
-
-  tr.replaceRange(mappedInsertPos, mappedInsertPos, slice)
-
-  if (tr.doc.eq(beforeInsert)) {
-    return
-  }
-
-  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(mappedInsertPos, tr.doc.content.size))))
-  editor.view.focus()
-  dispatchIsolatedEditorBlockTransaction(editor, tr.setMeta('uiEvent', 'drop'))
+  const insertPos = tr.mapping.map(targetPos)
+  const $insert = tr.doc.resolve(insertPos)
+  if (!$insert.parent.canReplace($insert.index(), $insert.index(), slice.content)) return null
+  tr.insert(insertPos, slice.content)
+  tr.setSelection(Selection.near(tr.doc.resolve(insertPos)))
+  return tr.setMeta('uiEvent', 'drop')
 }
 
-function createEditorBlockDragPreviewDom(editor: CoreEditor, from: number, to: number) {
+function moveEditorBlock(state: EditorBlockDragState) {
+  const { editor, startDoc, targetPos } = state
+  if (editor.isDestroyed || editor.state.doc !== startDoc || targetPos === null) return
+  const transaction = state.dropTransaction ?? createEditorBlockDropTransaction(state, targetPos)
+  if (!transaction) return
+  editor.view.focus()
+  dispatchIsolatedEditorBlockTransaction(editor, transaction)
+}
+
+type EditorBlockDragBounds = {
+  top: number
+  bottom: number
+  left: number
+  right: number
+  width: number
+  height: number
+}
+
+function getEditorBlockHandleGeometry(editor: CoreEditor, pos: number, dom: HTMLElement) {
+  const bounds = dom.getBoundingClientRect()
+  const node = editor.state.doc.nodeAt(pos)
+  let left = bounds.left
+  let top = bounds.top
+  let bottom = bounds.bottom
+  let lineDom = dom
+  if (node?.type.name === 'listItem' || node?.type.name === 'taskItem') {
+    // An li includes all its nested lists. Its handle belongs to its own first
+    // paragraph, not to the entire descendant rectangle.
+    const paragraph = editor.view.nodeDOM(pos + 1)
+    if (paragraph instanceof HTMLElement) {
+      lineDom = paragraph
+      top = paragraph.getBoundingClientRect().top
+    }
+    if (node.firstChild && node.childCount > 1) {
+      const followingBlock = editor.view.nodeDOM(pos + 1 + node.firstChild.nodeSize)
+      if (followingBlock instanceof HTMLElement) bottom = followingBlock.getBoundingClientRect().top
+    } else if (dom.nextElementSibling instanceof HTMLElement) {
+      bottom = dom.nextElementSibling.getBoundingClientRect().top
+    }
+    // Include markers and indentation in the hit area, and keep every nesting
+    // level on the same gutter as ordinary blocks.
+    for (let parent = dom.parentElement; parent && parent !== editor.view.dom; parent = parent.parentElement) {
+      if (parent.tagName === 'UL' || parent.tagName === 'OL') left = parent.getBoundingClientRect().left
+    }
+  }
+  const lineHeight = Number.parseFloat(getComputedStyle(lineDom).lineHeight) || 24
+  const handleTop = node?.type.name === 'tableRow'
+    ? bounds.top + (bounds.height - 24) / 2
+    : top + Math.max(0, (Math.min(lineHeight, bounds.height) - 24) / 2)
+  return { left, right: bounds.right, top, bottom, handleTop }
+}
+
+function getEditorBlockTargetAtPoint(editor: CoreEditor, clientX: number, clientY: number): EditorBlockTarget | null {
+  let target: EditorBlockTarget | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+  editor.state.doc.descendants((node, pos, parent, index) => {
+    if (!node.isBlock || node.type.name === 'tableCell' || node.type.name === 'tableHeader') return
+    if (index === 0 && (parent?.type.name === 'listItem' || parent?.type.name === 'taskItem')) return
+    const dom = editor.view.nodeDOM(pos)
+    if (!(dom instanceof HTMLElement)) return
+    const rect = dom.getBoundingClientRect()
+    if (rect.height <= 0 || rect.width <= 0) return
+    const bounds = getEditorBlockHandleGeometry(editor, pos, dom)
+    const distanceY = Math.max(bounds.top - clientY, clientY - bounds.bottom, 0)
+    if (distanceY > 6) return
+    const isListItem = node.type.name === 'listItem' || node.type.name === 'taskItem'
+    const hitLeft = isListItem ? bounds.left - 64 : bounds.left
+    const distanceX = Math.max(hitLeft - clientX, clientX - bounds.right, 0)
+    const rowGutterPenalty = node.type.name === 'tableRow' && clientX < bounds.left - 24 ? 2 : 0
+    const score = distanceY * 1000 + distanceX * 2 - editor.state.doc.resolve(pos).depth + rowGutterPenalty
+    if (score < bestScore) {
+      bestScore = score
+      target = { editor, from: pos, to: pos + node.nodeSize }
+    }
+    // A table's nested drag unit is the complete row, including cell padding.
+    if (node.type.name === 'tableRow') return false
+  })
+  return target
+}
+
+function getEditorBlockDragBounds(dom: HTMLElement): EditorBlockDragBounds {
+  return dom.getBoundingClientRect()
+}
+
+function createEditorBlockDragPreviewDom() {
   const preview = document.createElement('div')
   preview.className = 'tiptap-block-drag-preview'
+  preview.setAttribute('aria-hidden', 'true')
+  return preview
+}
 
-  let pos = from
-  while (pos < to) {
-    const node = editor.state.doc.nodeAt(pos)
-    const nodeDom = editor.view.nodeDOM(pos)
-    if (!node || pos + node.nodeSize > to) {
-      break
+function updateEditorBlockDragPreview(dragState: EditorBlockPointerDragState, clientX: number, clientY: number) {
+  const { editor, from, to, startDoc, tableFrom } = dragState
+  const editorDom = editor.view.dom
+  const slice = startDoc.slice(from, to)
+  const $source = startDoc.resolve(from)
+  const clearPreview = () => {
+    editorDom.style.opacity = dragState.originalOpacity
+    dragState.dropTransaction = null
+    dragState.targetPos = null
+    dragState.indicatorPos = null
+    dragState.preview.style.visibility = 'hidden'
+    dragState.indicator.style.visibility = 'hidden'
+  }
+  type DropTarget = { pos: number; anchor: number; before: boolean; bounds: EditorBlockDragBounds; score: number }
+  let best: DropTarget | null = null
+  startDoc.descendants((node, pos) => {
+    if (!node.isBlock || node.type.name === 'tableCell' || node.type.name === 'tableHeader') return
+    if (pos >= from && pos < to) return false
+    if (tableFrom !== null && (node.type.name !== 'tableRow' || getEditorTablePositionForRow(editor, pos) !== tableFrom)) return
+    const dom = editor.view.nodeDOM(pos)
+    if (!(dom instanceof HTMLElement)) return
+    const bounds = getEditorBlockDragBounds(dom)
+    if (bounds.height <= 0 || bounds.width <= 0) return
+    const before = clientY < bounds.top + bounds.height / 2
+    const dropPos = before ? pos : pos + node.nodeSize
+    if (dropPos > from && dropPos < to) return
+    const $drop = startDoc.resolve(dropPos)
+    if (slice.content.firstChild?.type.name === 'table') {
+      for (let depth = $drop.depth; depth > 0; depth -= 1) {
+        if ($drop.node(depth).type.name === 'table') return
+      }
     }
-    if (nodeDom instanceof HTMLElement) {
-      preview.appendChild(nodeDom.cloneNode(true))
+    if (!$drop.parent.canReplace($drop.index(), $drop.index(), slice.content)) return
+    const distanceY = Math.max(bounds.top - clientY, clientY - bounds.bottom, 0)
+    const distanceX = Math.max(bounds.left - clientX, clientX - bounds.right, 0)
+    const sourceType = slice.content.firstChild?.type.name
+    if ((sourceType === 'tableRow' || sourceType === 'listItem' || sourceType === 'taskItem') && distanceY > 12) return
+    const score = distanceY * 1000 + distanceX * 2 - $drop.depth
+    if (!best || score < best.score) {
+      best = { pos: dropPos, anchor: pos, before, bounds, score }
     }
-    pos += node.nodeSize
+  })
+
+  // TypeScript cannot narrow assignments made inside the descendant callback.
+  const target = best as DropTarget | null
+  const editorBounds = editorDom.getBoundingClientRect()
+  let insideEditor = clientX >= editorBounds.left - 64 && clientX <= editorBounds.right + 16
+    && clientY >= editorBounds.top - 16 && clientY <= editorBounds.bottom + 16
+  if (tableFrom !== null) {
+    const tableDom = editor.view.nodeDOM(tableFrom)
+    if (tableDom instanceof HTMLElement) {
+      const tableBounds = getEditorBlockDragBounds(tableDom)
+      insideEditor = insideEditor && clientY >= tableBounds.top - 8 && clientY <= tableBounds.bottom + 8
+    }
+  }
+  if (!target || !insideEditor || (target.pos >= from && target.pos <= to)) {
+    clearPreview()
+    return
   }
 
-  return preview
+  const transaction = createEditorBlockDropTransaction(dragState, target.pos)
+  if (!transaction) {
+    clearPreview()
+    return
+  }
+  if (target.pos === dragState.indicatorPos) return
+
+  // Lay out a DOM snapshot in the actual destination structure. The live editor
+  // keeps all its nodes and its layout, so hit testing cannot chase the preview.
+  const snapshot = editorDom.cloneNode(true) as HTMLElement
+  const clones = new Map<Node, Node>()
+  const pairNodes = (original: Node, clone: Node) => {
+    clones.set(original, clone)
+    original.childNodes.forEach((child, index) => pairNodes(child, clone.childNodes[index]))
+  }
+  pairNodes(editorDom, snapshot)
+  snapshot.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'))
+  snapshot.contentEditable = 'false'
+  snapshot.inert = true
+  snapshot.setAttribute('aria-hidden', 'true')
+  const originalBounds = editorDom.getBoundingClientRect()
+  Object.assign(snapshot.style, {
+    position: 'fixed', left: `${originalBounds.left}px`, top: `${originalBounds.top}px`,
+    width: `${originalBounds.width}px`, height: 'auto', minHeight: '0',
+    margin: '0', opacity: '1', pointerEvents: 'none', boxSizing: 'border-box',
+  })
+  const anchorDom = editor.view.nodeDOM(target.anchor)
+  const anchor = anchorDom && clones.get(anchorDom)
+  if (!(anchor instanceof HTMLElement) || !anchor.parentNode) {
+    clearPreview()
+    return
+  }
+  const parent = anchor.parentNode
+  const reference = target.before ? anchor : anchor.nextSibling
+  const moved: HTMLElement[] = []
+  for (let pos = from; pos < to;) {
+    const node = startDoc.nodeAt(pos)
+    const dom = editor.view.nodeDOM(pos)
+    const clone = dom && clones.get(dom)
+    if (!node || !(clone instanceof HTMLElement)) {
+      clearPreview()
+      return
+    }
+    parent.insertBefore(clone, reference)
+    clone.style.opacity = '0.72'
+    moved.push(clone)
+    pos += node.nodeSize
+  }
+  // deleteRange may also remove an emptied list/blockquote. Mirror exactly the
+  // ancestors removed by that deletion, rather than leaving an empty container.
+  const deletion = editor.state.tr.deleteRange(from, to)
+  for (let depth = $source.depth; depth > 0; depth -= 1) {
+    const ancestorPos = $source.before(depth)
+    const mapped = deletion.mapping.mapResult(ancestorPos, 1)
+    if (!mapped.deletedAcross && deletion.doc.nodeAt(mapped.pos)?.type === $source.node(depth).type) continue
+    const dom = editor.view.nodeDOM(ancestorPos)
+    const clone = dom && clones.get(dom)
+    if (clone instanceof HTMLElement && !moved.some(element => clone.contains(element))) clone.remove()
+  }
+  const root = editorDom.closest('.tiptap-editor') ?? document.body
+  dragState.preview.replaceChildren(snapshot)
+  Object.assign(dragState.preview.style, {
+    visibility: 'visible', left: '0', top: '0', width: '0', opacity: '1', filter: 'none',
+  })
+  if (!dragState.preview.isConnected) root.appendChild(dragState.preview)
+  if (!dragState.indicator.isConnected) root.appendChild(dragState.indicator)
+  const movedBounds = moved[0].getBoundingClientRect()
+  Object.assign(dragState.indicator.style, {
+    visibility: 'visible', left: `${movedBounds.left}px`, top: `${movedBounds.top}px`, width: `${movedBounds.width}px`,
+  })
+  // Clip to the editor's scrolling viewport, including when a tall code block
+  // or a nested list is moved close to the visible window edge.
+  for (let element = editorDom.parentElement; element; element = element.parentElement) {
+    if (!/(auto|scroll)/.test(getComputedStyle(element).overflowY)) continue
+    const viewport = element.getBoundingClientRect()
+    dragState.preview.style.clipPath = `inset(${Math.max(0, viewport.top)}px ${Math.max(0, innerWidth - viewport.right)}px ${Math.max(0, innerHeight - viewport.bottom)}px ${Math.max(0, viewport.left)}px)`
+    dragState.preview.style.width = '100vw'
+    dragState.preview.style.height = '100vh'
+    break
+  }
+  editorDom.style.opacity = '0'
+  dragState.targetPos = target.pos
+  dragState.dropTransaction = transaction
+  dragState.indicatorPos = target.pos
 }
 
 function clearEditorNativeDropCursor(editor: CoreEditor) {
@@ -2506,13 +2677,6 @@ export function TipTapEditor({
     return editorShortcutHandlersRef.current[id]?.(targetEditor) ?? false
   }, [])
 
-  const renderEditorDragHandle = useCallback(() => {
-    const element = createDragHandleElement()
-    editorDragHandleElementRef.current = element
-    setEditorDragHandleElement(element)
-    return element
-  }, [])
-
   // When file path changes, reset initialization state to avoid old file content overwriting new file
   useEffect(() => {
     if (initializedForPathRef.current !== activeFilePath && activeFilePath) {
@@ -2588,60 +2752,6 @@ export function TipTapEditor({
       Typography,
       SearchAndReplace,
       Dropcursor,
-      EditorBlockDragPreview,
-      ...(!isMobile
-        ? [
-            DragHandle.configure({
-              render: renderEditorDragHandle,
-              onNodeChange: (options) => {
-                const { editor: targetEditor, node } = options
-                const pos = (options as typeof options & { pos?: number }).pos
-
-                editorDragHandleTargetRef.current = node && typeof pos === 'number' && pos >= 0
-                  ? { editor: targetEditor, from: pos, to: pos + node.nodeSize }
-                  : null
-              },
-              computePositionConfig: {
-                middleware: [
-                  {
-                    name: 'editorDragHandleOffset',
-                    fn: ({ x, y, elements }) => {
-                      const editorDom = elements.floating.parentElement
-                        ?.parentElement
-                        ?.querySelector<HTMLElement>('.ProseMirror')
-
-                      if (!editorDom) {
-                        return { x: x - 4, y }
-                      }
-
-                      const editorRect = editorDom.getBoundingClientRect()
-                      const editorPaddingLeft = Number.parseFloat(getComputedStyle(editorDom).paddingLeft) || 0
-                      const contentLeft = editorRect.left + editorPaddingLeft
-                      const referenceLeft = elements.reference.getBoundingClientRect().left
-                      const handleHeight = elements.floating.getBoundingClientRect().height
-                      const target = editorDragHandleTargetRef.current
-                      const targetDom = target && !target.editor.isDestroyed
-                        ? target.editor.view.nodeDOM(target.from)
-                        : null
-                      const referenceLineHeight = targetDom instanceof HTMLElement
-                        ? Number.parseFloat(getComputedStyle(targetDom).lineHeight)
-                        : handleHeight
-                      const lineOffset = Number.isFinite(referenceLineHeight)
-                        ? Math.max(0, (referenceLineHeight - handleHeight) / 2)
-                        : 0
-
-                      return {
-                        x: x + contentLeft - referenceLeft - 4,
-                        y: y + lineOffset,
-                      }
-                    },
-                  },
-                ],
-              },
-              nested: true,
-            }),
-          ]
-        : []),
       MarkdownTable.configure({
         resizable: true,
       }),
@@ -3687,54 +3797,100 @@ export function TipTapEditor({
   }, [editor, flushMarkdownChange, markdownParseError])
 
   useEffect(() => {
-    if (!editor || editor.isDestroyed || isSectionVirtualView) {
+    if (!editor || editor.isDestroyed || isSourceView || isSectionVirtualView || isMobile || readOnly) return
+    const element = createDragHandleElement()
+    Object.assign(element.style, { position: 'fixed', visibility: 'hidden' })
+    // The ProseMirror DOM can be detached while switching source/visual views.
+    // Mount controls on the React-owned container, not its temporary parent.
+    const root = editorContainerRef.current
+    root?.appendChild(element)
+    editorDragHandleElementRef.current = element
+    setEditorDragHandleElement(element)
+    return () => {
+      element.remove()
+      if (editorDragHandleElementRef.current === element) {
+        editorDragHandleElementRef.current = null
+        editorDragHandleTargetRef.current = null
+      }
+    }
+  }, [editor, isSourceView, isSectionVirtualView, isMobile, readOnly])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || isSourceView || isSectionVirtualView || isMobile || readOnly) {
       return
     }
 
-    const handleGutterMouseMove = (event: MouseEvent) => {
-      if (editor.isDestroyed) return
-      if (!event.isTrusted) {
-        return
-      }
-
+    let dragFrame: number | null = null
+    const hideControls = () => {
       const controls = editorDragHandleElementRef.current
-      if (!controls || editorBlockMenuOpenRef.current || editorBlockPointerDragStateRef.current) {
+      if (controls) {
+        controls.style.visibility = 'hidden'
+        controls.dataset.gutterHover = 'false'
+      }
+    }
+
+    const handleGutterMouseMove = (event: MouseEvent) => {
+      if (editor.isDestroyed || !event.isTrusted) return
+      if (!editor.isEditable) {
+        hideControls()
+        return
+      }
+      const controls = editorDragHandleElementRef.current
+      if (!controls || editorBlockMenuOpenRef.current || editorBlockPointerDragStateRef.current) return
+      if (event.target instanceof Node && controls.contains(event.target)) return
+
+      const editorBounds = editor.view.dom.getBoundingClientRect()
+      if (editorBounds.width <= 0 || editorBounds.height <= 0
+        || event.clientX < editorBounds.left - 64 || event.clientX > editorBounds.right
+        || event.clientY < editorBounds.top || event.clientY > editorBounds.bottom) {
+        hideControls()
         return
       }
 
-      const editorRect = editor.view.dom.getBoundingClientRect()
-      const editorStyle = getComputedStyle(editor.view.dom)
-      const editorPaddingLeft = Number.parseFloat(editorStyle.paddingLeft) || 0
-      const editorPaddingRight = Number.parseFloat(editorStyle.paddingRight) || 0
-      const contentLeft = editorRect.left + editorPaddingLeft
-      const contentRight = editorRect.right - editorPaddingRight
-      const blockProbeX = Math.min(contentLeft + 48, contentRight - 1)
-      const wasInGutter = controls.dataset.gutterHover === 'true'
-      const isInGutter = event.clientX >= contentLeft - 53
-        && event.clientX < contentLeft
-        && event.clientY >= editorRect.top
-        && event.clientY <= editorRect.bottom
-      const isInsideEditor = event.clientX >= editorRect.left
-        && event.clientX <= editorRect.right
-        && event.clientY >= editorRect.top
-        && event.clientY <= editorRect.bottom
-
-      controls.dataset.gutterHover = String(isInGutter)
-      if (isInGutter) {
-        editor.view.dom.dispatchEvent(new MouseEvent('mousemove', {
-          bubbles: true,
-          clientX: blockProbeX,
-          clientY: event.clientY,
-        }))
-      } else if (wasInGutter && !isInsideEditor) {
-        editor.commands.setMeta('hideDragHandle', true)
+      const current = resolveEditorBlockTarget(editorDragHandleTargetRef.current)
+      const currentDom = current ? editor.view.nodeDOM(current.from) : null
+      if (current && currentDom instanceof HTMLElement) {
+        const bounds = getEditorBlockHandleGeometry(editor, current.from, currentDom)
+        // Keep the target only inside its own row while crossing to its handle.
+        if (controls.style.visibility !== 'hidden'
+          && event.clientY >= bounds.top && event.clientY < bounds.bottom
+          && event.clientX >= bounds.left - 57 && event.clientX < bounds.left) return
       }
+
+      const target = getEditorBlockTargetAtPoint(editor, event.clientX, event.clientY)
+      const dom = target ? editor.view.nodeDOM(target.from) : null
+      if (!target || !(dom instanceof HTMLElement)) {
+        hideControls()
+        return
+      }
+      const bounds = getEditorBlockHandleGeometry(editor, target.from, dom)
+      editorDragHandleTargetRef.current = target
+      controls.dataset.gutterHover = 'true'
+      Object.assign(controls.style, {
+        position: 'fixed', left: `${bounds.left - 53}px`, top: `${bounds.handleTop}px`, visibility: 'visible',
+      })
     }
 
     const finishPointerDrag = (event: PointerEvent, shouldMove: boolean) => {
       const dragState = editorBlockPointerDragStateRef.current
       if (!dragState || dragState.pointerId !== event.pointerId) {
         return
+      }
+      // WebKit can coalesce pointer moves during a busy frame. A displaced
+      // release is still a drag even when no intermediate move was delivered.
+      if (shouldMove && Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) >= 4) {
+        dragState.moved = true
+      }
+      const hadPendingFrame = dragFrame !== null
+      if (dragFrame !== null) {
+        cancelAnimationFrame(dragFrame)
+        dragFrame = null
+      }
+      // Flush only a pending frame. Otherwise commit the last visible preview;
+      // a new hit test on release could select a different side of the boundary.
+      if (shouldMove && dragState.moved && !editor.isDestroyed && editor.state.doc === dragState.startDoc
+        && (hadPendingFrame || dragState.pointerX !== event.clientX || dragState.pointerY !== event.clientY || dragState.indicatorPos === null)) {
+        updateEditorBlockDragPreview(dragState, event.clientX, event.clientY)
       }
 
       editorBlockPointerDragStateRef.current = null
@@ -3744,13 +3900,14 @@ export function TipTapEditor({
         left: dragState.controlsLeft,
         top: dragState.controlsTop,
       })
-      if (!editor.isDestroyed) {
-        editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
-      }
 
       if (dragState.handle.hasPointerCapture(event.pointerId)) {
         dragState.handle.releasePointerCapture(event.pointerId)
       }
+      editor.view.dom.style.opacity = dragState.originalOpacity
+      dragState.preview.remove()
+      dragState.indicator.remove()
+      document.documentElement.classList.remove('editor-block-dragging')
 
       if (shouldMove && dragState.moved) {
         moveEditorBlock(dragState)
@@ -3758,20 +3915,15 @@ export function TipTapEditor({
 
       if (dragState.moved) {
         dragState.controls.dataset.gutterHover = 'false'
-        if (!editor.isDestroyed) {
-          editor.commands.setMeta('hideDragHandle', true)
-        }
+        hideControls()
         dragState.handle.dataset.editorBlockDragFinished = 'true'
-        window.setTimeout(() => {
-          delete dragState.handle.dataset.editorBlockDragFinished
-        }, 0)
         event.preventDefault()
         event.stopPropagation()
       }
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (editor.isDestroyed) return
+      if (editor.isDestroyed || !editor.isEditable) return
       if (event.button !== 0 || editorBlockMenuOpenRef.current) {
         return
       }
@@ -3793,22 +3945,43 @@ export function TipTapEditor({
         return
       }
 
+      delete handle.dataset.editorBlockDragFinished
       const dragTarget = getEditorBlockDragTarget(target)
       if (!dragTarget) {
         return
       }
+      const resolvedDragTarget = resolveEditorBlockTarget(target)
+      if (!resolvedDragTarget) {
+        return
+      }
+      // Pointerdown is prevented to preserve the selection while dragging, so
+      // explicitly focus the editor when starting from the gutter.
+      editor.view.focus()
       const controlsRect = controls.getBoundingClientRect()
+      const indicator = document.createElement('div')
+      indicator.className = 'tiptap-block-drop-indicator'
+      indicator.setAttribute('aria-hidden', 'true')
+      const $dragFrom = editor.state.doc.resolve(dragTarget.from)
+      const $dragTo = editor.state.doc.resolve(dragTarget.to)
+      const tableFrom = $dragFrom.parent.type.name === 'table' && $dragFrom.parent === $dragTo.parent
+        ? getEditorTablePositionForRow(editor, dragTarget.from)
+        : null
 
       editorBlockPointerDragStateRef.current = {
         ...dragTarget,
         startDoc: editor.state.doc,
         targetPos: null,
+        dropTransaction: null,
+        originalOpacity: editor.view.dom.style.opacity,
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
+        pointerX: event.clientX,
+        pointerY: event.clientY,
         moved: false,
         indicatorPos: null,
-        preview: createEditorBlockDragPreviewDom(editor, dragTarget.from, dragTarget.to),
+        preview: createEditorBlockDragPreviewDom(),
+        indicator,
         handle,
         controls,
         controlsOffsetY: event.clientY - controlsRect.top,
@@ -3816,6 +3989,7 @@ export function TipTapEditor({
         controlsPosition: controls.style.position,
         controlsLeft: controls.style.left,
         controlsTop: controls.style.top,
+        tableFrom,
       }
 
       controls.dataset.dragging = 'true'
@@ -3828,53 +4002,29 @@ export function TipTapEditor({
     const handlePointerMove = (event: PointerEvent) => {
       if (editor.isDestroyed) return
       const dragState = editorBlockPointerDragStateRef.current
-      if (!dragState || dragState.pointerId !== event.pointerId) {
+      if (!dragState || dragState.pointerId !== event.pointerId) return
+      if (editor.state.doc !== dragState.startDoc) {
+        finishPointerDrag(event, false)
         return
       }
-
+      dragState.pointerX = event.clientX
+      dragState.pointerY = event.clientY
       if (!dragState.moved && Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) >= 4) {
         dragState.moved = true
+        document.documentElement.classList.add('editor-block-dragging')
       }
-
       if (dragState.moved) {
-        Object.assign(dragState.controls.style, {
-          position: 'fixed',
-          left: `${dragState.controlsFixedLeft}px`,
-          top: `${event.clientY - dragState.controlsOffsetY}px`,
-        })
-        const editorRect = editor.view.dom.getBoundingClientRect()
-        const editorStyle = getComputedStyle(editor.view.dom)
-        const contentLeft = editorRect.left + (Number.parseFloat(editorStyle.paddingLeft) || 0)
-        const contentRight = editorRect.right - (Number.parseFloat(editorStyle.paddingRight) || 0)
-        const blockProbeX = Math.min(contentLeft + 48, contentRight - 1)
-        const targetPos = editor.view.posAtCoords({
-          left: Math.max(blockProbeX, Math.min(event.clientX, contentRight - 1)),
-          top: event.clientY,
-        })?.pos
-
-        if (targetPos !== undefined) {
-          dragState.targetPos = targetPos
-          const slice = dragState.startDoc.slice(dragState.from, dragState.to)
-          const indicatorPos = dropPoint(editor.state.doc, targetPos, slice) ?? targetPos
-
-          if (indicatorPos !== dragState.indicatorPos) {
-            dragState.indicatorPos = indicatorPos
-            const preview = indicatorPos >= dragState.from && indicatorPos <= dragState.to
-              ? null
-              : {
-                  from: dragState.from,
-                  to: dragState.to,
-                  pos: indicatorPos,
-                  dom: dragState.preview,
-                } satisfies EditorBlockDragPreview
-            editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, preview))
-          }
-        } else {
-          dragState.targetPos = null
-          dragState.indicatorPos = null
-          editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
+        if (dragFrame === null) {
+          dragFrame = requestAnimationFrame(() => {
+            dragFrame = null
+            if (editor.isDestroyed || editorBlockPointerDragStateRef.current !== dragState || editor.state.doc !== dragState.startDoc) return
+            Object.assign(dragState.controls.style, {
+              position: 'fixed', left: `${dragState.controlsFixedLeft}px`,
+              top: `${dragState.pointerY - dragState.controlsOffsetY}px`,
+            })
+            updateEditorBlockDragPreview(dragState, dragState.pointerX, dragState.pointerY)
+          })
         }
-
         event.preventDefault()
         event.stopPropagation()
       }
@@ -3882,12 +4032,40 @@ export function TipTapEditor({
 
     const handlePointerUp = (event: PointerEvent) => finishPointerDrag(event, true)
     const handlePointerCancel = (event: PointerEvent) => finishPointerDrag(event, false)
+    const cancelDrag = () => {
+      const state = editorBlockPointerDragStateRef.current
+      if (state?.editor === editor) finishPointerDrag(new PointerEvent('pointercancel', { pointerId: state.pointerId }), false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && editorBlockPointerDragStateRef.current?.editor === editor) {
+        event.preventDefault()
+        cancelDrag()
+      }
+    }
+    const handleScroll = () => {
+      const state = editorBlockPointerDragStateRef.current
+      if (state?.editor === editor && state.moved && !editor.isDestroyed && editor.state.doc === state.startDoc) {
+        state.indicatorPos = null
+        updateEditorBlockDragPreview(state, state.pointerX, state.pointerY)
+      } else if (!editorBlockMenuOpenRef.current) {
+        hideControls()
+      }
+    }
+    const handleDocumentUpdate = () => {
+      const state = editorBlockPointerDragStateRef.current
+      if (state?.editor === editor && editor.state.doc !== state.startDoc) cancelDrag()
+    }
 
     document.addEventListener('mousemove', handleGutterMouseMove, true)
     document.addEventListener('pointerdown', handlePointerDown, true)
     document.addEventListener('pointermove', handlePointerMove, true)
     document.addEventListener('pointerup', handlePointerUp, true)
     document.addEventListener('pointercancel', handlePointerCancel, true)
+    document.addEventListener('lostpointercapture', handlePointerCancel, true)
+    document.addEventListener('keydown', handleKeyDown, true)
+    document.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('blur', cancelDrag)
+    editor.on('update', handleDocumentUpdate)
 
     return () => {
       document.removeEventListener('mousemove', handleGutterMouseMove, true)
@@ -3895,6 +4073,12 @@ export function TipTapEditor({
       document.removeEventListener('pointermove', handlePointerMove, true)
       document.removeEventListener('pointerup', handlePointerUp, true)
       document.removeEventListener('pointercancel', handlePointerCancel, true)
+      document.removeEventListener('lostpointercapture', handlePointerCancel, true)
+      document.removeEventListener('keydown', handleKeyDown, true)
+      document.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('blur', cancelDrag)
+      editor.off('update', handleDocumentUpdate)
+      if (dragFrame !== null) cancelAnimationFrame(dragFrame)
 
       const dragState = editorBlockPointerDragStateRef.current
       if (dragState?.editor === editor) {
@@ -3905,14 +4089,17 @@ export function TipTapEditor({
           left: dragState.controlsLeft,
           top: dragState.controlsTop,
         })
-        editor.view.dispatch(editor.state.tr.setMeta(editorBlockDragPreviewPluginKey, null))
+        editor.view.dom.style.opacity = dragState.originalOpacity
+        dragState.preview.remove()
+        dragState.indicator.remove()
+        document.documentElement.classList.remove('editor-block-dragging')
         if (dragState.handle.hasPointerCapture(dragState.pointerId)) {
           dragState.handle.releasePointerCapture(dragState.pointerId)
         }
       }
       delete editorDragHandleElementRef.current?.dataset.gutterHover
     }
-  }, [editor, isSectionVirtualView])
+  }, [editor, isSourceView, isSectionVirtualView, isMobile, readOnly])
 
   const clearBlurSelectionHighlight = useCallback(() => {
     if (!editor || editor.isDestroyed) {
@@ -7977,14 +8164,6 @@ export function TipTapEditor({
                     editorBlockMenuTargetRef.current = target
                       ? { ...target, expectedDoc: target.editor.state.doc }
                       : null
-                  }
-
-                  if (!editor.isDestroyed) {
-                    if (open) {
-                      editor.commands.lockDragHandle()
-                    } else {
-                      editor.commands.unlockDragHandle()
-                    }
                   }
 
                   if (!open) {

@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RecordSaveTarget } from '@/app/core/main/mark/record-save-target'
 import { applyAppFontFamily } from '@/lib/font-settings'
 import { applyThemeColors } from '@/lib/theme-utils'
 import { hideQuickRecordWindow, requestQuickRecord, type QuickRecordContext, type QuickRecordRequest } from '@/lib/quick-record-window'
@@ -26,6 +27,7 @@ export default function QuickRecordPage() {
   const [autoRead, setAutoRead] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [creatingTag, setCreatingTag] = useState(false)
   const [uncertain, setUncertain] = useState(false)
   const [error, setError] = useState('')
   const textRef = useRef('')
@@ -73,7 +75,7 @@ export default function QuickRecordPage() {
       const next = response.context
       setContext(next)
       setAutoRead(next.autoReadClipboard)
-      if (!pendingRef.current) {
+      if (!pendingRef.current && (!textRef.current || !next.tags.some(tag => tag.id === tagRef.current))) {
         tagRef.current = next.selectedTagId
       }
       setTagId(tagRef.current)
@@ -137,7 +139,7 @@ export default function QuickRecordPage() {
   }, [prepare, t])
 
   const save = async () => {
-    if (savingRef.current || loading || !textRef.current.trim() || !tagRef.current) return
+    if (savingRef.current || loading || creatingTag || !textRef.current.trim() || !tagRef.current) return
     savingRef.current = true
     setSaving(true)
     setError('')
@@ -194,6 +196,30 @@ export default function QuickRecordPage() {
             <Textarea ref={inputRef} id="quick-record-text" className="h-full min-h-24 flex-1 resize-none [field-sizing:fixed]"
               value={text} disabled={saving || uncertain} onChange={event => changeText(event.target.value)} />
           </Field>
+          {context && <RecordSaveTarget
+            selectedTagId={tagId}
+            tags={context.tags}
+            disabled={loading || saving || uncertain}
+            onCreatingChange={setCreatingTag}
+            onTagChange={value => {
+              tagRef.current = value
+              setTagId(value)
+              persistDraft()
+            }}
+            onCreateTag={async name => {
+              const response = await requestQuickRecord({ id: crypto.randomUUID(), action: 'createTag', tagName: name })
+              const tag = response.createdTag
+              if (!tag) throw new Error('createTag')
+              tagRef.current = tag.id
+              setTagId(tag.id)
+              setContext(current => current ? {
+                ...current,
+                tags: [...current.tags.filter(item => item.id !== tag.id), tag],
+              } : current)
+              persistDraft()
+              return tag
+            }}
+          />}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
             <Field orientation="horizontal" className="w-auto">
               <Checkbox id="quick-record-clipboard" checked={autoRead} disabled={loading || saving || uncertain}
@@ -213,7 +239,7 @@ export default function QuickRecordPage() {
               <span className="text-xs text-muted-foreground">{t('record.mark.text.characterCount', { count: text.length })}</span>
               {!context && !loading
                 ? <Button type="button" onClick={() => void prepare()}>{t('quickRecordWindow.retry')}</Button>
-                : <Button type="submit" disabled={loading || saving || !text.trim() || !tagId}>
+                : <Button type="submit" disabled={loading || saving || creatingTag || !text.trim() || !tagId}>
                   {(loading || saving) && <Spinner data-icon="inline-start" />}
                   {uncertain ? t('quickRecordWindow.retry') : t('record.mark.text.save')}
                 </Button>}

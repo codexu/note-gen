@@ -44,10 +44,11 @@ export function ControlTodo() {
   const completeRecord = useRecordCompletion()
 
   const { currentTagId, tags, fetchTags, initTags } = useTagStore()
+  const [creatingTag, setCreatingTag] = useState(false)
   const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
 
   async function handleSuccess() {
-    if (!formData.title.trim()) {
+    if (creatingTag || !formData.title.trim()) {
       return
     }
 
@@ -98,6 +99,7 @@ export function ControlTodo() {
   // Sync selectedTagId with currentTagId when dialog opens
   useEffect(() => {
     if (!open) {
+      setCreatingTag(false)
       return
     }
 
@@ -139,6 +141,7 @@ export function ControlTodo() {
       titleInputRef={titleInputRef}
       selectedTagId={selectedTagId}
       onTagChange={setSelectedTagId}
+      onCreatingTagChange={setCreatingTag}
       tags={tags}
       showTagSelector={true}
       onSubmit={handleSuccess}
@@ -153,7 +156,7 @@ export function ControlTodo() {
           <DrawerTrigger asChild>
             <TooltipButton icon={<CheckSquare />} tooltipText={t('record.mark.type.todo')} />
           </DrawerTrigger>
-          <DrawerContent>
+          <DrawerContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}>
             <DrawerHeader>
               <DrawerTitle>{t('record.mark.todo.title')}</DrawerTitle>
               <DrawerDescription>
@@ -167,7 +170,7 @@ export function ControlTodo() {
               <Button
                 type="submit"
                 onClick={handleSuccess}
-                disabled={!formData.title.trim()}
+                disabled={creatingTag || !formData.title.trim()}
                 className="w-full"
               >
                 {t('record.mark.todo.save')}
@@ -180,7 +183,7 @@ export function ControlTodo() {
           <DialogTrigger asChild>
             <TooltipButton icon={<CheckSquare />} tooltipText={t('record.mark.type.todo')} />
           </DialogTrigger>
-          <DialogContent className="min-w-full md:min-w-[650px]">
+          <DialogContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }} className="min-w-full md:min-w-[650px]">
             <DialogHeader>
               <DialogTitle>{t('record.mark.todo.title')}</DialogTitle>
               <DialogDescription>
@@ -192,7 +195,7 @@ export function ControlTodo() {
               <Button
                 type="submit"
                 onClick={handleSuccess}
-                disabled={!formData.title.trim()}
+                disabled={creatingTag || !formData.title.trim()}
               >
                 {t('record.mark.todo.save')}
               </Button>

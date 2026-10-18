@@ -36,12 +36,12 @@ import { RecordSaveTarget } from './record-save-target'
 import { useRecordCompletion } from './use-record-completion'
 import useSettingStore from '@/stores/setting'
 import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
-import { MobileSelectDrawer } from '@/app/mobile/components/mobile-select-drawer'
 
 export function ControlText() {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('')
+  const [creatingTag, setCreatingTag] = useState(false)
   const [autoReadClipboard, setAutoReadClipboard] = useState(true)
   const isMobile = useIsMobile() || checkIsMobileDevice()
   const onboardingPrefillRef = useRef<string | null>(null)
@@ -118,6 +118,7 @@ export function ControlText() {
   }, [autoReadClipboard])
 
   async function handleSuccess() {
+    if (creatingTag) return
     const resetText = text.replace(/'/g, '').trim()
 
     if (!resetText) {
@@ -174,6 +175,7 @@ export function ControlText() {
 
   useEffect(() => {
     if (!open) {
+      setCreatingTag(false)
       return
     }
 
@@ -241,7 +243,7 @@ export function ControlText() {
           <DrawerTrigger asChild>
             <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
           </DrawerTrigger>
-          <DrawerContent>
+          <DrawerContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}>
             <DrawerHeader>
               <DrawerTitle>{t('record.mark.text.title')}</DrawerTitle>
               <DrawerDescription>
@@ -249,22 +251,13 @@ export function ControlText() {
               </DrawerDescription>
             </DrawerHeader>
             <div className="space-y-4 px-4">
-              {tags.length > 0 ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="record-save-target-mobile" className="text-xs font-medium text-muted-foreground">
-                    {t('record.capture.saveTarget')}
-                  </Label>
-                  <MobileSelectDrawer
-                    id="record-save-target-mobile"
-                    title={t('record.capture.saveTarget')}
-                    value={String(selectedTagId)}
-                    options={tags.map(tag => ({ value: String(tag.id), label: tag.name }))}
-                    onValueChange={(value) => setSelectedTagId(Number(value))}
-                    placeholder={t('record.capture.saveTargetPlaceholder')}
-                    className="h-9"
-                  />
-                </div>
-              ) : null}
+              <RecordSaveTarget
+                mobile
+                selectedTagId={selectedTagId}
+                tags={tags}
+                onTagChange={setSelectedTagId}
+                onCreatingChange={setCreatingTag}
+              />
               <Textarea
                 ref={textAreaRef}
                 id="username"
@@ -290,7 +283,7 @@ export function ControlText() {
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-sm text-zinc-500">{t('record.mark.text.characterCount', { count: text.length })}</p>
-                <Button type="submit" onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
+                <Button type="submit" disabled={creatingTag} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
               </div>
             </DrawerFooter>
           </DrawerContent>
@@ -300,7 +293,7 @@ export function ControlText() {
           <DialogTrigger asChild>
             <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
           </DialogTrigger>
-          <DialogContent className="min-w-full md:min-w-[650px]">
+          <DialogContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }} className="min-w-full md:min-w-[650px]">
             <DialogHeader>
               <DialogTitle>{t('record.mark.text.title')}</DialogTitle>
               <DialogDescription>
@@ -311,6 +304,7 @@ export function ControlText() {
               selectedTagId={selectedTagId}
               tags={tags}
               onTagChange={setSelectedTagId}
+              onCreatingChange={setCreatingTag}
             />
             <Textarea
               ref={textAreaRef}
@@ -337,7 +331,7 @@ export function ControlText() {
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-sm text-zinc-500">{t('record.mark.text.characterCount', { count: text.length })}</p>
-                <Button type="submit" onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
+                <Button type="submit" disabled={creatingTag} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
               </div>
             </DialogFooter>
           </DialogContent>

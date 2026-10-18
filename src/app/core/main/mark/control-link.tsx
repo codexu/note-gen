@@ -60,6 +60,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
 
   const { currentTagId, tags, fetchTags, initTags } = useTagStore()
   const { addQueue, setQueue, removeQueue } = useMarkStore()
+  const [creatingTag, setCreatingTag] = useState(false)
   const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
 
   // 初始化时从 store 读取设置
@@ -154,6 +155,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
 
   useEffect(() => {
     if (!open) {
+      setCreatingTag(false)
       return
     }
 
@@ -196,7 +198,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
   }
 
   async function handleSuccess() {
-    if (!url) return
+    if (!url || creatingTag) return
     let targetUrl = url.trim()
     if (!/^https?:\/\//i.test(targetUrl)) {
       targetUrl = `https://${targetUrl}`
@@ -296,7 +298,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
           <DrawerTrigger asChild>
             <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
           </DrawerTrigger>
-          <DrawerContent>
+          <DrawerContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}>
             <DrawerHeader>
               <DrawerTitle>{t('record.mark.link.title') || '链接记录'}</DrawerTitle>
               <DrawerDescription>
@@ -308,6 +310,8 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
                 selectedTagId={selectedTagId}
                 tags={tags}
                 onTagChange={setSelectedTagId}
+                disabled={loading}
+                onCreatingChange={setCreatingTag}
               />
               <div className="relative">
                 <Input
@@ -349,7 +353,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
                 <Button
                   type="submit"
                   onClick={handleSuccess}
-                  disabled={!url || loading}
+                  disabled={!url || loading || creatingTag}
                 >
                   {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
                 </Button>
@@ -382,7 +386,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
               <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
             </DialogTrigger>
           )}
-          <DialogContent className="min-w-full md:min-w-[500px]">
+          <DialogContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }} className="min-w-full md:min-w-[500px]">
             <DialogHeader>
               <DialogTitle>{t('record.mark.link.title') || '链接记录'}</DialogTitle>
               <DialogDescription>
@@ -393,6 +397,8 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
               selectedTagId={selectedTagId}
               tags={tags}
               onTagChange={setSelectedTagId}
+              disabled={loading}
+              onCreatingChange={setCreatingTag}
             />
             <div className="relative">
               <Input
@@ -433,7 +439,7 @@ export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: {
                 <Button
                   type="submit"
                   onClick={handleSuccess}
-                  disabled={!url || loading}
+                  disabled={!url || loading || creatingTag}
                 >
                   {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
                 </Button>

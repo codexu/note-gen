@@ -2,7 +2,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { RecordSaveTarget } from "./record-save-target"
 import { useTranslations } from "next-intl"
 import { ArrowDown, ArrowUp, Minus } from "lucide-react"
 
@@ -24,6 +24,7 @@ interface TodoFormProps {
   onTagChange?: (tagId: number) => void
   tags?: Array<{ id: number; name: string }>
   showTagSelector?: boolean
+  onCreatingTagChange?: (creating: boolean) => void
   onSubmit?: () => void
   onCancel?: () => void
 }
@@ -38,6 +39,7 @@ export function TodoForm({
   onTagChange,
   tags = [],
   showTagSelector = false,
+  onCreatingTagChange,
   onSubmit,
   onCancel,
 }: TodoFormProps) {
@@ -55,23 +57,12 @@ export function TodoForm({
   return (
     <div className="space-y-4">
       {showTagSelector && onTagChange && (
-        <div>
-          <Label htmlFor="todo-tag">{t('record.mark.todo.selectTag')}</Label>
-          <Select value={String(selectedTagId)} onValueChange={(value) => onTagChange(Number(value))}>
-            <SelectTrigger className="mt-1.5">
-              <SelectValue placeholder={t('record.mark.todo.selectTag')} />
-            </SelectTrigger>
-            <SelectContent>
-              {tags.map((tag) => (
-                <SelectItem key={tag.id} value={String(tag.id)}>
-                  <div className="flex items-center gap-2">
-                    <span className="truncate">{tag.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <RecordSaveTarget
+          selectedTagId={selectedTagId ?? 0}
+          tags={tags}
+          onTagChange={onTagChange}
+          onCreatingChange={onCreatingTagChange}
+        />
       )}
 
       <div>

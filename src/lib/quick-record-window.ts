@@ -2,6 +2,7 @@ import { emitTo } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { CustomThemeColors } from '@/types/theme'
+import type { Tag } from '@/db/tags'
 
 export const QUICK_RECORD_WINDOW = 'quick-record'
 
@@ -10,6 +11,7 @@ export async function hideQuickRecordWindow(): Promise<void> {
 }
 
 export interface QuickRecordContext {
+  tags: Tag[]
   selectedTagId: number
   autoReadClipboard: boolean
   uiScale: number
@@ -19,7 +21,8 @@ export interface QuickRecordContext {
 
 export interface QuickRecordRequest {
   id: string
-  action: 'prepare' | 'save'
+  action: 'prepare' | 'save' | 'createTag'
+  tagName?: string
   text?: string
   tagId?: number
 }
@@ -28,6 +31,7 @@ export interface QuickRecordResponse {
   id: string
   context?: QuickRecordContext
   saved?: boolean
+  createdTag?: Tag
   error?: 'invalid' | 'failed'
 }
 

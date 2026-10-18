@@ -9,7 +9,9 @@ import { insertExternalMark } from '@/db/marks'
 import useSettingStore from '@/stores/setting'
 import useTagStore from '@/stores/tag'
 import useMarkStore from '@/stores/mark'
-import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
+import useChatStore from '@/stores/chat'
+import { handleRecordComplete } from '@/lib/record-navigation'
+import { createRecordTag, getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
 import { EmitterRecordEvents } from '@/config/emitters'
 import { QUICK_RECORD_WINDOW, type QuickRecordRequest, type QuickRecordResponse } from '@/lib/quick-record-window'
 
@@ -59,8 +61,9 @@ export default async function initQuickRecordText() {
         const store = await Store.load('store.json')
         await respond({
           context: {
+            tags,
             selectedTagId: getRecordSaveTagIdFromTags({
-              mode: 'current',
+              mode: settings.recordSaveTargetMode,
               currentTagId: useTagStore.getState().currentTagId,
               lastTagId: settings.lastRecordTagId,
               fixedTagId: settings.fixedRecordTagId,
@@ -72,6 +75,15 @@ export default async function initQuickRecordText() {
             customThemeColors: settings.customThemeColors,
           },
         })
+        return
+      }
+
+      if (request.action === 'createTag') {
+        if (typeof request.tagName !== 'string' || !request.tagName.trim()) {
+          await respond({ error: 'invalid' })
+          return
+        }
+        await respond({ createdTag: await createRecordTag(request.tagName) })
         return
       }
 
@@ -93,8 +105,18 @@ export default async function initQuickRecordText() {
       // Post-save refresh failures must not turn a saved record into a retry.
       try {
         await settings.setLastRecordTagId(tagId)
-        await useTagStore.getState().fetchTags()
-        await useMarkStore.getState().fetchMarks()
+        const tagState = useTagStore.getState()
+        const markState = useMarkStore.getState()
+        await tagState.fetchTags()
+        await tagState.setCurrentTagId(tagId)
+        markState.setRecordTagId(tagId)
+        tagState.getCurrentTag()
+        handleRecordComplete()
+        await Promise.all([
+          markState.fetchMarks(),
+          markState.fetchAllMarks(),
+          useChatStore.getState().init(tagId),
+        ])
         emitter.emit(EmitterRecordEvents.refreshMarks)
       } catch (error) {
         console.error('Failed to refresh quick record state:', error)

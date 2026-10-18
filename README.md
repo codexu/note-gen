@@ -45,25 +45,12 @@ A local-first Markdown app that helps you collect scattered information and orga
 
 ## ❤️ Sponsor
 
-### NoteGen & Packy
-
-[![pasted-image-1789372565369.webp](https://files.seeusercontent.com/2026/09/14/Fe9c/pasted-image-1789372565369.webp)](https://www.packyapi.ai/register?aff=NqBq)
-
-Access leading AI models through PackyCode with one API endpoint and one API key. Enjoy fast, reliable access with automatic failover and dedicated high-speed routes for Codex and Claude Code.
-Get started with $1 in free credits, a discount on your first top-up, and savings of up to 80% on eligible routes. Pay in RMB with no currency conversion markups or extra top-up fees.
-
-[Sign up through the link and start building today.](https://www.packyapi.ai/register?aff=NqBq)
-
-### NoteGen × Infistar.cc Infinity Galaxy
-
-[![](https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png)](https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link)
-
-Thanks to Infistar.cc Infinity Galaxy for sponsoring NoteGen and supporting the project with model services!
-
-- ⚡ **Reliable, efficient model services:** Enterprise-grade high-concurrency channels and multi-node redundancy, with prices as low as 10% of official rates. Stable support for NoteGen AI conversations, note organization, writing continuation and polishing, translation and summarization, and long-running Agent tasks.
-- 🧠 **One API key for leading models:** Full support for models including ChatGPT, Claude, Gemini, Kimi, GLM, and DeepSeek. Compatible with the OpenAI API standard, with flexible configuration for your primary model, quick completion, writing, and knowledge base models.
-- 📚 **Knowledge base and multimodal capabilities:** Supports visual understanding, image OCR, embeddings, reranking, speech recognition, and speech synthesis for knowledge base retrieval and multimodal note organization.
-- 🎁 **Exclusive benefits for NoteGen users:** Register through the [exclusive referral link](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) and complete your first API call to receive a $10-equivalent testing credit or an exclusive first top-up offer!
+| Name | Description |
+| --- | --- |
+| [SiliconFlow](https://cloud.siliconflow.cn/i/O2ciJeZw) | Provides model service support for the project. |
+| [AIHubMix](https://aihubmix.com/?aff=6rfO) | Sponsors model services for the project. |
+| [PackyCode](https://www.packyapi.ai/register?aff=NqBq) | Unified API access to leading AI models, with dedicated Codex and Claude Code routes. |
+| [Infistar.cc](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) | OpenAI-compatible model services supporting NoteGen, with multimodal and knowledge base capabilities. |
 
 ## Capture without interrupting your thoughts
 
@@ -247,10 +234,6 @@ Thanks to everyone who has reported a problem, proposed an idea, improved a tran
 ## Acknowledgements
 
 NoteGen is tested with BrowserStack.
-
-[SiliconFlow](https://cloud.siliconflow.cn/i/O2ciJeZw) provides model service support for the project.
-
-[AIHubMix](https://aihubmix.com/?aff=6rfO) sponsors model services for the project.
 
 We also appreciate the service support provided by:
 

@@ -45,24 +45,12 @@
 
 ## ❤️ Sponsor
 
-### NoteGen & Packy
-
-[![pasted-image-1789372565369.webp](https://files.seeusercontent.com/2026/09/14/Fe9c/pasted-image-1789372565369.webp)](https://www.packyapi.ai/register?aff=NqBq)
-
-PackyCode 是一家稳定、高效的 API 中转服务商，一句话接入主流大模型。统一域名、统一密钥、智能容灾切换，97% 可用性。人民币1:1充值，无汇率无手续费坑，新用户首充立享折扣 + $1免费体验额度，多分组折扣低至 2 折起，提供专属Codex/Claude Code高速通道。 
-
-[点此链接注册，立即开始使用！](https://www.packyapi.ai/register?aff=NqBq)
-
-### NoteGen × Infistar.cc 无限星河｜全模型 API · 让记录、整理与创作更智能
-
-[![](https://files.seeusercontent.com/2026/08/24/ly7P/_20260824172501_66_473.png)](https://www.infistar.cc/register?aff=G55F2Z5Q&amp;ref_source=link)
-
-感谢 Infistar.cc 无限星河赞助并为 NoteGen 提供模型服务支持！
-
-- ⚡ **稳定高效的模型服务：** 提供企业级高并发通道与多节点冗余，价格低至官方渠道 1 折，稳定支持 NoteGen AI 对话、笔记整理、续写润色、翻译总结及 Agent 长任务。
-- 🧠 **一个 API Key 接入主流模型：** 全面支持 ChatGPT、Claude、Gemini、Kimi、GLM、DeepSeek 等模型，兼容 OpenAI 标准接口，可灵活配置主模型、快速补全、写作及知识库模型。
-- 📚 **覆盖知识库与多模态能力：** 支持视觉理解、图片 OCR、Embedding、Rerank、语音识别与语音合成，满足知识库检索和多模态笔记整理需求。
-- 🎁 **NoteGen 用户专属福利：** 通过[专属推广链接](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link)注册并完成首次调用，即可领取 10 美元等值测试额度 / 首充专属优惠！
+| 名称 | 介绍 |
+| --- | --- |
+| [硅基流动](https://cloud.siliconflow.cn/i/O2ciJeZw) | 为项目提供模型服务支持。 |
+| [AIHubMix](https://aihubmix.com/?aff=6rfO) | 为项目提供赞助模型服务支持。 |
+| [PackyCode](https://www.packyapi.ai/register?aff=NqBq) | 统一 API 接入主流大模型，提供 Codex、Claude Code 专属通道。 |
+| [无限星河](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) | 兼容 OpenAI 接口，支持多模态与知识库能力。 |
 
 ## 记录，不必打断当下的思路
 
@@ -250,10 +238,6 @@ NoteGen 是一个开源项目，欢迎参与代码、翻译、文档和产品体
 ## 致谢
 
 NoteGen 使用 BrowserStack 进行兼容性测试。
-
-[硅基流动](https://cloud.siliconflow.cn/i/O2ciJeZw)为项目提供模型服务支持。
-
-[AIHubMix](https://aihubmix.com/?aff=6rfO) 为项目提供赞助模型服务支持。
 
 同时感谢以下服务对 NoteGen 的支持：
 

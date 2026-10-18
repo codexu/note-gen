@@ -36,7 +36,7 @@
     "@headless-tree/react": "1.7.0",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@mozilla/readability": "^0.6.0",
-    "@notegen/plugin-api": "0.1.11",
+    "@notegen/plugin-api": "0.1.12",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@shadcn/react": "^0.2.1",
     "@streamdown/cjk": "^1.0.3",

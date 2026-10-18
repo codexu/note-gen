@@ -5447,6 +5447,11 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "tableToolbar": {
+      "row": "Row",
+      "column": "Column",
+      "alignment": "Alignment"
+    },
     "codeBlockPreview": {
       "findPlugin": "Search plugins",
       "findPluginFor": "Search for plugins supporting {language}",

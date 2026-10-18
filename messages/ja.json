@@ -5356,6 +5356,11 @@
     "description": "記録ツールを選択して、素早く記録を作成"
   },
   "editor": {
+    "tableToolbar": {
+      "row": "行",
+      "column": "列",
+      "alignment": "配置"
+    },
     "codeBlockPreview": {
       "findPlugin": "プラグインを検索",
       "findPluginFor": "{language} に対応するプラグインを検索",

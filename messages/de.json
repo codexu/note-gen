@@ -5305,6 +5305,11 @@
     "description": "Klicken, um ein Aufnahme-Tool auszuwählen und schnell Aufzeichnungen zu erstellen"
   },
   "editor": {
+    "tableToolbar": {
+      "row": "Zeile",
+      "column": "Spalte",
+      "alignment": "Ausrichtung"
+    },
     "codeBlockPreview": {
       "findPlugin": "Plugins suchen",
       "findPluginFor": "Plugins für {language} suchen",

@@ -5346,6 +5346,11 @@
     }
   },
   "editor": {
+    "tableToolbar": {
+      "row": "列",
+      "column": "欄",
+      "alignment": "對齊"
+    },
     "codeBlockPreview": {
       "findPlugin": "搜尋外掛",
       "findPluginFor": "搜尋支援 {language} 的外掛",

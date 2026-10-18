@@ -12,8 +12,9 @@ import { toast } from 'sonner'
 import { PluginIcon } from './plugin-icon'
 import { usePluginEditorCommands } from './use-plugin-editor-commands'
 import { issuePluginEditorTarget } from '@/lib/plugins/editor-targets'
+import { cn } from '@/lib/utils'
 
-export function PluginEditorToolbar({ editor, location, owner, target }: { editor: Editor; location: Extract<PluginMenuLocation, 'editor/selection' | 'editor/toolbar' | 'editor/node-actions' | 'editor/block-actions'>; owner?: string; target?: Pick<PluginMenuContext, 'nodeKind'> & { nodePosition?: number } }) {
+export function PluginEditorToolbar({ editor, location, owner, target, display = 'toolbar' }: { editor: Editor; location: Extract<PluginMenuLocation, 'editor/selection' | 'editor/toolbar' | 'editor/node-actions' | 'editor/block-actions'>; owner?: string; target?: Pick<PluginMenuContext, 'nodeKind'> & { nodePosition?: number }; display?: 'toolbar' | 'inline' }) {
   const instance = useId()
   const commands = usePluginEditorCommands(location, editor, target)
   const busy = useRef(false)
@@ -37,9 +38,9 @@ export function PluginEditorToolbar({ editor, location, owner, target }: { edito
     catch (error) { toast.error(error instanceof Error ? error.message : String(error)) }
     finally { busy.current = false; setPending(false) }
   }
-  return <div className="flex items-center gap-0.5" onMouseDown={event => event.preventDefault()}>
-    {commands.slice(0, 3).map(command => <Button key={command.id} type="button" variant="ghost" size="icon-sm" disabled={pending || command.disabled} title={command.title} aria-label={command.title} onClick={() => void run(command.id)}><PluginIcon name={command.icon} /></Button>)}
-    {commands.length > 3 ? <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label={t('moreActions')}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent data-plugin-menu-owner={owner ?? instance} onCloseAutoFocus={event => event.preventDefault()}><DropdownMenuGroup>
+  return <div className={cn('flex items-center gap-0.5', display === 'inline' && 'flex-wrap')} onMouseDown={event => event.preventDefault()}>
+    {commands.slice(0, display === 'inline' ? commands.length : 3).map(command => <Button key={command.id} type="button" variant="ghost" size="icon-sm" disabled={pending || command.disabled} title={command.title} aria-label={command.title} onClick={() => void run(command.id)}><PluginIcon name={command.icon} /></Button>)}
+    {display !== 'inline' && commands.length > 3 ? <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label={t('moreActions')}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent data-plugin-menu-owner={owner ?? instance} onCloseAutoFocus={event => event.preventDefault()}><DropdownMenuGroup>
       {commands.slice(3).map((command, index, items) => <Fragment key={command.id}>{index > 0 && command.group !== items[index - 1].group ? <DropdownMenuSeparator /> : null}<DropdownMenuItem disabled={pending || command.disabled} onSelect={() => void run(command.id)}><PluginIcon name={command.icon} />{command.title}</DropdownMenuItem></Fragment>)}
     </DropdownMenuGroup></DropdownMenuContent></DropdownMenu> : null}
   </div>

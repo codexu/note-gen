@@ -5336,6 +5336,11 @@
     }
   },
   "editor": {
+    "tableToolbar": {
+      "row": "Linha",
+      "column": "Coluna",
+      "alignment": "Alinhamento"
+    },
     "codeBlockPreview": {
       "findPlugin": "Buscar plugins",
       "findPluginFor": "Buscar plugins compatíveis com {language}",

@@ -24,7 +24,7 @@ import { TableHeader } from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Markdown } from '@tiptap/markdown'
 import { SearchAndReplace } from '@sereneinserenade/tiptap-search-and-replace'
-import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent } from '@tiptap/core'
+import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent, type MarkdownToken } from '@tiptap/core'
 import { Fragment, Slice, type Node as ProseMirrorNode, type NodeType } from '@tiptap/pm/model'
 import { AllSelection, EditorState, Plugin, PluginKey, TextSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 import { closeHistory, redoDepth, undoDepth } from '@tiptap/pm/history'
@@ -58,7 +58,7 @@ import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
-import { FloatingTableMenu } from './floating-table-menu'
+import { TableContextToolbar } from './table-context-toolbar'
 import { PluginEditorInlineViews } from '@/components/plugins/plugin-embedded-views'
 import { FooterBar } from './footer-bar/index'
 import { Outline } from './outline'
@@ -1294,9 +1294,86 @@ function promoteFirstTableRowInMarkdown(node: JSONContent): JSONContent {
 }
 
 const MarkdownTable = Table.extend({
-  renderMarkdown: (node, helpers) => (
-    renderTableToMarkdown(promoteFirstTableRowInMarkdown(node), helpers)
-  ),
+  parseMarkdown: (token, helpers) => {
+    const tableToken = token as {
+      header?: Array<{ tokens: MarkdownToken[] }>
+      rows?: Array<Array<{ tokens: MarkdownToken[] }>>
+      align?: Array<string | null>
+    }
+    const alignmentForColumn = (index: number) => {
+      const alignment = tableToken.align?.[index]
+      return alignment === 'left' || alignment === 'center' || alignment === 'right' ? alignment : null
+    }
+    const rows: JSONContent[] = []
+
+    if (tableToken.header) {
+      rows.push(helpers.createNode('tableRow', {}, tableToken.header.map((cell, index) => (
+        helpers.createNode('tableHeader', { align: alignmentForColumn(index) }, [
+          { type: 'paragraph', content: helpers.parseInline(cell.tokens) },
+        ])
+      ))))
+    }
+
+    tableToken.rows?.forEach(row => {
+      rows.push(helpers.createNode('tableRow', {}, row.map((cell, index) => (
+        helpers.createNode('tableCell', { align: alignmentForColumn(index) }, [
+          { type: 'paragraph', content: helpers.parseInline(cell.tokens) },
+        ])
+      ))))
+    })
+
+    return helpers.createNode('table', undefined, rows)
+  },
+  renderMarkdown: (node, helpers) => {
+    const promotedNode = promoteFirstTableRowInMarkdown(node)
+    const markdown = renderTableToMarkdown(promotedNode, helpers)
+    const columnCount = Math.max(0, ...(promotedNode.content ?? []).map(row => row.content?.length ?? 0))
+    if (columnCount === 0) return markdown
+
+    const alignments = Array.from({ length: columnCount }, (_, columnIndex) => {
+      for (const row of promotedNode.content ?? []) {
+        const alignment = row.content?.[columnIndex]?.attrs?.align
+        if (alignment === 'left' || alignment === 'center' || alignment === 'right') return alignment
+      }
+      return null
+    })
+    if (alignments.every(alignment => alignment === null)) return markdown
+
+    const lines = markdown.split('\n')
+    lines[2] = `| ${alignments.map(alignment => (
+      alignment === 'left' ? ':---' : alignment === 'center' ? ':---:' : alignment === 'right' ? '---:' : '---'
+    )).join(' | ')} |`
+    return lines.join('\n')
+  },
+})
+
+function addTableCellAlignment() {
+  return {
+    align: {
+      default: null,
+      parseHTML: (element: HTMLElement) => {
+        const value = element.getAttribute('data-align') ?? element.style.textAlign
+        return value === 'left' || value === 'center' || value === 'right' ? value : null
+      },
+      renderHTML: (attributes: { align?: string | null }) => (
+        attributes.align === 'left' || attributes.align === 'center' || attributes.align === 'right'
+          ? { 'data-align': attributes.align }
+          : {}
+      ),
+    },
+  }
+}
+
+const MarkdownTableCell = TableCell.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...addTableCellAlignment() }
+  },
+})
+
+const MarkdownTableHeader = TableHeader.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...addTableCellAlignment() }
+  },
 })
 
 function normalizePastedTableNode(
@@ -1857,9 +1934,42 @@ function parseStandaloneMarkdownTable(markdown: string): JSONContent | null {
   }
 }
 
+function getPlainTextTableClipboardContent(slice: Slice): string | null {
+  let isPlainText = true
+  slice.content.descendants(node => {
+    if (
+      node.marks.length > 0
+      || (node.type.name !== 'paragraph' && node.type.name !== 'text' && node.type.name !== 'hardBreak')
+    ) {
+      isPlainText = false
+    }
+    return isPlainText
+  })
+  if (!isPlainText) return null
+
+  // Paragraph serialization adds blank lines between rows. Preserve the literal
+  // line structure only when the complete plain-text selection forms a table.
+  const text = slice.content.textBetween(0, slice.content.size, '\n', '\n')
+  return parseStandaloneMarkdownTable(text) ? text : null
+}
+
+function containsMarkdownTable(text: string): boolean {
+  const lines = text.split(/\r?\n/)
+
+  return lines.some((line, index) => {
+    // A table needs a header followed by a delimiter row. A pipe in prose
+    // alone should not switch the paste to Markdown parsing.
+    if (index === 0 || !lines[index - 1].includes('|') || !line.includes('|')) return false
+
+    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|')
+    return cells.every(cell => MARKDOWN_TABLE_SEPARATOR_CELL_RE.test(cell.trim()))
+  })
+}
+
 // 简单的启发式函数：检查文本是否看起来像 Markdown
 function looksLikeMarkdown(text: string): boolean {
   return (
+    containsMarkdownTable(text) || // 表格，包括前后带正文的 Markdown
     /^#{1,6}\s/.test(text) || // 标题
     /\*\*[^*]+\*\*/.test(text) || // 粗体
     /\*[^*]+\*/.test(text) || // 斜体
@@ -2536,8 +2646,8 @@ export function TipTapEditor({
         resizable: true,
       }),
       TableRow,
-      TableHeader,
-      TableCell,
+      MarkdownTableHeader,
+      MarkdownTableCell,
       Markdown.configure({
         indentation: {
           style: 'space',
@@ -5154,12 +5264,20 @@ export function TipTapEditor({
     }
   }, [captureEditorOperation, beginBlockingActivity, editor, t, tImage])
 
-  // Handle copy event to output Markdown format
+  // Use the same Markdown clipboard content for copy and cut.
   useEffect(() => {
     // Check if editor is fully initialized
     if (!editor || editor.isDestroyed) return
 
-    const handleCopy = (event: ClipboardEvent) => {
+    const handleCopyOrCut = (event: ClipboardEvent) => {
+      if (editor.isDestroyed) return
+      const isCut = event.type === 'cut'
+      if (isCut) {
+        if (event.defaultPrevented || !editor.isEditable) return
+        // Embedded inputs and non-editable node views own their native selection.
+        const target = event.target
+        if (target instanceof Element && target.closest('input, textarea, [contenteditable="false"]')) return
+      }
       const { selection } = editor.state
       const { from, to } = selection
 
@@ -5176,7 +5294,8 @@ export function TipTapEditor({
       // Preserve Markdown for mixed selections, but expose inline code itself when copied alone.
       const slice = editor.state.doc.slice(from, to)
       const selectionJson = slice.content.toJSON()
-      const clipboardText = isInlineCodeOnlySelection(selection, slice)
+      const plainTextTable = getPlainTextTableClipboardContent(slice)
+      const clipboardText = plainTextTable ?? (isInlineCodeOnlySelection(selection, slice)
         ? slice.content.textBetween(0, slice.content.size, '\n')
         // A same-block slice already contains inline nodes. Wrapping them in a doc
         // makes the Markdown renderer join every text node as a separate block.
@@ -5185,20 +5304,28 @@ export function TipTapEditor({
           : editor.markdown.serialize({
               type: 'doc',
               content: selectionJson,
-            })
+            }))
 
       // Write Markdown to clipboard
       if (event.clipboardData) {
         event.clipboardData.setData('text/plain', clipboardText)
         event.preventDefault()
+        if (isCut) {
+          editor.view.dispatch(
+            editor.state.tr.deleteSelection().setMeta('uiEvent', 'cut').scrollIntoView()
+          )
+        }
       }
     }
 
     const dom = editor.view.dom
-    dom.addEventListener('copy', handleCopy as EventListener)
+    dom.addEventListener('copy', handleCopyOrCut as EventListener)
+    // Run before ProseMirror's default cut handler deletes the selected content.
+    dom.addEventListener('cut', handleCopyOrCut as EventListener, true)
 
     return () => {
-      dom.removeEventListener('copy', handleCopy as EventListener)
+      dom.removeEventListener('copy', handleCopyOrCut as EventListener)
+      dom.removeEventListener('cut', handleCopyOrCut as EventListener, true)
     }
   }, [editor])
 
@@ -7612,6 +7739,12 @@ export function TipTapEditor({
         />
       )}
 
+      {!isMobile && !isSectionScope && isActive && editable && effectiveViewMode === 'visual' && (
+        isSectionVirtualView
+          ? activeSectionEditor && <TableContextToolbar editor={activeSectionEditor} pluginsEnabled={exposeToPluginHost} />
+          : <TableContextToolbar editor={editor} pluginsEnabled={exposeToPluginHost} />
+      )}
+
       {/* Editor content - scrollable area */}
       <div className={cn('relative min-h-0', scrollable ? 'flex-1' : 'min-h-full')}>
         {isSectionVirtualView && !showFooterBar ? (
@@ -7872,7 +8005,6 @@ export function TipTapEditor({
                 onPendingChange={handleAiSuggestionPendingChange}
               />}
 
-              {!readOnly && !isMobile && <FloatingTableMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
               {!readOnly && !isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
 
               {!readOnly && !isMobile && (

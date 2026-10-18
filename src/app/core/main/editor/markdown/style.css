@@ -780,31 +780,38 @@
   text-align: left;
 }
 
-/* 表格调整大小手柄 */
-.tiptap-editor .ProseMirror .tableResizeHandle {
+/* 表格列宽拖拽边界 */
+.tiptap-editor .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+.tiptap-editor .ProseMirror .column-resize-handle {
   position: absolute;
-  right: -4px;
+  z-index: 2;
+  right: -3px;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 6px;
   cursor: col-resize;
   background-color: transparent;
+  pointer-events: none;
 }
 
-.tiptap-editor .ProseMirror .tableResizeHandle:hover {
-  background-color: hsl(var(--primary) / 0.5);
-}
-
-.tiptap-editor .ProseMirror .tableResizeHandle::before {
+.tiptap-editor .ProseMirror .column-resize-handle::after {
   content: '';
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px;
-  height: 20px;
-  background-color: hsl(var(--primary) / 0.3);
-  border-radius: 2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background-color: hsl(var(--primary) / 0.65);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.tiptap-editor .ProseMirror.resize-cursor .column-resize-handle::after {
+  opacity: 1;
 }
 
 /* 表格工具栏样式 */

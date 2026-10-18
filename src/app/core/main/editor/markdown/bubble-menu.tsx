@@ -479,6 +479,10 @@ export function BubbleMenu({
   }, [linkEditor, show, updatePosition])
 
   useLayoutEffect(() => {
+    if (!editor.isDestroyed) editor.view.dom.dispatchEvent(new Event('notegen-selection-menu-position'))
+  }, [editor, position, show])
+
+  useLayoutEffect(() => {
     if (!show || !isLinkEditorOpen) return
     linkUrlInputRef.current?.focus({ preventScroll: true })
   }, [isLinkEditorOpen, show])
@@ -571,6 +575,8 @@ export function BubbleMenu({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (event.target instanceof Element && !editor.isDestroyed
+        && event.target.closest('[data-editor-table-menu]')?.getAttribute('data-editor-table-menu') === editor.view.dom.dataset.tableMenuOwner) return
       if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
       if (event.target instanceof Element && event.target.closest('[data-plugin-selection-popover]')) return
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -580,7 +586,7 @@ export function BubbleMenu({
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [hideMenu, pluginMenuOwner])
+  }, [editor, hideMenu, pluginMenuOwner])
 
   // Update position on scroll
   useEffect(() => {

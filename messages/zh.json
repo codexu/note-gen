@@ -5447,6 +5447,11 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "tableToolbar": {
+      "row": "行",
+      "column": "列",
+      "alignment": "对齐"
+    },
     "codeBlockPreview": {
       "findPlugin": "搜索插件",
       "findPluginFor": "搜索支持 {language} 的插件",

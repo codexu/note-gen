@@ -1,4 +1,5 @@
 import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
+import { resolveConversationAssetPath } from '@/lib/conversation-assets'
 import { analyzeImagesWithVlm } from '@/lib/ai/description'
 import {
   getImageAnalysisCache,
@@ -91,33 +92,6 @@ function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw abortError()
 }
 
-// The only path chat image attachments are ever created with (see
-// createAttachmentFromBlob in chat-input.tsx) is a plain relative path under
-// this directory, resolved against BaseDirectory.AppData. `attachment.url` /
-// `message.image` can also arrive from a lower-trust source (synced
-// conversation data merged in from a configured remote), so anything that
-// isn't a relative path confined to this directory is rejected rather than
-// resolved against the filesystem - otherwise a crafted value such as an
-// absolute path or a file:// URL would read an arbitrary local file and feed
-// its bytes to whichever AI provider or OCR step consumes the attachment.
-const CHAT_IMAGE_ATTACHMENT_DIR = 'conversation-assets'
-
-function resolveLocalImagePath(imageUrl: string): string | null {
-  if (imageUrl.startsWith('data:image')) return null
-
-  const normalized = imageUrl.replace(/\\/g, '/')
-  const prefix = `${CHAT_IMAGE_ATTACHMENT_DIR}/`
-  if (!normalized.startsWith(prefix)) return null
-
-  const relativePart = normalized.slice(prefix.length)
-  const segments = relativePart.split('/')
-  if (segments.some(segment => segment === '' || segment === '.' || segment === '..')) {
-    return null
-  }
-
-  return normalized
-}
-
 function inferMimeType(name: string, fallback = 'image/png') {
   const extension = name.split('.').pop()?.toLowerCase()
   if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
@@ -133,7 +107,7 @@ async function readImageBlob(attachment: ChatImageAttachment) {
     return await fetch(attachment.url).then(response => response.blob())
   }
 
-  const filePath = resolveLocalImagePath(attachment.url)
+  const filePath = resolveConversationAssetPath(attachment.url)
   if (!filePath) throw new Error('IMAGE_PATH_UNAVAILABLE')
   const bytes = await readFile(filePath, { baseDir: BaseDirectory.AppData })
   return new Blob([new Uint8Array(bytes)], {

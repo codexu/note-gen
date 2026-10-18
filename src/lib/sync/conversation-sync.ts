@@ -21,6 +21,7 @@ import type { ConversationCompaction } from '@/db/conversation-compactions'
 import type { ConversationSyncTombstone } from '@/db/conversation-sync-state'
 import { v5 as uuidv5 } from 'uuid'
 import { recordSyncTiming } from './sync-timing'
+import { CONVERSATION_ASSETS_DIRECTORY, resolveConversationAssetPath } from '@/lib/conversation-assets'
 
 export const CONVERSATION_SYNC_DIRECTORY = '.data/conversations'
 export const CONVERSATION_SYNC_INDEX_PATH = `${CONVERSATION_SYNC_DIRECTORY}/index.json`
@@ -28,13 +29,12 @@ export const CONVERSATION_SYNC_ITEMS_DIRECTORY = `${CONVERSATION_SYNC_DIRECTORY}
 export const CONVERSATION_SYNC_ASSETS_DIRECTORY = '.data/assets/conversations'
 export const LEGACY_CHATS_SYNC_PATH = '.data/chats.json'
 
-const LOCAL_CONVERSATION_ASSETS_DIRECTORY = 'conversation-assets'
+const LOCAL_CONVERSATION_ASSETS_DIRECTORY = CONVERSATION_ASSETS_DIRECTORY
 const CONVERSATION_SYNC_INDEX_FORMAT = 'notegen-conversations-index'
 const CONVERSATION_SYNC_ITEM_FORMAT = 'notegen-conversation'
 const CONVERSATION_SYNC_VERSION = 1
 const HTTP_URL_PATTERN = /^https?:\/\//i
 const DATA_URL_PATTERN = /^data:/i
-const LOCAL_URL_PATTERN = /^(?:asset:|tauri:|file:)/i
 const CONVERSATION_SYNC_VERSIONS_KEY = 'conversationSyncVersions'
 const LEGACY_REMOTE_CONVERSATION_NAMESPACE = 'a3d53934-b448-4617-8971-922cf0a73aad'
 
@@ -658,18 +658,6 @@ function getExtension(source: string, mimeType?: string) {
   return extension && /^[a-z0-9]+$/.test(extension) ? extension : 'bin'
 }
 
-function localPathFromUrl(source: string) {
-  if (!LOCAL_URL_PATTERN.test(source)) return source
-  try {
-    const url = new URL(source)
-    const decodedPath = decodeURIComponent(url.pathname)
-    if (/^\/[a-z]:[\\/]/i.test(decodedPath)) return decodedPath.slice(1)
-    return decodedPath.startsWith('/') ? decodedPath : `/${decodedPath}`
-  } catch {
-    return ''
-  }
-}
-
 async function readImageSource(source: string): Promise<{ bytes: Uint8Array; mimeType?: string } | null> {
   if (!source || HTTP_URL_PATTERN.test(source) || source.startsWith('blob:')) return null
   if (DATA_URL_PATTERN.test(source)) {
@@ -682,12 +670,10 @@ async function readImageSource(source: string): Promise<{ bytes: Uint8Array; mim
     return { bytes, mimeType: match[1] }
   }
 
-  const path = localPathFromUrl(source)
+  const path = resolveConversationAssetPath(source)
   if (!path) return null
   try {
-    const bytes = path.startsWith('/') || /^[a-z]:[\\/]/i.test(path)
-      ? await readFile(path)
-      : await readFile(path, { baseDir: BaseDirectory.AppData })
+    const bytes = await readFile(path, { baseDir: BaseDirectory.AppData })
     return { bytes }
   } catch {
     return null
@@ -695,6 +681,7 @@ async function readImageSource(source: string): Promise<{ bytes: Uint8Array; mim
 }
 
 async function ensureLocalConversationAsset(path: string, bytes: Uint8Array) {
+  if (!resolveConversationAssetPath(path)) throw new Error('Invalid conversation asset path')
   if (!await exists(LOCAL_CONVERSATION_ASSETS_DIRECTORY, { baseDir: BaseDirectory.AppData })) {
     await mkdir(LOCAL_CONVERSATION_ASSETS_DIRECTORY, {
       baseDir: BaseDirectory.AppData,
@@ -708,10 +695,11 @@ async function ensureLocalConversationAsset(path: string, bytes: Uint8Array) {
 
 async function normalizeAndUploadImageReference(source: string) {
   if (!source || HTTP_URL_PATTERN.test(source)) return source
-  if (source.startsWith(`${LOCAL_CONVERSATION_ASSETS_DIRECTORY}/`)) {
+  const localAssetPath = resolveConversationAssetPath(source)
+  if (localAssetPath) {
     const remotePath = `${CONVERSATION_SYNC_ASSETS_DIRECTORY}/${source.split('/').pop() || ''}`
     if (!await remoteFileExists(remotePath, 'data')) {
-      const bytes = await readFile(source, { baseDir: BaseDirectory.AppData })
+      const bytes = await readFile(localAssetPath, { baseDir: BaseDirectory.AppData })
       await uploadRemoteBytes(
         remotePath,
         bytes,
@@ -802,7 +790,7 @@ function getMessageImageReferences(message: ConversationSyncMessage) {
     if (typeof analysis.sourceUrl === 'string') references.add(analysis.sourceUrl)
   }
   return Array.from(references).filter(reference => (
-    reference.startsWith(`${LOCAL_CONVERSATION_ASSETS_DIRECTORY}/`)
+    resolveConversationAssetPath(reference) !== null
   ))
 }
 

@@ -257,6 +257,11 @@ function MermaidDiagramView({ node, updateAttributes }: ReactNodeViewProps) {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               onKeyDown={handleKeyDown}
+              onCopyCapture={(event) => {
+                // Keep the textarea's native selection. The outer editor's copy
+                // handlers serialize its own selection, which can be a different block.
+                event.stopPropagation()
+              }}
               rows={8}
               maxRows={20}
               className="min-h-48 rounded-none border-0 font-mono shadow-none focus-visible:ring-0"

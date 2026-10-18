@@ -69,6 +69,7 @@ interface Events {
   'toolbar-shortcut-recording': unknown;
   'mobile-dock-swipe': 'previous' | 'next';
   'toolbar-shortcut-scan': unknown;
+  'desktop-screenshot-trigger': unknown;
   'toolbar-shortcut-text': unknown;
   'toolbar-shortcut-link': unknown;
   'latest-commit-info': {

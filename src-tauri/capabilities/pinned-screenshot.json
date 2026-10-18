@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pinned-screenshot-capability",
+  "description": "Independent pinned screenshot windows can move, resize, copy their image and save to a user-selected file",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["screenshot-pin-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-inner-size",
+    "core:window:allow-current-monitor",
+    "core:window:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:image:allow-from-bytes",
+    "core:resources:allow-close",
+    "clipboard-manager:allow-write-image",
+    "dialog:allow-save",
+    "fs:allow-write-file",
+    "store:default",
+    "store:allow-get"
+  ]
+}

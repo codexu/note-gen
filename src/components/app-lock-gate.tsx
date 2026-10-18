@@ -26,8 +26,10 @@ export function AppLockGate({ children }: { children: ReactNode }) {
   async function initialize() {
     setState('loading')
     try {
-      // Print windows are created by an already-unlocked editor and run hidden.
-      if (!isTauri() || getCurrentWindow().label.startsWith('pdf-print-')) {
+      // Hidden auxiliary windows must initialize without waiting for an unlock UI.
+      // Screenshot overlays only edit freshly captured desktop pixels; saving
+      // records still waits for the main window's app lock to be unlocked.
+      if (!isTauri() || ['pdf-print-', 'desktop-screenshot-', 'screenshot-pin-'].some(prefix => getCurrentWindow().label.startsWith(prefix))) {
         setState('open')
         return
       }

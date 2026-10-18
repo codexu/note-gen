@@ -1,4 +1,6 @@
 use tauri::Emitter;
+use tauri_plugin_store::StoreExt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     image::Image,
     menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -25,6 +27,7 @@ pub const ID_QUIT: &str = "quit";
 const DEFAULT_RECORD_TOOL_ORDER: &[&str] =
     &["text", "recording", "scan", "image", "link", "file", "todo"];
 const QUICK_RECORD_VISIBLE_LIMIT: usize = 4;
+static SCREENSHOT_SHORTCUT_RECORDING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, serde::Deserialize)]
 pub struct RecordToolbarItem {
@@ -50,26 +53,20 @@ pub struct TrayMenuLabels {
     quit: String,
 }
 
-pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayIcon<R>> {
-    let menu = build_tray_menu(app, None, None)?;
+pub fn create_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
+    let screenshot_shortcut = saved_screenshot_shortcut(app);
+    let menu = build_tray_menu(app, None, None, screenshot_shortcut.as_deref())?;
     let icon = Image::from_bytes(include_bytes!("../icons/icon.png"))?;
 
     let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .menu(&menu)
         .tooltip("NoteGen")
+        // Opening the tray menu must leave the current application in front.
+        // The explicit menu item remains the way to reveal the main window.
+        .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| {
             handle_menu_event(app, event.id.0.as_str());
-        })
-        .on_tray_icon_event(move |tray, event| {
-            if let tauri::tray::TrayIconEvent::Click {
-                button: tauri::tray::MouseButton::Left,
-                ..
-            } = event
-            {
-                let app_handle = tray.app_handle();
-                focus_main_window(&app_handle);
-            }
         })
         .build(app)?;
 
@@ -81,12 +78,24 @@ pub fn update_tray_record_toolbar_config(
     app: AppHandle,
     config: Vec<RecordToolbarItem>,
     labels: TrayMenuLabels,
+    screenshot_shortcut: Option<String>,
+    shortcut_recording: Option<bool>,
 ) -> Result<(), String> {
+    let shortcut_recording = shortcut_recording.unwrap_or(false);
+    SCREENSHOT_SHORTCUT_RECORDING.store(shortcut_recording, Ordering::Release);
     let tray = app
         .tray_by_id(TRAY_ID)
         .ok_or_else(|| "Tray icon not found".to_string())?;
-    let menu =
-        build_tray_menu(&app, Some(&labels), Some(&config)).map_err(|error| error.to_string())?;
+    let screenshot_shortcut = screenshot_shortcut.or_else(|| saved_screenshot_shortcut(&app));
+    let menu = build_tray_menu(
+        &app,
+        Some(&labels),
+        Some(&config),
+        screenshot_shortcut
+            .as_deref()
+            .filter(|value| !value.is_empty() && !shortcut_recording),
+    )
+    .map_err(|error| error.to_string())?;
 
     tray.set_menu(Some(menu)).map_err(|error| error.to_string())
 }
@@ -95,6 +104,7 @@ fn build_tray_menu<R: Runtime>(
     app: &AppHandle<R>,
     labels: Option<&TrayMenuLabels>,
     record_toolbar_config: Option<&[RecordToolbarItem]>,
+    screenshot_shortcut: Option<&str>,
 ) -> tauri::Result<Menu<R>> {
     let default_labels = default_tray_menu_labels();
     let labels = labels.unwrap_or(&default_labels);
@@ -106,7 +116,7 @@ fn build_tray_menu<R: Runtime>(
         false,
         None::<&str>,
     )?;
-    let quick_record_items = build_quick_record_items(app, record_toolbar_config)?;
+    let quick_record_items = build_quick_record_items(app, record_toolbar_config, screenshot_shortcut)?;
     let (primary_record_items, more_record_items) =
         quick_record_items.split_at(quick_record_items.len().min(QUICK_RECORD_VISIBLE_LIMIT));
     let more_record_submenu = if more_record_items.is_empty() {
@@ -171,6 +181,21 @@ fn build_tray_menu<R: Runtime>(
     Menu::with_items(app, &menu_items)
 }
 
+fn saved_screenshot_shortcut<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
+    app.store("store.json")
+        .ok()
+        .and_then(|store| store.get("shortcuts"))
+        .and_then(|shortcuts| {
+            shortcuts.as_array()?.iter().find_map(|shortcut| {
+                (shortcut.get("key")?.as_str()? == "screenshotRecord")
+                    .then(|| shortcut.get("value")?.as_str().map(str::to_string))
+                    .flatten()
+            })
+        })
+        .or_else(|| Some("CommandOrControl+Shift+S".to_string()))
+        .filter(|value| !value.is_empty())
+}
+
 fn default_tray_menu_labels() -> TrayMenuLabels {
     TrayMenuLabels {
         quick_record: "Quick Record".to_string(),
@@ -190,6 +215,7 @@ fn default_tray_menu_labels() -> TrayMenuLabels {
 fn build_quick_record_items<R: Runtime>(
     app: &AppHandle<R>,
     record_toolbar_config: Option<&[RecordToolbarItem]>,
+    screenshot_shortcut: Option<&str>,
 ) -> tauri::Result<Vec<MenuItem<R>>> {
     let mut items = Vec::new();
 
@@ -200,7 +226,7 @@ fn build_quick_record_items<R: Runtime>(
                 menu_id,
                 item.label.as_str(),
                 true,
-                None::<&str>,
+                if menu_id == ID_RECORD_SCREENSHOT { screenshot_shortcut } else { None },
             )?);
         }
     }
@@ -216,7 +242,7 @@ struct RecordToolMenuItem {
 fn ordered_record_tools(
     record_toolbar_config: Option<&[RecordToolbarItem]>,
 ) -> Vec<RecordToolMenuItem> {
-    match record_toolbar_config {
+    let mut tools: Vec<RecordToolMenuItem> = match record_toolbar_config {
         Some(config) => {
             let mut enabled_items = config
                 .iter()
@@ -248,7 +274,18 @@ fn ordered_record_tools(
                 label: default_record_tool_label(id).to_string(),
             })
             .collect(),
-    }
+    };
+
+    // Desktop capture stays directly reachable even when its toolbar button is disabled.
+    let screenshot_label = record_toolbar_config
+        .and_then(|config| config.iter().find(|item| item.id == "scan"))
+        .map(|item| item.label.clone())
+        .unwrap_or_else(|| default_record_tool_label("scan").to_string());
+    tools.retain(|item| item.id != "scan");
+    tools.insert(0, RecordToolMenuItem { id: "scan".to_string(), label: screenshot_label });
+    let mut seen = std::collections::HashSet::new();
+    tools.retain(|item| seen.insert(item.id.clone()));
+    tools
 }
 
 fn record_tool_menu_id(id: &str) -> Option<&'static str> {
@@ -277,12 +314,28 @@ fn default_record_tool_label(id: &str) -> &'static str {
     }
 }
 
-fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
+fn handle_menu_event(app: &AppHandle, id: &str) {
     match id {
         ID_SHOW_MAIN => focus_main_window(app),
         ID_SETTINGS => {
             focus_main_window(app);
             emit_to_main(app, "open-settings", "");
+        }
+        ID_RECORD_SCREENSHOT => {
+            if SCREENSHOT_SHORTCUT_RECORDING.load(Ordering::Acquire) {
+                return;
+            }
+            let screenshot_app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                // Let the native context menu close before freezing the desktop.
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                if SCREENSHOT_SHORTCUT_RECORDING.load(Ordering::Acquire) {
+                    return;
+                }
+                if let Err(error) = crate::screenshot::start_desktop_screenshot(screenshot_app.clone()).await {
+                    emit_to_main(&screenshot_app, "desktop-screenshot-error", error);
+                }
+            });
         }
         ID_HIDE_WINDOW => {
             if let Some(webview) = app.get_webview_window("main") {

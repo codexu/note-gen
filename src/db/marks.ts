@@ -178,10 +178,6 @@ export async function initMarksDb() {
   if (!isRecordingDirExist) {
     await mkdir('recordings', { baseDir: BaseDirectory.AppData })
   }
-  const isTempScreenshotDirExist = await exists('temp_screenshot', { baseDir: BaseDirectory.AppData })
-  if (isTempScreenshotDirExist) {
-    await remove('temp_screenshot', { baseDir: BaseDirectory.AppData, recursive: true })
-  }
 }
 
 export async function getMarks(id: number) {

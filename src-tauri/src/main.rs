@@ -29,6 +29,7 @@ mod plugins;
 mod plugin_terminal;
 mod remote_skills;
 mod screenshot;
+mod screenshot_cleanup;
 mod self_hosted_crypto;
 mod self_hosted_files;
 mod self_hosted_security;
@@ -85,7 +86,7 @@ use remote_skills::{
     cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
     RemoteSkillManager,
 };
-use screenshot::{cleanup_temp_screenshot_dir, screenshot};
+use screenshot::cleanup_temp_screenshot_dir;
 use skill_runtime::{
     cancel_skill_script, inspect_skill_python, install_skill_python_dependencies, run_skill_script,
     SkillProcessManager,
@@ -150,7 +151,9 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         // UI 相关插件
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::new()
+            .with_filter(|label| !label.starts_with("desktop-screenshot-") && !label.starts_with("screenshot-pin-"))
+            .build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard::init())
@@ -182,7 +185,23 @@ fn main() {
             open_developer_tools,
             close_developer_tools,
             is_developer_tools_open,
-            screenshot,
+            screenshot::screenshot,
+            screenshot::cleanup_screenshot_cache,
+            screenshot::begin_desktop_screenshot,
+            screenshot::get_desktop_screenshot,
+            screenshot::ready_desktop_screenshot,
+            screenshot::set_desktop_screenshot_dialog_mode,
+            screenshot::complete_desktop_screenshot,
+            screenshot::cancel_desktop_screenshot,
+            screenshot::fail_desktop_screenshot,
+            screenshot::drain_desktop_screenshot_results,
+            screenshot::remove_desktop_screenshot_result,
+            screenshot::pin_screenshot,
+            screenshot::get_pinned_screenshot,
+            screenshot::read_pinned_screenshot,
+            screenshot::save_pinned_screenshot,
+            screenshot::fail_pinned_screenshot_record,
+            screenshot::ready_pinned_screenshot,
             fuzzy_search,
             fuzzy_search_parallel,
             export_app_data,
@@ -313,7 +332,12 @@ fn main() {
             self_hosted_files::self_hosted_recover_file_journal,
         ])
         // 应用设置 - 在所有插件和命令注册后
-        .setup(app_setup::setup_app)
+        .setup(|app| {
+            screenshot::cleanup_temp_screenshot_dir(app.handle());
+            screenshot::cleanup_desktop_screenshot_captures(app.handle());
+            screenshot::cleanup_pinned_screenshot_cache(app.handle());
+            app_setup::setup_app(app)
+        })
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| match event {
@@ -330,6 +354,9 @@ fn main() {
             }
             tauri::RunEvent::Exit => {
                 cleanup_temp_screenshot_dir(&app_handle);
+                screenshot::cleanup_desktop_screenshot_captures(&app_handle);
+                screenshot::cleanup_pinned_screenshot_cache(&app_handle);
+                screenshot_cleanup::flush_on_exit(&app_handle);
             }
             _ => {}
         });

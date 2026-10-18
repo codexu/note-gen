@@ -47,6 +47,7 @@ import { LocalMcpBridge } from "@/components/local-mcp-bridge"
 import { PluginCommandPalette } from "@/components/plugins/plugin-command-palette"
 import { PluginHostBridge } from "@/components/plugins/plugin-host-bridge"
 import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host"
+import { DesktopScreenshotBridge } from "@/components/desktop-screenshot-bridge"
 
 export default function RootLayout({
   children,
@@ -56,7 +57,8 @@ export default function RootLayout({
   const { initSettingData, uiScale, customThemeColors, recordToolbarConfig, appFontFamily } = useSettingStore()
   const { initMainHosting } = useImageStore()
   const { currentLocale } = useI18n()
-  const { initShortcut } = useShortcutStore()
+  const { initShortcut, activeShortcuts, initialized: shortcutsInitialized, recordingShortcut } = useShortcutStore()
+  const screenshotShortcut = activeShortcuts.find((shortcut) => shortcut.key === 'screenshotRecord')?.value ?? ''
   const { initEditorShortcuts } = useEditorShortcutStore()
   const { initVectorDb } = useVectorStore()
   const { initUpdateStore, checkForUpdates } = useUpdateStore()
@@ -160,6 +162,8 @@ export default function RootLayout({
     }
 
     void invoke('update_tray_record_toolbar_config', {
+      screenshotShortcut: shortcutsInitialized ? screenshotShortcut : undefined,
+      shortcutRecording: Boolean(recordingShortcut),
       config: recordToolbarConfig.map((item) => ({
         ...item,
         label: recordToolLabels[item.id] || item.id,
@@ -180,7 +184,7 @@ export default function RootLayout({
     }).catch((error) => {
       console.debug('Failed to sync tray record toolbar config:', error)
     })
-  }, [recordToolbarConfig, t])
+  }, [recordToolbarConfig, screenshotShortcut, shortcutsInitialized, recordingShortcut, t])
 
   useEffect(() => {
     let cancelled = false
@@ -243,8 +247,7 @@ export default function RootLayout({
           break
         case 'record-screenshot':
         case 'screenshot':
-          await showSidebarTab('notes')
-          emitter.emit('toolbar-shortcut-scan')
+          emitter.emit('desktop-screenshot-trigger')
           break
         case 'record-text':
         case 'text':
@@ -366,7 +369,7 @@ export default function RootLayout({
         if (cancelled) return
         stopManagedBackup = initManagedBackupRuntime()
 
-        initShortcut()
+        void initShortcut().catch((error) => console.error('Failed to initialize global shortcuts:', error))
         initEditorShortcuts()
         await initVectorDb()
         if (cancelled) return
@@ -499,6 +502,7 @@ export default function RootLayout({
         <SyncConfirmDialog />
         <MemoryAutoNotifications />
         <WebClipperBridge />
+        <DesktopScreenshotBridge ready={pluginsReady} />
         <LocalMcpBridge />
         <PluginHostBridge ready={pluginsReady} locale={currentLocale} />
         <PluginCommandPalette />

@@ -14,7 +14,7 @@ import { CustomCssController } from "@/components/custom-css-controller";
 
 function AppRuntime({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (['/editor-window', '/quick-record', '/print'].some(path => window.location.pathname.startsWith(path))) return
+    if (['/editor-window', '/quick-record', '/print', '/screenshot'].some(path => window.location.pathname.startsWith(path))) return
     getSyncPushQueue()
   }, [])
   return <>{children}</>

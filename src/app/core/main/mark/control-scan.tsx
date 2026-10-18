@@ -3,13 +3,14 @@
 import { TooltipButton } from "@/components/tooltip-button"
 import { useTranslations } from 'next-intl'
 import { invoke } from "@tauri-apps/api/core"
-import { AlertCircle, Check, LoaderCircle, RefreshCw, ScanText, X } from "lucide-react"
+import { AlertCircle, Check, LoaderCircle, Pin, RefreshCw, ScanText, X } from "lucide-react"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useEffect, useState, useCallback, useMemo } from "react"
 import {
   Carousel,
@@ -21,7 +22,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { useRef } from "react";
 import { ScreenshotImage } from "note-gen/screenshot"
-import { BaseDirectory, exists, mkdir, remove, writeFile } from "@tauri-apps/plugin-fs"
+import { BaseDirectory, exists, mkdir, writeFile } from "@tauri-apps/plugin-fs"
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
 import './crop.css'
@@ -41,6 +42,29 @@ import { uploadImage } from "@/lib/imageHosting"
 import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
 
 const SCREENSHOT_DIR = 'screenshot'
+const pendingPreviewCleanups = new Map<string, Promise<void>>()
+
+function cleanupPreviewGeneration(generationId: string) {
+  if (pendingPreviewCleanups.has(generationId)) return
+  const cleanup = (async () => {
+    let attempts = 0
+    while (true) {
+      try {
+        await invoke('cleanup_screenshot_cache', { generationIds: [generationId] })
+        return
+      } catch (error) {
+        const delay = [1000, 2000, 5000, 30000, 300000][Math.min(attempts, 4)]
+        attempts += 1
+        console.error('Screenshot preview cleanup dispatch failed; retry scheduled:', { generationId, attempt: attempts, retryInMs: delay, error })
+        await new Promise<void>(resolve => window.setTimeout(resolve, delay))
+      }
+    }
+  })()
+  pendingPreviewCleanups.set(generationId, cleanup)
+  void cleanup.finally(() => pendingPreviewCleanups.delete(generationId)).catch(error => {
+    console.error('Screenshot preview cleanup worker failed:', generationId, error)
+  })
+}
 const SCREEN_CAPTURE_PERMISSION_REQUIRED = 'SCREEN_CAPTURE_PERMISSION_REQUIRED'
 const TITLE_BAR_HEIGHT_PX = 36
 const DEFAULT_CROP_BOX_RATIO = 0.5
@@ -111,11 +135,15 @@ export function ControlScan() {
   const [selectedSaveTagId, setSelectedSaveTagId] = useState<number | null>(null)
   const [isCapturing, setIsCapturing] = useState(false)
   const [captureError, setCaptureError] = useState('')
+  const [isPinning, setIsPinning] = useState(false)
+  const pinningRef = useRef(false)
+  const pinOwnsFocusRef = useRef(false)
   const cropperRef = useRef<Cropper | null>(null);
   const cropBoxRef = useRef<Element | null>(null)
   const openRef = useRef(open)
-  const captureInFlightRef = useRef(false)
   const captureRequestIdRef = useRef(0)
+  const screenshotTaskRef = useRef<Promise<void>>(Promise.resolve())
+  const screenshotGenerationsRef = useRef(new Set<string>())
   const { currentTagId, tags, fetchTags, initTags } = useTagStore()
   const { addQueue, removeQueue, setQueue, fetchMarks } = useMarkStore()
   const {
@@ -156,16 +184,30 @@ export function ControlScan() {
     ? t('record.capture.screenshotSourceCount', { count: visibleFiles.length })
     : t('record.capture.screenshotNoSource')
 
-  const cleanupTempScreenshots = useCallback(async () => {
-    try {
-      const tempDirExists = await exists('temp_screenshot', { baseDir: BaseDirectory.AppData })
-      if (tempDirExists) {
-        await remove('temp_screenshot', { baseDir: BaseDirectory.AppData, recursive: true })
-      }
-    } catch (error) {
-      console.error('Failed to cleanup temp screenshots:', error)
-    }
+  const cleanupTempScreenshots = useCallback(() => {
+    // Capture and cleanup share a queue so a closed dialog cannot delete new sources.
+    screenshotTaskRef.current = screenshotTaskRef.current.then(async () => {
+      const generations = [...screenshotGenerationsRef.current]
+      screenshotGenerationsRef.current.clear()
+      generations.forEach(cleanupPreviewGeneration)
+    })
+    return screenshotTaskRef.current
   }, [])
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (openRef.current === nextOpen) {
+      return
+    }
+
+    openRef.current = nextOpen
+    if (nextOpen) pinOwnsFocusRef.current = false
+    setOpen(nextOpen)
+
+    if (!nextOpen) {
+      captureRequestIdRef.current += 1
+      void cleanupTempScreenshots()
+    }
+  }, [cleanupTempScreenshots])
 
   function initCropper() {
     cropperRef.current?.destroy()
@@ -194,21 +236,27 @@ export function ControlScan() {
   }
 
   const refreshScreenshotSources = useCallback(async () => {
-    if (captureInFlightRef.current) {
-      setIsCapturing(true)
+    if (!openRef.current) {
       return
     }
 
     const requestId = captureRequestIdRef.current + 1
     captureRequestIdRef.current = requestId
-    captureInFlightRef.current = true
     setIsCapturing(true)
     setCaptureError('')
     setFiles([])
     setSelectedImageSrc('')
 
-    try {
+    void cleanupTempScreenshots()
+    const captureTask = screenshotTaskRef.current.then(async () => {
+      if (!openRef.current || captureRequestIdRef.current !== requestId) {
+        return
+      }
+
       const fileNames = await invoke<ScreenshotImage[]>('screenshot')
+      fileNames.forEach(file => {
+        if (file.capture_id) screenshotGenerationsRef.current.add(file.capture_id)
+      })
       const convertedFiles = fileNames.map((fileName: ScreenshotImage) => ({
         ...fileName,
         source: fileName.source || 'window',
@@ -220,21 +268,20 @@ export function ControlScan() {
       }
 
       setFiles(convertedFiles)
-    } catch (error) {
+    }).catch((error: unknown) => {
       console.error('Screenshot capture failed:', error)
       if (openRef.current && captureRequestIdRef.current === requestId) {
         setCaptureError(error instanceof Error ? error.message : String(error || t('common.error')))
       }
-    } finally {
-      if (captureRequestIdRef.current === requestId) {
-        captureInFlightRef.current = false
-      }
-
+    }).finally(() => {
       if (openRef.current && captureRequestIdRef.current === requestId) {
         setIsCapturing(false)
       }
-    }
-  }, [t])
+    })
+
+    screenshotTaskRef.current = captureTask
+    await captureTask
+  }, [cleanupTempScreenshots, t])
 
   function selectImage(file: ScreenshotImage) {
     setSelectedImageSrc(file.path)
@@ -318,6 +365,7 @@ export function ControlScan() {
   ])
 
   const cropEnd = useCallback(async () => {
+    if (pinningRef.current) return
     if (!selectedSaveTargetId) {
       toast({
         title: t('common.error'),
@@ -345,7 +393,7 @@ export function ControlScan() {
         baseDir: BaseDirectory.AppData
       })
 
-      setOpen(false)
+      handleOpenChange(false)
 
       const createdAt = Date.now()
       const initialDesc = enableImageRecognition ? t('record.capture.screenshotRecognitionPending') : ''
@@ -399,14 +447,37 @@ export function ControlScan() {
     addQueue,
     completeRecord,
     enableImageRecognition,
+    handleOpenChange,
     processSavedScreenshot,
     selectedSaveTargetId,
     t,
   ])
 
-  useEffect(() => {
-    openRef.current = open
+  const pinCrop = useCallback(async () => {
+    const cropper = cropperRef.current
+    if (!cropper || pinningRef.current) return
+    pinningRef.current = true
+    setIsPinning(true)
+    try {
+      const bytes = await getCroppedPngBytes(cropper)
+      if (!openRef.current) return
+      await invoke('pin_screenshot', { pngBase64: bytesToBase64(bytes) })
+      pinOwnsFocusRef.current = true
+      handleOpenChange(false)
+    } catch (error) {
+      console.error('Failed to pin screenshot:', error)
+      toast({
+        title: t('common.error'),
+        description: t('screenshotEditor.pinFailed'),
+        variant: 'destructive',
+      })
+    } finally {
+      pinningRef.current = false
+      setIsPinning(false)
+    }
+  }, [handleOpenChange, t])
 
+  useEffect(() => {
     if (!open) {
       cropperRef.current?.destroy()
       cropperRef.current = null
@@ -416,9 +487,14 @@ export function ControlScan() {
       setSelectedImageSrc((currentSrc) => (currentSrc ? '' : currentSrc))
       setCaptureError((currentError) => (currentError ? '' : currentError))
       setIsCapturing(false)
-      void cleanupTempScreenshots()
     }
-  }, [cleanupTempScreenshots, cropEnd, open])
+  }, [cropEnd, open])
+
+  useEffect(() => () => {
+    openRef.current = false
+    captureRequestIdRef.current += 1
+    void cleanupTempScreenshots()
+  }, [cleanupTempScreenshots])
 
   useEffect(() => {
     if (!open) {
@@ -469,13 +545,14 @@ export function ControlScan() {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isScreenshotDialogControlTarget(event.target)) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        handleOpenChange(false)
         return
       }
 
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setOpen(false)
+      if (isScreenshotDialogControlTarget(event.target)) {
         return
       }
 
@@ -498,16 +575,20 @@ export function ControlScan() {
       setSelectedImageSrc(visibleFiles[nextIndex].path)
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [cropEnd, open, selectedImageSrc, visibleFiles])
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [cropEnd, handleOpenChange, open, selectedImageSrc, visibleFiles])
 
   const openScreenshotDialog = useCallback(() => {
-    openRef.current = true
+    if (openRef.current) {
+      return
+    }
+
     setSelectedSaveTagId(selectedSaveTargetId)
-    setOpen(true)
+    handleOpenChange(true)
+    void cleanupTempScreenshots()
     void refreshScreenshotSources()
-  }, [refreshScreenshotSources, selectedSaveTargetId])
+  }, [cleanupTempScreenshots, handleOpenChange, refreshScreenshotSources, selectedSaveTargetId])
 
   const handleScan = useCallback(() => {
     openScreenshotDialog()
@@ -545,10 +626,16 @@ export function ControlScan() {
   return (
     <div className="hidden md:block">
       <TooltipButton icon={<ScanText />} tooltipText={t('record.capture.screenshotRecordTitle')} onClick={openScreenshotDialog} />
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           className="max-w-none translate-x-0 translate-y-0 border-none bg-black p-4 text-white sm:max-w-none sm:rounded-none"
           showCloseButton={false}
+          onCloseAutoFocus={event => {
+            if (pinOwnsFocusRef.current) {
+              event.preventDefault()
+              pinOwnsFocusRef.current = false
+            }
+          }}
           style={{
             left: 0,
             top: TITLE_BAR_HEIGHT_PX,
@@ -557,6 +644,7 @@ export function ControlScan() {
             transform: 'none',
           }}
         >
+          <DialogTitle className="sr-only">{t('record.capture.screenshotRecordTitle')}</DialogTitle>
           <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs text-white/75">
@@ -578,11 +666,13 @@ export function ControlScan() {
                     <SelectValue placeholder={t('record.capture.saveTargetPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent className="z-[10000]">
-                    {tags.map((tag) => (
-                      <SelectItem key={tag.id} value={String(tag.id)}>
-                        {tag.name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {tags.map((tag) => (
+                        <SelectItem key={tag.id} value={String(tag.id)}>
+                          {tag.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <Button
@@ -591,7 +681,7 @@ export function ControlScan() {
                   variant="ghost"
                   className="gap-2 text-white hover:bg-white/15 hover:text-white"
                   onClick={() => void refreshScreenshotSources()}
-                  disabled={isCapturing}
+                  disabled={isCapturing || isPinning}
                 >
                   <RefreshCw className={`h-4 w-4 ${isCapturing ? 'animate-spin' : ''}`} />
                   {t('record.capture.screenshotRefresh')}
@@ -599,10 +689,21 @@ export function ControlScan() {
                 <Button
                   type="button"
                   size="sm"
+                  variant="ghost"
+                  className="gap-2 text-white hover:bg-white/15 hover:text-white"
+                  onClick={() => void pinCrop()}
+                  disabled={!selectedImageSrc || isCapturing || isPinning}
+                >
+                  {isPinning ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Pin data-icon="inline-start" />}
+                  {t('screenshotEditor.pin')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
                   variant="secondary"
                   className="gap-2 bg-white text-black hover:bg-white/90"
                   onClick={cropEnd}
-                  disabled={!selectedImageSrc || isCapturing || !selectedSaveTargetId}
+                  disabled={!selectedImageSrc || isCapturing || isPinning || !selectedSaveTargetId}
                 >
                   <Check className="h-4 w-4" />
                   {saveButtonLabel}
@@ -612,7 +713,7 @@ export function ControlScan() {
                   size="sm"
                   variant="ghost"
                   className="gap-2 text-white hover:bg-white/15 hover:text-white"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                 >
                   <X className="h-4 w-4" />
                   {t('common.close')}

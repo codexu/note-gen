@@ -19,6 +19,7 @@ interface CompleteRecordOptions {
   markId?: number | null
   tagId?: number | null
   typeLabel?: string
+  background?: boolean
 }
 
 export function useRecordCompletion() {
@@ -81,9 +82,16 @@ export function useRecordCompletion() {
     await useSidebarStore.getState().showCenterPanel()
   }, [pathname, refreshRecords, router, t])
 
-  return useCallback(async ({ markId, tagId, typeLabel }: CompleteRecordOptions = {}) => {
+  return useCallback(async ({ markId, tagId, typeLabel, background = false }: CompleteRecordOptions = {}) => {
     if (tagId) {
       await useSettingStore.getState().setLastRecordTagId(tagId)
+    }
+
+    // Captures made over other apps only refresh data. Opening a record or
+    // changing editor tabs here can activate the main window through its effects.
+    if (background) {
+      await refreshRecords()
+      return
     }
 
     const completionBehavior = useSettingStore.getState().recordCompletionBehavior

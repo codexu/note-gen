@@ -195,6 +195,11 @@ pub fn handle_single_instance(app: &AppHandle, argv: Vec<String>, _cwd: String) 
 
 #[cfg(target_os = "macos")]
 pub fn handle_macos_reopen(app_handle: &AppHandle, has_visible_windows: bool) {
+    // Screenshot windows load hidden and can briefly be the only windows being
+    // replaced. Their activation must not reopen the normal application UI.
+    if crate::screenshot::desktop_screenshot_active() {
+        return;
+    }
     if !has_visible_windows {
         if let Some(window) = app_handle.get_webview_window("main") {
             let _ = window.show();

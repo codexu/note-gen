@@ -18,7 +18,7 @@ export function createRecordTag(name: string): Promise<Tag> {
     if (!tag) {
       const result = await insertTag({ name: trimmedName })
       if (!result.lastInsertId) throw new Error('Failed to create tag')
-      tag = { id: result.lastInsertId, name: trimmedName }
+      tag = { id: result.lastInsertId, name: trimmedName, isLocked: false, isPin: false }
     }
     await useTagStore.getState().fetchTags()
     return tag

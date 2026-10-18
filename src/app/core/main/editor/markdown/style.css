@@ -102,13 +102,27 @@
 
 .tiptap-editor .ProseMirror .agent-diff-preview-inserted {
   display: block;
-  width: fit-content;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
   margin-block: 0.25rem;
   border-radius: 0.2rem;
   background: color-mix(in srgb, #22c55e 18%, transparent);
-  box-decoration-break: clone;
   color: #15803d;
-  white-space: pre-wrap;
+  white-space: normal;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-inserted > :first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-inserted > :last-child {
+  margin-bottom: 0;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-inserted [data-type="block-math"] {
+  overflow-x: auto;
 }
 
 .dark .tiptap-editor .ProseMirror .agent-diff-preview-inserted {

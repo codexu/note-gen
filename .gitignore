@@ -103,5 +103,6 @@ docs/.vitepress/cache
 # Local Remotion video workspace
 /remotion/*
 
-# Generated browser plugin worker
+# Generated browser workers
 /public/plugin-runtime.js
+/public/markdown-lexer.js

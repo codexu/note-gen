@@ -9,6 +9,7 @@ import {
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState } from 'react'
 import { ResponsiveSelect } from '@/components/responsive-select'
+import { updateNodeViewOnMarkupChange } from './node-view-update'
 import {
   GITHUB_ALERT_META,
   GITHUB_ALERT_TYPES,
@@ -135,7 +136,9 @@ function GitHubAlertBlockquoteView({ node, updateAttributes }: ReactNodeViewProp
   )
 }
 
-const renderGitHubAlertNodeView = ReactNodeViewRenderer(GitHubAlertBlockquoteView)
+const renderGitHubAlertNodeView = ReactNodeViewRenderer(GitHubAlertBlockquoteView, {
+  update: updateNodeViewOnMarkupChange,
+})
 
 export const GitHubAlertBlockquoteEditor = GitHubAlertBlockquote.extend({
   addNodeView() {

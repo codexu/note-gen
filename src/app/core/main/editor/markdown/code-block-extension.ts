@@ -1,7 +1,6 @@
 import CodeBlock, { type CodeBlockOptions } from '@tiptap/extension-code-block'
-import { ReactNodeViewRenderer } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
-import { CodeBlockView } from './code-block-view'
+import { createCodeBlockNodeView } from './code-block-node-view'
 import { createViewportLowlightPlugin } from './viewport-lowlight-plugin'
 import { parseFencedCodeBlockToken, renderFencedCodeBlockNode } from './code-block-markdown'
 
@@ -28,7 +27,7 @@ export const StableCodeBlockLowlight = CodeBlock.extend<ViewportCodeBlockOptions
   renderMarkdown: renderFencedCodeBlockNode,
 
   addNodeView() {
-    return ReactNodeViewRenderer(CodeBlockView)
+    return createCodeBlockNodeView(this.options.languageClassPrefix ?? null)
   },
 
   addProseMirrorPlugins() {

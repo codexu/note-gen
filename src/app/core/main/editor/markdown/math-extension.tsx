@@ -7,6 +7,8 @@ import { normalizeLatexForKatex } from '@/lib/latex'
 import { Textarea } from '@/components/ui/textarea'
 import { useViewportActivation } from './viewport-activation'
 import { createViewportWorkQueue } from './viewport-work-scheduler'
+import { updateNodeViewOnMarkupChange } from './node-view-update'
+import { blockMathTokenizer, inlineMathTokenizer } from './markdown-tokenizers'
 
 type KatexApi = (typeof import('katex'))['default']
 
@@ -277,7 +279,7 @@ export const InlineMath = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(InlineMathView)
+    return ReactNodeViewRenderer(InlineMathView, { update: updateNodeViewOnMarkupChange })
   },
 
   addInputRules() {
@@ -305,35 +307,7 @@ export const InlineMath = Node.create({
   markdownTokenName: 'inline_math',
 
   // Custom tokenizer for $...$ syntax
-  markdownTokenizer: {
-    name: 'inline_math',
-    level: 'inline',
-    start: (src) => {
-      const dollarIndex = src.indexOf('$')
-      const bracketIndex = src.indexOf('\\(')
-
-      if (dollarIndex === -1) return bracketIndex
-      if (bracketIndex === -1) return dollarIndex
-
-      return Math.min(dollarIndex, bracketIndex)
-    },
-    tokenize: (src) => {
-      // Match $...$ (non-greedy, single line)
-      const match = /^(?:\$([^\$\n]+?)\$|\\\(([^\n]+?)\\\))/.exec(src)
-      if (!match) return undefined
-
-      const content = match[1] ?? match[2] ?? ''
-
-      return {
-        type: 'inline_math',
-        raw: match[0],
-        content,
-        // Math is an atom node. Recursively tokenizing its LaTeX can mistake
-        // commands such as `\\[10pt]` for nested Markdown block syntax.
-        tokens: [],
-      }
-    },
-  },
+  markdownTokenizer: inlineMathTokenizer,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {
@@ -381,7 +355,7 @@ export const BlockMath = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(BlockMathView)
+    return ReactNodeViewRenderer(BlockMathView, { update: updateNodeViewOnMarkupChange })
   },
 
   addInputRules() {
@@ -409,35 +383,7 @@ export const BlockMath = Node.create({
   markdownTokenName: 'block_math',
 
   // Custom tokenizer for $$...$$ syntax
-  markdownTokenizer: {
-    name: 'block_math',
-    level: 'block',
-    start: (src) => {
-      const dollarIndex = src.indexOf('$$')
-      const bracketIndex = src.indexOf('\\[')
-
-      if (dollarIndex === -1) return bracketIndex
-      if (bracketIndex === -1) return dollarIndex
-
-      return Math.min(dollarIndex, bracketIndex)
-    },
-    tokenize: (src) => {
-      // Match $$...$$ (can span multiple lines)
-      const match = /^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\])/.exec(src)
-      if (!match) return undefined
-
-      const content = (match[1] ?? match[2] ?? '').trim()
-
-      return {
-        type: 'block_math',
-        raw: match[0],
-        content,
-        // Preserve the formula as opaque source. Tiptap reads `content`
-        // directly, so child Markdown tokens are neither needed nor safe here.
-        tokens: [],
-      }
-    },
-  },
+  markdownTokenizer: blockMathTokenizer,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {

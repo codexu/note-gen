@@ -5498,18 +5498,7 @@
       "title": "超大文档已启用轻量模式",
       "description": "正文由视口化源码编辑器显示，暂不解析完整可视化文档，以缩短首次可见和可编辑时间。",
       "openVisual": "进入可视化编辑",
-      "preparing": "正在建立章节视图…",
-      "sectioned": {
-        "indexing": "正在建立章节索引…",
-        "indexingFailed": "章节视图建立失败",
-        "retryIndexing": "重试",
-        "returnToSource": "返回源码模式",
-        "frontmatter": "Frontmatter 请在源码模式中编辑",
-        "oversized": "此章节过大，请在源码模式中编辑",
-        "editSection": "编辑章节 {title}",
-        "editUntitled": "编辑此章节",
-        "busy": "当前章节仍在处理图片或 AI 内容，请完成后再切换"
-      }
+      "preparing": "正在准备可视化编辑…"
     },
     "smartFileLink": {
       "fileMatches": "文件匹配",

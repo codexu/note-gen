@@ -5397,18 +5397,7 @@
       "title": "超大型文件已啟用輕量模式",
       "description": "正文由視口化原始碼編輯器顯示，暫不解析完整視覺化文件，以縮短首次顯示與可編輯時間。",
       "openVisual": "進入視覺化編輯",
-      "preparing": "正在建立章節檢視…",
-      "sectioned": {
-        "indexing": "正在建立章節索引…",
-        "indexingFailed": "章節檢視建立失敗",
-        "retryIndexing": "重試",
-        "returnToSource": "返回原始碼模式",
-        "frontmatter": "Frontmatter 請在原始碼模式中編輯",
-        "oversized": "此章節過大，請在原始碼模式中編輯",
-        "editSection": "編輯章節 {title}",
-        "editUntitled": "編輯此章節",
-        "busy": "目前章節仍在處理圖片或 AI 內容，請完成後再切換"
-      }
+      "preparing": "正在準備視覺化編輯…"
     },
     "smartFileLink": {
       "fileMatches": "檔案匹配",

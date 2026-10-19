@@ -5356,18 +5356,7 @@
       "title": "Leichtgewichtiger Modus ist für dieses große Dokument aktiv",
       "description": "Ein viewportbasierter Quelltext-Editor wird angezeigt, ohne das gesamte visuelle Dokument zu parsen, was die Zeit bis zur ersten Ansicht und Bearbeitung verbessert.",
       "openVisual": "Visuellen Editor öffnen",
-      "preparing": "Bereite Abschnittsansicht vor…",
-      "sectioned": {
-        "indexing": "Erstelle den Abschnittsindex…",
-        "indexingFailed": "Konnte die Abschnittsansicht nicht erstellen",
-        "retryIndexing": "Wiederholen",
-        "returnToSource": "Zurück zum Quelltextmodus",
-        "frontmatter": "Frontmatter im Quelltextmodus bearbeiten",
-        "oversized": "Dieser Abschnitt ist zu groß; bearbeite ihn im Quelltextmodus",
-        "editSection": "Abschnitt {title} bearbeiten",
-        "editUntitled": "Diesen Abschnitt bearbeiten",
-        "busy": "Dieser Abschnitt verarbeitet noch ein Bild oder KI-Inhalte. Schließe dies ab, bevor du wechselst."
-      }
+      "preparing": "Bereite den visuellen Editor vor…"
     },
     "smartFileLink": {
       "fileMatches": "Datei-Übereinstimmungen",

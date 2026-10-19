@@ -25,6 +25,7 @@ import {
   toWorkspaceRelativePath,
 } from '@/lib/workspace'
 import emitter from '@/lib/emitter'
+import { prefetchMarkdownTokens, warmMarkdownLexerWorker } from '@/app/core/main/editor/markdown/markdown-lexer-async'
 import type { Events } from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
 import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
@@ -611,7 +612,6 @@ export interface EditorViewState {
   selectionFrom: number
   selectionTo: number
   scrollTop: number
-  sectionId?: string
   sourceSelectionFrom?: number
   sourceSelectionTo?: number
   sourceScrollTop?: number
@@ -3303,6 +3303,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
       && get().activeFilePath === actualPath
       )
 
+    warmMarkdownLexerWorker()
+
     set({
       loading: true,
       readFilePath: actualPath,
@@ -3349,6 +3351,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         await saveLocalFile(actualPath, remoteContent)
 
         if (isCurrentArticleRead()) {
+          prefetchMarkdownTokens(actualPath, remoteContent)
           set({ currentArticle: remoteContent })
           emitter.emit('editor-content-from-remote', { content: remoteContent })
         }
@@ -3397,6 +3400,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
 
       // 正常的本地文件，显示内容（即使是空文件也正确显示）
+      prefetchMarkdownTokens(actualPath, localContent)
       set({ currentArticle: localContent, loading: false })
       // 检查文件的向量索引状态
       if (!isAbsoluteFsPath(actualPath)) {

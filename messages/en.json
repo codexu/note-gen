@@ -5498,18 +5498,7 @@
       "title": "Lightweight mode is active for this large document",
       "description": "A viewport-based source editor is shown without parsing the full visual document, improving time to first view and edit.",
       "openVisual": "Open visual editor",
-      "preparing": "Preparing section view…",
-      "sectioned": {
-        "indexing": "Building the section index…",
-        "indexingFailed": "Could not build the section view",
-        "retryIndexing": "Retry",
-        "returnToSource": "Return to source mode",
-        "frontmatter": "Edit frontmatter in source mode",
-        "oversized": "This section is too large; edit it in source mode",
-        "editSection": "Edit section {title}",
-        "editUntitled": "Edit this section",
-        "busy": "This section is still processing an image or AI content. Finish it before switching."
-      }
+      "preparing": "Preparing visual editor…"
     },
     "smartFileLink": {
       "fileMatches": "File matches",

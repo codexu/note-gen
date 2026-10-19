@@ -5407,18 +5407,7 @@
       "title": "大容量ドキュメント向け軽量モードを有効にしました",
       "description": "全文のビジュアル解析を保留し、ビューポート対応のソースエディターで素早く表示・編集します。",
       "openVisual": "ビジュアル編集を開く",
-      "preparing": "セクション表示を準備中…",
-      "sectioned": {
-        "indexing": "セクション索引を作成中…",
-        "indexingFailed": "セクションビューを作成できませんでした",
-        "retryIndexing": "再試行",
-        "returnToSource": "ソースモードに戻る",
-        "frontmatter": "Frontmatter はソースモードで編集してください",
-        "oversized": "このセクションは大きすぎるため、ソースモードで編集してください",
-        "editSection": "セクション {title} を編集",
-        "editUntitled": "このセクションを編集",
-        "busy": "このセクションでは画像または AI コンテンツを処理中です。完了してから切り替えてください。"
-      }
+      "preparing": "ビジュアル編集を準備中…"
     },
     "smartFileLink": {
       "fileMatches": "ファイル候補",

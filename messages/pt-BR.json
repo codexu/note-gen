@@ -5386,18 +5386,7 @@
       "title": "O modo leve foi ativado para este documento grande",
       "description": "O editor de código-fonte renderiza apenas a área visível e adia a análise visual completa para acelerar a abertura e a edição.",
       "openVisual": "Abrir editor visual",
-      "preparing": "Preparando a visualização por seções…",
-      "sectioned": {
-        "indexing": "Criando o índice de seções…",
-        "indexingFailed": "Não foi possível criar a visualização por seções",
-        "retryIndexing": "Tentar novamente",
-        "returnToSource": "Voltar ao modo de código-fonte",
-        "frontmatter": "Edite o frontmatter no modo de código-fonte",
-        "oversized": "Esta seção é grande demais; edite-a no modo de código-fonte",
-        "editSection": "Editar seção {title}",
-        "editUntitled": "Editar esta seção",
-        "busy": "Esta seção ainda está processando uma imagem ou conteúdo de IA. Aguarde antes de trocar."
-      }
+      "preparing": "Preparando o editor visual…"
     },
     "smartFileLink": {
       "fileMatches": "Arquivos correspondentes",

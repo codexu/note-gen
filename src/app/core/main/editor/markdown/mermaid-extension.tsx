@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useViewportActivation } from './viewport-activation'
+import { updateNodeViewOnMarkupChange } from './node-view-update'
+import { detectMermaidDiagramType, mermaidTokenizer } from './markdown-tokenizers'
 
 type MermaidApi = (typeof import('mermaid'))['default']
 
@@ -55,31 +57,18 @@ async function renderMermaid(
 
 // Diagram type configuration with icons
 const DIAGRAM_TYPES = [
-  { type: 'flowchart', labelKey: 'flowchart', icon: 'GitBranch', alias: ['flowchart', 'flowchart-v2', 'graph', 'td', 'graph TD', 'graph BT', 'graph LR', 'graph RL'] },
-  { type: 'sequence', labelKey: 'sequence', icon: 'GitCommit', alias: ['sequence', 'sequenceDiagram'] },
-  { type: 'classDiagram', labelKey: 'classDiagram', icon: 'Layers', alias: ['class', 'classDiagram'] },
-  { type: 'stateDiagram', labelKey: 'stateDiagram', icon: 'Activity', alias: ['state', 'stateDiagram', 'stateDiagram-v2'] },
-  { type: 'er', labelKey: 'erDiagram', icon: 'Database', alias: ['er', 'erDiagram'] },
-  { type: 'gantt', labelKey: 'gantt', icon: 'Calendar', alias: ['gantt'] },
-  { type: 'pie', labelKey: 'pie', icon: 'PieChart', alias: ['pie'] },
-  { type: 'journey', labelKey: 'journey', icon: 'Map', alias: ['journey', 'gitGraph'] },
+  { type: 'flowchart', labelKey: 'flowchart', icon: 'GitBranch' },
+  { type: 'sequence', labelKey: 'sequence', icon: 'GitCommit' },
+  { type: 'classDiagram', labelKey: 'classDiagram', icon: 'Layers' },
+  { type: 'stateDiagram', labelKey: 'stateDiagram', icon: 'Activity' },
+  { type: 'er', labelKey: 'erDiagram', icon: 'Database' },
+  { type: 'gantt', labelKey: 'gantt', icon: 'Calendar' },
+  { type: 'pie', labelKey: 'pie', icon: 'PieChart' },
+  { type: 'journey', labelKey: 'journey', icon: 'Map' },
 ]
 
 // Detect diagram type from code
-function detectDiagramType(code: string): string {
-  const trimmed = code.trimStart()
-  const newlineIndex = trimmed.indexOf('\n')
-  const firstLine = (newlineIndex === -1 ? trimmed : trimmed.slice(0, newlineIndex))
-    .trimEnd()
-    .toLowerCase()
-  for (const config of DIAGRAM_TYPES) {
-    // Check first line for type specification
-    if (config.alias?.some((alias: string) => firstLine.startsWith(alias) || firstLine === alias)) {
-      return config.type
-    }
-  }
-  return 'flowchart'
-}
+const detectDiagramType = detectMermaidDiagramType
 
 // Mermaid Diagram View Component
 function MermaidDiagramView({ node, updateAttributes }: ReactNodeViewProps) {
@@ -310,35 +299,12 @@ export const MermaidDiagram = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(MermaidDiagramView)
+    return ReactNodeViewRenderer(MermaidDiagramView, { update: updateNodeViewOnMarkupChange })
   },
 
   markdownTokenName: 'mermaid',
 
-  markdownTokenizer: {
-    name: 'mermaid',
-    level: 'block',
-    start: (src: string) => {
-      const match = src.match(/^```mermaid\r?\n/)
-      return match ? (match.index ?? -1) : -1
-    },
-    tokenize: (src) => {
-      const match = /^```mermaid\r?\n([\s\S]*?)\r?\n```/.exec(src)
-      if (!match) return undefined
-
-      const code = match[1]
-      const type = detectDiagramType(code)
-
-      return {
-        type: 'mermaid',
-        raw: match[0],
-        content: code,
-        attrs: { type },
-        // Mermaid source is opaque to Markdown and is parsed by Mermaid later.
-        tokens: [],
-      }
-    },
-  },
+  markdownTokenizer: mermaidTokenizer,
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {

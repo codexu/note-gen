@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useTheme } from 'next-themes'
 import { ChevronDown, Code, Download, Eye, RotateCcw, Search } from 'lucide-react'
@@ -186,56 +185,4 @@ export function PluginCodeBlockPreview({ source, language, providers, provider, 
         : !current?.error ? <div role="status" aria-label={t('loading')}><Skeleton className="h-24 w-full" /><span className="sr-only">{t('loading')}</span></div> : null}
     </div> : null}
   </div>
-}
-
-interface ReadOnlyBlock { slot: HTMLDivElement; pre: HTMLPreElement; source: string; language: string }
-function ReadOnlyCodeBlock({ block, onEdit }: { block: ReadOnlyBlock; onEdit(coordinates?: { left: number; top: number }): void }) {
-  const { providers, provider, select } = useCodeBlockRenderer(block.language)
-  const [showSource, setShowSource] = useState(false)
-  const editRef = useRef(onEdit)
-  editRef.current = onEdit
-  useLayoutEffect(() => {
-    const hidden = block.pre.hidden
-    block.pre.hidden = Boolean(provider) && !showSource
-    return () => { block.pre.hidden = hidden }
-  }, [block, provider, showSource])
-  const onShowSource = useCallback((value: boolean, focus = false) => {
-    setShowSource(value)
-    if (value && focus) {
-      block.pre.hidden = false
-      const rect = block.pre.getBoundingClientRect()
-      editRef.current({ left: rect.left + 8, top: rect.top + 8 })
-    }
-  }, [block])
-  if (!providers.length) return <CodeBlockPluginDiscovery language={block.language} active />
-  return <PluginCodeBlockPreview source={block.source} language={block.language} providers={providers} provider={provider}
-    select={select} active showSource={!provider || showSource} onShowSource={onShowSource} />
-}
-
-/** Add previews to the host's read-only, sectioned Markdown HTML as well.
- * Original pre/code nodes remain intact and are restored on disposal.
- */
-export function PluginReadOnlyCodeBlocks({ root, html, onEdit }: {
-  root: RefObject<HTMLDivElement | null>; html: string; onEdit(coordinates?: { left: number; top: number }): void
-}) {
-  const entries = usePluginResources(state => state.entries)
-  const [blocks, setBlocks] = useState<ReadOnlyBlock[]>([])
-  useLayoutEffect(() => {
-    const element = root.current
-    if (!element || !html) { setBlocks([]); return }
-    const next: ReadOnlyBlock[] = []
-    for (const code of Array.from(element.querySelectorAll('pre > code'))) {
-      const language = Array.from(code.classList).find(value => value.startsWith('language-'))?.slice('language-'.length) ?? ''
-      if (!language) continue
-      const pre = code.parentElement
-      if (!(pre instanceof HTMLPreElement)) continue
-      const slot = document.createElement('div')
-      slot.className = 'code-block-wrapper'
-      pre.before(slot)
-      next.push({ slot, pre, source: code.textContent ?? '', language })
-    }
-    setBlocks(next)
-    return () => { next.forEach(block => { block.pre.hidden = false; block.slot.remove() }) }
-  }, [root, html, entries])
-  return <>{blocks.map((block, index) => createPortal(<ReadOnlyCodeBlock block={block} onEdit={onEdit} />, block.slot, String(index)))}</>
 }

@@ -1,13 +1,13 @@
 'use client'
 
-import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from '@tiptap/react'
+import type { Editor, NodeViewRendererProps } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
 import { Check, Copy } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { toast } from '@/hooks/use-toast'
 import { ResponsiveSelect } from '@/components/responsive-select'
 import useArticleStore from '@/stores/article'
-import { useViewportActivation } from './viewport-activation'
 import { CodeBlockPluginDiscovery, PluginCodeBlockPreview, useCodeBlockRenderer } from '@/components/plugins/plugin-code-block-preview'
 
 const COPY_FEEDBACK_TIMEOUT_MS = 1200
@@ -117,7 +117,18 @@ async function writeClipboardText(text: string) {
   }
 }
 
-export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactNodeViewProps) {
+export interface CodeBlockViewProps {
+  editor: Editor
+  node: ProseMirrorNode
+  getPos: NodeViewRendererProps['getPos']
+  updateAttributes(attributes: Record<string, unknown>): void
+  element: HTMLDivElement
+  initialShowSource: boolean
+  shouldRevealSource(): boolean
+  onSourceVisibilityChange(visible: boolean): void
+}
+
+export function CodeBlockView({ editor, node, updateAttributes, getPos, element, initialShowSource, shouldRevealSource, onSourceVisibilityChange }: CodeBlockViewProps) {
   const focusFrameRef = useRef<number | null>(null)
   const focusEpochRef = useRef(0)
   const lifetimeRef = useRef({ active: true })
@@ -136,7 +147,6 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
     }
   }, [editor])
   const [copied, setCopied] = useState(false)
-  const { activate, elementRef, isActive } = useViewportActivation<HTMLDivElement>()
   const language = normalizeLanguage(node.attrs.language)
   const selectedLanguageValue = language ?? AUTO_LANGUAGE_VALUE
   const selectedLanguageOption = getLanguageOption(language)
@@ -145,8 +155,11 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
     : [selectedLanguageOption, ...CODE_BLOCK_LANGUAGE_OPTIONS]
   const codeText = node.textContent
   const { providers, provider, select } = useCodeBlockRenderer(language ?? '')
-  const [showSource, setShowSource] = useState(false)
+  const [showSource, setShowSource] = useState(() => initialShowSource || shouldRevealSource())
   const sourceVisible = !providers.length || !provider || showSource
+  useLayoutEffect(() => {
+    onSourceVisibilityChange(sourceVisible)
+  }, [onSourceVisibilityChange, sourceVisible])
   const handleShowSource = useCallback((value: boolean, focus = false) => {
     if (editor.isDestroyed) return
     if (!value) editor.commands.blur()
@@ -165,7 +178,8 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
     }
   }, [editor, getPos, node.nodeSize])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!provider) return
     // Restoring focus must preserve the default preview. Reveal source only when
     // the selection moves into the block or the user starts editing its text.
     const revealSelection = () => {
@@ -174,21 +188,21 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
       const { from, to } = editor.state.selection
       if (editor.isFocused && typeof pos === 'number' && from < pos + node.nodeSize && to > pos) setShowSource(true)
     }
-    // Node views can mount while EditorView is still being constructed. Listen
-    // on our own content element without requesting the editor's view.
-    const dom = elementRef.current
-    if (!dom) return
+    const dom = element
     editor.on('selectionUpdate', revealSelection)
     dom.addEventListener('beforeinput', revealSelection, true)
     dom.addEventListener('paste', revealSelection, true)
     dom.addEventListener('drop', revealSelection, true)
+    // React controls or the renderer provider can arrive after the selection
+    // event. Only catch up an actual selection change made after creation.
+    if (shouldRevealSource()) revealSelection()
     return () => {
       editor.off('selectionUpdate', revealSelection)
       dom.removeEventListener('beforeinput', revealSelection, true)
       dom.removeEventListener('paste', revealSelection, true)
       dom.removeEventListener('drop', revealSelection, true)
     }
-  }, [editor, elementRef, getPos, node.nodeSize, provider])
+  }, [editor, element, getPos, node.nodeSize, provider, shouldRevealSource])
 
   useEffect(() => {
     if (!copied) {
@@ -259,7 +273,7 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
     const path = useArticleStore.getState().activeFilePath
     const isCurrent = () => lifetime.active && focusEpoch === focusEpochRef.current && !editor.isDestroyed
       && editor.state.doc === documentSnapshot && useArticleStore.getState().activeFilePath === path
-      && Boolean(elementRef.current?.isConnected && elementRef.current.getClientRects().length)
+      && Boolean(element.isConnected && element.getClientRects().length)
 
     try {
       await writeClipboardText(codeText)
@@ -279,15 +293,11 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
     } finally {
       restoreEditorFocus(isCurrent)
     }
-  }, [codeText, editor, elementRef, restoreEditorFocus])
+  }, [codeText, editor, element, restoreEditorFocus])
 
   return (
-    <NodeViewWrapper
-      className="code-block-wrapper"
-      spellCheck={false}
-      onFocusCapture={activate}
-    >
-      {isActive && sourceVisible ? (
+    <>
+      {sourceVisible ? (
         <div
           className="code-block-toolbar"
           contentEditable={false}
@@ -310,7 +320,7 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
               ),
             }))}
           />
-          {!providers.length ? <CodeBlockPluginDiscovery language={language ?? ''} active={isActive} compact /> : null}
+          {!providers.length ? <CodeBlockPluginDiscovery language={language ?? ''} active compact /> : null}
           <button
             type="button"
             className="code-block-copy-button"
@@ -323,13 +333,10 @@ export function CodeBlockView({ editor, node, updateAttributes, getPos }: ReactN
           </button>
         </div>
       ) : null}
-      <div ref={elementRef}>
-        {providers.length ? <PluginCodeBlockPreview
-          source={codeText} language={language ?? ''} providers={providers} provider={provider} select={select}
-          active showSource={sourceVisible} onShowSource={handleShowSource}
-        /> : null}
-        <pre hidden={!sourceVisible}><NodeViewContent<'code'> as="code" /></pre>
-      </div>
-    </NodeViewWrapper>
+      {providers.length ? <PluginCodeBlockPreview
+        source={codeText} language={language ?? ''} providers={providers} provider={provider} select={select}
+        active showSource={sourceVisible} onShowSource={handleShowSource}
+      /> : null}
+    </>
   )
 }

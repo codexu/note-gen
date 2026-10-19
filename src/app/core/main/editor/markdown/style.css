@@ -50,44 +50,11 @@
   background-color: var(--scrollbar-thumb-active);
 }
 
-/* Large-document section host: inactive sections use static markup while the
-   single active Tiptap instance stays in normal document flow for measurement. */
-.tiptap-editor .sectioned-markdown-editor .sectioned-markdown-preview-content {
-  min-height: 0;
-  padding: 0;
-  overflow-wrap: anywhere;
-}
-
-.tiptap-editor .sectioned-markdown-editor .sectioned-markdown-preview-content > :first-child {
-  margin-top: 0;
-}
-
-.tiptap-editor .sectioned-markdown-editor .sectioned-markdown-preview-content > :last-child {
-  margin-bottom: 0;
-}
-
-.tiptap-editor .sectioned-markdown-editor .sectioned-markdown-image-placeholder {
-  display: inline-flex;
-  min-height: 3rem;
-  align-items: center;
-  border: 1px dashed hsl(var(--border));
-  border-radius: 0.375rem;
-  background: hsl(var(--muted) / 0.25);
-  padding: 0.5rem 0.75rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.75rem;
-}
-
-.tiptap-editor .sectioned-markdown-editor .tiptap-editor {
-  height: auto;
-  min-height: 0;
-}
-
 .tiptap-editor .ProseMirror {
   outline: none;
   min-height: 100%;
   padding: 24px 16px;
-  font-size: 16px;
+  font-size: var(--editor-font-size, 16px);
   line-height: var(--editor-line-height);
   color: hsl(var(--foreground));
 }
@@ -1137,6 +1104,12 @@
   background-color: hsl(var(--primary) / 0.24);
 }
 
+/* A blurred range is drawn by its decoration, without a second native layer. */
+.tiptap-editor .ProseMirror:not(.ProseMirror-focused):not(:focus-within):has(.tiptap-blur-selection)::selection,
+.tiptap-editor .ProseMirror:not(.ProseMirror-focused):not(:focus-within):has(.tiptap-blur-selection) ::selection {
+  background-color: transparent;
+}
+
 .tiptap-editor .ProseMirror .tiptap-blur-selection {
   background-color: hsl(var(--primary) / 0.18);
   border-radius: 2px;
@@ -1770,7 +1743,7 @@
 }
 
 /* The preview is presentation only; the original code content stays mounted. */
-.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-preview) > .code-block-toolbar {
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-preview) > .code-block-controls > .code-block-toolbar {
   top: auto;
   bottom: 8px;
 }
@@ -1778,7 +1751,7 @@
   padding-bottom: 42px;
   padding-top: 16px;
 }
-.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-discovery) > .code-block-toolbar {
+.tiptap-editor .ProseMirror .code-block-wrapper:has(.plugin-code-block-discovery) > .code-block-controls > .code-block-toolbar {
   position: static;
   flex-wrap: wrap;
   justify-content: flex-end;

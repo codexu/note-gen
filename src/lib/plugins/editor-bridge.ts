@@ -22,6 +22,8 @@ interface RegisteredEditor {
   path: string
   getMode: () => ActiveEditorContext['mode']
   getRevision: () => number
+  // Host-only identity for reusing exact size metadata across caret/IME changes.
+  getContentIdentity?: () => object | string
   isComposing: () => boolean
   getCanonicalMarkdown: () => string
   getSelection: () => {
@@ -32,12 +34,17 @@ interface RegisteredEditor {
   }
   applyMarkdownEdits?: (edits: readonly EditorRangeEdit[]) => void
   setMarkdownSelection?: (from: number, to: number) => void
+  contentSizeCache?: {
+    identity: object | string | number
+    size: ActiveEditorContext['size']
+  }
 }
 
 export interface PluginEditorRegistration {
   path: string
   getMode: RegisteredEditor['getMode']
   getRevision: RegisteredEditor['getRevision']
+  getContentIdentity?: RegisteredEditor['getContentIdentity']
   isComposing: RegisteredEditor['isComposing']
   getCanonicalMarkdown: RegisteredEditor['getCanonicalMarkdown']
   getSelection: RegisteredEditor['getSelection']
@@ -52,6 +59,7 @@ let activeEditor: RegisteredEditor | null = null
 let lastContext: ActiveEditorContext | null = null
 let lastObservedRevision = -1
 let lastObservedComposing: boolean | null = null
+let lastObservedContentIdentity: object | string | number | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pollRunning = false
 
@@ -80,19 +88,32 @@ function getDocumentId(path: string): string {
 }
 
 function getSize(text: string): ActiveEditorContext['size'] {
+  let lines = 1
+  for (let index = 0; index < text.length; index++) {
+    if (text.charCodeAt(index) === 10) lines++
+  }
   return {
     utf16Length: text.length,
     bytes: new TextEncoder().encode(text).byteLength,
-    lines: text.length === 0 ? 1 : text.split('\n').length,
+    lines,
   }
+}
+
+function getContentIdentity(editor: RegisteredEditor): object | string | number {
+  return editor.getContentIdentity?.() ?? editor.getRevision()
 }
 
 function contextFor(
   editor: RegisteredEditor,
-  markdown: string,
   composing = editor.isComposing(),
   revision = editor.getRevision(),
 ): ActiveEditorContext {
+  const identity = getContentIdentity(editor)
+  let contentSize = editor.contentSizeCache
+  if (!contentSize || contentSize.identity !== identity) {
+    contentSize = { identity, size: getSize(editor.getCanonicalMarkdown()) }
+    editor.contentSizeCache = contentSize
+  }
   const path = editor.path.normalize('NFC').replace(/\\/g, '/')
   const relativeMarkdown = /\.md$/i.test(path) && !/[:\u0000-\u001f]/.test(path)
     && path.split('/').every(segment => segment.length > 0 && segment !== '.' && segment !== '..')
@@ -105,7 +126,7 @@ function contextFor(
     mode: editor.getMode(),
     revision,
     composing,
-    size: getSize(markdown),
+    size: { ...contentSize.size },
   }
 }
 
@@ -126,18 +147,22 @@ async function pollEditor(): Promise<void> {
   try {
     const before = editor.getRevision()
     const beforeComposing = editor.isComposing()
+    const beforeIdentity = getContentIdentity(editor)
     if (
       before === lastObservedRevision
       && beforeComposing === lastObservedComposing
+      && beforeIdentity === lastObservedContentIdentity
     ) return
-    const markdown = editor.getCanonicalMarkdown()
+    const context = contextFor(editor, beforeComposing, before)
     const after = editor.getRevision()
     const afterComposing = editor.isComposing()
-    if (activeEditor !== editor || before !== after) return
+    const afterIdentity = getContentIdentity(editor)
+    if (activeEditor !== editor || before !== after || beforeIdentity !== afterIdentity) return
 
     lastObservedRevision = after
     lastObservedComposing = afterComposing
-    const context = contextFor(editor, markdown, afterComposing, after)
+    lastObservedContentIdentity = afterIdentity
+    context.composing = afterComposing
     lastContext = context
     const event: EditorContentChangeEvent = {
       editorId: context.editorId,
@@ -181,10 +206,10 @@ export function registerPluginEditor(registration: PluginEditorRegistration): Pl
   activeEditor = registered
   lastObservedRevision = -1
   lastObservedComposing = null
+  lastObservedContentIdentity = null
 
   try {
-    const markdown = registered.getCanonicalMarkdown()
-    lastContext = contextFor(registered, markdown)
+    lastContext = contextFor(registered)
   } catch {
     lastContext = null
   }
@@ -199,6 +224,7 @@ export function registerPluginEditor(registration: PluginEditorRegistration): Pl
       lastContext = null
       lastObservedRevision = -1
       lastObservedComposing = null
+      lastObservedContentIdentity = null
       syncPolling()
       void emitActiveChange(previous, null)
     },
@@ -209,12 +235,12 @@ export async function getActivePluginEditor(): Promise<ActiveEditorContext | nul
   const editor = activeEditor
   if (!editor) return null
   const before = editor.getRevision()
-  const markdown = editor.getCanonicalMarkdown()
+  const beforeIdentity = getContentIdentity(editor)
+  const context = contextFor(editor)
   const after = editor.getRevision()
-  if (activeEditor !== editor || before !== after) {
+  if (activeEditor !== editor || before !== after || beforeIdentity !== getContentIdentity(editor)) {
     throw new PluginError('StaleRevision', 'The active editor changed while it was being read')
   }
-  const context = contextFor(editor, markdown)
   lastContext = context
   return context
 }

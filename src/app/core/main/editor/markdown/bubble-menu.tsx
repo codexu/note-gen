@@ -172,6 +172,7 @@ export function BubbleMenu({
   const hasUserSelectionIntentRef = useRef(false)
   const isPointerSelectingRef = useRef(false)
   const isComposingRef = useRef(false)
+  const positionFrameRef = useRef<number | null>(null)
 
   const hideMenu = useCallback(() => {
     setShow(false)
@@ -179,17 +180,6 @@ export function BubbleMenu({
     setShowTranslateSubmenu(false)
     setLinkEditor(null)
   }, [])
-
-  const collapseSelection = useCallback(() => {
-    const { selection } = editor.state
-
-    if (selection.empty) {
-      return
-    }
-
-    const position = Math.max(0, Math.min(selection.to, editor.state.doc.content.size))
-    editor.commands.setTextSelection(position)
-  }, [editor])
 
   // 处理翻译
   const handleTranslate = useCallback(async (targetLanguage: string) => {
@@ -278,9 +268,9 @@ export function BubbleMenu({
       const anchorTop = Math.min(startCoords.top, endCoords.top)
       const anchorBottom = Math.max(startCoords.bottom, endCoords.bottom)
       const menuHeight = menuRef.current?.offsetHeight || 40
+      const currentMenuWidth = menuRef.current?.offsetWidth || 360
       const gap = 8
 
-      const currentMenuWidth = menuRef.current?.offsetWidth || 360
       const minimumLeft = scrollBounds.left + 8
       const maximumLeft = scrollBounds.right - currentMenuWidth - 8
       const left = Math.max(minimumLeft, Math.min(startCoords.left, Math.max(minimumLeft, maximumLeft)))
@@ -293,7 +283,7 @@ export function BubbleMenu({
       const visibleBottom = scrollBounds.bottom - 8
       const maxTop = Math.max(visibleTop, visibleBottom - menuHeight)
       const top = Math.max(visibleTop, Math.min(preferredTop, maxTop))
-      setPosition({ top, left })
+      setPosition(previous => previous.top === top && previous.left === left ? previous : { top, left })
 
       setShow(true)
       return true
@@ -303,6 +293,38 @@ export function BubbleMenu({
     }
   }, [editor, hideMenu])
 
+  const updateMenu = useCallback(() => {
+    if (editor.isDestroyed) return
+    const { doc, selection } = editor.state
+    const previous = selectionSnapshot.current
+    const selectionChanged = !previous || previous.doc !== doc
+      || previous.from !== selection.from || previous.to !== selection.to
+    if (selectionChanged) {
+      selectionSnapshot.current = { doc, from: selection.from, to: selection.to }
+    }
+    if (!isPointerSelectingRef.current && !hasTextSelection(editor)) {
+      hasUserSelectionIntentRef.current = false
+    }
+    // Read all geometry before scheduling React writes for the toolbar.
+    updatePosition()
+    if (selectionChanged && (!selection.empty || (previous && previous.from !== previous.to))) {
+      setSelectionRevision(value => value + 1)
+    }
+  }, [editor, updatePosition])
+
+  const schedulePositionUpdate = useCallback(() => {
+    if (positionFrameRef.current !== null) return
+    positionFrameRef.current = requestAnimationFrame(() => {
+      positionFrameRef.current = null
+      updateMenu()
+    })
+  }, [updateMenu])
+
+  useEffect(() => () => {
+    if (positionFrameRef.current !== null) cancelAnimationFrame(positionFrameRef.current)
+    positionFrameRef.current = null
+  }, [schedulePositionUpdate])
+
   useEffect(() => {
     hasUserSelectionIntentRef.current = false
     isPointerSelectingRef.current = false
@@ -311,7 +333,6 @@ export function BubbleMenu({
     if (editor.isDestroyed) return
     const editorElement = editor.view.dom
     const ownerDocument = editorElement.ownerDocument
-    let selectionFrame: number | null = null
 
     const handleCompositionStart = () => {
       isComposingRef.current = true
@@ -325,9 +346,6 @@ export function BubbleMenu({
     const handlePointerStart = () => {
       isPointerSelectingRef.current = true
       hasUserSelectionIntentRef.current = false
-      if (hasTextSelection(editor)) {
-        collapseSelection()
-      }
       hideMenu()
     }
 
@@ -337,20 +355,8 @@ export function BubbleMenu({
       }
 
       isPointerSelectingRef.current = false
-
-      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
-      selectionFrame = requestAnimationFrame(() => {
-        selectionFrame = null
-        if (editor.isDestroyed) return
-        const hasSelection = hasTextSelection(editor)
-        hasUserSelectionIntentRef.current = hasSelection
-
-        if (hasSelection) {
-          updatePosition()
-        } else {
-          hideMenu()
-        }
-      })
+      hasUserSelectionIntentRef.current = true
+      schedulePositionUpdate()
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -359,20 +365,7 @@ export function BubbleMenu({
       }
 
       hasUserSelectionIntentRef.current = true
-
-      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
-      selectionFrame = requestAnimationFrame(() => {
-        selectionFrame = null
-        if (editor.isDestroyed) return
-        const hasSelection = hasTextSelection(editor)
-        hasUserSelectionIntentRef.current = hasSelection
-
-        if (hasSelection) {
-          updatePosition()
-        } else {
-          hideMenu()
-        }
-      })
+      schedulePositionUpdate()
     }
 
     editorElement.addEventListener('mousedown', handlePointerStart, true)
@@ -385,7 +378,6 @@ export function BubbleMenu({
     ownerDocument.addEventListener('touchcancel', finishPointerSelection)
 
     return () => {
-      if (selectionFrame !== null) cancelAnimationFrame(selectionFrame)
       editorElement.removeEventListener('mousedown', handlePointerStart, true)
       editorElement.removeEventListener('touchstart', handlePointerStart)
       editorElement.removeEventListener('keydown', handleKeyDown, true)
@@ -395,7 +387,7 @@ export function BubbleMenu({
       ownerDocument.removeEventListener('touchend', finishPointerSelection)
       ownerDocument.removeEventListener('touchcancel', finishPointerSelection)
     }
-  }, [collapseSelection, editor, hideMenu, updatePosition])
+  }, [editor, hideMenu, schedulePositionUpdate])
 
   useEffect(() => {
     if (!openAiMenuSignal) return
@@ -547,31 +539,20 @@ export function BubbleMenu({
   }, [showTranslateSubmenu, show])
 
   useEffect(() => {
-    const updateHandler = () => updatePosition()
-    const transactionHandler = () => {
-      const { doc, selection } = editor.state
-      const previous = selectionSnapshot.current
-      if (!previous || previous.doc !== doc || previous.from !== selection.from || previous.to !== selection.to) {
-        selectionSnapshot.current = { doc, from: selection.from, to: selection.to }
-        setSelectionRevision(value => value + 1)
-      }
-      updatePosition()
-    }
-
     if (hasTextSelection(editor)) {
       updatePosition()
     } else {
       hideMenu()
     }
 
-    editor.on('selectionUpdate', updateHandler)
-    editor.on('transaction', transactionHandler)
+    editor.on('selectionUpdate', schedulePositionUpdate)
+    editor.on('transaction', schedulePositionUpdate)
 
     return () => {
-      editor.off('selectionUpdate', updateHandler)
-      editor.off('transaction', transactionHandler)
+      editor.off('selectionUpdate', schedulePositionUpdate)
+      editor.off('transaction', schedulePositionUpdate)
     }
-  }, [editor, hideMenu, updatePosition])
+  }, [editor, hideMenu, schedulePositionUpdate, updatePosition])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -579,7 +560,11 @@ export function BubbleMenu({
         && event.target.closest('[data-editor-table-menu]')?.getAttribute('data-editor-table-menu') === editor.view.dom.dataset.tableMenuOwner) return
       if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
       if (event.target instanceof Element && event.target.closest('[data-plugin-selection-popover]')) return
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        hasUserSelectionIntentRef.current = false
+        if (!editor.isDestroyed && event.target instanceof Node && !editor.view.dom.contains(event.target)) {
+          isPointerSelectingRef.current = false
+        }
         hideMenu()
         setIsInteractingWithMenu(false)
       }
@@ -595,14 +580,16 @@ export function BubbleMenu({
     if (!scrollContainer) return
 
     const handleScroll = () => {
-      if (show) {
-        updatePosition()
-      }
+      if (show) schedulePositionUpdate()
     }
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
-    return () => scrollContainer.removeEventListener('scroll', handleScroll)
-  }, [editor, show, updatePosition])
+    window.addEventListener('resize', handleScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [editor, show, schedulePositionUpdate])
 
   const openLinkEditorForSelection = useCallback(() => {
     const { from, to } = editor.state.selection
@@ -683,10 +670,9 @@ export function BubbleMenu({
     <div
       ref={menuRef}
       data-editor-bubble-menu
-      className="fixed z-50 max-w-[calc(100%_-_1rem)] transition-[top,left] duration-150 ease-out"
+      className="fixed left-0 top-0 z-50 max-w-[calc(100%_-_1rem)] transition-transform duration-150 ease-out"
       style={{
-        top: position.top,
-        left: position.left
+        transform: `translate3d(${position.left}px, ${position.top}px, 0)`,
       }}
     >
       {linkEditor ? (

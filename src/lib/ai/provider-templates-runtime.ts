@@ -1,6 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 
 import type { AiConfig } from '@/app/core/setting/config'
+import { withMiniMaxModels } from './minimax'
 import { fetchConfigCenterConfig } from '@/lib/config-center/client'
 import type { ConfigCenterConfigKey } from '@/lib/config-center/types'
 import {
@@ -88,6 +89,7 @@ function normalizeProviderTemplatesPayload(payload: unknown): AiConfig[] {
       enabled: true,
       templateSource: (item.templateSource as AiConfig['templateSource']) || 'remote',
     }))
+    .map(withMiniMaxModels)
 }
 
 function matchProviderTemplate({

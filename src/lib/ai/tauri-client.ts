@@ -4,6 +4,7 @@ import type { ModelsPage } from 'openai/resources/models'
 import { Store } from '@tauri-apps/plugin-store'
 import type { AiConfig, ReasoningEffort } from '@/app/core/setting/config'
 import { reserveSponsoredRequest } from './sponsored-model-limits'
+import { getMiniMaxRoute, MINIMAX_FLASH_EFFORTS, MINIMAX_MODELS, OPENROUTER_MINIMAX_MODELS } from './minimax'
 
 type JsonValue = Record<string, unknown>
 
@@ -51,10 +52,13 @@ export function getReasoningEfforts(aiConfig?: AiConfig): readonly ReasoningEffo
   // https://platform.kimi.ai/docs/api/models-overview.md
   // https://platform.minimaxi.com/docs/api-reference/text-chat-openai.md
   if (['api.moonshot.cn', 'api.moonshot.ai'].includes(hostname) && model === 'kimi-k2.6') return ['none']
-  if (hostname === 'api.minimaxi.com') {
+  const miniMaxRoute = getMiniMaxRoute(aiConfig?.baseURL)
+  if (miniMaxRoute === 'direct') {
+    if (aiConfig?.model === MINIMAX_MODELS[0]) return MINIMAX_FLASH_EFFORTS
     if (model === 'minimax-m3') return ['none']
     if (['minimax-m2', 'minimax-m2.1', 'minimax-m2.5'].includes(model)) return []
   }
+  if (miniMaxRoute === 'openrouter' && aiConfig?.model === OPENROUTER_MINIMAX_MODELS[0]) return MINIMAX_FLASH_EFFORTS
   return undefined
 }
 
@@ -106,7 +110,7 @@ function isMoonshotProvider(aiConfig?: AiConfig): boolean {
 }
 
 function isMiniMaxProvider(aiConfig?: AiConfig): boolean {
-  return isProvider(aiConfig, ['minimax'], ['api.minimaxi.com'])
+  return getMiniMaxRoute(aiConfig?.baseURL) === 'direct'
 }
 
 function isZhipuProvider(aiConfig?: AiConfig): boolean {
@@ -164,6 +168,39 @@ function applyReasoningEffort<T extends OpenAI.Chat.ChatCompletionCreateParams>(
   body: T,
   aiConfig?: AiConfig
 ): T {
+  const miniMaxRoute = getMiniMaxRoute(aiConfig?.baseURL)
+  const isFlash = miniMaxRoute === 'direct' && body.model === MINIMAX_MODELS[0]
+    || miniMaxRoute === 'openrouter' && body.model === OPENROUTER_MINIMAX_MODELS[0]
+  const isM3 = miniMaxRoute === 'direct' && body.model === MINIMAX_MODELS[1]
+  if (isFlash || isM3) {
+    const request = { ...body } as unknown as Record<string, unknown>
+    const thinking = request.thinking as { type?: string } | undefined
+    const reasoning = request.reasoning as Record<string, unknown> | undefined
+    const selectedEffort = aiConfig?.reasoningEffort ?? request.reasoning_effort ?? reasoning?.effort
+    if (isFlash && (thinking?.type === 'disabled' || reasoning?.enabled === false
+      || selectedEffort !== undefined && !MINIMAX_FLASH_EFFORTS.includes(selectedEffort as typeof MINIMAX_FLASH_EFFORTS[number]))) {
+      throw new Error('MiniMax M3.1 Flash requires adaptive thinking with low, medium, high, xhigh, or max effort.')
+    }
+    if (isFlash && request.reasoning_split === false) {
+      throw new Error('MiniMax M3.1 Flash requires separate reasoning output.')
+    }
+    if (isFlash) delete request.service_tier
+    // These controls are ignored by the native M3 APIs; do not advertise them on the wire.
+    for (const key of ['temperature', 'top_p', 'presence_penalty', 'frequency_penalty', 'logprobs', 'top_logprobs', 'logit_bias', 'n', 'seed']) delete request[key]
+    if (miniMaxRoute === 'direct') {
+      if (request.max_completion_tokens !== undefined && request.max_tokens === undefined) request.max_tokens = request.max_completion_tokens
+      delete request.max_completion_tokens
+      request.thinking = { type: isM3 && (selectedEffort === 'none' || thinking?.type === 'disabled') ? 'disabled' : 'adaptive' }
+      if (isFlash) request.reasoning_effort = selectedEffort ?? 'max'
+      else delete request.reasoning_effort
+      delete request.reasoning
+    } else {
+      request.reasoning = { ...reasoning, enabled: true, effort: selectedEffort ?? 'max' }
+      delete request.reasoning_effort
+      delete request.thinking
+    }
+    return request as unknown as T
+  }
   const effort = normalizeReasoningEffort(aiConfig?.reasoningEffort)
   if (!effort) {
     return body

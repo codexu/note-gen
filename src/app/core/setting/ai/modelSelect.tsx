@@ -17,7 +17,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { AiConfig } from "../config";
+import { AiConfig } from "../config"
+import { filterMiniMaxChoices, miniMaxModelChoices } from '@/lib/ai/minimax';
 import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
 import { useTranslations } from "next-intl";
@@ -88,10 +89,11 @@ export default function ModelSelect(
       
       if (requestId !== currentRequestIdRef.current) return null;
       
-      const uniqueModels = models.data.filter((model: OpenAI.Models.Model, index: number) => models.data.findIndex((m: OpenAI.Models.Model) => m.id === model.id) === index)
-      return uniqueModels
+      const choices = [...miniMaxModelChoices(model.baseURL), ...models.data]
+      const uniqueModels = choices.filter((model: OpenAI.Models.Model, index: number) => choices.findIndex((m: OpenAI.Models.Model) => m.id === model.id) === index)
+      return filterMiniMaxChoices(uniqueModels, model.baseURL)
     } catch {
-      return []
+      return miniMaxModelChoices(model.baseURL)
     } finally {
       if (requestId === currentRequestIdRef.current) {
         setLoading(false)

@@ -1,143 +1,63 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { loadMiniMaxRuntime } from '../../../lib/ai/minimax-test-runtime.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const configSource = readFileSync(resolve(__dirname, 'config.tsx'), 'utf-8')
+const state = { store: new Map(), errors: [], toolCalls: [] }
+const runtime = await loadMiniMaxRuntime(state)
+const current = ['MiniMax-M3.1-Flash', 'MiniMax-M3']
 
-test('baseAiConfig includes MiniMax provider entry', () => {
-  assert.ok(configSource.includes("key: 'minimax'"), 'config should have minimax key')
-  assert.ok(configSource.includes("title: 'MiniMax'"), 'config should have MiniMax title')
-})
-
-test('MiniMax provider uses correct base URL', () => {
-  assert.ok(
-    configSource.includes("baseURL: 'https://api.minimax.io/v1'"),
-    'MiniMax baseURL should be https://api.minimax.io/v1'
-  )
-})
-
-test('MiniMax provider includes global and China regional endpoints', () => {
-  for (const endpoint of [
-    "baseURL: 'https://api.minimax.io/v1'",
-    "baseURL: 'https://api.minimax.io/anthropic'",
-    "baseURL: 'https://api.minimaxi.com/v1'",
-    "baseURL: 'https://api.minimaxi.com/anthropic'",
-  ]) {
-    assert.ok(configSource.includes(endpoint), `MiniMax endpoints should include ${endpoint}`)
+test('bundled global and China templates seed Flash first with native capabilities', () => {
+  const templates = runtime.builtinProviderTemplates.filter(item => runtime.getMiniMaxRoute(item.baseURL))
+  assert.deepEqual(templates.map(item => item.baseURL), ['https://api.minimax.io/v1', 'https://api.minimax.cn/v1'])
+  for (const template of templates) {
+    assert.deepEqual(template.models.map(item => item.model), current)
+    assert.deepEqual(template.models.map(item => item.contextWindow), [1_000_000, 1_000_000])
+    assert.deepEqual(template.models.map(item => item.maxOutputTokens), [524_288, 524_288])
+    assert.deepEqual(template.models[0].thinking, ['adaptive'])
+    assert.deepEqual(template.models[1].thinking, ['adaptive', 'disabled'])
   }
-
-  assert.ok(configSource.includes("region: 'global_en'"), 'MiniMax should include the global region')
-  assert.ok(configSource.includes("region: 'cn_zh'"), 'MiniMax should include the China region')
-  assert.ok(configSource.includes("protocol: 'openai'"), 'MiniMax should include the OpenAI protocol')
-  assert.ok(configSource.includes("protocol: 'anthropic'"), 'MiniMax should include the Anthropic protocol')
 })
 
-test('MiniMax provider has apiKeyUrl pointing to platform', () => {
-  assert.ok(
-    configSource.includes("apiKeyUrl: 'https://platform.minimax.io/'"),
-    'MiniMax apiKeyUrl should point to platform.minimax.io'
-  )
-})
-
-test('MiniMax provider has an icon URL', () => {
-  // Extract the MiniMax block from the config
-  const minimaxIdx = configSource.indexOf("key: 'minimax'")
-  assert.ok(minimaxIdx > -1, 'MiniMax entry should exist in config')
-  const blockEnd = configSource.indexOf('},', minimaxIdx)
-  const minimaxBlock = configSource.substring(minimaxIdx, blockEnd)
-  assert.ok(minimaxBlock.includes('icon:'), 'MiniMax entry should have an icon')
-})
-
-test('MiniMax appears after existing providers (Gitee AI)', () => {
-  const giteeIdx = configSource.indexOf("key: 'gitee'")
-  const minimaxIdx = configSource.indexOf("key: 'minimax'")
-  assert.ok(giteeIdx > -1, 'Gitee AI entry should exist')
-  assert.ok(minimaxIdx > -1, 'MiniMax entry should exist')
-  assert.ok(minimaxIdx > giteeIdx, 'MiniMax should appear after Gitee AI in the config array')
-})
-
-test('all provider entries in baseAiConfig have required fields', () => {
-  // Extract all key entries
-  const keyPattern = /key:\s*'([^']+)'/g
-  const keys = []
-  let match
-  while ((match = keyPattern.exec(configSource)) !== null) {
-    keys.push(match[1])
-  }
-  assert.ok(keys.includes('minimax'), 'MiniMax should be in the provider keys')
-  assert.ok(keys.includes('chatgpt'), 'ChatGPT should be in the provider keys')
-  assert.ok(keys.includes('deepseek'), 'DeepSeek should be in the provider keys')
-
-  // Verify MiniMax block has all required fields
-  const minimaxIdx = configSource.indexOf("key: 'minimax'")
-  const blockStart = configSource.lastIndexOf('{', minimaxIdx)
-  let depth = 0
-  let blockEnd = -1
-  for (let i = blockStart; i < configSource.length; i++) {
-    if (configSource[i] === '{') depth++
-    else if (configSource[i] === '}') {
-      depth--
-      if (depth === 0) { blockEnd = i; break }
+test('both remote manifests and cached templates use the same ordinary catalog', async () => {
+  for (const name of ['provider-templates.json', 'provider-templates-cn.json']) {
+    const payload = JSON.parse(readFileSync(new URL(`../../../../config/${name}`, import.meta.url)))
+    state.remote = { status: 'ok', payload, versionCode: 1 }
+    const templates = await runtime.loadProviderTemplates(runtime.builtinProviderTemplates)
+    for (const template of templates.filter(item => runtime.getMiniMaxRoute(item.baseURL) === 'direct')) {
+      assert.deepEqual(template.models.map(item => item.model), current)
     }
+    const cached = await runtime.getCachedProviderTemplates()
+    assert.deepEqual(cached.map(item => item.models), templates.map(item => item.models))
   }
-  const minimaxBlock = configSource.substring(blockStart, blockEnd + 1)
-
-  assert.ok(minimaxBlock.includes('key:'), 'MiniMax should have key field')
-  assert.ok(minimaxBlock.includes('title:'), 'MiniMax should have title field')
-  assert.ok(minimaxBlock.includes('baseURL:'), 'MiniMax should have baseURL field')
-  assert.ok(minimaxBlock.includes('icon:'), 'MiniMax should have icon field')
-  assert.ok(minimaxBlock.includes('apiKeyUrl:'), 'MiniMax should have apiKeyUrl field')
-  assert.ok(minimaxBlock.includes('models:'), 'MiniMax should have models field')
 })
 
-test('MiniMax has MiniMax-M3 set as default (first in models list)', () => {
-  const minimaxIdx = configSource.indexOf("key: 'minimax'")
-  const blockStart = configSource.lastIndexOf('{', minimaxIdx)
-  // Match the MiniMax block by finding the matching closing brace
-  let depth = 0
-  let blockEnd = -1
-  for (let i = blockStart; i < configSource.length; i++) {
-    if (configSource[i] === '{') depth++
-    else if (configSource[i] === '}') {
-      depth--
-      if (depth === 0) { blockEnd = i; break }
-    }
+test('picker filters legacy text only and preserves gateway metadata, media, and other providers', () => {
+  const input = [
+    { id: 'minimax/minimax-m2.7' }, { id: 'minimax/minimax-01' },
+    { id: 'minimax/minimax-m3', context_length: 1048576, pricing: { prompt: '0.0000003' } },
+    { id: 'minimax/minimax-m3.1-flash:free', pricing: { prompt: '0' } },
+    { id: 'openai/gpt-4.1' }, { id: 'minimax/speech-02' }, { id: 'minimax/hailuo-02' },
+  ]
+  const choices = runtime.filterMiniMaxChoices(input, 'https://openrouter.ai/api/v1')
+  assert.deepEqual(choices.map(item => item.id), ['minimax/minimax-m3.1-flash:free', 'minimax/minimax-m3', 'openai/gpt-4.1', 'minimax/speech-02', 'minimax/hailuo-02'])
+  assert.equal(choices[1], input[2])
+  assert.deepEqual(runtime.filterMiniMaxChoices([input[0]], 'https://openrouter.ai/api/v1'), [])
+  assert.deepEqual(runtime.miniMaxModelChoices('https://openrouter.ai/api/v1'), [])
+  for (const url of ['https://custom.example/v1', 'https://api.minimax.io.evil/v1', 'https://api.minimax.io/anthropic', 'https://api.minimax.io/v1?route=other']) {
+    assert.equal(runtime.filterMiniMaxChoices(input, url), input)
   }
-  const minimaxBlock = configSource.substring(blockStart, blockEnd + 1)
-
-  // Verify models list contains M3, M2.7, M2.7-highspeed
-  assert.ok(minimaxBlock.includes("'MiniMax-M3'"), 'M3 should be in models list')
-  assert.ok(minimaxBlock.includes("'MiniMax-M2.7'"), 'M2.7 should be in models list')
-  assert.ok(minimaxBlock.includes("'MiniMax-M2.7-highspeed'"), 'M2.7-highspeed should be in models list')
-
-  // Verify M3 is the first model (default)
-  const m3Idx = minimaxBlock.indexOf("'MiniMax-M3'")
-  const m27Idx = minimaxBlock.indexOf("'MiniMax-M2.7'")
-  assert.ok(m3Idx > -1, 'M3 should exist in MiniMax block')
-  assert.ok(m27Idx > -1, 'M2.7 should exist in MiniMax block')
-  assert.ok(m3Idx < m27Idx, 'M3 should appear before M2.7 (M3 is default)')
-
-  // Verify M2.5 is NOT present
-  assert.ok(!minimaxBlock.includes("'MiniMax-M2.5'"), 'M2.5 should be removed')
-  assert.ok(!minimaxBlock.includes("'MiniMax-M2.1'"), 'M2.1 should be removed')
-  assert.ok(!minimaxBlock.includes("'MiniMax-M2'"), 'M2 should be removed')
-  assert.ok(!minimaxBlock.includes("'MiniMax-M1'"), 'M1 should be removed')
 })
 
-test('MiniMax target models include current capability metadata', () => {
-  const minimaxIdx = configSource.indexOf("key: 'minimax'")
-  const minimaxBlock = configSource.substring(minimaxIdx)
-
-  assert.ok(minimaxBlock.includes('contextWindow: 1_000_000'), 'M3 should have a one-million-token context window')
-  assert.ok(minimaxBlock.includes('pricing: { input: 0.6, output: 2.4, cacheRead: 0.12 }'), 'M3 should have current pricing')
-  assert.ok(minimaxBlock.includes("inputModalities: ['text', 'image', 'video']"), 'M3 should have current input modalities')
-  assert.ok(minimaxBlock.includes("thinking: ['adaptive', 'disabled']"), 'M3 should have current thinking modes')
-
-  assert.ok(minimaxBlock.includes('contextWindow: 204_800'), 'M2.7 should have its current context window')
-  assert.ok(minimaxBlock.includes('pricing: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 }'), 'M2.7 should have current pricing')
-  assert.ok(minimaxBlock.includes("inputModalities: ['text']"), 'M2.7 should have its current input modality')
-  assert.ok(minimaxBlock.includes("thinking: ['always_on']"), 'M2.7 should have its current thinking mode')
+test('saved legacy IDs and custom configurations resolve without migration', async () => {
+  const saved = { key: 'saved', title: 'MiniMax', baseURL: 'https://api.minimaxi.com/v1', models: [{ id: 'legacy', model: 'MiniMax-M2.7', modelType: 'chat', temperature: 0.3 }] }
+  state.store.set('aiModelList', [saved])
+  const before = structuredClone(saved)
+  assert.equal((await runtime.getAISettingsByModelId('legacy')).model, 'MiniMax-M2.7')
+  assert.deepEqual(saved, before)
+  const custom = { ...saved, baseURL: 'https://custom.example/v1' }
+  assert.equal(runtime.withMiniMaxModels(custom), custom)
+  const media = { id: 'speech', model: 'speech-02', modelType: 'tts' }
+  const other = { id: 'other', model: 'custom-chat', modelType: 'chat' }
+  assert.deepEqual(runtime.withMiniMaxModels({ ...saved, models: [...saved.models, media, other] }).models.slice(2), [media, other])
 })

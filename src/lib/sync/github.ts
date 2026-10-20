@@ -3,6 +3,8 @@ import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { GithubError, GithubRepoInfo, OctokitResponse } from './github.types';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
+import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent } from './remote-file'
+import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file';
 
 export function uint8ArrayToBase64(data: Uint8Array) {
@@ -43,9 +45,31 @@ interface Links {
   html: string;
 }
 
+export interface GithubRelease {
+  name?: string | null;
+  tag_name?: string | null;
+  body?: string | null;
+  published_at?: string | null;
+  html_url?: string | null;
+  draft?: boolean;
+  prerelease?: boolean;
+}
+
+interface GithubReleasesCache {
+  updatedAt: number;
+  releases: GithubRelease[];
+}
+
+interface GetReleasesOptions {
+  forceRefresh?: boolean;
+}
+
+const GITHUB_RELEASES_CACHE_KEY = 'githubReleasesCache';
+const GITHUB_RELEASES_CACHE_TTL_MS = 1000 * 60 * 30;
+
 export async function uploadFile(
   { file, filename, sha, message, repo, path }:
-  { file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string })
+  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
@@ -59,14 +83,15 @@ export async function uploadFile(
   } : undefined
   
   try {
-    // 构建路径，将空格转换成下划线
-    const _path = path ? `/${path.replace(/\s/g, '_')}` : ''
-
-    // 对 URL 路径进行编码（保留中文字符的 UTF-8 编码）
-    const urlPath = _path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    const contentPath = buildRepoContentPath({ path, filename })
+    debugSyncPath('github.uploadFile', {
+      inputPath: path,
+      filename,
+      contentPath,
+    })
 
     // 将内容转换为 Base64（GitHub API 要求）
-    const base64Content = Buffer.from(file, 'utf-8').toString('base64')
+    const base64Content = encodeRemoteFileContent(file)
 
     // 设置请求头
     const headers = new Headers();
@@ -86,7 +111,7 @@ export async function uploadFile(
       proxy
     };
 
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents${urlPath}`;
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(contentPath)}`;
     const response = await fetch(url, requestOptions);
 
     if (response.status >= 200 && response.status < 300) {
@@ -112,6 +137,25 @@ export async function uploadFile(
   }
 }
 
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+  const store = await Store.load('store.json')
+  const token = await store.get<string>('accessToken')
+  const username = await store.get<string>('githubUsername')
+  if (!token || !username) throw new Error('GitHub sync is not configured')
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const baseUrl = `https://api.github.com/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`
+  return readGitTreeDirectory(path, resource => fetch(`${baseUrl}${resource}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    proxy,
+  }))
+}
+
 export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
@@ -119,11 +163,11 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
 
   const githubUsername = await store.get('githubUsername')
 
-  // 只对空格进行转义，保留中文字符的原始 UTF-8 编码
-  const safePath = path.replace(/\s/g, '_')
-
-  // 对 URL 路径进行编码
-  const encodedPath = safePath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+  const encodedPath = buildRepoContentPath({ path })
+  debugSyncPath('github.getFiles', {
+    inputPath: path,
+    encodedPath,
+  })
 
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -204,15 +248,8 @@ export async function deleteFile(
       proxy
     };
 
-    // 分离路径和文件名，只对路径部分进行编码，保留文件名的原始字符
-    const lastSlashIndex = path.lastIndexOf('/')
-    const dirPath = lastSlashIndex > 0 ? path.substring(0, lastSlashIndex) : ''
-    const fileName = lastSlashIndex > 0 ? path.substring(lastSlashIndex + 1) : path
-
-    // 对目录路径进行编码，但保留文件名不变
-    const encodedPath = dirPath ? encodeURIComponent(dirPath) + '/' + fileName : fileName
-
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/contents/${encodedPath}`;
+    const encodedPath = buildRepoContentPath({ path, preserveWhitespace: true })
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(encodedPath)}`;
     const response = await fetch(url, requestOptions);
     
     if (response.status >= 200 && response.status < 300) {
@@ -235,9 +272,6 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
 
   const githubUsername = await store.get('githubUsername')
 
-  // 只对空格进行转义，保留中文字符的原始 UTF-8 编码
-  const safePath = path.replace(/\s/g, '_')
-
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? {
@@ -258,7 +292,12 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
       proxy
     };
     
-    const url = `https://api.github.com/repos/${githubUsername}/${repo}/commits?path=${encodeURIComponent(safePath)}&per_page=100`;
+    const commitPath = encodeURIComponent(path)
+    debugSyncPath('github.getFileCommits', {
+      inputPath: path,
+      commitPath,
+    })
+    const url = `https://api.github.com/repos/${githubUsername}/${repo}/commits?path=${commitPath}&per_page=100`;
     const response = await fetch(url, requestOptions);
 
     if (response.status >= 200 && response.status < 300) {
@@ -306,6 +345,7 @@ export async function getUserInfo(token?: string) {
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       await store.set('githubUsername', data.login);
+      await store.save();
       return { data } as OctokitResponse<any>;
     }
     
@@ -348,8 +388,34 @@ export async function checkSyncRepoState(name: string) {
     const data = await response.json();
     return data;
   }
-  
-  return false
+
+  if (response.status === 404) return false
+
+  throw new Error(`检查仓库状态失败: ${response.status}`)
+}
+
+export async function listUserRepositories(): Promise<string[]> {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('accessToken')
+  if (!accessToken) throw new Error('GitHub Access Token 未配置')
+
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const headers = new Headers()
+  headers.append('Authorization', `Bearer ${accessToken}`)
+  headers.append('Accept', 'application/vnd.github+json')
+  headers.append('X-GitHub-Api-Version', '2022-11-28')
+
+  const response = await fetch(
+    'https://api.github.com/user/repos?affiliation=owner&sort=updated&per_page=100',
+    { method: 'GET', headers, proxy }
+  )
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`获取仓库列表失败: ${response.status}`)
+  }
+
+  const repositories = await response.json() as GithubRepoInfo[]
+  return repositories.map(repository => repository.name).filter(Boolean)
 }
 
 // 创建 Github 仓库
@@ -397,10 +463,9 @@ export async function createSyncRepo(name: string, isPrivate?: boolean) {
 }
 
 // 读取 release
-export async function getRelease() {
+export async function getRelease(): Promise<GithubRelease | false | undefined> {
   const store = await Store.load('store.json');
-  const accessToken = await store.get('accessToken')
-  if (!accessToken) return;
+  const accessToken = await store.get<string>('accessToken')
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -411,7 +476,9 @@ export async function getRelease() {
   try {
     // 设置请求头
     const headers = new Headers();
-    headers.append('Authorization', `Bearer ${accessToken}`);
+    if (accessToken) {
+      headers.append('Authorization', `Bearer ${accessToken}`);
+    }
     headers.append('Accept', 'application/vnd.github+json');
     headers.append('X-GitHub-Api-Version', '2022-11-28');
     headers.append('If-None-Match', '');
@@ -426,13 +493,73 @@ export async function getRelease() {
     const response = await fetch(url, requestOptions);
     
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
+      const data = await response.json() as GithubRelease;
       return data;
     }
     
     throw new Error('获取 release 失败');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
+    return false
+  }
+}
+
+// 读取 release 列表
+export async function getReleases(options: GetReleasesOptions = {}): Promise<GithubRelease[] | false | undefined> {
+  const store = await Store.load('store.json');
+  const accessToken = await store.get<string>('accessToken')
+  const cachedReleases = await store.get<GithubReleasesCache>(GITHUB_RELEASES_CACHE_KEY)
+
+  if (
+    !options.forceRefresh &&
+    cachedReleases?.releases?.length &&
+    Date.now() - cachedReleases.updatedAt < GITHUB_RELEASES_CACHE_TTL_MS
+  ) {
+    return cachedReleases.releases;
+  }
+
+  // 获取代理设置
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? {
+    all: proxyUrl
+  } : undefined
+
+  try {
+    // 设置请求头
+    const headers = new Headers();
+    if (accessToken) {
+      headers.append('Authorization', `Bearer ${accessToken}`);
+    }
+    headers.append('Accept', 'application/vnd.github+json');
+    headers.append('X-GitHub-Api-Version', '2022-11-28');
+    headers.append('If-None-Match', '');
+
+    const requestOptions = {
+      method: 'GET',
+      headers,
+      proxy
+    };
+
+    const url = `https://api.github.com/repos/codexu/note-gen/releases?per_page=100`;
+    const response = await fetch(url, requestOptions);
+
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json() as GithubRelease[];
+      await store.set(GITHUB_RELEASES_CACHE_KEY, {
+        updatedAt: Date.now(),
+        releases: data
+      } satisfies GithubReleasesCache);
+      await store.save();
+      return data;
+    }
+
+    throw new Error('获取 release 列表失败');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (error) {
+    if (cachedReleases?.releases?.length) {
+      return cachedReleases.releases;
+    }
+
     return false
   }
 }

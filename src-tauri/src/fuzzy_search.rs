@@ -1,5 +1,5 @@
-use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
@@ -43,7 +43,7 @@ fn search_item(
     let mut best_score = 0;
     let mut all_matches = Vec::new();
     let mut has_match = false;
-    
+
     for key in keys {
         let text = match *key {
             "desc" => item.desc.as_deref().unwrap_or(""),
@@ -53,25 +53,26 @@ fn search_item(
             "search_type" => item.search_type.as_deref().unwrap_or(""),
             _ => continue,
         };
-        
+
         if let Some((score, indices)) = matcher.fuzzy_indices(text, pattern) {
-            let normalized_score = (score as f64).abs() / (pattern.len() as f64);
-            
+            let pattern_length = pattern.chars().count().max(1) as f64;
+            let normalized_score = (score as f64).abs() / pattern_length;
+
             if normalized_score < threshold {
                 continue;
             }
-            
+
             has_match = true;
-            
+
             if score > best_score {
                 best_score = score;
             }
-            
+
             let mut ranges = Vec::new();
             for &idx in &indices {
                 ranges.push([idx, idx]);
             }
-            
+
             all_matches.push(MatchInfo {
                 key: key.to_string(),
                 indices: ranges,
@@ -79,11 +80,11 @@ fn search_item(
             });
         }
     }
-    
+
     if !has_match {
         return None;
     }
-    
+
     Some(FuzzySearchResult {
         item: item.clone(),
         refindex: 0,
@@ -104,9 +105,9 @@ pub fn fuzzy_search(
     if query.is_empty() {
         return Vec::new();
     }
-    
+
     let keys_str: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
-    
+
     let mut results: Vec<_> = items
         .par_iter()
         .enumerate()
@@ -116,9 +117,9 @@ pub fn fuzzy_search(
             Some(result)
         })
         .collect();
-    
+
     results.sort_by_key(|r| Reverse(r.score));
-    
+
     if !include_score || !include_matches {
         for result in &mut results {
             if !include_score {
@@ -131,7 +132,7 @@ pub fn fuzzy_search(
             }
         }
     }
-    
+
     results
 }
 
@@ -144,5 +145,12 @@ pub fn fuzzy_search_parallel(
     include_score: bool,
     include_matches: bool,
 ) -> Vec<FuzzySearchResult> {
-    fuzzy_search(items, query, keys, threshold, include_score, include_matches)
+    fuzzy_search(
+        items,
+        query,
+        keys,
+        threshold,
+        include_score,
+        include_matches,
+    )
 }

@@ -1,10 +1,13 @@
+"use client"
+
 import { Chat } from "@/db/chats"
 import { FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/responsive-popover"
 import { useTranslations } from 'next-intl'
 
 interface CondensedIndicatorProps {
@@ -20,16 +23,21 @@ export function CondensedIndicator({ chat }: CondensedIndicatorProps) {
   }
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-help transition-colors">
+    <ResponsivePopover mobileTitle={t('summary')}>
+      <ResponsivePopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
+        >
           <FileText className="size-4" />
           <span>{t('summary')}</span>
-        </div>
-      </PopoverTrigger>
-      <PopoverContent side="top" className="max-w-xs">
-        <p className="text-xs whitespace-pre-wrap">{chat.condensedContent}</p>
-      </PopoverContent>
-    </Popover>
+        </Button>
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent side="top" className="max-w-xs">
+        <p className="px-4 pb-4 text-xs whitespace-pre-wrap">{chat.condensedContent}</p>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   )
 }

@@ -1,7 +1,21 @@
 import { getDb } from "./index"
+import { v4 as uuid, v5 as uuidv5 } from 'uuid'
+import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
+import {
+  nextConversationSyncTimestamp,
+  upsertConversationSyncTombstone,
+} from './conversation-sync-state'
+
+const LEGACY_CONVERSATION_SYNC_NAMESPACE = 'da62245d-39f7-4135-936f-792b8da63706'
+
+function enqueueConversationAutoSync(reason: string) {
+  enqueueAutoDataSync('conversations', reason)
+}
 
 export interface Conversation {
   id: number
+  syncId: string
+  syncUpdatedAt: number
   title: string
   createdAt: number
   updatedAt: number
@@ -40,8 +54,45 @@ export async function initConversationsDb() {
     // 如果列已存在，忽略错误
   }
 
-  // 迁移现有数据到默认会话
+  try {
+    await db.execute(`alter table conversations add column syncId text default null`)
+  } catch {
+    // Idempotent migration.
+  }
+  try {
+    await db.execute(`alter table conversations add column syncUpdatedAt integer default null`)
+  } catch {
+    // Idempotent migration.
+  }
+
+  // 先创建兼容旧数据的默认会话，再为所有会话补齐同步标识。
   await migrateExistingChats()
+
+  const legacyConversations = await db.select<Array<{
+    id: number
+    title: string
+    createdAt: number
+  }>>(
+    `select id, title, createdAt
+     from conversations where syncId is null or syncUpdatedAt is null`,
+    []
+  )
+  for (const conversation of legacyConversations) {
+    const syncId = uuidv5(
+      JSON.stringify(['conversation', conversation.id, conversation.createdAt]),
+      LEGACY_CONVERSATION_SYNC_NAMESPACE,
+    )
+    await db.execute(
+      `update conversations
+       set syncId = coalesce(syncId, $1), syncUpdatedAt = coalesce(syncUpdatedAt, updatedAt)
+       where id = $2`,
+      [syncId, conversation.id]
+    )
+  }
+  await db.execute(
+    `create unique index if not exists idx_conversations_sync_id on conversations(syncId)`
+  )
+
 }
 
 // 迁移现有聊天记录到默认会话
@@ -107,10 +158,12 @@ async function migrateExistingChats() {
 export async function createConversation(title: string): Promise<number> {
   const db = await getDb()
   const now = Date.now()
+  const syncUpdatedAt = await nextConversationSyncTimestamp()
   const result = await db.execute(
-    "insert into conversations (title, createdAt, updatedAt, messageCount, isPinned) values ($1, $2, $3, $4, $5)",
-    [title, now, now, 0, 0]
+    "insert into conversations (syncId, syncUpdatedAt, title, createdAt, updatedAt, messageCount, isPinned) values ($1, $2, $3, $4, $5, $6, $7)",
+    [uuid(), syncUpdatedAt, title, now, now, 0, 0]
   )
+  enqueueConversationAutoSync('conversation-created')
   return result.lastInsertId as number
 }
 
@@ -134,36 +187,99 @@ export async function getConversation(id: number): Promise<Conversation | null> 
   return result[0] || null
 }
 
+export async function getConversationBySyncId(syncId: string): Promise<Conversation | null> {
+  const db = await getDb()
+  const result = await db.select<Conversation[]>(
+    "select * from conversations where syncId = $1",
+    [syncId]
+  )
+  return result[0] || null
+}
+
 // 更新会话标题
 export async function updateConversationTitle(id: number, title: string): Promise<void> {
   const db = await getDb()
+  const now = await nextConversationSyncTimestamp()
   await db.execute(
-    "update conversations set title = $1, updatedAt = $2 where id = $3",
-    [title, Date.now(), id]
+    "update conversations set title = $1, updatedAt = $2, syncUpdatedAt = $2 where id = $3",
+    [title, now, id]
   )
+  enqueueConversationAutoSync('conversation-title-updated')
 }
 
 // 更新会话消息数量
 export async function updateConversationMessageCount(id: number, delta: number): Promise<void> {
   const db = await getDb()
+  const now = await nextConversationSyncTimestamp()
   await db.execute(
-    "update conversations set messageCount = messageCount + $1, updatedAt = $2 where id = $3",
-    [delta, Date.now(), id]
+    "update conversations set messageCount = messageCount + $1, updatedAt = $2, syncUpdatedAt = $2 where id = $3",
+    [delta, now, id]
   )
+  enqueueConversationAutoSync('conversation-messages-updated')
 }
 
 // 更新会话的最后更新时间
 export async function updateConversationTime(id: number): Promise<void> {
   const db = await getDb()
+  const now = await nextConversationSyncTimestamp()
   await db.execute(
-    "update conversations set updatedAt = $1 where id = $2",
-    [Date.now(), id]
+    "update conversations set updatedAt = $1, syncUpdatedAt = $1 where id = $2",
+    [now, id]
   )
+  enqueueConversationAutoSync('conversation-updated')
 }
 
 // 删除会话及其相关聊天记录
 export async function deleteConversation(id: number): Promise<void> {
   const db = await getDb()
+  const conversation = await getConversation(id)
+  if (!conversation) return
+  const messages = await db.select<Array<{ syncId: string }>>(
+    'select syncId from chats where conversationId = $1 and syncId is not null',
+    [id]
+  )
+  const deletedAt = await nextConversationSyncTimestamp()
+  await upsertConversationSyncTombstone({
+    entityType: 'conversation',
+    syncId: conversation.syncId,
+    conversationSyncId: conversation.syncId,
+    deletedAt,
+  })
+  for (const message of messages) {
+    await upsertConversationSyncTombstone({
+      entityType: 'message',
+      syncId: message.syncId,
+      conversationSyncId: conversation.syncId,
+      deletedAt,
+    })
+  }
+  const optionalTables = await db.select<{ name: string }[]>(
+    `select name from sqlite_master
+     where type = 'table'
+       and name in ('memory_conversation_policy', 'memory_jobs', 'conversation_compactions')`,
+    []
+  )
+  const existingOptionalTables = new Set(optionalTables.map(table => table.name))
+
+  // 这些关联表由可选功能在不同版本中引入，旧数据库中可能尚不存在。
+  if (existingOptionalTables.has('memory_conversation_policy')) {
+    await db.execute(
+      "delete from memory_conversation_policy where conversation_id = $1",
+      [id]
+    )
+  }
+  if (existingOptionalTables.has('memory_jobs')) {
+    await db.execute(
+      "delete from memory_jobs where conversation_id = $1",
+      [id]
+    )
+  }
+  if (existingOptionalTables.has('conversation_compactions')) {
+    await db.execute(
+      "delete from conversation_compactions where conversationId = $1",
+      [id]
+    )
+  }
   // 先删除会话的所有聊天记录
   await db.execute(
     "delete from chats where conversationId = $1",
@@ -174,6 +290,7 @@ export async function deleteConversation(id: number): Promise<void> {
     "delete from conversations where id = $1",
     [id]
   )
+  enqueueConversationAutoSync('conversation-deleted')
 }
 
 // 切换会话置顶状态
@@ -183,10 +300,12 @@ export async function toggleConversationPin(id: number): Promise<boolean> {
   if (!conv) return false
 
   const newPinState = conv.isPinned ? 0 : 1
+  const syncUpdatedAt = await nextConversationSyncTimestamp()
   await db.execute(
-    "update conversations set isPinned = $1 where id = $2",
-    [newPinState, id]
+    "update conversations set isPinned = $1, syncUpdatedAt = $2 where id = $3",
+    [newPinState, syncUpdatedAt, id]
   )
+  enqueueConversationAutoSync('conversation-pin-updated')
   return !conv.isPinned
 }
 
@@ -200,7 +319,7 @@ export async function syncConversationMessageCount(conversationId: number): Prom
   const actualCount = result[0]?.count || 0
 
   await db.execute(
-    "update conversations set messageCount = $1 where id = $2",
+    "update conversations set messageCount = $1 where id = $2 and messageCount <> $1",
     [actualCount, conversationId]
   )
 }

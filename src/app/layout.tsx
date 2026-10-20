@@ -1,5 +1,5 @@
 'use client'
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/sonner"
 import "./globals.css";
 import 'react-photo-view/dist/react-photo-view.css';
 import { Suspense, useEffect } from "react";
@@ -7,17 +7,24 @@ import { NextIntlProvider } from "@/components/providers/NextIntlProvider";
 import Script from "next/script";
 import { getSyncPushQueue } from "@/lib/sync/sync-push-queue";
 import { ConsoleFilter } from "@/components/console-filter";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { DeveloperModeController } from "@/components/developer-mode-controller";
+import { AppLockGate } from "@/components/app-lock-gate";
+import { CustomCssController } from "@/components/custom-css-controller";
+
+function AppRuntime({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (['/editor-window', '/quick-record', '/print', '/screenshot'].some(path => window.location.pathname.startsWith(path))) return
+    getSyncPushQueue()
+  }, [])
+  return <>{children}</>
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 初始化同步推送队列
-  useEffect(() => {
-    getSyncPushQueue()
-  }, [])
-
   return (
     <>
       <html lang="en" suppressHydrationWarning>
@@ -25,7 +32,7 @@ export default function RootLayout({
           {/* 移动端视口设置 */}
           <meta
             name="viewport"
-            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, height=device-height"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover"
           />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -44,12 +51,18 @@ export default function RootLayout({
         </head>
         <body suppressHydrationWarning>
           <ConsoleFilter />
+          <DeveloperModeController />
+          <CustomCssController />
           <Suspense>
-            <NextIntlProvider>
-              {children}
-            </NextIntlProvider>
+            <TooltipProvider>
+              <NextIntlProvider>
+                <AppLockGate>
+                  <AppRuntime>{children}</AppRuntime>
+                </AppLockGate>
+              </NextIntlProvider>
+            </TooltipProvider>
           </Suspense>
-          <Toaster />
+          <Toaster closeButton richColors position="top-center" />
         </body>
       </html>
     </>

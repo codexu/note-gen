@@ -10,28 +10,62 @@ export interface SidebarState {
   toggleNoteSidebar: () => Promise<void>
   showNoteSidebar: () => Promise<void>
   leftSidebarVisible: boolean
+  sidebarSearchFocusRequest: number
+  requestSidebarSearchFocus: () => Promise<void>
   toggleLeftSidebar: () => Promise<void>
   centerPanelVisible: boolean
   toggleCenterPanel: () => Promise<void>
+  showCenterPanel: () => Promise<void>
   rightSidebarVisible: boolean
   toggleRightSidebar: () => Promise<void>
-  leftSidebarTab: 'files' | 'notes'
-  setLeftSidebarTab: (tab: 'files' | 'notes') => Promise<void>
+  leftSidebarTab: string
+  setLeftSidebarTab: (tab: string) => Promise<void>
   initSidebarState: () => Promise<void>
+}
+
+export const BUILT_IN_LEFT_SIDEBAR_TABS = ['files', 'notes', 'canvases'] as const
+export type BuiltInLeftSidebarTab = typeof BUILT_IN_LEFT_SIDEBAR_TABS[number]
+
+const builtInLeftSidebarTabs = new Set<string>(BUILT_IN_LEFT_SIDEBAR_TABS)
+const PLUGIN_ID_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+const SAFE_PLUGIN_VIEW_ID_PATTERN = /^[^\u0000-\u001f\u007f]{3,220}$/
+
+export function isBuiltInLeftSidebarTab(tab: string): tab is BuiltInLeftSidebarTab {
+  return builtInLeftSidebarTabs.has(tab)
+}
+
+function normalizeLeftSidebarTab(value: unknown): string {
+  if (typeof value !== 'string') return 'files'
+  if (isBuiltInLeftSidebarTab(value)) return value
+  const separator = value.indexOf(':')
+  if (separator < 0) return 'files'
+  const pluginId = value.slice(0, separator)
+  const viewId = value.slice(separator + 1)
+  return pluginId.length <= 160
+    && PLUGIN_ID_PATTERN.test(pluginId)
+    && SAFE_PLUGIN_VIEW_ID_PATTERN.test(viewId)
+    ? value
+    : 'files'
 }
 
 // 从 localStorage 获取初始状态
 const getInitialState = () => {
-  if (typeof window === 'undefined') return { left: true, center: true, right: true }
+  if (typeof window === 'undefined') return { left: true, center: true, right: true, tab: 'files' }
   
   const leftState = localStorage.getItem('leftSidebarVisible')
   const centerState = localStorage.getItem('centerPanelVisible')
   const rightState = localStorage.getItem('rightSidebarVisible')
+  const leftTab = localStorage.getItem('leftSidebarTab')
+  const normalizedLeftTab = normalizeLeftSidebarTab(leftTab)
+  if (leftTab !== null && leftTab !== normalizedLeftTab) {
+    localStorage.setItem('leftSidebarTab', normalizedLeftTab)
+  }
   
   return {
     left: leftState !== null ? leftState === 'true' : true,
     center: centerState !== null ? centerState === 'true' : true,
     right: rightState !== null ? rightState === 'true' : true,
+    tab: normalizedLeftTab,
   }
 }
 
@@ -65,6 +99,17 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     store.set('noteSidebarVisible', true)
   },
   leftSidebarVisible: initialState.left,
+  sidebarSearchFocusRequest: 0,
+  requestSidebarSearchFocus: async () => {
+    set((state) => ({
+      leftSidebarVisible: true,
+      sidebarSearchFocusRequest: state.sidebarSearchFocusRequest + 1,
+    }))
+    localStorage.setItem('leftSidebarVisible', 'true')
+    const store = await Store.load('store.json')
+    await store.set('leftSidebarVisible', true)
+    await store.save()
+  },
   toggleLeftSidebar: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
     
@@ -86,6 +131,17 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     await store.save()
   },
   centerPanelVisible: initialState.center,
+  showCenterPanel: async () => {
+    if (get().centerPanelVisible) {
+      return
+    }
+
+    set({ centerPanelVisible: true })
+    localStorage.setItem('centerPanelVisible', 'true')
+    const store = await Store.load('store.json')
+    await store.set('centerPanelVisible', true)
+    await store.save()
+  },
   toggleCenterPanel: async () => {
     const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible } = get()
     
@@ -135,12 +191,13 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     await store.set('rightSidebarVisible', newState)
     await store.save()
   },
-  leftSidebarTab: 'files',
-  setLeftSidebarTab: async (tab: 'files' | 'notes') => {
-    set({ leftSidebarTab: tab })
-    localStorage.setItem('leftSidebarTab', tab)
+  leftSidebarTab: initialState.tab,
+  setLeftSidebarTab: async (tab: string) => {
+    const normalizedTab = normalizeLeftSidebarTab(tab)
+    set({ leftSidebarTab: normalizedTab })
+    localStorage.setItem('leftSidebarTab', normalizedTab)
     const store = await Store.load('store.json')
-    await store.set('leftSidebarTab', tab)
+    await store.set('leftSidebarTab', normalizedTab)
     await store.save()
   },
   initSidebarState: async () => {
@@ -148,7 +205,7 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
     const leftState = await store.get<boolean>('leftSidebarVisible')
     const centerState = await store.get<boolean>('centerPanelVisible')
     const rightState = await store.get<boolean>('rightSidebarVisible')
-    const leftTab = await store.get<'files' | 'notes'>('leftSidebarTab')
+    const storedLeftTab = await store.get<unknown>('leftSidebarTab')
     
     if (leftState !== null && leftState !== undefined) {
       set({ leftSidebarVisible: leftState })
@@ -162,9 +219,14 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
       set({ rightSidebarVisible: rightState })
       localStorage.setItem('rightSidebarVisible', String(rightState))
     }
-    if (leftTab) {
+    if (storedLeftTab !== null && storedLeftTab !== undefined) {
+      const leftTab = normalizeLeftSidebarTab(storedLeftTab)
       set({ leftSidebarTab: leftTab })
       localStorage.setItem('leftSidebarTab', leftTab)
+      if (storedLeftTab !== leftTab) {
+        await store.set('leftSidebarTab', leftTab)
+        await store.save()
+      }
     }
   },
 }))

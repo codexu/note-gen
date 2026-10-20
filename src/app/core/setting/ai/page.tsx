@@ -1,52 +1,183 @@
 'use client'
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslations } from 'next-intl';
 import { useLocalStorage } from 'react-use';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Store } from "@tauri-apps/plugin-store";
 import { v4 } from 'uuid';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select"
-import {
-  Accordion,
-} from "@/components/ui/accordion"
-import Image from "next/image";
-
-import { SettingType, FormItem } from "../components/setting-base";
-import { AiConfig, ModelConfig, baseAiConfig } from "../config";
+import { ResponsiveSelect } from "@/components/responsive-select"
+import { SettingType } from "../components/setting-base";
+import { AiConfig, ModelConfig, ProxyMode, builtinProviderTemplates } from "../config";
 import useSettingStore from "@/stores/setting";
 import { noteGenModelKeys } from "@/app/model-config";
-import { BotMessageSquare, Copy, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
+import { BotMessageSquare, Copy, Eye, EyeOff, KeyRound, LoaderCircle, Network, Plus, Server, Settings2, Trash2, X } from "lucide-react";
 import { OpenBroswer } from "@/components/open-broswer";
 import DefaultModelsSection from "./default-models";
 import ModelCard from "./model-card";
 import CreateConfig from "./create";
+import { getCachedProviderTemplates, getProviderTemplateMatch, loadProviderTemplates } from "@/lib/ai/provider-templates-runtime";
+import { isValidProxyURL } from "@/lib/ai/tauri-client";
+import { excludeBuiltInOpenAIProviders, isMainlandChinaAppStore } from "@/lib/ai/storefront-policy";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
+function getPlatformAvatarFallback(config: AiConfig) {
+  const characterCount = config.templateSource === 'custom' ? 1 : 2
+  const fallback = Array.from(config.title.trim()).slice(0, characterCount).join('').toUpperCase()
+  return fallback || (config.templateSource === 'custom' ? '自' : 'AI')
+}
 
-export default function AiPage() {
+function getCustomPlatformAvatarStyle(config: AiConfig) {
+  if (config.templateSource !== 'custom') return undefined
+
+  const platformName = config.title.trim() || '自定义平台'
+  const hash = Array.from(platformName).reduce((value, character) => (
+    Math.imul(value, 31) + (character.codePointAt(0) || 0)
+  ), 17)
+  const hue = Math.abs(hash) % 360
+
+  return {
+    backgroundColor: `hsl(${hue} 62% 42%)`,
+    color: 'white',
+  }
+}
+
+function getProviderPromotion(config: AiConfig, template?: AiConfig | null) {
+  return template?.promotion || config.promotion
+}
+
+function getProviderOptionLabel(config: AiConfig, template?: AiConfig | null) {
+  const count = config.models?.filter(model => model.model.trim()).length || 0
+  return <ProviderTitle config={config} template={template} modelCount={count} />
+}
+
+function ProviderTitle({ config, template, modelCount }: { config: AiConfig; template?: AiConfig | null; modelCount?: number }) {
+  const t = useTranslations('common.providerSponsor')
+  const aiText = useTranslations('settings.ai')
+  const shouldReduceMotion = useReducedMotion()
+  const hasModels = modelCount !== undefined && modelCount > 0
+  const transition = shouldReduceMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 240, damping: 28, mass: 0.8 }
+  const sponsored = template ? template.sponsored === true : config.sponsored === true
+  const promotion = getProviderPromotion(config, template)
+  return (
+    <motion.span initial="rest" whileHover="hovered" whileFocus="hovered" className="flex min-w-0 w-full items-center justify-start gap-1.5 text-left">
+      <span className="min-w-0 flex-1 truncate" title={config.title}>{config.title}</span>
+      <span className="grid h-5 shrink-0 items-center overflow-hidden">
+        <motion.span
+          className="col-start-1 row-start-1 inline-flex h-full items-center justify-self-end gap-1.5"
+          variants={{
+            rest: { y: '0%', opacity: 1 },
+            hovered: { y: hasModels ? '-100%' : '0%', opacity: hasModels ? 0 : 1 },
+          }}
+          transition={hasModels ? transition : { duration: 0 }}
+        >
+          {sponsored && (
+            <Badge variant="secondary" title={t('description')} aria-label={`${t('label')}: ${t('description')}`}>
+              {t('label')}
+            </Badge>
+          )}
+          {promotion && <ProviderPromotionText promotion={promotion} />}
+        </motion.span>
+        {hasModels && (
+          <motion.span
+            className="pointer-events-none col-start-1 row-start-1 flex h-full items-center justify-self-end"
+            variants={{ rest: { y: '100%', opacity: 0 }, hovered: { y: '0%', opacity: 1 } }}
+            transition={transition}
+            title={aiText('modelCount', { count: modelCount })}
+          >
+            <Badge variant="secondary" className="tabular-nums" aria-label={aiText('modelCount', { count: modelCount })}>
+              {modelCount}
+            </Badge>
+          </motion.span>
+        )}
+      </span>
+    </motion.span>
+  )
+}
+
+function ProviderPromotionText({ promotion }: { promotion: string }) {
+  const shouldReduceMotion = useReducedMotion()
+
+  return (
+      <motion.span
+        title={promotion}
+        animate={shouldReduceMotion ? undefined : { backgroundPosition: ['0% 50%', '100% 50%'] }}
+        className="shrink-0 whitespace-nowrap bg-clip-text text-xs font-medium text-transparent"
+        style={{
+          backgroundImage: 'linear-gradient(90deg, hsl(var(--promotion-gradient-start)) 0%, hsl(var(--promotion-gradient-middle)) 16.667%, hsl(var(--promotion-gradient-end)) 33.333%, hsl(var(--promotion-gradient-start)) 50%, hsl(var(--promotion-gradient-middle)) 66.667%, hsl(var(--promotion-gradient-end)) 83.333%, hsl(var(--promotion-gradient-start)) 100%)',
+          backgroundPosition: '0% 50%',
+          backgroundSize: '200% 100%',
+        }}
+        transition={{ duration: 6, ease: 'linear', repeat: Infinity, repeatType: 'loop' }}
+      >
+        {promotion}
+      </motion.span>
+  )
+}
+
+export default function AiPage({ mobile = false }: { mobile?: boolean }) {
   const t = useTranslations('settings.ai');
   const {
     aiModelList,
     setAiModelList
   } = useSettingStore()
+  const [hideBuiltInOpenAI, setHideBuiltInOpenAI] = useState<boolean | null>(null)
 
   // 过滤掉默认模型，只显示用户自定义模型
-  const userCustomModels = aiModelList.filter(model => !noteGenModelKeys.includes(model.key) && model.title !== 'NoteGen Limited')
+  const visibleAiModelList = hideBuiltInOpenAI !== false
+    ? excludeBuiltInOpenAIProviders(aiModelList)
+    : aiModelList
+  const userCustomModels = visibleAiModelList.filter(model => !noteGenModelKeys.includes(model.key) && model.title !== 'NoteGen Limited')
   const [apiKeyVisible, setApiKeyVisible] = useState<boolean>(false)
   const [headerPairs, setHeaderPairs] = useState<Array<{key: string, value: string, id: string}>>([])
   const [expandedModels, setExpandedModels] = useState<string[]>([])
+  const [providerTemplates, setProviderTemplates] = useState<AiConfig[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(true)
+  const [addingTemplateKey, setAddingTemplateKey] = useState('')
+  const [activeTab, setActiveTab] = useState('connection')
+  const aiModelListRef = useRef(aiModelList)
+  const isTitleComposingRef = useRef(false)
+
+  useEffect(() => {
+    aiModelListRef.current = aiModelList
+  }, [aiModelList])
   
   // 使用 useLocalStorage 记录当前选择的AI配置
   const [selectedAiConfig, setSelectedAiConfig] = useLocalStorage<string>('ai-config-selected', '')
   
   // 当前选中的AI配置
   const currentConfig = userCustomModels.find(model => model.key === selectedAiConfig)
+  const currentProviderTemplate = currentConfig?.templateSource === 'custom'
+    ? null
+    : getProviderTemplateMatch(currentConfig, providerTemplates)
+  const currentPlatformNameEditable = currentConfig?.templateSource === 'custom' || !currentProviderTemplate
+  const proxyURLInvalid = currentConfig?.proxyMode === 'custom' && !isValidProxyURL(currentConfig.proxyURL)
+  const getConfiguredModelCount = (config: AiConfig) => config.models?.filter(model => model.model.trim()).length || 0
+  const sortedUserCustomModels = [...userCustomModels].sort((left, right) => (
+    getConfiguredModelCount(right) - getConfiguredModelCount(left)
+  ))
+  const configuredModelCount = currentConfig ? getConfiguredModelCount(currentConfig) : 0
+  const providerConfigured = Boolean(currentConfig?.baseURL && configuredModelCount > 0)
+  const configuredTemplateKeys = new Set(userCustomModels.flatMap(config => {
+    if (config.templateSource === 'custom') return []
+    const template = getProviderTemplateMatch(config, providerTemplates)
+    return template ? [template.templateKey || template.key] : []
+  }))
+  const availableProviderTemplates = providerTemplates.filter(template => (
+    !configuredTemplateKeys.has(template.templateKey || template.key)
+  ))
   
   const parseHeadersToKeyValue = (headers: Record<string, string> = {}) => {
     return Object.entries(headers).map(([key, value]) => ({
@@ -104,7 +235,7 @@ export default function AiPage() {
   }
 
   // 更新模型配置
-  const updateModelConfig = async (modelId: string, field: keyof ModelConfig, value: any) => {
+  const updateModelConfig = async <K extends keyof ModelConfig>(modelId: string, field: K, value: ModelConfig[K]) => {
     if (!currentConfig) return
     
     const updatedModels = (currentConfig.models || []).map(model => 
@@ -121,14 +252,45 @@ export default function AiPage() {
 
   // 更新AI配置到store
   const updateAiConfig = async (config: AiConfig) => {
-    const store = await Store.load('store.json')
-    const aiModelList = await store.get<AiConfig[]>('aiModelList') || []
-    const index = aiModelList.findIndex(item => item.key === config.key)
-    
-    if (index >= 0) {
-      aiModelList[index] = config
-      await store.set('aiModelList', aiModelList)
-      setAiModelList(aiModelList)
+    const updatedList = aiModelListRef.current.map(item =>
+      item.key === config.key ? config : item
+    )
+
+    if (!updatedList.some(item => item.key === config.key)) return
+
+    // Keep input state in sync with native IME composition. Waiting for the
+    // async store round trip before updating React state resets the input to an
+    // older composition value and duplicates partial Pinyin syllables.
+    aiModelListRef.current = updatedList
+    setAiModelList(updatedList)
+
+  }
+
+  const addProviderFromTemplate = async (template: AiConfig) => {
+    const templateKey = template.templateKey || template.key
+    if (addingTemplateKey || configuredTemplateKeys.has(templateKey)) return
+
+    setAddingTemplateKey(templateKey)
+    try {
+      const id = v4()
+      const newProvider: AiConfig = {
+        ...template,
+        key: id,
+        templateKey,
+        templateSource: template.templateSource || 'builtin',
+        modelType: 'chat',
+      }
+      const updatedList = [newProvider, ...aiModelListRef.current]
+      const store = await Store.load('store.json')
+
+      await store.set('aiModelList', updatedList)
+      await store.save()
+      aiModelListRef.current = updatedList
+      setAiModelList(updatedList)
+      setSelectedAiConfig(id)
+      setActiveTab('connection')
+    } finally {
+      setAddingTemplateKey('')
     }
   }
 
@@ -202,7 +364,13 @@ export default function AiPage() {
         temperature: config.temperature,
         topP: config.topP,
         voice: config.voice,
-        enableStream: config.enableStream
+        enableStream: config.enableStream,
+        maxTokens: config.maxTokens,
+        contextWindow: config.contextWindow,
+        tokenLimitParam: config.tokenLimitParam,
+        enableWebSearch: config.enableWebSearch,
+        webSearchProvider: config.webSearchProvider,
+        webSearchApiKey: config.webSearchApiKey,
       }
       
       return {
@@ -218,6 +386,7 @@ export default function AiPage() {
   useEffect(() => {
     if (currentConfig) {
       setHeaderPairs(parseHeadersToKeyValue(currentConfig.customHeaders))
+      setApiKeyVisible(false)
     } else {
       setHeaderPairs([])
     }
@@ -225,26 +394,65 @@ export default function AiPage() {
 
   useEffect(() => {
     async function init() {
-      const store = await Store.load('store.json');
-      const aiModelList = await store.get<AiConfig[]>('aiModelList')
-      
-      if (aiModelList) {
-        // 迁移旧配置
-        const migratedList = aiModelList.map(migrateOldConfig)
-        
-        // 检查是否有配置被迁移，如果有则保存
-        const hasChanges = migratedList.some((config, index) => 
-          JSON.stringify(config) !== JSON.stringify(aiModelList[index])
-        )
-        
-        if (hasChanges) {
-          await store.set('aiModelList', migratedList)
-          setAiModelList(migratedList)
+      const store = await Store.load('store.json')
+      const shouldHideBuiltInOpenAI = await isMainlandChinaAppStore()
+      setHideBuiltInOpenAI(shouldHideBuiltInOpenAI)
+      let templates: AiConfig[] = []
+      try {
+        const cachedTemplates = await getCachedProviderTemplates()
+        if (cachedTemplates.length > 0) {
+          setProviderTemplates(shouldHideBuiltInOpenAI
+            ? excludeBuiltInOpenAIProviders(cachedTemplates)
+            : cachedTemplates)
+          setLoadingTemplates(false)
         }
+
+        templates = await loadProviderTemplates(builtinProviderTemplates)
+        if (shouldHideBuiltInOpenAI) {
+          templates = excludeBuiltInOpenAIProviders(templates)
+        }
+        setProviderTemplates(templates)
+      } finally {
+        setLoadingTemplates(false)
       }
-      
-      // 过滤出用户自定义模型
-      const userModels = aiModelList?.filter(model => !noteGenModelKeys.includes(model.key)) || []
+
+      // 模板平台是默认平台：只补齐缺失项，不修改任何已有用户配置。
+      // 再次读取 Store，避免模板加载期间用户新建的平台被旧快照覆盖。
+      const storedAiModelList = await store.get<AiConfig[]>('aiModelList') || []
+      const migratedList = storedAiModelList.map(migrateOldConfig)
+      const existingPlatforms = migratedList.filter(model => (
+        !noteGenModelKeys.includes(model.key) && model.title !== 'NoteGen Limited'
+      ))
+      const missingTemplates = templates.filter(template => {
+        const templateKey = template.templateKey || template.key
+        return !existingPlatforms.some(config => {
+          if (config.templateSource === 'custom') return false
+          if (config.templateKey === templateKey) return true
+          return Boolean(config.baseURL && template.baseURL && config.baseURL === template.baseURL)
+        })
+      })
+      const defaultPlatforms = missingTemplates.map(template => ({
+        ...template,
+        key: v4(),
+        templateKey: template.templateKey || template.key,
+        templateSource: template.templateSource || 'builtin' as const,
+        modelType: 'chat' as const,
+      }))
+      const nextAiModelList = [...migratedList, ...defaultPlatforms]
+      const hasChanges = defaultPlatforms.length > 0 || migratedList.some((config, index) => (
+        JSON.stringify(config) !== JSON.stringify(storedAiModelList[index])
+      ))
+
+      if (hasChanges) {
+        await store.set('aiModelList', nextAiModelList)
+        await store.save()
+      }
+      aiModelListRef.current = nextAiModelList
+      setAiModelList(nextAiModelList)
+
+      const userModels = nextAiModelList.filter(model => (
+        !noteGenModelKeys.includes(model.key) && model.title !== 'NoteGen Limited'
+      ))
       
       // 如果已经有保存的选择，且该配置仍然存在，则使用它
       if (selectedAiConfig && userModels.find(model => model.key === selectedAiConfig)) {
@@ -264,214 +472,435 @@ export default function AiPage() {
 
   return (
     <SettingType id="ai" icon={<BotMessageSquare />} title={t('title')} desc={t('desc')}>
-      {/* 当没有用户自定义模型时显示默认模型区域 */}
       {userCustomModels.length === 0 && <DefaultModelsSection />}
-      
-      <CreateConfig 
-        hasCustomModels={userCustomModels.length > 0} 
-        onConfigCreated={(configId) => {
-          setSelectedAiConfig(configId)
-        }}
-      />
-      
-      {userCustomModels.length > 0 && (
-        <div className="space-y-8">
-          {/* AI配置选择 */}
-          <FormItem title={t('modelConfigTitle')} desc={t('modelConfigDesc')}>
-              <div className="flex items-center gap-2 md:flex-row flex-col">
-                <Select value={selectedAiConfig} onValueChange={setSelectedAiConfig}>
-                  <SelectTrigger className="w-full">
-                    <div className="flex items-center gap-2">
-                      {currentConfig?.title || t('selectConfig')}
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {userCustomModels.map((item) => (
-                      <SelectItem value={item.key} key={item.key}>
-                        {item.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2 md:w-auto w-full">
-                  <Button 
-                    disabled={!currentConfig} 
-                    variant="outline" 
-                    onClick={copyConfig}
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    {t('copyConfig')}
-                  </Button>
-                  <Button 
-                    disabled={!currentConfig || noteGenModelKeys.includes(currentConfig?.key || '')} 
-                    variant="destructive" 
-                    onClick={deleteCurrentConfig}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    {t('deleteCustomModel')}
-                  </Button>
+      <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <Card size="sm" className="lg:sticky lg:top-2">
+              <CardHeader>
+                <CardTitle>{t('providerListTitle')}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <div className="lg:hidden">
+                  <ResponsiveSelect
+                    title={t('selectConfig')}
+                    value={selectedAiConfig || ''}
+                    placeholder={t('selectConfig')}
+                    onValueChange={value => {
+                      if (value.startsWith('template:')) {
+                        const templateKey = value.slice('template:'.length)
+                        const template = availableProviderTemplates.find(item => (item.templateKey || item.key) === templateKey)
+                        if (template) void addProviderFromTemplate(template)
+                      } else {
+                        setSelectedAiConfig(value)
+                        setActiveTab('connection')
+                      }
+                    }}
+                    options={[
+                      ...sortedUserCustomModels.map(provider => {
+                        const template = provider.templateSource === 'custom'
+                          ? null
+                          : getProviderTemplateMatch(provider, providerTemplates)
+                        return {
+                          value: provider.key,
+                          label: getProviderOptionLabel(provider, template),
+                        }
+                      }),
+                      ...availableProviderTemplates.map(template => ({
+                        value: `template:${template.templateKey || template.key}`,
+                        label: getProviderOptionLabel(template),
+                      })),
+                    ]}
+                  />
                 </div>
-              </div>
-          </FormItem>
 
-          {/* 当前配置的基础设置 */}
-          {currentConfig && (
-            <>
-              {/* 供应商模板配置信息显示 */}
-              {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <FormItem title={t('providerInfo')}>
-                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                      {baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon && (
-                        <Image 
-                          src={baseAiConfig.find(config => config.baseURL === currentConfig.baseURL)?.icon || ''} 
-                          alt={currentConfig.title}
-                          width={32}
-                          height={32}
-                          className="w-8 h-8 rounded"
-                        />
-                      )}
-                      <div>
-                        <div className="font-medium">{currentConfig.title}</div>
-                        <div className="text-sm text-muted-foreground">{currentConfig.baseURL}</div>
+                <div className="app-panel-scrollbar hidden max-h-[52vh] flex-col gap-3 overflow-y-auto pr-1 lg:flex">
+                  <ItemGroup className="gap-2">
+                    {sortedUserCustomModels.map(provider => {
+                      const selected = provider.key === selectedAiConfig
+                      const count = getConfiguredModelCount(provider)
+                      const providerTemplate = provider.templateSource === 'custom'
+                        ? null
+                        : getProviderTemplateMatch(provider, providerTemplates)
+                      return (
+                        <Item
+                          className="group/provider flex-nowrap text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                          data-state={selected ? 'on' : 'off'}
+                          key={provider.key}
+                          asChild
+                          variant="outline"
+                          size="sm"
+                        >
+                          <motion.button initial="rest" whileHover="hovered" whileFocus="hovered" type="button" onClick={() => {
+                            setSelectedAiConfig(provider.key)
+                            setActiveTab('connection')
+                          }}>
+                            <ItemMedia variant="default" className="shrink-0">
+                              <Avatar size="sm">
+                                <AvatarImage src={providerTemplate?.icon || provider.icon} alt={provider.title} />
+                                <AvatarFallback
+                                  className={provider.templateSource === 'custom' ? 'text-base font-semibold' : undefined}
+                                  style={getCustomPlatformAvatarStyle(provider)}
+                                >
+                                  {getPlatformAvatarFallback(provider)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </ItemMedia>
+                            <ItemContent className="min-w-0">
+                              <ItemTitle className="min-w-0 w-full"><ProviderTitle config={provider} template={providerTemplate} modelCount={count} /></ItemTitle>
+                            </ItemContent>
+                          </motion.button>
+                        </Item>
+                      )
+                    })}
+                  </ItemGroup>
+
+                  {loadingTemplates ? (
+                    <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+                      <LoaderCircle className="animate-spin" />{t('loadingProviderTemplates')}
+                    </div>
+                  ) : null}
+
+                  {availableProviderTemplates.map(template => {
+                    const templateKey = template.templateKey || template.key
+                    return (
+                      <Item className="group/provider flex-nowrap text-left" key={templateKey} asChild variant="outline" size="sm">
+                        <motion.button
+                          initial="rest"
+                          whileHover="hovered"
+                          whileFocus="hovered"
+                          type="button"
+                          disabled={Boolean(addingTemplateKey)}
+                          onClick={() => void addProviderFromTemplate(template)}
+                        >
+                          <ItemMedia variant="default" className="shrink-0">
+                            <Avatar size="sm">
+                              <AvatarImage src={template.icon} alt={template.title} />
+                              <AvatarFallback>{getPlatformAvatarFallback(template)}</AvatarFallback>
+                            </Avatar>
+                          </ItemMedia>
+                          <ItemContent className="min-w-0">
+                            <ItemTitle className="min-w-0 w-full"><ProviderTitle config={template} modelCount={0} /></ItemTitle>
+                          </ItemContent>
+                          {addingTemplateKey === templateKey ? (
+                            <ItemActions><LoaderCircle className="animate-spin" /></ItemActions>
+                          ) : null}
+                        </motion.button>
+                      </Item>
+                    )
+                  })}
+                </div>
+
+                <div className="border-t pt-3 [&>button]:w-full">
+                  <CreateConfig
+                    onConfigCreated={(configId) => setSelectedAiConfig(configId)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {currentConfig ? (
+              <div className="flex min-w-0 flex-col gap-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar>
+                        <AvatarImage src={currentProviderTemplate?.icon || currentConfig.icon} alt={currentConfig.title} />
+                        <AvatarFallback
+                          className={currentConfig.templateSource === 'custom' ? 'text-base font-semibold' : undefined}
+                          style={getCustomPlatformAvatarStyle(currentConfig)}
+                        >
+                          {getPlatformAvatarFallback(currentConfig)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="flex flex-wrap items-center gap-2">
+                          {currentPlatformNameEditable ? (
+                            <Input
+                              aria-label={t('modelTitle')}
+                              className="h-8 w-52 max-w-full font-semibold"
+                              key={currentConfig.key}
+                              defaultValue={currentConfig.title}
+                              onChange={(event) => {
+                                if (isTitleComposingRef.current) return
+                                void updateAiConfig({ ...currentConfig, title: event.target.value })
+                              }}
+                              onCompositionStart={() => { isTitleComposingRef.current = true }}
+                              onCompositionEnd={(event) => {
+                                const input = event.currentTarget
+                                window.setTimeout(() => {
+                                  isTitleComposingRef.current = false
+                                  void updateAiConfig({ ...currentConfig, title: input.value })
+                                }, 0)
+                              }}
+                            />
+                          ) : (
+                            <span className="truncate">{currentConfig.title}</span>
+                          )}
+                          <Badge variant={providerConfigured ? 'secondary' : 'outline'}>
+                            {providerConfigured ? t('providerReady') : t('providerIncomplete')}
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription className="truncate">{currentConfig.baseURL || t('endpointMissing')}</CardDescription>
                       </div>
                     </div>
-                </FormItem>
-              )}
-
-              {/* 配置名称 - 只有非供应商模板配置才显示 */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <FormItem title={t('modelTitle')} desc={t('modelTitleDesc')}>
-                    <Input 
-                      value={currentConfig.title} 
-                      onChange={(e) => updateAiConfig({...currentConfig, title: e.target.value})} 
-                    />
-                </FormItem>
-              )}
-
-              {/* BaseURL - 只有非供应商模板配置才显示 */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <FormItem title="BaseURL" desc={t('modelBaseUrlDesc')}>
-                    <Input 
-                      value={currentConfig.baseURL || ''} 
-                      onChange={(e) => updateAiConfig({...currentConfig, baseURL: e.target.value})} 
-                    />
-                </FormItem>
-              )}
-
-              {/* API Key */}
-              <FormItem title="API Key">
-                  <div className="flex gap-2">
-                    <Input 
-                      className="flex-1" 
-                      value={currentConfig.apiKey || ''} 
-                      type={apiKeyVisible ? 'text' : 'password'} 
-                      onChange={(e) => updateAiConfig({...currentConfig, apiKey: e.target.value})} 
-                    />
-                    <Button variant="outline" size="icon" onClick={() => setApiKeyVisible(!apiKeyVisible)}>
-                      {apiKeyVisible ? <Eye /> : <EyeOff />}
-                    </Button>
-                    {baseAiConfig.find(item => item.baseURL === currentConfig.baseURL)?.apiKeyUrl && (
-                      <OpenBroswer
-                        type="button"
-                        url={baseAiConfig.find(item => item.baseURL === currentConfig.baseURL)?.apiKeyUrl || ''}
-                        title={t('apiKeyUrl')}
-                      />
+                    {mobile ? (
+                      <div className="mt-2 grid w-full grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          aria-label={t('copyConfig')}
+                          onClick={copyConfig}
+                        >
+                          <Copy data-icon="inline-start" />
+                          {t('copyConfig')}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          aria-label={t('deleteCustomModel')}
+                          onClick={deleteCurrentConfig}
+                        >
+                          <Trash2 data-icon="inline-start" />
+                          {t('deleteCustomModel')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <CardAction className="flex gap-2">
+                        <Button variant="outline" size="sm" aria-label={t('copyConfig')} onClick={copyConfig}>
+                          <Copy data-icon="inline-start" />{t('copyConfig')}
+                        </Button>
+                        <Button variant="outline" size="icon-sm" aria-label={t('deleteCustomModel')} onClick={deleteCurrentConfig}>
+                          <Trash2 />
+                        </Button>
+                      </CardAction>
                     )}
-                  </div>
-              </FormItem>
-
-              {/* 自定义Headers */}
-              {!baseAiConfig.find(config => config.baseURL === currentConfig.baseURL) && (
-                <FormItem title={t('customHeaders')} desc={t('customHeadersDesc')}>
-                    <div className="space-y-2">
-                      {headerPairs.map((pair, index) => (
-                        <div key={pair.id} className="flex gap-2 items-center">
-                          <Input
-                            placeholder={t('headerKey')}
-                            value={pair.key}
-                            onChange={(e) => {
-                              const newPairs = [...headerPairs]
-                              newPairs[index].key = e.target.value
-                              setHeaderPairs(newPairs)
-                            }}
-                            onBlur={() => {
-                              const jsonObj = convertKeyValueToJson(headerPairs)
-                              updateAiConfig({...currentConfig, customHeaders: jsonObj})
-                            }}
-                            className="flex-1"
-                          />
-                          <Input
-                            placeholder={t('headerValue')}
-                            value={pair.value}
-                            onChange={(e) => {
-                              const newPairs = [...headerPairs]
-                              newPairs[index].value = e.target.value
-                              setHeaderPairs(newPairs)
-                            }}
-                            onBlur={() => {
-                              const jsonObj = convertKeyValueToJson(headerPairs)
-                              updateAiConfig({...currentConfig, customHeaders: jsonObj})
-                            }}
-                            className="flex-1"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => {
-                              const newPairs = headerPairs.filter((_, i) => i !== index)
-                              setHeaderPairs(newPairs)
-                              updateAiConfig({...currentConfig, customHeaders: convertKeyValueToJson(newPairs)})
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        variant="outline"
-                        onClick={() => setHeaderPairs([...headerPairs, {
-                          key: '', value: '', id: Math.random().toString(36).substr(2, 9)
-                        }])}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        {t('addHeader')}
-                      </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline"><Server />{t('modelCount', { count: configuredModelCount })}</Badge>
+                      <Badge variant="outline"><Network />{currentConfig.proxyMode === 'direct' ? t('proxyModeDirect') : currentConfig.proxyMode === 'custom' ? t('proxyModeCustom') : t('proxyModeInherit')}</Badge>
+                      {currentProviderTemplate ? <Badge variant="outline">{t('templateProvider')}</Badge> : <Badge variant="outline">{t('customProvider')}</Badge>}
                     </div>
-                </FormItem>
-              )}
+                  </CardContent>
+                </Card>
 
-              {/* 模型配置区域 */}
-              <FormItem title={t('models')}>
-                  <div className="space-y-4">
-                    {/* 模型卡片列表 */}
-                    <Accordion 
-                      type="multiple" 
-                      className="space-y-2"
-                      value={expandedModels}
-                      onValueChange={setExpandedModels}
+                <Tabs orientation="horizontal" value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className={mobile ? "grid !h-11 w-full grid-cols-2 items-center !overflow-hidden !p-1" : "grid h-9 w-full grid-cols-2"}>
+                    <TabsTrigger
+                      className={mobile ? "!h-9 !min-h-9 !justify-center !py-0" : "!justify-center"}
+                      value="connection"
                     >
-                      {(currentConfig.models || []).map((modelConfig) => (
-                        <ModelCard
-                          key={modelConfig.id}
-                          modelConfig={modelConfig}
-                          aiConfig={currentConfig}
-                          onUpdate={updateModelConfig}
-                          onDelete={deleteModel}
-                        />
-                      ))}
-                    </Accordion>
-                    {/* 添加模型按钮 */}
-                    <Button onClick={addNewModel} className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      {t('addModel')}
-                    </Button>
-                  </div>
-              </FormItem>
-            </>
-          )}
-        </div>
-      )}
+                      <Settings2 data-icon="inline-start" />{t('connectionTab')}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      className={mobile ? "!h-9 !min-h-9 !justify-center !py-0" : "!justify-center"}
+                      value="models"
+                    >
+                      <BotMessageSquare data-icon="inline-start" />{t('modelsTab')}
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="connection">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>{t('connectionTitle')}</CardTitle>
+                        <CardDescription>{t('connectionDesc')}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <FieldGroup>
+                          <Field>
+                            <FieldLabel htmlFor={`provider-url-${currentConfig.key}`}>{t('apiEndpoint')}</FieldLabel>
+                            <Input
+                              id={`provider-url-${currentConfig.key}`}
+                              value={currentConfig.baseURL || ''}
+                              placeholder="https://api.example.com/v1"
+                              onChange={event => void updateAiConfig({ ...currentConfig, baseURL: event.target.value })}
+                            />
+                            <FieldDescription>{t('modelBaseUrlDesc')}</FieldDescription>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel htmlFor={`provider-key-${currentConfig.key}`}>API Key</FieldLabel>
+                            <InputGroup>
+                              <InputGroupAddon><KeyRound /></InputGroupAddon>
+                              <InputGroupInput
+                                id={`provider-key-${currentConfig.key}`}
+                                value={currentConfig.apiKey || ''}
+                                type={apiKeyVisible ? 'text' : 'password'}
+                                placeholder={t('apiKeyPlaceholder')}
+                                onChange={event => void updateAiConfig({ ...currentConfig, apiKey: event.target.value })}
+                              />
+                              <InputGroupAddon align="inline-end">
+                                <InputGroupButton
+                                  size="icon-xs"
+                                  aria-label={apiKeyVisible ? t('hideApiKey') : t('showApiKey')}
+                                  onClick={() => setApiKeyVisible(current => !current)}
+                                >
+                                  {apiKeyVisible ? <EyeOff /> : <Eye />}
+                                </InputGroupButton>
+                              </InputGroupAddon>
+                            </InputGroup>
+                            {currentProviderTemplate?.apiKeyUrl ? (
+                              <FieldDescription><OpenBroswer url={currentProviderTemplate.apiKeyUrl} title={t('apiKeyUrl')} /></FieldDescription>
+                            ) : null}
+                          </Field>
+
+                          <Field data-invalid={proxyURLInvalid || undefined}>
+                            <FieldLabel>{t('proxyModeTitle')}</FieldLabel>
+                            <ResponsiveSelect
+                              title={t('proxyModeTitle')}
+                              value={currentConfig.proxyMode || 'inherit'}
+                              onValueChange={value => void updateAiConfig({ ...currentConfig, proxyMode: value as ProxyMode })}
+                              options={[
+                                { value: 'inherit', label: t('proxyModeInherit') },
+                                { value: 'direct', label: t('proxyModeDirect') },
+                                { value: 'custom', label: t('proxyModeCustom') },
+                              ]}
+                            />
+                            {currentConfig.proxyMode === 'custom' ? (
+                              <Input
+                                id="ai-provider-proxy-url"
+                                value={currentConfig.proxyURL || ''}
+                                placeholder={t('proxyURLPlaceholder')}
+                                aria-invalid={proxyURLInvalid}
+                                aria-describedby={proxyURLInvalid ? 'ai-provider-proxy-url-error' : undefined}
+                                onChange={event => void updateAiConfig({ ...currentConfig, proxyURL: event.target.value })}
+                              />
+                            ) : null}
+                            {proxyURLInvalid ? <FieldError id="ai-provider-proxy-url-error">{t('proxyURLInvalid')}</FieldError> : null}
+                            <FieldDescription>{t('proxyModeDesc')}</FieldDescription>
+                          </Field>
+
+                          {!currentProviderTemplate ? (
+                            <Collapsible>
+                              <Card size="sm">
+                                <CardHeader>
+                                  <CardTitle>{t('customHeaders')}</CardTitle>
+                                  <CardDescription>{t('customHeadersDesc')}</CardDescription>
+                                  <CardAction>
+                                    <CollapsibleTrigger asChild>
+                                      <Button variant="ghost" size="sm">{t('manageHeaders')}</Button>
+                                    </CollapsibleTrigger>
+                                  </CardAction>
+                                </CardHeader>
+                                <CollapsibleContent>
+                                  <CardContent>
+                                    <FieldGroup>
+                                      {headerPairs.map((pair, index) => (
+                                        <Field
+                                          key={pair.id}
+                                          orientation={mobile ? 'vertical' : 'horizontal'}
+                                          className={mobile ? 'rounded-lg border p-2' : undefined}
+                                        >
+                                          <Input
+                                            aria-label={t('headerKey')}
+                                            placeholder={t('headerKey')}
+                                            value={pair.key}
+                                            onChange={event => {
+                                              const pairs = [...headerPairs]
+                                              pairs[index] = { ...pairs[index], key: event.target.value }
+                                              setHeaderPairs(pairs)
+                                              void updateAiConfig({
+                                                ...currentConfig,
+                                                customHeaders: convertKeyValueToJson(pairs),
+                                              })
+                                            }}
+                                          />
+                                          <Input
+                                            aria-label={t('headerValue')}
+                                            placeholder={t('headerValue')}
+                                            value={pair.value}
+                                            onChange={event => {
+                                              const pairs = [...headerPairs]
+                                              pairs[index] = { ...pairs[index], value: event.target.value }
+                                              setHeaderPairs(pairs)
+                                              void updateAiConfig({
+                                                ...currentConfig,
+                                                customHeaders: convertKeyValueToJson(pairs),
+                                              })
+                                            }}
+                                          />
+                                          <Button
+                                            variant="outline"
+                                            size="icon-sm"
+                                            aria-label={t('removeHeader')}
+                                            onClick={() => {
+                                              const pairs = headerPairs.filter((_, pairIndex) => pairIndex !== index)
+                                              setHeaderPairs(pairs)
+                                              void updateAiConfig({ ...currentConfig, customHeaders: convertKeyValueToJson(pairs) })
+                                            }}
+                                          ><X /></Button>
+                                        </Field>
+                                      ))}
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => setHeaderPairs(current => [...current, { key: '', value: '', id: v4() }])}
+                                      ><Plus data-icon="inline-start" />{t('addHeader')}</Button>
+                                    </FieldGroup>
+                                  </CardContent>
+                                </CollapsibleContent>
+                              </Card>
+                            </Collapsible>
+                          ) : null}
+                        </FieldGroup>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="models">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>{t('models')}</CardTitle>
+                        <CardDescription>{t('modelsDesc')}</CardDescription>
+                        <CardAction>
+                          <Button size="sm" onClick={addNewModel}><Plus data-icon="inline-start" />{t('addModel')}</Button>
+                        </CardAction>
+                      </CardHeader>
+                      <CardContent>
+                        {(currentConfig.models || []).length > 0 ? (
+                          <div className="flex flex-col gap-3">
+                            {(currentConfig.models || []).map(modelConfig => (
+                              <ModelCard
+                                key={modelConfig.id}
+                                modelConfig={modelConfig}
+                                aiConfig={currentConfig}
+                                mobile={mobile}
+                                open={expandedModels.includes(modelConfig.id)}
+                                onOpenChange={open => setExpandedModels(current => open
+                                  ? current.includes(modelConfig.id) ? current : [...current, modelConfig.id]
+                                  : current.filter(id => id !== modelConfig.id)
+                                )}
+                                onUpdate={updateModelConfig}
+                                onDelete={deleteModel}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <Empty className="border">
+                            <EmptyHeader>
+                              <EmptyMedia variant="icon"><BotMessageSquare /></EmptyMedia>
+                              <EmptyTitle>{t('noModelsTitle')}</EmptyTitle>
+                              <EmptyDescription>{t('noModelsDesc')}</EmptyDescription>
+                            </EmptyHeader>
+                            <EmptyContent>
+                              <Button size="sm" onClick={addNewModel}><Plus data-icon="inline-start" />{t('addModel')}</Button>
+                            </EmptyContent>
+                          </Empty>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            ) : (
+              <Empty className="border">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><Server /></EmptyMedia>
+                  <EmptyTitle>{t('selectProviderTitle')}</EmptyTitle>
+                  <EmptyDescription>{t('selectProviderDesc')}</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+      </div>
     </SettingType>
   )
 }

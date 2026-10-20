@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-files"
+description = "Enables the read_files command without any pre-configured scope."
+commands.allow = ["read_files"]
+
+[[permission]]
+identifier = "deny-read-files"
+description = "Denies the read_files command without any pre-configured scope."
+commands.deny = ["read_files"]

@@ -7,6 +7,12 @@ import { FileText } from "lucide-react"
 import { getAllMarkdownFiles, MarkdownFile } from "@/lib/files"
 import { cn } from "@/lib/utils"
 import { useTranslations } from 'next-intl'
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/responsive-dialog'
 
 interface FileSelectorProps {
   onFileSelect: (file: MarkdownFile) => void
@@ -21,7 +27,6 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('record.chat.input.fileLink')
 
   // 加载所有Markdown文件
@@ -87,30 +92,11 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
     setSearchQuery("")
   }
 
-  // 点击外部关闭
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        onClose()
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-      <div 
-        ref={containerRef}
-        className="bg-background border rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
-      >
-        {/* 搜索框 */}
-        <div className="p-4 border-b">
+    <ResponsiveDialog open={isOpen} onOpenChange={open => !open && onClose()}>
+      <ResponsiveDialogContent className="flex max-h-[80vh] max-w-md flex-col overflow-hidden p-0">
+        <ResponsiveDialogHeader className="gap-2 p-4">
+          <ResponsiveDialogTitle className="sr-only">{t('searchPlaceholder')}</ResponsiveDialogTitle>
           <Input
             ref={inputRef}
             type="text"
@@ -120,7 +106,7 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
             className="w-full"
             onKeyDown={handleKeyDown}
           />
-        </div>
+        </ResponsiveDialogHeader>
 
         {/* 文件列表 */}
         <ScrollArea className="flex-1 max-h-[400px]">
@@ -135,10 +121,11 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
           ) : (
             <div className="p-2">
               {filteredFiles.map((file, index) => (
-                <div
+                <button
+                  type="button"
                   key={file.path}
                   className={cn(
-                    "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                    "flex min-h-11 w-full items-center gap-3 rounded-md p-2 text-left transition-colors",
                     index === selectedIndex 
                       ? "bg-accent text-accent-foreground" 
                       : "hover:bg-accent/50"
@@ -152,12 +139,12 @@ export function FileSelector({ onFileSelect, onClose, isOpen }: FileSelectorProp
                       {file.relativePath}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </ScrollArea>
-      </div>
-    </div>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

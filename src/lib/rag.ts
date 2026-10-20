@@ -1,15 +1,24 @@
 import { readTextFile, readDir, BaseDirectory, DirEntry } from "@tauri-apps/plugin-fs";
-import { fetchEmbedding, rerankDocuments } from "./ai";
+import { fetchEmbedding, fetchEmbeddings, rerankDocuments } from "./ai";
 import {
-  upsertVectorDocument,
   deleteVectorDocumentsByFilename,
   getSimilarDocuments,
   getVectorDocumentsByFilename,
+  replaceVectorDocumentsByFilename,
   initVectorDb,
+  normalizeVectorDocumentKey,
   VectorDocument
 } from "@/db/vector";
+import { deleteKnowledgeSource, upsertKnowledgeSource, updateKnowledgeSourceIndexState } from '@/db/knowledge';
+import { createKnowledgeSourceKey, parseKnowledgeSourceKey } from '@/types/knowledge';
 import { invoke } from "@tauri-apps/api/core";
-import { BM25Document, initBM25Index, getBM25Index } from "./bm25";
+import {
+  BM25Document,
+  createBM25ChunkKey,
+  initBM25Index,
+  getBM25Index,
+  parseBM25ChunkKey
+} from "./bm25";
 
 // 重新导出initVectorDb，使其可在其他模块中导入
 export { initVectorDb };
@@ -19,8 +28,18 @@ import { toast } from "@/hooks/use-toast";
 import { join } from "@tauri-apps/api/path";
 import { Store } from "@tauri-apps/plugin-store";
 import { createHash } from 'crypto';
+import { getIdentifierTerms, getLexicalTerms, replaceLexicalTerm } from './lexical-tokenizer';
 import { isSkillsFolder } from './skills/utils';
 import { getVectorDocumentKey } from './vector-document-key';
+import {
+  createRetrievalStrategy,
+  DEFAULT_EXCLUDED_RAG_PATHS,
+  getRagDisplayFilename,
+  isPathAllowedForRag,
+  normalizeRagPath,
+  RetrievalScope,
+  RetrievalStrategy
+} from './rag-retrieval-policy';
 
 /**
  * 统一错误处理函数
@@ -45,133 +64,228 @@ function generateContentHash(content: string): string {
   return createHash('sha256').update(content.trim()).digest('hex');
 }
 
+function articlePathFromSourceKey(sourceKey: string): string {
+  const parsed = parseKnowledgeSourceKey(sourceKey);
+  return parsed?.sourceType === 'article' ? parsed.sourceId : sourceKey;
+}
+
+const queryEmbeddingCache = new Map<string, { embedding: number[]; expiresAt: number }>();
+const QUERY_EMBEDDING_CACHE_TTL = 5 * 60 * 1000;
+const QUERY_EMBEDDING_CACHE_LIMIT = 50;
+
+async function getQueryEmbedding(query: string): Promise<number[] | null> {
+  const cacheKey = query.normalize('NFKC').trim();
+  const cached = queryEmbeddingCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.embedding;
+  }
+  const embedding = await fetchEmbedding(query);
+  if (!embedding) return null;
+  queryEmbeddingCache.set(cacheKey, {
+    embedding,
+    expiresAt: Date.now() + QUERY_EMBEDDING_CACHE_TTL
+  });
+  while (queryEmbeddingCache.size > QUERY_EMBEDDING_CACHE_LIMIT) {
+    const oldestKey = queryEmbeddingCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    queryEmbeddingCache.delete(oldestKey);
+  }
+  return embedding;
+}
+
+async function getConfiguredExcludedPaths(store?: Store): Promise<string[]> {
+  const targetStore = store || await Store.load('store.json');
+  return await targetStore.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS;
+}
+
+async function resolveRetrievalScope(scope: RetrievalScope = {}, store?: Store): Promise<RetrievalScope> {
+  const configuredExcludedPaths = await getConfiguredExcludedPaths(store);
+  return {
+    includedPaths: scope.includedPaths,
+    excludedPaths: Array.from(new Set([...configuredExcludedPaths, ...(scope.excludedPaths || [])]))
+  };
+}
+
+export async function shouldIndexRagPath(path: string): Promise<boolean> {
+  return isPathAllowedForRag(path, await resolveRetrievalScope());
+}
+
 /**
  * 并发控制函数 - 限制同时执行的任务数量
  */
 async function runWithConcurrencyLimit<T>(
   tasks: (() => Promise<T>)[],
   limit: number,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number, taskIndex: number) => void
 ): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
-  const executing: Promise<void>[] = [];
+  let nextTaskIndex = 0;
   let completed = 0;
 
-  for (const [index, task] of tasks.entries()) {
-    const promise = task()
-      .then(result => {
-        results[index] = result;
-        completed++;
-        if (onProgress) {
-          onProgress(completed, tasks.length);
-        }
-      })
-      .catch(error => {
-        results[index] = error as T;
-        completed++;
-        if (onProgress) {
-          onProgress(completed, tasks.length);
-        }
-        throw error;
-      });
+  async function runWorker(): Promise<void> {
+    while (nextTaskIndex < tasks.length) {
+      const taskIndex = nextTaskIndex++;
 
-    executing.push(promise);
-
-    if (executing.length >= limit) {
-      await Promise.race(executing);
-      executing.splice(
-        executing.findIndex(p => p === promise),
-        1
-      );
+      try {
+        results[taskIndex] = await tasks[taskIndex]();
+      } finally {
+        completed++;
+        onProgress?.(completed, tasks.length, taskIndex);
+      }
     }
   }
 
-  await Promise.all(executing);
+  const workerCount = Math.min(Math.max(1, limit), tasks.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
   return results;
 }
 
+interface MarkdownBlock {
+  content: string;
+  atomic: boolean;
+}
+
+function splitLongMarkdownBlock(content: string, chunkSize: number): string[] {
+  if (content.length <= chunkSize) return [content];
+  const sentences = content.match(/[^.!?。！？\n]+[.!?。！？]?|\n+/g) || [content];
+  const parts: string[] = [];
+  let current = '';
+  for (const sentence of sentences) {
+    if (current && current.length + sentence.length > chunkSize) {
+      parts.push(current.trim());
+      current = '';
+    }
+    if (sentence.length > chunkSize) {
+      for (let offset = 0; offset < sentence.length; offset += chunkSize) {
+        const slice = sentence.slice(offset, offset + chunkSize).trim();
+        if (slice) parts.push(slice);
+      }
+    } else {
+      current += sentence;
+    }
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function parseMarkdownBlocks(text: string, chunkSize: number): MarkdownBlock[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const blocks: MarkdownBlock[] = [];
+  const headings: string[] = [];
+  let paragraph: string[] = [];
+
+  const headingPrefix = () => headings.filter(Boolean).join('\n');
+  const pushParagraph = () => {
+    const body = paragraph.join('\n').trim();
+    paragraph = [];
+    if (!body) return;
+    const prefix = headingPrefix();
+    const contextualContent = prefix && !body.startsWith('#') ? `${prefix}\n\n${body}` : body;
+    for (const part of splitLongMarkdownBlock(contextualContent, chunkSize)) {
+      blocks.push({ content: part, atomic: false });
+    }
+  };
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      pushParagraph();
+      const level = headingMatch[1].length;
+      headings.splice(level - 1);
+      headings[level - 1] = line.trim();
+      continue;
+    }
+
+    if (/^\s*(```|~~~)/.test(line)) {
+      pushParagraph();
+      const marker = line.trim().slice(0, 3);
+      const codeLines = [line];
+      while (++index < lines.length) {
+        codeLines.push(lines[index]);
+        if (lines[index].trim().startsWith(marker)) break;
+      }
+      const prefix = headingPrefix();
+      blocks.push({
+        content: prefix ? `${prefix}\n\n${codeLines.join('\n')}` : codeLines.join('\n'),
+        atomic: true
+      });
+      continue;
+    }
+
+    const nextLine = lines[index + 1] || '';
+    if (line.includes('|') && /^\s*\|?\s*:?-{3,}/.test(nextLine)) {
+      pushParagraph();
+      const tableLines = [line, nextLine];
+      index++;
+      while (index + 1 < lines.length && lines[index + 1].includes('|') && lines[index + 1].trim()) {
+        tableLines.push(lines[++index]);
+      }
+      const prefix = headingPrefix();
+      blocks.push({
+        content: prefix ? `${prefix}\n\n${tableLines.join('\n')}` : tableLines.join('\n'),
+        atomic: true
+      });
+      continue;
+    }
+
+    if (!line.trim()) {
+      pushParagraph();
+    } else {
+      paragraph.push(line);
+    }
+  }
+  pushParagraph();
+  return blocks;
+}
+
 /**
- * 文本分块函数，用于将大文本分成小块
+ * Markdown 结构化分块：保留标题上下文，并避免从代码块和表格中间截断。
  */
 export function chunkText(
   text: string, 
   chunkSize: number = 1000,
   chunkOverlap: number = 200
 ): string[] {
+  if (!text.trim()) return [];
+  if (text.length <= chunkSize) return [text.trim()];
+
+  const blocks = parseMarkdownBlocks(text, chunkSize);
   const chunks: string[] = [];
-  
-  // 检查文本是否足够长，需要分块
-  if (text.length <= chunkSize) {
-    chunks.push(text);
-    return chunks;
-  }
-  
-  // 尝试在段落边界进行分块
-  const paragraphs = text.split('\n\n');
-  let currentChunk = '';
-  
-  for (const paragraph of paragraphs) {
-    // 如果加上当前段落后超出了块大小，则保存当前块并开始新块
-    if (currentChunk.length + paragraph.length + 2 > chunkSize) {
-      // 如果当前块非空，保存它
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-        // 保留重叠部分到新块
-        const lastChunkParts = currentChunk.split('\n\n');
-        const overlapLength = Math.min(chunkOverlap, currentChunk.length);
-        const overlapParts = [];
-        let currentLength = 0;
-        
-        // 从后向前取段落，直到达到重叠大小
-        for (let i = lastChunkParts.length - 1; i >= 0; i--) {
-          const part = lastChunkParts[i];
-          if (currentLength + part.length + 2 <= overlapLength) {
-            overlapParts.unshift(part);
-            currentLength += part.length + 2;
-          } else {
-            break;
-          }
-        }
-        
-        currentChunk = overlapParts.join('\n\n');
-      }
-      
-      // 如果单个段落过长，需要强制分割
-      if (paragraph.length > chunkSize) {
-        // 先尝试按句子分割
-        const sentences = paragraph.split(/(?:\.|\?|\!)\s+/);
-        let sentenceChunk = '';
-        
-        for (const sentence of sentences) {
-          if (sentenceChunk.length + sentence.length > chunkSize) {
-            if (sentenceChunk) {
-              chunks.push(sentenceChunk);
-              // 保留重叠
-              const overlapLength = Math.min(chunkOverlap, sentenceChunk.length);
-              sentenceChunk = sentenceChunk.slice(-overlapLength);
-            }
-          }
-          
-          sentenceChunk += sentence + ' ';
-        }
-        
-        if (sentenceChunk) {
-          currentChunk += sentenceChunk;
-        }
-      } else {
-        currentChunk += paragraph + '\n\n';
-      }
+  let currentBlocks: string[] = [];
+  let currentLength = 0;
+
+  const flush = () => {
+    if (currentBlocks.length === 0) return;
+    chunks.push(currentBlocks.join('\n\n').trim());
+    const overlapBlocks: string[] = [];
+    let overlapLength = 0;
+    for (let index = currentBlocks.length - 1; index >= 0; index--) {
+      const block = currentBlocks[index];
+      if (overlapLength + block.length > chunkOverlap) break;
+      overlapBlocks.unshift(block);
+      overlapLength += block.length;
+    }
+    currentBlocks = overlapBlocks;
+    currentLength = overlapBlocks.reduce((total, block) => total + block.length + 2, 0);
+  };
+
+  for (const block of blocks) {
+    if (currentBlocks.length > 0 && currentLength + block.content.length + 2 > chunkSize) {
+      flush();
+    }
+    if (block.atomic && block.content.length > chunkSize) {
+      flush();
+      chunks.push(block.content.trim());
+      currentBlocks = [];
+      currentLength = 0;
     } else {
-      currentChunk += paragraph + '\n\n';
+      currentBlocks.push(block.content);
+      currentLength += block.content.length + 2;
     }
   }
-  
-  // 添加最后一个块
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
-  
-  return chunks;
+  flush();
+  return chunks.filter(Boolean);
 }
 
 /**
@@ -180,16 +294,31 @@ export function chunkText(
  */
 export async function initBM25Search(): Promise<void> {
   try {
-    // 收集所有 Markdown 文件内容
     const items = await collectMarkdownContents();
+    const { collectCanvasKnowledgeDocuments, collectRecordKnowledgeDocuments } = await import('@/lib/knowledge-content');
+    const structuredDocuments = [
+      ...await collectRecordKnowledgeDocuments(),
+      ...await collectCanvasKnowledgeDocuments(),
+    ];
+    const store = await Store.load('store.json');
+    const chunkSize = await store.get<number>('ragChunkSize');
+    const chunkOverlap = await store.get<number>('ragChunkOverlap');
+    const documents: BM25Document[] = items.flatMap(item => {
+      const filename = createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || 'unknown'));
+      return chunkText(item.article || '', chunkSize, chunkOverlap)
+        .filter(content => content.trim().length > 0)
+        .map((content, chunkId) => ({
+          id: createBM25ChunkKey(filename, chunkId),
+          content
+        }));
+    });
+    documents.push(...structuredDocuments.flatMap(document => (
+      document.chunks.map((chunk, chunkId) => ({
+        id: createBM25ChunkKey(document.sourceKey, chunkId),
+        content: chunk.content,
+      }))
+    )));
 
-    // 转换为 BM25Document 格式
-    const documents: BM25Document[] = items.map(item => ({
-      id: item.id || item.title || 'unknown',
-      content: item.title + '\n\n' + item.article // 包含标题和内容
-    }));
-
-    // 初始化索引
     initBM25Index(documents);
   } catch (error) {
     console.error('初始化 BM25 索引失败:', error);
@@ -249,97 +378,6 @@ const SYNONYM_DICT: Record<string, string[]> = {
 function isStopWord(keyword: string): boolean {
   const cleanKeyword = keyword.trim().toLowerCase();
   return STOP_WORDS.has(cleanKeyword);
-}
-
-/**
- * 查询转换接口
- */
-interface QueryVariant {
-  original: string;  // 原始查询
-  transformed: string; // 转换后的查询
-  source: 'original' | 'synonym';
-}
-
-/**
- * 基于同义词词典扩展查询
- * @param query 原始查询
- * @param maxVariants 最大变体数量
- * @returns 查询变体列表
- */
-function expandWithSynonyms(query: string, maxVariants: number = 3): QueryVariant[] {
-  const variants: QueryVariant[] = [
-    { original: query, transformed: query, source: 'original' }
-  ];
-
-  // 检查查询中的每个词是否在同义词词典中
-  const queryLower = query.toLowerCase();
-  const words = queryLower.split(/\s+/);
-
-  for (const word of words) {
-    // 移除标点符号
-    const cleanWord = word.replace(/[^\w\u4e00-\u9fa5]/g, '');
-
-    if (SYNONYM_DICT[cleanWord]) {
-      const synonyms = SYNONYM_DICT[cleanWord];
-
-      // 为每个同义词生成变体
-      for (const synonym of synonyms) {
-        if (variants.length >= maxVariants) break;
-
-        const transformed = queryLower.replace(new RegExp(cleanWord, 'gi'), synonym);
-
-        // 避免重复
-        if (!variants.some(v => v.transformed === transformed)) {
-          variants.push({
-            original: query,
-            transformed,
-            source: 'synonym'
-          });
-        }
-      }
-    }
-
-    if (variants.length >= maxVariants) break;
-  }
-
-  return variants;
-}
-
-/**
- * 转换查询（生成多个变体）
- * @param keywords 原始关键词列表
- * @param enableExpansion 是否启用查询扩展
- * @param maxVariants 每个关键词的最大变体数量
- * @returns 扩展后的关键词列表
- */
-function transformQueries(
-  keywords: Keyword[],
-  enableExpansion: boolean,
-  maxVariants: number
-): Keyword[] {
-  if (!enableExpansion) {
-    return keywords;
-  }
-
-  const expandedKeywords: Keyword[] = [];
-
-  for (const keyword of keywords) {
-    // 生成查询变体
-    const variants = expandWithSynonyms(keyword.text, maxVariants);
-
-    // 将变体添加到关键词列表
-    for (const variant of variants) {
-      // 避免重复
-      if (!expandedKeywords.some(k => k.text === variant.transformed)) {
-        expandedKeywords.push({
-          text: variant.transformed,
-          weight: keyword.weight // 保持原始权重
-        });
-      }
-    }
-  }
-
-  return expandedKeywords;
 }
 
 /**
@@ -429,14 +467,17 @@ async function expandWithSentenceWindow(
  * @param limit 返回结果数量
  * @returns BM25 检索结果
  */
-async function searchWithBM25(query: string, limit: number = 10): Promise<Array<{id: string, score: number}>> {
+async function searchWithBM25(query: string, limit: number = 10): Promise<Array<{id: string, score: number, content: string}>> {
   const index = getBM25Index();
   if (!index) {
     console.warn('BM25 索引未初始化，跳过 BM25 搜索');
     return [];
   }
 
-  return index.search(query, limit);
+  return index.search(query, limit).flatMap(result => {
+    const content = index.getDocument(result.id);
+    return content === undefined ? [] : [{ ...result, content }];
+  });
 }
 
 /**
@@ -461,49 +502,121 @@ export async function processMarkdownFile(
       const { path, baseDir } = await getFilePathOptions(filePath)
       content = fileContent || await readTextFile(path, { baseDir })
     }
-    // 如果内容为空或只有空白字符，跳过处理
+    const articlePath = getVectorDocumentKey(filePath);
+    const vectorDocumentKey = createKnowledgeSourceKey('article', articlePath);
+    const legacyFilename = filePath.split('/').pop() || filePath;
+    // 空文件也视为成功处理，同时清理它可能遗留的旧索引。
     if (!content || content.trim().length === 0) {
-      return false;
+      await deleteVectorDocumentsByFilename(vectorDocumentKey);
+      if (legacyFilename !== vectorDocumentKey) {
+        await deleteVectorDocumentsByFilename(legacyFilename);
+      }
+      getBM25Index()?.deleteByFilename(vectorDocumentKey);
+      await deleteKnowledgeSource(vectorDocumentKey);
+      return true;
     }
 
     const store = await Store.load('store.json')
     const chunkSize = await store.get<number>('ragChunkSize');
     const chunkOverlap = await store.get<number>('ragChunkOverlap');
     const chunks = chunkText(content, chunkSize, chunkOverlap).filter(chunk => chunk.trim().length > 0);
-    // 如果没有有效的文本块，跳过处理
+    const contentHash = generateContentHash(content);
+    await upsertKnowledgeSource({
+      sourceKey: vectorDocumentKey,
+      sourceType: 'article',
+      sourceId: articlePath,
+      title: articlePath.split('/').pop() || articlePath,
+      locator: { filePath: articlePath },
+      contentHash,
+      indexedHash: null,
+      status: 'pending',
+      error: null,
+      updatedAt: Date.now(),
+    });
+    // 没有有效分块时清理旧索引，避免空内容仍被检索到。
     if (chunks.length === 0) {
+      await deleteVectorDocumentsByFilename(vectorDocumentKey);
+      if (legacyFilename !== vectorDocumentKey) {
+        await deleteVectorDocumentsByFilename(legacyFilename);
+      }
+      getBM25Index()?.deleteByFilename(vectorDocumentKey);
+      return true;
+    }
+    const scope = await resolveRetrievalScope({}, store);
+    if (!isPathAllowedForRag(articlePath, scope)) {
+      await deleteVectorDocumentsByFilename(vectorDocumentKey);
+      if (legacyFilename !== vectorDocumentKey) {
+        await deleteVectorDocumentsByFilename(legacyFilename);
+      }
+      getBM25Index()?.deleteByFilename(vectorDocumentKey);
+      return true;
+    }
+
+    // 字面检索始终使用最新正文，即使后续 Embedding 暂时失败。
+    getBM25Index()?.replaceByFilename(vectorDocumentKey, chunks);
+
+    const existingDocuments = await getVectorDocumentsByFilename(vectorDocumentKey);
+    const existingChunks = existingDocuments
+      .sort((a, b) => a.chunk_id - b.chunk_id)
+      .map(document => document.content);
+    if (
+      existingChunks.length === chunks.length
+      && generateContentHash(existingChunks.join('\u0000')) === generateContentHash(chunks.join('\u0000'))
+    ) {
+      getBM25Index()?.replaceByFilename(vectorDocumentKey, chunks);
+      await updateKnowledgeSourceIndexState(vectorDocumentKey, {
+        status: 'ready',
+        indexedHash: contentHash,
+      });
+      return true;
+    }
+
+    const embeddings: Array<number[] | null> = [];
+    const embeddingBatchSize = 16;
+    for (let offset = 0; offset < chunks.length; offset += embeddingBatchSize) {
+      embeddings.push(...await fetchEmbeddings(chunks.slice(offset, offset + embeddingBatchSize)));
+    }
+    if (embeddings.length !== chunks.length || embeddings.some(embedding => !embedding)) {
+      console.error(`无法完整计算文件 ${vectorDocumentKey} 的向量，旧向量保持休眠并使用最新字面索引`);
+      await updateKnowledgeSourceIndexState(vectorDocumentKey, {
+        status: 'failed',
+        indexedHash: null,
+        error: 'Embedding 返回不完整',
+      });
       return false;
     }
-    const vectorDocumentKey = getVectorDocumentKey(filePath);
-    const legacyFilename = filePath.split('/').pop() || filePath;
 
-    // 先删除该文件的旧记录
-    await deleteVectorDocumentsByFilename(vectorDocumentKey);
+    // 新向量全部计算成功后再按来源替换；写入失败会恢复该来源旧向量。
     if (legacyFilename !== vectorDocumentKey) {
       await deleteVectorDocumentsByFilename(legacyFilename);
     }
 
-    // 处理每个文本块
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-
-      // 计算嵌入向量
-      const embedding = await fetchEmbedding(chunk);
-
-      if (!embedding) {
-        console.error(`无法计算文件 ${vectorDocumentKey} 第 ${i+1} 块的向量`);
-        continue;
-      }
-
-      // 保存到数据库
-      await upsertVectorDocument({
+    await replaceVectorDocumentsByFilename(
+      vectorDocumentKey,
+      chunks.flatMap((chunk, index) => {
+        const embedding = embeddings[index];
+        return embedding ? [{
         filename: vectorDocumentKey,
-        chunk_id: i,
+        chunk_id: index,
         content: chunk,
         embedding: JSON.stringify(embedding),
         updated_at: Date.now()
-      });
+        }] : [];
+      })
+    );
+
+    const bm25Index = getBM25Index();
+    if (bm25Index) {
+      bm25Index.replaceByFilename(
+        vectorDocumentKey,
+        chunks
+      );
     }
+
+    await updateKnowledgeSourceIndexState(vectorDocumentKey, {
+      status: 'ready',
+      indexedHash: contentHash,
+    });
 
     return true;
   } catch (error) {
@@ -575,11 +688,13 @@ export async function processAllMarkdownFiles(onProgress?: (current: number, tot
   total: number;
   success: number;
   failed: number;
+  paused: boolean;
   failedFiles: Array<{fileName: string, error: string}>;
 }> {
   try {
     // 获取工作区中的所有文件
     const fileTree = await getWorkspaceFiles();
+    const retrievalScope = await resolveRetrievalScope();
 
     // 收集所有需要处理的文件
     const filesToProcess: Array<{name: string, path: string}> = [];
@@ -588,7 +703,9 @@ export async function processAllMarkdownFiles(onProgress?: (current: number, tot
       for (const item of tree) {
         if (item.isFile && item.name.endsWith('.md')) {
           const filePath = await getFilePath(item);
-          filesToProcess.push({ name: item.name, path: filePath });
+          if (isPathAllowedForRag(filePath, retrievalScope)) {
+            filesToProcess.push({ name: item.name, path: filePath });
+          }
         }
 
         // 递归处理子目录
@@ -604,17 +721,21 @@ export async function processAllMarkdownFiles(onProgress?: (current: number, tot
     const results = await runWithConcurrencyLimit(
       filesToProcess.map(file => async () => {
         try {
+          const taskStore = await Store.load('store.json');
+          if (await taskStore.get<boolean>('ragKnowledgeIndexPaused') ?? false) {
+            return { success: false, paused: true, fileName: file.name, error: null };
+          }
           const success = await processMarkdownFile(file.path);
-          return { success, fileName: file.name, error: null };
+          return { success, paused: false, fileName: file.name, error: null };
         } catch (error) {
           handleRAGError(error, `处理文件 ${file.name} 失败`, false);
-          return { success: false, fileName: file.name, error: String(error) };
+          return { success: false, paused: false, fileName: file.name, error: String(error) };
         }
       }),
       3, // 并发限制为 3，避免过多 API 调用
-      (completed, total) => {
+      (completed, total, taskIndex) => {
         if (onProgress && completed > 0) {
-          const currentFile = filesToProcess[completed - 1]?.name || '';
+          const currentFile = filesToProcess[taskIndex]?.name || '';
           onProgress(completed, total, currentFile);
         }
       }
@@ -624,8 +745,13 @@ export async function processAllMarkdownFiles(onProgress?: (current: number, tot
     const failedFiles: Array<{fileName: string, error: string}> = [];
     let success = 0;
     let failed = 0;
+    let paused = false;
 
     for (const result of results) {
+      if (result.paused) {
+        paused = true;
+        continue;
+      }
       if (result.success) {
         success++;
       } else {
@@ -640,6 +766,7 @@ export async function processAllMarkdownFiles(onProgress?: (current: number, tot
       total: filesToProcess.length,
       success,
       failed,
+      paused,
       failedFiles
     };
   } catch (error) {
@@ -705,11 +832,12 @@ interface FuzzySearchResult {
 /**
  * 从工作区中收集所有Markdown文件内容，用于模糊搜索
  */
-async function collectMarkdownContents(): Promise<SearchItem[]> {
+async function collectMarkdownContents(scope: RetrievalScope = {}): Promise<SearchItem[]> {
   try {
     // 获取工作区中的所有文件
     const fileTree = await getWorkspaceFiles();
     const items: SearchItem[] = [];
+    const resolvedScope = await resolveRetrievalScope(scope);
     
     // 递归处理文件树
     async function processTree(tree: DirTree[]): Promise<void> {
@@ -717,6 +845,7 @@ async function collectMarkdownContents(): Promise<SearchItem[]> {
         if (item.isFile && item.name.endsWith('.md')) {
           // 获取完整路径
           const filePath = await getFilePath(item);
+          if (!isPathAllowedForRag(filePath, resolvedScope)) continue;
           
           try {
             // 读取文件内容
@@ -760,21 +889,86 @@ async function collectMarkdownContents(): Promise<SearchItem[]> {
  * 检索结果类型定义
  */
 interface SearchResult {
+  stableId: string;
   filename: string;
   filepath: string;
   content: string;
   rawScore: number;      // 原始分数（未归一化）
   normalizedScore: number; // 归一化后的分数
+  rank: number;
+  queryWeight: number;
   keyword?: string;
   type: 'fuzzy' | 'vector' | 'bm25';
+  matchedTypes?: Array<'fuzzy' | 'vector' | 'bm25'>;
 }
 
-/**
- * 关键词及其权重类型定义
- */
-export interface Keyword {
+function createChunkStableId(filename: string, chunkId: number): string {
+  return createBM25ChunkKey(filename, chunkId);
+}
+
+async function resolveSnippetToChunk(
+  filepath: string,
+  snippet: string
+): Promise<{ stableId: string; filename: string; content: string }> {
+  const filename = normalizeVectorDocumentKey(getVectorDocumentKey(filepath));
+  const chunks = await getVectorDocumentsByFilename(filename);
+  if (chunks.length === 0) {
+    return {
+      stableId: `${filename}::content::${generateContentHash(snippet)}`,
+      filename,
+      content: snippet
+    };
+  }
+
+  const bestChunk = chunks.reduce((best, current) =>
+    calculateContentOverlap(current.content, snippet) > calculateContentOverlap(best.content, snippet)
+      ? current
+      : best
+  );
+  return {
+    stableId: createChunkStableId(filename, bestChunk.chunk_id),
+    filename,
+    content: bestChunk.content
+  };
+}
+
+interface LexicalQuery {
   text: string;
   weight: number;
+}
+
+/** 保留完整查询，只生成少量完整句子的同义词变体，不依赖关键词排序。 */
+function buildLexicalQueries(query: string, enableExpansion: boolean, maxVariants: number): LexicalQuery[] {
+  const original = query.normalize('NFKC').trim().toLowerCase();
+  const queries: LexicalQuery[] = [{ text: original, weight: 1 }];
+  if (!enableExpansion) return queries;
+
+  const limit = Number.isFinite(maxVariants) ? Math.min(5, Math.max(1, Math.trunc(maxVariants))) : 3;
+  const terms = getLexicalTerms(original);
+  for (const [term, synonyms] of Object.entries(SYNONYM_DICT)) {
+    // 中文词可出现在连续文本中；空格语言必须匹配完整词，避免 ai 匹配到 contain。
+    const matches = /\p{Script=Han}/u.test(term)
+      ? terms.some(candidate => candidate.includes(term))
+      : terms.includes(term);
+    if (!matches || isStopWord(term)) continue;
+    for (const synonym of synonyms) {
+      if (queries.length >= limit) return queries;
+      const text = replaceLexicalTerm(original, term, synonym);
+      if (!queries.some(item => item.text === text)) {
+        queries.push({ text, weight: 0.5 });
+      }
+    }
+  }
+  return queries;
+}
+
+function buildFuzzyQueries(query: string, strategy: RetrievalStrategy): LexicalQuery[] {
+  const terms = strategy.kind === 'short'
+    ? [query.normalize('NFKC').trim(), ...getIdentifierTerms(query)]
+    : getIdentifierTerms(query);
+  return Array.from(new Set(terms.filter(term => term && !isStopWord(term))))
+    .slice(0, 4)
+    .map(text => ({ text, weight: 1 }));
 }
 
 /**
@@ -786,100 +980,113 @@ export interface RagSource {
   content: string;   // 引用的文本片段
 }
 
-/**
- * 根据关键词数组获取相关上下文
- * @param keywords 关键词数组，每个元素包含关键词文本和权重
- * @returns 包含上下文文本和引用文件名的对象
- */
-export async function getContextForQuery(keywords: Keyword[]): Promise<{
+export interface RagDiagnosticResult extends RagSource {
+  rank: number;
+  beforeRerankRank: number;
+  fusedScore: number;
+  finalScore: number;
+  retrievers: Array<'fuzzy' | 'vector' | 'bm25'>;
+}
+
+export interface RagSearchResponse {
   context: string;
   sources: string[];
   sourceDetails: RagSource[];
-}> {
+  diagnostics: RagDiagnosticResult[];
+}
+
+/**
+ * 根据完整查询执行词法与语义混合检索
+ * @param query 用户的完整查询，用于保留语义意图的向量检索和统一重排
+ * @returns 包含上下文文本和引用文件名的对象
+ */
+export async function getContextForQuery(
+  query: string,
+  scope: RetrievalScope = {}
+): Promise<RagSearchResponse> {
   try {
     const store = await Store.load('store.json');
-    const resultCount = await store.get<number>('ragResultCount') || 5;
-    const similarityThreshold = await store.get<number>('ragSimilarityThreshold') || 0.25;
+    const resultCount = await store.get<number>('ragResultCount') ?? 5;
+    const similarityThreshold = await store.get<number>('ragSimilarityThreshold') ?? 0.25;
+    const rerankThreshold = await store.get<number>('ragRerankThreshold') ?? 0.1;
 
     // 读取权重配置（新增配置项）
     const fuzzyWeight = await store.get<number>('ragFuzzyWeight') ?? 0.2;
     const vectorWeight = await store.get<number>('ragVectorWeight') ?? 0.7;
     const bm25Weight = await store.get<number>('ragBm25Weight') ?? 0.1;
 
-    const weights = {
+    const baseWeights = {
       fuzzyWeight,
       vectorWeight,
       bm25Weight
     };
+    const strategy = createRetrievalStrategy(query, baseWeights, rerankThreshold);
+    const resolvedScope = await resolveRetrievalScope(scope, store);
 
     // 存储所有检索结果（使用新的 SearchResult 类型）
     const allResults: SearchResult[] = [];
 
-    // 如果没有关键词，返回空结果
-    if (!keywords || keywords.length === 0) {
-      return { context: '', sources: [], sourceDetails: [] };
+    // 完整查询为空时无法执行语义检索
+    if (!query.trim()) {
+      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
     }
 
     // 读取查询扩展配置
     const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
     const maxQueryVariations = await store.get<number>('ragMaxQueryVariations') ?? 3;
 
-    // 应用查询转换（生成同义词变体）
-    const expandedKeywords = transformQueries(keywords, enableQueryExpansion, maxQueryVariations);
+    const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
+    const fuzzyQueries = buildFuzzyQueries(query, strategy);
+    const items = await collectMarkdownContents(resolvedScope);
+    const allowedVectorKeys = new Set(items.map(item => (
+      createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || ''))
+    )));
 
-    // 将关键词按权重排序，优先考虑权重高的关键词
-    const sortedKeywords = [...expandedKeywords].sort((a, b) => b.weight - a.weight);
-
-    // 1. 使用逐个关键词进行模糊搜索找到相关文件内容
+    // 1. 短查询和明确标识符使用模糊搜索
     try {
-      // 收集所有Markdown文件内容
-      const items = await collectMarkdownContents();
       if (items.length > 0) {
-        // 为每个关键词单独进行搜索
-        for (const keyword of sortedKeywords) {
-          // 跳过停用词的模糊搜索（这些词匹配太多低质量结果）
-          if (isStopWord(keyword.text)) {
-            continue;
-          }
-
-          // 对每个关键词调用Rust的fuzzy_search函数
+        // 限制补充查询数量，避免对长问题逐词扫描全文
+        for (const keyword of fuzzyQueries) {
+          // 短查询或标识符单独补充召回。
           const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
             items,
-            query: keyword.text,  // 单独使用每个关键词
+            query: keyword.text,
             keys: ['title', 'article'],
-            threshold: 0.3, // 模糊搜索阈值
+            threshold: strategy.fuzzyThreshold,
             includeScore: true,
             includeMatches: true
           });
 
           // 处理模糊搜索结果
-          for (const result of fuzzyResults) {
+          for (const [resultIndex, result] of fuzzyResults.entries()) {
             if (result.score > 0) {
               const item = result.item;
               // 提取匹配的文本片段作为上下文
-              const articleMatches = result.matches.filter(m => m.key === 'article');
-              if (articleMatches.length > 0) {
-                // 使用匹配部分的上下文（周围大约500个字符）
-                const match = articleMatches[0];
-                const content = match.value;
-
-                // 找到第一个匹配位置的索引
+              const match = result.matches.find(m => m.key === 'article');
+              const content = match?.value || item.article || '';
+              if (content.trim()) {
+                // 正文命中截取邻近上下文；仅标题命中时取正文开头。
                 let startIdx = 0;
-                let endIdx = content.length;
-                if (match.indices.length > 0) {
+                let endIdx = Math.min(content.length, 500);
+                if (match && match.indices.length > 0) {
                   const firstMatch = match.indices[0];
                   startIdx = Math.max(0, firstMatch[0] - 250);
                   endIdx = Math.min(content.length, firstMatch[1] + 250);
                 }
 
                 const contextSnippet = content.substring(startIdx, endIdx);
+                const filepath = item.id || item.title || '未命名文件';
+                const resolvedChunk = await resolveSnippetToChunk(filepath, contextSnippet);
 
                 allResults.push({
-                  filename: item.title || '未命名文件',
-                  filepath: item.id || '',
-                  content: contextSnippet,
-                  rawScore: result.score * keyword.weight, // 保留原始分数
+                  stableId: resolvedChunk.stableId,
+                  filename: resolvedChunk.filename,
+                  filepath,
+                  content: resolvedChunk.content,
+                  rawScore: result.score,
                   normalizedScore: 0, // 稍后计算
+                  rank: resultIndex + 1,
+                  queryWeight: keyword.weight,
                   keyword: keyword.text,
                   type: 'fuzzy'
                 });
@@ -892,42 +1099,31 @@ export async function getContextForQuery(keywords: Keyword[]): Promise<{
       handleRAGError(error, '模糊搜索失败', false);
     }
 
-    // 2. 使用向量搜索找到相关文档
+    // 2. 使用完整问题进行一次向量搜索，保留查询的完整语义和关系
     try {
-      // 读取窗口大小配置
-      const windowSize = await store.get<number>('ragWindowSize') ?? 2;
+      const queryEmbedding = await getQueryEmbedding(query);
 
-      // 为每个关键词生成向量并执行查询
-      for (const keyword of sortedKeywords) {
-        // 计算查询文本的向量
-        const queryEmbedding = await fetchEmbedding(keyword.text);
+      if (queryEmbedding) {
+        const vectorCandidateCount = Math.max(resultCount * strategy.vectorCandidateMultiplier, 20);
+        const similarDocs = await getSimilarDocuments(
+          queryEmbedding,
+          vectorCandidateCount,
+          similarityThreshold,
+          allowedVectorKeys
+        );
 
-        if (!queryEmbedding) {
-          continue;
-        }
-
-        // 查询最相关的文档
-        let similarDocs = await getSimilarDocuments(queryEmbedding, resultCount * 2, similarityThreshold);
-
-        if (similarDocs.length > 0) {
-          // 如果配置了重排序模型，使用它进一步优化结果
-          similarDocs = await rerankDocuments(keyword.text, similarDocs);
-
-          // 应用句子窗口扩展（获取更多候选结果用于窗口扩展）
-          const expandedDocs = await expandWithSentenceWindow(similarDocs, windowSize);
-
-          // 添加到结果集
-          for (const doc of expandedDocs) {
-            allResults.push({
-              filename: doc.filename,
-              filepath: doc.filename,
-              content: doc.content,
-              rawScore: (doc.similarity || 0) * keyword.weight, // 保留原始分数
-              normalizedScore: 0, // 稍后计算
-              keyword: keyword.text,
-              type: 'vector'
-            });
-          }
+        for (const [docIndex, doc] of similarDocs.entries()) {
+          allResults.push({
+            stableId: createChunkStableId(doc.filename, doc.chunk_id),
+            filename: doc.filename,
+            filepath: articlePathFromSourceKey(doc.filename),
+            content: doc.content,
+            rawScore: doc.similarity || 0,
+            normalizedScore: 0,
+            rank: docIndex + 1,
+            queryWeight: 1,
+            type: 'vector'
+          });
         }
       }
     } catch (error) {
@@ -936,45 +1132,25 @@ export async function getContextForQuery(keywords: Keyword[]): Promise<{
 
     // 3. 使用 BM25 搜索找到相关文档
     try {
-      // 收集所有 Markdown 文件内容用于 BM25 匹配后获取上下文
-      const items = await collectMarkdownContents();
-      const itemsMap = new Map(items.map(item => [item.id || item.title || '', item]));
+      for (const lexicalQuery of lexicalQueries) {
+        const bm25Results = await searchWithBM25(
+          lexicalQuery.text,
+          Math.max(resultCount * strategy.lexicalCandidateMultiplier, 20)
+        );
 
-      // 为每个关键词执行 BM25 搜索
-      for (const keyword of sortedKeywords) {
-        const bm25Results = await searchWithBM25(keyword.text, resultCount);
-
-        for (const result of bm25Results) {
-          const item = itemsMap.get(result.id);
-          if (!item || !item.article) continue;
-
-          // 从匹配项中提取上下文（尝试找到关键词周围的内容）
-          const articleLower = item.article.toLowerCase();
-          const keywordLower = keyword.text.toLowerCase();
-          const keywordIndex = articleLower.indexOf(keywordLower);
-
-          let startIdx = 0;
-          let endIdx = item.article.length;
-
-          if (keywordIndex >= 0) {
-            startIdx = Math.max(0, keywordIndex - 250);
-            endIdx = Math.min(item.article.length, keywordIndex + keyword.text.length + 250);
-          } else {
-            // 如果没找到精确匹配，取中间部分
-            const mid = Math.floor(item.article.length / 2);
-            startIdx = Math.max(0, mid - 250);
-            endIdx = Math.min(item.article.length, mid + 250);
-          }
-
-          const contextSnippet = item.article.substring(startIdx, endIdx);
-
+        for (const [resultIndex, result] of bm25Results.entries()) {
+          const chunkKey = parseBM25ChunkKey(result.id);
+          if (!chunkKey || !allowedVectorKeys.has(chunkKey.filename)) continue;
           allResults.push({
-            filename: item.title || '未命名文件',
-            filepath: item.id || '',
-            content: contextSnippet,
-            rawScore: result.score * keyword.weight,
+            stableId: result.id,
+            filename: chunkKey.filename,
+            filepath: articlePathFromSourceKey(chunkKey.filename),
+            content: result.content,
+            rawScore: result.score,
             normalizedScore: 0,
-            keyword: keyword.text,
+            rank: resultIndex + 1,
+            queryWeight: lexicalQuery.weight,
+            keyword: lexicalQuery.text,
             type: 'bm25'
           });
         }
@@ -985,187 +1161,15 @@ export async function getContextForQuery(keywords: Keyword[]): Promise<{
 
     // 如果没有找到任何相关上下文，返回空结果
     if (allResults.length === 0) {
-      return { context: '', sources: [], sourceDetails: [] };
+      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
     }
 
-    // 3. 按文档合并结果，使用归一化和混合权重
-    const mergedResults = mergeResultsByDocument(allResults, weights);
-
-    // 4. 对相似内容进行合并（使用内容重叠度判断）
-    const finalUniqueResults: SearchResult[] = [];
-    const mergedIndices = new Set<number>();
-
-    for (let i = 0; i < mergedResults.length; i++) {
-      if (mergedIndices.has(i)) continue;
-
-      const current = mergedResults[i];
-      let bestScore = current.normalizedScore;
-      let bestContent = current.content;
-      const mergedKeywords: string[] = [];
-
-      if (current.keyword) {
-        mergedKeywords.push(current.keyword);
-      }
-
-      // 查找同一文件中高度重叠的内容
-      for (let j = i + 1; j < mergedResults.length; j++) {
-        if (mergedIndices.has(j)) continue;
-
-        const other = mergedResults[j];
-        if (other.filename !== current.filename) continue;
-
-        // 计算内容重叠度
-        const overlap = calculateContentOverlap(current.content, other.content);
-
-        // 如果重叠度超过 70%，认为是重复内容，合并它们
-        if (overlap > 0.7) {
-          mergedIndices.add(j);
-          // 保留分数更高的
-          if (other.normalizedScore > bestScore) {
-            bestScore = other.normalizedScore;
-            bestContent = other.content;
-          }
-          if (other.keyword && !mergedKeywords.includes(other.keyword)) {
-            mergedKeywords.push(other.keyword);
-          }
-        }
-      }
-
-      finalUniqueResults.push({
-        ...current,
-        content: bestContent,
-        normalizedScore: bestScore,
-        keyword: mergedKeywords.join(', ')
-      });
-    }
-
-    // 对所有上下文按相关性得分排序
-    finalUniqueResults.sort((a: SearchResult, b: SearchResult) => b.normalizedScore - a.normalizedScore);
-
-    // 限制结果数量
-    const finalResults = finalUniqueResults.slice(0, resultCount);
-
-    // 提取唯一的文件名
-    const sources = Array.from(new Set(finalResults.map((ctx: SearchResult) => ctx.filename)));
-
-    // 构建 sourceDetails（去重，每个文件只保留最相关的一个片段）
-    const sourceDetailsMap = new Map<string, RagSource>();
-    for (const ctx of finalResults) {
-      if (!sourceDetailsMap.has(ctx.filename)) {
-        sourceDetailsMap.set(ctx.filename, {
-          filepath: ctx.filepath,
-          filename: ctx.filename,
-          content: ctx.content
-        });
-      }
-    }
-    const sourceDetails = Array.from(sourceDetailsMap.values());
-
-    // 构建最终的上下文字符串
-    const context = finalResults.map((ctx: SearchResult) => {
-      return `文件：${ctx.filename}
-${ctx.content}
-`;
-    }).join('\n---\n\n');
-
-    return { context, sources, sourceDetails };
+    const windowSize = await store.get<number>('ragWindowSize') ?? 2;
+    return await finalizeSearchResults(query, allResults, strategy, resultCount, windowSize);
   } catch (error) {
     handleRAGError(error, '获取查询上下文失败', false);
-    return { context: '', sources: [], sourceDetails: [] };
+    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
   }
-}
-
-/**
- * 分数归一化配置
- */
-interface NormalizationConfig {
-  minScore: number;
-  maxScore: number;
-}
-
-/**
- * 归一化分数到 [0, 1] 区间
- * @param score 原始分数
- * @param type 分数类型（不同类型使用不同的归一化策略）
- * @param allScores 同类型所有分数的数组（用于 min-max 归一化）
- */
-function normalizeScore(
-  score: number,
-  type: 'fuzzy' | 'vector' | 'bm25',
-  allScores: number[] = []
-): number {
-  // 如果提供了该类型的所有分数，使用 min-max 归一化
-  if (allScores.length > 1) {
-    const min = Math.min(...allScores);
-    const max = Math.max(...allScores);
-    if (max - min < 0.0001) {
-      // 所有分数几乎相同，返回 0.5
-      return 0.5;
-    }
-    return (score - min) / (max - min);
-  }
-
-  // 否则使用预定义的范围进行归一化
-  const configs: Record<string, NormalizationConfig> = {
-    // fuzzy_search 分数通常在 [0, 1] 区间
-    fuzzy: { minScore: 0, maxScore: 1 },
-    // 向量相似度已经在 [0, 1] 区间（余弦相似度）
-    vector: { minScore: 0, maxScore: 1 },
-    // BM25 分数范围不固定，但通常在 [0, +∞)，使用 Sigmoid 压缩
-    bm25: { minScore: 0, maxScore: 10 }
-  };
-
-  const config = configs[type] || { minScore: 0, maxScore: 1 };
-
-  if (type === 'bm25') {
-    // BM25 使用 Sigmoid 函数压缩到 [0, 1]
-    return 1 / (1 + Math.exp(-score / 2));
-  }
-
-  // 简单的线性归一化
-  const normalized = (score - config.minScore) / (config.maxScore - config.minScore);
-  return Math.max(0, Math.min(1, normalized));
-}
-
-/**
- * 计算混合分数（支持可配置权重）
- * @param normalizedScores 各类型归一化后的分数
- * @param weights 各类型的权重配置
- */
-function calculateHybridScore(
-  normalizedScores: {
-    fuzzy?: number;
-    vector?: number;
-    bm25?: number;
-  },
-  weights: {
-    fuzzyWeight: number;
-    vectorWeight: number;
-    bm25Weight: number;
-  }
-): number {
-  let totalScore = 0;
-  let totalWeight = 0;
-
-  if (normalizedScores.fuzzy !== undefined && weights.fuzzyWeight > 0) {
-    totalScore += normalizedScores.fuzzy * weights.fuzzyWeight;
-    totalWeight += weights.fuzzyWeight;
-  }
-
-  if (normalizedScores.vector !== undefined && weights.vectorWeight > 0) {
-    totalScore += normalizedScores.vector * weights.vectorWeight;
-    totalWeight += weights.vectorWeight;
-  }
-
-  if (normalizedScores.bm25 !== undefined && weights.bm25Weight > 0) {
-    totalScore += normalizedScores.bm25 * weights.bm25Weight;
-    totalWeight += weights.bm25Weight;
-  }
-
-  // 如果没有任何有效分数，返回 0
-  if (totalWeight === 0) return 0;
-
-  return totalScore / totalWeight;
 }
 
 /**
@@ -1181,71 +1185,74 @@ function mergeResultsByDocument(
     bm25Weight: number;
   }
 ): SearchResult[] {
-  // 按文档分组
   const docGroups = new Map<string, SearchResult[]>();
 
   for (const result of results) {
-    const key = `${result.filename}-${generateContentHash(result.content)}`;
-    if (!docGroups.has(key)) {
-      docGroups.set(key, []);
+    if (!docGroups.has(result.stableId)) {
+      docGroups.set(result.stableId, []);
     }
-    docGroups.get(key)!.push(result);
+    docGroups.get(result.stableId)!.push(result);
   }
 
-  // 对每个文档组，计算混合分数
   const mergedResults: SearchResult[] = [];
+  const sanitizedWeights = {
+    fuzzy: Math.max(0, weights.fuzzyWeight),
+    vector: Math.max(0, weights.vectorWeight),
+    bm25: Math.max(0, weights.bm25Weight)
+  };
+  const totalWeight = sanitizedWeights.fuzzy + sanitizedWeights.vector + sanitizedWeights.bm25;
+  const weightByType = totalWeight > 0
+    ? {
+        fuzzy: sanitizedWeights.fuzzy / totalWeight,
+        vector: sanitizedWeights.vector / totalWeight,
+        bm25: sanitizedWeights.bm25 / totalWeight
+      }
+    : { fuzzy: 1 / 3, vector: 1 / 3, bm25: 1 / 3 };
+  const maxRawScoreByType = new Map<SearchResult['type'], number>();
+  const maxQueryWeightByType = new Map<SearchResult['type'], number>();
+  for (const result of results) {
+    maxRawScoreByType.set(
+      result.type,
+      Math.max(maxRawScoreByType.get(result.type) || 0, Math.max(0, result.rawScore))
+    );
+    maxQueryWeightByType.set(
+      result.type,
+      Math.max(maxQueryWeightByType.get(result.type) || 0, Math.max(0, result.queryWeight))
+    );
+  }
+  const reciprocalRankConstant = 20;
+  const rankBlend = 0.75;
 
   for (const group of docGroups.values()) {
-    // 收集各类型的最高分数
-    const scoresByType: Record<string, number[]> = { fuzzy: [], vector: [], bm25: [] };
-
+    const bestContributionByType = new Map<SearchResult['type'], number>();
     for (const result of group) {
-      if (!scoresByType[result.type]) {
-        scoresByType[result.type] = [];
-      }
-      scoresByType[result.type].push(result.rawScore);
+      const normalizedRank = (reciprocalRankConstant + 1)
+        / (reciprocalRankConstant + Math.max(1, result.rank));
+      const maxRawScore = maxRawScoreByType.get(result.type) || 0;
+      const normalizedConfidence = maxRawScore > 0
+        ? Math.min(1, Math.max(0, result.rawScore) / maxRawScore)
+        : 0;
+      const maxQueryWeight = maxQueryWeightByType.get(result.type) || 1;
+      const normalizedQueryWeight = Math.min(1, Math.max(0, result.queryWeight) / maxQueryWeight);
+      const contribution = weightByType[result.type]
+        * (rankBlend * normalizedRank + (1 - rankBlend) * normalizedConfidence)
+        * normalizedQueryWeight;
+      bestContributionByType.set(
+        result.type,
+        Math.max(bestContributionByType.get(result.type) || 0, contribution)
+      );
     }
-
-    // 计算归一化分数
-    let bestFuzzyScore = 0;
-    let bestVectorScore = 0;
-    let bestBm25Score = 0;
-
-    if (scoresByType.fuzzy.length > 0) {
-      const maxFuzzy = Math.max(...scoresByType.fuzzy);
-      bestFuzzyScore = normalizeScore(maxFuzzy, 'fuzzy');
-    }
-
-    if (scoresByType.vector.length > 0) {
-      const maxVector = Math.max(...scoresByType.vector);
-      bestVectorScore = normalizeScore(maxVector, 'vector');
-    }
-
-    if (scoresByType.bm25.length > 0) {
-      const maxBm25 = Math.max(...scoresByType.bm25);
-      bestBm25Score = normalizeScore(maxBm25, 'bm25');
-    }
-
-    // 计算混合分数
-    const hybridScore = calculateHybridScore(
-      {
-        fuzzy: bestFuzzyScore || undefined,
-        vector: bestVectorScore || undefined,
-        bm25: bestBm25Score || undefined
-      },
-      weights
-    );
-
-    // 选择分数最高的结果作为基础
-    const bestResult = group.reduce((best, current) =>
-      current.rawScore > best.rawScore ? current : best
-    );
+    const hybridScore = Array.from(bestContributionByType.values())
+      .reduce((total, contribution) => total + contribution, 0);
+    const bestResult = group.find(result => result.type === 'vector') || group[0];
+    const keywords = Array.from(new Set(group.flatMap(result => result.keyword ? [result.keyword] : [])));
 
     mergedResults.push({
       ...bestResult,
       rawScore: hybridScore,
       normalizedScore: hybridScore,
-      type: bestResult.type // 保留主要检索类型
+      keyword: keywords.join(', '),
+      matchedTypes: Array.from(new Set(group.map(result => result.type)))
     });
   }
 
@@ -1273,6 +1280,179 @@ function calculateContentOverlap(content1: string, content2: string): number {
 
   // Jaccard 相似度
   return intersection.size / union.size;
+}
+
+/**
+ * 合并候选、去除重叠片段，并使用完整问题统一重排。
+ * 句子窗口在重排完成后扩展，避免较长的相邻内容干扰相关性判断。
+ */
+async function finalizeSearchResults(
+  query: string,
+  allResults: SearchResult[],
+  strategy: RetrievalStrategy,
+  resultCount: number,
+  windowSize: number
+): Promise<RagSearchResponse> {
+  const queryTerms = getLexicalTerms(query);
+  const normalizedQuery = query.normalize('NFKC').toLowerCase().trim();
+  const exactIdentifier = strategy.kind === 'exact'
+    && queryTerms.length === 1
+    && queryTerms[0] === normalizedQuery
+    ? normalizedQuery : undefined;
+  // 单独查询错误码、版本号或文件名时，语义相似不能代替该标识符的实际命中。
+  const candidates = exactIdentifier
+    ? allResults.filter(result => (
+        getLexicalTerms(result.content).includes(exactIdentifier)
+        || getLexicalTerms(result.filepath).some(term => (
+          term === exactIdentifier || term.endsWith(`/${exactIdentifier}`)
+        ))
+      ))
+    : allResults;
+  if (candidates.length === 0) {
+    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
+  }
+  const mergedResults = mergeResultsByDocument(candidates, strategy.weights);
+  const uniqueResults: SearchResult[] = [];
+  const mergedIndices = new Set<number>();
+
+  for (let i = 0; i < mergedResults.length; i++) {
+    if (mergedIndices.has(i)) continue;
+
+    const current = mergedResults[i];
+    let bestResult = current;
+    const mergedKeywords = new Set<string>();
+
+    if (current.keyword) {
+      mergedKeywords.add(current.keyword);
+    }
+
+    for (let j = i + 1; j < mergedResults.length; j++) {
+      if (mergedIndices.has(j)) continue;
+
+      const other = mergedResults[j];
+      if (other.filename !== current.filename) continue;
+
+      if (calculateContentOverlap(current.content, other.content) > 0.7) {
+        mergedIndices.add(j);
+        if (other.normalizedScore > bestResult.normalizedScore) {
+          bestResult = other;
+        }
+        if (other.keyword) {
+          mergedKeywords.add(other.keyword);
+        }
+      }
+    }
+
+    uniqueResults.push({
+      ...bestResult,
+      keyword: Array.from(mergedKeywords).join(', ')
+    });
+  }
+
+  uniqueResults.sort((a, b) => b.normalizedScore - a.normalizedScore);
+
+  // 每种检索器都保留一组候选，避免向量权重较高时挤掉精确编号等词法命中。
+  const rerankCandidateCount = Math.max(
+    resultCount * Math.max(strategy.vectorCandidateMultiplier, strategy.lexicalCandidateMultiplier),
+    20
+  );
+  const perRetrieverCandidateCount = Math.max(resultCount, 5);
+  const uniqueResultById = new Map(uniqueResults.map(result => [result.stableId, result]));
+  const selectedCandidateIds = new Set<string>();
+
+  for (const type of ['vector', 'bm25', 'fuzzy'] as const) {
+    const typeResults = candidates
+      .filter(result => result.type === type)
+      .sort((a, b) => a.rank - b.rank);
+    const selectedForType = new Set<string>();
+    for (const result of typeResults) {
+      if (!uniqueResultById.has(result.stableId) || selectedForType.has(result.stableId)) continue;
+      selectedForType.add(result.stableId);
+      selectedCandidateIds.add(result.stableId);
+      if (selectedForType.size >= perRetrieverCandidateCount) break;
+    }
+  }
+
+  for (const result of uniqueResults) {
+    if (selectedCandidateIds.size >= rerankCandidateCount) break;
+    selectedCandidateIds.add(result.stableId);
+  }
+
+  // 即使 rerank 不可用或请求失败，也保持融合分数顺序，不退化为检索器插入顺序。
+  const rerankCandidates = uniqueResults
+    .filter(result => selectedCandidateIds.has(result.stableId))
+    .slice(0, rerankCandidateCount);
+  const fusedRankById = new Map(rerankCandidates.map((result, index) => [result.stableId, index + 1]));
+  const fusedScoreById = new Map(rerankCandidates.map(result => [result.stableId, result.normalizedScore]));
+  const rerankDocumentsInput = rerankCandidates.map((result, index) => ({
+    id: index,
+    filename: result.filename,
+    content: result.content,
+    similarity: result.normalizedScore
+  }));
+  const rerankedDocuments = await rerankDocuments(
+    query,
+    rerankDocumentsInput,
+    strategy.rerankThreshold
+  );
+  let finalResults = rerankedDocuments.slice(0, resultCount).map(document => ({
+    ...rerankCandidates[document.id],
+    rawScore: document.similarity,
+    normalizedScore: document.similarity
+  }));
+
+  // 仅对最终命中的向量块扩展相邻窗口，避免窗口文本影响候选融合和重排。
+  const chunkResults = finalResults.flatMap((result, index) => parseBM25ChunkKey(result.stableId)
+    ? [{
+        id: index,
+        filename: result.filename,
+        content: result.content,
+        similarity: result.normalizedScore
+      }]
+    : []
+  );
+
+  if (chunkResults.length > 0 && windowSize > 0) {
+    const expandedVectorResults = await expandWithSentenceWindow(chunkResults, windowSize);
+    const expandedContentByIndex = new Map(
+      expandedVectorResults.map(result => [result.id, result.content])
+    );
+
+    finalResults = finalResults.map((result, index) => ({
+      ...result,
+      content: expandedContentByIndex.get(index) ?? result.content
+    }));
+  }
+
+  const sources = Array.from(new Set(finalResults.map(result => getRagDisplayFilename(result.filepath))));
+  const sourceDetailsMap = new Map<string, RagSource>();
+
+  for (const result of finalResults) {
+    if (!sourceDetailsMap.has(result.filepath)) {
+      sourceDetailsMap.set(result.filepath, {
+        filepath: result.filepath,
+        filename: getRagDisplayFilename(result.filepath),
+        content: result.content
+      });
+    }
+  }
+
+  const sourceDetails = Array.from(sourceDetailsMap.values());
+  const diagnostics = finalResults.map((result, index): RagDiagnosticResult => ({
+    rank: index + 1,
+    beforeRerankRank: fusedRankById.get(result.stableId) || index + 1,
+    fusedScore: fusedScoreById.get(result.stableId) || result.normalizedScore,
+    finalScore: result.normalizedScore,
+    retrievers: result.matchedTypes || [result.type],
+    filepath: result.filepath,
+    filename: getRagDisplayFilename(result.filepath),
+    content: result.content
+  }));
+  const context = finalResults.map(result => `文件：${normalizeRagPath(result.filepath)}
+${result.content}
+`).join('\n---\n\n');
+
+  return { context, sources, sourceDetails, diagnostics };
 }
 
 /**
@@ -1315,10 +1495,14 @@ export function showVectorProcessingToast(message: string) {
 /**
  * 从指定文件夹中收集Markdown文件内容
  */
-async function collectMarkdownContentsInFolder(folderPath: string): Promise<SearchItem[]> {
+async function collectMarkdownContentsInFolder(
+  folderPath: string,
+  scope: RetrievalScope = {}
+): Promise<SearchItem[]> {
   try {
     const workspace = await getWorkspacePath();
     const items: SearchItem[] = [];
+    const resolvedScope = await resolveRetrievalScope(scope);
 
     // 构建文件夹完整路径
     let fullFolderPath: string;
@@ -1343,6 +1527,8 @@ async function collectMarkdownContentsInFolder(folderPath: string): Promise<Sear
         if (entry.name.startsWith('.')) continue;
 
         const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+        const ragPath = workspace.isCustom ? await join(dirPath, entry.name) : entryRelativePath;
+        if (!isPathAllowedForRag(ragPath, resolvedScope)) continue;
 
         if (entry.isDirectory) {
           const entryFullPath = workspace.isCustom
@@ -1365,7 +1551,7 @@ async function collectMarkdownContentsInFolder(folderPath: string): Promise<Sear
             }
 
             items.push({
-              id: entryRelativePath,
+              id: workspace.isCustom ? entryFullPath : entryRelativePath,
               title: entry.name,
               article: content,
               search_type: 'markdown'
@@ -1387,91 +1573,91 @@ async function collectMarkdownContentsInFolder(folderPath: string): Promise<Sear
 
 /**
  * 在指定文件夹范围内获取相关上下文
- * @param keywords 关键词数组
+ * @param query 用户的完整查询
  * @param folderPath 文件夹相对路径
  * @returns 包含上下文文本和引用文件名的对象
  */
 export async function getContextForQueryInFolder(
-  keywords: Keyword[],
+  query: string,
   folderPath: string
-): Promise<{ context: string; sources: string[]; sourceDetails: RagSource[] }> {
+): Promise<RagSearchResponse> {
   try {
     const store = await Store.load('store.json');
-    const resultCount = await store.get<number>('ragResultCount') || 5;
-    const similarityThreshold = await store.get<number>('ragSimilarityThreshold') || 0.25;
+    const resultCount = await store.get<number>('ragResultCount') ?? 5;
+    const similarityThreshold = await store.get<number>('ragSimilarityThreshold') ?? 0.25;
+    const rerankThreshold = await store.get<number>('ragRerankThreshold') ?? 0.1;
 
     // 读取权重配置
     const fuzzyWeight = await store.get<number>('ragFuzzyWeight') ?? 0.2;
     const vectorWeight = await store.get<number>('ragVectorWeight') ?? 0.7;
     const bm25Weight = await store.get<number>('ragBm25Weight') ?? 0.1;
 
-    const weights = {
+    const baseWeights = {
       fuzzyWeight,
       vectorWeight,
       bm25Weight
     };
+    const strategy = createRetrievalStrategy(query, baseWeights, rerankThreshold);
 
     const allResults: SearchResult[] = [];
 
-    if (!keywords || keywords.length === 0) {
-      return { context: '', sources: [], sourceDetails: [] };
+    if (!query.trim()) {
+      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
     }
 
     // 读取查询扩展配置
     const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
     const maxQueryVariations = await store.get<number>('ragMaxQueryVariations') ?? 3;
 
-    // 应用查询转换（生成同义词变体）
-    const expandedKeywords = transformQueries(keywords, enableQueryExpansion, maxQueryVariations);
-
-    const sortedKeywords = [...expandedKeywords].sort((a, b) => b.weight - a.weight);
+    const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
+    const fuzzyQueries = buildFuzzyQueries(query, strategy);
 
     // 收集文件夹范围内的文件
     const items = await collectMarkdownContentsInFolder(folderPath);
-    const folderFilenames = new Set(items.map(item => item.title || ''));
+    const folderVectorKeys = new Set(items.map(item => (
+      createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || ''))
+    )));
 
     // 1. 模糊搜索（限定到文件夹）
     try {
       if (items.length > 0) {
-        for (const keyword of sortedKeywords) {
-          // 跳过停用词的模糊搜索
-          if (isStopWord(keyword.text)) {
-            continue;
-          }
-
+        for (const keyword of fuzzyQueries) {
           const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
             items,
             query: keyword.text,
             keys: ['title', 'article'],
-            threshold: 0.3,
+            threshold: strategy.fuzzyThreshold,
             includeScore: true,
             includeMatches: true
           });
 
-          for (const result of fuzzyResults) {
+          for (const [resultIndex, result] of fuzzyResults.entries()) {
             if (result.score > 0) {
               const item = result.item;
-              const articleMatches = result.matches.filter(m => m.key === 'article');
-              if (articleMatches.length > 0) {
-                const match = articleMatches[0];
-                const content = match.value;
-
+              const match = result.matches.find(m => m.key === 'article');
+              const content = match?.value || item.article || '';
+              if (content.trim()) {
                 let startIdx = 0;
-                let endIdx = content.length;
-                if (match.indices.length > 0) {
+                let endIdx = Math.min(content.length, 500);
+                if (match && match.indices.length > 0) {
                   const firstMatch = match.indices[0];
                   startIdx = Math.max(0, firstMatch[0] - 250);
                   endIdx = Math.min(content.length, firstMatch[1] + 250);
                 }
 
                 const contextSnippet = content.substring(startIdx, endIdx);
+                const filepath = item.id || item.title || '未命名文件';
+                const resolvedChunk = await resolveSnippetToChunk(filepath, contextSnippet);
 
                 allResults.push({
-                  filename: item.title || '未命名文件',
-                  filepath: item.id || '',
-                  content: contextSnippet,
-                  rawScore: result.score * keyword.weight,
+                  stableId: resolvedChunk.stableId,
+                  filename: resolvedChunk.filename,
+                  filepath,
+                  content: resolvedChunk.content,
+                  rawScore: result.score,
                   normalizedScore: 0,
+                  rank: resultIndex + 1,
+                  queryWeight: keyword.weight,
                   keyword: keyword.text,
                   type: 'fuzzy'
                 });
@@ -1484,35 +1670,30 @@ export async function getContextForQueryInFolder(
       handleRAGError(error, '模糊搜索失败', false);
     }
 
-    // 2. 向量搜索 - 过滤到文件夹范围
+    // 2. 使用完整问题执行一次向量搜索，并过滤到文件夹范围
     try {
-      const windowSize = await store.get<number>('ragWindowSize') ?? 2;
+      const queryEmbedding = await getQueryEmbedding(query);
+      if (queryEmbedding) {
+        const vectorCandidateCount = Math.max(resultCount * strategy.vectorCandidateMultiplier, 20);
+        const similarDocs = (await getSimilarDocuments(
+          queryEmbedding,
+          vectorCandidateCount,
+          similarityThreshold,
+          folderVectorKeys
+        ));
 
-      for (const keyword of sortedKeywords) {
-        const queryEmbedding = await fetchEmbedding(keyword.text);
-        if (queryEmbedding) {
-          let similarDocs = await getSimilarDocuments(queryEmbedding, resultCount * 2, similarityThreshold);
-          // 过滤：只保留文件夹内的文件
-          similarDocs = similarDocs.filter(doc => folderFilenames.has(doc.filename));
-
-          if (similarDocs.length > 0) {
-            similarDocs = await rerankDocuments(keyword.text, similarDocs);
-
-            // 应用句子窗口扩展
-            const expandedDocs = await expandWithSentenceWindow(similarDocs, windowSize);
-
-            for (const doc of expandedDocs) {
-              allResults.push({
-                filename: doc.filename,
-                filepath: doc.filename,
-                content: doc.content,
-                rawScore: (doc.similarity || 0) * keyword.weight,
-                normalizedScore: 0,
-                keyword: keyword.text,
-                type: 'vector'
-              });
-            }
-          }
+        for (const [docIndex, doc] of similarDocs.entries()) {
+          allResults.push({
+            stableId: createChunkStableId(doc.filename, doc.chunk_id),
+            filename: doc.filename,
+            filepath: articlePathFromSourceKey(doc.filename),
+            content: doc.content,
+            rawScore: doc.similarity || 0,
+            normalizedScore: 0,
+            rank: docIndex + 1,
+            queryWeight: 1,
+            type: 'vector'
+          });
         }
       }
     } catch (error) {
@@ -1521,43 +1702,25 @@ export async function getContextForQueryInFolder(
 
     // 3. 使用 BM25 搜索找到相关文档（限定到文件夹范围）
     try {
-      const itemsMap = new Map(items.map(item => [item.id || item.title || '', item]));
+      for (const lexicalQuery of lexicalQueries) {
+        const bm25Results = await searchWithBM25(
+          lexicalQuery.text,
+          Math.max(resultCount * strategy.lexicalCandidateMultiplier, 20)
+        );
 
-      for (const keyword of sortedKeywords) {
-        const bm25Results = await searchWithBM25(keyword.text, resultCount);
-
-        for (const result of bm25Results) {
-          const item = itemsMap.get(result.id);
-          if (!item || !item.article) continue;
-
-          // 验证文件在文件夹范围内
-          if (!folderFilenames.has(item.title || '')) continue;
-
-          const articleLower = item.article.toLowerCase();
-          const keywordLower = keyword.text.toLowerCase();
-          const keywordIndex = articleLower.indexOf(keywordLower);
-
-          let startIdx = 0;
-          let endIdx = item.article.length;
-
-          if (keywordIndex >= 0) {
-            startIdx = Math.max(0, keywordIndex - 250);
-            endIdx = Math.min(item.article.length, keywordIndex + keyword.text.length + 250);
-          } else {
-            const mid = Math.floor(item.article.length / 2);
-            startIdx = Math.max(0, mid - 250);
-            endIdx = Math.min(item.article.length, mid + 250);
-          }
-
-          const contextSnippet = item.article.substring(startIdx, endIdx);
-
+        for (const [resultIndex, result] of bm25Results.entries()) {
+          const chunkKey = parseBM25ChunkKey(result.id);
+          if (!chunkKey || !folderVectorKeys.has(chunkKey.filename)) continue;
           allResults.push({
-            filename: item.title || '未命名文件',
-            filepath: item.id || '',
-            content: contextSnippet,
-            rawScore: result.score * keyword.weight,
+            stableId: result.id,
+            filename: chunkKey.filename,
+            filepath: articlePathFromSourceKey(chunkKey.filename),
+            content: result.content,
+            rawScore: result.score,
             normalizedScore: 0,
-            keyword: keyword.text,
+            rank: resultIndex + 1,
+            queryWeight: lexicalQuery.weight,
+            keyword: lexicalQuery.text,
             type: 'bm25'
           });
         }
@@ -1568,83 +1731,13 @@ export async function getContextForQueryInFolder(
 
     // 如果没有找到任何相关上下文，返回空结果
     if (allResults.length === 0) {
-      return { context: '', sources: [], sourceDetails: [] };
+      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
     }
 
-    // 3. 按文档合并结果，使用归一化和混合权重
-    const mergedResults = mergeResultsByDocument(allResults, weights);
-
-    // 4. 对相似内容进行合并
-    const finalUniqueResults: SearchResult[] = [];
-    const mergedIndices = new Set<number>();
-
-    for (let i = 0; i < mergedResults.length; i++) {
-      if (mergedIndices.has(i)) continue;
-
-      const current = mergedResults[i];
-      let bestScore = current.normalizedScore;
-      let bestContent = current.content;
-      const mergedKeywords: string[] = [];
-
-      if (current.keyword) {
-        mergedKeywords.push(current.keyword);
-      }
-
-      for (let j = i + 1; j < mergedResults.length; j++) {
-        if (mergedIndices.has(j)) continue;
-
-        const other = mergedResults[j];
-        if (other.filename !== current.filename) continue;
-
-        const overlap = calculateContentOverlap(current.content, other.content);
-
-        if (overlap > 0.7) {
-          mergedIndices.add(j);
-          if (other.normalizedScore > bestScore) {
-            bestScore = other.normalizedScore;
-            bestContent = other.content;
-          }
-          if (other.keyword && !mergedKeywords.includes(other.keyword)) {
-            mergedKeywords.push(other.keyword);
-          }
-        }
-      }
-
-      finalUniqueResults.push({
-        ...current,
-        content: bestContent,
-        normalizedScore: bestScore,
-        keyword: mergedKeywords.join(', ')
-      });
-    }
-
-    finalUniqueResults.sort((a: SearchResult, b: SearchResult) => b.normalizedScore - a.normalizedScore);
-    const finalResults = finalUniqueResults.slice(0, resultCount);
-
-    const sources = Array.from(new Set(finalResults.map((ctx: SearchResult) => ctx.filename)));
-
-    // 构建 sourceDetails
-    const sourceDetailsMap = new Map<string, RagSource>();
-    for (const ctx of finalResults) {
-      if (!sourceDetailsMap.has(ctx.filename)) {
-        sourceDetailsMap.set(ctx.filename, {
-          filepath: ctx.filepath,
-          filename: ctx.filename,
-          content: ctx.content
-        })
-      }
-    }
-    const sourceDetails = Array.from(sourceDetailsMap.values())
-
-    const context = finalResults.map((ctx: SearchResult) => {
-      return `文件：${ctx.filename}
-${ctx.content}
-`;
-    }).join('\n---\n\n');
-
-    return { context, sources, sourceDetails };
+    const windowSize = await store.get<number>('ragWindowSize') ?? 2;
+    return await finalizeSearchResults(query, allResults, strategy, resultCount, windowSize);
   } catch (error) {
     handleRAGError(error, '获取文件夹查询上下文失败', false);
-    return { context: '', sources: [], sourceDetails: [] };
+    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
   }
 }

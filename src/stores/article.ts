@@ -1,16 +1,15 @@
-import { getFiles as getGithubFiles } from '@/lib/sync/github'
-import { GithubContent } from '@/lib/sync/github.types'
-import { getFiles as getGiteeFiles } from '@/lib/sync/gitee'
-import { getFiles as getGiteaFiles } from '@/lib/sync/gitea'
-import { getFiles as getGitlabFiles } from '@/lib/sync/gitlab'
-import { GiteeFile } from '@/lib/sync/gitee'
-import { GiteaDirectoryItem } from '@/lib/sync/gitea.types'
+import type { RemoteDirectoryEntry } from '@/lib/sync/directory-listing'
+import { getDirectoryFiles as getGithubFiles } from '@/lib/sync/github'
+import { getDirectoryFiles as getGiteeFiles } from '@/lib/sync/gitee'
+import { getDirectoryFiles as getGiteaFiles } from '@/lib/sync/gitea'
+import { getDirectoryFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3ListObjects } from '@/lib/sync/s3'
 import { webdavListObjects } from '@/lib/sync/webdav'
-import { S3Config, WebDAVConfig } from '@/types/sync'
+import { androidCloudFolderWorkspaceList, supportsCloudFolderWorkspace, type CloudFolderObject } from '@/lib/sync/cloud-folder'
+import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
-import { syncOnOpen } from '@/lib/sync/sync-manager'
+import { isSyncConfigured, syncOnOpen } from '@/lib/sync/sync-manager'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
@@ -19,13 +18,242 @@ import { BaseDirectory, DirEntry, exists, mkdir, readDir, readTextFile, writeTex
 import { Store } from '@tauri-apps/plugin-store'
 import { cloneDeep, uniq } from 'lodash-es'
 import { create } from 'zustand'
-import { getFilePathOptions, getWorkspacePath, toWorkspaceRelativePath } from '@/lib/workspace'
+import {
+  getFilePathOptions,
+  getWorkspacePath,
+  isAbsoluteFsPath,
+  toWorkspaceRelativePath,
+} from '@/lib/workspace'
 import emitter from '@/lib/emitter'
+import { prefetchMarkdownTokens, warmMarkdownLexerWorker } from '@/app/core/main/editor/markdown/markdown-lexer-async'
+import type { Events } from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
 import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
+import { buildRemotePathsToLoad } from './article-remote-sync'
+import { debugSyncPath } from '@/lib/sync/remote-file'
+import type { Mark } from '@/db/marks'
+import { getRecordTabName } from '@/app/core/main/mark/mark-record-tab'
+import { getCurrentSyncContext } from '@/lib/sync/sync-context'
+import {
+  getCloudFolderTreeCacheTargetKey,
+  readCloudFolderTreeCache,
+  writeCloudFolderTreeCache,
+} from '@/lib/sync/cloud-folder-tree-cache'
+import {
+  editorPathsReferToSameFile,
+  editorPathsCouldReferToSameFile,
+  editorPathIsSameOrDescendant,
+  getCurrentEditorWorkspaceRoot,
+  getEditorPathMutationRevision,
+  isEditorPathMutationLocked,
+  prepareActiveEditorDeactivation,
+  prepareActiveEditorDeactivationDurably,
+  registerActiveEditorDurableSaveFlusher,
+  registerEditorPathMutationFlusher,
+  registerEditorPathWriteTransactionRunner,
+  workspaceRootsReferToSameLocation,
+  type EditorPathWriteTransactionContext,
+} from '@/lib/editor-deactivation'
+import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
+import type { EditorWorkspaceLayout } from '@/app/core/main/editor/editor-group-layout'
+
+type SyncPushCompletedEvent = Events['sync-push-completed']
+type SyncPushCompletedListener = (event: SyncPushCompletedEvent) => void
+
+type ArticleSyncListenerGlobal = typeof globalThis & {
+  __noteGenArticleSyncPushCompletedListener?: SyncPushCompletedListener
+}
 
 // 缓存 Store 实例，避免每次都重新加载
 let storeInstance: Store | null = null
+type PendingArticleSave = {
+  timer: ReturnType<typeof setTimeout> | null
+  content: string
+  commit: () => Promise<void>
+}
+
+const pendingArticleSaves = new Map<string, PendingArticleSave>()
+const inFlightArticleSaves = new Map<string, Promise<void>>()
+let vectorCalculationTimer: ReturnType<typeof setTimeout> | null = null
+let pendingVectorCalculation: { path: string; content: string } | null = null
+let inFlightVectorCalculation: { path: string; promise: Promise<void> } | null = null
+let fileTabOpenRequestSequence = 0
+let fileActivationIntentSequence = 0
+const EDITOR_WORKSPACE_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
+let persistedEditorNavigationQueue: Promise<void> = Promise.resolve()
+
+export function beginDeferredFileActivation() {
+  return ++fileActivationIntentSequence
+}
+
+export function isDeferredFileActivationCurrent(intentId: number) {
+  return intentId === fileActivationIntentSequence
+}
+
+function pathIsSameOrDescendant(
+  path: string,
+  parentPath: string,
+  workspaceRoot?: string,
+): boolean {
+  return editorPathIsSameOrDescendant(path, parentPath, workspaceRoot)
+}
+
+function pathMatchesMutation(
+  path: string,
+  changedPath: string,
+  workspaceRoot: string | undefined,
+  includeDescendants: boolean,
+): boolean {
+  return includeDescendants
+    ? pathIsSameOrDescendant(path, changedPath, workspaceRoot)
+    : editorPathsReferToSameFile(path, changedPath, workspaceRoot)
+}
+
+function discardQueuedArticleSaves(
+  path: string,
+  workspaceRoot?: string,
+  includeDescendants = true,
+): void {
+  for (const [savePath, pendingSave] of pendingArticleSaves) {
+    if (!pathMatchesMutation(savePath, path, workspaceRoot, includeDescendants)) continue
+    if (pendingSave.timer) clearTimeout(pendingSave.timer)
+    pendingArticleSaves.delete(savePath)
+  }
+}
+
+function discardPendingVectorCalculation(
+  path: string,
+  workspaceRoot?: string,
+  includeDescendants = true,
+): void {
+  if (
+    !pendingVectorCalculation
+    || !pathMatchesMutation(
+      pendingVectorCalculation.path,
+      path,
+      workspaceRoot,
+      includeDescendants,
+    )
+  ) {
+    return
+  }
+  if (vectorCalculationTimer) clearTimeout(vectorCalculationTimer)
+  vectorCalculationTimer = null
+  pendingVectorCalculation = null
+}
+
+let vectorIndexedFilesInitPromise: Promise<void> | null = null
+const remoteFolderLoadPromises = new Map<string, Promise<void>>()
+const REMOTE_FOLDER_TIMEOUT_MS = 20_000
+const cloudFolderRemoteLoadPromises = new Map<string, Promise<CloudFolderObject[]>>()
+let fileTreeWorkspaceKey: string | null = null
+let fileTreeLoadGeneration = 0
+let articleReadGeneration = 0
+const pendingArticleReads = new Map<string, {
+  generation: number
+  promise: Promise<void>
+}>()
+let editorWorkspaceTransitionGeneration = 0
+let editorWorkspaceTransitionInProgress = false
+
+export async function beginEditorWorkspaceTransition(): Promise<void> {
+  editorWorkspaceTransitionInProgress = true
+  editorWorkspaceTransitionGeneration += 1
+  beginDeferredFileActivation()
+  articleReadGeneration += 1
+  const reads = [...pendingArticleReads.values()].map(entry => entry.promise)
+  pendingArticleReads.clear()
+  await Promise.allSettled(reads)
+}
+
+export function finishEditorWorkspaceTransition(): void {
+  editorWorkspaceTransitionGeneration += 1
+  editorWorkspaceTransitionInProgress = false
+}
+
+function runArticleReadOnce(
+  path: string,
+  read: (generation: number) => Promise<void>
+): Promise<void> {
+  const pendingRead = pendingArticleReads.get(path)
+  if (pendingRead?.generation === articleReadGeneration) {
+    return pendingRead.promise
+  }
+
+  const generation = ++articleReadGeneration
+  const readPromise = read(generation)
+  pendingArticleReads.set(path, { generation, promise: readPromise })
+  const clearPendingRead = () => {
+    if (pendingArticleReads.get(path)?.promise === readPromise) {
+      pendingArticleReads.delete(path)
+    }
+  }
+  void readPromise.then(clearPendingRead, clearPendingRead)
+  return readPromise
+}
+
+function hasCurrentPendingArticleRead(path: string): boolean {
+  return pendingArticleReads.get(path)?.generation === articleReadGeneration
+}
+
+type FileTreeRequestContext = {
+  workspaceKey: string
+  generation: number
+}
+
+type RemoteFileTreeRequestContext = FileTreeRequestContext & {
+  syncTargetKey: string
+}
+
+function normalizeWorkspacePath(path: string) {
+  return path.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function getFileTreeWorkspaceKey(workspace: { path: string; isCustom: boolean }) {
+  return workspace.isCustom ? normalizeWorkspacePath(workspace.path) : '__default__'
+}
+
+function isFileTreeRequestCurrent(context: FileTreeRequestContext) {
+  return fileTreeWorkspaceKey === context.workspaceKey
+    && fileTreeLoadGeneration === context.generation
+}
+
+async function canApplyFileTreeRequest(context: FileTreeRequestContext) {
+  if (!isFileTreeRequestCurrent(context)) return false
+
+  const workspace = await getWorkspacePath()
+  return isFileTreeRequestCurrent(context)
+    && getFileTreeWorkspaceKey(workspace) === context.workspaceKey
+}
+
+function getRemoteSyncTargetKey(context: { workspaceKey: string; provider: string; repo: string }) {
+  return JSON.stringify([context.workspaceKey, context.provider, context.repo])
+}
+
+async function canApplyRemoteFileTreeRequest(context: RemoteFileTreeRequestContext) {
+  if (!await canApplyFileTreeRequest(context)) return false
+
+  const syncContext = await getCurrentSyncContext()
+  return isFileTreeRequestCurrent(context)
+    && getRemoteSyncTargetKey(syncContext) === context.syncTargetKey
+}
+
+async function withRemoteTimeout<T>(promise: Promise<T>, path: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`Remote directory request timed out: ${path}`))
+        }, REMOTE_FOLDER_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 async function getStore(): Promise<Store> {
   if (!storeInstance) {
     storeInstance = await Store.load('store.json')
@@ -33,11 +261,81 @@ async function getStore(): Promise<Store> {
   return storeInstance
 }
 
+async function updatePersistedEditorNavigation(
+  transform: (
+    layout: EditorWorkspaceLayout,
+    helpers: typeof import('@/app/core/main/editor/editor-group-layout'),
+  ) => EditorWorkspaceLayout,
+): Promise<void> {
+  const task = persistedEditorNavigationQueue.then(async () => {
+    try {
+      const workspaceKey = getFileTreeWorkspaceKey(await getWorkspacePath())
+      const store = await getStore()
+      const layout = await store.get<EditorWorkspaceLayout>(EDITOR_WORKSPACE_LAYOUT_STORE_KEY)
+      if (!layout) return
+      if (layout.workspaceKey !== undefined && layout.workspaceKey !== workspaceKey) return
+      const helpers = await import('@/app/core/main/editor/editor-group-layout')
+      const nextLayout = transform(layout, helpers)
+      if (nextLayout === layout) return
+      const latestWorkspaceKey = getFileTreeWorkspaceKey(await getWorkspacePath())
+      if (latestWorkspaceKey !== workspaceKey) return
+      await store.set(EDITOR_WORKSPACE_LAYOUT_STORE_KEY, nextLayout)
+      await store.save()
+    } catch (error) {
+      console.error('Failed to update persisted editor navigation:', error)
+    }
+  })
+  persistedEditorNavigationQueue = task
+  return task
+}
+
+async function loadCloudFolderRemoteSnapshot(
+  cacheTargetKey: string,
+  config: CloudFolderConfig,
+  forceRefresh: boolean,
+): Promise<CloudFolderObject[]> {
+  if (!forceRefresh) {
+    const cached = await readCloudFolderTreeCache(cacheTargetKey)
+    if (cached) return cached
+  }
+
+  const pending = cloudFolderRemoteLoadPromises.get(cacheTargetKey)
+  if (pending) return pending
+
+  const task = (async () => {
+    const files = await withRemoteTimeout(
+      androidCloudFolderWorkspaceList(config),
+      '',
+    )
+    await writeCloudFolderTreeCache(cacheTargetKey, files)
+    return files
+  })()
+  cloudFolderRemoteLoadPromises.set(cacheTargetKey, task)
+  try {
+    return await task
+  } finally {
+    if (cloudFolderRemoteLoadPromises.get(cacheTargetKey) === task) {
+      cloudFolderRemoteLoadPromises.delete(cacheTargetKey)
+    }
+  }
+}
+
+async function getCollapsibleStoreKey(): Promise<string> {
+  const workspace = await getWorkspacePath()
+  return `collapsibleList:${workspace.isCustom ? workspace.path : '__default__'}`
+}
+
+async function getWorkspaceStoreKey(name: string): Promise<string> {
+  const workspace = await getWorkspacePath()
+  return `${name}:${workspace.isCustom ? workspace.path : '__default__'}`
+}
+
 export type SortType = 'name' | 'created' | 'modified' | 'none'
 export type SortDirection = 'asc' | 'desc'
 
 export interface DirTree extends DirEntry {
   children?: DirTree[]
+  childrenLoaded?: boolean
   parent?: DirTree
   sha?: string
   size?: number
@@ -46,12 +344,400 @@ export interface DirTree extends DirEntry {
   createdAt?: string
   modifiedAt?: string
   loading?: boolean  // 文件夹正在加载中
+  syncDirty?: boolean
+  syncError?: string
   vectorCalcStatus?: 'idle' | 'calculating' | 'completed'  // 向量计算状态
+}
+
+// 只有完整、成功的远程快照才能清理缓存；本地文件始终保留。
+function mergeRemoteDirectoryEntries(
+  remoteEntries: RemoteDirectoryEntry[],
+  entries: DirTree[],
+  parent?: DirTree,
+) {
+  const remoteByKey = new Map(remoteEntries
+    .filter(entry => entry.name && !entry.name.startsWith('.'))
+    .map(entry => [`${entry.type === 'dir' ? 'directory' : 'file'}:${entry.name}`, entry]))
+
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    const key = `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}`
+    if (remoteByKey.has(key)) continue
+    if (!entry.isLocale) {
+      entries.splice(index, 1)
+    } else {
+      entry.sha = undefined
+      if (entry.children) mergeRemoteDirectoryEntries([], entry.children, entry)
+    }
+  }
+
+  for (const [key, remoteEntry] of remoteByKey) {
+    const existing = entries.find(entry => (
+      `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}` === key
+    ))
+    if (existing) {
+      existing.sha = remoteEntry.sha
+      if (remoteEntry.size !== undefined) existing.size = remoteEntry.size
+      if (remoteEntry.modifiedAt !== undefined) existing.modifiedAt = remoteEntry.modifiedAt
+    } else {
+      entries.push({
+        name: remoteEntry.name,
+        isFile: remoteEntry.type === 'file',
+        isSymlink: false,
+        parent,
+        isDirectory: remoteEntry.type === 'dir',
+        isLocale: false,
+        sha: remoteEntry.sha,
+        size: remoteEntry.size,
+        modifiedAt: remoteEntry.modifiedAt,
+        children: remoteEntry.type === 'dir' ? [] : undefined,
+      })
+    }
+  }
+}
+
+type RemoteObject = Awaited<ReturnType<typeof s3ListObjects>>[number]
+
+function getObjectDirectoryEntries(
+  files: RemoteObject[],
+  path: string,
+  platform: 's3' | 'webdav',
+): RemoteDirectoryEntry[] {
+  const entries = new Map<string, RemoteDirectoryEntry>()
+  for (const file of files) {
+    // S3 key 已移除配置前缀，相对于工作区；WebDAV key 相对于请求目录。
+    const relativePath = platform === 'webdav'
+      ? file.key
+      : path
+        ? file.key.startsWith(`${path}/`) ? file.key.slice(path.length + 1) : ''
+        : file.key
+    if (!relativePath) continue
+    const [name, ...rest] = relativePath.split('/')
+    if (!name || name.startsWith('.')) continue
+    const isDirectory = rest.length > 0
+    const key = `${isDirectory ? 'directory' : 'file'}:${name}`
+    if (entries.has(key)) continue
+    entries.set(key, {
+      name,
+      path: path ? `${path}/${name}` : name,
+      type: isDirectory ? 'dir' : 'file',
+      sha: isDirectory ? '' : file.etag || file.key,
+      size: isDirectory ? undefined : file.size,
+      modifiedAt: isDirectory ? undefined : file.lastModified,
+    })
+  }
+  return [...entries.values()]
+}
+
+function getGitDirectoryEntries(files: RemoteDirectoryEntry[], path: string) {
+  return files.filter(file => {
+    const relativePath = path
+      ? file.path.startsWith(`${path}/`) ? file.path.slice(path.length + 1) : ''
+      : file.path
+    if (!relativePath || relativePath.includes('/') || relativePath !== file.name) {
+      throw new Error('Unexpected remote directory entry path')
+    }
+    return true
+  })
+}
+
+function mergeCloudFolderRemoteEntries(
+  files: CloudFolderObject[],
+  currentPath: string,
+  entries: DirTree[],
+  parent?: DirTree,
+) {
+  const normalizedPath = currentPath.replace(/^\/+|\/+$/g, '')
+  const remoteEntries = new Map<string, DirTree>()
+
+  for (const file of files) {
+    const key = file.key.replace(/^\/+|\/+$/g, '')
+    const relativePath = normalizedPath
+      ? key.startsWith(`${normalizedPath}/`)
+        ? key.slice(normalizedPath.length + 1)
+        : ''
+      : key
+    if (!relativePath) continue
+
+    const [name, ...remainingSegments] = relativePath.split('/')
+    if (!name || name.startsWith('.')) continue
+
+    const isDirectory = remainingSegments.length > 0
+    const entryKey = `${isDirectory ? 'directory' : 'file'}:${name}`
+    if (remoteEntries.has(entryKey)) continue
+    remoteEntries.set(entryKey, {
+      name,
+      isFile: !isDirectory,
+      isSymlink: false,
+      parent,
+      isEditing: false,
+      isDirectory,
+      sha: isDirectory ? '' : file.etag,
+      size: isDirectory ? undefined : file.size,
+      isLocale: false,
+      modifiedAt: isDirectory ? undefined : new Date(file.modifiedAt).toISOString(),
+      children: isDirectory ? [] : undefined,
+      childrenLoaded: isDirectory ? false : undefined,
+    })
+  }
+
+  const remoteEntryKeys = new Set(remoteEntries.keys())
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    const entryKey = `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}`
+    if (remoteEntryKeys.has(entryKey)) continue
+
+    if (!entry.isLocale) {
+      entries.splice(index, 1)
+    } else if (entry.isFile) {
+      entry.sha = ''
+    }
+  }
+
+  for (const [entryKey, remoteEntry] of remoteEntries) {
+    const existing = entries.find(entry => (
+      `${entry.isDirectory ? 'directory' : 'file'}:${entry.name}` === entryKey
+    ))
+    if (!existing) {
+      entries.push(remoteEntry)
+      continue
+    }
+
+    existing.sha = remoteEntry.sha
+    existing.size = remoteEntry.size
+    existing.modifiedAt = remoteEntry.modifiedAt
+  }
+}
+
+function mergeCloudFolderSnapshotIntoTree(
+  files: CloudFolderObject[],
+  paths: string[],
+  tree: DirTree[],
+) {
+  for (const path of paths) {
+    if (!path) {
+      mergeCloudFolderRemoteEntries(files, '', tree)
+      continue
+    }
+
+    const folder = getCurrentFolder(path, tree)
+    if (!folder?.isDirectory) continue
+    mergeCloudFolderRemoteEntries(
+      files,
+      path,
+      folder.children ?? (folder.children = []),
+      folder,
+    )
+  }
+}
+
+function copyCachedEntry(entry: DirTree, parent?: DirTree): DirTree {
+  const copy: DirTree = {
+    ...entry,
+    parent,
+  }
+  if (copy.isDirectory) {
+    copy.children = (entry.children ?? []).map(child => copyCachedEntry(child, copy))
+  }
+  return copy
+}
+
+function mergeRefreshedLocalEntries(
+  localEntries: DirTree[],
+  cachedEntries: DirTree[],
+  parent?: DirTree
+): DirTree[] {
+  const cachedByKey = new Map(
+    cachedEntries.map(entry => [`${entry.isDirectory ? 'directory' : 'file'}:${entry.name}`, entry])
+  )
+  const matchedKeys = new Set<string>()
+
+  const mergedLocalEntries = localEntries.map(localEntry => {
+    const key = `${localEntry.isDirectory ? 'directory' : 'file'}:${localEntry.name}`
+    const cachedEntry = cachedByKey.get(key)
+    if (cachedEntry) matchedKeys.add(key)
+
+    const mergedEntry: DirTree = {
+      ...cachedEntry,
+      ...localEntry,
+      parent,
+      isLocale: true,
+      sha: cachedEntry?.sha ?? localEntry.sha,
+      size: cachedEntry?.size ?? localEntry.size,
+      createdAt: localEntry.createdAt ?? cachedEntry?.createdAt,
+      modifiedAt: localEntry.modifiedAt ?? cachedEntry?.modifiedAt,
+      loading: cachedEntry?.loading,
+      syncDirty: cachedEntry?.syncDirty,
+      syncError: cachedEntry?.syncError,
+    }
+
+    if (mergedEntry.isDirectory) {
+      if (localEntry.childrenLoaded) {
+        mergedEntry.children = mergeRefreshedLocalEntries(
+          localEntry.children ?? [],
+          cachedEntry?.children ?? [],
+          mergedEntry
+        )
+        mergedEntry.childrenLoaded = true
+      } else if (cachedEntry?.childrenLoaded) {
+        mergedEntry.children = (cachedEntry.children ?? [])
+          .map(child => copyCachedEntry(child, mergedEntry))
+        mergedEntry.childrenLoaded = true
+      } else {
+        mergedEntry.children = []
+        mergedEntry.childrenLoaded = false
+      }
+    } else {
+      mergedEntry.children = undefined
+      mergedEntry.childrenLoaded = undefined
+    }
+
+    return mergedEntry
+  })
+
+  const remoteOnlyEntries = cachedEntries
+    .filter(entry => !entry.isLocale)
+    .filter(entry => !matchedKeys.has(`${entry.isDirectory ? 'directory' : 'file'}:${entry.name}`))
+    .map(entry => copyCachedEntry(entry, parent))
+
+  return [...mergedLocalEntries, ...remoteOnlyEntries]
 }
 
 export interface Article {
   article: string
   path: string
+}
+
+export interface EditorViewState {
+  selectionFrom: number
+  selectionTo: number
+  scrollTop: number
+  sourceSelectionFrom?: number
+  sourceSelectionTo?: number
+  sourceScrollTop?: number
+  largeDocumentVisualOverride?: boolean
+}
+
+export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank' | 'plugin' | 'browser'
+export type EditorTabDisposition = 'preview' | 'regular' | 'pinned'
+export type FileTabOpenMode = 'preview' | 'pinned'
+
+export interface OpenTabInfo {
+  id: string
+  path: string
+  name: string
+  isFolder: boolean
+  kind?: EditorTabKind
+  autoCreated?: boolean
+  preview?: boolean
+  pinned?: boolean
+  markId?: number
+  markType?: Mark['type']
+  canvasId?: string
+  url?: string
+}
+
+export interface FileTabOpenRequest {
+  id: number
+  path: string
+  mode: FileTabOpenMode
+  name: string
+  isFolder: boolean
+}
+
+function normalizeOpenTabInfo(tab: OpenTabInfo): OpenTabInfo {
+  const pinned = tab.pinned === true
+  return {
+    ...tab,
+    preview: pinned ? false : tab.preview === true,
+    pinned,
+  }
+}
+
+type EditorStatePersistenceUpdate = {
+  openTabs?: OpenTabInfo[]
+  activeTabId?: string
+  activeFilePath?: string
+  persistWorkspaceActiveFilePath?: boolean
+}
+
+let editorStatePersistenceQueue: Promise<void> = Promise.resolve()
+let editorStateMutationRevision = 0
+
+export async function flushEditorStatePersistence(): Promise<void> {
+  let pendingEditorState = editorStatePersistenceQueue
+  let pendingNavigation = persistedEditorNavigationQueue
+  while (true) {
+    await Promise.all([pendingEditorState, pendingNavigation])
+    if (
+      pendingEditorState === editorStatePersistenceQueue
+      && pendingNavigation === persistedEditorNavigationQueue
+    ) return
+    pendingEditorState = editorStatePersistenceQueue
+    pendingNavigation = persistedEditorNavigationQueue
+  }
+}
+
+function persistEditorState(update: EditorStatePersistenceUpdate): Promise<void> {
+  editorStateMutationRevision += 1
+  const workspaceTransitionGeneration = editorWorkspaceTransitionGeneration
+  const snapshot = {
+    ...update,
+    openTabs: update.openTabs?.map(tab => ({ ...tab })),
+  }
+  const task = editorStatePersistenceQueue.then(async () => {
+    if (
+      editorWorkspaceTransitionInProgress
+      || workspaceTransitionGeneration !== editorWorkspaceTransitionGeneration
+    ) return
+    const store = await getStore()
+    if (snapshot.openTabs !== undefined) {
+      await store.set('openTabs', snapshot.openTabs)
+    }
+    if (snapshot.activeTabId !== undefined) {
+      await store.set('activeTabId', snapshot.activeTabId)
+    }
+    if (snapshot.activeFilePath !== undefined) {
+      await store.set('activeFilePath', snapshot.activeFilePath)
+      if (snapshot.persistWorkspaceActiveFilePath) {
+        await store.set(
+          await getWorkspaceStoreKey('activeFilePath'),
+          snapshot.activeFilePath,
+        )
+      }
+    }
+  })
+  editorStatePersistenceQueue = task.catch(error => {
+    console.error('Failed to persist editor state:', error)
+  })
+  return task
+}
+
+const RECORD_TAB_PATH_PREFIX = 'record://mark/'
+const BLANK_TAB_PATH_PREFIX = 'blank://'
+
+function isRecordOpenTabPath(path: string): boolean {
+  return path.startsWith(RECORD_TAB_PATH_PREFIX)
+}
+
+function isCanvasOpenTabPath(path: string): boolean {
+  return path.startsWith('canvas://project/')
+}
+
+function isBlankOpenTabPath(path: string): boolean {
+  return path.startsWith(BLANK_TAB_PATH_PREFIX)
+}
+
+function isVirtualOpenTabPath(path: string): boolean {
+  return isBlankOpenTabPath(path) || isRecordOpenTabPath(path) || isCanvasOpenTabPath(path) || path.startsWith('plugin://view/') || path.startsWith('browser://')
+}
+
+function isRecordOpenTab(tab?: OpenTabInfo | null): boolean {
+  return !!tab && (tab.kind === 'record' || isRecordOpenTabPath(tab.path))
+}
+
+function getActiveFilePathForTab(tab?: OpenTabInfo | null): string {
+  return tab && tab.kind !== 'blank' && !isRecordOpenTab(tab) && !isVirtualOpenTabPath(tab.path) ? tab.path : ''
 }
 
 // 查找文件夹节点
@@ -180,30 +866,117 @@ function attachNodeToTree(tree: DirTree[], relativePath: string, node: DirTree):
   return true
 }
 
+function updateTreeEntryByPath(
+  tree: DirTree[],
+  relativePath: string,
+  updater: (entry: DirTree) => DirTree | null,
+  markAncestorsLocal = false
+): DirTree[] | null {
+  const segments = relativePath.split('/').filter(Boolean)
+  if (segments.length === 0) return null
+
+  function updateLevel(items: DirTree[], depth: number, parent?: DirTree): DirTree[] | null {
+    const index = items.findIndex(item => item.name === segments[depth])
+    if (index === -1) return null
+
+    const current = items[index]
+    const nextItems = [...items]
+    if (depth === segments.length - 1) {
+      const nextEntry = updater(current)
+      if (nextEntry) {
+        nextItems[index] = { ...nextEntry, parent }
+      } else {
+        nextItems.splice(index, 1)
+      }
+      return nextItems
+    }
+
+    if (!current.children) return null
+    const nextParent: DirTree = {
+      ...current,
+      isLocale: markAncestorsLocal ? true : current.isLocale,
+    }
+    const nextChildren = updateLevel(current.children, depth + 1, nextParent)
+    if (!nextChildren) return null
+
+    nextParent.children = nextChildren
+    nextItems[index] = nextParent
+    return nextItems
+  }
+
+  return updateLevel(tree, 0)
+}
+
 interface NoteState {
   loading: boolean
   setLoading: (loading: boolean) => void
 
   activeFilePath: string
-  setActiveFilePath: (name: string) => void
+  pendingFileRevealPath: string | null
+  setPendingFileRevealPath: (path: string | null) => void
+  setActiveFilePath: (
+    name: string,
+    autoSync?: boolean,
+    options?: {
+      deactivationAlreadyPrepared?: boolean
+      tabOpenMode?: FileTabOpenMode
+      tabMetadata?: Pick<OpenTabInfo, 'name' | 'isFolder'>
+      createIfMissing?: boolean
+      persistWorkspaceActiveFilePath?: boolean
+      workspaceTransitionReset?: boolean
+    }
+  ) => Promise<void>
+  selectedFilePaths: string[]
+  setSelectedFilePaths: (paths: string[]) => void
+  clearSelectedFilePaths: () => void
 
   // 当前正在读取的文件路径，用于避免竞态条件
   readFilePath: string
   setReadFilePath: (path: string) => void
 
   // Tabs for multi-file editing
-  openTabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>
-  setOpenTabs: (tabs: Array<{ id: string; path: string; name: string; isFolder: boolean }>) => void
+  openTabs: OpenTabInfo[]
+  setOpenTabs: (tabs: OpenTabInfo[]) => Promise<void>
   activeTabId: string
-  setActiveTabId: (id: string) => void
-  addTab: (tab: { id: string; path: string; name: string; isFolder: boolean }) => void
-  removeTab: (id: string) => void
-  cleanTabsByDeletedFile: (deletedPath: string) => Promise<void>
-  cleanTabsByDeletedFolder: (deletedFolderPath: string) => Promise<void>
+  setActiveTabId: (
+    id: string,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
+  addTab: (
+    tab: OpenTabInfo,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
+  replaceTab: (id: string, tab: OpenTabInfo) => Promise<void>
+  updateBrowserTab: (id: string, url: string, name: string) => Promise<void>
+  setTabDisposition: (id: string, disposition: EditorTabDisposition) => Promise<void>
+  pendingFileTabOpenRequest: FileTabOpenRequest | null
+  consumeFileTabOpenRequest: (id: number) => void
+  updateRecordTab: (mark: Mark) => Promise<void>
+  removeTab: (
+    id: string,
+    options?: { deactivationAlreadyPrepared?: boolean },
+  ) => Promise<void>
+  editorViewStates: Record<string, EditorViewState>
+  setEditorViewState: (path: string, state: Partial<EditorViewState>) => void
+  getEditorViewState: (path: string) => EditorViewState | null
+  removeEditorViewState: (path: string) => void
+  moveEditorViewState: (oldPath: string, newPath: string) => void
+  cleanTabsByDeletedFile: (
+    deletedPath: string,
+    workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
+  ) => Promise<void>
+  cleanTabsByDeletedFolder: (
+    deletedFolderPath: string,
+    workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
+  ) => Promise<void>
   clearTabs: () => void
 
   matchPosition: number | null
   setMatchPosition: (position: number | null) => void
+  pendingSearchKeyword: string
+  setPendingSearchKeyword: (keyword: string) => void
 
   html2md: boolean
   initHtml2md: () => Promise<void>
@@ -212,6 +985,15 @@ interface NoteState {
   showCloudFiles: boolean
   initShowCloudFiles: () => Promise<void>
   setShowCloudFiles: (show: boolean) => Promise<void>
+  showAssetsFolders: boolean
+  initShowAssetsFolders: () => Promise<void>
+  setShowAssetsFolders: (show: boolean) => Promise<void>
+  syncStaticAssets: boolean
+  initSyncStaticAssets: () => Promise<void>
+  setSyncStaticAssets: (enabled: boolean) => Promise<void>
+  showKnowledgeBaseStatus: boolean
+  initShowKnowledgeBaseStatus: () => Promise<void>
+  setShowKnowledgeBaseStatus: (show: boolean) => Promise<void>
 
   // Initialize tabs from store
   initOpenTabs: () => Promise<void>
@@ -228,30 +1010,40 @@ interface NoteState {
 
   fileTree: DirTree[]
   fileTreeLoading: boolean
+  fileTreeInitialized: boolean
+  fileTreeWorkspaceKey: string | null
   setFileTree: (tree: DirTree[]) => void
+  setEntryLoading: (relativePath: string, loading: boolean) => boolean
+  setEntrySyncError: (relativePath: string, error?: string) => boolean
+  markFileRemote: (relativePath: string, sha: string) => boolean
+  markFileLocal: (relativePath: string) => boolean
+  markFileDirty: (relativePath: string) => boolean
+  reconcileLocalFile: (relativePath: string, isPresent: boolean) => boolean
+  clearFileRemoteState: (relativePath: string) => boolean
   addFile: (file: DirTree) => void
   ensurePathExpanded: (path: string) => Promise<void>
   insertLocalEntry: (relativePath: string, isDirectory: boolean) => boolean
   removeLocalEntry: (relativePath: string) => boolean
   moveLocalEntry: (oldPath: string, newPath: string) => boolean
   syncOpenTabsForPathChange: (oldPath: string, newPath: string) => Promise<void>
-  loadFileTree: () => Promise<void>
-  loadRemoteSyncFiles: () => Promise<void>
-  loadCollapsibleFiles: (folderName: string) => Promise<void>
+  loadFileTree: (options?: { skipRemoteSync?: boolean }) => Promise<void>
+  loadRemoteSyncFiles: (context?: FileTreeRequestContext) => Promise<void>
+  loadCollapsibleFiles: (folderName: string, options?: { force?: boolean; skipRemoteSync?: boolean }) => Promise<void>
   loadFolderRemoteFiles: (folderName: string) => Promise<void>
   newFolder: () => void
   newFile: () => void
-  newFileOnFolder: (path: string) => void
+  newFileOnFolder: (path: string) => Promise<void>
   newFolderInFolder: (path: string) => void
 
   collapsibleList: string[]
   collapsibleListInitialized: boolean
   initCollapsibleList: () => Promise<void>
   setCollapsibleList: (name: string, value: boolean) => Promise<void>
-  expandAllFolders: () => Promise<void>
-  collapseAllFolders: () => Promise<void>
+  expandAllFolders: (folderPath?: string) => Promise<void>
+  collapseAllFolders: (folderPath?: string) => Promise<void>
   toggleAllFolders: () => Promise<void>
   clearCollapsibleList: () => Promise<void>
+  loadWorkspaceCollapsibleList: () => Promise<string>
 
   currentArticle: string
   isPulling: boolean // 新增：拉取状态
@@ -259,30 +1051,43 @@ interface NoteState {
   skipSyncOnSave: boolean // 标记是否跳过同步（用于程序写入时）
   aiGeneratingFilePath: string | null // 标记当前正在 AI 生成的文件路径
   aiTerminateFn: (() => void) | null // AI 生成的终止函数
-  readArticle: (path: string, sha?: string, isLocale?: boolean, autoSync?: boolean) => Promise<void>
+  readArticle: (
+    path: string,
+    sha?: string,
+    autoSync?: boolean,
+    options?: { createIfMissing?: boolean },
+  ) => Promise<void>
   setCurrentArticle: (content: string) => void
   setIsPulling: (pulling: boolean) => void
   setJustPulledFile: (justPulled: boolean) => void
   setSkipSyncOnSave: (skip: boolean) => void
   setAiGeneratingFilePath: (path: string | null) => void
   setAiTerminateFn: (fn: (() => void) | null) => void
-  saveCurrentArticle: (content: string) => Promise<void>
-  // 防抖保存相关
-  debounceSaveTimer: NodeJS.Timeout | null
-  pendingSaveContent: string | null
+  saveCurrentArticle: (content: string, pathOverride?: string) => Promise<void>
+  flushPendingArticleSave: (path: string) => Promise<void>
+  flushPendingArticleSavesForPaths: (
+    paths: string[],
+    workspaceRoot?: string,
+  ) => Promise<void>
+  flushAllPendingArticleSaves: () => Promise<void>
+  runPathWriteTransaction: (
+    path: string,
+    transaction: (context: EditorPathWriteTransactionContext) => Promise<boolean>,
+    workspaceRoot?: string,
+  ) => Promise<boolean>
   // 更新文件 sha 状态（推送成功后调用）
   updateFileSha: (path: string, sha: string) => void
 
   // 向量计算相关
-  vectorCalcTimer: NodeJS.Timeout | null
-  vectorCalcProgressInterval: NodeJS.Timeout | null
-  vectorCalcProgress: number
   isVectorCalculating: boolean
-  lastEditTime: number
-  pendingVectorContent: { path: string; content: string } | null
   scheduleVectorCalculation: (path: string, content: string) => void
-  executeVectorCalculation: () => Promise<void>
+  executeVectorCalculation: (options?: { force?: boolean }) => Promise<void>
   cancelVectorCalculation: () => void
+  settleVectorCalculationsForPaths: (
+    paths: string[],
+    workspaceRoot?: string,
+  ) => Promise<void>
+  settleAllVectorCalculations: () => Promise<void>
   triggerVectorCalculation: () => Promise<void> // 手动触发向量计算
   // 向量索引状态
   vectorIndexedFiles: Map<string, number> // 工作区相对路径 -> 向量索引时间戳
@@ -298,10 +1103,6 @@ interface NoteState {
 
 const useArticleStore = create<NoteState>((set, get) => ({
   loading: false,
-
-  // 防抖保存相关状态
-  debounceSaveTimer: null,
-  pendingSaveContent: null,
 
   setLoading: (loading: boolean) => { set({ loading }) },
 
@@ -325,13 +1126,27 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // 初始化事件监听器
   initEventListeners: () => {
+    const globalState = globalThis as ArticleSyncListenerGlobal
+    if (globalState.__noteGenArticleSyncPushCompletedListener) {
+      emitter.off('sync-push-completed', globalState.__noteGenArticleSyncPushCompletedListener)
+    }
+
     // 监听同步推送完成事件，更新文件树的 sha 状态
-    emitter.on('sync-push-completed', ((event: { path: string; success: boolean; sha?: string }) => {
+    const syncPushCompletedListener: SyncPushCompletedListener = (event) => {
       const { path, success, sha } = event
+      debugSyncPath('article.syncPushCompleted', {
+        path,
+        success,
+        sha,
+        hasSha: Boolean(sha),
+      })
       if (success && sha) {
         get().updateFileSha(path, sha)
       }
-    }) as any)
+    }
+
+    emitter.on('sync-push-completed', syncPushCompletedListener)
+    globalState.__noteGenArticleSyncPushCompletedListener = syncPushCompletedListener
   },
   setSortType: async (sortType: SortType) => {
     set({ sortType })
@@ -392,7 +1207,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       let result = 0
       switch (sortType) {
         case 'name':
-          result = a.name.localeCompare(b.name)
+          result = a.name.localeCompare(b.name, undefined, { numeric: true })
           break
         case 'created':
           if (a.createdAt && b.createdAt) {
@@ -430,132 +1245,593 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   activeFilePath: '',
-  setActiveFilePath: async (path: string) => {
+  pendingFileRevealPath: null,
+  setPendingFileRevealPath: (path) => set({ pendingFileRevealPath: path }),
+  setActiveFilePath: async (path: string, autoSync = true, options) => {
+    fileActivationIntentSequence += 1
+    if (editorWorkspaceTransitionInProgress && !options?.workspaceTransitionReset) return
+    const nextPath = isVirtualOpenTabPath(path) ? '' : path
+    if (isEditorPathMutationLocked(nextPath)) return
+    if (
+      nextPath !== get().activeFilePath
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) {
+      return
+    }
+    const currentFileTabOpenRequest = get().pendingFileTabOpenRequest
+    const matchingFileTabOpenRequest = currentFileTabOpenRequest?.path === nextPath
+      ? currentFileTabOpenRequest
+      : null
+    const matchingOpenTab = get().openTabs.find(tab => tab.path === nextPath)
+    const requestedTabName = options?.tabMetadata?.name
+      || matchingFileTabOpenRequest?.name
+      || matchingOpenTab?.name
+      || nextPath.split(/[\\/]/).pop()
+      || nextPath
+    const requestedTabIsFolder = options?.tabMetadata?.isFolder
+      ?? matchingFileTabOpenRequest?.isFolder
+      ?? matchingOpenTab?.isFolder
+      ?? !(nextPath.split(/[\\/]/).pop() || '').includes('.')
+    const pendingFileTabOpenRequest = options?.tabOpenMode && nextPath
+      ? {
+          id: ++fileTabOpenRequestSequence,
+          path: nextPath,
+          mode: options.tabOpenMode,
+          name: requestedTabName,
+          isFolder: requestedTabIsFolder,
+        }
+      : matchingFileTabOpenRequest
+        ? matchingFileTabOpenRequest
+        : null
+    const fileName = nextPath.split(/[\\/]/).pop() || ''
+    const shouldReadArticle = Boolean(
+      !requestedTabIsFolder && fileName && fileName.includes('.')
+    )
+    const canReusePendingRead = shouldReadArticle
+      && get().activeFilePath === nextPath
+      && hasCurrentPendingArticleRead(nextPath)
+
+    if (canReusePendingRead) {
+      set({ selectedFilePaths: [], pendingFileTabOpenRequest, pendingFileRevealPath: null })
+      emitter.emit('article-opened', { path: nextPath })
+      await persistEditorState({
+        activeFilePath: get().activeFilePath,
+        persistWorkspaceActiveFilePath: options?.persistWorkspaceActiveFilePath !== false,
+      })
+      return
+    }
+
+    if (!shouldReadArticle) {
+      articleReadGeneration += 1
+      pendingArticleReads.clear()
+    }
     // 切换文件时，先清空 currentArticle，避免内容覆盖
-    set({ currentArticle: '', activeFilePath: path })
-    const store = await getStore();
-    await store.set('activeFilePath', path)
+    set({
+      currentArticle: '',
+      activeFilePath: nextPath,
+      pendingFileRevealPath: null,
+      isPulling: false,
+      justPulledFile: false,
+      selectedFilePaths: [],
+      loading: shouldReadArticle,
+      pendingFileTabOpenRequest,
+    })
     // 触发事件，让推送队列重置计时器
-    emitter.emit('article-opened', { path })
+    emitter.emit('article-opened', { path: nextPath })
 
     // 触发读取文件内容（包括远程拉取）
     // 需要确保是文件而不是文件夹
-    const fileName = path.split('/').pop() || ''
-    if (fileName && fileName.includes('.')) {
-      get().readArticle(path)
+    if (shouldReadArticle) {
+      void get().readArticle(nextPath, undefined, autoSync, {
+        createIfMissing: options?.createIfMissing,
+      })
     }
+
+    await persistEditorState({
+      activeFilePath: get().activeFilePath,
+      persistWorkspaceActiveFilePath: options?.persistWorkspaceActiveFilePath !== false,
+    })
+  },
+  selectedFilePaths: [],
+  setSelectedFilePaths: (paths: string[]) => {
+    const nextPaths = Array.from(new Set(paths))
+    set((state) => {
+      const isSameSelection = state.selectedFilePaths.length === nextPaths.length
+        && state.selectedFilePaths.every((path, index) => path === nextPaths[index])
+
+      return isSameSelection ? state : { selectedFilePaths: nextPaths }
+    })
+  },
+  clearSelectedFilePaths: () => {
+    set((state) => state.selectedFilePaths.length === 0 ? state : { selectedFilePaths: [] })
   },
 
   // Tabs initialization - load from store
   openTabs: [],
   activeTabId: '',
+  editorViewStates: {},
+  pendingFileTabOpenRequest: null,
+  consumeFileTabOpenRequest: (id) => {
+    set(state => state.pendingFileTabOpenRequest?.id === id
+      ? { pendingFileTabOpenRequest: null }
+      : state)
+  },
   setOpenTabs: async (tabs) => {
-    set({ openTabs: tabs })
-    const store = await getStore();
-    await store.set('openTabs', tabs)
-  },
-  setActiveTabId: async (id) => {
-    set({ activeTabId: id })
-    const store = await getStore();
-    await store.set('activeTabId', id)
-  },
-  addTab: async (tab) => {
-    const currentTabs = get().openTabs
-    // Check if tab already exists
-    if (currentTabs.find(t => t.path === tab.path)) {
+    if (tabs.some(tab => isEditorPathMutationLocked(tab.path))) return
+    const normalizedTabs = tabs.map(normalizeOpenTabInfo)
+    const activeTabId = get().activeTabId
+    if (
+      activeTabId
+      && !normalizedTabs.some(tab => tab.id === activeTabId)
+      && !prepareActiveEditorDeactivation()
+    ) {
       return
     }
-    const newTabs = [...currentTabs, tab].slice(-10) // Limit to 10 tabs
-    set({ openTabs: newTabs, activeTabId: tab.id })
-    const store = await getStore();
-    await store.set('openTabs', newTabs)
-    await store.set('activeTabId', tab.id)
+    const keptPaths = new Set(normalizedTabs.map(tab => tab.path))
+    const nextEditorViewStates = Object.fromEntries(
+      Object.entries(get().editorViewStates).filter(([path]) => keptPaths.has(path))
+    )
+    set({ openTabs: normalizedTabs, editorViewStates: nextEditorViewStates })
+    await persistEditorState({ openTabs: normalizedTabs })
   },
-  removeTab: async (id) => {
+  setActiveTabId: async (id, options) => {
+    const tab = get().openTabs.find(candidate => candidate.id === id)
+    if (tab && isEditorPathMutationLocked(tab.path)) return
+    if (
+      id !== get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
+    set({ activeTabId: id })
+    await persistEditorState({ activeTabId: id })
+  },
+  addTab: async (tab, options) => {
+    const normalizedTab = normalizeOpenTabInfo(tab)
+    if (isEditorPathMutationLocked(tab.path)) return
     const currentTabs = get().openTabs
-    const newTabs = currentTabs.filter(t => t.id !== id)
+    // Check if tab already exists
+    const existingTab = currentTabs.find(t => t.path === normalizedTab.path)
+    if (existingTab) {
+      await get().setActiveTabId(existingTab.id, options)
+      return
+    }
+    if (
+      normalizedTab.id !== get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
+    const newTabs = [...currentTabs, normalizedTab]
+    set({ openTabs: newTabs, activeTabId: normalizedTab.id })
+    await persistEditorState({
+      openTabs: newTabs,
+      activeTabId: normalizedTab.id,
+    })
+  },
+  replaceTab: async (id, tab) => {
+    const currentTabs = get().openTabs
+    const replacedTab = currentTabs.find(item => item.id === id)
+    if (!replacedTab) return
+    const normalizedTab = normalizeOpenTabInfo({ ...tab, id })
+    const newTabs = currentTabs.map(item => item.id === id ? normalizedTab : item)
+    const nextEditorViewStates = { ...get().editorViewStates }
+    if (replacedTab.path !== normalizedTab.path) {
+      delete nextEditorViewStates[replacedTab.path]
+    }
+    set({
+      openTabs: newTabs,
+      activeTabId: id,
+      editorViewStates: nextEditorViewStates,
+    })
+    await persistEditorState({ openTabs: newTabs, activeTabId: id })
+  },
+  updateBrowserTab: async (id, url, name) => {
+    const currentTabs = get().openTabs
+    const target = currentTabs.find(tab => tab.id === id && tab.kind === 'browser')
+    if (!target || (target.url === url && target.name === name)) return
+    const nextTabs = currentTabs.map(tab => tab.id === id ? { ...tab, url, name } : tab)
+    set({ openTabs: nextTabs })
+    await persistEditorState({ openTabs: nextTabs })
+  },
+  setTabDisposition: async (id, disposition) => {
+    const currentTabs = get().openTabs
+    const target = currentTabs.find(tab => tab.id === id)
+    if (!target) return
+    const preview = disposition === 'preview'
+    const pinned = disposition === 'pinned'
+    if (target.preview === preview && target.pinned === pinned) return
+    const newTabs = currentTabs.map(tab => tab.id === id
+      ? { ...tab, preview, pinned }
+      : tab)
     set({ openTabs: newTabs })
-    const store = await getStore();
-    await store.set('openTabs', newTabs)
+    await persistEditorState({ openTabs: newTabs })
+  },
+  updateRecordTab: async (mark) => {
+    const currentTabs = get().openTabs
+    const newTabs = currentTabs.map((tab) => {
+      const isSameRecord = tab.markId === mark.id || tab.path === `${RECORD_TAB_PATH_PREFIX}${mark.id}`
+
+      if (!isSameRecord) {
+        return tab
+      }
+
+      return {
+        ...tab,
+        name: getRecordTabName(mark, mark.type),
+        markType: mark.type,
+      }
+    })
+
+    if (newTabs === currentTabs || newTabs.every((tab, index) => tab === currentTabs[index])) {
+      return
+    }
+
+    set({ openTabs: newTabs })
+    await persistEditorState({ openTabs: newTabs })
+  },
+  removeTab: async (id, options) => {
+    if (
+      id === get().activeTabId
+      && !options?.deactivationAlreadyPrepared
+      && !prepareActiveEditorDeactivation()
+    ) return
+    const currentTabs = get().openTabs
+    const removedTab = currentTabs.find(t => t.id === id)
+    const newTabs = currentTabs.filter(t => t.id !== id)
+    const nextEditorViewStates = { ...get().editorViewStates }
+    if (removedTab) {
+      delete nextEditorViewStates[removedTab.path]
+    }
+    set({ openTabs: newTabs, editorViewStates: nextEditorViewStates })
+    await persistEditorState({ openTabs: newTabs })
+  },
+  setEditorViewState: (path, state) => {
+    if (!path) {
+      return
+    }
+    set(current => ({
+      editorViewStates: {
+        ...current.editorViewStates,
+        [path]: {
+          ...(current.editorViewStates[path] ?? {
+            selectionFrom: 0,
+            selectionTo: 0,
+            scrollTop: 0,
+          }),
+          ...state,
+        },
+      }
+    }))
+  },
+  getEditorViewState: (path) => {
+    if (!path) {
+      return null
+    }
+    return get().editorViewStates[path] || null
+  },
+  removeEditorViewState: (path) => {
+    if (!path) {
+      return
+    }
+    const nextEditorViewStates = { ...get().editorViewStates }
+    delete nextEditorViewStates[path]
+    set({ editorViewStates: nextEditorViewStates })
+  },
+  moveEditorViewState: (oldPath, newPath) => {
+    if (!oldPath || !newPath || oldPath === newPath) {
+      return
+    }
+    const currentState = get().editorViewStates[oldPath]
+    if (!currentState) {
+      return
+    }
+    const nextEditorViewStates = { ...get().editorViewStates }
+    delete nextEditorViewStates[oldPath]
+    nextEditorViewStates[newPath] = currentState
+    set({ editorViewStates: nextEditorViewStates })
   },
 
   // 清理已被删除的文件对应的 tabs（根据路径匹配）
-  cleanTabsByDeletedFile: async (deletedPath: string) => {
-    const currentTabs = get().openTabs
-    const currentActiveTabId = get().activeTabId
-    const currentActiveFilePath = get().activeFilePath
-    const newTabs = currentTabs.filter(t => t.path !== deletedPath)
+  cleanTabsByDeletedFile: async (
+    deletedPath: string,
+    workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
+  ) => {
+    const currentWorkspaceRoot = await getCurrentEditorWorkspaceRoot()
+    if (
+      workspaceRootOverride
+      && !workspaceRootsReferToSameLocation(currentWorkspaceRoot, workspaceRootOverride)
+    ) {
+      return
+    }
+    const workspaceRoot = workspaceRootOverride ?? currentWorkspaceRoot
+    const isDeletedFile = (path: string) => (
+      editorPathsReferToSameFile(path, deletedPath, workspaceRoot)
+    )
+    if (options?.preservePendingSaves) {
+      const latestState = get()
+      if (
+        isDeletedFile(latestState.activeFilePath)
+        && !prepareActiveEditorDeactivation()
+      ) return
+      if (
+        [...pendingArticleSaves.keys()].some(isDeletedFile)
+        || [...inFlightArticleSaves.keys()].some(isDeletedFile)
+      ) return
+    }
+    discardQueuedArticleSaves(deletedPath, workspaceRoot, false)
+    discardPendingVectorCalculation(deletedPath, workspaceRoot, false)
 
-    // 如果有标签页被移除，更新状态
-    if (newTabs.length !== currentTabs.length) {
-      // 如果删除的是当前活动的 tab，自动选择另一个 tab
-      const deletedTab = currentTabs.find(t => t.path === deletedPath)
-      let newActiveTabId = currentActiveTabId
-      let newActiveFilePath = currentActiveFilePath
+    const currentState = get()
+    const currentTabs = currentState.openTabs
+    const currentActiveTabId = currentState.activeTabId
+    const currentActiveFilePath = currentState.activeFilePath
+    const currentSelectedFilePaths = currentState.selectedFilePaths
+    const newTabs = currentTabs.filter(tab => !isDeletedFile(tab.path))
+    const deletedTabIds = currentTabs
+      .filter(tab => isDeletedFile(tab.path))
+      .map(tab => tab.id)
+    const nextSelectedFilePaths = currentSelectedFilePaths.filter(path => !isDeletedFile(path))
+    const currentActiveTab = currentTabs.find(tab => tab.id === currentActiveTabId)
+    const activeTabDeleted = Boolean(currentActiveTab && isDeletedFile(currentActiveTab.path))
+    const tabsChanged = newTabs.length !== currentTabs.length
+    const pendingRequestDeleted = Boolean(
+      currentState.pendingFileTabOpenRequest
+      && isDeletedFile(currentState.pendingFileTabOpenRequest.path)
+    )
 
-      if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
-        // 选择最后一个 tab
-        const targetTab = newTabs[newTabs.length - 1]
-        newActiveTabId = targetTab.id
-        newActiveFilePath = targetTab.path
-      } else if (deletedTab && currentActiveTabId === deletedTab.id) {
-        // 没有其他 tab 了
-        newActiveTabId = ''
-        newActiveFilePath = ''
+    let preferredFallbackTabId = ''
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-deleted', {
+      path: deletedPath,
+      isFolder: false,
+      workspaceRoot,
+      deletedTabIds,
+      resolveFallbackTabId: tabId => { preferredFallbackTabId = tabId },
+      markHandled: () => { navigationHandled = true },
+    })
+    const navigationNeedsPersistentUpdate = !navigationHandled
+
+    let newActiveTabId = currentActiveTabId
+    let newActiveFilePath = currentActiveFilePath
+    if (activeTabDeleted && newTabs.length > 0) {
+      const targetTab = newTabs.find(tab => tab.id === preferredFallbackTabId)
+        ?? newTabs[newTabs.length - 1]
+      newActiveTabId = targetTab.id
+      newActiveFilePath = getActiveFilePathForTab(targetTab)
+    } else if (activeTabDeleted) {
+      newActiveTabId = ''
+      newActiveFilePath = ''
+    } else if (isDeletedFile(currentActiveFilePath)) {
+      newActiveFilePath = ''
+    }
+
+    const activeChanged = newActiveTabId !== currentActiveTabId
+      || newActiveFilePath !== currentActiveFilePath
+    const selectionChanged = nextSelectedFilePaths.length !== currentSelectedFilePaths.length
+    const nextEditorViewStates = { ...currentState.editorViewStates }
+    let viewStatesChanged = false
+    Object.keys(nextEditorViewStates).forEach(path => {
+      if (!isDeletedFile(path)) return
+      delete nextEditorViewStates[path]
+      viewStatesChanged = true
+    })
+    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged && !pendingRequestDeleted) {
+      if (navigationNeedsPersistentUpdate) {
+        await updatePersistedEditorNavigation((layout, helpers) => (
+          helpers.cleanEditorNavigationHistoryByDeletedFile(layout, deletedPath, workspaceRoot)
+        ))
       }
+      return
+    }
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
-      const store = await getStore();
-      await store.set('openTabs', newTabs)
-      await store.set('activeTabId', newActiveTabId)
-      await store.set('activeFilePath', newActiveFilePath)
+    set({
+      openTabs: newTabs,
+      activeTabId: newActiveTabId,
+      selectedFilePaths: nextSelectedFilePaths,
+      editorViewStates: nextEditorViewStates,
+      ...(pendingRequestDeleted ? { pendingFileTabOpenRequest: null } : {}),
+      ...(activeChanged ? {
+        activeFilePath: newActiveFilePath,
+        currentArticle: '',
+        readFilePath: '',
+        isPulling: false,
+        justPulledFile: false,
+        loading: Boolean(newActiveFilePath && isLikelyFilePath(newActiveFilePath)),
+      } : {}),
+    })
+
+    const persistencePromise = tabsChanged || activeChanged
+      ? persistEditorState({
+          ...(tabsChanged ? { openTabs: newTabs } : {}),
+          ...(activeChanged ? { activeTabId: newActiveTabId } : {}),
+        })
+      : null
+    const activatePromise = activeChanged
+      ? get().setActiveFilePath(
+        newActiveFilePath,
+        true,
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
+      )
+      : null
+    await persistencePromise
+    if (activeChanged) {
+      await activatePromise
+    }
+    if (navigationNeedsPersistentUpdate) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.cleanEditorNavigationHistoryByDeletedFile(layout, deletedPath, workspaceRoot)
+      ))
     }
   },
 
   // 清理已被删除的文件夹对应的 tabs（清理该文件夹下所有文件的 tabs）
-  cleanTabsByDeletedFolder: async (deletedFolderPath: string) => {
-    const currentTabs = get().openTabs
-    const currentActiveTabId = get().activeTabId
-    const currentActiveFilePath = get().activeFilePath
-    const folderPrefix = deletedFolderPath.endsWith('/') ? deletedFolderPath : deletedFolderPath + '/'
-    const newTabs = currentTabs.filter(t => !t.path.startsWith(folderPrefix))
+  cleanTabsByDeletedFolder: async (
+    deletedFolderPath: string,
+    workspaceRootOverride?: string,
+    options?: { preservePendingSaves?: boolean },
+  ) => {
+    const currentWorkspaceRoot = await getCurrentEditorWorkspaceRoot()
+    if (
+      workspaceRootOverride
+      && !workspaceRootsReferToSameLocation(currentWorkspaceRoot, workspaceRootOverride)
+    ) {
+      return
+    }
+    const workspaceRoot = workspaceRootOverride ?? currentWorkspaceRoot
+    const isInDeletedFolder = (path: string) => (
+      pathIsSameOrDescendant(path, deletedFolderPath, workspaceRoot)
+    )
+    if (options?.preservePendingSaves) {
+      const latestState = get()
+      if (
+        isInDeletedFolder(latestState.activeFilePath)
+        && !prepareActiveEditorDeactivation()
+      ) return
+      if (
+        [...pendingArticleSaves.keys()].some(isInDeletedFolder)
+        || [...inFlightArticleSaves.keys()].some(isInDeletedFolder)
+      ) return
+    }
+    discardQueuedArticleSaves(deletedFolderPath, workspaceRoot)
+    discardPendingVectorCalculation(deletedFolderPath, workspaceRoot)
 
-    // 如果有标签页被移除，更新状态
-    if (newTabs.length !== currentTabs.length) {
-      // 如果删除的是当前活动的 tab，自动选择另一个 tab
-      const deletedTab = currentTabs.find(t => t.path.startsWith(folderPrefix))
-      let newActiveTabId = currentActiveTabId
-      let newActiveFilePath = currentActiveFilePath
+    const currentState = get()
+    const currentTabs = currentState.openTabs
+    const currentActiveTabId = currentState.activeTabId
+    const currentActiveFilePath = currentState.activeFilePath
+    const currentSelectedFilePaths = currentState.selectedFilePaths
+    const newTabs = currentTabs.filter(
+      tab => !isInDeletedFolder(tab.path)
+    )
+    const deletedTabIds = currentTabs
+      .filter(tab => isInDeletedFolder(tab.path))
+      .map(tab => tab.id)
+    const currentActiveTab = currentTabs.find(tab => tab.id === currentActiveTabId)
+    const activeTabDeleted = Boolean(
+      currentActiveTab && isInDeletedFolder(currentActiveTab.path)
+    )
+    const activeFileDeleted = isInDeletedFolder(currentActiveFilePath)
+    const nextSelectedFilePaths = currentSelectedFilePaths.filter(
+      path => !isInDeletedFolder(path)
+    )
 
-      if (deletedTab && currentActiveTabId === deletedTab.id && newTabs.length > 0) {
-        // 选择最后一个 tab
-        const targetTab = newTabs[newTabs.length - 1]
-        newActiveTabId = targetTab.id
-        newActiveFilePath = targetTab.path
-      } else if (deletedTab && currentActiveTabId === deletedTab.id) {
-        // 没有其他 tab 了
-        newActiveTabId = ''
-        newActiveFilePath = ''
+    let preferredFallbackTabId = ''
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-deleted', {
+      path: deletedFolderPath,
+      isFolder: true,
+      workspaceRoot,
+      deletedTabIds,
+      resolveFallbackTabId: tabId => { preferredFallbackTabId = tabId },
+      markHandled: () => { navigationHandled = true },
+    })
+    const navigationNeedsPersistentUpdate = !navigationHandled
+
+    let newActiveTabId = currentActiveTabId
+    let newActiveFilePath = currentActiveFilePath
+    if (activeTabDeleted && newTabs.length > 0) {
+      const targetTab = newTabs.find(tab => tab.id === preferredFallbackTabId)
+        ?? newTabs[newTabs.length - 1]
+      newActiveTabId = targetTab.id
+      newActiveFilePath = getActiveFilePathForTab(targetTab)
+    } else if (activeTabDeleted) {
+      newActiveTabId = ''
+      newActiveFilePath = ''
+    } else if (activeFileDeleted) {
+      newActiveFilePath = ''
+    }
+
+    const tabsChanged = newTabs.length !== currentTabs.length
+    const pendingRequestDeleted = Boolean(
+      currentState.pendingFileTabOpenRequest
+      && isInDeletedFolder(currentState.pendingFileTabOpenRequest.path)
+    )
+    const activeChanged = newActiveTabId !== currentActiveTabId
+      || newActiveFilePath !== currentActiveFilePath
+    const selectionChanged = nextSelectedFilePaths.length !== currentSelectedFilePaths.length
+    const nextEditorViewStates = { ...currentState.editorViewStates }
+    let viewStatesChanged = false
+    Object.keys(nextEditorViewStates).forEach(path => {
+      if (isInDeletedFolder(path)) {
+        delete nextEditorViewStates[path]
+        viewStatesChanged = true
       }
+    })
 
-      set({ openTabs: newTabs, activeTabId: newActiveTabId, activeFilePath: newActiveFilePath, currentArticle: '' })
-      const store = await getStore();
-      await store.set('openTabs', newTabs)
-      await store.set('activeTabId', newActiveTabId)
-      await store.set('activeFilePath', newActiveFilePath)
+    if (!tabsChanged && !activeChanged && !selectionChanged && !viewStatesChanged && !pendingRequestDeleted) {
+      if (navigationNeedsPersistentUpdate) {
+        await updatePersistedEditorNavigation((layout, helpers) => (
+          helpers.cleanEditorNavigationHistoryByDeletedFolder(
+            layout,
+            deletedFolderPath,
+            workspaceRoot,
+          )
+        ))
+      }
+      return
+    }
+
+    set({
+      openTabs: newTabs,
+      activeTabId: newActiveTabId,
+      selectedFilePaths: nextSelectedFilePaths,
+      editorViewStates: nextEditorViewStates,
+      ...(pendingRequestDeleted ? { pendingFileTabOpenRequest: null } : {}),
+      ...(activeChanged ? {
+        activeFilePath: newActiveFilePath,
+        currentArticle: '',
+        readFilePath: '',
+        isPulling: false,
+        justPulledFile: false,
+        loading: Boolean(newActiveFilePath && isLikelyFilePath(newActiveFilePath)),
+      } : {}),
+    })
+    const persistencePromise = tabsChanged || activeChanged
+      ? persistEditorState({
+          ...(tabsChanged ? { openTabs: newTabs } : {}),
+          ...(activeChanged ? { activeTabId: newActiveTabId } : {}),
+        })
+      : null
+    const activatePromise = activeChanged
+      ? get().setActiveFilePath(
+        newActiveFilePath,
+        true,
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
+      )
+      : null
+    await persistencePromise
+    if (activeChanged) {
+      await activatePromise
+    }
+    if (navigationNeedsPersistentUpdate) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.cleanEditorNavigationHistoryByDeletedFolder(
+          layout,
+          deletedFolderPath,
+          workspaceRoot,
+        )
+      ))
     }
   },
 
   clearTabs: async () => {
-    set({ openTabs: [], activeTabId: '' })
-    const store = await getStore();
-    await store.set('openTabs', [])
-    await store.set('activeTabId', '')
+    set({
+      openTabs: [],
+      activeTabId: '',
+      editorViewStates: {},
+      pendingFileTabOpenRequest: null,
+    })
+    await persistEditorState({ openTabs: [], activeTabId: '' })
   },
 
   matchPosition: null,
   setMatchPosition: (position: number | null) => {
     set({ matchPosition: position })
+  },
+  pendingSearchKeyword: '',
+  setPendingSearchKeyword: (keyword: string) => {
+    set({ pendingSearchKeyword: keyword })
   },
 
   html2md: false,
@@ -579,21 +1855,207 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // Initialize open tabs from store
   initOpenTabs: async () => {
+    await flushEditorStatePersistence()
+    const initializationRevision = editorStateMutationRevision
     const store = await getStore();
-    const tabs = await store.get<Array<{ id: string; path: string; name: string; isFolder: boolean }>>('openTabs')
+    const tabs = await store.get<OpenTabInfo[]>('openTabs')
     const activeTabId = await store.get<string>('activeTabId')
-    set({ openTabs: tabs || [], activeTabId: activeTabId || '' })
+    if (editorStateMutationRevision !== initializationRevision) return
+    const nextTabs = (tabs || []).map(normalizeOpenTabInfo)
+    const nextActiveTabId = activeTabId && nextTabs.some(tab => tab.id === activeTabId)
+      ? activeTabId
+      : nextTabs.at(-1)?.id ?? ''
+    const activeTab = nextTabs.find(tab => tab.id === nextActiveTabId)
+    const nextActiveFilePath = getActiveFilePathForTab(activeTab)
+    const shouldReadActiveArticle = Boolean(
+      nextActiveFilePath && !activeTab?.isFolder && isLikelyFilePath(nextActiveFilePath)
+    )
+    const currentState = get()
+    const canReuseActiveArticle = shouldReadActiveArticle
+      && currentState.activeFilePath === nextActiveFilePath
+      && (
+        hasCurrentPendingArticleRead(nextActiveFilePath)
+        || (!currentState.loading && currentState.readFilePath === '')
+      )
+
+    if (!shouldReadActiveArticle) {
+      articleReadGeneration += 1
+      pendingArticleReads.clear()
+    }
+    set({
+      openTabs: nextTabs,
+      activeTabId: nextActiveTabId,
+      activeFilePath: nextActiveFilePath,
+      currentArticle: canReuseActiveArticle ? currentState.currentArticle : '',
+      isPulling: canReuseActiveArticle ? currentState.isPulling : false,
+      justPulledFile: canReuseActiveArticle ? currentState.justPulledFile : false,
+      loading: canReuseActiveArticle
+        ? currentState.loading
+        : shouldReadActiveArticle,
+    })
+
+    if (shouldReadActiveArticle && !canReuseActiveArticle) {
+      void get().readArticle(nextActiveFilePath, undefined, true, {
+        createIfMissing: false,
+      })
+    }
+
+    const latestEditorState = get()
+    await persistEditorState({
+      openTabs: latestEditorState.openTabs,
+      activeTabId: latestEditorState.activeTabId,
+      activeFilePath: latestEditorState.activeFilePath,
+    })
   },
   setShowCloudFiles: async (show: boolean) => {
     set({ showCloudFiles: show })
     const store = await getStore();
     await store.set('showCloudFiles', show)
   },
+  showAssetsFolders: true,
+  initShowAssetsFolders: async () => {
+    const store = await getStore()
+    const show = await store.get<boolean>('showAssetsFolders')
+    set({ showAssetsFolders: show ?? true })
+  },
+  setShowAssetsFolders: async (show: boolean) => {
+    set({ showAssetsFolders: show })
+    const store = await getStore()
+    await store.set('showAssetsFolders', show)
+  },
+  syncStaticAssets: true,
+  initSyncStaticAssets: async () => {
+    const store = await getStore()
+    const enabled = await store.get<boolean>('syncStaticAssets')
+    set({ syncStaticAssets: enabled ?? true })
+  },
+  setSyncStaticAssets: async (enabled: boolean) => {
+    set({ syncStaticAssets: enabled })
+    const store = await getStore()
+    await store.set('syncStaticAssets', enabled)
+  },
+  showKnowledgeBaseStatus: true,
+  initShowKnowledgeBaseStatus: async () => {
+    const store = await getStore()
+    const show = await store.get<boolean>('showKnowledgeBaseStatus')
+    set({ showKnowledgeBaseStatus: show ?? true })
+  },
+  setShowKnowledgeBaseStatus: async (show: boolean) => {
+    set({ showKnowledgeBaseStatus: show })
+    const store = await getStore()
+    await store.set('showKnowledgeBaseStatus', show)
+  },
 
   fileTree: [],
+  fileTreeInitialized: false,
+  fileTreeWorkspaceKey: null,
   setFileTree: (tree: DirTree[]) => {
     const sortedTree = get().sortFileTree(tree)
-    set({ fileTree: sortedTree })
+    set({ fileTree: sortedTree, fileTreeInitialized: true })
+  },
+  setEntryLoading: (relativePath: string, loading: boolean) => {
+    const nextTree = updateTreeEntryByPath(get().fileTree, relativePath, entry => ({
+      ...entry,
+      loading: loading || undefined,
+    }))
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
+  },
+  setEntrySyncError: (relativePath: string, error?: string) => {
+    const nextTree = updateTreeEntryByPath(get().fileTree, relativePath, entry => ({
+      ...entry,
+      syncError: error,
+    }))
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
+  },
+  markFileRemote: (relativePath: string, sha: string) => {
+    const nextTree = updateTreeEntryByPath(get().fileTree, relativePath, entry => {
+      if (!entry.isFile) return entry
+      return {
+        ...entry,
+        sha,
+        syncDirty: false,
+        syncError: undefined,
+      }
+    })
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
+  },
+  markFileLocal: (relativePath: string) => {
+    const nextTree = updateTreeEntryByPath(
+      get().fileTree,
+      relativePath,
+      entry => entry.isFile
+        ? { ...entry, isLocale: true, loading: undefined }
+        : entry,
+      true
+    )
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
+  },
+  markFileDirty: (relativePath: string) => {
+    const current = getCurrentFolder(relativePath, get().fileTree)
+    if (!current?.isFile || !current.sha || current.syncDirty) return false
+    const nextTree = updateTreeEntryByPath(get().fileTree, relativePath, entry => ({
+      ...entry,
+      syncDirty: true,
+    }))
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
+  },
+  reconcileLocalFile: (relativePath: string, isPresent: boolean) => {
+    const currentTree = get().fileTree
+    const current = getCurrentFolder(relativePath, currentTree)
+
+    if (isPresent) {
+      if (current) {
+        if (!current.isFile) return false
+        return get().markFileLocal(relativePath)
+      }
+      return get().insertLocalEntry(relativePath, false)
+    }
+
+    if (!current) return true
+    if (!current.isFile) return false
+
+    if (current.sha) {
+      const nextTree = updateTreeEntryByPath(currentTree, relativePath, entry => ({
+        ...entry,
+        isLocale: false,
+        loading: undefined,
+        syncDirty: false,
+      }))
+      if (!nextTree) return false
+      set({ fileTree: nextTree })
+      return true
+    }
+
+    return get().removeLocalEntry(relativePath)
+  },
+  clearFileRemoteState: (relativePath: string) => {
+    const current = getCurrentFolder(relativePath, get().fileTree)
+    if (!current?.isFile) return false
+
+    const nextTree = updateTreeEntryByPath(get().fileTree, relativePath, entry => (
+      entry.isLocale
+        ? {
+            ...entry,
+            sha: undefined,
+            loading: undefined,
+            syncDirty: false,
+            syncError: undefined,
+          }
+        : null
+    ))
+    if (!nextTree) return false
+    set({ fileTree: nextTree })
+    return true
   },
   addFile: (file: DirTree) => {
     set({ fileTree: [file, ...get().fileTree] })
@@ -645,31 +2107,122 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     get().setFileTree(cacheTree)
+    void import('@/lib/self-hosted-sync/outbox').then(({ enqueuePathMove }) => (
+      enqueuePathMove(oldPath, newPath)
+    ))
     return true
   },
   syncOpenTabsForPathChange: async (oldPath: string, newPath: string) => {
+    const mapMovedPath = (path: string) => {
+      if (path === oldPath) {
+        return newPath
+      }
+
+      if (path.startsWith(`${oldPath}/`)) {
+        return `${newPath}${path.slice(oldPath.length)}`
+      }
+
+      return path
+    }
+
+    const queuedSavesToRebase: Array<{ path: string; content: string }> = []
+    for (const [savePath, pendingSave] of pendingArticleSaves) {
+      const nextSavePath = mapMovedPath(savePath)
+      if (nextSavePath === savePath) continue
+      if (pendingSave.timer) clearTimeout(pendingSave.timer)
+      pendingArticleSaves.delete(savePath)
+      queuedSavesToRebase.push({ path: nextSavePath, content: pendingSave.content })
+    }
+
+    if (pendingVectorCalculation) {
+      const nextVectorPath = mapMovedPath(pendingVectorCalculation.path)
+      if (nextVectorPath !== pendingVectorCalculation.path) {
+        pendingVectorCalculation = {
+          ...pendingVectorCalculation,
+          path: nextVectorPath,
+        }
+      }
+    }
+
     const currentTabs = get().openTabs
     const currentActiveTabId = get().activeTabId
+    const currentActiveFilePath = get().activeFilePath
+    const currentFileTabOpenRequest = get().pendingFileTabOpenRequest
+    const nextActiveFilePath = mapMovedPath(currentActiveFilePath)
     const newTabs = currentTabs.map(tab => {
-      if (tab.path !== oldPath) {
+      if (isRecordOpenTab(tab)) {
+        return tab
+      }
+
+      const nextPath = mapMovedPath(tab.path)
+      if (nextPath === tab.path) {
         return tab
       }
 
       return {
         ...tab,
-        path: newPath,
-        name: newPath.split('/').pop() || newPath,
+        path: nextPath,
+        name: nextPath.split('/').pop() || nextPath,
       }
     })
 
-    const nextActiveTabId = currentTabs.some(tab => tab.path === oldPath)
+    const nextActiveTabId = currentTabs.some(tab => mapMovedPath(tab.path) !== tab.path)
       ? currentActiveTabId
       : get().activeTabId
 
-    set({ openTabs: newTabs, activeTabId: nextActiveTabId })
-    const store = await getStore()
-    await store.set('openTabs', newTabs)
-    await store.set('activeTabId', nextActiveTabId)
+    const nextEditorViewStates = Object.entries(get().editorViewStates).reduce<Record<string, EditorViewState>>((states, [path, viewState]) => {
+      states[mapMovedPath(path)] = viewState
+      return states
+    }, {})
+    const nextSelectedFilePaths = get().selectedFilePaths.map(mapMovedPath)
+    const nextFileTabOpenRequest = currentFileTabOpenRequest
+      ? (() => {
+          const nextPath = mapMovedPath(currentFileTabOpenRequest.path)
+          return {
+            ...currentFileTabOpenRequest,
+            path: nextPath,
+            name: nextPath === currentFileTabOpenRequest.path
+              ? currentFileTabOpenRequest.name
+              : nextPath.split(/[\\/]/).pop() || currentFileTabOpenRequest.name,
+          }
+        })()
+      : null
+
+    set({
+      openTabs: newTabs,
+      activeTabId: nextActiveTabId,
+      editorViewStates: nextEditorViewStates,
+      selectedFilePaths: nextSelectedFilePaths,
+      pendingFileTabOpenRequest: nextFileTabOpenRequest,
+    })
+    const persistencePromise = persistEditorState({
+      openTabs: newTabs,
+      activeTabId: nextActiveTabId,
+    })
+    let navigationHandled = false
+    emitter.emit('editor-navigation-path-moved', {
+      oldPath,
+      newPath,
+      markHandled: () => { navigationHandled = true },
+    })
+    if (!navigationHandled) {
+      await updatePersistedEditorNavigation((layout, helpers) => (
+        helpers.mapEditorNavigationHistoryForPathChange(layout, oldPath, newPath)
+      ))
+    }
+    if (nextActiveFilePath !== currentActiveFilePath) {
+      await get().setActiveFilePath(
+        nextActiveFilePath,
+        true,
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
+      )
+    }
+    await persistencePromise
+
+    for (const queuedSave of queuedSavesToRebase) {
+      await get().saveCurrentArticle(queuedSave.content, queuedSave.path)
+      await get().flushPendingArticleSave(queuedSave.path)
+    }
   },
   fileTreeLoading: false,
   updateFileStats: async (basePath: string, tree: DirTree[]) => {
@@ -726,17 +2279,41 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ fileTree: [...fileTree] }) // 触发重新渲染
   },
   
-  loadFileTree: async () => {
+  loadFileTree: async (options) => {
     set({ fileTreeLoading: true })
-    set({ fileTree: [] })
+    // 知识库状态不应阻塞文件树展示；初始化函数会合并并发请求。
+    void get().initVectorIndexedFiles()
+
+    // 必须先解析目标工作区，再决定是否复用现有文件树。
+    const workspace = await getWorkspacePath()
+    const workspaceKey = getFileTreeWorkspaceKey(workspace)
+    const workspaceChanged = fileTreeWorkspaceKey !== workspaceKey
+    if (fileTreeWorkspaceKey !== null && workspaceChanged) {
+      articleReadGeneration += 1
+      pendingArticleReads.clear()
+    }
+    const requestContext: FileTreeRequestContext = {
+      workspaceKey,
+      generation: ++fileTreeLoadGeneration,
+    }
+    fileTreeWorkspaceKey = workspaceKey
+
+    const cachedTree = workspaceChanged ? [] : get().fileTree
+    if (workspaceChanged) {
+      // 切换工作区时立即移除旧的本地树和仅远端节点。
+      set({
+        fileTree: [],
+        fileTreeInitialized: false,
+        fileTreeWorkspaceKey: workspaceKey,
+      })
+    } else {
+      set({ fileTreeWorkspaceKey: workspaceKey })
+    }
 
     // 确保 collapsibleList 已初始化
     if (!get().collapsibleListInitialized) {
       await get().initCollapsibleList()
     }
-
-    // 获取当前工作区路径
-    const workspace = await getWorkspacePath()
     
     // 确保工作区目录存在
     if (workspace.isCustom) {
@@ -766,7 +2343,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
           sha: '',
           createdAt: undefined,
           modifiedAt: undefined,
-          children: file.isDirectory ? [] : undefined
+          children: file.isDirectory ? [] : undefined,
+          childrenLoaded: file.isDirectory ? false : undefined
         }))
     } else {
       // 默认工作区
@@ -779,7 +2357,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
           sha: '',
           createdAt: undefined,
           modifiedAt: undefined,
-          children: file.isDirectory ? [] : undefined
+          children: file.isDirectory ? [] : undefined,
+          childrenLoaded: file.isDirectory ? false : undefined
         }))
     }
     
@@ -827,7 +2406,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
                 sha: '',
                 createdAt: undefined,
                 modifiedAt: undefined,
-                children: file.isDirectory ? [] : undefined
+                children: file.isDirectory ? [] : undefined,
+                childrenLoaded: file.isDirectory ? false : undefined
               })) as DirTree[]
           } else {
             const dirRelative = await toWorkspaceRelativePath(fullPath)
@@ -841,7 +2421,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
                 sha: '',
                 createdAt: undefined,
                 modifiedAt: undefined,
-                children: file.isDirectory ? [] : undefined
+                children: file.isDirectory ? [] : undefined,
+                childrenLoaded: file.isDirectory ? false : undefined
               })) as DirTree[]
           }
         } catch {
@@ -850,6 +2431,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
       
       folder.children = children
+      folder.childrenLoaded = true
       
       // 递归加载子文件夹中已展开的文件夹
       for (const child of children) {
@@ -860,22 +2442,62 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
         
     // 排序文件树
-    const sortedDirs = get().sortFileTree(dirs)
-    set({ fileTree: sortedDirs })
+    const sortedDirs = get().sortFileTree(
+      mergeRefreshedLocalEntries(dirs, cachedTree)
+    )
+    if (!await canApplyFileTreeRequest(requestContext)) return
 
-    // 先显示本地文件树
-    set({ fileTreeLoading: false })
+    // OneDrive 先恢复上次成功获取的远程清单，让文件树无需等待网络即可展示。
+    // 随后的后台刷新会用最新结果覆盖缓存，并清理已经从远端移除的纯远程节点。
+    const syncContext = await getCurrentSyncContext()
+    if (syncContext.provider === 'cloudFolder') {
+      const syncTargetKey = getRemoteSyncTargetKey(syncContext)
+      const store = await getStore()
+      const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+      if (cloudFolderConfig?.provider === 'oneDrive' && cloudFolderConfig.path) {
+        const cacheTargetKey = getCloudFolderTreeCacheTargetKey(syncTargetKey, cloudFolderConfig)
+        const cachedRemoteFiles = await readCloudFolderTreeCache(cacheTargetKey)
+        if (cachedRemoteFiles && await canApplyFileTreeRequest(requestContext)) {
+          mergeCloudFolderSnapshotIntoTree(
+            cachedRemoteFiles,
+            buildRemotePathsToLoad(collapsibleList),
+            sortedDirs,
+          )
+        }
+      }
+    }
+    if (!await canApplyFileTreeRequest(requestContext)) return
 
-    // 初始化向量索引状态（异步，不阻塞界面）
-    get().initVectorIndexedFiles()
+    set({
+      fileTree: sortedDirs,
+      fileTreeInitialized: true,
+      fileTreeLoading: false,
+    })
 
     // 异步加载远程同步文件（不阻塞界面）
-    get().loadRemoteSyncFiles()
+    if (!options?.skipRemoteSync) {
+      void get().loadRemoteSyncFiles(requestContext).catch(() => undefined)
+    }
   },
   
   // 加载远程同步文件（后台任务）
-  loadRemoteSyncFiles: async () => {
+  loadRemoteSyncFiles: async (context) => {
     try {
+      const syncContext = await getCurrentSyncContext()
+      if (fileTreeWorkspaceKey === null) {
+        fileTreeWorkspaceKey = syncContext.workspaceKey
+        set({ fileTreeWorkspaceKey: syncContext.workspaceKey })
+      }
+      const requestContext: RemoteFileTreeRequestContext = {
+        ...(context ?? {
+          workspaceKey: syncContext.workspaceKey,
+          generation: fileTreeLoadGeneration,
+        }),
+        syncTargetKey: getRemoteSyncTargetKey(syncContext),
+      }
+      if (!await canApplyRemoteFileTreeRequest(requestContext)) return
+      if (!await isSyncConfigured()) return
+      if (!await canApplyRemoteFileTreeRequest(requestContext)) return
       const store = await getStore();
       const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
       
@@ -909,247 +2531,123 @@ const useArticleStore = create<NoteState>((set, get) => ({
         if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) {
           return
         }
+      } else if (primaryBackupMethod === 'cloudFolder') {
+        const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        if (!cloudFolderConfig?.path || !supportsCloudFolderWorkspace(cloudFolderConfig)) return
       }
 
-    // 只为根目录和本地存在的已展开文件夹加载远程文件
-    // 云端文件夹默认折叠，不加载其子内容
-    const workspace = await getWorkspacePath()
+    // 为根目录和已展开的目录加载远程文件。
+    // 这样即使目录只存在于云端，只要用户已展开过，也能继续加载其远程内容。
     const collapsibleList = get().collapsibleList
-    const pathsToLoad: string[] = [''] // 总是加载根目录
+    const pathsToLoad = buildRemotePathsToLoad(collapsibleList)
+    let firstRemoteLoadError: unknown
+    let cloudFolderSnapshot: CloudFolderObject[] | undefined
     
-    // 检查 collapsibleList 中的路径是否在本地存在，或者尝试加载远程文件夹
-    for (const path of collapsibleList) {
-      const fullPath = await join(workspace.path, path)
-      let dirExists = false
-
-      try {
-        if (workspace.isCustom) {
-          dirExists = await exists(fullPath)
-        } else {
-          const dirRelative = await toWorkspaceRelativePath(fullPath)
-          const pathOptions = await getFilePathOptions(dirRelative)
-          dirExists = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-      } catch {
-        dirExists = false
-      }
-
-      // 本地存在的文件夹，或者对于云同步（GitHub/Gitee/GitLab/Gitea/S3/WebDAV），即使本地不存在也尝试加载远程
-      // 这样可以显示仅存在于云端的文件夹
-      if (dirExists || primaryBackupMethod !== 'github') {
-        // 对于非 Git 平台，总是尝试加载
-        pathsToLoad.push(path)
-      } else if (dirExists) {
-        // 对于 Git 平台，只加载本地存在的
-        pathsToLoad.push(path)
-      }
-    }
-    
-    // 使用 Promise.all 并发请求所有路径的远程文件
-    const loadPromises = pathsToLoad.map(async path => {
+    // 目录树会在加载过程中逐步插入父级节点，因此这里必须按层级顺序加载。
+    // 如果并发请求深层路径，远端子目录可能会在父目录节点尚未写入树时被跳过。
+    for (const path of pathsToLoad) {
+      if (!await canApplyRemoteFileTreeRequest(requestContext)) return
       try {
         let files;
         switch (primaryBackupMethod) {
           case 'github':
             const githubRepo = await getSyncRepoName('github');
-            files = await getGithubFiles({ path, repo: githubRepo });
+            files = await withRemoteTimeout(getGithubFiles({ path, repo: githubRepo }), path);
             break;
           case 'gitee':
             const giteeRepo = await getSyncRepoName('gitee');
-            files = await getGiteeFiles({ path, repo: giteeRepo });
+            files = await withRemoteTimeout(getGiteeFiles({ path, repo: giteeRepo }), path);
             break;
           case 'gitlab':
             const gitlabRepo = await getSyncRepoName('gitlab');
-            files = await getGitlabFiles({ path, repo: gitlabRepo });
+            files = await withRemoteTimeout(getGitlabFiles({ path, repo: gitlabRepo }), path);
             break;
           case 'gitea':
             const giteaRepo = await getSyncRepoName('gitea');
-            files = await getGiteaFiles({ path, repo: giteaRepo });
+            files = await withRemoteTimeout(getGiteaFiles({ path, repo: giteaRepo }), path);
             break;
           case 's3': {
             const s3Config = await store.get<S3Config>('s3SyncConfig')
             if (s3Config) {
-              files = await s3ListObjects(s3Config, path)
+              files = await withRemoteTimeout(s3ListObjects(s3Config, path), path)
             }
             break;
           }
           case 'webdav': {
             const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
             if (webdavConfig) {
-              files = await webdavListObjects(webdavConfig, path)
+              files = await withRemoteTimeout(webdavListObjects(webdavConfig, path), path)
             }
             break;
           }
+          case 'cloudFolder': {
+            const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+            if (cloudFolderConfig) {
+              cloudFolderSnapshot ??= await loadCloudFolderRemoteSnapshot(
+                getCloudFolderTreeCacheTargetKey(requestContext.syncTargetKey, cloudFolderConfig),
+                cloudFolderConfig,
+                true,
+              )
+              files = cloudFolderSnapshot
+            }
+            break
+          }
         }
 
+        if (!await canApplyRemoteFileTreeRequest(requestContext)) return
         if (files) {
           const dirs = get().fileTree
 
-          // S3 或 WebDAV 文件处理
-          if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            let prefix = ''
-            if (primaryBackupMethod === 's3') {
-              const config = await store.get<S3Config>('s3SyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+          // 按同步平台合并远程目录快照
+          if (primaryBackupMethod === 'cloudFolder') {
+            if (path) {
+              const currentFolder = getCurrentFolder(path, dirs)
+              if (currentFolder) {
+                mergeCloudFolderRemoteEntries(
+                  files as CloudFolderObject[],
+                  path,
+                  currentFolder.children ?? (currentFolder.children = []),
+                  currentFolder,
+                )
+              }
             } else {
-              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
+              mergeCloudFolderRemoteEntries(files as CloudFolderObject[], path, dirs)
             }
-            const fullPrefix = prefix ? `${prefix}/${path}` : path
-
-            s3Files.forEach((file) => {
-              const fileName = file.key.split('/').pop() || file.key
-              if (fileName.startsWith('.')) {
-                return;
-              }
-
-              // 计算相对路径
-              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return
-              }
-
-              const isDirectory = file.key.endsWith('/')
-
-              // 移除 pathPrefix 前缀，转换为本地相对路径
-              let localItemPath = file.key
-              if (prefix && localItemPath.startsWith(prefix + '/')) {
-                localItemPath = localItemPath.substring(prefix.length + 1)
-              }
-
-              let currentFolder: DirTree | undefined
-              if (isDirectory) {
-                currentFolder = getCurrentFolder(localItemPath, dirs)?.parent
-              } else {
-                const filePath = localItemPath.split('/').slice(0, -1).join('/')
-                currentFolder = getCurrentFolder(filePath, dirs)
-              }
-
-              if (localItemPath.includes('/')) {
-                const index = currentFolder?.children?.findIndex(item => item.name === fileName)
-                if (index !== -1 && index !== undefined && currentFolder?.children) {
-                  currentFolder.children[index].sha = file.etag
-                  currentFolder.children[index].size = file.size
-                  currentFolder.children[index].modifiedAt = file.lastModified
-                } else {
-                  currentFolder?.children?.push({
-                    name: fileName,
-                    isFile: !isDirectory,
-                    isSymlink: false,
-                    parent: currentFolder,
-                    isEditing: false,
-                    isDirectory: isDirectory,
-                    sha: file.etag,
-                    size: file.size,
-                    isLocale: false,
-                    modifiedAt: file.lastModified,
-                    children: isDirectory ? [] : undefined
-                  })
-                }
-              } else {
-                const index = dirs.findIndex(item => item.name === fileName)
-                if (index !== -1 && index !== undefined) {
-                  dirs[index].sha = file.etag
-                  dirs[index].size = file.size
-                  dirs[index].modifiedAt = file.lastModified
-                } else {
-                  (dirs as any).push({
-                    name: fileName,
-                    isFile: !isDirectory,
-                    isSymlink: false,
-                    parent: undefined,
-                    isEditing: false,
-                    isDirectory: isDirectory,
-                    sha: file.etag,
-                    size: file.size,
-                    isLocale: false,
-                    modifiedAt: file.lastModified,
-                    children: isDirectory ? [] : undefined
-                  })
-                }
-              }
-            })
           } else {
-            // Git 平台处理逻辑
-            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-              // 过滤以"."开头的文件和文件夹
-              if (file.name.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              const relativePath = path ? file.path.substring(path.length + 1) : file.path
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              const itemPath = file.path;
-              let currentFolder: DirTree | undefined
-              if (file.type === 'dir') {
-                currentFolder = getCurrentFolder(itemPath, dirs)?.parent
-              } else {
-                const filePath = itemPath.split('/').slice(0, -1).join('/')
-                currentFolder = getCurrentFolder(filePath, dirs)
-              }
-              if (itemPath.includes('/')) {
-                const index = currentFolder?.children?.findIndex(item => item.name === file.name)
-                if (index !== -1 && index !== undefined && currentFolder?.children) {
-                  currentFolder.children[index].sha = file.sha
-                  currentFolder.children[index].size = (file as any).size
-                } else {
-                  currentFolder?.children?.push({
-                    name: file.name,
-                    isFile: file.type === 'file',
-                    isSymlink: false,
-                    parent: currentFolder,
-                    isEditing: false,
-                    isDirectory: file.type === 'dir',
-                    sha: file.sha,
-                    size: (file as any).size,
-                    isLocale: false,
-                    children: file.type === 'dir' ? [] : undefined
-                  })
-                }
-              } else {
-                const index = dirs.findIndex(item => item.name === file.name)
-                if (index !== -1 && index !== undefined) {
-                  dirs[index].sha = file.sha
-                  dirs[index].size = (file as any).size
-                } else {
-                  (dirs as any).push({
-                    name: file.name,
-                    isFile: file.type === 'file',
-                    isSymlink: false,
-                    parent: undefined,
-                    isEditing: false,
-                    isDirectory: file.type === 'dir',
-                    sha: file.sha,
-                    size: (file as any).size,
-                    isLocale: false,
-                    children: file.type === 'dir' ? [] : undefined
-                  })
-                }
-              }
-            });
+            const folder = path ? getCurrentFolder(path, dirs) : undefined
+            const entries = folder
+              ? folder.children ?? (folder.children = [])
+              : path ? undefined : dirs
+            if (entries) {
+              const remoteEntries = primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav'
+                ? getObjectDirectoryEntries(files as RemoteObject[], path, primaryBackupMethod)
+                : getGitDirectoryEntries(files as RemoteDirectoryEntry[], path)
+              mergeRemoteDirectoryEntries(remoteEntries, entries, folder)
+            }
           }
-          set({ fileTree: dirs })
+          if (isFileTreeRequestCurrent(requestContext)) {
+            set({ fileTree: [...dirs] })
+          }
         }
-      } catch {
+      } catch (error) {
+        if (!await canApplyRemoteFileTreeRequest(requestContext)) return
+        firstRemoteLoadError ??= error
       }
-    });
-
-    // 等待所有远程文件加载完成
-    await Promise.all(loadPromises)
-  } catch {
+    }
+    if (firstRemoteLoadError) throw firstRemoteLoadError
+  } catch (error) {
+    throw error
   }
-},
+  },
   // 加载文件夹内部的本地和远程文件（按需加载）
-  loadCollapsibleFiles: async (fullpath: string) => {
+  loadCollapsibleFiles: async (fullpath: string, options?: { force?: boolean; skipRemoteSync?: boolean }) => {
+    const workspace = await getWorkspacePath()
+    const requestContext: FileTreeRequestContext = {
+      workspaceKey: getFileTreeWorkspaceKey(workspace),
+      generation: fileTreeLoadGeneration,
+    }
+    if (!await canApplyFileTreeRequest(requestContext)) return
+
     const cacheTree: DirTree[] = get().fileTree
     const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
@@ -1163,45 +2661,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     // 如果已经加载过子内容，则跳过
-    if (currentFolder.children && currentFolder.children.length > 0) {
+    if (!options?.force && currentFolder.childrenLoaded) {
       // 仅异步更新远程同步状态
-      get().loadFolderRemoteFiles(fullpath)
+      if (!options?.skipRemoteSync) {
+        void get().loadFolderRemoteFiles(fullpath).catch(() => undefined)
+      }
       return
     }
     
-    // 检查是否配置了云同步
-    const store = await getStore();
-    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    let hasCloudSync = false
-    
-    if (primaryBackupMethod === 'github') {
-      const accessToken = await store.get<string>('accessToken')
-      hasCloudSync = !!accessToken
-    } else if (primaryBackupMethod === 'gitee') {
-      const giteeAccessToken = await store.get<string>('giteeAccessToken')
-      hasCloudSync = !!giteeAccessToken
-    } else if (primaryBackupMethod === 'gitlab') {
-      const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
-      hasCloudSync = !!gitlabAccessToken
-    } else if (primaryBackupMethod === 'gitea') {
-      const giteaAccessToken = await store.get<string>('giteaAccessToken')
-      hasCloudSync = !!giteaAccessToken
-    } else if (primaryBackupMethod === 's3') {
-      const s3Config = await store.get<S3Config>('s3SyncConfig')
-      hasCloudSync = !!(s3Config && s3Config.accessKeyId && s3Config.secretAccessKey && s3Config.region && s3Config.bucket)
-    } else if (primaryBackupMethod === 'webdav') {
-      const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-      hasCloudSync = !!(webdavConfig && webdavConfig.url && webdavConfig.username && webdavConfig.password)
-    }
-
-    // 只有在配置了云同步时才设置加载状态
-    if (hasCloudSync) {
-      currentFolder.loading = true
-      set({ fileTree: [...cacheTree] })
-    }
-    
     // 尝试加载本地子目录内容
-    const workspace = await getWorkspacePath()
     const fullFolderPath = await join(workspace.path, fullpath)
     
     let children: DirTree[] = []
@@ -1225,7 +2693,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       try {
         if (workspace.isCustom) {
           children = (await readDir(fullFolderPath))
-            .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)))
+            .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))
             .map(file => ({
               ...file,
               parent: currentFolder,
@@ -1234,13 +2702,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
               sha: '',
               createdAt: undefined,
               modifiedAt: undefined,
-              children: file.isDirectory ? [] : undefined
+              children: file.isDirectory ? [] : undefined,
+              childrenLoaded: file.isDirectory ? false : undefined
             })) as DirTree[]
         } else {
           const dirRelative = await toWorkspaceRelativePath(fullFolderPath)
           const pathOptions = await getFilePathOptions(dirRelative)
           children = (await readDir(pathOptions.path, { baseDir: pathOptions.baseDir }))
-            .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.') && (file.isDirectory || file.name.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)))
+            .filter(file => file.name !== '.DS_Store' && !file.name.startsWith('.'))
             .map(file => ({
               ...file,
               parent: currentFolder,
@@ -1249,7 +2718,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
               sha: '',
               createdAt: undefined,
               modifiedAt: undefined,
-              children: file.isDirectory ? [] : undefined
+              children: file.isDirectory ? [] : undefined,
+              childrenLoaded: file.isDirectory ? false : undefined
             })) as DirTree[]
         }
       } catch {
@@ -1257,17 +2727,48 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
 
-    // 设置子节点（可能为空）
-    currentFolder.children = children
-    set({ fileTree: cacheTree })
+    // 文件监听触发的仅本地刷新也必须保留仅远程节点，否则下载一个远程文件后，
+    // 同目录的其他远程文件会从列表中消失。
+    if (!await canApplyFileTreeRequest(requestContext)) return
+    currentFolder.children = get().sortFileTree(
+      mergeRefreshedLocalEntries(children, currentFolder.children ?? [], currentFolder)
+    )
+    currentFolder.childrenLoaded = true
+    set({ fileTree: [...cacheTree] })
     
     // 异步加载远程同步文件状态（不阻塞界面）
     // 这将会填充仅存在于云端的文件
-    get().loadFolderRemoteFiles(fullpath)
+    if (!options?.skipRemoteSync) {
+      void get().loadFolderRemoteFiles(fullpath).catch(() => undefined)
+    }
   },
   
   // 加载特定文件夹的远程同步文件（后台任务）
   loadFolderRemoteFiles: async (fullpath: string) => {
+    const syncContext = await getCurrentSyncContext()
+    if (fileTreeWorkspaceKey === null) {
+      fileTreeWorkspaceKey = syncContext.workspaceKey
+      set({ fileTreeWorkspaceKey: syncContext.workspaceKey })
+    }
+    const requestContext: RemoteFileTreeRequestContext = {
+      workspaceKey: syncContext.workspaceKey,
+      generation: fileTreeLoadGeneration,
+      syncTargetKey: getRemoteSyncTargetKey(syncContext),
+    }
+    if (!await canApplyRemoteFileTreeRequest(requestContext)) return
+
+    const pendingKey = JSON.stringify([
+      syncContext.workspaceKey,
+      syncContext.provider,
+      syncContext.repo,
+      fullpath,
+    ])
+    const pending = remoteFolderLoadPromises.get(pendingKey)
+    if (pending) return pending
+
+    const task = (async () => {
+    if (!await isSyncConfigured()) return
+    if (!await canApplyRemoteFileTreeRequest(requestContext)) return
     const store = await getStore();
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     
@@ -1290,6 +2791,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
     } else if (primaryBackupMethod === 'webdav') {
       const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
       if (!webdavConfig || !webdavConfig.url || !webdavConfig.username || !webdavConfig.password) return
+    } else if (primaryBackupMethod === 'cloudFolder') {
+      const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+      if (!cloudFolderConfig?.path || !supportsCloudFolderWorkspace(cloudFolderConfig)) return
+    }
+
+    // loading 只表示真实的远程目录请求。本地目录扫描（包括搜索第一阶段）
+    // 不应改变这个状态。
+    if (!await canApplyRemoteFileTreeRequest(requestContext)) return
+    const loadingTree = get().fileTree
+    const loadingFolder = getCurrentFolder(fullpath, loadingTree)
+    if (loadingFolder && !loadingFolder.loading) {
+      loadingFolder.loading = true
+      set({ fileTree: [...loadingTree] })
     }
 
     try {
@@ -1297,147 +2811,116 @@ const useArticleStore = create<NoteState>((set, get) => ({
       switch (primaryBackupMethod) {
         case 'github':
           const githubRepo1 = await getSyncRepoName('github');
-          files = await getGithubFiles({ path: fullpath, repo: githubRepo1 });
+          files = await withRemoteTimeout(
+            getGithubFiles({ path: fullpath, repo: githubRepo1 }),
+            fullpath
+          );
           break;
         case 'gitee':
           const giteeRepo1 = await getSyncRepoName('gitee');
-          files = await getGiteeFiles({ path: fullpath, repo: giteeRepo1 });
+          files = await withRemoteTimeout(
+            getGiteeFiles({ path: fullpath, repo: giteeRepo1 }),
+            fullpath
+          );
           break;
         case 'gitlab':
           const gitlabRepo1 = await getSyncRepoName('gitlab');
-          files = await getGitlabFiles({ path: fullpath, repo: gitlabRepo1 });
+          files = await withRemoteTimeout(
+            getGitlabFiles({ path: fullpath, repo: gitlabRepo1 }),
+            fullpath
+          );
           break;
         case 'gitea':
           const giteaRepo1 = await getSyncRepoName('gitea');
-          files = await getGiteaFiles({ path: fullpath, repo: giteaRepo1 });
+          files = await withRemoteTimeout(
+            getGiteaFiles({ path: fullpath, repo: giteaRepo1 }),
+            fullpath
+          );
           break;
         case 's3': {
           const s3Config = await store.get<S3Config>('s3SyncConfig')
           if (s3Config) {
-            files = await s3ListObjects(s3Config, fullpath)
+            files = await withRemoteTimeout(s3ListObjects(s3Config, fullpath), fullpath)
           }
           break;
         }
         case 'webdav': {
           const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
           if (webdavConfig) {
-            files = await webdavListObjects(webdavConfig, fullpath)
+            files = await withRemoteTimeout(webdavListObjects(webdavConfig, fullpath), fullpath)
           }
           break;
         }
+        case 'cloudFolder': {
+          const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+          if (cloudFolderConfig) {
+            files = await loadCloudFolderRemoteSnapshot(
+              getCloudFolderTreeCacheTargetKey(requestContext.syncTargetKey, cloudFolderConfig),
+              cloudFolderConfig,
+              false,
+            )
+          }
+          break
+        }
       }
 
+      if (!await canApplyRemoteFileTreeRequest(requestContext)) return
       if (files) {
         const cacheTree = get().fileTree
         const currentFolder = getCurrentFolder(fullpath, cacheTree)
 
         if (currentFolder) {
-          // S3 和 WebDAV 返回的文件格式相同，需要特殊处理
-          if (primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav') {
-            const s3Files = files as Array<{ key: string; etag: string; lastModified: string; size: number }>
-            let prefix = ''
-            if (primaryBackupMethod === 's3') {
-              const config = await store.get<S3Config>('s3SyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            } else {
-              const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-              prefix = config?.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
-            }
-            const fullPrefix = prefix ? `${prefix}/${fullpath}` : fullpath
-
-            s3Files.forEach((file) => {
-              // 提取文件名（key 的最后一部分）
-              const fileName = file.key.split('/').pop() || file.key
-              // 过滤以"."开头的文件和文件夹
-              if (fileName.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              // 例如: fullPrefix='test', file.key='test/file.md' → 加载
-              //      fullPrefix='test', file.key='test/sub/file.md' → 跳过
-              const relativePath = fullPrefix ? file.key.substring(fullPrefix.length + 1) : file.key
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              // S3 没有文件夹概念，检查 key 是否以 / 结尾来判断是否是"文件夹"
-              const isDirectory = file.key.endsWith('/')
-
-              const index = currentFolder.children?.findIndex(item => item.name === fileName)
-              if (index !== undefined && index !== -1 && currentFolder.children) {
-                currentFolder.children[index].sha = file.etag
-                currentFolder.children[index].size = file.size
-                currentFolder.children[index].modifiedAt = file.lastModified
-              } else {
-                currentFolder.children?.push({
-                  name: fileName,
-                  isFile: !isDirectory,
-                  isSymlink: false,
-                  parent: currentFolder,
-                  isEditing: false,
-                  isDirectory: isDirectory,
-                  sha: file.etag,
-                  size: file.size,
-                  isLocale: false,
-                  modifiedAt: file.lastModified,
-                  children: isDirectory ? [] : undefined
-                })
-              }
-            })
+          // WebDAV 使用目录内相对路径，S3 使用完整对象 key。
+          if (primaryBackupMethod === 'cloudFolder') {
+            mergeCloudFolderRemoteEntries(
+              files as CloudFolderObject[],
+              fullpath,
+              currentFolder.children ?? (currentFolder.children = []),
+              currentFolder,
+            )
           } else {
-            // Git 平台处理逻辑
-            files.forEach((file: GithubContent | GiteeFile | GiteaDirectoryItem) => {
-              // 过滤以"."开头的文件和文件夹
-              if (file.name.startsWith('.')) {
-                return;
-              }
-
-              // 只加载直接子项，不加载孙子项
-              // 例如: fullpath='test', file.path='test/file.md' → 加载
-              //      fullpath='test', file.path='test/sub/file.md' → 跳过
-              const relativePath = fullpath ? file.path.substring(fullpath.length + 1) : file.path
-              const isDirectChild = !relativePath.includes('/')
-
-              if (!isDirectChild) {
-                return // 跳过非直接子项
-              }
-
-              const index = currentFolder.children?.findIndex(item => item.name === file.name)
-              if (index !== undefined && index !== -1 && currentFolder.children) {
-                currentFolder.children[index].sha = file.sha
-                currentFolder.children[index].size = (file as any).size
-              } else {
-                currentFolder.children?.push({
-                  name: file.name,
-                  isFile: file.type === 'file',
-                  isSymlink: false,
-                  parent: currentFolder,
-                  isEditing: false,
-                  isDirectory: file.type === 'dir',
-                  sha: file.sha,
-                  size: (file as any).size,
-                  isLocale: false,
-                  children: file.type === 'file' ? undefined : []
-                })
-              }
-            });
+            const remoteEntries = primaryBackupMethod === 's3' || primaryBackupMethod === 'webdav'
+              ? getObjectDirectoryEntries(files as RemoteObject[], fullpath, primaryBackupMethod)
+              : getGitDirectoryEntries(files as RemoteDirectoryEntry[], fullpath)
+            mergeRemoteDirectoryEntries(
+              remoteEntries,
+              currentFolder.children ?? (currentFolder.children = []),
+              currentFolder,
+            )
           }
 
-          // 移除加载状态
-          currentFolder.loading = false
-          set({ fileTree: cacheTree })
+          if (isFileTreeRequestCurrent(requestContext)) {
+            set({ fileTree: [...cacheTree] })
+          }
         }
       }
-    } catch {
-      // 确保加载状态被移除
-      const cacheTree = get().fileTree
-      const currentFolder = getCurrentFolder(fullpath, cacheTree)
-      if (currentFolder) {
-        currentFolder.loading = false
-        set({ fileTree: [...cacheTree] })
+      if (isFileTreeRequestCurrent(requestContext)) {
+        get().setEntrySyncError(fullpath, undefined)
+      }
+    } catch (error) {
+      if (!await canApplyRemoteFileTreeRequest(requestContext)) return
+      const message = error instanceof Error ? error.message : String(error)
+      get().setEntrySyncError(fullpath, message)
+      throw error
+    } finally {
+      // 成功、空结果或请求失败都必须结束该节点的加载状态。
+      if (await canApplyRemoteFileTreeRequest(requestContext)) {
+        const cacheTree = get().fileTree
+        const currentFolder = getCurrentFolder(fullpath, cacheTree)
+        if (currentFolder?.loading) {
+          currentFolder.loading = false
+          set({ fileTree: [...cacheTree] })
+        }
+      }
+    }
+    })()
+
+    remoteFolderLoadPromises.set(pendingKey, task)
+    try {
+      await task
+    } finally {
+      if (remoteFolderLoadPromises.get(pendingKey) === task) {
+        remoteFolderLoadPromises.delete(pendingKey)
       }
     }
   },
@@ -1454,7 +2937,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
       isSymlink: false,
       isEditing: true,
       isLocale: true,
-      children: []
+      children: [],
+      childrenLoaded: true
     }
 
     try {
@@ -1524,6 +3008,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   newFileOnFolder: async (path: string) => {
+    if (!await prepareActiveEditorDeactivationDurably(get().activeFilePath)) {
+      return
+    }
+
     // 获取 parent folder
     const cacheTree = cloneDeep(get().fileTree)
     const currentFolder = path.includes('/') ? getCurrentFolder(path, cacheTree) : cacheTree.find(item => item.name === path)
@@ -1537,7 +3025,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     const pathOptions = await getFilePathOptions(fullPath)
     
     // 写入空文件
-    if (workspace.isCustom) {
+    if (await writeSelfHostedWorkspaceText(fullPath, '')) {
+      // Rust journal already persisted the synchronized file.
+    } else if (workspace.isCustom) {
       await writeTextFile(pathOptions.path, '')
     } else {
       await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
@@ -1553,13 +3043,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
       isLocale: true,
       parent: currentFolder,
       sha: '',
-      children: []
+      children: [],
+      childrenLoaded: true
     }
 
     try {
       currentFolder?.children?.unshift(node as DirTree)
       set({ fileTree: cacheTree })
-      get().setActiveFilePath(fullPath)
+      await get().setActiveFilePath(
+        fullPath,
+        true,
+        { deactivationAlreadyPrepared: true },
+      )
     } catch {
     }
   },
@@ -1603,26 +3098,71 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     const store = await getStore();
-    const res = await store.get<string[]>('collapsibleList')
-    const activeFilePath = await store.get<string>('activeFilePath')
+    const key = await getCollapsibleStoreKey()
+    const scopedList = await store.get<string[]>(key)
+    const legacyList = key.endsWith('__default__')
+      ? await store.get<string[]>('collapsibleList')
+      : undefined
+    const res = scopedList ?? legacyList
+    if (!scopedList && legacyList) {
+      await store.set(key, legacyList)
+    }
+    const activeFilePathKey = await getWorkspaceStoreKey('activeFilePath')
+    const storedActiveFilePath = await store.get<string>(activeFilePathKey)
+      ?? await store.get<string>('activeFilePath')
+    const activeFilePath = storedActiveFilePath && !isVirtualOpenTabPath(storedActiveFilePath)
+      ? storedActiveFilePath
+      : ''
+    const collapsibleList = res
+      ? uniq(res.filter(item => (
+        !isVirtualOpenTabPath(item)
+        && !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)
+      )))
+      : []
     set({
-      collapsibleList: res ? uniq(res.filter(item => !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i))) : [],
+      collapsibleList,
       collapsibleListInitialized: true
     })
 
+    if (storedActiveFilePath && isVirtualOpenTabPath(storedActiveFilePath)) {
+      await persistEditorState({
+        activeFilePath: '',
+        persistWorkspaceActiveFilePath: true,
+      })
+    }
+    if (res && collapsibleList.length !== res.length) {
+      await store.set(key, collapsibleList)
+    }
+
     if (activeFilePath) {
-      set({ activeFilePath })
+      const currentState = get()
 
       // 检查是否是文件夹（所有支持的文件扩展名都是文件，不是文件夹）
       if (!activeFilePath.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
+        set({ activeFilePath })
         // 文件夹：确保展开并加载内容
         if (!get().collapsibleList.includes(activeFilePath)) {
           await get().setCollapsibleList(activeFilePath, true)
         }
         await get().loadCollapsibleFiles(activeFilePath)
       } else {
-        // 文件：读取内容
-        get().readArticle(activeFilePath)
+        const canReuseActiveArticle = currentState.activeFilePath === activeFilePath
+          && (
+            hasCurrentPendingArticleRead(activeFilePath)
+            || (!currentState.loading && currentState.readFilePath === '')
+          )
+        if (!canReuseActiveArticle) {
+          set({
+            activeFilePath,
+            currentArticle: '',
+            loading: true,
+            isPulling: false,
+            justPulledFile: false,
+          })
+          void get().readArticle(activeFilePath, undefined, true, {
+            createIfMissing: false,
+          })
+        }
       }
     }
   },
@@ -1638,12 +3178,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
     }
     const store = await getStore();
-    await store.set('collapsibleList', collapsibleList)
+    await store.set(await getCollapsibleStoreKey(), collapsibleList)
     set({ collapsibleList: uniq(collapsibleList).filter(item => !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)) })
   },
   
-  expandAllFolders: async () => {
-    // Get all folder paths from fileTree recursively
+  expandAllFolders: async (folderPath) => {
+    const isInScope = (path: string) => folderPath === undefined
+      || path === folderPath || path.startsWith(`${folderPath}/`)
     const getAllFolderPaths = (tree: DirTree[], parentPath: string = ''): string[] => {
       let paths: string[] = []
       for (const item of tree) {
@@ -1657,22 +3198,38 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
       return paths
     }
-    
-    const folderPaths = getAllFolderPaths(get().fileTree)
-    const store = await getStore()
-    await store.set('collapsibleList', folderPaths)
-    set({ collapsibleList: uniq(folderPaths) })
-    
-    // Load all children for expanded folders
-    for (const path of folderPaths) {
-      await get().loadCollapsibleFiles(path)
+
+    const loadedPaths = new Set<string>()
+    while (true) {
+      const pendingPaths = getAllFolderPaths(get().fileTree)
+        .filter(path => isInScope(path) && !loadedPaths.has(path))
+      if (pendingPaths.length === 0) break
+
+      for (let index = 0; index < pendingPaths.length; index += 4) {
+        const batch = pendingPaths.slice(index, index + 4)
+        batch.forEach(path => loadedPaths.add(path))
+        await Promise.all(batch.map(path => (
+          get().loadCollapsibleFiles(path, { skipRemoteSync: true })
+        )))
+      }
     }
+
+    const folderPaths = getAllFolderPaths(get().fileTree).filter(isInScope)
+    const store = await getStore()
+    const collapsibleList = uniq(folderPath === undefined
+      ? folderPaths
+      : [...get().collapsibleList, ...folderPaths])
+    await store.set(await getCollapsibleStoreKey(), collapsibleList)
+    set({ collapsibleList })
   },
   
-  collapseAllFolders: async () => {
+  collapseAllFolders: async (folderPath) => {
     const store = await getStore()
-    await store.set('collapsibleList', [])
-    set({ collapsibleList: [] })
+    const collapsibleList = folderPath === undefined
+      ? []
+      : get().collapsibleList.filter(path => path !== folderPath && !path.startsWith(`${folderPath}/`))
+    await store.set(await getCollapsibleStoreKey(), collapsibleList)
+    set({ collapsibleList })
   },
   
   toggleAllFolders: async () => {
@@ -1686,7 +3243,17 @@ const useArticleStore = create<NoteState>((set, get) => ({
   clearCollapsibleList: async () => {
     set({ collapsibleList: [] })
     const store = await getStore()
-    await store.set('collapsibleList', [])
+    await store.set(await getCollapsibleStoreKey(), [])
+  },
+  loadWorkspaceCollapsibleList: async () => {
+    const store = await getStore()
+    const key = await getCollapsibleStoreKey()
+    const scopedList = await store.get<string[]>(key)
+    set({
+      collapsibleList: uniq(scopedList ?? []).filter(item => !item.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)),
+      collapsibleListInitialized: true
+    })
+    return await store.get<string>(await getWorkspaceStoreKey('activeFilePath')) ?? ''
   },
 
   currentArticle: '',
@@ -1701,19 +3268,49 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ readFilePath: path })
   },
 
-  readArticle: async (path: string, sha?: string, autoSync = true) => {
-    get().setLoading(true)
-
-    // 设置当前正在读取的文件路径，用于避免竞态条件
-    set({ readFilePath: path })
-
+  readArticle: (path, sha, autoSync = true, options) => {
     // 处理文件名兼容性问题
     let actualPath = path
-    if (hasInvalidFileNameChars(path)) {
+    if (!isAbsoluteFsPath(path) && hasInvalidFileNameChars(path)) {
       actualPath = sanitizeFilePath(path)
-      // 更新活动文件路径为清理后的路径
-      await get().setActiveFilePath(actualPath)
+      if (get().activeFilePath !== actualPath) {
+        const pendingOpenRequest = get().pendingFileTabOpenRequest
+        const matchingOpenRequest = pendingOpenRequest?.path === path
+          ? pendingOpenRequest
+          : null
+        // setActiveFilePath starts the canonical read for the sanitized path.
+        return get().setActiveFilePath(actualPath, autoSync, {
+          deactivationAlreadyPrepared: true,
+          createIfMissing: options?.createIfMissing,
+          ...(matchingOpenRequest ? {
+            tabOpenMode: matchingOpenRequest.mode,
+            tabMetadata: {
+              name: actualPath.split(/[\\/]/).pop() || matchingOpenRequest.name,
+              isFolder: matchingOpenRequest.isFolder,
+            },
+          } : {}),
+        })
+      }
     }
+
+    // readArticle only owns the currently active document. A delayed caller
+    // from a previous tab must not take over the shared loading/content state.
+    if (get().activeFilePath !== actualPath) return Promise.resolve()
+
+    return runArticleReadOnce(actualPath, async (requestGeneration) => {
+      const isCurrentArticleRead = () => (
+      articleReadGeneration === requestGeneration
+      && get().activeFilePath === actualPath
+      )
+
+    warmMarkdownLexerWorker()
+
+    set({
+      loading: true,
+      readFilePath: actualPath,
+      isPulling: false,
+      justPulledFile: false,
+    })
 
     // 优先加载本地内容（快速响应）
     let localContent = ''
@@ -1733,14 +3330,63 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return null
     }
 
+    const pullMissingRemoteArticle = async () => {
+      if (!isCurrentArticleRead()) return
+
+      set({
+        currentArticle: '',
+        loading: true,
+        isPulling: true,
+        justPulledFile: true,
+      })
+
+      // Yield once so the pulling state can paint before network work starts,
+      // while keeping this read request pending for same-path de-duplication.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      if (!isCurrentArticleRead()) return
+
+      try {
+        const remoteContent = await pullRemoteFile(actualPath)
+        if (!isCurrentArticleRead()) return
+        await saveLocalFile(actualPath, remoteContent)
+
+        if (isCurrentArticleRead()) {
+          prefetchMarkdownTokens(actualPath, remoteContent)
+          set({ currentArticle: remoteContent })
+          emitter.emit('editor-content-from-remote', { content: remoteContent })
+        }
+
+        const cacheTree = cloneDeep(get().fileTree)
+        const fileNode = findFileInTree(cacheTree, actualPath)
+        if (fileNode) {
+          fileNode.isLocale = true
+          set({ fileTree: cacheTree })
+        }
+      } catch {
+        if (isCurrentArticleRead()) {
+          set({ currentArticle: '' })
+        }
+      } finally {
+        if (isCurrentArticleRead()) {
+          set({ isPulling: false, loading: false, readFilePath: '' })
+          setTimeout(() => {
+            if (isCurrentArticleRead()) {
+              get().setJustPulledFile(false)
+            }
+          }, 1000)
+        }
+      }
+    }
+
     try {
-      const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(actualPath)
-      if (workspace.isCustom) {
+      if (!pathOptions.baseDir) {
         localContent = await readTextFile(pathOptions.path)
       } else {
         localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
+
+      if (!isCurrentArticleRead()) return
 
       // 检查是否是远程文件且本地内容为空
       const fileTree = get().fileTree
@@ -1749,55 +3395,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
       // 如果是远程文件且本地内容为空，先显示编辑器（禁用），再异步拉取
       if (isRemoteFile && (!localContent || localContent.trim() === '')) {
-        // 先设置当前内容为空，显示编辑器
-        set({ currentArticle: '', loading: true })
-
-        // 标记正在拉取
-        get().setIsPulling(true)
-        get().setJustPulledFile(true)
-
-        // 异步拉取远程内容
-        setTimeout(async () => {
-          try {
-            const remoteContent = await pullRemoteFile(actualPath)
-            await saveLocalFile(actualPath, remoteContent)
-
-            // 再次检查当前是否还是同一个文件
-            if (get().activeFilePath === actualPath) {
-              set({ currentArticle: remoteContent })
-              emitter.emit('editor-content-from-remote', { content: remoteContent })
-            }
-
-            // 拉取成功后，更新文件树的 isLocale 状态为本地文件
-            const cacheTree = cloneDeep(get().fileTree)
-            const fileNode = findFileInTree(cacheTree, actualPath)
-            if (fileNode) {
-              fileNode.isLocale = true
-              set({ fileTree: cacheTree })
-            }
-          } catch {
-            if (get().activeFilePath === actualPath) {
-              set({ currentArticle: '' })
-            }
-          } finally {
-            get().setIsPulling(false)
-            get().setLoading(false)
-            setTimeout(() => {
-              get().setJustPulledFile(false)
-            }, 1000)
-          }
-        }, 0)
-
+        await pullMissingRemoteArticle()
         return
       }
 
       // 正常的本地文件，显示内容（即使是空文件也正确显示）
-      set({ currentArticle: localContent })
-      // 本地内容加载完成，解除加载状态
-      get().setLoading(false)
+      prefetchMarkdownTokens(actualPath, localContent)
+      set({ currentArticle: localContent, loading: false })
       // 检查文件的向量索引状态
-      get().checkFileVectorIndexed(actualPath)
+      if (!isAbsoluteFsPath(actualPath)) {
+        get().checkFileVectorIndexed(actualPath)
+      }
     } catch (error) {
+      if (!isCurrentArticleRead()) return
+
       // 本地文件不存在，检查是否是远程文件
 
       // 先查找文件信息（可能 fileTree 还没加载完成）
@@ -1810,81 +3421,70 @@ const useArticleStore = create<NoteState>((set, get) => ({
                             errorMsg.toLowerCase().includes('系统找不到指定的路径')
 
       if (isFileNotFound && fileInfo && !fileInfo.isLocale) {
-        // 先设置当前内容为空，显示编辑器
-        set({ currentArticle: '', loading: true })
-
-        // 标记正在拉取
-        get().setIsPulling(true)
-        get().setJustPulledFile(true)
-
-        // 异步拉取远程内容
-        setTimeout(async () => {
-          try {
-            const remoteContent = await pullRemoteFile(actualPath)
-            await saveLocalFile(actualPath, remoteContent)
-
-            // 再次检查当前是否还是同一个文件
-            if (get().activeFilePath === actualPath) {
-              set({ currentArticle: remoteContent })
-              emitter.emit('editor-content-from-remote', { content: remoteContent })
-            }
-
-            // 拉取成功后，更新文件树的 isLocale 状态为本地文件
-            const cacheTree = cloneDeep(get().fileTree)
-            const fileNode = findFileInTree(cacheTree, actualPath)
-            if (fileNode) {
-              fileNode.isLocale = true
-              set({ fileTree: cacheTree })
-            }
-          } catch {
-            if (get().activeFilePath === actualPath) {
-              set({ currentArticle: '' })
-            }
-          } finally {
-            get().setIsPulling(false)
-            get().setLoading(false)
-            setTimeout(() => {
-              get().setJustPulledFile(false)
-            }, 1000)
-          }
-        }, 0)
-      } else if (isFileNotFound) {
+        await pullMissingRemoteArticle()
+        return
+      } else if (isFileNotFound && options?.createIfMissing !== false) {
         // 本地文件，创建空白文件
         await ensureDirectoryExists(actualPath)
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(actualPath)
 
         try {
-          if (workspace.isCustom) {
+          if (await writeSelfHostedWorkspaceText(actualPath, '')) {
+            // Rust journal already persisted the file.
+          } else if (!pathOptions.baseDir) {
             await writeTextFile(pathOptions.path, '')
           } else {
             await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
           }
-          set({ currentArticle: '' })
-          get().setLoading(false)
+          if (isCurrentArticleRead()) {
+            set({ currentArticle: '', loading: false })
+          }
         } catch {
-          get().setLoading(false)
+          if (isCurrentArticleRead()) {
+            get().setLoading(false)
+          }
         }
       } else {
-        set({ currentArticle: '' })
-        get().setLoading(false)
+        if (isCurrentArticleRead()) {
+          set({
+            currentArticle: '',
+            loading: false,
+            isPulling: false,
+          })
+        }
       }
     }
 
     // 异步检查远程更新（使用新的 SyncManager）
     // 只有当当前读取的文件路径仍然是 actualPath 时才执行同步
     // 同时检查 activeFilePath 是否仍然匹配，防止竞态条件
-    if (autoSync && await hasNetworkConnection()) {
+    const syncOpenMutationRevision = getEditorPathMutationRevision(actualPath)
+    if (
+      autoSync
+      && isCurrentArticleRead()
+      && !isAbsoluteFsPath(actualPath)
+      && await hasNetworkConnection()
+    ) {
       try {
         // 在执行同步前检查路径是否仍然匹配
         const currentReadPath = get().readFilePath
         const currentActivePath = get().activeFilePath
-        if (currentReadPath === actualPath && currentActivePath === actualPath) {
-          const result = await syncOnOpen(actualPath)
+        if (
+          isCurrentArticleRead()
+          && currentReadPath === actualPath
+          && currentActivePath === actualPath
+        ) {
+          const result = await syncOnOpen(actualPath, syncOpenMutationRevision)
           // 在设置 content 前再次确认路径没有变化
-          if (result?.updated && result.content && get().activeFilePath === actualPath) {
-            // 拉取了新内容，更新 currentArticle
-            set({ currentArticle: result.content })
+          if (result?.updated && result.content && isCurrentArticleRead()) {
+            // 拉取了新内容，更新 Store 和已经挂载的源码/章节编辑器。
+            set({ currentArticle: result.content, justPulledFile: true })
+            emitter.emit('editor-content-from-remote', { content: result.content })
+            setTimeout(() => {
+              if (isCurrentArticleRead()) {
+                get().setJustPulledFile(false)
+              }
+            }, 1000)
           }
         }
       } catch {
@@ -1893,18 +3493,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
     // 读取完成后清除 readFilePath（仅当没有其他 readArticle 在执行时）
     // 通过检查 activeFilePath 是否变化来判断
-    if (get().activeFilePath === actualPath) {
+    if (isCurrentArticleRead()) {
       set({ readFilePath: '' })
     }
+    })
   },
 
   // 向量计算相关状态
-  vectorCalcTimer: null as NodeJS.Timeout | null,
-  vectorCalcProgressInterval: null as NodeJS.Timeout | null,
-  vectorCalcProgress: 0, // 0-100，表示距离自动计算的进度
   isVectorCalculating: false,
-  lastEditTime: 0,
-  pendingVectorContent: null as { path: string; content: string } | null,
   // 向量索引状态
   vectorIndexedFiles: new Map<string, number>(), // 文件名 -> 向量索引时间戳
 
@@ -1942,6 +3538,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const itemPath = computedParentPath(item)
         if (itemPath === path && item.isFile) {
           item.sha = sha
+          debugSyncPath('article.updateFileSha.match', {
+            path,
+            itemPath,
+            name: item.name,
+            depth,
+            sha,
+          })
           return true
         }
         if (item.children && updateShaInTree(item.children, depth + 1)) {
@@ -1955,12 +3558,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const sortedTree = get().sortFileTree(cacheTree)
       set({ fileTree: sortedTree })
     } else {
-      // 未找到匹配的文件
+      debugSyncPath('article.updateFileSha.miss', {
+        path,
+        sha,
+      })
     }
   },
 
-  saveCurrentArticle: async (content: string) => {
-    const path = get().activeFilePath
+  saveCurrentArticle: async (content: string, pathOverride?: string) => {
+    const path = pathOverride ?? get().activeFilePath
     const justPulled = get().justPulledFile
 
     if (path && content !== undefined && content !== null) {
@@ -1968,250 +3574,421 @@ const useArticleStore = create<NoteState>((set, get) => ({
       if (justPulled) {
         // 清除标志
         get().setJustPulledFile(false)
-        // 只保存本地文件，不触发同步推送
-        const workspace = await getWorkspacePath()
-        const pathOptions = await getFilePathOptions(path)
-        if (workspace.isCustom) {
-          await writeTextFile(pathOptions.path, content)
-        } else {
-          await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+        const pendingSave = pendingArticleSaves.get(path)
+        if (pendingSave) {
+          void pendingSave.commit().catch(() => undefined)
         }
-        set({ currentArticle: content })
+        const previousSave = inFlightArticleSaves.get(path)
+        const savePromise = (async () => {
+          if (previousSave) await previousSave
+          // 只保存本地文件，不触发同步推送
+          const pathOptions = await getFilePathOptions(path)
+          if (await writeSelfHostedWorkspaceText(path, content)) {
+            // Rust journal already persisted the file.
+          } else if (!pathOptions.baseDir) {
+            await writeTextFile(pathOptions.path, content)
+          } else {
+            await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+          }
+          if (get().activeFilePath === path) {
+            set({ currentArticle: content })
+          }
+        })()
+        inFlightArticleSaves.set(path, savePromise)
+        try {
+          await savePromise
+        } finally {
+          if (inFlightArticleSaves.get(path) === savePromise) {
+            inFlightArticleSaves.delete(path)
+          }
+        }
         return
       }
 
-      // 清除之前的防抖定时器
-      const existingTimer = get().debounceSaveTimer
-      if (existingTimer) {
-        clearTimeout(existingTimer)
+      // 保存中的完整正文和定时器不属于 UI 状态，避免每次输入触发所有 store 订阅者。
+      const existingSave = pendingArticleSaves.get(path)
+      if (existingSave?.timer) {
+        clearTimeout(existingSave.timer)
       }
 
       // 设置新的防抖定时器，500ms 后执行保存
       // 这样可以合并短时间内多次 content change
-      // 保存 pendingContent 用于防抖检查
-      set({ pendingSaveContent: content, debounceSaveTimer: undefined })
-      const timer = setTimeout(async () => {
-        const state = get()
-        const debouncedContent = state.pendingSaveContent || content
-
-        // Bug fix: 检查路径是否仍然匹配，避免文件切换时保存到错误的文件
-        const currentActivePath = state.activeFilePath
-        if (currentActivePath !== path) {
-          // 文件已切换，取消保存
-          set({ debounceSaveTimer: null, pendingSaveContent: null })
+      const pendingSave: PendingArticleSave = {
+        content,
+        timer: null as ReturnType<typeof setTimeout> | null,
+        commit: async () => {},
+      }
+      pendingSave.commit = async () => {
+        if (pendingArticleSaves.get(path) !== pendingSave) {
           return
         }
-
-        set({ debounceSaveTimer: null, pendingSaveContent: null })
-
-        // 执行实际保存操作
-        const savePath = path
-        const saveContent = debouncedContent
-        const workspace = await getWorkspacePath()
-
-        // 检查文件是否存在
-        let isLocale = false
-        const pathOptions = await getFilePathOptions(savePath)
-        if (workspace.isCustom) {
-          isLocale = await exists(pathOptions.path)
-        } else {
-          isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+        if (pendingSave.timer) {
+          clearTimeout(pendingSave.timer)
+          pendingSave.timer = null
         }
+        pendingArticleSaves.delete(path)
 
-        // 确保目录结构存在
-        if (savePath.includes('/')) {
-          let dir = ''
-          const dirPath = savePath.split('/')
-          for (let index = 0; index < dirPath.length - 1; index += 1) {
-            dir += `${dirPath[index]}/`
-            const dirOptions = await getFilePathOptions(dir)
-            let dirExists = false
-            if (workspace.isCustom) {
-              dirExists = await exists(dirOptions.path)
-            } else {
-              dirExists = await exists(dirOptions.path, { baseDir: dirOptions.baseDir })
-            }
-            if (!dirExists) {
-              if (workspace.isCustom) {
-                await mkdir(dirOptions.path)
-              } else {
-                await mkdir(dirOptions.path, { baseDir: dirOptions.baseDir })
-              }
-            }
+        const previousSave = inFlightArticleSaves.get(path)
+        const commitPromise = (async () => {
+          if (previousSave) await previousSave
+
+          // 执行实际保存操作
+          const savePath = path
+          const saveContent = pendingSave.content
+          // 检查文件是否存在
+          let isLocale = false
+          const pathOptions = await getFilePathOptions(savePath)
+          if (!pathOptions.baseDir) {
+            isLocale = await exists(pathOptions.path)
+          } else {
+            isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
           }
-        }
-
-        // 保存文件内容
-        if (workspace.isCustom) {
-          await writeTextFile(pathOptions.path, saveContent)
-        } else {
-          await writeTextFile(pathOptions.path, saveContent, { baseDir: pathOptions.baseDir })
-        }
-
-        // 更新缓存树
-        if (!isLocale) {
-          const cacheTree = cloneDeep(get().fileTree)
-          const current = savePath.includes('/') ? getCurrentFolder(savePath, cacheTree) : cacheTree.find(item => item.name === savePath)
-          if (current) {
-            current.isLocale = true
-
-            // 更新父文件夹链的 isLocale 状态
-            const updateParentFolders = async (node: DirTree | undefined) => {
-              let parent = node
-              const pathParts = savePath.split('/')
-              let currentDepth = pathParts.length - 1
-
-              while (parent && currentDepth > 0) {
-                if (parent.isLocale) {
-                  break
-                }
-                const parentPath = pathParts.slice(0, currentDepth).join('/')
-                const parentOptions = await getFilePathOptions(parentPath)
-                let parentExists = false
-                try {
-                  if (workspace.isCustom) {
-                    parentExists = await exists(parentOptions.path)
-                  } else {
-                    parentExists = await exists(parentOptions.path, { baseDir: parentOptions.baseDir })
-                  }
-                } catch {
-                  parentExists = false
-                }
-                if (parentExists) {
-                  parent.isLocale = true
-                  parent = parent.parent
-                  currentDepth--
+          const wroteSelfHosted = await writeSelfHostedWorkspaceText(savePath, saveContent)
+          if (!wroteSelfHosted) {
+            // Ensure the fallback path exists before a regular filesystem write.
+            if (savePath.includes('/')) {
+              let dir = ''
+              const dirPath = savePath.split('/')
+              for (let index = 0; index < dirPath.length - 1; index += 1) {
+                dir += `${dirPath[index]}/`
+                const dirOptions = await getFilePathOptions(dir)
+                let dirExists = false
+                if (!dirOptions.baseDir) {
+                  dirExists = await exists(dirOptions.path)
                 } else {
-                  break
+                  dirExists = await exists(dirOptions.path, { baseDir: dirOptions.baseDir })
+                }
+                if (!dirExists) {
+                  if (!dirOptions.baseDir) {
+                    await mkdir(dirOptions.path)
+                  } else {
+                    await mkdir(dirOptions.path, { baseDir: dirOptions.baseDir })
+                  }
                 }
               }
             }
 
-            await updateParentFolders(current.parent)
+            if (!pathOptions.baseDir) {
+              await writeTextFile(pathOptions.path, saveContent)
+            } else {
+              await writeTextFile(pathOptions.path, saveContent, { baseDir: pathOptions.baseDir })
+            }
           }
-          set({ fileTree: cacheTree })
-        }
+          get().markFileDirty(savePath)
 
-        // 触发防抖向量计算
-        if (savePath.endsWith('.md')) {
-          get().scheduleVectorCalculation(savePath, saveContent)
-        }
+          // 更新缓存树
+          if (!isLocale) {
+            const cacheTree = cloneDeep(get().fileTree)
+            const current = savePath.includes('/')
+              ? getCurrentFolder(savePath, cacheTree)
+              : cacheTree.find(item => item.name === savePath)
+            if (current) {
+              current.isLocale = true
 
-        // 更新 currentArticle
-        set({ currentArticle: saveContent })
+              // 更新父文件夹链的 isLocale 状态
+              const updateParentFolders = async (node: DirTree | undefined) => {
+                let parent = node
+                const pathParts = savePath.split('/')
+                let currentDepth = pathParts.length - 1
 
-        // 通知文件已保存，触发同步推送（除非设置了 skipSyncOnSave）
-        const shouldSkipSync = get().skipSyncOnSave
-        if (!shouldSkipSync) {
-          emitter.emit('article-saved', { path: savePath, content: saveContent })
+                while (parent && currentDepth > 0) {
+                  if (parent.isLocale) {
+                    break
+                  }
+                  const parentPath = pathParts.slice(0, currentDepth).join('/')
+                  const parentOptions = await getFilePathOptions(parentPath)
+                  let parentExists = false
+                  try {
+                    if (!parentOptions.baseDir) {
+                      parentExists = await exists(parentOptions.path)
+                    } else {
+                      parentExists = await exists(parentOptions.path, { baseDir: parentOptions.baseDir })
+                    }
+                  } catch {
+                    parentExists = false
+                  }
+                  if (parentExists) {
+                    parent.isLocale = true
+                    parent = parent.parent
+                    currentDepth--
+                  } else {
+                    break
+                  }
+                }
+              }
+
+              await updateParentFolders(current.parent)
+            }
+            set({ fileTree: cacheTree })
+          }
+
+          // 触发防抖向量计算
+          if (!isAbsoluteFsPath(savePath) && savePath.endsWith('.md')) {
+            get().scheduleVectorCalculation(savePath, saveContent)
+          }
+
+          // currentArticle 只属于当前活动文件；后台完成的旧标签页保存
+          // 不能覆盖已经切换后的共享正文。
+          if (get().activeFilePath === savePath) {
+            set({ currentArticle: saveContent })
+          }
+
+          // 记录写作活动（独立事件日志，不受后续删除影响）
+          try {
+            const { recordWritingActivity } = await import('@/db/activity')
+            const fileName = savePath.split('/').pop() || savePath
+            await recordWritingActivity({
+              path: savePath,
+              title: fileName,
+              description: savePath,
+            })
+          } catch (error) {
+            console.error('记录写作活动失败:', error)
+          }
+
+          // 通知文件已保存，触发同步推送（除非设置了 skipSyncOnSave）
+          const shouldSkipSync = get().skipSyncOnSave
+          if (!shouldSkipSync && !isAbsoluteFsPath(savePath)) {
+            emitter.emit('article-saved', { path: savePath, content: saveContent })
+          }
+        })()
+
+        inFlightArticleSaves.set(path, commitPromise)
+        try {
+          await commitPromise
+        } finally {
+          if (inFlightArticleSaves.get(path) === commitPromise) {
+            inFlightArticleSaves.delete(path)
+          }
         }
+      }
+      pendingSave.timer = setTimeout(() => {
+        void pendingSave.commit().catch(error => {
+          console.error(`保存文章失败: ${path}`, error)
+        })
       }, 500)
+      pendingArticleSaves.set(path, pendingSave)
+    }
+  },
 
-      // 保存待处理的内容（最新的内容）
-      set({ debounceSaveTimer: timer as any, pendingSaveContent: content })
+  flushPendingArticleSave: async (path: string) => {
+    if (!path) return
+
+    // A save can be queued while an earlier save for the same path is still
+    // committing. Keep draining until both queues are empty.
+    while (true) {
+      const pendingSave = pendingArticleSaves.get(path)
+      if (pendingSave) {
+        await pendingSave.commit()
+        continue
+      }
+
+      const inFlightSave = inFlightArticleSaves.get(path)
+      if (inFlightSave) {
+        await inFlightSave
+        continue
+      }
+      return
+    }
+  },
+
+  flushPendingArticleSavesForPaths: async (paths: string[], workspaceRoot?: string) => {
+    while (true) {
+      const savePaths = new Set([
+        ...pendingArticleSaves.keys(),
+        ...inFlightArticleSaves.keys(),
+      ])
+      const matchingPaths = [...savePaths].filter(savePath => (
+        paths.some(path => (
+          pathIsSameOrDescendant(savePath, path, workspaceRoot)
+          || editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
+        ))
+      ))
+      if (matchingPaths.length === 0) return
+      await Promise.all(matchingPaths.map(path => get().flushPendingArticleSave(path)))
+    }
+  },
+
+  flushAllPendingArticleSaves: async () => {
+    while (pendingArticleSaves.size > 0 || inFlightArticleSaves.size > 0) {
+      const savePaths = new Set([
+        ...pendingArticleSaves.keys(),
+        ...inFlightArticleSaves.keys(),
+      ])
+      await Promise.all([...savePaths].map(path => get().flushPendingArticleSave(path)))
+    }
+  },
+
+  runPathWriteTransaction: async (path, transaction, workspaceRoot) => {
+    if (workspaceRoot) {
+      const currentWorkspaceRoot = await getCurrentEditorWorkspaceRoot()
+      if (!workspaceRootsReferToSameLocation(currentWorkspaceRoot, workspaceRoot)) {
+        // Article save queues only belong to the workspace currently mounted
+        // in the UI. A background library has no editor-local save to drain.
+        return transaction({ hasQueuedSave: () => false })
+      }
+    }
+
+    // Promote a queued debounce save into the in-flight chain before installing
+    // the transaction gate. Do not call a durable flush from inside the
+    // transaction callback: it would wait on this same gate.
+    const transactionPaths = new Set<string>([path])
+    const activeFilePath = get().activeFilePath
+    if (editorPathsCouldReferToSameFile(activeFilePath, path, workspaceRoot)) {
+      transactionPaths.add(activeFilePath)
+    }
+    for (const savePath of new Set([
+      ...pendingArticleSaves.keys(),
+      ...inFlightArticleSaves.keys(),
+    ])) {
+      if (editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)) {
+        transactionPaths.add(savePath)
+      }
+    }
+    for (const transactionPath of transactionPaths) {
+      const pendingSave = pendingArticleSaves.get(transactionPath)
+      if (pendingSave) void pendingSave.commit().catch(() => undefined)
+    }
+    const previousSaves = [...transactionPaths]
+      .map(transactionPath => inFlightArticleSaves.get(transactionPath))
+      .filter((save): save is Promise<void> => Boolean(save))
+    let releaseGate = () => {}
+    const transactionGate = new Promise<void>((resolve) => {
+      releaseGate = () => resolve()
+    })
+    for (const transactionPath of transactionPaths) {
+      inFlightArticleSaves.set(transactionPath, transactionGate)
+    }
+
+    try {
+      await Promise.all(previousSaves)
+      return await transaction({
+        hasQueuedSave: () => (
+          [...pendingArticleSaves.keys()].some(savePath => (
+            editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
+          ))
+          || [...inFlightArticleSaves.entries()].some(([savePath, save]) => (
+            editorPathsCouldReferToSameFile(savePath, path, workspaceRoot)
+            && save !== transactionGate
+          ))
+        ),
+      })
+    } finally {
+      releaseGate()
+      for (const transactionPath of transactionPaths) {
+        if (inFlightArticleSaves.get(transactionPath) === transactionGate) {
+          inFlightArticleSaves.delete(transactionPath)
+        }
+      }
     }
   },
 
   // 安排向量计算（防抖5秒）
   scheduleVectorCalculation: (path: string, content: string) => {
-    const state = get()
-    
-    // 清除之前的定时器
-    if (state.vectorCalcTimer) {
-      clearTimeout(state.vectorCalcTimer)
+    if (!useVectorStore.getState().isAutoVectorEnabled) {
+      get().cancelVectorCalculation()
+      return
     }
-    if (state.vectorCalcProgressInterval) {
-      clearInterval(state.vectorCalcProgressInterval)
+
+    if (vectorCalculationTimer) {
+      clearTimeout(vectorCalculationTimer)
     }
-    
-    // 更新最后编辑时间和待处理内容
-    const now = Date.now()
-    set({ 
-      lastEditTime: now,
-      pendingVectorContent: { path, content },
-      vectorCalcProgress: 0
-    })
-    
-    // 创建进度更新定时器（每100ms更新一次进度）
-    const progressInterval = setInterval(() => {
-      const elapsed = Date.now() - get().lastEditTime
-      const progress = Math.min((elapsed / 5000) * 100, 100)
-      set({ vectorCalcProgress: progress })
-      
-      if (progress >= 100) {
-        clearInterval(progressInterval)
-      }
-    }, 100)
+
+    pendingVectorCalculation = { path, content }
     
     // 设置5秒后自动执行向量计算
-    const timer = setTimeout(() => {
-      clearInterval(progressInterval)
-      get().executeVectorCalculation()
+    vectorCalculationTimer = setTimeout(() => {
+      vectorCalculationTimer = null
+      void get().executeVectorCalculation()
     }, 5000)
-    
-    set({ 
-      vectorCalcTimer: timer as any,
-      vectorCalcProgressInterval: progressInterval as any
-    })
   },
 
   // 执行向量计算
-  executeVectorCalculation: async () => {
-    const state = get()
-    
-    // 如果没有待处理内容或正在计算中，直接返回
-    if (!state.pendingVectorContent || state.isVectorCalculating) {
-      return
+  executeVectorCalculation: async (options = {}) => {
+    while (inFlightVectorCalculation) {
+      await inFlightVectorCalculation.promise
     }
-    
+    if (!pendingVectorCalculation) return
+
+    const calculation = pendingVectorCalculation
+    set({ isVectorCalculating: true })
+    const calculationPromise = (async () => {
+      try {
+        if (!options.force) {
+          if (!useVectorStore.getState().isAutoVectorEnabled) {
+            get().cancelVectorCalculation()
+            return
+          }
+
+          const store = await getStore()
+          const disabledFiles = await store.get<string[]>('vectorAutoCalcDisabled') || []
+          if (disabledFiles.includes(calculation.path)) {
+            get().cancelVectorCalculation()
+            return
+          }
+        }
+
+        const { path, content } = calculation
+        const vectorStore = useVectorStore.getState()
+
+        // 执行向量计算
+        await vectorStore.processDocument(path, content)
+        // 更新向量索引状态
+        const vectorKey = getVectorDocumentKey(path)
+        const newMap = new Map(get().vectorIndexedFiles)
+        newMap.set(vectorKey, Date.now())
+        set({ vectorIndexedFiles: newMap })
+
+        if (pendingVectorCalculation === calculation) {
+          pendingVectorCalculation = null
+        }
+      } catch {
+      }
+    })()
+    inFlightVectorCalculation = {
+      path: calculation.path,
+      promise: calculationPromise,
+    }
     try {
-      set({ isVectorCalculating: true, vectorCalcProgress: 100 })
-      
-      const { path, content } = state.pendingVectorContent
-      const vectorStore = useVectorStore.getState()
-
-      // 执行向量计算
-      await vectorStore.processDocument(path, content)
-      // 更新向量索引状态
-      const vectorKey = getVectorDocumentKey(path)
-      const newMap = new Map(get().vectorIndexedFiles)
-      newMap.set(vectorKey, Date.now())
-      set({ vectorIndexedFiles: newMap })
-
-      // 清除待处理内容和定时器
-      if (state.vectorCalcTimer) {
-        clearTimeout(state.vectorCalcTimer)
+      await calculationPromise
+    } finally {
+      if (inFlightVectorCalculation?.promise === calculationPromise) {
+        inFlightVectorCalculation = null
       }
-      if (state.vectorCalcProgressInterval) {
-        clearInterval(state.vectorCalcProgressInterval)
-      }
-      
-      set({ 
-        pendingVectorContent: null,
-        vectorCalcTimer: null,
-        vectorCalcProgressInterval: null,
-        vectorCalcProgress: 0
-      })
-    } catch {
       set({ isVectorCalculating: false })
     }
   },
 
   // 取消向量计算
   cancelVectorCalculation: () => {
-    const state = get()
-    if (state.vectorCalcTimer) {
-      clearTimeout(state.vectorCalcTimer)
+    if (vectorCalculationTimer) {
+      clearTimeout(vectorCalculationTimer)
+      vectorCalculationTimer = null
     }
-    if (state.vectorCalcProgressInterval) {
-      clearInterval(state.vectorCalcProgressInterval)
+    pendingVectorCalculation = null
+  },
+
+  settleVectorCalculationsForPaths: async (paths: string[], workspaceRoot?: string) => {
+    paths.forEach(path => discardPendingVectorCalculation(path, workspaceRoot))
+    const inFlightCalculation = inFlightVectorCalculation
+    if (
+      inFlightCalculation
+      && paths.some(path => (
+        pathIsSameOrDescendant(inFlightCalculation.path, path, workspaceRoot)
+      ))
+    ) {
+      await inFlightCalculation.promise
     }
-    set({
-      vectorCalcTimer: null,
-      vectorCalcProgressInterval: null,
-      vectorCalcProgress: 0,
-      pendingVectorContent: null
-    })
+    paths.forEach(path => discardPendingVectorCalculation(path, workspaceRoot))
+  },
+
+  settleAllVectorCalculations: async () => {
+    get().cancelVectorCalculation()
+    const inFlightCalculation = inFlightVectorCalculation
+    if (inFlightCalculation) {
+      await inFlightCalculation.promise
+    }
+    get().cancelVectorCalculation()
   },
 
   // 检查文件是否已被向量索引
@@ -2250,22 +4027,20 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // 初始化向量索引状态 - 加载所有已索引的文件
   initVectorIndexedFiles: async () => {
-    try {
-      const { getAllVectorDocumentFilenames, getVectorDocumentsByFilename } = await import('@/db/vector')
-      const indexedFiles = await getAllVectorDocumentFilenames()
+    if (!vectorIndexedFilesInitPromise) {
+      vectorIndexedFilesInitPromise = (async () => {
+        const { getVectorIndexSummaries } = await import('@/db/vector')
+        const vectorIndexedDocs = await getVectorIndexSummaries()
+        const vectorIndexedMap = buildVectorIndexedMap(vectorIndexedDocs)
 
-      // 构建 vectorIndexedFiles Map
-      const vectorIndexedDocs = []
-      for (const file of indexedFiles) {
-        const docs = await getVectorDocumentsByFilename(file.filename)
-        vectorIndexedDocs.push(...docs)
-      }
-
-      const vectorIndexedMap = buildVectorIndexedMap(vectorIndexedDocs)
-
-      set({ vectorIndexedFiles: vectorIndexedMap })
-    } catch {
+        set({ vectorIndexedFiles: vectorIndexedMap })
+      })().catch(() => {
+      }).finally(() => {
+        vectorIndexedFilesInitPromise = null
+      })
     }
+
+    await vectorIndexedFilesInitPromise
   },
 
   // 手动触发向量计算（使用当前文章内容）
@@ -2281,15 +4056,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return
     }
 
-    // 设置待处理内容并执行
-    set({
-      pendingVectorContent: {
-        path: state.activeFilePath,
-        content
-      }
-    })
+    pendingVectorCalculation = {
+      path: state.activeFilePath,
+      content
+    }
 
-    await get().executeVectorCalculation()
+    await get().executeVectorCalculation({ force: true })
   },
 
   // 设置向量计算状态
@@ -2380,5 +4152,19 @@ const useArticleStore = create<NoteState>((set, get) => ({
     set({ allArticle })
   }
 }))
+
+registerActiveEditorDurableSaveFlusher(async (path) => {
+  await useArticleStore.getState().flushPendingArticleSave(path)
+})
+
+registerEditorPathMutationFlusher(async (paths, workspaceRoot) => {
+  const articleState = useArticleStore.getState()
+  await articleState.flushPendingArticleSavesForPaths(paths, workspaceRoot)
+  await articleState.settleVectorCalculationsForPaths(paths, workspaceRoot)
+})
+
+registerEditorPathWriteTransactionRunner((path, transaction, workspaceRoot) => (
+  useArticleStore.getState().runPathWriteTransaction(path, transaction, workspaceRoot)
+))
 
 export default useArticleStore

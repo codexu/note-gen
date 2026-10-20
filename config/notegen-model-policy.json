@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "title": "NoteGen",
+  "limited": {
+    "model": "gpt-6-luna",
+    "displayName": "GPT6 Luna",
+    "dailyRequestLimit": 200
+  },
+  "free": {
+    "model": "Qwen/Qwen3-8B",
+    "displayName": "Qwen3-8B"
+  }
+}

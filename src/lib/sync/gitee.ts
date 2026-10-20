@@ -2,7 +2,8 @@ import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { buildRepoContentPath, buildRepoContentsEndpoint, pickNestedFileEntry } from './remote-file'
+import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent, pickNestedFileEntry } from './remote-file'
+import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file'
 // Remove unused imports - these types are not actually used in this file
 
@@ -117,19 +118,98 @@ interface Links {
   html: string;
 }
 
+type GiteeDirectoryFileEntry = Partial<GiteeFile> & {
+  content?: string
+  url?: string
+  download_url?: string | null
+}
+type GiteeDirectoryListingResult = GiteeDirectoryFileEntry[] & GiteeDirectoryFileEntry
+type GiteeGetFilesResult = GiteeDirectoryFileEntry | GiteeDirectoryListingResult | null | undefined
+
+const DEFAULT_BRANCH_CACHE_TTL = 5 * 60 * 1000
+const defaultBranchCache = new Map<string, { branch: string, cachedAt: number }>()
+
+async function getDefaultBranch(repo: string, username?: string) {
+  const cacheKey = `${username || ''}/${repo}`
+  const cached = defaultBranchCache.get(cacheKey)
+  if (cached && Date.now() - cached.cachedAt < DEFAULT_BRANCH_CACHE_TTL) {
+    return cached.branch
+  }
+
+  try {
+    const repository = await checkSyncRepoState(repo)
+    const branch = repository?.default_branch?.trim() || 'master'
+    defaultBranchCache.set(cacheKey, { branch, cachedAt: Date.now() })
+    return branch
+  } catch {
+    return 'master'
+  }
+}
+
 function looksLikeFilePath(path?: string) {
   const lastSegment = path?.split('/').filter(Boolean).pop() || ''
   return lastSegment.includes('.')
 }
 
+function appendAccessToken(url: string, accessToken: string) {
+  try {
+    const parsedUrl = new URL(url)
+    if (!parsedUrl.searchParams.has('access_token')) {
+      parsedUrl.searchParams.set('access_token', accessToken)
+    }
+    return parsedUrl.toString()
+  } catch {
+    return url
+  }
+}
+
+async function resolveDirectoryFileEntryContent(
+  entry: GiteeDirectoryFileEntry,
+  accessToken: string,
+  proxy?: Proxy
+) {
+  if (typeof entry.content === 'string') {
+    return entry
+  }
+
+  const requestOptions = {
+    method: 'GET',
+    proxy,
+  }
+
+  if (entry.url) {
+    const response = await fetch(appendAccessToken(entry.url, accessToken), requestOptions)
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json() as GiteeDirectoryFileEntry
+      if (typeof data.content === 'string') {
+        return data
+      }
+    }
+  }
+
+  if (entry.download_url) {
+    const response = await fetch(appendAccessToken(entry.download_url, accessToken), requestOptions)
+    if (response.status >= 200 && response.status < 300) {
+      const content = await response.text()
+      return {
+        ...entry,
+        content: Buffer.from(content, 'utf-8').toString('base64'),
+      }
+    }
+  }
+
+  return null
+}
+
 export async function uploadFile(
   { file, filename, sha, message, repo, path }:
-  { file: string, filename?: string, sha?: string, message?: string, repo: string, path?: string })
+  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
-  const giteeUsername = await store.get('giteeUsername')
+  const giteeUsername = await store.get<string>('giteeUsername')
   const id = uuid()
+  const branch = await getDefaultBranch(repo, giteeUsername)
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -139,7 +219,7 @@ export async function uploadFile(
   
   try {
     let targetPath = path
-    let resolvedExistingFile: GiteeFile | null = null
+    let resolvedExistingFile: GiteeDirectoryFileEntry | null = null
     if (path) {
       const existingFile = await getFiles({ path, repo })
       if (existingFile && !Array.isArray(existingFile)) {
@@ -154,9 +234,16 @@ export async function uploadFile(
       : targetPath
       ? buildRepoContentPath({ path: targetPath, filename })
       : buildRepoContentPath({ filename: filename || id })
+    debugSyncPath('gitee.uploadFile', {
+      inputPath: path,
+      filename,
+      resolvedExistingPath: resolvedExistingFile?.path,
+      finalPath,
+      hasSha: Boolean(sha),
+    })
 
     // 将内容转换为 Base64（Gitee API 要求）
-    const base64Content = Buffer.from(file, 'utf-8').toString('base64')
+    const base64Content = encodeRemoteFileContent(file)
 
     // 设置请求头
     const headers = new Headers();
@@ -171,7 +258,7 @@ export async function uploadFile(
         access_token: accessToken,
         content: base64Content,
         message: message || `Upload ${filename || id}`,
-        branch: 'master',
+        branch,
         sha
       }),
       proxy
@@ -198,7 +285,7 @@ export async function uploadFile(
           access_token: accessToken,
           content: base64Content,
           message: message || `Upload ${filename || id}`,
-          branch: 'master',
+          branch,
         }),
         proxy
       };
@@ -228,13 +315,31 @@ export async function uploadFile(
   }
 }
 
-export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }) {
+export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+  const store = await Store.load('store.json')
+  const token = await store.get<string>('giteeAccessToken')
+  const username = await store.get<string>('giteeUsername')
+  if (!token || !username) throw new Error('Gitee sync is not configured')
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const baseUrl = `https://gitee.com/api/v5/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`
+  return readGitTreeDirectory(path, resource => fetch(
+    `${baseUrl}${resource}?access_token=${encodeURIComponent(token)}`,
+    { method: 'GET', proxy },
+  ))
+}
+
+export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }): Promise<GiteeGetFilesResult> {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) return;
 
   const giteeUsername = await store.get<string>('giteeUsername')
   const normalizedPath = buildRepoContentPath({ path })
+  debugSyncPath('gitee.getFiles', {
+    inputPath: path,
+    normalizedPath,
+  })
 
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -259,12 +364,33 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
     try {
       const response = await fetch(url, requestOptions);
       if (response.status >= 200 && response.status < 300) {
-        const data = await response.json();
+        const data = await response.json() as GiteeGetFilesResult;
         if (Array.isArray(data) && looksLikeFilePath(path)) {
           const nestedFile = pickNestedFileEntry(data, path)
-          if (nestedFile?.path && nestedFile.path !== path) {
-            return await getFiles({ path: nestedFile.path, repo, ref })
+          if (nestedFile) {
+            if (nestedFile.path && nestedFile.path !== path) {
+              const resolvedFile = await getFiles({ path: nestedFile.path, repo, ref })
+              if (resolvedFile && !Array.isArray(resolvedFile)) {
+                return resolvedFile
+              }
+            }
+
+            const resolvedEntry = await resolveDirectoryFileEntryContent(
+              nestedFile as GiteeDirectoryFileEntry,
+              accessToken,
+              proxy
+            )
+            if (resolvedEntry) {
+              return resolvedEntry
+            }
           }
+
+          debugSyncPath('gitee.getFiles.fileNotFoundFromListing', {
+            inputPath: path,
+            normalizedPath,
+            listingCount: data.length,
+          })
+          return null
         }
         return data;
       }
@@ -312,7 +438,7 @@ export async function deleteFile({ path, sha, repo }: { path: string, sha: strin
       proxy
     };
     
-    const normalizedPath = buildRepoContentPath({ path });
+    const normalizedPath = buildRepoContentPath({ path, preserveWhitespace: true });
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(normalizedPath)}`;
     
     const response = await fetch(url, requestOptions);
@@ -408,6 +534,7 @@ export async function getUserInfo() {
     
     // 保存用户名到存储
     await store.set('giteeUsername', data.login);
+    await store.save();
     
     return data;
   } catch {
@@ -420,7 +547,7 @@ export async function getUserInfo() {
 }
 
 // 检查 Gitee 仓库
-export async function checkSyncRepoState(name: string) {
+export async function checkSyncRepoState(name: string): Promise<GiteeRepoInfo | null | undefined> {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
   if (!accessToken) {
@@ -451,7 +578,7 @@ export async function checkSyncRepoState(name: string) {
     
     const response = await fetch(url, requestOptions);
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
+      const data = await response.json() as GiteeRepoInfo;
       return data;
     }
     
@@ -465,6 +592,32 @@ export async function checkSyncRepoState(name: string) {
     }
     throw error;
   }
+}
+
+export async function listUserRepositories(): Promise<string[]> {
+  const store = await Store.load('store.json')
+  const accessToken = await store.get<string>('giteeAccessToken')
+  if (!accessToken) throw new Error('Gitee Access Token 未配置')
+
+  const proxyUrl = await store.get<string>('proxy')
+  const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    type: 'owner',
+    sort: 'updated',
+    direction: 'desc',
+    per_page: '100',
+  })
+  const response = await fetch(`https://gitee.com/api/v5/user/repos?${params.toString()}`, {
+    method: 'GET',
+    proxy,
+  })
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`获取仓库列表失败: ${response.status}`)
+  }
+
+  const repositories = await response.json() as GiteeRepoInfo[]
+  return repositories.map(repository => repository.name).filter(Boolean)
 }
 
 // 创建 Gitee 仓库

@@ -1,25 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Editor } from '@tiptap/react'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogFooter as DialogFooter,
+} from '@/components/responsive-dialog'
 import { Button } from '@/components/ui/button'
 import { pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import emitter from '@/lib/emitter'
+import useArticleStore from '@/stores/article'
 
 interface ConflictDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   activeFilePath: string | null
   editor: Editor
+  localMarkdown?: string
+  getMarkdown?: () => string
+  prepareExternalAction?: () => boolean
+  onMarkdownChange?: (markdown: string) => void
   onResolved: () => void
 }
 
@@ -71,25 +76,39 @@ export function ConflictDialog({
   onOpenChange,
   activeFilePath,
   editor,
+  localMarkdown,
+  getMarkdown,
+  prepareExternalAction,
+  onMarkdownChange,
   onResolved,
 }: ConflictDialogProps) {
+  const flushPendingArticleSave = useArticleStore(state => state.flushPendingArticleSave)
   const [localContent, setLocalContent] = useState('')
   const [remoteContent, setRemoteContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [diff, setDiff] = useState<{ type: 'equal' | 'add' | 'remove', text: string }[]>([])
+  const getMarkdownRef = useRef(getMarkdown)
+  const localMarkdownRef = useRef(localMarkdown)
+  getMarkdownRef.current = getMarkdown
+  localMarkdownRef.current = localMarkdown
 
   // 当对话框打开时，获取本地和远程内容
   useEffect(() => {
     if (!open || !activeFilePath) return
+    let cancelled = false
 
     const fetchContents = async () => {
       try {
         // 获取远程内容
         const remote = await pullRemoteFile(activeFilePath)
+        if (cancelled) return
         setRemoteContent(remote)
 
         // 获取本地内容（从编辑器）
-        const local = editor.getMarkdown()
+        const local = getMarkdownRef.current?.()
+          ?? localMarkdownRef.current
+          ?? editor.getMarkdown()
+        if (cancelled) return
         setLocalContent(local)
 
         // 计算 diff
@@ -101,6 +120,9 @@ export function ConflictDialog({
     }
 
     fetchContents()
+    return () => {
+      cancelled = true
+    }
   }, [open, activeFilePath, editor])
 
   const handleKeepLocal = async () => {
@@ -123,12 +145,18 @@ export function ConflictDialog({
 
   const handleKeepRemote = async () => {
     if (!activeFilePath) return
+    if (prepareExternalAction && !prepareExternalAction()) return
 
     setIsLoading(true)
     try {
+      await flushPendingArticleSave(activeFilePath)
       // 使用远程内容覆盖本地
       await saveLocalFile(activeFilePath, remoteContent)
-      editor.commands.setContent(remoteContent, { contentType: 'markdown' })
+      if (onMarkdownChange) {
+        onMarkdownChange(remoteContent)
+      } else {
+        editor.commands.setContent(remoteContent, { contentType: 'markdown' })
+      }
       await updateFileSyncTime(activeFilePath)
       emitter.emit('sync-pulled', { path: activeFilePath })
       onResolved()

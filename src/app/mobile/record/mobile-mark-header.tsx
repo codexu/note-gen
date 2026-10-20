@@ -26,7 +26,7 @@ export function MobileMarkHeader() {
   }, [trashState, fetchAllTrashMarks, fetchAllMarks])
 
   async function handleClearTrash() {
-    const accepted = await confirm(recordT('trash.confirm'), {
+    const accepted = await confirm(`${recordT('trash.confirm')}\n${recordT('trash.syncWarning')}`, {
       title: recordT('trash.title'),
       kind: 'warning',
     })

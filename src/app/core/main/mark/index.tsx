@@ -4,18 +4,19 @@ import { useTranslations } from 'next-intl'
 import React from "react"
 import { TagManage } from './tag-manage'
 import { MarkList } from './mark-list'
-import { MarkToolbar } from './mark-toolbar'
 import useMarkStore from "@/stores/mark"
 import { Button } from "@/components/ui/button"
 import { clearTrash } from "@/db/marks"
 import { confirm } from '@tauri-apps/plugin-dialog';
+import { filterMarks, getTrashRecordFilters } from "./mark-filters";
 
 export function NoteSidebar() {
   const t = useTranslations();
   const { trashState, marks, setMarks } = useMarkStore()
+  const visibleTrashMarks = React.useMemo(() => filterMarks(marks, getTrashRecordFilters()), [marks])
 
   async function handleClearTrash() {
-    const res = await confirm(t('record.trash.confirm'), {
+    const res = await confirm(`${t('record.trash.confirm')}\n${t('record.trash.syncWarning')}`, {
       title: t('record.trash.title'),
       kind: 'warning',
     })
@@ -30,7 +31,7 @@ export function NoteSidebar() {
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">
-            <p className="text-xs text-zinc-500">{t('record.trash.records', { count: marks.length })}</p>
+            <p className="text-xs text-zinc-500">{t('record.trash.records', { count: visibleTrashMarks.length })}</p>
             {marks.length > 0 && (
               <Button variant="ghost" size="sm" onClick={handleClearTrash}>
                 {t('record.trash.empty')}
@@ -40,12 +41,10 @@ export function NoteSidebar() {
           <MarkList />
         </>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <TagManage />
         </div>
       )}
-      
-      <MarkToolbar />
     </div>
   )
 }

@@ -36,6 +36,10 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
 
   startRecording: async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('当前环境不支持麦克风录音，请检查 Android WebView 或应用权限配置')
+      }
+
       // 请求麦克风权限
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       
@@ -65,11 +69,6 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
         if (event.data.size > 0) {
           chunks.push(event.data)
         }
-      }
-      
-      mediaRecorder.onstop = () => {
-        // 停止所有音频轨道
-        stream.getTracks().forEach(track => track.stop())
       }
       
       mediaRecorder.start()
@@ -147,7 +146,8 @@ const useRecordingStore = create<RecordingState>((set, get) => ({
     
     return new Promise((resolve) => {
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || audioChunks[0]?.type || 'audio/webm' })
+        mediaRecorder.stream.getTracks().forEach(track => track.stop())
         get().resetState()
         resolve(audioBlob)
       }

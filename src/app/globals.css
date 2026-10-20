@@ -1,7 +1,14 @@
 @import "tailwindcss";
+@import "shadcn/tailwind.css";
+@import "@xyflow/react/dist/style.css";
+@import "streamdown/styles.css";
 
 /* 导入动画库 */
 @import "tw-animate-css";
+
+@source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/math/dist/*.js";
+@source "../../node_modules/@streamdown/cjk/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -29,6 +36,8 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -83,7 +92,51 @@
   50% {
     background-position: 100% 100%;}
   to {
-    background-position: 0% 0%;}}}
+    background-position: 0% 0%;}}
+  --font-heading: var(--notegen-app-font-family);
+  --font-sans: var(--notegen-app-font-family);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-1: hsl(var(--chart-1));
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@keyframes recordSearchBreathe {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.45);
+    background-color: rgba(254, 243, 199, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.9);
+    background-color: rgba(254, 243, 199, 0.9);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
+    background-color: rgba(254, 243, 199, 0.35);
+  }
+}
+
+.record-search-highlight {
+  animation: recordSearchBreathe 1.5s ease-in-out 2;
+}
 
 /* 基础样式 - 包含主题变量定义 */
 @layer base {
@@ -106,6 +159,11 @@
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 95% 25%;
+    --promotion-gradient-start: 263 70% 50%;
+    --promotion-gradient-middle: 330 75% 48%;
+    --promotion-gradient-end: 24 90% 45%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
@@ -115,7 +173,7 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -127,6 +185,11 @@
     --component-inactive-color: var(--muted-foreground);
     --component-bg: var(--card);
     --component-shadow: var(--border);
+    --scrollbar-size: 12px;
+    --scrollbar-track-hover: hsl(var(--muted) / 0.28);
+    --scrollbar-thumb: hsl(var(--muted-foreground) / 0.26);
+    --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.48);
+    --scrollbar-thumb-active: hsl(var(--foreground) / 0.62);
     --component-active-bg: var(--secondary);
     --component-line-inactive-color: var(--border);
     --component-active-color-default: var(--accent-foreground);
@@ -151,6 +214,11 @@
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 65%;
+    --promotion-gradient-start: 263 90% 70%;
+    --promotion-gradient-middle: 330 85% 68%;
+    --promotion-gradient-end: 32 95% 62%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
@@ -174,15 +242,46 @@
     --component-active-bg: var(--secondary);
     --component-line-inactive-color: var(--muted-foreground);
     --component-active-color-default: var(--accent-foreground);
+    --notegen-app-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "WenQuanYi Micro Hei", Arial, sans-serif;
   }
 
   * {
     border-color: hsl(var(--border));
+    @apply border-border outline-ring/50;
   }
 
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: var(--notegen-app-font-family);
+    -webkit-user-select: none;
+    user-select: none;
+    @apply bg-background text-foreground;
+  }
+
+  /* Keep application chrome out of text selections while allowing content copying. */
+  :where(
+    input,
+    textarea,
+    select,
+    [contenteditable]:not([contenteditable="false"]),
+    .ProseMirror,
+    .cm-content,
+    .markdown-body,
+    .streamdown-document,
+    .note-wrapper,
+    [data-allow-text-selection]
+  ) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :where(button, [role="button"]) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
@@ -192,59 +291,295 @@ html, body {
   overflow: hidden;
 }
 
-.file-manange-item {
+.mobile-setting-skill-summary {
+  display: contents;
+}
+
+@media (max-width: 639px) {
+  .mobile-setting-screen [data-slot="item"] {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .mobile-setting-screen [data-slot="item-content"] {
+    min-width: 0;
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"] {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 0 0 100%;
+    justify-content: stretch;
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"] > [data-slot="tabs"],
+  .mobile-setting-screen [data-slot="item-actions"] > div,
+  .mobile-setting-screen [data-slot="item-actions"] > input,
+  .mobile-setting-screen [data-slot="item-actions"] > button:not([role="switch"]) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mobile-setting-screen [data-slot="item"]:has(> [data-slot="item-actions"] > [data-slot="switch"]),
+  .mobile-setting-screen [data-slot="item"].mobile-setting-inline-item {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"]:has(> [data-slot="switch"]),
+  .mobile-setting-screen .mobile-setting-inline-action {
+    width: auto;
+    max-width: none;
+    flex: 0 0 auto;
+    margin-left: auto;
+    justify-content: flex-end;
+  }
+
+  .mobile-setting-screen [data-slot="button"][data-variant="destructive"] {
+    background-color: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
+  }
+
+  .mobile-setting-screen [data-slot="item"].mobile-setting-skill-card {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .mobile-setting-screen .mobile-setting-skill-summary {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 100%;
+    align-items: flex-start;
+    gap: 0.625rem;
+  }
+
+  .mobile-setting-screen [data-slot="item"].mobile-setting-skill-card > [data-slot="item-actions"].mobile-setting-skill-controls {
+    width: 100%;
+    max-width: none;
+    flex: 0 0 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    border-top: 1px solid hsl(var(--border) / 0.6);
+    padding-top: 0.625rem;
+    gap: 0.75rem;
+  }
+
+  .mobile-setting-screen [data-slot="item"].mobile-setting-skill-card > [data-slot="item-actions"].mobile-setting-skill-controls > [data-slot="switch"] {
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+    flex: 0 0 32px;
+  }
+
+  .mobile-setting-screen [data-slot="item"].mobile-setting-skill-card > [data-slot="item-actions"].mobile-setting-skill-controls > button {
+    width: auto;
+    min-width: auto;
+    flex: 0 0 auto;
+  }
+
+  .mobile-setting-screen [data-slot="tabs-list"] {
+    max-width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .mobile-setting-screen [data-setting-section-header] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-setting-screen [data-slot="card-header"]:has([data-slot="card-action"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mobile-setting-screen [data-slot="card-action"] {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .mobile-setting-screen [data-slot="card-header"].mobile-setting-inline-card-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .mobile-setting-screen [data-slot="card-action"].mobile-setting-inline-card-action {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    justify-self: end;
+  }
+
+  .mobile-setting-screen [data-slot="card-footer"] {
+    flex-wrap: wrap;
+  }
+
+  .mobile-setting-screen [data-slot="field"][data-orientation="horizontal"] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-setting-screen [data-slot="field"][data-orientation="horizontal"] > [role="switch"] {
+    align-self: flex-end;
+  }
+
+  .mobile-setting-screen [data-slot="field"][data-orientation="horizontal"].mobile-setting-token-option {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .mobile-setting-screen [data-slot="field"][data-orientation="horizontal"].mobile-setting-inline-switch-field {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .mobile-setting-screen [data-slot="field"][data-orientation="horizontal"].mobile-setting-inline-switch-field > [role="switch"] {
+    align-self: center;
+  }
+
+  .mobile-prompt-dialog-footer {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mobile-prompt-dialog-footer > button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.5rem;
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"].mobile-prompt-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"].mobile-prompt-card-actions > button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.file-manager-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding-right: 0.5rem;
+  border-radius: calc(var(--radius) - 0.1875rem);
   font-size: 0.875rem;
-  cursor: pointer;
+  cursor: default;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: hsl(var(--sidebar-foreground));
+  outline: none;
+  transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease;
 }
 
-.file-manange-item:hover {
-  background-color: hsl(var(--third));
+.file-manager-item:not(.active):not(.file-selected):not(.file-on-drop):hover {
+  background-color: hsl(var(--sidebar-accent));
+  color: hsl(var(--sidebar-accent-foreground));
 }
 
-.dark .file-manange-item:hover {
-  background-color: hsl(var(--muted));
+.file-manager-item:focus-visible {
+  box-shadow: inset 0 0 0 1px hsl(var(--sidebar-ring) / 0.65);
 }
 
-.file-manange-item.active {
-  background-color: hsl(var(--third));
-  color: hsl(var(--third-foreground));
-  font-weight: 700;
+.file-manager-item.active {
+  background-color: hsl(var(--sidebar-accent));
+  color: hsl(var(--sidebar-accent-foreground));
+  font-weight: 500;
 }
 
-.dark .file-manange-item.active {
-  background-color: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
+.file-manager-item.active::before {
+  position: absolute;
+  inset-block: 0.375rem;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 9999px;
+  background: hsl(var(--sidebar-primary));
+  content: "";
 }
 
-.file-manange-item.active .bg-primary-foreground {
-  background-color: hsl(var(--third));
+.file-manager-item.active.file-selected {
+  background-color: hsl(var(--sidebar-accent));
 }
 
-.dark .file-manange-item.active .bg-primary-foreground {
-  background-color: hsl(var(--secondary-foreground));
+.file-manager-item.file-selected {
+  background-color: hsl(var(--sidebar-primary) / 0.09);
+  color: hsl(var(--sidebar-foreground));
+}
+
+.file-manager-item.file-on-drop {
+  background-color: hsl(var(--sidebar-primary) / 0.1);
+  outline: 1px dashed hsl(var(--sidebar-ring) / 0.7);
+  outline-offset: -2px;
+}
+
+.file-manager-item [data-file-manager-drag-handle] > svg,
+.file-manager-item [data-file-manager-drag-handle] > div > svg {
+  color: hsl(var(--muted-foreground));
+  stroke-width: 1.75;
+}
+
+.file-manager-item.active [data-file-manager-drag-handle] > svg,
+.file-manager-item.active [data-file-manager-drag-handle] > div > svg,
+.file-manager-item:hover [data-file-manager-drag-handle] > svg,
+.file-manager-item:hover [data-file-manager-drag-handle] > div > svg {
+  color: currentColor;
 }
 
 :not(table)::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
 :not(table)::-webkit-scrollbar-track {
   background-color: transparent;
+  transition: background-color 0.15s ease;
 }
 
 :not(table)::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: hsl(var(--border));
-  border-width: 1px;
+  background-color: var(--scrollbar-thumb);
+  border-width: 4px;
   border-style: solid;
   border-color: transparent;
   background-clip: padding-box;
+  transition: background-color 0.15s ease, border-width 0.15s ease;
+}
+
+:not(table)::-webkit-scrollbar-track:hover {
+  background-color: var(--scrollbar-track-hover);
+}
+
+:not(table)::-webkit-scrollbar-thumb:hover {
+  border-width: 2px;
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+:not(table)::-webkit-scrollbar-thumb:active {
+  border-width: 1px;
+  background-color: var(--scrollbar-thumb-active);
+}
+
+:not(table)::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+:not(table) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Main side panels contain overscroll without reserving permanent scrollbar space. */
+.app-panel-scrollbar {
+  overscroll-behavior: contain;
 }
 
 .setting-anchor {
@@ -317,32 +652,34 @@ ol {
   display: none;
 }
 
-/* Custom scrollbar using pseudo element */
+/* Custom overlay scrollbar anchored to the bottom edge. */
 .tab-scrollbar-wrapper {
   position: relative;
 }
 
 .tab-scrollbar-track {
   position: absolute;
+  inset-inline: 2px;
   bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  opacity: 0;
-  transition: opacity 0.2s;
+  height: 4px;
+  background-color: transparent;
+  opacity: 1;
+  transition: background-color 0.15s ease, opacity 0.2s ease;
   pointer-events: none;
 }
 
-.tab-scrollbar-wrapper:hover .tab-scrollbar-track {
+.tab-scrollbar-track.is-scrolling {
   opacity: 1;
 }
 
 .tab-scrollbar-thumb {
   position: absolute;
+  bottom: 0;
   height: 100%;
-  background: hsl(var(--muted-foreground) / 0.4);
-  border-radius: 2px;
-  min-width: 20px;
+  border-radius: 9999px;
+  background: var(--scrollbar-thumb);
+  min-width: 24px;
+  transition: transform 0.08s linear;
 }
 
 @layer base {
@@ -352,7 +689,66 @@ ol {
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--notegen-app-font-family);
   }
+}
+
+/* Canvas anchors use larger hit areas and keep resize handles away from connection points. */
+.notegen-canvas .react-flow__handle {
+  z-index: 32;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid hsl(var(--background));
+  background: hsl(var(--primary));
+  box-shadow: 0 1px 4px hsl(var(--foreground) / 0.2);
+  transition: box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.notegen-canvas .react-flow__handle::after {
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  content: "";
+}
+
+.notegen-canvas .react-flow__handle:hover,
+.notegen-canvas .react-flow__handle.connecting,
+.notegen-canvas .react-flow__handle.valid {
+  background: hsl(var(--ring));
+  box-shadow:
+    0 0 0 4px hsl(var(--ring) / 0.18),
+    0 1px 5px hsl(var(--foreground) / 0.24);
+}
+
+.notegen-canvas .react-flow__resize-control.handle {
+  z-index: 31;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid hsl(var(--background));
+  border-radius: 3px;
+  background: hsl(var(--primary));
+  box-shadow: 0 1px 5px hsl(var(--foreground) / 0.22);
+}
+
+.notegen-canvas .react-flow__resize-control.handle::after {
+  position: absolute;
+  inset: -9px;
+  content: "";
+}
+
+/* Edge-center resize handles overlap connection handles; border lines still resize each axis. */
+.notegen-canvas .react-flow__resize-control.handle.top:not(.left):not(.right),
+.notegen-canvas .react-flow__resize-control.handle.bottom:not(.left):not(.right),
+.notegen-canvas .react-flow__resize-control.handle.left:not(.top):not(.bottom),
+.notegen-canvas .react-flow__resize-control.handle.right:not(.top):not(.bottom) {
+  display: none;
+}
+
+.notegen-canvas .react-flow__resize-control.line {
+  z-index: 30;
+  border-color: hsl(var(--ring) / 0.75);
 }
 
 /* Tiptap 搜索替换高亮样式 */
@@ -380,4 +776,30 @@ ol {
 .dark .search-result.is-current {
   background-color: #ea580c !important;
   color: #fff !important;
+}
+
+/* Photo preview should leave breathing room around large images. */
+.PhotoView-Portal.notegen-photo-preview .PhotoView-Slider__BannerWrap {
+  display: none;
+}
+
+.PhotoView-Portal.notegen-photo-preview .PhotoView-Slider__Overlay {
+  pointer-events: none;
+  position: relative;
+  z-index: 30;
+}
+
+.PhotoView-Portal.notegen-photo-preview .notegen-photo-preview-control {
+  pointer-events: auto;
+}
+
+.PhotoView-Portal.notegen-photo-preview .notegen-photo-preview-photo {
+  scale: 0.9;
+  transform-origin: center;
+}
+
+@media (max-width: 640px) {
+  .PhotoView-Portal.notegen-photo-preview .notegen-photo-preview-photo {
+    scale: 0.88;
+  }
 }

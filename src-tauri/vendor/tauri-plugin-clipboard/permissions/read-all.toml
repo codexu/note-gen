@@ -1,0 +1,20 @@
+"$schema" = "schemas/schema.json"
+
+[[permission]]
+identifier = "read-all"
+description = "This enables all read related commands to clipboard"
+commands.allow = [
+    "has_text",
+    "has_image",
+    "has_html",
+    "has_rtf",
+    "has_files",
+    "available_types",
+    "read_text",
+    "read_files",
+    "read_files_uris",
+    "read_html",
+    "read_image_base64",
+    "read_image_binary",
+    "read_rtf",
+]

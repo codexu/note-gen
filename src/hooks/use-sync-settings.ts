@@ -53,12 +53,15 @@ export function useSyncSettings(): UseSyncSettingsReturn {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [platformStatus, setPlatformStatus] = useState<Record<SyncPlatform, SyncPlatformStatus>>({
+    local: { ...defaultPlatformStatus },
     github: { ...defaultPlatformStatus },
     gitee: { ...defaultPlatformStatus },
     gitlab: { ...defaultPlatformStatus },
     gitea: { ...defaultPlatformStatus },
     s3: { ...defaultPlatformStatus },
     webdav: { ...defaultPlatformStatus },
+    cloudFolder: { ...defaultPlatformStatus },
+    selfHosted: { ...defaultPlatformStatus },
   })
 
   const initialized = useRef(false)
@@ -72,7 +75,7 @@ export function useSyncSettings(): UseSyncSettingsReturn {
       try {
         const store = await getStore()
 
-        const platforms: SyncPlatform[] = ['github', 'gitee', 'gitlab', 'gitea', 's3', 'webdav']
+        const platforms: SyncPlatform[] = ['github', 'gitee', 'gitlab', 'gitea', 's3', 'webdav', 'cloudFolder', 'selfHosted']
         const statusMap: Record<SyncPlatform, SyncPlatformStatus> = { ...platformStatus }
 
         await Promise.all(

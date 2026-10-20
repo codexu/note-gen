@@ -18,10 +18,13 @@ import {
   ListOrdered,
   CheckSquare,
   SquareCode,
+  Undo2,
+  Redo2,
 } from 'lucide-react'
 
 const ACTION_META = {
-  quote: { label: '引用', icon: Quote },
+  undo: { label: '撤销', icon: Undo2 },
+  redo: { label: '重做', icon: Redo2 },
   ai: { label: 'AI', icon: Sparkles },
   bold: { label: '粗体', icon: Bold },
   highlight: { label: '高亮', icon: Highlighter },

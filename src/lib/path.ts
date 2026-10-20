@@ -1,4 +1,11 @@
-import { DirTree } from "@/stores/article"
+import type { DirTree } from "@/stores/article"
+
+export function joinRelativePath(...parts: string[]) {
+  return parts
+    .map(part => part.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/')
+}
 
 // 计算父目录路径
 export function computedParentPath(item: DirTree) {

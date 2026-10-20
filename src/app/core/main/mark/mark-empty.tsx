@@ -1,10 +1,27 @@
-import { Highlighter } from "lucide-react";
-import { useTranslations } from 'next-intl';
+import { Inbox } from "lucide-react"
+import { useTranslations } from "next-intl"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 
 export default function MarkEmpty() {
-  const t = useTranslations();
-  return <div className="flex flex-col justify-center items-center flex-1 w-full pt-32">
-    <Highlighter className="size-16 opacity-10 mb-2" />
-    <p className='text-zinc-500 opacity-30'>{t('record.mark.empty')}</p>
-  </div>
+  const t = useTranslations()
+
+  return (
+    <Empty className="min-h-48">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Inbox />
+        </EmptyMedia>
+        <EmptyTitle>{t('record.mark.empty')}</EmptyTitle>
+        <EmptyDescription className="whitespace-pre-line text-xs">
+          {t('record.mark.mark.emptyHint')}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  )
 }

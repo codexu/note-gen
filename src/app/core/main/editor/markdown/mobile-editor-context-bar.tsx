@@ -1,5 +1,6 @@
 'use client'
 
+import type { MouseEvent, PointerEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { buildMobileEditorContextBarViewModel } from './mobile-editor-context-bar-view-model'
@@ -7,7 +8,8 @@ import { buildMobileEditorContextBarViewModel } from './mobile-editor-context-ba
 type MobileContextMode = 'text' | 'image' | 'table'
 
 type MobileContextAction =
-  | 'quote'
+  | 'undo'
+  | 'redo'
   | 'ai'
   | 'bold'
   | 'highlight'
@@ -35,9 +37,12 @@ export function MobileEditorContextBar({
   void mode
   void previewText
   const viewModel = buildMobileEditorContextBarViewModel(activeActions)
+  const preventFocusSteal = (event: PointerEvent<HTMLButtonElement> | MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+  }
 
   return (
-    <div className="mobile-editor-context-bar border-b border-border bg-background/90 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <div className="mobile-editor-context-bar border-b border-border bg-background/95 px-2 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className={cn('flex gap-1 overflow-x-auto', viewModel.hideScrollbar && 'scrollbar-hide')}>
         {viewModel.items.map((item) => {
           const typedAction = item.action as MobileContextAction
@@ -52,9 +57,11 @@ export function MobileEditorContextBar({
               variant={viewModel.buttonVariant}
               size={viewModel.buttonSize}
               className={cn(
-                'shrink-0 rounded-2xl text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                'size-9 min-h-9 min-w-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted/80 hover:text-foreground',
                 typedAction === 'delete-image' && 'text-destructive hover:bg-destructive/10 hover:text-destructive',
               )}
+              onPointerDown={preventFocusSteal}
+              onMouseDown={preventFocusSteal}
               onClick={() => onAction(typedAction)}
             >
               <Icon className="size-4" />

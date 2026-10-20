@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import useSettingStore from "@/stores/setting";
-import { Input } from "@/components/ui/input";
 import { createOpenAIClient } from "@/lib/ai/utils";
-import OpenAI from "openai";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import type OpenAI from "openai";
+import { ChevronsUpDown, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/responsive-popover";
 import {
   Command,
   CommandEmpty,
@@ -18,6 +20,8 @@ import {
 import { AiConfig } from "../config";
 import { Store } from "@tauri-apps/plugin-store";
 import emitter from "@/lib/emitter";
+import { useTranslations } from "next-intl";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 
 export default function ModelSelect(
   { model, setModel, aiConfig }:
@@ -29,6 +33,7 @@ export default function ModelSelect(
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState<string>("") 
   const currentRequestIdRef = useRef<number>(0)
+  const t = useTranslations('settings.ai')
   
   // 检查输入的模型是否存在于列表中
   const modelExists = (value: string) => {
@@ -83,7 +88,7 @@ export default function ModelSelect(
       
       if (requestId !== currentRequestIdRef.current) return null;
       
-      const uniqueModels = models.data.filter((model, index) => models.data.findIndex(m => m.id === model.id) === index)
+      const uniqueModels = models.data.filter((model: OpenAI.Models.Model, index: number) => models.data.findIndex((m: OpenAI.Models.Model) => m.id === model.id) === index)
       return uniqueModels
     } catch {
       return []
@@ -146,8 +151,8 @@ export default function ModelSelect(
   
   return (<>
     {list.length ? (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger className="w-full" asChild>
+        <ResponsivePopover open={open} onOpenChange={setOpen} mobileTitle={t('selectModel')}>
+          <ResponsivePopoverTrigger className="w-full" asChild>
             <Button
               variant="outline"
               role="combobox"
@@ -156,14 +161,14 @@ export default function ModelSelect(
             >
               {model
                 ? list.find((item) => item.id === model)?.id || model
-                : "Select model"}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                : t('selectModel')}
+              <ChevronsUpDown />
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-0" align="start">
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-[300px] p-0" align="start">
             <Command className="w-full">
               <CommandInput
-                placeholder="Search model..."
+                placeholder={t('searchModels')}
                 value={inputValue}
                 onValueChange={handleInputChange}
               />
@@ -180,7 +185,7 @@ export default function ModelSelect(
                       </Button>
                     </div>
                   ) : (
-                    <div className="py-6 text-center text-sm">No model found.</div>
+                    <div className="py-6 text-center text-sm">{t('noModelResults')}</div>
                   )}
                 </CommandEmpty>
                 <CommandGroup>
@@ -188,35 +193,41 @@ export default function ModelSelect(
                     <CommandItem
                       key={item.id}
                       value={item.id}
+                      data-checked={model === item.id}
                       onSelect={() => handleSelectOrCreate(item.id)}
                       className="text-sm py-2 cursor-pointer"
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          model === item.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
                       {item.id}
                     </CommandItem>
                   ))}
                 </CommandGroup>
               </CommandList>
             </Command>
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
       ) :
-        <div className="flex gap-2 flex-col">
-          <Input 
-            value={model} 
-            onChange={(e) => syncModelList(e.target.value)} 
-            className="w-full mt-2" 
-            placeholder="Input model name" 
-          />
+        <div className="flex flex-col gap-2">
+          <InputGroup>
+            <InputGroupInput
+              value={model}
+              onChange={(event) => syncModelList(event.target.value)}
+              placeholder={t('modelNamePlaceholder')}
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={t('refreshModelList')}
+                disabled={loading}
+                onClick={() => void initModelList()}
+              >
+                <RefreshCw className={loading ? 'animate-spin' : undefined} />
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
           {loading && 
             <div className="flex gap-2 items-center text-xs text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              <p className="line-clamp-1 flex-1">Loading models...</p>
+              <Loader2 className="animate-spin" />
+              <p className="line-clamp-1 flex-1">{t('loadingModels')}</p>
             </div>
           }
         </div>

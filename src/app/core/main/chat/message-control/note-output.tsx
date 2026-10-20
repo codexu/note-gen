@@ -2,29 +2,31 @@
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from "@/components/responsive-dialog"
+import { ResponsiveSelect } from "@/components/responsive-select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { extractTitle } from "@/lib/markdown"
 import { getFilePathOptions, getWorkspacePath, getGenericPathOptions } from "@/lib/workspace"
 import useTagStore from "@/stores/tag"
-import { CheckedState } from "@radix-ui/react-checkbox"
 import { BaseDirectory, readDir, writeTextFile } from "@tauri-apps/plugin-fs"
 import { Store } from "@tauri-apps/plugin-store"
 import { SquarePen, TriangleAlert } from "lucide-react"
 import { useEffect, useState } from "react"
-import { redirect } from 'next/navigation'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useRouter } from 'next/navigation'
 import { Chat } from "@/db/chats"
 import { useTranslations } from "next-intl"
 import useArticleStore from "@/stores/article"
+import { useIsMobile } from "@/hooks/use-mobile"
+
+type CheckedState = boolean | "indeterminate"
 
 export function NoteOutput({chat}: {chat: Chat}) {
   const { deleteTag, currentTagId } = useTagStore()
@@ -35,6 +37,8 @@ export function NoteOutput({chat}: {chat: Chat}) {
   const [folders, setFolders] = useState<string[]>([])
   const [isRemove, setIsRemove] = useState<CheckedState>(true)
   const t = useTranslations('record.chat')
+  const router = useRouter()
+  const isMobile = useIsMobile()
 
   async function handleTransform() {
     const content = chat?.content || ''
@@ -58,7 +62,7 @@ export function NoteOutput({chat}: {chat: Chat}) {
     }
     setOpen(false)
     await loadFileTree()
-    redirect('/core/article')
+    router.push(isMobile ? '/mobile/writing' : '/core/article')
   }
 
   async function readArticleDir() {
@@ -84,37 +88,38 @@ export function NoteOutput({chat}: {chat: Chat}) {
   }, [chat])
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <a className="cursor-pointer flex items-center gap-1 hover:underline">
+    <ResponsiveDialog open={open} onOpenChange={setOpen}>
+      <ResponsiveDialogTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('note.convert')}
+        >
           <SquarePen className="size-4" />
-        </a>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[525px]">
-        <DialogHeader>
-          <DialogTitle>{t('note.convert')}</DialogTitle>
-          <DialogDescription>
+        </Button>
+      </ResponsiveDialogTrigger>
+      <ResponsiveDialogContent className="sm:max-w-[525px]">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{t('note.convert')}</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             {t('note.description')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2 mt-2">
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
+        <div className="mt-2 flex flex-col gap-2 px-4 sm:px-0">
           <Label>{t('note.filename')}</Label>
-          <div className="flex border rounded-lg">
-            <Select value={path} onValueChange={setPath}>
-              <SelectTrigger className="w-[180px] border-none outline-none">
-                <SelectValue placeholder={t('note.selectFolder')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="/">{t('note.rootDirectory')}</SelectItem>
-                  {
-                    folders.map((folder, index) => {
-                      return <SelectItem key={index} value={folder}>{folder}</SelectItem>
-                    })
-                  }
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <ResponsiveSelect
+              title={t('note.selectFolder')}
+              value={path}
+              onValueChange={setPath}
+              className="sm:w-[180px]"
+              placeholder={t('note.selectFolder')}
+              options={[
+                { value: '/', label: t('note.rootDirectory') },
+                ...folders.map(folder => ({ value: folder, label: folder })),
+              ]}
+            />
             <Input className="border-none" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="flex items-center space-x-2 mt-2">
@@ -127,13 +132,13 @@ export function NoteOutput({chat}: {chat: Chat}) {
             </label>
           </div>
         </div>
-        <DialogFooter>
-          <div className="flex items-center justify-end gap-2 pt-4">
+        <ResponsiveDialogFooter>
+          <div className="flex flex-col items-stretch gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <p className="text-xs text-zinc-400 flex items-center gap-1"><TriangleAlert className="size-4" />{t('note.warning')}</p>
             <Button type="submit" onClick={handleTransform}>{t('note.convert_button')}</Button>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

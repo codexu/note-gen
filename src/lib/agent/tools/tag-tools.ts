@@ -3,7 +3,7 @@ import { getTags, insertTag, updateTag, delTag, Tag, insertTags } from '@/db/tag
 
 export const listTagsTool: Tool = {
   name: 'list_tags',
-  description: 'List all tags (organization categories for marks).',
+  description: 'List tag organization categories for an explicit tag-management or record-management operation. Never use this tool as a first step for knowledge discovery; use knowledge_search instead.',
   category: 'tag',
   requiresConfirmation: false,
   parameters: [],
@@ -39,10 +39,19 @@ export const createTagTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const tags = await getTags()
+      const existing = tags.find(tag => tag.name === params.name)
+      if (existing) {
+        return {
+          success: true,
+          data: { id: existing.id, name: existing.name, alreadyExists: true },
+          message: `标签 "${params.name}" 已存在，无需重复创建`,
+        }
+      }
       const result = await insertTag({ name: params.name })
       return {
         success: true,
-        data: { id: result.lastInsertId },
+        data: { id: result.lastInsertId, name: params.name, alreadyExists: false },
         message: `成功创建标签 "${params.name}"，ID: ${result.lastInsertId}`,
       }
     } catch (error) {
@@ -95,6 +104,14 @@ export const updateTagTool: Tool = {
         ...tag,
         name: params.name !== undefined ? params.name : tag.name,
         isPin: params.isPin !== undefined ? params.isPin : tag.isPin,
+      }
+
+      if (updatedTag.name === tag.name && updatedTag.isPin === tag.isPin) {
+        return {
+          success: true,
+          data: { id: tag.id, unchanged: true },
+          message: `标签 ID: ${params.id} 已是目标状态，无需重复更新`,
+        }
       }
       
       await updateTag(updatedTag)
@@ -167,8 +184,9 @@ export const deleteTagTool: Tool = {
       
       if (!tag) {
         return {
-          success: false,
-          error: `未找到ID为 ${params.id} 的标签`,
+          success: true,
+          data: { id: params.id, alreadyAbsent: true },
+          message: `标签 ID: ${params.id} 已不存在，无需重复删除`,
         }
       }
       
@@ -182,6 +200,7 @@ export const deleteTagTool: Tool = {
       await delTag(params.id)
       return {
         success: true,
+        data: { id: params.id, alreadyAbsent: false },
         message: `成功删除标签 "${tag.name}"`,
       }
     } catch (error) {

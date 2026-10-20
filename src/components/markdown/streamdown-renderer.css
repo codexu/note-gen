@@ -1,0 +1,59 @@
+.streamdown-document {
+  box-sizing: border-box;
+  font-family: var(--notegen-app-font-family);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streamdown-document [data-sd-animate] {
+    animation: none;
+  }
+}
+
+/* Keep chat typography proportional to the editor's 16px content-size baseline. */
+.streamdown-document [data-streamdown="heading-1"] {
+  font-size: 2em;
+}
+
+.streamdown-document [data-streamdown="heading-2"] {
+  font-size: 1.5em;
+}
+
+.streamdown-document [data-streamdown="heading-3"] {
+  font-size: 1.25em;
+}
+
+.streamdown-document [data-streamdown="heading-4"],
+.streamdown-document [data-streamdown="heading-5"],
+.streamdown-document [data-streamdown="heading-6"] {
+  font-size: 1em;
+}
+
+.streamdown-document [data-streamdown="inline-code"] {
+  font-size: 0.9em;
+}
+
+.streamdown-document [data-streamdown="table-header-cell"],
+.streamdown-document [data-streamdown="table-cell"] {
+  font-size: inherit;
+}
+
+.streamdown-document [data-streamdown="table-wrapper"] {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.streamdown-document [data-streamdown="table"] {
+  width: 100%;
+}
+
+.streamdown-document img {
+  max-width: 100%;
+  height: auto;
+}
+
+.streamdown-document pre {
+  max-width: 100%;
+  white-space: pre;
+}

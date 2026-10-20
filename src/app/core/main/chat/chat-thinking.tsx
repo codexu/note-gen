@@ -45,9 +45,11 @@ export default function ChatThinking({chat}: { chat: Chat }) {
   return (
     <div className="w-full space-y-1 mb-2 bg-muted/30 border border-border/50 rounded-lg overflow-hidden">
       {/* 思考卡片 - 单行 */}
-      <div
-        className={`flex items-center gap-2 py-1.5 px-3 cursor-pointer min-w-0 transition-colors ${isThinking ? 'bg-muted/50' : 'hover:bg-muted/40'}`}
+      <button
+        type="button"
+        className={`flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 px-3 py-1.5 text-left transition-colors ${isThinking ? 'bg-muted/50' : 'hover:bg-muted/40'}`}
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
       >
         {isThinking ? (
           <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
@@ -58,7 +60,7 @@ export default function ChatThinking({chat}: { chat: Chat }) {
           {isThinking ? t('ai.thinking') : title}
         </span>
         <ChevronRight className={`size-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-      </div>
+      </button>
 
       {/* 展开的详细内容 */}
       {isExpanded && (

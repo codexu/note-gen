@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { ServerList } from '@/app/core/setting/mcp/server-list'
+import { SettingType } from '@/app/core/setting/components/setting-base'
 import { useMcpStore } from '@/stores/mcp'
 
 export default function McpSettingPage() {
@@ -10,18 +11,12 @@ export default function McpSettingPage() {
   const { initMcpData } = useMcpStore()
 
   useEffect(() => {
-    initMcpData()
-  }, [])
+    void initMcpData()
+  }, [initMcpData])
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('desc')}</p>
-      </div>
-      <div className="space-y-6">
-        <ServerList />
-      </div>
-    </div>
+    <SettingType id="mcp" title={t('title')} desc={t('desc')}>
+      <ServerList mobile />
+    </SettingType>
   )
 }

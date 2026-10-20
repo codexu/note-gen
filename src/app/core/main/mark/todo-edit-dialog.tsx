@@ -13,13 +13,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useState, useEffect } from "react"
-import { updateMark } from "@/db/marks"
+import { useState, useEffect, useCallback, useRef } from "react"
 import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
-import { CheckSquare } from "lucide-react"
-
-type Priority = 'low' | 'medium' | 'high'
+import { ArrowDown, ArrowUp, CheckSquare, Minus } from "lucide-react"
+import { parseTodoMarkContent } from "./mark-list-item-content"
+import type { Priority } from "./todo-form"
 
 interface TodoData {
   title: string
@@ -36,56 +35,47 @@ interface TodoEditDialogProps {
 
 export function TodoEditDialog({ mark, open, onOpenChange }: TodoEditDialogProps) {
   const t = useTranslations()
-  const { fetchMarks } = useMarkStore()
+  const { updateMark } = useMarkStore()
   const { fetchTags, getCurrentTag } = useTagStore()
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<Priority>('medium')
+  const [todoData, setTodoData] = useState<TodoData>(() => parseTodoMarkContent(mark))
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (open && mark) {
-      try {
-        const todoData: TodoData = JSON.parse(mark.content || '{}')
-        setTitle(todoData.title || '')
-        setDescription(todoData.description || '')
-        setPriority(todoData.priority || 'medium')
-      } catch {
-        setTitle(mark.desc || '')
-        setDescription('')
-        setPriority('medium')
-      }
+      setTodoData(parseTodoMarkContent(mark))
     }
   }, [open, mark])
 
-  async function handleSave() {
-    if (!title.trim()) {
-      return
-    }
-
-    const todoData: TodoData = {
-      title: title.trim(),
-      description: description.trim(),
-      priority,
-      completed: false // 编辑后重置完成状态
-    }
-
+  const persistTodoData = useCallback(async (nextTodoData: TodoData) => {
+    setTodoData(nextTodoData)
     await updateMark({
       ...mark,
-      desc: title.trim(),
-      content: JSON.stringify(todoData)
+      desc: nextTodoData.title.trim(),
+      content: JSON.stringify(nextTodoData)
     })
 
-    await fetchMarks()
     await fetchTags()
     getCurrentTag()
+  }, [fetchTags, getCurrentTag, mark, updateMark])
 
-    onOpenChange(false)
-  }
+  const handleOpenAutoFocus = useCallback((event: Event) => {
+    event.preventDefault()
+  }, [])
+
+  const handleAnimationEnd = useCallback((event: React.AnimationEvent<HTMLDivElement>) => {
+    if (!open || event.currentTarget.dataset.state !== 'open') return
+
+    titleInputRef.current?.focus()
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-full md:min-w-[550px]">
+      <DialogContent
+        className="min-w-full md:min-w-[550px]"
+        onOpenAutoFocus={handleOpenAutoFocus}
+        onAnimationEnd={handleAnimationEnd}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckSquare className="w-5 h-5" />
@@ -100,9 +90,10 @@ export function TodoEditDialog({ mark, open, onOpenChange }: TodoEditDialogProps
           <div>
             <Label htmlFor="edit-todo-title">{t('record.mark.todo.title')} *</Label>
             <Input
+              ref={titleInputRef}
               id="edit-todo-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={todoData.title}
+              onChange={(e) => void persistTodoData({ ...todoData, title: e.target.value })}
               placeholder={t('record.mark.todo.titlePlaceholder')}
               className="mt-1.5"
             />
@@ -113,8 +104,9 @@ export function TodoEditDialog({ mark, open, onOpenChange }: TodoEditDialogProps
             <Textarea
               id="edit-todo-description"
               rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              maxRows={8}
+              value={todoData.description}
+              onChange={(e) => void persistTodoData({ ...todoData, description: e.target.value })}
               placeholder={t('record.mark.todo.descriptionPlaceholder')}
               className="mt-1.5"
             />
@@ -122,15 +114,33 @@ export function TodoEditDialog({ mark, open, onOpenChange }: TodoEditDialogProps
 
           <div>
             <Label htmlFor="edit-todo-priority">{t('record.mark.todo.priority')}</Label>
-            <Tabs value={priority} onValueChange={(value) => setPriority(value as Priority)} className="mt-1.5">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="low" className="data-[state=active]:bg-green-800 data-[state=active]:text-white">
+            <Tabs
+              id="edit-todo-priority"
+              orientation="horizontal"
+              value={todoData.priority}
+              onValueChange={(value) => void persistTodoData({ ...todoData, priority: value as Priority })}
+              className="mt-1.5"
+            >
+              <TabsList className="w-full group-data-vertical/tabs:h-8 group-data-vertical/tabs:flex-row">
+                <TabsTrigger
+                  value="low"
+                  className="group-data-vertical/tabs:w-auto group-data-vertical/tabs:justify-center"
+                >
+                  <ArrowDown data-icon="inline-start" />
                   {t('record.mark.todo.priorityLow')}
                 </TabsTrigger>
-                <TabsTrigger value="medium" className="data-[state=active]:bg-orange-700 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="medium"
+                  className="group-data-vertical/tabs:w-auto group-data-vertical/tabs:justify-center"
+                >
+                  <Minus data-icon="inline-start" />
                   {t('record.mark.todo.priorityMedium')}
                 </TabsTrigger>
-                <TabsTrigger value="high" className="data-[state=active]:bg-red-900 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="high"
+                  className="group-data-vertical/tabs:w-auto group-data-vertical/tabs:justify-center"
+                >
+                  <ArrowUp data-icon="inline-start" />
                   {t('record.mark.todo.priorityHigh')}
                 </TabsTrigger>
               </TabsList>
@@ -140,10 +150,7 @@ export function TodoEditDialog({ mark, open, onOpenChange }: TodoEditDialogProps
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={handleSave} disabled={!title.trim()}>
-            {t('common.save')}
+            {t('common.close')}
           </Button>
         </DialogFooter>
       </DialogContent>

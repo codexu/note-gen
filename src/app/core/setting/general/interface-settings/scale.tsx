@@ -22,13 +22,13 @@ export function ScaleSettings() {
 
   return (
     <Item variant="outline">
-      <ItemMedia variant="icon"><ZoomIn className="size-4" /></ItemMedia>
+      <ItemMedia variant="icon"><ZoomIn /></ItemMedia>
       <ItemContent>
         <ItemTitle>{t('scale.title')}</ItemTitle>
         <ItemDescription>{t('scale.desc')}</ItemDescription>
       </ItemContent>
-      <ItemActions>
-        <div className="space-y-3 w-[180px]">
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
+        <div className="flex w-full flex-col gap-3 sm:w-[180px]">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">75%</span>
             <span className="text-xs font-medium">{uiScale}%</span>

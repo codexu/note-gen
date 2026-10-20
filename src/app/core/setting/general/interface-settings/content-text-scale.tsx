@@ -15,13 +15,13 @@ export function ContentTextScaleSettings() {
 
   return (
     <Item variant="outline">
-      <ItemMedia variant="icon"><Type className="size-4" /></ItemMedia>
+      <ItemMedia variant="icon"><Type /></ItemMedia>
       <ItemContent>
         <ItemTitle>{t('contentTextScale.title')}</ItemTitle>
         <ItemDescription>{t('contentTextScale.desc')}</ItemDescription>
       </ItemContent>
-      <ItemActions>
-        <div className="space-y-3 w-[180px]">
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
+        <div className="flex w-full flex-col gap-3 sm:w-[180px]">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">75%</span>
             <span className="text-xs font-medium">{contentTextScale}%</span>

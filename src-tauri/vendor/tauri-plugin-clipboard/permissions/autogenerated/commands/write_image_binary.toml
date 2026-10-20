@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-write-image-binary"
+description = "Enables the write_image_binary command without any pre-configured scope."
+commands.allow = ["write_image_binary"]
+
+[[permission]]
+identifier = "deny-write-image-binary"
+description = "Denies the write_image_binary command without any pre-configured scope."
+commands.deny = ["write_image_binary"]

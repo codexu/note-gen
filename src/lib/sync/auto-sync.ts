@@ -2,14 +2,20 @@ import { Store } from '@tauri-apps/plugin-store'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
-import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits } from '@/lib/sync/gitlab'
+import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits, getGitlabApiBaseUrl } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
 import { s3HeadObject, s3Download } from './s3'
 import { webdavHeadObject, webdavDownload } from './webdav'
-import { S3Config, WebDAVConfig } from '@/types/sync'
+import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
+import {
+  androidCloudFolderWorkspaceDownloadBytes,
+  androidCloudFolderWorkspaceHead,
+  supportsCloudFolderWorkspace,
+} from './cloud-folder'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
+import { getCurrentSyncContext, getSyncMetadataKey } from '@/lib/sync/sync-context'
 import { toast } from '@/hooks/use-toast'
-import { readTextFile, writeTextFile, stat, mkdir, exists } from '@tauri-apps/plugin-fs'
+import { readTextFile, writeTextFile, stat, mkdir, exists, remove } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import {
   checkFileLock,
@@ -24,6 +30,13 @@ import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import useSyncStore from '@/stores/sync'
 import emitter from '@/lib/emitter'
+import useArticleStore from '@/stores/article'
+import {
+  markEditorPathMutation,
+  prepareActiveEditorDeactivation,
+  prepareActiveEditorDeactivationDurably,
+  runEditorPathWriteTransaction,
+} from '@/lib/editor-deactivation'
 
 // Store 实例缓存
 let storeInstance: Store | null = null
@@ -60,17 +73,26 @@ async function getGiteaBranch(): Promise<string> {
 export async function getLocalRecordedSha(filePath: string): Promise<string | null> {
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
-  return syncedShas[filePath] || null
+  const scopedKey = await getSyncMetadataKey(filePath)
+  if (syncedShas[scopedKey]) return syncedShas[scopedKey]
+
+  const context = await getCurrentSyncContext()
+  return context.workspaceKey === '__default__' ? syncedShas[filePath] || null : null
 }
 
 /**
  * 设置本地记录的远程 SHA
  */
-export async function setLocalRecordedSha(filePath: string, sha: string): Promise<void> {
+export async function setLocalRecordedSha(
+  filePath: string,
+  sha: string,
+  scopedKey?: string,
+): Promise<void> {
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
-  syncedShas[filePath] = sha
+  syncedShas[scopedKey || await getSyncMetadataKey(filePath)] = sha
   await store.set('syncedFileShas', syncedShas)
+  await store.save()
 }
 
 export interface FileMetadata {
@@ -229,6 +251,50 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
           }
           // 当前平台 API 不直接返回 SHA，返回 undefined
           return { sha: undefined }
+        }
+        break
+      }
+
+      case 'cloudFolder': {
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        const object = config?.path && supportsCloudFolderWorkspace(config)
+          ? await androidCloudFolderWorkspaceHead(config, path)
+          : null
+        if (object) {
+          return {
+            sha: object.etag,
+            lastModified: object.modifiedAt,
+          }
+        }
+        break
+      }
+
+      case 's3': {
+        const config = await store.get<S3Config>('s3SyncConfig')
+        const proxyUrl = await store.get<string>('proxy')
+        const object = config
+          ? await s3HeadObject(config, path, proxyUrl ? { all: proxyUrl } : undefined)
+          : null
+        if (object) {
+          return {
+            sha: object.etag,
+            lastModified: new Date(object.lastModified).getTime(),
+          }
+        }
+        break
+      }
+
+      case 'webdav': {
+        const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+        const proxyUrl = await store.get<string>('proxy')
+        const object = config
+          ? await webdavHeadObject(config, path, proxyUrl ? { all: proxyUrl } : undefined)
+          : null
+        if (object) {
+          return {
+            sha: object.etag,
+            lastModified: new Date(object.lastModified).getTime(),
+          }
         }
         break
       }
@@ -453,6 +519,17 @@ export async function pullRemoteFile(path: string): Promise<string> {
         }
         break
       }
+
+      case 'cloudFolder': {
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        const cloudFile = config?.path && supportsCloudFolderWorkspace(config)
+          ? await androidCloudFolderWorkspaceDownloadBytes(config, path)
+          : null
+        if (cloudFile) {
+          return new TextDecoder().decode(cloudFile.content)
+        }
+        break
+      }
     }
   } catch (error) {
     throw error
@@ -543,6 +620,7 @@ export async function getRemoteCommitInfo(path: string): Promise<{
   try {
     const store = await Store.load('store.json')
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
+    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') return null
     const repo = await getSyncRepoName(primaryBackupMethod as 'github' | 'gitee' | 'gitlab' | 'gitea')
     
     let commits: any[] = []
@@ -690,7 +768,6 @@ export async function autoSyncIfNeeded(path: string, options: {
 async function performSync(path: string, enableConflictResolution: boolean): Promise<string | null> {
   try {
     // 获取本地内容用于冲突检测
-    let localContent = ''
     let actualPath = path
     
     // 检查并清理文件名
@@ -698,14 +775,45 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       actualPath = sanitizeFilePath(path)
     }
     
-    try {
+    type LocalFileSnapshot = { exists: boolean; content: string }
+    const readCurrentLocalSnapshot = async (): Promise<LocalFileSnapshot> => {
       const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(actualPath)
-      if (workspace.isCustom) {
-        localContent = await readTextFile(pathOptions.path)
-      } else {
-        localContent = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      const fileExists = workspace.isCustom
+        ? await exists(pathOptions.path)
+        : await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+      if (!fileExists) return { exists: false, content: '' }
+
+      const content = workspace.isCustom
+        ? await readTextFile(pathOptions.path)
+        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      return { exists: true, content }
+    }
+    const restoreLocalSnapshot = async (snapshot: LocalFileSnapshot): Promise<void> => {
+      if (snapshot.exists) {
+        await saveLocalFile(actualPath, snapshot.content)
+        return
       }
+
+      const workspace = await getWorkspacePath()
+      const pathOptions = await getFilePathOptions(actualPath)
+      const fileExists = workspace.isCustom
+        ? await exists(pathOptions.path)
+        : await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+      if (!fileExists) return
+      if (workspace.isCustom) {
+        await remove(pathOptions.path)
+      } else {
+        await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
+      }
+    }
+    const snapshotsMatch = (left: LocalFileSnapshot, right: LocalFileSnapshot) => (
+      left.exists === right.exists && left.content === right.content
+    )
+
+    let localSnapshot: LocalFileSnapshot = { exists: false, content: '' }
+    try {
+      localSnapshot = await readCurrentLocalSnapshot()
     } catch (error) {
       // 本地文件不存在或目录不存在，这是正常的同步场景
       if (error instanceof Error && 
@@ -717,12 +825,24 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       }
       // 继续处理，将直接拉取远程文件
     }
+    const localContent = localSnapshot.content
     
     const remoteContent = await pullRemoteFile(path)
 
     // 获取远程文件的 SHA，用于后续更新记录的 SHA
     const remoteInfo = await getRemoteFileInfo(path)
     const remoteSha = remoteInfo.sha
+
+    // The remote request can outlive a local edit. Flush a stable snapshot and
+    // abort this pull if the local file changed while the request was running.
+    if (!await prepareActiveEditorDeactivationDurably(actualPath)) return null
+    let latestLocalSnapshot: LocalFileSnapshot = { exists: false, content: '' }
+    try {
+      latestLocalSnapshot = await readCurrentLocalSnapshot()
+    } catch {
+      latestLocalSnapshot = { exists: false, content: '' }
+    }
+    if (!snapshotsMatch(latestLocalSnapshot, localSnapshot)) return null
 
     // 检测和处理冲突
     if (enableConflictResolution && localContent && localContent !== remoteContent) {
@@ -759,31 +879,98 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
           })
           return null
       }
+
+      if (!await prepareActiveEditorDeactivationDurably(actualPath)) return null
+      try {
+        latestLocalSnapshot = await readCurrentLocalSnapshot()
+      } catch {
+        latestLocalSnapshot = { exists: false, content: '' }
+      }
+      if (!snapshotsMatch(latestLocalSnapshot, localSnapshot)) return null
       
-      await saveLocalFile(actualPath, finalContent)
+      markEditorPathMutation(actualPath)
+      const didSave = await runEditorPathWriteTransaction(actualPath, async ({ hasQueuedSave }) => {
+        let snapshotAtGate: LocalFileSnapshot
+        try {
+          snapshotAtGate = await readCurrentLocalSnapshot()
+        } catch {
+          snapshotAtGate = { exists: false, content: '' }
+        }
+        if (!snapshotsMatch(snapshotAtGate, latestLocalSnapshot)) return false
+
+        try {
+          await saveLocalFile(actualPath, finalContent)
+        } catch (writeError) {
+          try {
+            await restoreLocalSnapshot(latestLocalSnapshot)
+          } catch (restoreError) {
+            console.error(`Failed to restore local content after syncing ${actualPath}:`, restoreError)
+          }
+          throw writeError
+        }
+        const targetIsActive = useArticleStore.getState().activeFilePath === actualPath
+        const editorIsStable = !targetIsActive || prepareActiveEditorDeactivation()
+        if (!editorIsStable || hasQueuedSave()) {
+          await restoreLocalSnapshot(latestLocalSnapshot)
+          return false
+        }
+        markEditorPathMutation(actualPath)
+        return true
+      })
+      if (!didSave) return null
+
+      // Apply the accepted snapshot before metadata awaits create another
+      // window for user input. Subsequent edits then naturally queue after it.
+      emitter.emit('sync-content-updated', { path: actualPath, content: finalContent })
       await updateFileSyncTime(actualPath)
 
       // 成功拉取后，更新记录的 SHA
       if (remoteSha) {
         await setLocalRecordedSha(actualPath, remoteSha)
       }
-
-      // 通知编辑器内容已更新
-      emitter.emit('sync-content-updated', { path: actualPath, content: finalContent })
 
       return finalContent
     } else {
       // 无冲突，直接保存
-      await saveLocalFile(actualPath, remoteContent)
+      markEditorPathMutation(actualPath)
+      const didSave = await runEditorPathWriteTransaction(actualPath, async ({ hasQueuedSave }) => {
+        let snapshotAtGate: LocalFileSnapshot
+        try {
+          snapshotAtGate = await readCurrentLocalSnapshot()
+        } catch {
+          snapshotAtGate = { exists: false, content: '' }
+        }
+        if (!snapshotsMatch(snapshotAtGate, latestLocalSnapshot)) return false
+
+        try {
+          await saveLocalFile(actualPath, remoteContent)
+        } catch (writeError) {
+          try {
+            await restoreLocalSnapshot(latestLocalSnapshot)
+          } catch (restoreError) {
+            console.error(`Failed to restore local content after syncing ${actualPath}:`, restoreError)
+          }
+          throw writeError
+        }
+        const targetIsActive = useArticleStore.getState().activeFilePath === actualPath
+        const editorIsStable = !targetIsActive || prepareActiveEditorDeactivation()
+        if (!editorIsStable || hasQueuedSave()) {
+          await restoreLocalSnapshot(latestLocalSnapshot)
+          return false
+        }
+        markEditorPathMutation(actualPath)
+        return true
+      })
+      if (!didSave) return null
+
+      // Keep the editor commit adjacent to the serialized file write.
+      emitter.emit('sync-content-updated', { path: actualPath, content: remoteContent })
       await updateFileSyncTime(actualPath)
 
       // 成功拉取后，更新记录的 SHA
       if (remoteSha) {
         await setLocalRecordedSha(actualPath, remoteSha)
       }
-
-      // 通知编辑器内容已更新
-      emitter.emit('sync-content-updated', { path: actualPath, content: remoteContent })
 
       return remoteContent
     }
@@ -811,6 +998,9 @@ export async function hasNetworkConnection(): Promise<boolean> {
     let proxy: Proxy | undefined = undefined
 
     switch (primaryBackupMethod) {
+      case 'local':
+        clearTimeout(timeoutId)
+        return false
       case 'github':
         token = await store.get<string>('accessToken') || ''
         url = 'https://api.github.com/user'
@@ -821,8 +1011,11 @@ export async function hasNetworkConnection(): Promise<boolean> {
         break
       case 'gitlab':
         token = await store.get<string>('gitlabAccessToken') || ''
-        const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
-        url = `${gitlabUrl}/api/v4/user`
+        url = `${await getGitlabApiBaseUrl()}/user`
+        const gitlabProxyUrl = await store.get<string>('proxy')
+        if (gitlabProxyUrl) {
+          proxy = { all: gitlabProxyUrl }
+        }
         break
       case 'gitea':
         token = await store.get<string>('giteaAccessToken') || ''
@@ -833,6 +1026,55 @@ export async function hasNetworkConnection(): Promise<boolean> {
           proxy = { all: giteaProxyUrl }
         }
         break
+      case 'cloudFolder': {
+        clearTimeout(timeoutId)
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        return Boolean(config && supportsCloudFolderWorkspace(config))
+      }
+      case 'selfHosted': {
+        clearTimeout(timeoutId)
+        const { connectedProfileId } = await import('@/lib/self-hosted-sync/workspaces')
+        const profileId = await connectedProfileId()
+        if (!profileId) return false
+        const {
+          authenticatedClient,
+          getProfile,
+          isSelfHostedAuthenticationError,
+        } = await import('@/lib/self-hosted-sync/profile')
+        try {
+          const { client } = await authenticatedClient(profileId)
+          await client.capabilities()
+          return true
+        } catch (error) {
+          if (
+            isSelfHostedAuthenticationError(error)
+            || (await getProfile(profileId))?.state === 'reauthentication-required'
+          ) {
+            console.info('[self-hosted-sync] Network check requires reauthentication', { profileId })
+            return false
+          }
+          throw error
+        }
+      }
+      case 's3': {
+        clearTimeout(timeoutId)
+        const config = await store.get<S3Config>('s3SyncConfig')
+        return Boolean(
+          config?.accessKeyId.trim()
+          && config.secretAccessKey.trim()
+          && config.region.trim()
+          && config.bucket.trim()
+        )
+      }
+      case 'webdav': {
+        clearTimeout(timeoutId)
+        const config = await store.get<WebDAVConfig>('webdavSyncConfig')
+        return Boolean(
+          config?.url.trim()
+          && config.username.trim()
+          && config.password.trim()
+        )
+      }
       default:
         clearTimeout(timeoutId)
         return false
@@ -843,7 +1085,7 @@ export async function hasNetworkConnection(): Promise<boolean> {
       return false
     }
 
-    const fetchOptions: any = {
+    const fetchOptions: RequestInit & { proxy?: Proxy } = {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -851,7 +1093,7 @@ export async function hasNetworkConnection(): Promise<boolean> {
       }
     }
 
-    // Gitea 自建实例使用代理
+    // 自建实例与极狐等平台使用配置的代理
     if (proxy) {
       fetchOptions.proxy = proxy
     }

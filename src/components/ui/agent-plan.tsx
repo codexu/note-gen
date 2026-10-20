@@ -11,17 +11,15 @@ import {
   Brain,
   Zap,
   Eye,
-  Loader2,
   Clock,
   XCircle,
   CheckCircle,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
-import { DiffViewer } from "@/components/ui/diff-viewer";
 import { formatConfirmationPreview } from "@/lib/agent/tool-confirmation-display";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 // Type definitions from existing codebase
 interface ToolCall {
@@ -44,8 +42,8 @@ interface ConfirmationRecord {
   status: "pending" | "confirmed" | "cancelled";
   timestamp: number;
   scope?: "once" | "conversation";
-  sessionApprovalType?: "write" | "runtime-script-skill";
-  sessionApprovalSkillId?: string;
+  sessionApprovalType?: "runtime-script";
+  sessionApprovalKey?: string;
 }
 
 interface ReActStep {
@@ -75,12 +73,15 @@ interface AgentPlanProps {
   pendingConfirmation?: {
     toolName: string;
     params: Record<string, any>;
+    previewParams?: Record<string, any>;
     originalContent?: string;
     modifiedContent?: string;
     filePath?: string;
+    from?: number;
+    to?: number;
     canApproveForSession?: boolean;
-    sessionApprovalType?: "write" | "runtime-script-skill";
-    sessionApprovalSkillId?: string;
+    sessionApprovalType?: "runtime-script";
+    sessionApprovalKey?: string;
   };
   confirmationHistory?: ConfirmationRecord[];
   currentStepStartTime?: number; // 当前步骤开始时间戳
@@ -139,7 +140,6 @@ export function AgentPlan({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const thoughtRefs = React.useRef<Map<string, HTMLParagraphElement>>(new Map());
   const [currentStepDuration, setCurrentStepDuration] = React.useState<number>(0);
-  const [showDiff, setShowDiff] = React.useState(true);
   const [autoScrollEnabled, setAutoScrollEnabled] = React.useState(true);
 
   const scrollStepIntoView = React.useCallback((stepId: string) => {
@@ -500,7 +500,7 @@ export function AgentPlan({
 
     return formatConfirmationPreview(
       pendingConfirmation.toolName,
-      pendingConfirmation.params ?? {}
+      pendingConfirmation.previewParams ?? pendingConfirmation.params ?? {}
     );
   }, [pendingConfirmation]);
 
@@ -686,15 +686,15 @@ export function AgentPlan({
   const getStatusIcon = (status: DisplayStep["status"]) => {
     switch (status) {
       case "completed":
-        return <CheckCircle2 className="h-4.5 w-4.5 text-green-500" />;
+        return <CheckCircle2 className="size-4.5 text-primary" />;
       case "in-progress":
-        return <CircleDotDashed className="h-4.5 w-4.5 text-blue-500" />;
+        return <CircleDotDashed className="size-4.5 text-primary" />;
       case "need-help":
-        return <CircleAlert className="h-4.5 w-4.5 text-yellow-500" />;
+        return <CircleAlert className="size-4.5 text-muted-foreground" />;
       case "failed":
-        return <CircleX className="h-4.5 w-4.5 text-red-500" />;
+        return <CircleX className="size-4.5 text-destructive" />;
       case "pending":
-        return <Loader2 className="h-4.5 w-4.5 text-blue-500 animate-spin" />;
+        return <Spinner className="size-4.5 text-primary" />;
       default:
         return <Circle className="h-4.5 w-4.5 text-muted-foreground" />;
     }
@@ -727,28 +727,26 @@ export function AgentPlan({
           <li
             key={step.id}
             id={`step-${step.id}`}
-            className={`${index !== 0 ? "mt-1 pt-2" : ""}`}
+            className={cn(index !== 0 && "pt-2")}
           >
             {/* Step row */}
             <div className="group flex items-center gap-2 py-1">
               <div
-                className={`shrink-0 ${canToggle ? "cursor-pointer" : ""}`}
+                className={cn("shrink-0", canToggle && "cursor-pointer")}
                 onClick={() => canToggle && toggleStepExpansion(step.id)}
               >
-                <div className={canToggle ? "cursor-pointer" : ""}>
+                <div className={cn(canToggle && "cursor-pointer")}>
                   {getStatusIcon(step.status)}
                 </div>
               </div>
 
               <div
-                className={`flex min-w-0 grow ${canToggle ? "cursor-pointer" : ""} items-center justify-between`}
+                className={cn("flex min-w-0 grow items-center justify-between", canToggle && "cursor-pointer")}
                 onClick={() => canToggle && toggleStepExpansion(step.id)}
               >
                 <div className="flex-1 truncate">
                   <span
-                    className={`${
-                      isCompleted ? "text-muted-foreground" : ""
-                    }`}
+                    className={cn(isCompleted && "text-muted-foreground")}
                   >
                     {extractTitle(step)}
                   </span>
@@ -763,9 +761,7 @@ export function AgentPlan({
                   )}
                   {canToggle && (
                     <ChevronRight
-                      className={`size-4 text-muted-foreground shrink-0 transition-transform ${
-                        isExpanded ? "rotate-90" : ""
-                      }`}
+                      className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isExpanded && "rotate-90")}
                     />
                   )}
                 </div>
@@ -774,12 +770,12 @@ export function AgentPlan({
 
             {/* Expanded details */}
             {isExpanded && (
-              <div className="border-muted mt-1 mr-2 mb-1.5 ml-6 space-y-2">
+              <div className="mt-1 mr-2 mb-1.5 ml-6 flex flex-col gap-2 border-muted">
                 {/* Thought */}
                 {step.thought && !shouldHideThoughtBlock(step.thought) && (
                   <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                     <div className="flex items-center gap-2 py-1">
-                      <Brain className="size-3.5 text-blue-500 shrink-0" />
+                      <Brain className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="font-medium text-xs">
                         {t("thought")}
                       </span>
@@ -802,7 +798,7 @@ export function AgentPlan({
                 {step.action && (
                   <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                     <div className="flex items-center gap-2 py-1">
-                      <Zap className="size-3.5 text-yellow-500 shrink-0" />
+                      <Zap className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="font-medium text-xs">
                         {t("action")}
                       </span>
@@ -818,7 +814,7 @@ export function AgentPlan({
                 {step.observation && (
                   <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                     <div className="flex items-center gap-2 py-1">
-                      <Eye className="size-3.5 text-green-500 shrink-0" />
+                      <Eye className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="font-medium text-xs">
                         {t("observation")}
                       </span>
@@ -833,9 +829,9 @@ export function AgentPlan({
                 {step.confirmation && (
                   <div className="flex items-center gap-2 py-1.5 px-3 border-t">
                     {step.confirmation.status === "confirmed" ? (
-                      <CheckCircle className="size-4 text-green-500 shrink-0" />
+                      <CheckCircle className="size-4 shrink-0 text-primary" />
                     ) : (
-                      <XCircle className="size-4 text-red-500 shrink-0" />
+                      <XCircle className="size-4 shrink-0 text-destructive" />
                     )}
                     <code className="text-sm text-muted-foreground flex-1 wrap-break-word font-mono">
                       {step.confirmation.toolName}
@@ -852,11 +848,11 @@ export function AgentPlan({
       {/* Current step confirmation (live mode only) */}
       {mode === "live" && pendingConfirmation && (
         <li className="mt-1 pt-2">
-          <div className="rounded-md border border-border/50 bg-muted/30 overflow-hidden">
+          <div className="overflow-hidden rounded-lg border bg-card text-card-foreground">
             {/* Confirmation header */}
             <div className="flex items-center justify-between px-3 py-1.5">
               <div className="flex items-center gap-2 min-w-0">
-                <Clock className="size-4.5 text-orange-500 shrink-0 animate-pulse" />
+                <Clock className="size-4.5 shrink-0 animate-pulse text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-foreground font-medium truncate">
@@ -883,56 +879,22 @@ export function AgentPlan({
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {/* Show diff button */}
-                {pendingConfirmation.originalContent && pendingConfirmation.modifiedContent && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => setShowDiff(!showDiff)}
-                  >
-                    {showDiff ? (
-                      <ChevronUp className="size-4" />
-                    ) : (
-                      <ChevronDown className="size-4" />
-                    )}
-                    <span className="ml-1">Diff</span>
-                  </Button>
-                )}
-              </div>
             </div>
 
-            {/* Diff view */}
-            {showDiff && pendingConfirmation.originalContent && pendingConfirmation.modifiedContent && (
-              <div className="border-t border-border/50">
-                <DiffViewer
-                  original={pendingConfirmation.originalContent}
-                  modified={pendingConfirmation.modifiedContent}
-                  mode="lines"
-                  showLineNumbers={true}
-                  maxHeight={200}
-                  className="border-0 rounded-none"
-                />
-              </div>
-            )}
-
-            {!pendingConfirmation.originalContent &&
-              !pendingConfirmation.modifiedContent &&
-              confirmationPreview &&
+            {confirmationPreview &&
               confirmationPreview.fields.length > 0 && (
-                <div className="border-t border-border/50 px-3 py-2 space-y-2">
+                <div className="flex flex-col gap-2 border-t px-3 py-2">
                   {confirmationPreview.fields.map((field) => {
                     const label = translateKey(field.labelKey, field.name);
                     const formattedValue = formatFieldValue(field.value);
 
                     return (
-                      <div key={field.name} className="space-y-1">
+                      <div key={field.name} className="flex flex-col gap-1">
                         <div className="text-xs font-medium text-muted-foreground">
                           {label}
                         </div>
                         {field.displayType === "content" ? (
-                          <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-xs text-foreground">
+                          <pre className="max-h-[6.75rem] overflow-y-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-xs leading-5 text-foreground">
                             {formattedValue}
                           </pre>
                         ) : (
@@ -949,33 +911,30 @@ export function AgentPlan({
             {/* Confirmation buttons */}
             <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-t border-border/50">
               <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0"
+                size="icon-xs"
+                variant="destructive"
                 onClick={handleCancel}
               >
-                <XCircle className="size-4 text-red-500" />
+                <XCircle />
               </Button>
               <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 px-2 text-xs"
+                size="xs"
+                variant="secondary"
                 onClick={() => handleConfirm("once")}
               >
-                <CheckCircle className="size-4 text-green-500" />
-                <span className="ml-1">允许这次</span>
+                <CheckCircle data-icon="inline-start" />
+                <span>允许这次</span>
               </Button>
               {pendingConfirmation.canApproveForSession && (
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
+                  size="xs"
+                  variant="secondary"
                   onClick={() => handleConfirm("conversation")}
                 >
-                  <CheckCircle2 className="size-4 text-green-600" />
-                  <span className="ml-1">
-                    {pendingConfirmation.sessionApprovalType === "runtime-script-skill"
-                      ? "本会话允许此 Skill 脚本"
+                  <CheckCircle2 data-icon="inline-start" />
+                  <span>
+                    {pendingConfirmation.sessionApprovalType === "runtime-script"
+                      ? "本会话允许此次脚本调用"
                       : "本会话都允许"}
                   </span>
                 </Button>
@@ -990,17 +949,17 @@ export function AgentPlan({
   // Show loading state in live mode
   if (mode === "live" && isRunning && displaySteps.length === 0) {
     return (
-      <div className="w-full mb-4">
+      <div className="mb-4 w-full">
         {/* Loading 状态 */}
-        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <div className="flex flex-col items-center justify-center gap-4 py-8">
           {/* 旋转的 loading 图标 */}
           <div className="relative">
             <div className="absolute inset-0 rounded-full border-2 border-border/30" />
-            <Loader2 className="size-8 animate-spin text-blue-500" />
+            <Spinner className="size-8 text-primary" />
           </div>
 
           {/* 状态文字 */}
-          <div className="text-center space-y-1">
+          <div className="flex flex-col gap-1 text-center">
             <p className="text-sm font-medium text-foreground">
               {isThinking ? t("thinking") : t("running")}
             </p>
@@ -1011,9 +970,9 @@ export function AgentPlan({
 
           {/* 脉冲动画点 */}
           <div className="flex items-center gap-1.5">
-            <div className="size-2 rounded-full bg-blue-500/60 animate-pulse [animation-delay:0ms]" />
-            <div className="size-2 rounded-full bg-blue-500/60 animate-pulse [animation-delay:150ms]" />
-            <div className="size-2 rounded-full bg-blue-500/60 animate-pulse [animation-delay:300ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:0ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:150ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:300ms]" />
           </div>
         </div>
       </div>
@@ -1027,10 +986,10 @@ export function AgentPlan({
 
   // 标准模式：返回完整的容器
   return (
-    <div className="w-full mb-4">
+    <div className="mb-4 w-full">
       {/* 步骤列表 */}
       <div className="overflow-hidden" ref={contentRef} onScroll={handleScroll}>
-        <ul className="space-y-1">
+        <ul className="flex flex-col gap-1">
           {renderSteps()}
         </ul>
       </div>

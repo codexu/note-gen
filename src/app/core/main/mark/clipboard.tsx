@@ -4,18 +4,19 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { BaseDirectory, copyFile, exists, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
-import useTagStore from "@/stores/tag";
 import useSettingStore from "@/stores/setting";
 import useMarkStore from "@/stores/mark";
 import { v4 as uuid } from 'uuid'
-import ocr from "@/lib/ocr";
-import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai/description";
+import { recognizeImageWithFallback } from "@/lib/image-recognition";
 import { insertMark, Mark } from "@/db/marks";
 import { uint8ArrayToBase64, uploadFile } from "@/lib/sync/github";
 import { RepoNames } from "@/lib/sync/github.types";
 import { CheckCircle, CircleX } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { convertBytesToSize } from "@/lib/utils";
+import { getImageRecognitionProgressText } from "@/lib/image-recognition-progress";
+import { getDefaultRecordSaveTagId } from '@/lib/record-save-target'
+import { useRecordCompletion } from './use-record-completion'
 
 export function Clipboard() {
   const t = useTranslations();
@@ -23,9 +24,9 @@ export function Clipboard() {
   const [text, setText] = useState('')
   const [image, setImage] = useState('')
   const [fileSize, setFileSize] = useState('')
-  const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { primaryModel, githubUsername, primaryImageMethod, enableImageRecognition } = useSettingStore()
-  const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
+  const { primaryModel, githubUsername, enableImageRecognition } = useSettingStore()
+  const { addQueue, setQueue, removeQueue } = useMarkStore()
+  const completeRecord = useRecordCompletion()
 
   async function readHandler() {
     const hasImageRes = await hasImage()
@@ -57,8 +58,9 @@ export function Clipboard() {
     await clear()
     setImage('')
     const queueId = uuid()
+    const tagId = await getDefaultRecordSaveTagId()
     // 获取文件后缀
-    addQueue({ queueId, tagId: currentTagId!, progress: t('record.mark.progress.saveImage'), type: 'image', startTime: Date.now() })
+    addQueue({ queueId, tagId, progress: t('record.mark.progress.saveImage'), type: 'image', startTime: Date.now() })
     const isImageFolderExists = await exists('image', { baseDir: BaseDirectory.AppData})
     if (!isImageFolderExists) {
       await mkdir('image', { baseDir: BaseDirectory.AppData})
@@ -72,26 +74,23 @@ export function Clipboard() {
       setQueue(queueId, { progress: t('record.mark.progress.save') });
       content = ''
       desc = ''
-    } else if (primaryImageMethod === 'vlm') {
-      // 使用 VLM 识别图片
-      setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
-      const file = await readFile(`image/${queueId}.png`, { baseDir: BaseDirectory.AppData })
-      const base64 = `data:image/png;base64,${Buffer.from(file).toString('base64')}`
-      content = await fetchAiDescByImage(base64) || 'VLM Error'
-      desc = content
     } else {
-      // 使用 OCR 识别图片
-      setQueue(queueId, { progress: t('record.mark.progress.ocr') });
-      content = await ocr(`image/${queueId}.png`)
-      setQueue(queueId, { progress: t('record.mark.progress.aiAnalysis') });
-      if (primaryModel) {
-        desc = await fetchAiDesc(content).then(res => res ? res : content) || content
-      } else {
-        desc = content
-      }
+      const file = await readFile(`image/${queueId}.png`, { baseDir: BaseDirectory.AppData })
+      const result = await recognizeImageWithFallback({
+        imagePath: `image/${queueId}.png`,
+        base64: `data:image/png;base64,${Buffer.from(file).toString('base64')}`,
+        shouldGenerateDescription: Boolean(primaryModel),
+        onProgress: (stage) => {
+          setQueue(queueId, {
+            progress: getImageRecognitionProgressText(t, stage),
+          })
+        },
+      })
+      content = result.content
+      desc = result.desc
     }
     const mark: Partial<Mark> = {
-      tagId: currentTagId,
+      tagId,
       type: 'image',
       content,
       url: `${queueId}.png`,
@@ -114,25 +113,30 @@ export function Clipboard() {
       }
     }
     removeQueue(queueId)
-    await insertMark(mark)
-    await fetchMarks()
-    await fetchTags()
-    getCurrentTag()
+    const result = await insertMark(mark)
+    await completeRecord({
+      markId: Number(result.lastInsertId || 0) || null,
+      tagId,
+      typeLabel: t('record.mark.type.image'),
+    })
   }
 
   async function handleTextInset() {
     await clear()
     setText('')
+    const tagId = await getDefaultRecordSaveTagId()
     const mark: Partial<Mark> = {
-      tagId: currentTagId,
+      tagId,
       type: 'text',
       content: text,
       desc: text,
     }
-    insertMark(mark)
-    fetchMarks()
-    fetchTags()
-    getCurrentTag()
+    const result = await insertMark(mark)
+    await completeRecord({
+      markId: Number(result.lastInsertId || 0) || null,
+      tagId,
+      typeLabel: t('record.mark.type.text'),
+    })
   }
 
   async function handleCancle() {

@@ -2,19 +2,31 @@ import { Store } from '@tauri-apps/plugin-store'
 import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, saveLocalFile, setLocalRecordedSha } from './auto-sync'
 import { decodeBase64ToString } from './github'
 import { updateFileSyncTime } from './conflict-resolution'
-import { getSyncRepoName } from './repo-utils'
+import { getOptionalSyncRepoName, getSyncRepoName } from './repo-utils'
 import { uploadFile as uploadToGithub, getFiles as getGithubFiles, deleteFile as deleteGithubFile } from './github'
 import { uploadFile as uploadToGitee, getFiles as getGiteeFiles, deleteFile as deleteGiteeFile } from './gitee'
 import { uploadFile as uploadToGitlab, getFileContent as getGitlabFile, deleteFile as deleteGitlabFile } from './gitlab'
 import { uploadFile as uploadToGitea, getFileContent as getGiteaFile, deleteFile as deleteGiteaFile } from './gitea'
 import { s3Upload, s3Download, s3Delete } from './s3'
 import { webdavUpload, webdavDownload, webdavDelete } from './webdav'
-import { S3Config, WebDAVConfig } from '@/types/sync'
+import {
+  androidCloudFolderWorkspaceDelete,
+  androidCloudFolderWorkspaceDownloadBytes,
+  androidCloudFolderWorkspaceUpload,
+  supportsCloudFolderWorkspace,
+} from './cloud-folder'
+import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import useSyncStore from '@/stores/sync'
 import { toast } from '@/hooks/use-toast'
-import { readTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readTextFile, remove } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { shouldExclude } from '@/config/sync-exclusions'
+import {
+  getEditorPathMutationRevision,
+  prepareActiveEditorDeactivation,
+  prepareActiveEditorDeactivationDurably,
+  runEditorPathWriteTransaction,
+} from '@/lib/editor-deactivation'
 
 /**
  * 获取 GitLab 分支配置
@@ -56,20 +68,24 @@ async function getWebDAVConfig(): Promise<WebDAVConfig | null> {
   return null
 }
 
+async function getCloudFolderWorkspaceConfig(): Promise<CloudFolderConfig | null> {
+  const store = await Store.load('store.json')
+  const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+  return config && supportsCloudFolderWorkspace(config) ? config : null
+}
+
 // 同步配置
 export interface SyncConfig {
   autoSync: boolean           // 自动同步总开关
   autoPushOnSave: boolean     // 保存时自动推送
-  autoPullOnOpen: boolean     // 打开时自动拉取
-  autoPullOnSwitch: boolean   // 切换文件时自动拉取
+  autoPullOnOpen: boolean     // 打开或切换文件时自动拉取
   conflictPolicy: 'ask' | 'local' | 'remote'
 }
 
 export const defaultSyncConfig: SyncConfig = {
   autoSync: true,
   autoPushOnSave: true,
-  autoPullOnOpen: false,      // 默认关闭
-  autoPullOnSwitch: false,    // 默认关闭
+  autoPullOnOpen: true,       // 默认开启
   conflictPolicy: 'ask'
 }
 
@@ -88,6 +104,7 @@ export interface SyncResult {
   action: 'push' | 'pull' | 'delete' | 'none' | 'conflict'
   message?: string
   error?: string
+  content?: string
 }
 
 // 同步日志
@@ -131,14 +148,10 @@ export class SyncManager {
       // 再从 store.json 读取设置中的 autoPull 配置
       const settingStore = await Store.load('store.json')
       const autoPullOnOpen = await settingStore.get<boolean>('autoPullOnOpen')
-      const autoPullOnSwitch = await settingStore.get<boolean>('autoPullOnSwitch')
 
       // 覆盖配置
       if (autoPullOnOpen !== undefined && autoPullOnOpen !== null) {
         this.config.autoPullOnOpen = autoPullOnOpen
-      }
-      if (autoPullOnSwitch !== undefined && autoPullOnSwitch !== null) {
-        this.config.autoPullOnSwitch = autoPullOnSwitch
       }
     } catch {
       // 静默处理配置加载错误
@@ -221,10 +234,19 @@ export class SyncManager {
     }
 
     try {
-      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav'
+      if (await this.getCurrentPlatform() === 'selfHosted') {
+        const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
+          import('@/lib/self-hosted-sync/outbox'),
+          import('@/lib/self-hosted-sync/runtime'),
+        ])
+        await enqueueFileSnapshot(path)
+        void getSelfHostedSyncRuntime().wake('local-change')
+        return { success: true, action: 'push', message: '已加入自托管同步队列', content }
+      }
+      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
       // S3 不需要 repo，直接设为空字符串
-      const repo = (platform === 's3' || platform === 'webdav') ? '' : await getSyncRepoName(platform)
-      const sha = (platform === 's3' || platform === 'webdav') ? undefined : await this.getRemoteSha(path) || undefined
+      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
+      const sha = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? undefined : await this.getRemoteSha(path) || undefined
       const message = `Sync: ${path} - ${new Date().toLocaleString('zh-CN')}`
       const filename = path.split('/').pop() || path
 
@@ -278,6 +300,14 @@ export class SyncManager {
           }
           break
         }
+        case 'cloudFolder': {
+          const config = await getCloudFolderWorkspaceConfig()
+          if (!config) {
+            return { success: false, action: 'push', error: '网盘文件夹未配置' }
+          }
+          uploadSuccess = Boolean(await androidCloudFolderWorkspaceUpload(config, path, content))
+          break
+        }
       }
 
       if (uploadSuccess) {
@@ -303,11 +333,21 @@ export class SyncManager {
   /**
    * 从远程拉取文件
    */
-  async pullFile(path: string): Promise<SyncResult> {
+  async pullFile(
+    path: string,
+    // Direct pulls capture at function entry. Callers that perform version
+    // checks first pass the revision captured before those awaits.
+    initialEditorMutationRevision = getEditorPathMutationRevision(path),
+  ): Promise<SyncResult> {
     try {
-      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav'
+      if (await this.getCurrentPlatform() === 'selfHosted') {
+        const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+        await getSelfHostedSyncRuntime().wake('foreground')
+        return { success: true, action: 'none', message: '已检查自托管同步事件' }
+      }
+      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
       // S3 不需要 repo
-      const repo = (platform === 's3' || platform === 'webdav') ? '' : await getSyncRepoName(platform)
+      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
 
       let content: string | undefined
 
@@ -359,27 +399,99 @@ export class SyncManager {
           }
           break
         }
+        case 'cloudFolder': {
+          const config = await getCloudFolderWorkspaceConfig()
+          if (!config) {
+            return { success: false, action: 'pull', error: '网盘文件夹未配置' }
+          }
+          const cloudFile = await androidCloudFolderWorkspaceDownloadBytes(config, path)
+          if (cloudFile) content = new TextDecoder().decode(cloudFile.content)
+          break
+        }
       }
 
       if (content) {
         // S3 和 WebDAV 不需要 base64 解码，其他平台需要
         let decodedContent = content
-        if (platform !== 's3' && platform !== 'webdav') {
+        if (platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder') {
           decodedContent = decodeBase64ToString(content)
         }
-        await saveLocalFile(path, decodedContent)
 
-        // 获取远程文件的 SHA 并更新本地记录
-        if (platform !== 's3' && platform !== 'webdav') {
-          const remoteSha = await this.getRemoteSha(path)
-          if (remoteSha) {
-            await setLocalRecordedSha(path, remoteSha)
+        if (!await prepareActiveEditorDeactivationDurably(path)) {
+          return { success: false, action: 'none', error: '编辑器正在处理未完成的内容' }
+        }
+        const localPathOptions = await getFilePathOptions(path)
+        const pullAccepted = await runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
+          const stableFileExists = localPathOptions.baseDir
+            ? await exists(localPathOptions.path, { baseDir: localPathOptions.baseDir })
+            : await exists(localPathOptions.path)
+          const stableContent = stableFileExists
+            ? localPathOptions.baseDir
+              ? await readTextFile(localPathOptions.path, { baseDir: localPathOptions.baseDir })
+              : await readTextFile(localPathOptions.path)
+            : null
+
+          const restoreStableContent = async () => {
+            if (stableContent !== null) {
+              await saveLocalFile(path, stableContent)
+              return
+            }
+            const remoteSnapshotExists = localPathOptions.baseDir
+              ? await exists(localPathOptions.path, { baseDir: localPathOptions.baseDir })
+              : await exists(localPathOptions.path)
+            if (!remoteSnapshotExists) return
+            if (localPathOptions.baseDir) {
+              await remove(localPathOptions.path, { baseDir: localPathOptions.baseDir })
+            } else {
+              await remove(localPathOptions.path)
+            }
           }
+
+          if (getEditorPathMutationRevision(path) !== initialEditorMutationRevision) {
+            return false
+          }
+
+          try {
+            await saveLocalFile(path, decodedContent)
+          } catch (error) {
+            await restoreStableContent()
+            throw error
+          }
+
+          // This is deliberately the synchronous preflight. A durable flush
+          // here would await the transaction gate itself. Any newly flushed
+          // editor save is queued behind the gate and detected below.
+          const editorIsStable = prepareActiveEditorDeactivation()
+          if (
+            !editorIsStable
+            || hasQueuedSave()
+            || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
+          ) {
+            await restoreStableContent()
+            return false
+          }
+          return true
+        })
+        if (!pullAccepted) {
+          return { success: false, action: 'none', error: '本地内容在拉取期间发生变化' }
         }
 
-        await updateFileSyncTime(path)
-        await this.logSync(path, 'pull', true)
-        return { success: true, action: 'pull', message: '拉取成功' }
+        // Metadata does not participate in the content transaction. Finish it
+        // in the background so there is no extra await window between the
+        // final content verification and handing the snapshot to the editor.
+        void (async () => {
+          if (platform !== 's3' && platform !== 'webdav') {
+            const remoteSha = await this.getRemoteSha(path)
+            if (remoteSha) {
+              await setLocalRecordedSha(path, remoteSha)
+            }
+          }
+          await updateFileSyncTime(path)
+          await this.logSync(path, 'pull', true)
+        })().catch(error => {
+          console.error('Failed to finalize pull metadata:', error)
+        })
+        return { success: true, action: 'pull', message: '拉取成功', content: decodedContent }
       }
 
       await this.logSync(path, 'pull', false, '文件不存在')
@@ -395,13 +507,22 @@ export class SyncManager {
    */
   async deleteRemoteFile(path: string): Promise<SyncResult> {
     try {
-      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav'
+      if (await this.getCurrentPlatform() === 'selfHosted') {
+        const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
+          import('@/lib/self-hosted-sync/outbox'),
+          import('@/lib/self-hosted-sync/runtime'),
+        ])
+        await enqueueFileSnapshot(path, 'delete')
+        void getSelfHostedSyncRuntime().wake('local-change')
+        return { success: true, action: 'delete', message: '删除操作已加入自托管同步队列' }
+      }
+      const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
       // S3 不需要 repo
-      const repo = (platform === 's3' || platform === 'webdav') ? '' : await getSyncRepoName(platform)
-      const sha = (platform === 's3' || platform === 'webdav') ? undefined : await this.getRemoteSha(path)
+      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
+      const sha = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? undefined : await this.getRemoteSha(path)
 
       // S3 和 WebDAV 不需要 SHA，但其他平台需要
-      if ((platform !== 's3' && platform !== 'webdav') && !sha) {
+      if ((platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder') && !sha) {
         return { success: true, action: 'none', message: '远程文件不存在，无需删除' }
       }
 
@@ -443,6 +564,14 @@ export class SyncManager {
             // 移除 ETag 记录
             useSyncStore.getState().removeWebDAVFileEtag(path)
           }
+          break
+        }
+        case 'cloudFolder': {
+          const config = await getCloudFolderWorkspaceConfig()
+          if (!config) {
+            return { success: false, action: 'delete', error: '网盘文件夹未配置' }
+          }
+          success = await androidCloudFolderWorkspaceDelete(config, path)
           break
         }
       }
@@ -515,6 +644,15 @@ export class SyncManager {
   async syncFile(path: string, options: {
     onConflict?: (local: string, remote: string) => Promise<'local' | 'remote' | 'cancel'>
   } = {}): Promise<SyncResult> {
+    if (await this.getCurrentPlatform() === 'selfHosted') {
+      const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
+        import('@/lib/self-hosted-sync/outbox'),
+        import('@/lib/self-hosted-sync/runtime'),
+      ])
+      await enqueueFileSnapshot(path)
+      void getSelfHostedSyncRuntime().wake('local-change')
+      return { success: true, action: 'push', message: '已加入自托管同步队列' }
+    }
     // 检查是否正在同步
     if (this.state.isSyncing) {
       this.state.pendingSync = true
@@ -522,6 +660,7 @@ export class SyncManager {
     }
 
     this.state.isSyncing = true
+    const initialEditorMutationRevision = getEditorPathMutationRevision(path)
 
     try {
       // 获取本地和远程的 SHA
@@ -551,7 +690,7 @@ export class SyncManager {
 
       if (syncResult.action === 'pull') {
         // 拉取远程版本
-        const result = await this.pullFile(path)
+        const result = await this.pullFile(path, initialEditorMutationRevision)
         this.state.lastSyncTime = Date.now()
         this.state.lastSyncSha = remoteSha || ''
         return result
@@ -599,6 +738,16 @@ export class SyncManager {
       return
     }
 
+    if (await this.getCurrentPlatform() === 'selfHosted') {
+      const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
+        import('@/lib/self-hosted-sync/outbox'),
+        import('@/lib/self-hosted-sync/runtime'),
+      ])
+      await enqueueFileSnapshot(path)
+      void getSelfHostedSyncRuntime().wake('local-change')
+      return
+    }
+
     // 标记该路径需要同步（内容从磁盘读取）
     this.syncQueue.set(path, { timestamp: Date.now() })
 
@@ -622,7 +771,10 @@ export class SyncManager {
    * 打开时触发拉取
    * 返回 { updated: true, content: string } 如果拉取了新内容
    */
-  async onOpen(path: string): Promise<{ updated: boolean; content?: string } | null> {
+  async onOpen(
+    path: string,
+    initialEditorMutationRevision = getEditorPathMutationRevision(path),
+  ): Promise<{ updated: boolean; content?: string } | null> {
     if (!this.config.autoSync || !this.config.autoPullOnOpen) {
       return null
     }
@@ -631,36 +783,27 @@ export class SyncManager {
     if (shouldExclude(path)) {
       return null
     }
-
+    if (await this.getCurrentPlatform() === 'selfHosted') {
+      const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+      await getSelfHostedSyncRuntime().wake('foreground')
+      return null
+    }
     // 比较版本，决定是否需要拉取
     const syncResult = await compareFileVersions(path)
 
     if (syncResult.action === 'pull') {
-      const result = await this.pullFile(path)
+      const result = await this.pullFile(path, initialEditorMutationRevision)
       if (result.success && result.action === 'pull') {
-        // 读取拉取的内容并返回
-        try {
-          const { pullRemoteFile } = await import('./auto-sync')
-          const content = await pullRemoteFile(path)
-          return { updated: true, content }
-        } catch {
-          return { updated: true }
-        }
+        return { updated: true, content: result.content }
       }
       return { updated: result.success }
     }
 
     // 处理冲突情况：远程文件较新但 SHA 不同（可能是同步过的）
     if (syncResult.action === 'conflict') {
-      const result = await this.pullFile(path)
+      const result = await this.pullFile(path, initialEditorMutationRevision)
       if (result.success && result.action === 'pull') {
-        try {
-          const { pullRemoteFile } = await import('./auto-sync')
-          const content = await pullRemoteFile(path)
-          return { updated: true, content }
-        } catch {
-          return { updated: true }
-        }
+        return { updated: true, content: result.content }
       }
       return { updated: result.success }
     }
@@ -809,9 +952,12 @@ export async function syncOnSave(path: string): Promise<void> {
   await manager.onSave(path)
 }
 
-export async function syncOnOpen(path: string): Promise<{ updated: boolean; content?: string } | null> {
+export async function syncOnOpen(
+  path: string,
+  initialEditorMutationRevision = getEditorPathMutationRevision(path),
+): Promise<{ updated: boolean; content?: string } | null> {
   const manager = getSyncManager()
-  return await manager.onOpen(path)
+  return await manager.onOpen(path, initialEditorMutationRevision)
 }
 
 export async function syncSingleFile(path: string, onConflict?: (local: string, remote: string) => Promise<'local' | 'remote' | 'cancel'>): Promise<SyncResult> {
@@ -819,60 +965,96 @@ export async function syncSingleFile(path: string, onConflict?: (local: string, 
   return await manager.syncFile(path, { onConflict })
 }
 
+function hasConfiguredText(value: string | null | undefined): boolean {
+  return Boolean(value?.trim())
+}
+
 /**
  * 检查同步是否已配置
  * 检查是否有选择同步平台并配置了对应的访问令牌
  */
-export async function isSyncConfigured(): Promise<boolean> {
+export async function isSyncConfigured(
+  options?: { throwOnError?: boolean },
+): Promise<boolean> {
   try {
     const store = await Store.load('store.json')
-    const platform = await store.get<string>('primaryBackupMethod')
-
-    // 如果没有选择平台，返回 false
-    if (!platform) {
-      return false
-    }
+    const platform = await store.get<string>('primaryBackupMethod') || 'github'
 
     // 检查对应平台的访问令牌（确保不是空字符串）
-    const token = await store.get<string>('accessToken')
     switch (platform) {
-      case 'github':
-        return !!(token && token.trim().length > 0)
+      case 'local':
+        return false
+      case 'github': {
+        const token = await store.get<string>('accessToken')
+        const username = await store.get<string>('githubUsername')
+        const repo = await getOptionalSyncRepoName('github')
+        return hasConfiguredText(token) && hasConfiguredText(username) && hasConfiguredText(repo)
+      }
       case 'gitee': {
         const giteeToken = await store.get<string>('giteeAccessToken')
-        return !!(giteeToken && giteeToken.trim().length > 0)
+        const giteeUsername = await store.get<string>('giteeUsername')
+        const repo = await getOptionalSyncRepoName('gitee')
+        return hasConfiguredText(giteeToken) && hasConfiguredText(giteeUsername) && hasConfiguredText(repo)
       }
       case 'gitlab': {
         const gitlabToken = await store.get<string>('gitlabAccessToken')
-        return !!(gitlabToken && gitlabToken.trim().length > 0)
+        const gitlabUsername = await store.get<string>('gitlabUsername')
+        const repo = await getOptionalSyncRepoName('gitlab')
+        const projectId = await store.get<string>(`gitlab_${repo}_project_id`)
+        const instanceType = await store.get<string>('gitlabInstanceType')
+        const customUrl = await store.get<string>('gitlabCustomUrl')
+        const instanceConfigured = instanceType !== 'self-hosted' || hasConfiguredText(customUrl)
+
+        return hasConfiguredText(gitlabToken) &&
+          hasConfiguredText(gitlabUsername) &&
+          hasConfiguredText(repo) &&
+          hasConfiguredText(projectId) &&
+          instanceConfigured
       }
       case 'gitea': {
         const giteaToken = await store.get<string>('giteaAccessToken')
-        return !!(giteaToken && giteaToken.trim().length > 0)
+        const giteaUsername = await store.get<string>('giteaUsername')
+        const repo = await getOptionalSyncRepoName('gitea')
+        const instanceType = await store.get<string>('giteaInstanceType')
+        const customUrl = await store.get<string>('giteaCustomUrl')
+        const instanceConfigured = instanceType !== 'self-hosted' || hasConfiguredText(customUrl)
+
+        return hasConfiguredText(giteaToken) &&
+          hasConfiguredText(giteaUsername) &&
+          hasConfiguredText(repo) &&
+          instanceConfigured
       }
       case 's3': {
         const s3Config = await store.get<S3Config>('s3SyncConfig')
-        return !!(
-          s3Config &&
-          s3Config.accessKeyId &&
-          s3Config.secretAccessKey &&
-          s3Config.region &&
-          s3Config.bucket
-        )
+        return Boolean(s3Config) &&
+          hasConfiguredText(s3Config?.accessKeyId) &&
+          hasConfiguredText(s3Config?.secretAccessKey) &&
+          hasConfiguredText(s3Config?.region) &&
+          hasConfiguredText(s3Config?.bucket)
       }
       case 'webdav': {
         const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-        return !!(
-          webdavConfig &&
-          webdavConfig.url &&
-          webdavConfig.username &&
-          webdavConfig.password
+        return Boolean(webdavConfig) &&
+          hasConfiguredText(webdavConfig?.url) &&
+          hasConfiguredText(webdavConfig?.username) &&
+          hasConfiguredText(webdavConfig?.password)
+      }
+      case 'cloudFolder': {
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        return Boolean(config && supportsCloudFolderWorkspace(config))
+      }
+      case 'selfHosted': {
+        const database = await (await import('@/db')).getDb()
+        const rows = await database.select<Array<{ total: number }>>(
+          "select count(*) as total from self_hosted_sync_profiles where state = 'connected'"
         )
+        return (rows[0]?.total ?? 0) > 0
       }
       default:
         return false
     }
-  } catch {
+  } catch (error) {
+    if (options?.throwOnError) throw error
     return false
   }
 }

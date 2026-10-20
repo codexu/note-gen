@@ -1,4 +1,4 @@
-import { Chat } from '@/db/chats'
+import type { Chat } from '@/db/chats'
 
 /**
  * 简单的 Token 估算（不依赖外部库）

@@ -4,13 +4,42 @@
 node_modules
 
 ./dist
+/packages/*/dist/
 dist-ssr
+plans/
+docs/
 src-tauri/gen/*
+!src-tauri/gen/android/
+src-tauri/gen/android/**
+!src-tauri/gen/android/app/
+!src-tauri/gen/android/app/build.gradle.kts
+!src-tauri/gen/android/app/src/
+!src-tauri/gen/android/app/src/main/
+!src-tauri/gen/android/app/src/main/AndroidManifest.xml
+!src-tauri/gen/android/app/src/main/java/
+!src-tauri/gen/android/app/src/main/java/com/
+!src-tauri/gen/android/app/src/main/java/com/codexu/
+!src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/
+!src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/.gitkeep
+!src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/OcrPlugin.kt
+!src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/SystemBarsPlugin.kt
+!src-tauri/gen/android/app/src/main/res/
+!src-tauri/gen/android/app/src/main/res/values/
+!src-tauri/gen/android/app/src/main/res/values/colors.xml
+!src-tauri/gen/android/app/src/main/res/values/themes.xml
+!src-tauri/gen/android/app/src/main/res/values-night/
+!src-tauri/gen/android/app/src/main/res/values-night/themes.xml
 !src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/
 *.local
 target/*
 .claude/*
+.superpowers/*
+.agents/*
 /docs/*/*
+skills-lock.json
+src-tauri/resources/ocr/*
+!src-tauri/resources/ocr/.gitkeep
+src-tauri/native-ocr/ios-vision/.tauri/
 
 /.pnp
 .pnp.*
@@ -62,6 +91,7 @@ docs/.vitepress/cache
 # Exclude all markdown files in root directory except README.md
 /*.md
 !README.md
+!README.zh-CN.md
 
 # backup files
 *.backup
@@ -69,3 +99,10 @@ docs/.vitepress/cache
 
 # worktrees
 .worktrees
+
+# Local Remotion video workspace
+/remotion/*
+
+# Generated browser workers
+/public/plugin-runtime.js
+/public/markdown-lexer.js

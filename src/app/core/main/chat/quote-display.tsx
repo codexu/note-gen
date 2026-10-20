@@ -22,6 +22,8 @@ interface QuoteDisplayProps {
 
 export function QuoteDisplay({ quoteData, onRemove }: QuoteDisplayProps) {
   const t = useTranslations('editor.quoteDisplay')
+  const tControl = useTranslations('record.chat.control')
+  const tCommon = useTranslations('common')
   const { fileName, startLine, endLine, fullContent } = quoteData
   const [expanded, setExpanded] = useState(false)
 
@@ -57,7 +59,7 @@ export function QuoteDisplay({ quoteData, onRemove }: QuoteDisplayProps) {
             className="mt-1 text-[11px] text-primary"
             onClick={() => setExpanded((value) => !value)}
           >
-            {expanded ? '收起' : '展开'}
+            {expanded ? tControl('showLess') : tControl('showMore')}
           </button>
         )}
       </div>
@@ -66,6 +68,7 @@ export function QuoteDisplay({ quoteData, onRemove }: QuoteDisplayProps) {
         size="icon"
         className="h-6 w-6 shrink-0"
         onClick={onRemove}
+        aria-label={tCommon('delete')}
       >
         <X className="h-3 w-3" />
       </Button>

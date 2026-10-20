@@ -57,12 +57,12 @@ export function ExpandableTabs({
   selected: controlledSelected,
 }: ExpandableTabsProps) {
   const [internalSelected, setInternalSelected] = React.useState<number | null>(null);
-  const outsideClickRef = React.useRef(null);
+  const outsideClickRef = React.useRef<HTMLDivElement>(null);
 
   // Support controlled mode
   const selected = controlledSelected !== undefined ? controlledSelected : internalSelected;
 
-  useOnClickOutside(outsideClickRef, () => {
+  useOnClickOutside(outsideClickRef as React.RefObject<HTMLElement>, () => {
     if (controlledSelected === undefined) {
       setInternalSelected(null);
     }
@@ -84,7 +84,7 @@ export function ExpandableTabs({
     <div
       ref={outsideClickRef}
       className={cn(
-        "flex flex-wrap items-center gap-0.5 rounded-xl border bg-background p-0.5",
+        "flex select-none flex-wrap items-center gap-0.5 rounded-xl border bg-background p-0.5",
         className
       )}
     >

@@ -1,19 +1,12 @@
 import { create } from 'zustand'
-import { Chat, clearChatsByTagId, deleteChat, initChatsDb, insertChat, updateChat, updateChatsInsertedById, getAllChats, deleteAllChats, insertChats, updateChatCondensedContent, getChatsByConversation } from '@/db/chats'
-import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github';
-import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee';
-import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab';
-import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea';
-import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
-import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
-import { getSyncRepoName } from '@/lib/sync/repo-utils';
-import { getRemoteFileContent } from '@/lib/sync/remote-file';
+import { Chat, clearChatsByConversationId, clearChatsByTagId, deleteChat, insertChat, updateChat, updateChatsInsertedById, getChatsByConversation } from '@/db/chats'
+import { initAllDatabases } from '@/db'
 import { Store } from '@tauri-apps/plugin-store';
 import { locales } from '@/lib/locales';
 import { AgentState, ToolCall } from '@/lib/agent/types'
 import { LinkedResource } from '@/lib/files'
 import type { Conversation } from '@/db/conversations'
-import { S3Config, WebDAVConfig } from '@/types/sync'
+import type { ChatReasoningOverride } from '@/lib/ai/chat-reasoning'
 
 export interface PendingQuote {
   quote: string
@@ -23,7 +16,30 @@ export interface PendingQuote {
   endLine: number
   from: number
   to: number
+  selectionToken?: string
   articlePath: string
+}
+
+export interface MobileActiveContexts {
+  articlePath: string | null
+  markId: number | null
+  canvasId: string | null
+}
+
+function getPendingQuoteIdentity(quote: PendingQuote | null) {
+  if (!quote) {
+    return ''
+  }
+
+  return [
+    quote.articlePath,
+    quote.from,
+    quote.to,
+    quote.selectionToken || '',
+    quote.startLine,
+    quote.endLine,
+    quote.fullContent,
+  ].join('|')
 }
 
 // MCP 工具调用记录（临时，不保存到数据库）
@@ -40,12 +56,10 @@ export interface McpToolCall {
 }
 
 interface ChatState {
+  reasoningOverride: ChatReasoningOverride | null
+  setReasoningOverride: (value: ChatReasoningOverride | null) => void
   loading: boolean
   setLoading: (loading: boolean) => void
-
-  isCondensing: boolean // 压缩状态
-  _condenseLock: boolean // 内部锁，防止并发压缩
-  maybeCondense: () => void // 触发压缩检查（异步，不阻塞）
 
   // 兼容旧代码：按标签加载（内部映射到默认会话）
   chats: Chat[]
@@ -85,8 +99,8 @@ interface ChatState {
   updateAgentToolCall: (id: string, updates: Partial<ToolCall>) => void
   agentAutoApproveConversationId: number | null
   setAgentAutoApproveConversationId: (conversationId: number | null) => void
-  agentAutoApproveRuntimeSkillId: string | null
-  setAgentAutoApproveRuntimeSkillId: (skillId: string | null) => void
+  agentAutoApproveRuntimeScriptKey: string | null
+  setAgentAutoApproveRuntimeScriptKey: (permissionKey: string | null) => void
 
   // Placeholder 状态
   isPlaceholderEnabled: boolean
@@ -100,14 +114,25 @@ interface ChatState {
   linkedResourcePreview: string | null
   setLinkedResourcePreview: (preview: string | null) => void
 
+  mobileActiveContexts: MobileActiveContexts
+  setMobileActiveContexts: (contexts: Partial<MobileActiveContexts>) => void
+
   pendingQuote: PendingQuote | null
   setPendingQuote: (quote: PendingQuote | null) => void
   clearPendingQuote: () => void
+
+  editorSelectionQuote: PendingQuote | null
+  setEditorSelectionQuote: (quote: PendingQuote | null) => void
+  clearEditorSelectionQuote: () => void
+
+  onboardingPromptDraft: string | null
+  setOnboardingPromptDraft: (prompt: string | null) => void
 
   // === 新增：会话管理 ===
   // 当前会话
   currentConversationId: number | null
   conversations: Conversation[]
+  isTemporaryConversation: boolean // 临时会话仅保存在内存中
 
   // 会话初始化和管理
   initConversations: () => Promise<void> // 初始化会话列表
@@ -117,93 +142,26 @@ interface ChatState {
   deleteConversation: (id: number) => Promise<void> // 删除会话
   toggleConversationPin: (id: number) => Promise<boolean> // 切换会话置顶状态
   startNewConversation: () => Promise<void> // 开始新对话（保存当前会话后创建新会话）
+  startTemporaryConversation: () => void // 开始不保存记录的临时会话
 }
 
+let nextTemporaryChatId = -1
+
 const useChatStore = create<ChatState>((set, get) => ({
+  reasoningOverride: null,
+  setReasoningOverride: (reasoningOverride) => set({ reasoningOverride }),
   loading: false,
 
   setLoading: (loading: boolean) => {
     set({ loading })
   },
 
-  isCondensing: false,
-  _condenseLock: false,
-
-  maybeCondense: () => {
-    const state = get()
-
-    // 防并发：已有压缩任务在执行，直接返回
-    if (state._condenseLock) {
-      return
-    }
-
-    // 添加版本号引用，防止竞态条件
-    const versionRef = { current: 0 }
-    const currentVersion = ++versionRef.current
-
-    const { chats } = state
-
-    // 获取最后一次清除后的消息
-    const lastClearIndex = chats.findLastIndex(c => c.type === 'clear')
-    const chatsAfterClear = lastClearIndex === -1 ? chats : chats.slice(lastClearIndex + 1)
-
-    // 使用 IIFE 立即执行异步函数，不等待结果
-    ;(async () => {
-      // 动态导入 condense 模块（避免循环依赖）
-      const { shouldCondense, condenseChats } = await import('@/lib/ai/condense')
-
-      // 版本号检查：防止被新版本覆盖
-      if (currentVersion !== versionRef.current) {
-        return
-      }
-
-      if (!(await shouldCondense(chatsAfterClear))) {
-        return
-      }
-
-      // 再次检查版本号
-      if (currentVersion !== versionRef.current) {
-        return
-      }
-
-      // 设置锁和压缩状态
-      set({ _condenseLock: true, isCondensing: true })
-
-      try {
-        // 为每条消息生成摘要并存储
-        const condensedResults = await condenseChats(chatsAfterClear)
-
-        // 版本号检查：防止在压缩过程中被新版本覆盖
-        if (currentVersion !== versionRef.current) {
-          return
-        }
-
-        for (const result of condensedResults) {
-          if (result.summary) {
-            // 更新数据库中的摘要内容
-            await updateChatCondensedContent(result.chatId, result.summary)
-
-            // 更新 state 中的消息
-            set({
-              chats: get().chats.map(c =>
-                c.id === result.chatId
-                  ? { ...c, condensedContent: result.summary || undefined, condensedAt: Date.now() }
-                  : c
-              )
-            })
-          }
-        }
-      } catch (error) {
-        // 静默失败，不影响用户体验
-        console.error('[ChatStore] 压缩失败:', error)
-      } finally {
-        set({ _condenseLock: false, isCondensing: false })
-      }
-    })()
-  },
-
   agentState: {
     activeChatId: undefined,
+    activeModelId: undefined,
+    activeModelName: undefined,
+    runId: undefined,
+    status: 'idle',
     isRunning: false,
     isThinking: false,
     currentThought: '',
@@ -212,6 +170,8 @@ const useChatStore = create<ChatState>((set, get) => ({
     currentAction: undefined,
     currentObservation: undefined,
     toolCalls: [],
+    traceEvents: [],
+    changes: [],
     maxIterations: 15,
     currentIteration: 0,
     pendingConfirmation: undefined,
@@ -228,10 +188,13 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   resetAgentState: () => {
-    const currentState = get().agentState
     set({
       agentState: {
         activeChatId: undefined,
+        activeModelId: undefined,
+        activeModelName: undefined,
+        runId: undefined,
+        status: 'idle',
         isRunning: false,
         isThinking: false,
         currentThought: '',
@@ -240,16 +203,19 @@ const useChatStore = create<ChatState>((set, get) => ({
         currentAction: '',
         currentObservation: '',
         toolCalls: [],
+        traceEvents: [],
+        changes: [],
         maxIterations: 15,
         currentIteration: 0,
         pendingConfirmation: undefined,
+        pendingQuestion: undefined,
         confirmationHistory: [],
         loadedSkills: undefined,
         selectedSkills: undefined,
         currentStepStartTime: undefined,
-        // 保留 RAG 字段，因为它们应该在整个 Agent 执行期间显示
-        ragSources: currentState.ragSources,
-        ragSourceDetails: currentState.ragSourceDetails,
+        // 每次运行由 Agent 按需检索，不能沿用上一轮的参考笔记。
+        ragSources: undefined,
+        ragSourceDetails: undefined,
         // 重置 Final Answer 模式
         isFinalAnswerMode: false,
         finalAnswerContent: undefined,
@@ -283,9 +249,9 @@ const useChatStore = create<ChatState>((set, get) => ({
   setAgentAutoApproveConversationId: (conversationId: number | null) => {
     set({ agentAutoApproveConversationId: conversationId })
   },
-  agentAutoApproveRuntimeSkillId: null,
-  setAgentAutoApproveRuntimeSkillId: (skillId: string | null) => {
-    set({ agentAutoApproveRuntimeSkillId: skillId })
+  agentAutoApproveRuntimeScriptKey: null,
+  setAgentAutoApproveRuntimeScriptKey: (permissionKey: string | null) => {
+    set({ agentAutoApproveRuntimeScriptKey: permissionKey })
   },
 
   isPlaceholderEnabled: true,
@@ -303,6 +269,20 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ linkedResourcePreview: preview })
   },
 
+  mobileActiveContexts: {
+    articlePath: null,
+    markId: null,
+    canvasId: null,
+  },
+  setMobileActiveContexts: (contexts) => {
+    set(state => ({
+      mobileActiveContexts: {
+        ...state.mobileActiveContexts,
+        ...contexts,
+      },
+    }))
+  },
+
   pendingQuote: null,
   setPendingQuote: (pendingQuote: PendingQuote | null) => {
     set({ pendingQuote })
@@ -311,11 +291,32 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingQuote: null })
   },
 
+  editorSelectionQuote: null,
+  setEditorSelectionQuote: (editorSelectionQuote: PendingQuote | null) => {
+    set((state) => {
+      if (getPendingQuoteIdentity(state.editorSelectionQuote) === getPendingQuoteIdentity(editorSelectionQuote)) {
+        return state
+      }
+
+      return { editorSelectionQuote }
+    })
+  },
+  clearEditorSelectionQuote: () => {
+    set({ editorSelectionQuote: null })
+  },
+
+  onboardingPromptDraft: null,
+  setOnboardingPromptDraft: (prompt: string | null) => {
+    set({ onboardingPromptDraft: prompt })
+  },
+
   chats: [],
   // 兼容旧代码：init 方法现在会初始化会话列表并切换到第一个会话
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   init: async (_tagId: number) => {
-    await initChatsDb()
+    set({ isTemporaryConversation: false })
+    // 子组件的 effect 可能早于布局初始化执行，查询会话前必须等待所有表和迁移就绪。
+    await initAllDatabases()
     // 先初始化会话列表
     await get().initConversations()
 
@@ -335,7 +336,18 @@ const useChatStore = create<ChatState>((set, get) => ({
     }
   },
   insert: async (chat) => {
-    const { currentConversationId } = get()
+    const { currentConversationId, isTemporaryConversation } = get()
+
+    if (isTemporaryConversation) {
+      const data: Chat = {
+        ...chat,
+        id: nextTemporaryChatId--,
+        conversationId: undefined,
+        createdAt: Date.now(),
+      }
+      set({ chats: [...get().chats, data] })
+      return data
+    }
 
     // 确保有 conversationId，如果没有则创建新会话
     let conversationId = chat.conversationId || currentConversationId
@@ -409,7 +421,7 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
   saveChat: async (chat, isSave = false) => {
     get().updateChat(chat)
-    if (isSave) {
+    if (isSave && !get().isTemporaryConversation) {
       await updateChat(chat)
     }
   },
@@ -417,11 +429,18 @@ const useChatStore = create<ChatState>((set, get) => ({
     const chats = get().chats
     const newChats = chats.filter(item => item.id !== id)
     set({ chats: newChats })
+
+    if (get().isTemporaryConversation) {
+      return
+    }
+
     await deleteChat(id)
 
     // 更新会话的消息数量
     const { currentConversationId } = get()
     if (currentConversationId) {
+      const { deleteConversationCompactions } = await import('@/db/conversation-compactions')
+      await deleteConversationCompactions(currentConversationId)
       const { updateConversationMessageCount } = await import('@/db/conversations')
       await updateConversationMessageCount(currentConversationId, -1)
       await get().initConversations()
@@ -443,11 +462,17 @@ const useChatStore = create<ChatState>((set, get) => ({
 
   // 兼容旧代码：clearChats 现在会清空当前会话的聊天记录
   clearChats: async (tagId) => {
+    const isTemporaryConversation = get().isTemporaryConversation
     set({ chats: [] })
     // 清空聊天记录时同步清理 Agent 状态
     get().resetAgentState()
     get().clearMcpToolCalls()
     get().clearPendingQuote()
+    get().clearEditorSelectionQuote()
+
+    if (isTemporaryConversation) {
+      return
+    }
 
     // 更新会话的消息数量
     const { currentConversationId } = get()
@@ -457,8 +482,9 @@ const useChatStore = create<ChatState>((set, get) => ({
       const count = chats.length
 
       // 删除数据库中的记录
-      const db = await import('@/db').then(m => m.getDb())
-      await db.execute("delete from chats where conversationId = $1", [currentConversationId])
+      await clearChatsByConversationId(currentConversationId)
+      const { deleteConversationCompactions } = await import('@/db/conversation-compactions')
+      await deleteConversationCompactions(currentConversationId)
 
       const { updateConversationMessageCount } = await import('@/db/conversations')
       await updateConversationMessageCount(currentConversationId, -count)
@@ -470,7 +496,9 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateInsert: async (id) => {
-    await updateChatsInsertedById(id)
+    if (!get().isTemporaryConversation) {
+      await updateChatsInsertedById(id)
+    }
     const chats = get().chats
     const newChats = chats.map(item => {
       if (item.id === id) {
@@ -492,97 +520,12 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
   uploadChats: async () => {
     set({ syncState: true })
-    const path = '.data'
-    const filename = 'chats.json'
-    const chats = await getAllChats()
-    const store = await Store.load('store.json');
-    const jsonToBase64 = (data: Chat[]) => {
-      return Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
+    try {
+      const { uploadConversations } = await import('@/lib/sync/conversation-sync')
+      return await uploadConversations()
+    } finally {
+      set({ syncState: false })
     }
-    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    let result = false
-    let files: any;
-    let res;
-    const fullPath = `${path}/${filename}`;
-    switch (primaryBackupMethod) {
-      case 'github':
-        const githubRepo = await getSyncRepoName('github')
-        files = await githubGetFiles({ path: fullPath, repo: githubRepo })
-        res = await uploadGithubFile({
-          file: jsonToBase64(chats),
-          repo: githubRepo,
-          path: fullPath,
-          sha: files?.sha,
-        })
-        break;
-      case 'gitee':
-        const giteeRepo = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: fullPath, repo: giteeRepo })
-        res = await uploadGiteeFile({
-          file: jsonToBase64(chats),
-          repo: giteeRepo,
-          path: fullPath,
-          sha: files?.sha,
-        })
-        break;
-      case 'gitlab':
-        const gitlabRepo = await getSyncRepoName('gitlab')
-        files = await gitlabGetFiles({ path, repo: gitlabRepo })
-        const chatFile = Array.isArray(files)
-          ? files.find(file => file.name === filename)
-          : (files?.name === filename ? files : undefined)
-        res = await uploadGitlabFile({
-          file: jsonToBase64(chats),
-          repo: gitlabRepo,
-          path,
-          filename,
-          sha: chatFile?.sha || '',
-        })
-        break;
-      case 'gitea':
-        const giteaRepo = await getSyncRepoName('gitea')
-        files = await giteaGetFiles({ path, repo: giteaRepo })
-        const giteaChatFile = Array.isArray(files)
-          ? files.find(file => file.name === filename)
-          : (files?.name === filename ? files : undefined)
-        res = await uploadGiteaFile({
-          file: jsonToBase64(chats),
-          repo: giteaRepo,
-          path,
-          filename,
-          sha: giteaChatFile?.sha || '',
-        })
-        break;
-      case 's3': {
-        const s3Config = await store.get<S3Config>('s3SyncConfig')
-        if (s3Config) {
-          const s3Key = `${path}/${filename}`
-          const existingFile = await s3HeadObject(s3Config, s3Key)
-          if (existingFile) {
-            await s3Delete(s3Config, s3Key)
-          }
-          res = await s3Upload(s3Config, s3Key, JSON.stringify(chats, null, 2))
-        }
-        break;
-      }
-      case 'webdav': {
-        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-        if (webdavConfig) {
-          const webdavKey = `${path}/${filename}`
-          const existingFile = await webdavHeadObject(webdavConfig, webdavKey)
-          if (existingFile) {
-            await webdavDelete(webdavConfig, webdavKey)
-          }
-          res = await webdavUpload(webdavConfig, webdavKey, JSON.stringify(chats, null, 2))
-        }
-        break;
-      }
-    }
-    if (res) {
-      result = true
-    }
-    set({ syncState: false })
-    return result
   },
   // MCP 工具调用记录
   mcpToolCalls: [],
@@ -608,69 +551,20 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   downloadChats: async () => {
-    const path = '.data'
-    const filename = 'chats.json'
-    const store = await Store.load('store.json');
-    const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    let result = []
-    let files;
-    switch (primaryBackupMethod) {
-      case 'github':
-        const githubRepo2 = await getSyncRepoName('github')
-        files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo2 })
-        break;
-      case 'gitee':
-        const giteeRepo2 = await getSyncRepoName('gitee')
-        files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo2 })
-        break;
-      case 'gitlab':
-        const gitlabRepo2 = await getSyncRepoName('gitlab')
-        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo2 })
-        break;
-      case 'gitea':
-        const giteaRepo2 = await getSyncRepoName('gitea')
-        files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
-        break;
-      case 's3': {
-        const s3Config = await store.get<S3Config>('s3SyncConfig')
-        if (s3Config) {
-          const s3Key = `${path}/${filename}`
-          const s3Result = await s3Download(s3Config, s3Key)
-          if (s3Result) {
-            // S3 返回的 content 是字符串，直接解析
-            result = JSON.parse(s3Result.content)
-          }
-        }
-        break;
-      }
-      case 'webdav': {
-        const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-        if (webdavConfig) {
-          const webdavKey = `${path}/${filename}`
-          const webdavResult = await webdavDownload(webdavConfig, webdavKey)
-          if (webdavResult) {
-            result = JSON.parse(webdavResult.content)
-          }
-        }
-        break;
-      }
+    set({ syncState: true })
+    try {
+      const { downloadConversations } = await import('@/lib/sync/conversation-sync')
+      await downloadConversations({ allowMissingRemote: true })
+      return get().chats
+    } finally {
+      set({ syncState: false })
     }
-    // S3/WebDAV 已经直接解析到 result 了，这里处理 Git 平台
-    if (files) {
-      const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-      result = JSON.parse(configJson)
-    }
-    if (result.length > 0) {
-      await deleteAllChats()
-      await insertChats(result)
-    }
-    set({ syncState: false })
-    return result
   },
 
   // === 新增：会话管理方法 ===
   currentConversationId: null,
   conversations: [],
+  isTemporaryConversation: false,
 
   initConversations: async () => {
     const { getAllConversations } = await import('@/db/conversations')
@@ -682,19 +576,31 @@ const useChatStore = create<ChatState>((set, get) => ({
     const { createConversation: createConv } = await import('@/db/conversations')
     const id = await createConv(title)
     // 设置为当前会话并刷新会话列表
-    set({ currentConversationId: id })
+    set({ currentConversationId: id, isTemporaryConversation: false, reasoningOverride: null })
     await get().initConversations()
     return id
   },
 
   switchConversation: async (id: number) => {
+    const previousConversationId = get().currentConversationId
+    if (previousConversationId && previousConversationId !== id) {
+      const { scheduleConversationMemoryExtraction } = await import('@/lib/memory/auto-memory')
+      scheduleConversationMemoryExtraction(previousConversationId)
+    }
     // 先同步消息数量，确保 messageCount 与实际消息数量一致
     const { syncConversationMessageCount } = await import('@/db/conversations')
     await syncConversationMessageCount(id)
     // 然后加载消息
     const { getChatsByConversation } = await import('@/db/chats')
     const data = await getChatsByConversation(id)
-    set({ currentConversationId: id, chats: data, pendingQuote: null })
+    set({
+      currentConversationId: id,
+      reasoningOverride: previousConversationId === id ? get().reasoningOverride : null,
+      chats: data,
+      isTemporaryConversation: false,
+      pendingQuote: null,
+      editorSelectionQuote: null,
+    })
     // 刷新会话列表以确保 UI 显示最新的会话状态
     await get().initConversations()
   },
@@ -721,10 +627,13 @@ const useChatStore = create<ChatState>((set, get) => ({
         // 没有其他会话了，清空状态，不创建新会话
         set({
           currentConversationId: null,
+          reasoningOverride: null,
           chats: [],
+          isTemporaryConversation: false,
           pendingQuote: null,
+          editorSelectionQuote: null,
           agentAutoApproveConversationId: null,
-          agentAutoApproveRuntimeSkillId: null
+          agentAutoApproveRuntimeScriptKey: null
         })
         get().resetAgentState()
         get().clearMcpToolCalls()
@@ -745,6 +654,10 @@ const useChatStore = create<ChatState>((set, get) => ({
 
   startNewConversation: async () => {
     const { currentConversationId } = get()
+    if (currentConversationId) {
+      const { scheduleConversationMemoryExtraction } = await import('@/lib/memory/auto-memory')
+      scheduleConversationMemoryExtraction(currentConversationId)
+    }
 
     // 如果当前会话无消息，删除它（从数据库查询最新状态）
     if (currentConversationId) {
@@ -764,11 +677,29 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({
       currentConversationId: null,
       chats: [],
+      isTemporaryConversation: false,
+      reasoningOverride: null,
       pendingQuote: null,
+      editorSelectionQuote: null,
       agentAutoApproveConversationId: null,
-      agentAutoApproveRuntimeSkillId: null
+      agentAutoApproveRuntimeScriptKey: null
     })
     // 清空 Agent 状态
+    get().resetAgentState()
+    get().clearMcpToolCalls()
+  },
+
+  startTemporaryConversation: () => {
+    set({
+      currentConversationId: null,
+      chats: [],
+      isTemporaryConversation: true,
+      reasoningOverride: null,
+      pendingQuote: null,
+      editorSelectionQuote: null,
+      agentAutoApproveConversationId: null,
+      agentAutoApproveRuntimeScriptKey: null,
+    })
     get().resetAgentState()
     get().clearMcpToolCalls()
   },

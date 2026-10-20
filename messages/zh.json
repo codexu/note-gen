@@ -1,59 +1,190 @@
 {
-  "app": {
-    "title": "笔记生成器",
-    "description": "你的 AI 驱动的笔记助手"
+  "screenshotPin": {
+    "title": "贴图",
+    "drag": "拖动贴图",
+    "imageAlt": "固定在桌面的截图",
+    "loading": "正在处理…",
+    "loadError": "贴图加载失败，请关闭后重新固定。",
+    "actionError": "操作失败，请重试。",
+    "copy": "复制图片",
+    "save": "另存 PNG",
+    "saveRecord": "保存到记录",
+    "savingRecord": "正在保存到记录…",
+    "recordSaved": "已保存到记录",
+    "recordSaveFailed": "保存记录失败，图片仍保留，可重试。",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "resetZoom": "恢复原尺寸",
+    "close": "关闭贴图",
+    "copied": "已复制图片",
+    "zoomLabel": "缩放 {percent}%",
+    "hint": "拖动顶部栏移动；滚轮缩放；Esc 关闭"
   },
-  "common": {
-    "save": "保存",
+  "screenshotEditor": {
+    "title": "桌面截图",
+    "selectHint": "拖动选择区域，双击选择整屏",
+    "editingHint": "拖动选区或边框调整；Enter 保存记录，Esc 取消",
+    "select": "调整选区",
+    "rectangle": "矩形",
+    "ellipse": "椭圆",
+    "arrow": "箭头",
+    "pen": "画笔",
+    "text": "文字",
+    "mosaic": "马赛克",
+    "color": "颜色",
+    "red": "红色",
+    "orange": "橙色",
+    "yellow": "黄色",
+    "green": "绿色",
+    "blue": "蓝色",
+    "purple": "紫色",
+    "white": "白色",
+    "black": "黑色",
+    "lineWidth": "线条粗细",
+    "textSize": "文字大小",
+    "undo": "撤销",
+    "redo": "重做",
+    "copy": "复制图片",
+    "pin": "固定到桌面",
+    "pinFailed": "无法固定截图，请重试。",
+    "saveFile": "另存 PNG",
+    "saveRecord": "保存到记录",
     "cancel": "取消",
-    "delete": "删除",
-    "confirm": "确认",
-    "edit": "编辑",
-    "create": "创建",
-    "theme": "主题",
-    "light": "亮色",
-    "dark": "暗色",
-    "system": "跟随系统",
-    "pin": "置顶",
-    "unpin": "取消置顶",
-    "settings": "设置",
-    "sync": "同步",
-    "language": "语言",
-    "success": "成功",
-    "error": "失败",
-    "defaultFileName": "未命名文档",
-    "back": "返回",
-    "close": "关闭",
+    "saving": "正在处理…",
+    "loadError": "截图加载失败，请取消后重试。",
+    "actionError": "操作失败，截图仍保留，可重试。",
+    "textPlaceholder": "输入文字，Enter 添加，Shift+Enter 换行",
+    "addText": "添加文字",
+    "discardText": "取消文字",
+    "pixelSize": "{width} × {height} px",
+    "retry": "重试"
+  },
+  "appLock": {
+    "title": "启动密码锁",
+    "description": "密码锁仅保护应用界面，不加密笔记文件；请妥善保存密码。",
+    "unlockDescription": "输入密码后打开 NoteGen。",
+    "loading": "正在读取密码锁设置…",
+    "password": "密码",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码（至少 4 位）",
+    "confirmPassword": "确认新密码",
+    "enable": "启用启动密码锁",
+    "disable": "关闭启动密码锁",
+    "unlock": "解锁",
+    "working": "处理中…",
+    "wrongPassword": "密码不正确，请重试。",
+    "minimumLength": "密码至少需要 4 位。",
+    "mismatch": "两次输入的密码不一致。",
+    "error": "无法读取或保存密码锁设置，请重试。",
+    "retry": "重试",
+    "enabled": "密码锁已启用，下次启动或打开新窗口时需要解锁。",
+    "disabled": "密码锁已关闭。",
+    "changed": "密码锁设置已在其他窗口更改，请重新输入。",
+    "sectionTitle": "隐私",
+    "statusEnabled": "启动密码锁已开启。",
+    "statusDisabled": "启动密码锁已关闭。",
+    "configure": "设置密码",
+    "configureTitle": "设置启动密码",
+    "setupDescription": "设置至少 4 位的密码。重新启动或打开新窗口时需要解锁。",
+    "disableTitle": "关闭启动密码锁",
+    "disableDescription": "输入当前密码以关闭启动密码锁。",
+    "cancel": "取消",
+    "rememberForDay": "1 天内不再验证",
+    "rememberForDayDescription": "仅在此设备有效，24 小时后需要重新验证。"
+  },
+  "app": {
+    "title": "NoteGen",
+    "description": "先记录，再整理。"
+  },
+  "tray": {
+    "quickRecord": "快速记录",
+    "moreRecord": "更多记录",
     "open": "打开",
-    "add": "添加",
-    "remove": "移除",
-    "search": "搜索",
-    "filter": "筛选",
-    "sort": "排序",
-    "export": "导出",
-    "import": "导入",
-    "refresh": "刷新",
-    "loading": "加载中...",
-    "all": "全部",
-    "today": "今天",
-    "yesterday": "昨天",
-    "warning": "警告",
-    "info": "信息",
-    "restartToApply": "，请重启应用使配置生效",
-    "unsaved": "未保存",
-    "saving": "保存中...",
-    "configureSync": "配置同步"
+    "showMain": "显示主窗口",
+    "newNote": "新建笔记",
+    "newFolder": "新建文件夹",
+    "settings": "设置",
+    "window": "窗口",
+    "pinToggle": "置顶/取消置顶",
+    "hideWindow": "隐藏到托盘",
+    "quit": "退出 NoteGen"
   },
   "settings": {
     "defaultModels": {
-      "title": "默认模型"
+      "title": "默认模型",
+      "followPrimary": {
+        "title": "编辑器模型",
+        "desc": "用于续写、内容生成和自动提交信息；不选择时跟随当前主要模型",
+        "value": "跟随主要模型"
+      }
     },
     "others": "高级",
     "general": {
+      "permissions": {
+        "openSettings": "打开系统设置",
+        "openSettingsError": "无法打开系统权限设置",
+        "title": "系统权限",
+        "desc": "管理应用使用的系统权限。",
+        "notification": "通知",
+        "notificationDesc": "用于截图保存到记录后的系统提醒，以及 Agent 在后台等待操作确认时的提醒。",
+        "authorize": "请求授权",
+        "error": "无法操作系统权限",
+        "status": {
+          "systemManaged": "由系统管理",
+          "loading": "读取中…",
+          "granted": "已授权",
+          "notGranted": "未授权",
+          "unavailable": "当前环境无法读取通知权限",
+          "denied": "已拒绝",
+          "restricted": "受系统限制"
+        },
+        "screen": "屏幕录制",
+        "screenDesc": "用于截图记录。",
+        "microphone": "麦克风",
+        "microphoneDesc": "用于录音记录。"
+      },
       "title": "常规设置",
       "desc": "在这里，你可以配置应用的基本设置，包括界面主题、语言等选项。",
+      "behavior": {
+        "title": "应用行为",
+        "desc": "设置 NoteGen 的启动方式和关闭窗口时的行为",
+        "close": {
+          "title": "关闭窗口时",
+          "desc": "选择点击窗口关闭按钮后执行的操作",
+          "options": {
+            "minimize": "最小化到托盘",
+            "quit": "直接退出",
+            "ask": "每次询问"
+          }
+        },
+        "autostart": {
+          "title": "开机启动",
+          "desc": "登录系统后自动启动 NoteGen",
+          "error": "无法更新开机启动设置"
+        },
+        "autostartMinimized": {
+          "title": "自启后隐藏主窗口",
+          "desc": "仅通过开机启动时隐藏窗口，并在系统托盘中保持运行",
+          "error": "无法更新自启后隐藏设置"
+        },
+        "closePrompt": {
+          "title": "关闭 NoteGen？",
+          "desc": "你可以将 NoteGen 保留在系统托盘，或彻底退出应用。",
+          "cancel": "取消",
+          "minimize": "最小化到托盘",
+          "quit": "退出应用"
+        }
+      },
       "interface": {
         "title": "界面设置",
+        "appearance": {
+          "title": "外观与语言",
+          "desc": "调整应用主题、显示语言和全局字体"
+        },
+        "reading": {
+          "title": "阅读与缩放",
+          "desc": "分别调整界面、正文和列表的显示尺寸"
+        },
         "theme": {
           "title": "主题",
           "desc": "选择应用的外观主题",
@@ -65,7 +196,8 @@
         },
         "language": {
           "title": "语言",
-          "desc": "选择应用的显示语言"
+          "desc": "选择应用的显示语言",
+          "findInPlugins": "在插件中找到您要的语言"
         },
         "scale": {
           "title": "界面缩放",
@@ -84,15 +216,35 @@
           "title": "记录文字大小",
           "desc": "调整记录列表中记录项的文字大小"
         },
+        "fontFamily": {
+          "title": "应用字体",
+          "desc": "桌面端可选择系统字体；移动端使用系统允许的通用字体族",
+          "placeholder": "选择字体",
+          "loading": "正在读取系统字体...",
+          "noSystemFonts": "当前平台不支持读取完整系统字体",
+          "groups": {
+            "default": "默认",
+            "generic": "通用字体",
+            "system": "系统字体"
+          },
+          "options": {
+            "system": "跟随系统",
+            "sansSerif": "无衬线",
+            "serif": "衬线",
+            "monospace": "等宽"
+          }
+        },
         "customCss": {
           "title": "自定义 CSS",
-          "desc": "添加自定义 CSS 样式来覆盖应用的默认样式",
+          "desc": "自定义整个应用的样式，包括 Markdown 正文、侧栏和设置界面",
           "button": "编辑 CSS",
           "dialogTitle": "自定义 CSS",
-          "dialogDesc": "在下方输入自定义 CSS 代码，可以覆盖应用的默认样式。修改后点击保存即可生效。",
+          "dialogDesc": "CSS 保存后会作用于当前设备的整个应用。若样式影响使用，可在此清空恢复默认。",
           "placeholder": "在此输入自定义 CSS 代码。",
           "save": "保存",
-          "cancel": "取消"
+          "cancel": "取消",
+          "reset": "清空并恢复默认",
+          "saveError": "自定义 CSS 保存失败"
         },
         "customTheme": {
           "title": "自定义主题颜色",
@@ -189,6 +341,10 @@
             "title": "启用托盘",
             "desc": "关闭窗口时选择最小化到托盘或直接关闭软件"
           }
+        },
+        "themePackage": {
+          "title": "主题包",
+          "default": "内置配色"
         }
       },
       "tools": {
@@ -217,13 +373,157 @@
         }
       }
     },
+    "webClipper": {
+      "title": "浏览器剪藏",
+      "desc": "将 Chrome 或 Edge 中的网页正文、选区和链接保存到 NoteGen 记录。",
+      "serviceTitle": "本机服务",
+      "serviceDesc": "剪藏服务仅监听本机回环地址，检测到扩展后会自动连接。",
+      "localService": "浏览器剪藏服务",
+      "portDescription": "监听地址：127.0.0.1:{port}",
+      "loading": "正在读取服务状态",
+      "running": "运行中",
+      "stopped": "未运行",
+      "enableTitle": "启用浏览器剪藏",
+      "enableDesc": "允许本机浏览器扩展自动连接、读取标签并保存记录。",
+      "installTitle": "安装浏览器插件",
+      "installDesc": "前往 NoteGen 官网下载页，获取 Chrome 或 Edge 浏览器剪藏插件。",
+      "installAction": "前往官网下载",
+      "installOpenFailed": "无法打开插件下载页面",
+      "serverErrorTitle": "剪藏服务启动失败",
+      "serverErrorDescription": "端口可能已被占用：{error}",
+      "connectionsTitle": "已配对浏览器",
+      "connectionsDesc": "管理可以向本机 NoteGen 保存内容的扩展安装实例。",
+      "refresh": "刷新",
+      "pairedBrowsers": "连接列表",
+      "pairedCount": "共 {count} 个连接",
+      "noConnections": "尚未连接浏览器。打开 NoteGen 剪藏扩展即可自动连接。",
+      "unknownBrowser": "未知浏览器",
+      "connectionMeta": "扩展 {version} · 最近使用 {time}",
+      "revoke": "撤销授权",
+      "revoked": "已撤销浏览器授权",
+      "revokeFailed": "撤销授权失败",
+      "loadFailed": "读取剪藏设置失败",
+      "updateFailed": "更新剪藏设置失败",
+      "pairingTitle": "允许浏览器连接 NoteGen？",
+      "pairingDescription": "确认后，该扩展可以读取你的标签列表并把网页内容保存为记录。",
+      "browser": "浏览器",
+      "extensionVersion": "扩展版本",
+      "installId": "安装标识",
+      "reject": "拒绝",
+      "approve": "允许连接",
+      "pairingApproved": "浏览器已连接",
+      "pairingRejected": "已拒绝浏览器连接",
+      "pairingFailed": "处理配对请求失败",
+      "savedTitle": "网页剪藏已保存",
+      "savedDescription": "“{title}”已保存到记录"
+    },
+    "webSearch": {
+      "title": "网络搜索",
+      "desc": "配置 NoteGen 的三层联网搜索方案，AI 会自行判断何时需要搜索。",
+      "nativeEnabled": "启用模型原生搜索",
+      "thirdPartyEnabled": "启用第三方搜索",
+      "basicEnabled": "启用免 Key 搜索",
+      "nativeLayerTitle": "模型原生搜索",
+      "nativeLayerDesc": "如果当前模型支持联网搜索，优先直接使用模型自身的能力。",
+      "thirdPartyLayerTitle": "第三方 API 搜索",
+      "thirdPartyLayerDesc": "模型原生搜索不可用时，按下方顺序尝试已配置的服务。",
+      "basicLayerTitle": "免 Key 搜索",
+      "basicLayerDesc": "前两层均不可用时，尝试通过 Bing、DuckDuckGo、搜狗、360 和百度获取结果。",
+      "fallbackWhenUnavailable": "上一层不可用时，自动降级",
+      "fallbackWhenNativeDisabled": "模型原生搜索已关闭，直接降级",
+      "fallbackWhenDisabled": "第三方搜索已关闭，直接降级",
+      "dragProvider": "拖拽调整 {provider} 的优先级",
+      "testConnection": "测试连接",
+      "testing": "测试中",
+      "testSuccess": "连接成功，获得 {count} 个搜索结果。",
+      "testFailed": "连接失败：{message}",
+      "getApiKey": "申请 Key",
+      "showApiKey": "显示 API Key",
+      "hideApiKey": "隐藏 API Key",
+      "providerApiKeyPlaceholder": "输入 {provider} API Key"
+    },
     "rag": {
       "title": "知识库",
-      "desc": "在这里，你可以配置知识库相关设置，知识库基于 RAG 技术，通过嵌入模型将文本转换为向量，然后通过向量搜索来实现智能搜索和智能回答。",
+      "desc": "知识库通过向量、BM25 和模糊匹配进行混合检索，并可使用重排模型优化结果顺序。",
+      "modelSectionTitle": "检索模型",
+      "modelSectionDesc": "嵌入模型用于语义检索，重排模型可选；不配置模型时仍可使用本地词法检索。",
+      "modelAvailable": "可用",
+      "modelUnavailable": "不可用",
+      "modelNotConfigured": "未配置",
+      "indexStatusTitle": "索引状态",
+      "indexStatusDesc": "查看当前索引规模；模型、分块或排除路径变化后需要重新构建。",
+      "vectorDocuments": "向量文件",
+      "vectorChunks": "向量分块",
+      "bm25Documents": "BM25 文件",
+      "bm25Chunks": "BM25 分块",
+      "lastBuilt": "最近构建",
+      "neverBuilt": "尚未构建",
+      "indexNeedsRebuild": "需要重新构建",
+      "indexUpToDate": "索引已是最新",
+      "lexicalOnly": "当前仅使用本地词法检索",
+      "rebuildIndex": "重新构建",
+      "rebuildingIndex": "正在构建",
+      "lexicalIndexRebuilt": "本地 BM25 索引已重新构建",
+      "basicSettingsTitle": "基础设置",
+      "basicSettingsDesc": "AI 会自行判断是否需要参考其他笔记；你也可以调整自动检索的深度和匹配范围。",
+      "sourceTypes": {
+        "article": {
+          "title": "文章",
+          "desc": "将 Markdown 文章加入语义知识库。"
+        },
+        "record": {
+          "title": "记录",
+          "desc": "索引单条记录、OCR、录音转写和已有元数据。"
+        },
+        "canvas": {
+          "title": "画布",
+          "desc": "索引画布节点文字和显式连线关系。"
+        }
+      },
+      "globalSemanticSearchTitle": "全局语义搜索",
+      "globalSemanticSearchDesc": "输入停顿后补充相关内容；关闭后仍可使用本地精确搜索。",
+      "structuredIndexTitle": "统一知识索引进度",
+      "pauseIndex": "暂停",
+      "continueIndex": "继续",
+      "failedCount": "失败 {count}",
+      "retrySource": "重试",
+      "unknownIndexError": "索引失败",
+      "purgeDisabledIndex": "删除已停用索引",
+      "purgeDisabledConfirm": "确定删除所有已关闭来源类型的本地向量吗？重新启用后需要再次构建。",
+      "purgeDisabledSuccess": "已删除停用来源的本地向量",
+      "automaticSearchTitle": "允许 AI 参考其他笔记",
+      "automaticSearchDesc": "问题依赖你的记录时，AI 会自行查找相关笔记；普通问题和当前笔记内容足够时不会检索。",
+      "agentStrategyTitle": "自动检索策略",
+      "agentStrategies": {
+        "fast": {
+          "title": "快速",
+          "desc": "最多搜索 1 轮，优先降低等待时间。"
+        },
+        "balanced": {
+          "title": "标准",
+          "desc": "最多搜索 2 轮，在速度和跨笔记查找能力之间取得平衡。"
+        },
+        "deep": {
+          "title": "深入",
+          "desc": "最多搜索 3 轮，适合比较、追溯和跨笔记综合分析。"
+        }
+      },
+      "presetDesc": "预设只调整检索数量和阈值。",
+      "presets": {
+        "precision": {
+          "title": "精准优先"
+        },
+        "balanced": {
+          "title": "均衡"
+        },
+        "recall": {
+          "title": "召回优先"
+        }
+      },
       "settingsTitle": "参数设置",
       "settingsDesc": "通过调解参数，可以更加精确的控制知识库的检索效果。",
-      "deleteVectorConfirm": "确定清空知识库吗？",
-      "deleteVectorSuccess": "清空知识库成功",
+      "deleteVectorConfirm": "确定清空向量和 BM25 索引吗？笔记不会被删除，本地模糊检索仍然可用。",
+      "deleteVectorSuccess": "检索索引已清空",
       "enable": "启用知识库检索",
       "enableDesc": "启用后，AI 将在回答问题时检索你的笔记内容，提供更准确的回答。",
       "topPDesc": "Top P 参数控制模型生成文本的多样性，值越小生成的文本越确定，值越大生成的文本越多样。",
@@ -232,15 +532,48 @@
       "chunkOverlap": "重叠大小",
       "chunkOverlapDesc": "文本分块间的重叠字符数，较大的重叠可以保持上下文连贯性。",
       "resultCount": "检索数量",
-      "resultCountDesc": "检索时返回的相关文档数量，数量越多提供的信息可能更丰富，但也可能引入噪声。",
+      "resultCountDesc": "最终提供给 AI 的相关上下文片段数量，数量越多信息更丰富，但也可能引入噪声。",
       "similarityThreshold": "相似度阈值",
-      "similarityThresholdDesc": "文档与查询的最小相似度阈值，只有超过此阈值的文档才会被返回。值范围 0.0-1.0，越高要求越严格。",
+      "similarityThresholdDesc": "只过滤向量检索中相似度过低的片段，不影响 BM25 和模糊检索。值越高要求越严格。",
+      "rerankThreshold": "重排相关性阈值",
+      "rerankThresholdDesc": "重排模型启用时过滤低相关结果，减少为了凑数量而加入的噪声。",
+      "rerankThresholdDisabledDesc": "未配置可用的重排模型；当前使用本地融合评分排序，此阈值不生效。",
+      "excludedPaths": "排除路径",
+      "excludedPathsDesc": "每行填写一个相对于知识库根目录的文件夹或路径前缀；保存后需要重新构建索引。",
+      "excludedPathsPlaceholder": "例如：归档\n敏感信息",
+      "excludedPathsInvalid": "请使用相对于知识库根目录的安全路径，不支持绝对路径或 ..。",
+      "excludedPathsSaved": "已保存",
+      "excludedPathsUnsaved": "有未保存的修改",
+      "restoreDefaultExclusions": "恢复默认排除项",
+      "saveExcludedPaths": "保存",
+      "advancedSettingsTitle": "高级设置",
+      "advancedSettingsDesc": "调整分块与过滤阈值；分块设置变化后需要重新构建索引。",
+      "expand": "展开",
+      "collapse": "收起",
+      "diagnosticTitle": "检索测试",
+      "diagnosticDesc": "输入真实问题，查看命中通道、融合分数以及重排前后的排名。",
+      "diagnosticPlaceholder": "输入一个要测试的问题",
+      "runDiagnostic": "开始测试",
+      "diagnosticNoResults": "没有检索到符合当前阈值的结果。",
+      "diagnosticFailed": "检索测试失败",
+      "retrievers": {
+        "vector": "向量",
+        "bm25": "BM25",
+        "fuzzy": "模糊匹配"
+      },
+      "fusedScore": "融合分数",
+      "finalScore": "最终分数",
+      "dangerZoneTitle": "维护与重置",
+      "dangerZoneDesc": "清理派生的检索索引，不会删除任何笔记。",
       "resetToDefaults": "重置默认值",
-      "deleteVector": "清空知识库"
+      "deleteVector": "清空检索索引",
+      "deleteVectorHint": "清空向量和 BM25 索引后，本地模糊检索仍可使用；需要语义检索时请重新构建。"
     },
     "mcp": {
       "title": "MCP",
-      "desc": "Model Context Protocol 允许 AI 调用外部工具和访问资源，扩展 AI 的能力边界。",
+      "desc": "通过 Model Context Protocol 连接外部工具，或让本机 AI 访问 NoteGen。",
+      "externalTab": "外部 MCP 服务",
+      "accessTab": "访问 NoteGen",
       "enableTitle": "启用 MCP 功能",
       "enableDesc": "启用后，AI 可以调用配置的 MCP 服务器提供的工具。",
       "servers": "服务器列表",
@@ -251,6 +584,8 @@
       "serverName": "服务器名称",
       "serverNamePlaceholder": "例如：文件系统服务器",
       "serverEnabled": "启用服务器",
+      "trustToolAnnotations": "信任工具权限声明",
+      "trustToolAnnotationsDesc": "仅对可信服务器启用；允许根据只读声明减少确认，破坏性操作仍会确认。",
       "serverEnabledDesc": "启用后，此服务器将自动连接并提供工具。",
       "serverType": "服务器类型",
       "stdio": "本地命令",
@@ -307,28 +642,68 @@
       "jsonImportSuccess": "成功导入 {count} 个服务器",
       "jsonImportSkipped": "跳过 {count} 个已存在的服务器",
       "jsonImportNoServers": "没有导入任何服务器",
-      "import": "导入"
+      "import": "导入",
+      "mobileHttpOnlyTitle": "本地命令 MCP 仅限桌面端",
+      "mobileHttpOnlyDesc": "本地命令型 MCP 服务器仅支持桌面端，移动端当前只支持 HTTP MCP。",
+      "runtimeEnvironment": "运行时环境",
+      "runtimeEnvironmentDesc": "在测试 MCP 服务器前，先检查所需的本地运行时是否可用。",
+      "checkEnvironment": "检查环境",
+      "recheckEnvironment": "重新检查环境",
+      "runtimeCheckFailed": "环境检查失败",
+      "detectedLauncher": "检测到的启动器",
+      "runtimeInstalled": "已安装",
+      "runtimeMissing": "缺失",
+      "runtimeVersion": "版本",
+      "runtimeInstalledSummary": "已安装 {installed}/{total}",
+      "showRuntimeDetails": "展开运行时详情",
+      "hideRuntimeDetails": "收起运行时详情",
+      "runtimeNotChecked": "尚未检查该运行时。",
+      "runtimeCurrentUserScope": "推荐命令会尽量安装到当前用户环境。",
+      "runtimeManualOnly": "当前平台暂不支持自动安装该运行时，请手动安装后重新检查。",
+      "installRuntime": "安装运行时",
+      "runtimeInstallTitle": "安装运行时",
+      "runtimeInstallDesc": "确认后，NoteGen 将执行以下安装命令。",
+      "runtimeInstallPreparing": "准备安装",
+      "runtimeInstallRunning": "安装中",
+      "runtimeInstallCompleted": "安装完成",
+      "runtimeInstallCancelled": "已取消",
+      "runtimeInstallFailedState": "安装失败",
+      "runtimeInstallLogs": "安装日志",
+      "runtimeInstallWaitingLogs": "等待安装输出...",
+      "runtimeInstallClose": "关闭",
+      "runtimeInstallCancel": "终止安装",
+      "runtimeInstallCancelledByUser": "用户已请求取消安装。",
+      "runtimeInstallCancelFailed": "终止安装失败",
+      "runtimeInstallSuccess": "运行时安装完成",
+      "runtimeInstallFailed": "运行时安装失败",
+      "runtimeNoGuidedSupport": "当前命令暂不支持引导式运行时辅助。"
     },
     "skills": {
-      "title": "Skills",
-      "desc": "Skills 是可重用的 AI 能力包，让 AI 助手能够根据任务自动应用特定的行为模式。",
-      "enable": "启用 Skills 功能",
-      "enableDesc": "启用后，AI 可以使用已配置的 Skills",
-      "autoMatch": "自动匹配 Skills",
-      "autoMatchDesc": "根据用户输入自动选择合适的 Skills",
-      "project": "工作区 Skills",
-      "global": "全局 Skills",
-      "globalPath": "全局 Skills 存储位置",
+      "title": "技能",
+      "desc": "技能是可重用的 AI 能力包，让 AI 助手能够根据任务自动应用特定的行为模式。",
+      "enable": "启用技能功能",
+      "enableDesc": "启用后，AI 可以使用已配置的技能",
+      "autoMatch": "自动匹配技能",
+      "autoMatchDesc": "根据用户输入自动选择合适的技能",
+      "project": "工作区技能",
+      "global": "全局技能",
+      "globalPath": "全局技能存储位置",
       "openInFileManager": "在文件管理器中打开",
-      "createSkill": "创建 Skill",
-      "editSkill": "编辑 Skill",
-      "deleteSkill": "删除 Skill",
-      "exportSkill": "导出 Skill",
-      "importSkill": "导入 Skill",
+      "createSkill": "创建技能",
+      "deleteSkill": "删除技能",
+      "exportSkill": "导出技能",
+      "importSkill": "导入技能",
+      "installSkill": "安装技能",
+      "installFromFolder": "从文件夹安装",
+      "installFromZip": "从 ZIP 安装",
+      "openSkillsFolder": "打开目录",
+      "selectSkillFolder": "选择包含 SKILL.md 的 Skill 文件夹",
       "selectSkillZip": "选择 Skill zip 文件",
+      "openDirectoryError": "打开 Skills 目录失败",
       "importSuccess": "导入成功",
       "importError": "导入失败",
       "imported": "已导入",
+      "importedSkill": "已安装 {name}",
       "importing": "导入中...",
       "skillName": "Skill 名称",
       "skillDescription": "描述",
@@ -336,19 +711,19 @@
       "skillAuthor": "作者",
       "allowedTools": "允许使用的工具",
       "userInvocable": "在斜杠菜单显示",
-      "instructions": "指令内容",
-      "instructionsPlaceholder": "输入给 AI 的详细指令...",
       "importHelp": "支持导入 zip 格式的 Skill，zip 文件需包含 SKILL.md 文件。",
+      "workspaceInstallHelp": "安装到当前工作区的 skills 目录，仅供当前工作区使用。",
+      "globalInstallHelp": "安装到 NoteGen 的全局 Skills 目录，可供所有工作区使用。",
       "metadata": "元数据",
       "content": "指令内容",
-      "noSkills": "还没有 Skills",
-      "noSkillsDesc": "创建或导入 Skills 以开始使用",
-      "noSkillsGlobal": "还没有全局 Skills",
-      "noSkillsGlobalDesc": "创建或导入 Skills 以在所有项目中使用",
-      "emptyWorkspace": "工作区中没有 Skills",
-      "emptyWorkspaceDesc": "在 skills 文件夹中创建 SKILL.md 文件来添加 Skill",
+      "noSkills": "还没有技能",
+      "noSkillsDesc": "创建或导入技能以开始使用",
+      "noSkillsGlobal": "还没有全局技能",
+      "noSkillsGlobalDesc": "创建或导入技能以在所有项目中使用",
+      "emptyWorkspace": "工作区中没有技能",
+      "emptyWorkspaceDesc": "在 skills 文件夹中创建 SKILL.md 文件来添加技能",
       "basicSettings": "基础设置",
-      "installedGlobalSkills": "已安装的全局 Skills",
+      "installedGlobalSkills": "已安装的全局技能",
       "nameRequired": "请输入 Skill 名称",
       "descriptionRequired": "请输入描述",
       "namePlaceholder": "note-organizer",
@@ -358,17 +733,442 @@
       "descriptionHelp": "用于 AI 匹配，描述此 Skill 的功能和适用场景",
       "allowedToolsHelp": "这些工具使用时不需要用户确认",
       "userInvocableHelp": "用户可以通过 /skill-name 手动触发",
-      "instructionsHelp": "给 AI 的详细指令，支持 Markdown 格式",
       "deleteSkillTitle": "删除 Skill",
       "deleteSkillDesc": "确定要删除这个 Skill 吗？此操作无法撤销。",
-      "skillDeleted": "Skill 删除成功"
+      "skillDeleted": "Skill 删除成功",
+      "pythonRuntime": "Python 运行环境",
+      "isolatedRuntime": "隔离环境",
+      "systemRuntime": "系统环境",
+      "runtimeUnavailable": "不可用"
+    },
+    "plugins": {
+      "ui": {
+        "moreActions": "更多插件操作",
+        "confirmPrompt": "确认",
+        "cancelPrompt": "取消",
+        "searchChoices": "搜索选项",
+        "loadingView": "正在加载插件视图…",
+        "viewFailed": "无法打开插件视图",
+        "retry": "重试",
+        "empty": "暂无内容",
+        "chat": "AI 对话",
+        "editor": "编辑器",
+        "closeView": "关闭 {name}",
+        "close": "关闭",
+        "requiredField": "请填写此项",
+        "invalidValue": "请输入有效的值",
+        "documentExpired": "预览已过期，请重新生成"
+      },
+      "title": "插件管理",
+      "desc": "发现、安装、授权并配置 NoteGen 扩展。插件代码目前仅在桌面端运行。",
+      "loading": "正在加载插件...",
+      "initializationFailed": "插件初始化失败",
+      "required": "必需",
+      "optional": "可选",
+      "tabs": {
+        "market": "市场",
+        "installed": "已安装",
+        "updates": "更新",
+        "permissions": "权限",
+        "developer": "开发者"
+      },
+      "actions": {
+        "retry": "重试",
+        "refresh": "刷新",
+        "refreshing": "刷新中...",
+        "install": "安装",
+        "installing": "安装中...",
+        "installed": "已安装",
+        "update": "更新",
+        "rollback": "回滚",
+        "uninstall": "卸载",
+        "uninstallKeepData": "卸载并保留数据",
+        "uninstallAndRemoveData": "卸载并删除数据",
+        "cancel": "取消",
+        "revoke": "撤销",
+        "import": "导入",
+        "importing": "导入中...",
+        "reload": "重新加载",
+        "clearLogs": "清空日志",
+        "details": "详情",
+        "enabling": "启用中...",
+        "clearFailure": "清除故障状态",
+        "exportDiagnostics": "导出诊断信息"
+      },
+      "labels": {
+        "official": "官方",
+        "featured": "精选",
+        "verified": "已验证",
+        "attention": "需要处理"
+      },
+      "sources": {
+        "marketplace": "插件市场",
+        "development": "开发版本"
+      },
+      "runtime": {
+        "inactive": "未运行",
+        "activating": "启动中",
+        "active": "运行中",
+        "stopping": "停止中",
+        "failed": "运行失败",
+        "quarantined": "已隔离"
+      },
+      "commandPalette": {
+        "title": "插件命令",
+        "description": "搜索并运行已启用插件提供的命令。",
+        "placeholder": "搜索插件命令...",
+        "empty": "没有匹配的插件命令。",
+        "group": "插件"
+      },
+      "statusBar": {
+        "loading": "插件状态正在更新"
+      },
+      "market": {
+        "searchPlaceholder": "按名称、作者或分类搜索插件",
+        "searchLabel": "搜索插件市场",
+        "sourceTitle": "插件市场索引已验证",
+        "staleTitle": "正在显示离线市场快照",
+        "staleInstallDisabled": "离线快照仅供浏览；恢复联网并刷新验证后的索引，才能安装或更新插件。",
+        "sourceAndTime": "来源：{source}；生成时间：{time}。",
+        "sources": {
+          "remote": "远程索引",
+          "cache": "本地缓存"
+        },
+        "loadFailed": "插件市场刷新失败",
+        "installFailed": "插件安装失败",
+        "installAria": "安装 {name}",
+        "reviewInstallTitle": "安装前检查 {name}",
+        "reviewInstallDesc": "请核对发布者、源码、许可证、兼容性、安装包摘要和申请的权限。",
+        "publisher": "发布者",
+        "publisherKey": "发布者密钥 ID",
+        "license": "许可证",
+        "packageDigest": "安装包 SHA-256",
+        "sourceCode": "查看源码",
+        "homepage": "项目主页",
+        "noPermissions": "未申请受保护权限",
+        "unavailable": "当前不可用",
+        "permissionsCount": "声明了 {count} 项权限",
+        "noResults": "没有匹配的插件",
+        "noResultsDesc": "请尝试其他名称、作者或分类。",
+        "empty": "插件市场暂无内容",
+        "emptyDesc": "请刷新签名索引，或联网后重试。"
+      },
+      "installed": {
+        "searchPlaceholder": "搜索已安装插件",
+        "searchLabel": "搜索已安装插件",
+        "operationFailed": "无法更改插件状态",
+        "noDescription": "插件没有提供说明。",
+        "allWorkspaces": "已在所有工作区启用",
+        "enablementLabel": "启用范围",
+        "enablementDesc": "插件设置和权限仍按工作区分别保存。",
+        "permissionReviewRequired": "需要确认权限",
+        "reviewPermissions": "确认权限",
+        "enablement": {
+          "disabled": "禁用",
+          "workspace": "当前工作区",
+          "allWorkspaces": "所有工作区"
+        },
+        "enableAria": "在当前工作区启用 {name}",
+        "disableAria": "在当前工作区停用 {name}",
+        "failureTitle": "最近一次故障：{code}",
+        "failureCount": "已记录 {count} 次。",
+        "noResults": "没有匹配的已安装插件",
+        "noResultsDesc": "可按插件名称、ID 或作者搜索。",
+        "empty": "尚未安装插件",
+        "emptyDesc": "请先从插件市场安装插件。",
+        "revoked": "此版本已被撤销：{reason}"
+      },
+      "details": {
+        "author": "作者",
+        "unknown": "未知",
+        "apiVersion": "插件 API",
+        "minAppVersion": "最低 NoteGen 版本",
+        "platforms": "支持平台",
+        "contentHash": "内容哈希",
+        "commands": "命令",
+        "menus": "菜单项",
+        "permissions": "权限"
+      },
+      "settings": {
+        "title": "插件设置",
+        "contextChanged": "插件或工作区已变化，请重新打开插件设置后再保存。",
+        "desc": "这些值由 NoteGen 校验并保存。",
+        "none": "此插件没有可配置项。",
+        "invalidNumber": "请输入有效数字。",
+        "relativePathOnly": "请使用不包含 .. 的工作区相对路径。",
+        "relativePathHelp": "路径相对于当前工作区，不能填写绝对路径。",
+        "byteUsage": "{used} / {max} 字节",
+        "byteLimitExceeded": "当前内容占用 {used} 字节，超过 {max} 字节上限。",
+        "scopes": {
+          "device": "当前设备",
+          "workspace": "当前工作区"
+        }
+      },
+      "updates": {
+        "summaryTitle": "有 {count} 个插件可更新",
+        "summaryDesc": "插件会以原子方式更新；支持回滚时，NoteGen 会保留上一个版本。",
+        "operationFailed": "插件操作失败",
+        "available": "可更新",
+        "current": "已是最新",
+        "pendingActivation": "等待激活确认",
+        "pendingActivationDesc": "请先打开或运行一次插件以确认当前版本，或者回滚后再安装其他更新。",
+        "versionChange": "版本 {current} → {next}",
+        "currentVersion": "已安装版本 {version}",
+        "confirmUpdateTitle": "更新 {name}？",
+        "confirmUpdateDesc": "将版本 {current} 替换为 {next}。如果权限发生变化，再次启用前需要重新确认。",
+        "confirmRollbackTitle": "回滚 {name}？",
+        "confirmRollbackDesc": "将版本 {current} 替换为保留的 {previous} 版本。",
+        "confirmUninstallTitle": "卸载 {name}？",
+        "confirmUninstallDesc": "你可以保留插件设置与缓存以便以后重装，也可以一并删除。插件创建的工作区文件不会被删除。",
+        "empty": "没有可管理的插件",
+        "emptyDesc": "已安装的市场插件和开发版本会显示在这里。"
+      },
+      "permissionNames": {
+        "ai": { "generate": "使用已配置的 AI 模型（可能产生费用）" },
+        "clipboard": { "write": "写入剪贴板" },
+        "files": { "export": "通过保存对话框导出文件" },
+        "terminal": { "open": "打开可访问整台设备的本地终端" },
+        "editor": {
+          "style": "设置笔记正文样式",
+          "read": "读取当前编辑器",
+          "write": "修改当前编辑器"
+        },
+        "notes": {
+          "read": "读取笔记",
+          "create": "创建笔记",
+          "open": "打开笔记",
+          "list": "列出笔记",
+          "write": "写入笔记",
+          "delete": "删除笔记",
+          "move": "移动笔记"
+        },
+        "attachments": {
+          "read": "读取附件",
+          "create": "创建附件"
+        },
+        "network": {
+          "fetch": "访问已授权的网站"
+        },
+        "records": {
+          "read": "读取应用记录",
+          "write": "创建和修改应用记录"
+        },
+        "chat": {
+          "read": "读取对话消息信息",
+          "write": "填写聊天草稿"
+        }
+      },
+      "embeddedView": {
+        "title": "插件界面",
+        "loading": "正在加载插件界面…",
+        "unavailable": "插件界面不可用",
+        "notEnabled": "插件尚未在此工作区启用或授权。",
+        "missingResource": "插件缺少声明的界面资源。",
+        "loadTimeout": "插件界面加载超时。",
+        "initTimeout": "插件界面初始化超时。"
+      },
+      "permissionScopes": {
+        "active-editor": "仅限当前活动的 Markdown 编辑器。",
+        "workspace-file": "仅限明确授权的工作区文件。",
+        "workspace-files": "仅限明确授权的工作区文件。",
+        "workspace-folder": "仅限明确授权的工作区目录。",
+        "network-origins": "仅限明确授权的 HTTPS 来源。",
+        "application": "应用级能力；记录不受工作区文件夹范围限制。"
+      },
+      "ux": {
+        "discover": "发现",
+        "technicalDetails": "技术信息",
+        "importHelp": "在插件项目运行 notegen-plugin dev，然后导入一次源码目录。NoteGen 会识别 .notegen/package，之后成功构建的版本会自动重载。",
+        "permissionNeeded": "插件需要目录授权",
+        "managePlugin": "管理插件"
+      },
+      "usage": {
+        "title": "使用说明",
+        "start": "立即使用",
+        "missing": "此插件尚未提供离线使用说明。",
+        "failed": "使用说明读取失败，请重新打开插件设置重试。",
+        "enableFirst": "启用插件后即可使用。"
+      },
+      "permissionDialog": {
+        "codeBlockRendering": "启用后，此插件可读取其声明支持的代码块以生成预览。渲染接口不会提供其他笔记内容、文件访问或网络访问能力。",
+        "selectAll": "全选",
+        "folderLabel": "保存目录",
+        "chooseFolder": "选择工作区内的文件夹",
+        "chooseFile": "选择工作区文件",
+        "entireWorkspace": "整个工作区（包括所有笔记）",
+        "advancedPaths": "高级：指定新目录或多个路径",
+        "dailyFolderHelp": "允许在 {folder} 文件夹内创建和打开笔记。保留日期子目录；目录不存在时由插件创建。",
+        "title": "确认 {name} 的权限",
+        "contextChanged": "插件或工作区已变化，请关闭此窗口并重新审核当前权限。",
+        "desc": "NoteGen 按工作区授予权限。必需权限不可取消，可选权限由你决定。",
+        "togglePermission": "允许权限：{permission}",
+        "pathLabel": "允许访问的相对路径",
+        "pathPlaceholder": "当前工作区内的目录或文件",
+        "pathHelp": "允许多个路径时使用逗号分隔；不接受绝对路径和 ..。",
+        "pathRequired": "请至少填写一个允许访问的相对路径。",
+        "relativePathOnly": "每个授权路径都必须位于工作区内。",
+        "originLabel": "允许访问的 HTTPS 来源",
+        "originPlaceholder": "https://api.example.com",
+        "originHelp": "多个来源使用逗号分隔；不接受路径、账号、HTTP 或通配符。",
+        "originOnly": "请输入不含路径和账号信息的完整 HTTPS 来源。",
+        "confirm": "授权并启用",
+        "folderHelp": "所选目录：{folder}。此选择会同时更新插件的目录设置。"
+      },
+      "permissions": {
+        "workspaceIsolationTitle": "插件权限按工作区隔离",
+        "workspaceIsolationDesc": "插件不能在其他工作区复用授权；插件包发生变化后也必须重新确认。",
+        "revokeFailed": "无法撤销权限",
+        "currentWorkspace": "当前工作区",
+        "otherWorkspace": "已知工作区",
+        "current": "当前",
+        "switchToManage": "请先切换到此工作区，再撤销或重新确认权限。",
+        "status": {
+          "granted": "已允许",
+          "denied": "未允许",
+          "unreviewed": "未确认",
+          "changed": "需要重审"
+        },
+        "revokeAria": "撤销 {name} 的“{permission}”权限",
+        "confirmRevokeTitle": "撤销此权限？",
+        "confirmRevokeDesc": "{name} 将失去当前工作区中的“{permission}”权限，插件可能无法继续工作。",
+        "empty": "没有插件权限",
+        "emptyDesc": "已安装插件没有声明受保护能力。"
+      },
+      "developer": {
+        "autoReload": "自动重载",
+        "autoReloadHelp": "在插件项目中运行 notegen-plugin dev。已启用的开发插件会自动重载成功构建的产物，权限变化仍需审核。",
+        "disabledTitle": "开发者模式未开启",
+        "disabledDesc": "请先在“常规设置 → 高级”中开启开发者模式，才能加载本地插件代码或查看运行日志。",
+        "importTitle": "加载本地插件包",
+        "importDesc": "导入已经解包的开发目录。本地代码不经过插件市场验证。",
+        "pathLabel": "插件包绝对路径",
+        "pathPlaceholder": "/path/to/my-plugin",
+        "chooseFolder": "选择目录",
+        "pathHelp": "目录中必须包含有效的插件清单和已编译入口文件。",
+        "pathRequired": "请输入插件包路径。",
+        "absolutePathRequired": "请输入绝对路径。",
+        "importSuccess": "开发插件导入成功",
+        "loadedTitle": "已加载的开发插件",
+        "pathUnavailable": "源路径不可用",
+        "noDevelopmentPlugins": "尚未加载开发插件",
+        "noDevelopmentPluginsDesc": "在上方输入解包后的插件目录，开始本地开发。",
+        "logsTitle": "插件运行日志",
+        "logsDesc": "日志仅保存在内存中，可在此手动清除；重启 NoteGen 也会清除日志。",
+        "logFilterLabel": "按插件筛选日志",
+        "allLogs": "全部插件",
+        "logLevels": {
+          "info": "信息",
+          "warning": "警告",
+          "error": "错误"
+        },
+        "noLogs": "暂无插件日志",
+        "noLogsDesc": "运行时警告和错误会显示在这里。"
+      },
+      "display": {
+        "title": "界面展示",
+        "description": "控制此插件在各处的入口，保存到当前设备并立即生效。隐藏入口不会停用插件或删除数据，命令面板仍可使用。",
+        "locations": {
+          "left-sidebar": "左侧边栏 Tab",
+          "right-sidebar": "右侧边栏 Tab",
+          "editor-tab": "编辑器标签页",
+          "file/context": "文件右键菜单",
+          "editor/context": "编辑器右键菜单",
+          "tab/context": "标签页右键菜单",
+          "editor/toolbar": "编辑器工具栏",
+          "editor/slash": "斜杠命令菜单",
+          "editor/selection": "选中文本菜单",
+          "editor/node-actions": "编辑器节点操作",
+          "editor/block-actions": "编辑器块操作",
+          "editor/selection-panel": "选区面板",
+          "editor-inline": "编辑器光标旁",
+          "mobile/writing/overflow": "移动端更多菜单",
+          "title-bar-left": "顶部左侧",
+          "title-bar-center": "顶部中间",
+          "title-bar-right": "顶部右侧",
+          "new-tab": "空白页面板",
+          "document-top": "文档顶部",
+          "document-bottom": "文档底部",
+          "file-panel": "文件栏面板",
+          "file-selection-panel": "选中文件面板",
+          "editor-toolbar": "编辑器工具栏组件",
+          "chat-input": "聊天输入区",
+          "chat-message-actions": "聊天消息操作",
+          "record-list": "记录列表面板",
+          "record-detail": "记录详情",
+          "status-bar-panel": "状态栏面板",
+          "status-bar": "状态栏"
+        }
+      }
     },
     "editor": {
       "title": "编辑器设置",
       "desc": "在这里，你可以对编辑器进行自定义配置，打造更适合你的写作方式。",
-      "interfaceSettings": "界面设置",
-      "centeredContent": "居中内容",
-      "centeredContentDesc": "启用后，编辑器内容将在中间显示，两侧留白。",
+      "layout": {
+        "title": "写作布局",
+        "desc": "调整桌面编辑器的内容宽度和阅读密度",
+        "contentWidth": {
+          "title": "内容宽度",
+          "desc": "设置正文在编辑器中的最大显示宽度",
+          "options": {
+            "narrow": "窄",
+            "standard": "标准",
+            "wide": "宽",
+            "full": "铺满"
+          }
+        },
+        "lineHeight": {
+          "title": "行高",
+          "desc": "调整正文行与行之间的距离",
+          "options": {
+            "compact": "紧凑",
+            "comfortable": "舒适",
+            "relaxed": "宽松"
+          }
+        }
+      },
+      "display": {
+        "title": "编辑器显示",
+        "desc": "设置大纲和编辑器工具的默认显示方式"
+      },
+      "reading": {
+        "title": "阅读排版",
+        "desc": "调整正文的字号和行间距"
+      },
+      "editing": {
+        "title": "编辑方式",
+        "desc": "设置默认编辑模式和移动端写作工具"
+      },
+      "mode": {
+        "title": "默认编辑模式",
+        "desc": "设置编辑器默认使用的编辑方式，也可在编辑器底部随时切换",
+        "options": {
+          "visual": "所见即所得",
+          "source": "Markdown 源码"
+        }
+      },
+      "stats": {
+        "title": "写作统计",
+        "desc": "在移动端编辑器状态栏显示字符数",
+        "characters": "{count} 字符",
+        "readingTime": "约 {count} 分钟",
+        "saveError": "设置保存失败，请重试。"
+      },
+      "sourceMode": {
+        "visual": "所见即所得",
+        "source": "源码模式"
+      },
+      "sourceLineNumbers": {
+        "title": "源码行号",
+        "desc": "在 Markdown 源码模式左侧显示行号"
+      },
+      "sourceWrap": {
+        "title": "源码自动换行",
+        "desc": "长行超过编辑器宽度时自动换到下一行"
+      },
+      "mobileToolbar": {
+        "title": "底部格式工具栏",
+        "desc": "在移动编辑器底部显示格式和插入工具"
+      },
       "outlineEnable": "默认启用大纲",
       "outlineEnableDesc": "启用后，编辑器将默认显示大纲。",
       "outlinePosition": "大纲位置",
@@ -378,7 +1178,7 @@
         "right": "右侧"
       },
       "showUndoRedo": "撤销/重做按钮",
-      "showUndoRedoDesc": "在编辑器标签栏显示撤销和重做按钮。",
+      "showUndoRedoDesc": "在编辑器工具栏显示撤销和重做按钮。",
       "completion": {
         "title": "快速补全",
         "model": {
@@ -424,6 +1224,84 @@
         }
       }
     },
+    "canvas": {
+      "title": "画布设置",
+      "desc": "统一配置画布的显示、交互方式和管理器偏好，修改后立即生效。",
+      "display": {
+        "title": "画布显示",
+        "desc": "调整所有画布的网格、小地图和缩放方式。",
+        "showGrid": {
+          "title": "显示网格",
+          "desc": "在画布背景中显示辅助网格。"
+        },
+        "snapToGrid": {
+          "title": "吸附网格",
+          "desc": "移动节点时自动对齐到最近的网格位置。"
+        },
+        "minimap": {
+          "title": "显示小地图",
+          "desc": "在画布右下角显示内容概览和当前位置。"
+        },
+        "gridStyle": {
+          "title": "网格样式",
+          "desc": "选择画布背景使用的网格图案。",
+          "options": {
+            "dots": "点阵",
+            "lines": "线条",
+            "none": "关闭"
+          }
+        },
+        "gridGap": {
+          "title": "网格间距",
+          "desc": "调整网格图案和节点吸附位置之间的距离。"
+        },
+        "defaultZoom": {
+          "title": "默认缩放比例",
+          "desc": "打开画布时使用的缩放比例，修改后也会应用于当前画布。"
+        }
+      },
+      "interaction": {
+        "title": "交互方式",
+        "desc": "设置鼠标滚轮和节点插入后的操作方式。",
+        "wheel": {
+          "title": "鼠标滚轮行为",
+          "desc": "选择滚动鼠标滚轮时缩放还是平移画布。",
+          "options": {
+            "zoom": "缩放画布",
+            "pan": "滚动画布"
+          }
+        },
+        "afterInsert": {
+          "title": "插入节点后",
+          "desc": "选择添加节点后继续使用当前工具，还是切回选择工具。",
+          "options": {
+            "keep": "保持当前工具",
+            "select": "返回选择工具"
+          }
+        }
+      },
+      "manager": {
+        "title": "画布管理",
+        "desc": "设置画布管理器的展示和排列方式。",
+        "view": {
+          "title": "默认视图",
+          "desc": "选择画布管理器的展示方式。",
+          "options": {
+            "grid": "网格",
+            "list": "列表"
+          }
+        },
+        "sort": {
+          "title": "默认排序",
+          "desc": "选择画布在管理器中的排列顺序。",
+          "options": {
+            "updated": "最近更新",
+            "created": "创建时间",
+            "name": "名称"
+          }
+        }
+      }
+    },
     "record": {
       "title": "记录设置",
       "desc": "在这里，你可以配置记录相关的设置，包括记录描述和工具栏配置。",
@@ -432,6 +1310,52 @@
         "markDesc": {
           "title": "记录描述",
           "desc": "用于处理 OCR 识别后的记录，生成记录描述"
+        }
+      },
+      "display": {
+        "title": "浏览方式",
+        "desc": "设置记录列表的默认视图和排序方式",
+        "view": {
+          "title": "默认视图",
+          "desc": "选择记录列表的默认展示密度",
+          "options": {
+            "list": "列表",
+            "compact": "紧凑",
+            "cards": "卡片"
+          }
+        },
+        "sort": {
+          "title": "默认排序",
+          "desc": "选择记录在列表中的默认排列顺序",
+          "options": {
+            "newest": "最新优先",
+            "oldest": "最早优先",
+            "type": "按类型"
+          }
+        }
+      },
+      "save": {
+        "title": "记录保存",
+        "desc": "设置新记录的默认保存位置和保存后的行为",
+        "target": {
+          "title": "默认保存位置",
+          "desc": "用于所有新建记录入口，保存前仍可临时选择其他分类",
+          "fixedLabel": "固定分类",
+          "fixedPlaceholder": "选择固定分类",
+          "options": {
+            "current": "当前分类",
+            "last": "上次使用",
+            "fixed": "固定分类"
+          }
+        },
+        "completion": {
+          "title": "保存后的行为",
+          "desc": "选择记录保存成功后界面的响应方式",
+          "options": {
+            "stay": "留在当前位置",
+            "highlight": "定位并高亮",
+            "open": "打开详情"
+          }
         }
       },
       "toolbar": {
@@ -468,15 +1392,18 @@
       "uploadConfirm": "上传配置请确保同步仓库为私有，否则数据将会泄露！",
       "downloadConfirm": "下载配置将会覆盖本地配置，并且重启生效！",
       "uploadSuccess": "上传成功",
+      "uploadFailed": "上传配置失败",
       "downloadSuccess": "下载成功",
+      "downloadFailed": "下载配置失败",
       "upload": "上传配置",
       "download": "下载配置"
     },
     "prompt": {
-      "title": "Prompt",
-      "promptTitle": "Prompt 名称",
-      "desc": "在这里，你可以添加和管理 Prompt，帮助 AI 更好地理解你的需求。",
-      "addPrompt": "新增 Prompt",
+      "title": "提示词",
+      "promptTitle": "提示词名称",
+      "desc": "在这里，你可以添加和管理提示词，帮助 AI 更好地理解你的需求。",
+      "addPrompt": "新增提示词",
+      "promptLibrary": "提示词资源库",
       "selectPrompt": "选择 Prompt",
       "configPrompt": "配置 Prompt",
       "noContent": "暂无内容",
@@ -488,7 +1415,17 @@
       "optimizing": "优化中...",
       "optimizeSuccess": "提示词优化成功",
       "optimizeFailed": "提示词优化失败，请稍后重试",
-      "noContentToOptimize": "请先输入提示词内容"
+      "noContentToOptimize": "请先输入提示词内容",
+      "systemPrompt": {
+        "title": "Agent 自定义指引",
+        "desc": "在系统核心规则之外追加你的偏好，不会替换安全与工具约束。",
+        "label": "自定义指引",
+        "placeholder": "例如：默认使用简洁中文回答。留空则只使用系统核心规则。",
+        "help": "版本化的系统核心提示词始终生效并随应用升级。这里的内容不能覆盖工具参数、权限、安全边界或核心规则。",
+        "reset": "清空自定义指引",
+        "saveSuccess": "Agent 自定义指引已保存",
+        "resetSuccess": "Agent 自定义指引已清空"
+      }
     },
     "memories": {
       "title": "记忆管理",
@@ -496,7 +1433,10 @@
       "stats": {
         "total": "总记忆数",
         "preferences": "偏好",
-        "memories": "记忆"
+        "memories": "记忆",
+        "active": "活跃",
+        "pending": "待确认",
+        "archived": "已删除"
       },
       "form": {
         "title": "添加新记忆",
@@ -511,12 +1451,20 @@
         "preferenceDesc": "语言、格式、风格等",
         "memoryDesc": "事实、经验、专长等",
         "save": "保存记忆",
-        "saving": "保存中..."
+        "saving": "保存中...",
+        "description": "保存可在未来对话中复用的稳定用户信息。",
+        "kindLabel": "记忆类型",
+        "scopeLabel": "作用范围",
+        "alwaysApply": "始终应用",
+        "alwaysApplyDescription": "固定注入上下文，不依赖相关性召回。",
+        "update": "更新记忆"
       },
       "listTitle": "我的记忆",
       "addMemory": "添加记忆",
       "empty": "暂无记忆，添加第一条记忆吧！",
-      "emptyHint": "你可以手动添加记忆，或在对话中使用「请记住」「记住这个」等话术让 AI 自动记忆。",
+      "emptyHint": "你可以手动添加记忆，也可以说「请记住……」「以后都……」「默认……」让 AI 立即记住。",
+      "noMatches": "没有找到匹配的记忆",
+      "noMatchesHint": "试试更换关键词或清除筛选条件。",
       "preference": "偏好",
       "memory": "记忆",
       "replaced": "已替换",
@@ -528,7 +1476,7 @@
       },
       "success": "成功",
       "saved": "记忆已保存",
-      "updated": "记忆已更新（已替换相似记忆）",
+      "updated": "记忆已更新",
       "deleted": "记忆已删除",
       "cleared": "所有记忆已清空",
       "found": "找到 {count} 条记忆",
@@ -538,19 +1486,85 @@
       "errorDelete": "删除记忆失败",
       "errorList": "获取记忆列表失败",
       "errorEmbedding": "无法生成向量嵌入，请检查嵌入模型配置",
-      "errorClear": "清空记忆失败"
+      "errorClear": "清空记忆失败",
+      "policy": {
+        "generate": "自动记住聊天中的重要信息",
+        "generateDescription": "AI 会自动记住重要信息。你也可以说「请记住……」或「以后都……」。"
+      },
+      "actions": {
+        "undo": "撤销",
+        "more": "更多操作",
+        "approve": "确认",
+        "approveAll": "全部确认",
+        "review": "去确认",
+        "edit": "编辑",
+        "promote": "提升为稳定指引",
+        "demote": "取消稳定指引",
+        "restore": "恢复",
+        "archive": "删除",
+        "deletePermanently": "永久删除"
+      },
+      "kinds": {
+        "preference": "偏好",
+        "fact": "事实",
+        "experience": "经历",
+        "decision": "决定"
+      },
+      "scopes": {
+        "global": "全局",
+        "workspace": "当前工作区"
+      },
+      "statuses": {
+        "active": "活跃",
+        "pending": "待确认",
+        "archived": "已删除"
+      },
+      "filters": {
+        "search": "搜索记忆",
+        "allKinds": "全部类型",
+        "allScopes": "全部范围"
+      },
+      "sensitive": {
+        "title": "可能包含敏感信息",
+        "description": "密码、令牌、密钥等内容不会自动进入活跃记忆。请确认内容安全后再保存。",
+        "badge": "疑似敏感"
+      },
+      "indexing": {
+        "ready": "索引就绪",
+        "pending": "等待索引",
+        "failed": "索引失败"
+      },
+      "deleteConfirm": {
+        "title": "永久删除这条记忆？",
+        "description": "永久删除后无法恢复。",
+        "cancel": "取消"
+      },
+      "autoCreated": "后台生成了 {count} 条记忆",
+      "pendingConfirmation": "这条记忆需要确认",
+      "approvedAll": "已确认全部候选",
+      "savedPendingIndex": "记忆已保存，将在后台生成索引",
+      "savedPendingReview": "记忆已进入待确认队列",
+      "archived": "记忆已删除",
+      "promoted": "已加入 Agent 自定义指引",
+      "demoted": "已取消稳定指引",
+      "always": "始终应用",
+      "lastRecallReason": "上次召回：{reason}",
+      "neverRecalled": "尚未召回",
+      "editTitle": "编辑记忆",
+      "editDescription": "修改内容、类型、作用范围和应用方式。"
     },
     "defaultModel": {
       "title": "默认模型",
       "desc": "在这里，你可以针对不同的场景使用不同的模型，提高效率降低成本。",
       "tooltip": "使用主要模型",
-      "noModel": "不使用模型",
+      "noModel": "跟随主要模型",
+      "modelUnavailable": "已选模型不可用",
       "placeholder": "请选择或搜索模型",
       "mainModel": "主要模型",
       "options": {
         "primaryModel": {
           "title": "主要模型",
-          "desc": "作为所有场景的主要模型，如果其他对话模型未选择默认模型，则使用此模型。"
+          "desc": "用于对话、编辑器 AI 和自动生成文本等通用场景。"
         },
         "markDesc": {
           "title": "记录描述",
@@ -577,8 +1591,8 @@
           "desc": "用于搜索结果的重新排序和优化。"
         },
         "condense": {
-          "title": "摘要模型",
-          "desc": "用于压缩历史对话内容，节省 token 使用量"
+          "title": "压缩模型",
+          "desc": "用于压缩对话历史并保留关键上下文"
         }
       }
     },
@@ -637,48 +1651,109 @@
     },
     "about": {
       "title": "关于",
-      "desc": "一款专注于记录与写作的 AI 笔记。",
+      "desc": "先记录，再整理。",
+      "resourcesTitle": "资源与支持",
+      "resourcesDesc": "查看文档、版本记录，或进入社区反馈问题。",
+      "licenseText": "开源项目 · GitHub · GPL-3.0",
       "version": "NoteGen v{version}",
       "checkReleases": "查询历史版本",
       "language": "语言",
       "checkUpdate": "检查更新",
       "checkError": "检查更新失败",
+      "installError": "下载或安装更新失败",
+      "releaseLoadError": "更新记录加载失败",
       "updateAvailable": "更新至最新版本",
+      "updateIgnored": "已忽略此版本",
       "updateDownloading": "更新中 {downloaded} / {contentLength}",
       "updateInstalled": "重启应用",
       "noUpdate": "当前已是最新版本",
+      "lastCheckedAt": "上次检查：{time}",
+      "lastCheckedNever": "尚未检查更新",
+      "releasePublishedAt": "发布于 {date}",
+      "releaseHistoryTitle": "更新记录",
+      "releaseHistoryDesc": "从 v{currentVersion} 到 v{latestVersion}，共 {count} 个版本。",
+      "releaseHistoryEmpty": "未找到从当前版本到最新版本之间的更新记录。",
+      "releasePrerelease": "预发布",
+      "releaseNoNotes": "此版本未提供更新说明。",
+      "retryReleaseNotes": "重新加载",
       "ignoreVersion": "忽略此版本",
       "ignoreVersionSuccess": "已忽略此版本更新",
+      "ignoredVersionTitle": "已忽略 v{version}",
+      "ignoredVersionDesc": "此版本不会再提示更新，你可以恢复提示并继续安装。",
+      "restoreIgnoredVersion": "恢复提示",
+      "restoreIgnoredVersionSuccess": "已恢复此版本更新提示",
+      "mobileUpdateTitle": "发现新版本",
+      "mobileUpdateDescription": "当前版本 v{currentVersion}，可升级至 v{latestVersion}。",
+      "androidUpdateHint": "Android 暂不支持应用内安装，请前往官网下载新版安装包。",
+      "iosUpdateHint": "iOS 暂通过 TestFlight 提供更新。",
+      "openDownloadPage": "前往官网升级",
+      "openTestFlight": "前往 TestFlight",
+      "viewUpdateDetails": "更新内容",
+      "updateDetailsTitle": "v{version} 更新内容",
+      "later": "稍后",
+      "close": "关闭",
+      "sections": {
+        "appInfo": {
+          "title": "应用信息",
+          "desc": "查看当前版本、更新状态和应用简介。"
+        },
+        "updates": {
+          "title": "版本更新",
+          "desc": "查看最新版本、发布说明和历史更新。"
+        },
+        "donation": {
+          "title": "捐赠支持",
+          "desc": "如果 NoteGen 对你有帮助，可以通过捐赠支持项目持续维护。"
+        },
+        "docs": {
+          "title": "文档与配置",
+          "desc": "从官网和文档了解同步、备份与数据存储。"
+        },
+        "community": {
+          "title": "反馈与社区",
+          "desc": "提交问题、查看源码，或参与公开讨论。"
+        }
+      },
       "items": {
         "home": {
           "title": "官网",
           "buttonName": "打开",
-          "desc": "访问官网，了解 NoteGen 的更多信息。"
+          "desc": "访问官网了解产品。"
         },
         "guide": {
-          "title": "配置指南",
+          "title": "同步配置指南",
           "buttonName": "打开",
-          "desc": "查看配置指南，了解如何配置模型、同步等信息。"
+          "desc": "配置 Git、S3 和 WebDAV 同步。"
+        },
+        "donate": {
+          "title": "支持 NoteGen",
+          "buttonName": "捐赠",
+          "desc": "前往捐赠页面支持项目。"
+        },
+        "business": {
+          "title": "商务合作",
+          "buttonName": "联系",
+          "desc": "了解合作、推广与品牌相关事宜。"
         },
         "github": {
           "title": "GitHub",
           "buttonName": "查看",
-          "desc": "如果 NoteGen 帮助到了你，请给颗 star 鼓励一下！"
+          "desc": "查看源码与贡献。"
         },
         "releases": {
           "title": "更新日志",
           "buttonName": "查看",
-          "desc": "查看更新日志，了解 NoteGen 的更新信息。"
+          "desc": "查看版本更新。"
         },
         "issues": {
           "title": "问题反馈",
           "buttonName": "反馈",
-          "desc": "如果发现 NoteGen 有 bug，请在这里反馈。"
+          "desc": "反馈问题与缺陷。"
         },
         "discussions": {
           "title": "交流讨论",
           "buttonName": "讨论",
-          "desc": "如果你想和作者或其他用户交流，可以加群讨论。"
+          "desc": "参与交流讨论。"
         }
       }
     },
@@ -686,10 +1761,163 @@
       "title": "同步配置",
       "desc": "在这里，你可以配置同步仓库，它可以帮助你同步记录、markdown 文件、系统配置等信息。",
       "selectPlatform": "选择同步平台",
-      "platformSettings": "选择平台",
+      "platformSettings": "同步方式",
+      "currentPlatform": "使用中",
+      "experimental": "实验性",
+      "setCurrentPlatform": "设为使用平台",
+      "engineSwitchReviewTitle": "切换同步方案前检查差异",
+      "engineSwitchReviewDescription": "将暂停当前同步运行时并切换方案。本地还有 {changes} 项变更、{commands} 条待发送命令；当前远端 {currentRemote} 个对象，目标远端 {nextRemote} 个对象。两侧远端数据都不会自动删除。确认已检查差异后继续。",
+      "local": {
+        "title": "本地存储",
+        "description": "笔记、记录和设置仅保存在当前设备，不连接远端同步服务。已有远端配置会保留，可随时切回。"
+      },
+      "selfHosted": {
+        "title": "自托管",
+        "experimentalWarningTitle": "自托管同步仍处于实验阶段",
+        "experimentalWarningDescription": "该功能可能存在未知缺陷，目前无法保证同步过程和远端存储中的数据安全。",
+        "experimentalBackupTitle": "使用前请先备份",
+        "experimentalBackupDescription": "启用前请完整备份现有工作区，并在使用期间定期保留可恢复的副本。请勿将自托管同步作为重要数据的唯一备份。",
+        "experimentalAcknowledge": "我已了解风险并继续",
+        "deploymentGuide": "查看服务端部署指南",
+        "transferTarget": "选择自己的可写工作区",
+        "transferToLibrary": "转存到工作区",
+        "transferTargetUnavailable": "目标工作区不可写或尚未建立本地副本",
+        "transferredToLibrary": "已转存到 {name}",
+        "libraryUnbound": "工作区已解除本地关联",
+        "unbind": "解除本地关联",
+        "connectedToast": "自托管已连接",
+        "connectionFailed": "连接失败",
+        "disconnectedToast": "已断开自托管同步",
+        "connectionTitle": "连接自托管服务",
+        "connectionDescription": "连接由你部署和管理的同步服务，在多台设备间同步工作区与个人数据，并使用实时协作。",
+        "serverUrl": "服务器地址",
+        "httpsNoDowngrade": "HTTPS 连接失败时不会自动降级到 HTTP。",
+        "insecureTitle": "当前连接未加密",
+        "insecureDescription": "这是非本机 HTTP 地址。登录信息和同步流量可能被网络中的其他人看到。",
+        "login": "账号",
+        "password": "密码",
+        "totp": "两步验证码（可选）",
+        "connected": "已连接",
+        "browserAuthorization": "浏览器授权",
+        "passwordLogin": "密码登录",
+        "usePassword": "使用密码或 TOTP",
+        "reauthenticationTitle": "登录授权已失效",
+        "reauthenticationDescription": "请重新进行浏览器授权。现有本地数据和工作区关联不会被删除。",
+        "disconnectTitle": "断开服务器",
+        "disconnectDescription": "登录凭据和工作区密钥会从安全存储中清除；已下载的本地资料不会删除。",
+        "disconnect": "断开连接",
+        "personalDataTitle": "个人数据",
+        "personalDataDescription": "按领域控制个人空间的同步内容。路径、密钥、缓存、索引和硬件设置始终只保存在本机。",
+        "domains": {
+          "tags": {
+            "title": "标签",
+            "description": "同步标签名称、顺序和固定状态。"
+          },
+          "marks": {
+            "title": "记录、笔记与画布",
+            "description": "同步记录、关联笔记和完整画布内容。"
+          },
+          "conversations": {
+            "title": "会话",
+            "description": "同步会话标题、顺序和状态。"
+          },
+          "messages": {
+            "title": "消息",
+            "description": "将每条消息作为独立对象同步。"
+          },
+          "memories": {
+            "title": "记忆",
+            "description": "同步记忆内容，不同步 embedding 与索引。"
+          },
+          "settings": {
+            "title": "偏好设置",
+            "description": "同步可移植偏好，不同步 Token、API Key 和本地路径。"
+          },
+          "attachments": {
+            "title": "个人附件",
+            "description": "同步记录与会话使用的附件。"
+          }
+        },
+        "librariesTitle": "工作区同步",
+        "librariesDescription": "云端工作区与本地工作区一一对应。选择其他工作区时会打开其独立的本地副本。",
+        "currentWorkspaceLibrary": "当前云端工作区",
+        "currentWorkspacePath": "当前本地工作区：{path}",
+        "newLibraryDefaultName": "我的工作区",
+        "libraryCreated": "工作区已创建并打开",
+        "libraryBound": "工作区已打开",
+        "workspaceAdded": "工作区已添加并建立独立的本地副本",
+        "operationFailed": "操作失败",
+        "invitationCreated": "邀请已创建",
+        "linkCopied": "一次性邀请令牌已复制",
+        "invitedBy": "{login} 邀请你加入工作区",
+        "invitationRole": "角色：{role}",
+        "accept": "接受",
+        "notBound": "请选择工作区",
+        "readOnly": "只读",
+        "readWrite": "可读写",
+        "bind": "绑定",
+        "newLibraryName": "新工作区名称",
+        "createLibrary": "新建并打开工作区",
+        "refresh": "刷新",
+        "membersTitle": "{name} 的成员",
+        "membersDescription": "查看当前成员，并管理成员的角色或访问权限。",
+        "invitationsTitle": "工作区邀请",
+        "invitationsDescription": "接受收到的邀请，或邀请其他账号加入当前工作区。",
+        "removeMember": "移除成员",
+        "accountLogin": "账号名",
+        "roleTemplate": "角色模板",
+        "capabilities": "权限微调",
+        "inviteAccount": "邀请账号",
+        "copyInviteLink": "创建并复制邀请令牌",
+        "capabilityDescriptions": {
+          "content": {
+            "read": "查看工作区内容",
+            "create": "新建笔记和文件",
+            "update": "编辑笔记和文件",
+            "delete": "删除笔记和文件"
+          },
+          "history": {
+            "view": "查看历史版本",
+            "restore": "恢复历史版本"
+          },
+          "member": {
+            "invite": "邀请新成员",
+            "update": "修改成员权限",
+            "remove": "移除成员"
+          },
+          "workspace": {
+            "rename": "重命名工作区",
+            "delete": "删除工作区"
+          }
+        },
+        "deleteWorkspace": "删除云端工作区",
+        "deleteWorkspaceTitle": "删除这个云端工作区？",
+        "deleteWorkspaceDescription": "“{name}”及其远端同步内容将进入软删除状态。本地目录和文件会保留，并停止同步。",
+        "confirmDeleteWorkspace": "删除云端工作区",
+        "workspaceDeleted": "云端工作区已删除，已切回默认工作区",
+        "defaultWorkspaceUnavailable": "未找到默认工作区，请刷新后重试",
+        "cancel": "取消",
+        "conflictsTitle": "冲突中心",
+        "conflictsDescription": "冲突副本会保留在本地，确认后再关闭条目。",
+        "noConflicts": "目前没有待处理冲突。",
+        "keepLocalCopy": "已保留本地副本",
+        "conflictTypes": {
+          "snapshot-diverged": "本地与远端快照不同",
+          "remote-delete-local-edit": "远端删除时本地已修改",
+          "viewer-local-edit": "只读工作区存在本地修改",
+          "protocol-conflict": "服务器检测到版本冲突",
+          "symlink-ignored": "符号链接已忽略，不会参与同步"
+        }
+      },
+      "connectionTab": "连接设置",
+      "syncOptionsTab": "同步选项",
       "settings": "同步设置",
       "platformDesc": "配置 Token 和仓库信息以启用同步功能",
       "moreSettings": "更多设置",
+      "noteSettings": "笔记设置",
+      "noteSettingsDesc": "控制笔记文件的自动上传与拉取。",
+      "recordConfigSettings": "应用数据同步",
+      "recordConfigSettingsDesc": "记录、对话和配置保存在默认同步仓库中，分别检测变更并自动合并。",
       "repoStatus": "仓库状态",
       "syncRepo": "同步仓库",
       "syncRepoDesc": "同步写作中的 markdown 文件。",
@@ -697,6 +1925,7 @@
       "imageRepoDesc": "同步你的图片到图床仓库。",
       "status": {
         "connected": "已连接",
+        "configured": "已配置",
         "disconnected": "未连接",
         "failed": "连接失败",
         "unconfigured": "未配置"
@@ -710,21 +1939,48 @@
       "createdAt": "创建于 {time}",
       "updatedAt": "最后更新于 {time}",
       "newToken": "创建 access token",
-      "newTokenDesc": "新建 token 时，请务必勾选 repo 权限，配置后将自动创建文件仓库（私有）和图床仓库。",
+      "tokenPermissionGuide": "查看权限说明",
+      "toggleTokenVisibility": "显示或隐藏 Access Token",
+      "newTokenDesc": "建议使用 Fine-grained token。已有仓库需要 Contents 读写权限；由 NoteGen 创建仓库还需要 Administration 读写权限。",
       "giteeTokenDesc": "Gitee 私人令牌用于同步数据，需要有仓库的读写权限，配置后将自动创建文件仓库（私有）和图床仓库。",
       "imageRepoSetting": "开启图床",
       "imageRepoSettingDesc": "你已经配置了图床仓库，开启此项将使用图床仓库，否则将使用本地存储。",
       "jsdelivrSetting": "jsDelivr",
       "jsdelivrSettingDesc": "使用 jsdelivr 加速图片访问。",
-      "autoSyncDesc": "启用后，编辑器会在输入停止 10 秒后自动同步到 GitHub",
+      "autoSyncDesc": "笔记编辑停止后，按所选延迟自动同步到当前同步平台",
       "giteeAutoSyncDesc": "启用后，编辑器会在输入停止 10 秒后自动同步到 Gitee",
       "customSyncRepo": "自定义同步仓库名",
-      "customSyncRepoDesc": "留空则使用默认仓库名",
+      "customSyncRepoDesc": "每个工作区独立保存，默认工作区使用默认仓库名",
+      "workspaceRepoMapping": "工作区与同步仓库",
+      "workspaceRepoMappingDesc": "默认工作区仓库同步笔记文件及记录、标签、画布和设置；其他工作区仓库仅同步对应工作区的文件",
+      "currentWorkspaceGroup": "当前工作区",
+      "otherWorkspacesGroup": "其他工作区",
+      "repositoryForWorkspace": "{workspace} 的同步仓库",
+      "openWorkspace": "在文件管理器中打开 {workspace}",
+      "repositoryNamePlaceholder": "请输入仓库名称",
+      "selectRepository": "选择仓库",
+      "searchRepositories": "搜索或输入仓库名称...",
+      "loadingRepositories": "正在获取仓库列表...",
+      "repositoryListError": "获取仓库列表失败，可重试或手动输入名称",
+      "noRepositories": "未找到仓库",
+      "customRepository": "自定义名称",
+      "useRepositoryName": "使用“{repo}”",
+      "repositoryList": "你的仓库",
+      "refreshRepositories": "刷新仓库列表",
+      "repositoryRequired": "请先配置当前工作区的同步仓库名称",
+      "tokenSaveFailed": "保存访问令牌失败",
+      "repositoryCheck": {
+        "success": "仓库可用",
+        "not-found": "仓库不存在或无权访问",
+        "missing-token": "请先在上方配置访问令牌",
+        "error": "检测失败，请检查网络或配置",
+        "create-error": "创建仓库失败，请检查名称、权限或网络"
+      },
       "customImageRepo": "自定义图床仓库名",
       "customImageRepoDesc": "留空则使用默认仓库名",
-      "backupMethod": "备份方式",
-      "backupMethodDesc": "设置为主要备份方式后，写作中的所有同步相关功能将使用当前备份方式（图床功能除外）",
-      "createRepo": "创建仓库",
+      "backupMethod": "同步方式",
+      "backupMethodDesc": "设为当前同步方式后，NoteGen 数据同步将使用该平台；备份与恢复仍是独立功能。",
+      "createRepo": "创建",
       "creating": "创建中",
       "checkRepo": "检查仓库",
       "checking": "检查中",
@@ -767,9 +2023,7 @@
         "pathPrefixDesc": "用于区分不同用户的文件，类似仓库名",
         "customDomain": "自定义域名",
         "testConnection": "测试连接",
-        "testing": "测试中",
-        "saveConfig": "保存配置",
-        "saving": "保存中"
+        "testing": "测试中"
       },
       "webdav": {
         "title": "WebDAV 同步",
@@ -789,11 +2043,169 @@
         "pathPrefixPlaceholder": "请输入路径前缀",
         "pathPrefixDesc": "用于区分不同用户的文件",
         "testConnection": "测试连接",
-        "testing": "测试中",
-        "saveConfig": "保存配置",
-        "saving": "保存中"
+        "testing": "测试中"
       },
-      "autoSync": "自动同步",
+      "cloudFolder": {
+        "title": "网盘同步",
+        "description": "通过 OneDrive、iCloud Drive 等云盘文件夹同步数据。",
+        "androidDescription": "选择系统文件应用中的网盘文件夹。",
+        "dialogTitle": "选择云盘中的 NoteGen 文件夹",
+        "workspaceWarningTitle": "工作区尚未迁移",
+        "workspaceWarningDescription": "当前工作区不在所选云盘文件夹中。你可以直接切换，或复制现有笔记后切换。",
+        "switchWorkspace": "直接切换工作区",
+        "switchingWorkspace": "正在切换",
+        "switchWorkspaceFailed": "工作区切换失败",
+        "migrateWorkspace": "复制笔记并切换工作区",
+        "migrating": "正在迁移",
+        "migrationConfirmTitle": "迁移工作区到云盘",
+        "migrationConfirm": "NoteGen 将把当前工作区完整复制到所选云盘文件夹，然后切换到新工作区。原工作区会保留为安全副本；云盘服务商可能读取复制后的笔记内容。是否继续？",
+        "migrationSuccess": "工作区迁移完成",
+        "migrationSuccessDescription": "已复制 {count} 个文件，后续 Markdown 变更将由云盘直接同步。",
+        "migrationFailed": "工作区迁移失败",
+        "migrationFailedDescription": "未能复制并切换工作区，请检查目录权限或目标文件冲突。",
+        "folder": "云盘文件夹",
+        "folderDescription": "选择云盘在本机的同步目录。",
+        "systemFolderTitle": "系统文件夹",
+        "androidFolderDescription": "支持系统文件、本地存储及已接入的网盘应用。",
+        "empty": "尚未选择文件夹",
+        "choose": "选择文件夹",
+        "change": "更换",
+        "selecting": "正在选择",
+        "accessFailedTitle": "无法访问文件夹",
+        "accessFailedDescription": "请选择可读写的网盘文件夹后重试。",
+        "clear": "清除"
+      },
+      "oneDrive": {
+        "title": "OneDrive",
+        "description": "登录 Microsoft 账号，将 NoteGen 数据同步到 OneDrive。",
+        "clientId": "Microsoft 应用 Client ID",
+        "clientIdPlaceholder": "请输入 Client ID",
+        "clientIdDescription": "测试版本需要填写 Microsoft Entra 中注册的应用 Client ID。正式版本将由 NoteGen 内置。",
+        "folder": "同步位置",
+        "folderValue": "OneDrive / Apps / NoteGen",
+        "folderDescription": "NoteGen 仅在自己的应用文件夹中保存和同步数据。",
+        "notConnected": "尚未连接 OneDrive",
+        "connected": "已连接",
+        "disconnected": "未连接",
+        "connect": "连接 OneDrive",
+        "connecting": "正在连接",
+        "loadingTitle": "正在加载 OneDrive",
+        "loadingDescription": "正在检查账号与同步目录，请稍候。",
+        "disconnect": "断开连接",
+        "connectFailed": "无法连接 OneDrive",
+        "disconnectFailed": "无法断开 OneDrive",
+        "signInTitle": "完成 Microsoft 登录",
+        "signInDescription": "在打开的页面中输入代码 {code}，完成后请返回 NoteGen。",
+        "signInDescriptionCopied": "代码 {code} 已复制，请在打开的页面中粘贴，完成后返回 NoteGen。",
+        "openSignIn": "打开登录页面",
+        "workspace": "本地镜像工作区",
+        "workspaceDescription": "OneDrive 使用独立的本地工作区保存离线副本，并与云端双向同步。",
+        "workspaceNotReady": "尚未创建 OneDrive 工作区",
+        "workspaceSetupTitle": "需要启用 OneDrive 工作区",
+        "workspaceSetupDescription": "将创建独立的本地镜像工作区。若云端已有笔记则拉取；若云端为空则复制当前工作区并上传。原工作区会保留。",
+        "workspaceChoiceDescription": "Microsoft 登录已完成。请选择使用新的 OneDrive 工作区并拉取云端内容，或把当前工作区复制过去。选择前不会切换工作区。",
+        "useOneDriveWorkspace": "使用 OneDrive 工作区",
+        "copyCurrentWorkspace": "复制当前工作区",
+        "workspaceSwitchDescription": "OneDrive 工作区已经创建，切换后会补齐本地和云端缺少的文件。",
+        "prepareWorkspace": "启用并切换工作区",
+        "preparingWorkspace": "正在准备工作区",
+        "workspaceReadyTitle": "OneDrive 工作区已就绪",
+        "workspaceReadyDescription": "已下载 {downloaded} 个文件，上传 {uploaded} 个文件。",
+        "workspaceTransferFailed": "有 {count} 个文件同步失败，请重试。",
+        "workspaceSetupFailed": "无法创建或切换 OneDrive 工作区",
+        "statusDisconnectedTitle": "尚未连接 OneDrive",
+        "statusDisconnectedDescription": "点击连接后，NoteGen 会引导你完成 Microsoft 登录。",
+        "statusRequestingCodeTitle": "正在获取登录代码",
+        "statusRequestingCodeDescription": "正在向 Microsoft 请求一次性登录代码。",
+        "statusCodeCopiedTitle": "登录代码已复制",
+        "statusCodeReadyTitle": "登录代码已生成",
+        "statusCodeCopiedDescription": "代码 {code} 已复制，{seconds} 秒后将打开浏览器。",
+        "statusCodeReadyDescription": "代码 {code} 已生成，{seconds} 秒后将打开浏览器。请在登录页面中输入该代码。",
+        "statusOpeningBrowserTitle": "正在打开浏览器",
+        "statusOpeningBrowserDescription": "即将前往 Microsoft 登录页面。",
+        "statusWaitingAuthorizationTitle": "等待 Microsoft 授权",
+        "statusWaitingAuthorizationDescription": "请在浏览器中完成登录，然后返回 NoteGen。",
+        "statusConnectingTitle": "正在连接 OneDrive",
+        "statusConnectingDescription": "已返回 NoteGen，正在等待 Microsoft 确认并建立连接。",
+        "statusPreparingWorkspaceTitle": "正在准备 OneDrive 工作区",
+        "statusPreparingWorkspaceDescription": "账号已连接，正在创建、切换并同步本地镜像工作区。",
+        "statusPreparingRemoteWorkspaceDescription": "正在创建新的本地镜像工作区，并拉取 OneDrive 中已有的内容。",
+        "statusCopyingCurrentWorkspaceDescription": "正在把当前工作区复制到新的本地镜像，并上传到 OneDrive。",
+        "statusConnectedTitle": "OneDrive 已连接",
+        "statusConnectedDescription": "账号和本地镜像工作区均已就绪，可以开始同步。",
+        "statusDisconnectingTitle": "正在断开 OneDrive",
+        "statusDisconnectingDescription": "正在安全移除本机保存的 Microsoft 登录凭据。",
+        "statusErrorTitle": "OneDrive 操作失败"
+      },
+      "iCloud": {
+        "title": "iCloud",
+        "description": "选择 iCloud Drive 中的文件夹同步数据。",
+        "workspaceWarningTitle": "工作区尚未迁移",
+        "workspaceWarningDescription": "迁移后，Markdown 笔记才能通过 iCloud 同步。",
+        "migrateWorkspace": "复制笔记并切换工作区",
+        "migrating": "正在迁移",
+        "migrationConfirmTitle": "迁移工作区到 iCloud",
+        "migrationConfirm": "NoteGen 将把当前工作区完整复制到所选 iCloud 文件夹，然后切换到新工作区。原工作区会保留为安全副本；iCloud 可能读取复制后的笔记内容。是否继续？",
+        "migrationSuccess": "工作区迁移完成",
+        "migrationSuccessDescription": "已复制 {count} 个文件，后续 Markdown 变更将通过 iCloud 同步。",
+        "migrationFailed": "工作区迁移失败",
+        "migrationFailedDescription": "未能复制并切换工作区，请检查文件夹权限或目标文件冲突。",
+        "folder": "iCloud 文件夹",
+        "folderDescription": "可以选择 macOS 已在使用的 iCloud 文件夹。",
+        "empty": "尚未选择文件夹",
+        "choose": "选择文件夹",
+        "change": "更换",
+        "selecting": "正在选择",
+        "accessFailedTitle": "无法访问文件夹",
+        "accessFailedDescription": "请选择可读写的 iCloud 文件夹后重试。"
+      },
+      "autoSync": "自动同步笔记",
+      "autoDataSync": "自动同步记录和配置",
+      "autoDataSyncDesc": "记录、标签、画布和配置变更后，自动上传到默认工作区的同步仓库，不跟随当前工作区切换",
+      "autoRecordSync": "自动同步记录",
+      "autoRecordSyncDesc": "独立同步记录、标签、画布及关联资源，不受配置同步开关影响。",
+      "autoSettingsSync": "自动同步配置",
+      "autoSettingsSyncDesc": "独立同步应用配置，默认排除敏感信息和设备专属设置。",
+      "autoConversationSync": "自动同步对话",
+      "autoConversationSyncDesc": "独立同步对话记录、压缩摘要和聊天图片，不受记录与配置同步影响。",
+      "autoDataSyncStatusOff": "自动同步已关闭",
+      "autoDataSyncStatusWaitingProvider": "等待配置同步平台",
+      "autoDataSyncStatusQueued": "已加入同步队列",
+      "autoDataSyncStatusSyncing": "正在自动同步",
+      "autoDataSyncStatusFailed": "同步失败",
+      "autoDataSyncStatusConflict": "同步冲突",
+      "autoDataSyncStatusIdle": "已同步",
+      "autoDataSyncStatusTitle": "记录和配置同步",
+      "autoDataSyncStatusProvider": "同步平台",
+      "autoDataSyncStatusPending": "待同步",
+      "autoDataSyncStatusLastSuccess": "上次成功",
+      "autoDataSyncStatusError": "错误",
+      "autoDataSyncRetry": "重试",
+      "autoDataSyncOpenSettings": "打开设置",
+      "autoDataSyncNever": "从未",
+      "autoDataSyncConflictTitle": "处理同步冲突",
+      "autoDataSyncConflictDesc": "远程内容已被其他设备更新，同时本机还有未上传修改。请选择保留哪一侧的数据。",
+      "autoDataSyncConflictMerge": "合并两边内容",
+      "autoDataSyncConflictMergeDesc": "合并会保留本机和远程新增的记录，同一条记录按较新的时间保留；设置会按当前隐私规则合并。",
+      "autoDataSyncConflictMergeRecordsDesc": "合并会保留本机和远程新增的记录，同一条记录按较新的时间保留。",
+      "autoDataSyncConflictMergeSettingsDesc": "合并会应用远程可同步配置，并保留仅存于本机的隐私配置。",
+      "autoDataSyncConflictPullRemote": "拉取远程覆盖本机",
+      "autoDataSyncConflictUploadLocal": "上传本机覆盖远程",
+      "autoDataSyncConflictLater": "稍后处理",
+      "autoDataSyncConflictPullConfirm": "拉取远程会覆盖本机未上传的记录和配置，确定继续吗？",
+      "autoDataSyncConflictUploadConfirm": "上传本机会覆盖远程最新记录和配置，其他设备的修改可能丢失。确定继续吗？",
+      "autoDataSyncConflictResolved": "同步冲突已处理",
+      "autoDataSyncConflictResolveFailed": "同步冲突处理失败",
+      "autoDataSyncInitialSuccess": "自动同步初始化完成",
+      "autoDataSyncInitialFailed": "自动同步初始化失败",
+      "autoDataSyncInitialTitle": "选择首次自动同步方向",
+      "autoDataSyncInitialDesc": "切换设备或首次启用时，先选择上传本机数据，或拉取远程最新记录和配置，避免覆盖错误内容。",
+      "autoDataSyncInitialUploadLocal": "上传本机数据",
+      "autoDataSyncInitialPullRemote": "拉取远程最新",
+      "autoDataSyncInitialLater": "稍后处理",
+      "autoDataSyncPrivacyTitle": "不同步敏感配置",
+      "autoDataSyncPrivacyDesc": "开启后，Access Token、密码、密钥、同步平台选择、图床配置、MCP 配置、工作区路径等设备或隐私相关配置会被排除。",
+      "autoDataSyncPrivacyDisableConfirm": "关闭后，Access Token、密码、密钥等敏感或设备相关配置可能会上传到远程同步平台，并同步到其他设备。确定关闭吗？",
       "autoSyncOptions": {
         "placeholder": "选择自动同步时间",
         "disabled": "关闭",
@@ -806,10 +2218,8 @@
         "1m": "1 分钟",
         "2m": "2 分钟"
       },
-      "autoPullOnOpen": "打开文件时自动拉取",
-      "autoPullOnOpenDesc": "打开文件时，如果远程有新版本则自动拉取覆盖本地",
-      "autoPullOnSwitch": "切换文件时自动拉取",
-      "autoPullOnSwitchDesc": "切换到其他文件时，如果远程有新版本则自动拉取覆盖本地",
+      "autoPullOnOpen": "打开或切换文件时自动拉取",
+      "autoPullOnOpenDesc": "打开文件时检查远程版本，远程较新则自动拉取；关闭后仅提示可用更新",
       "exclusions": {
         "title": "同步排除配置",
         "desc": "以下配置项不会在设备间同步，因为它们是设备特定的",
@@ -830,8 +2240,28 @@
       }
     },
     "imageHosting": {
-      "title": "图床设置",
-      "desc": "在这里，你可以配置图床服务，用于存储和管理你的图片。",
+      "title": "图片存储",
+      "desc": "选择将图片保存在本地工作区，或上传到已配置的图床服务。",
+      "platformSettings": "图片存储方式",
+      "localProviderTitle": "本地存储",
+      "localProviderDesc": "将图片保存在工作区内，适合离线使用和随笔记一起迁移。",
+      "useLocalStorage": "使用本地存储",
+      "localLocationTitle": "跟随笔记保存",
+      "localLocationDesc": "图片保存在 Markdown 文件所在目录的资源文件夹。",
+      "relativePathTitle": "相对路径引用",
+      "relativePathDesc": "Markdown 使用相对路径引用图片，移动整个工作区时图片可随笔记一起迁移。",
+      "currentPlatform": "使用中",
+      "setCurrentPlatform": "使用此服务",
+      "status": {
+        "connected": "已连接",
+        "configured": "已配置",
+        "checking": "检测中",
+        "disconnected": "未连接"
+      },
+      "common": {
+        "status": "连接状态",
+        "testConnection": "测试连接"
+      },
       "type": "选择平台",
       "typeDesc": "选择图床服务提供商",
       "customRepoName": "自定义仓库名",
@@ -839,14 +2269,28 @@
       "isPrimaryBackup": "当前 {type} 为主要图床",
       "setPrimaryBackup": "设为主要图床",
       "smms": {
+        "title": "S.EE 图床",
+        "description": "使用 S.EE 上传和管理图片",
+        "status": "连接状态",
+        "connected": "已连接",
+        "connecting": "检测中",
+        "disconnected": "未连接",
         "token": {
-          "desc": "请创建并输入 SM.MS Token。",
-          "createToken": "创建 Token"
+          "desc": "请创建并输入 S.EE Token。",
+          "createToken": "打开 S.EE 开发者页面",
+          "helper": "请输入 S.EE API Token，现有配置可继续复用。",
+          "placeholder": "输入 S.EE API Token"
         },
         "disk": "磁盘使用情况",
         "error": "获取失败，请检查网络或 Token 是否正确。"
       },
       "picgo": {
+        "title": "PicGo 图床",
+        "description": "使用本机 PicGo 客户端上传图片",
+        "status": "连接状态",
+        "connected": "已连接",
+        "connecting": "检测中",
+        "disconnected": "未连接",
         "desc": "PicGo 服务器地址",
         "ok": "检测到服务正在运行，请确保 PicGo 图床已配置。",
         "error": "服务未运行，请确保 PicGo（需要 v2.2.0+） 应用正在运行，否则无法上传图片。"
@@ -874,8 +2318,8 @@
         "recheckingRepo": "检测中..."
       },
       "s3": {
-        "title": "S3 对象存储",
-        "description": "配置 AWS S3 或兼容 S3 协议的对象存储服务作为图床",
+        "title": "对象存储",
+        "description": "连接 AWS S3、Cloudflare R2、阿里云 OSS、腾讯云 COS、Backblaze B2、MinIO 或其他兼容服务",
         "status": "连接状态",
         "connected": "已连接",
         "connecting": "连接中",
@@ -884,12 +2328,52 @@
         "accessKeyIdPlaceholder": "输入 Access Key ID",
         "secretAccessKey": "Secret Access Key",
         "secretAccessKeyPlaceholder": "输入 Secret Access Key",
+        "credentialPlaceholder": "输入 {name}",
         "region": "区域",
+        "accountId": "账户 ID",
+        "accountIdPlaceholder": "输入 Cloudflare 账户 ID",
+        "accountIdDesc": "可在 Cloudflare 控制台的 R2 概览页面找到。",
         "bucket": "存储桶",
         "bucketPlaceholder": "输入存储桶名称",
+        "provider": "服务商",
+        "providerDesc": "选择预设可自动处理端点和寻址方式，旧 S3 配置会自动迁移。",
+        "providers": {
+          "aws": "Amazon S3",
+          "cloudflare-r2": "Cloudflare R2",
+          "aliyun-oss": "阿里云 OSS",
+          "tencent-cos": "腾讯云 COS",
+          "backblaze-b2": "Backblaze B2",
+          "minio": "MinIO",
+          "custom": "其他 S3 兼容服务"
+        },
+        "providerDetails": {
+          "aws": "使用 AWS 官方 S3 服务，自动生成区域端点并采用虚拟主机寻址。",
+          "cloudflare-r2": "使用 R2 的 S3 兼容 API，只需填写 Cloudflare 账户 ID。",
+          "aliyun-oss": "使用阿里云 OSS 的 S3 兼容接口，按所选区域生成端点。",
+          "tencent-cos": "使用腾讯云 COS 的 S3 兼容接口，凭证对应 SecretId 和 SecretKey。",
+          "backblaze-b2": "使用 Backblaze B2 S3 兼容 API，区域应与存储桶所在区域一致。",
+          "minio": "连接自托管 MinIO，需要填写完整服务端点。",
+          "custom": "连接其他 S3 兼容服务，可自行设置端点和寻址方式。"
+        },
         "advancedSettings": "高级设置",
         "endpoint": "自定义端点",
-        "endpointDesc": "留空使用 AWS S3，或输入兼容 S3 的服务端点",
+        "endpointDesc": "R2、MinIO 和自定义服务需要填写；其他预设可留空自动生成。",
+        "endpointRequired": "需要填写端点",
+        "endpointAutomaticDesc": "留空时自动使用 {endpoint}，填写后将覆盖自动端点。",
+        "endpointRequiredDetails": {
+          "cloudflare-r2": "必填，格式为 https://<账户 ID>.r2.cloudflarestorage.com。",
+          "minio": "必填，填写 MinIO API 地址和端口，例如 http://127.0.0.1:9000。",
+          "custom": "必填，填写兼容 S3 API 的完整服务地址。"
+        },
+        "resolvedEndpoint": "当前端点",
+        "resolvedAddressing": "当前寻址",
+        "addressingStyle": "寻址方式",
+        "addressingStyleDesc": "自动模式会根据服务商选择路径寻址或虚拟主机寻址。",
+        "addressingStyles": {
+          "auto": "自动",
+          "path": "路径模式",
+          "virtual": "虚拟主机模式"
+        },
         "customDomain": "自定义域名",
         "customDomainDesc": "可选，用于访问图片的自定义域名",
         "pathPrefix": "路径前缀",
@@ -908,8 +2392,136 @@
         "testFailedDesc": "请检查配置信息和网络连接",
         "testFirstDesc": "请先测试连接成功后再设为主要图床",
         "setPrimarySuccess": "设置成功",
-        "setPrimarySuccessDesc": "S3 已设为主要图床"
+        "setPrimarySuccessDesc": "对象存储已设为主要图床"
+      },
+      "lsky": {
+        "title": "Lsky Pro",
+        "description": "连接自建的兰空图床服务",
+        "apiUrl": "API 地址",
+        "apiUrlDesc": "填写包含版本号的 API 根地址，例如 https://example.com/api/v1。",
+        "token": "API Token",
+        "tokenPlaceholder": "输入 Bearer Token",
+        "strategyId": "储存策略 ID",
+        "strategyIdPlaceholder": "可选",
+        "strategyIdDesc": "留空时使用 Lsky 账户的默认储存策略。"
+      },
+      "webdav": {
+        "title": "WebDAV",
+        "description": "将图片上传到 NAS、网盘或自建 WebDAV 服务",
+        "baseUrl": "WebDAV 目录地址",
+        "username": "用户名",
+        "password": "密码",
+        "publicUrl": "公开访问地址",
+        "publicUrlDesc": "Markdown 中使用该地址访问图片，必须可被笔记阅读端直接访问。",
+        "pathPrefix": "路径前缀"
+      },
+      "customHttp": {
+        "title": "自定义 HTTP",
+        "description": "连接提供 POST 或 PUT 上传接口的任意服务",
+        "url": "上传地址",
+        "urlDesc": "地址可使用 '{filename}' 和 '{originalName}' 占位符。",
+        "method": "请求方法",
+        "fileField": "文件字段名",
+        "headers": "请求头",
+        "headersDesc": "使用 JSON 对象填写鉴权信息等请求头。",
+        "formFields": "附加表单字段",
+        "formFieldsDesc": "使用 JSON 对象添加相册、路径等额外 multipart 字段。",
+        "responseUrlPath": "返回 URL 路径",
+        "responseUrlPathDesc": "填写 JSON 路径（如 data.url）、header.Location，或使用 $requestUrl。"
+      },
+      "cloudinary": {
+        "title": "Cloudinary",
+        "description": "使用 Cloudinary CDN 上传、优化和分发图片",
+        "cloudName": "Cloud Name",
+        "uploadPreset": "Unsigned Upload Preset",
+        "uploadPresetDesc": "使用受限的 unsigned preset，无需在客户端保存 API Secret。",
+        "folder": "资源文件夹"
+      },
+      "imagekit": {
+        "title": "ImageKit",
+        "description": "使用 ImageKit 上传、优化并通过 CDN 分发图片",
+        "privateKey": "Private Key",
+        "privateKeyDesc": "密钥仅保存在本机设置中，用于 ImageKit 服务端上传接口。",
+        "folder": "资源文件夹"
+      },
+      "qiniu": {
+        "title": "七牛云 Kodo",
+        "description": "使用七牛云对象存储上传并分发图片",
+        "bucket": "存储空间",
+        "publicUrl": "公开访问域名",
+        "uploadUrl": "上传区域地址",
+        "uploadUrlDesc": "默认使用华东上传地址，其他区域请填写七牛云提供的上传域名。",
+        "pathPrefix": "路径前缀"
+      },
+      "upyun": {
+        "title": "又拍云 USS",
+        "description": "使用又拍云云存储上传并分发图片",
+        "bucket": "服务名称",
+        "operator": "操作员",
+        "password": "操作员密码",
+        "publicUrl": "公开访问域名",
+        "pathPrefix": "路径前缀"
       }
+    },
+    "backup": {
+      "title": "备份与恢复",
+      "desc": "创建和恢复 NoteGen 数据快照。",
+      "howItWorks": {
+        "title": "这是备份，不是多端同步",
+        "description": "NoteGen 会在你选择的文件夹中生成独立的 .ngbackup 快照，不会改变现有同步配置。"
+      },
+      "directory": {
+        "title": "备份目录",
+        "description": "请选择专门用于存放 NoteGen 备份的文件夹，不要选择当前笔记工作区。",
+        "dialogTitle": "选择 NoteGen 备份目录",
+        "empty": "尚未选择备份目录",
+        "choose": "选择文件夹",
+        "open": "打开",
+        "clear": "清除",
+        "required": "请先选择备份目录"
+      },
+      "automation": {
+        "title": "自动备份",
+        "description": "NoteGen 启动后会检查是否到期，并自动保留最近的快照。",
+        "schedule": "频率",
+        "scheduleDescription": "自动备份只在 NoteGen 运行时执行。",
+        "disabled": "关闭",
+        "daily": "每天",
+        "weekly": "每周",
+        "retention": "保留数量",
+        "retentionDescription": "超出数量的旧自动或手动备份会被清理。恢复前安全快照不会立即参与清理。",
+        "copies": "{count} 份"
+      },
+      "manual": {
+        "title": "立即备份",
+        "never": "还没有成功备份",
+        "lastSuccess": "上次成功：{time}",
+        "create": "立即创建备份",
+        "creating": "正在备份"
+      },
+      "history": {
+        "title": "备份历史",
+        "description": "这里只显示所选目录中的 NoteGen 备份，并会在读取时校验格式。",
+        "empty": "这个目录中还没有备份",
+        "invalid": "备份文件无效",
+        "workspace": "含工作区"
+      },
+      "restore": {
+        "import": "选择其他备份",
+        "chooseTitle": "选择 NoteGen 备份文件",
+        "action": "恢复",
+        "confirmTitle": "从这份备份恢复？",
+        "confirmDescription": "NoteGen 会先把当前数据备份到所选目录，然后恢复应用数据并重启。备份中的工作区会恢复到新的隔离目录，不会覆盖你当前的工作区文件。",
+        "cancel": "取消",
+        "confirm": "备份当前数据并恢复",
+        "restoring": "正在恢复",
+        "failedTitle": "恢复失败",
+        "failedDescription": "未能恢复备份：{error}。NoteGen 将重启并重新打开数据库。",
+        "safetyBackupError": "无法创建恢复前安全备份，恢复已取消"
+      },
+      "createSuccess": "备份已创建",
+      "createError": "备份失败",
+      "listError": "无法读取备份目录"
     },
     "backupSync": {
       "title": "备用方案",
@@ -948,6 +2560,8 @@
       "desc": "在这里，你可以创建和管理自定义整理模板，帮助 AI 按照你的需求整理记录内容。",
       "customTemplate": "自定义模板",
       "addTemplate": "新增模板",
+      "emptyTitle": "还没有整理模板",
+      "emptyDesc": "创建模板后，可以让 AI 按照固定结构整理记录。",
       "deleteConfirm": "确认删除模板吗?",
       "status": "状态",
       "name": "名称",
@@ -981,17 +2595,55 @@
       "selectTheme": "选择主题"
     },
     "dev": {
-      "title": "开发者",
-      "desc": "在这里，你可以配置开发者选项，包括网络代理、数据清理和配置文件管理等高级功能。",
+      "title": "高级设置",
+      "desc": "配置网络代理、数据管理和配置文件等高级选项。部分操作可能影响现有数据，请谨慎修改。",
+      "developerTitle": "开发者",
+      "developerDesc": "开放实验性功能、开发者工具和本机诊断能力。",
+      "developerModeTitle": "开发者模式",
+      "developerModeDesc": "开启后显示自托管同步和开发者诊断。此设置仅在当前设备生效。",
+      "developerToolsTitle": "开发者工具",
+      "developerToolsDesc": "可通过此按钮、F12、Cmd/Ctrl+Shift+I 或右键检查元素打开。",
+      "openDeveloperTools": "打开开发者工具",
+      "openDeveloperToolsFailed": "无法打开开发者工具",
+      "performanceInfoTitle": "编辑器性能信息",
+      "performanceInfoDesc": "在编辑器中显示文档大小、工作模式和渲染耗时。",
+      "diagnostics": {
+        "title": "诊断与控制台日志",
+        "description": "已采集 {count} 条脱敏运行日志，可预览后复制或导出。",
+        "preview": "生成预览",
+        "previewTitle": "脱敏诊断预览",
+        "reviewWarning": "自动脱敏无法覆盖所有业务文本，复制或提交前请人工复核。诊断不会主动读取笔记正文。",
+        "clear": "清空日志",
+        "cleared": "日志已清空",
+        "copy": "复制",
+        "copied": "已复制",
+        "copyFailed": "复制诊断失败",
+        "export": "导出 JSON",
+        "exported": "诊断已导出",
+        "exportFailed": "导出诊断失败",
+        "failed": "生成诊断失败"
+      },
       "clearData": "清理数据",
-      "clearDataConfirm": "确定清理数据吗？",
+      "clearDataConfirm": "这会永久删除系统配置、数据库和全部记录，且无法撤销。确定继续吗？",
       "proxy": "代理，用于解决网络问题，配置后建议重启应用。",
       "proxyPlaceholder": "请输入代理地址",
       "proxyTitle": "网络代理",
+      "systemProxyTitle": "使用系统代理",
+      "systemProxyDesc": "开启后使用系统代理；关闭后恢复手动代理。模型单独设置的代理优先。",
+      "proxySaveFailed": "代理设置保存失败，请重试。",
+      "proxyLoadFailed": "代理设置加载失败，请重新打开设置。",
       "clearDataTitle": "清理数据",
       "clearDataDesc": "清理数据信息，包括系统配置信息、数据库（包含记录）。",
       "clearFileTitle": "清理文件",
       "clearFileDesc": "清理文件，包括图片、文章。",
+      "dangerZoneTitle": "危险操作",
+      "dangerZoneDesc": "以下操作会永久删除本地内容，执行前请确认已完成备份。",
+      "clearFilesConfirm": "这会永久删除本地图片、文章和临时文件，且无法撤销。确定继续吗？",
+      "filesCleared": "文件已清理",
+      "dataClearedRestartTitle": "需要重启应用",
+      "dataClearedRestartDesc": "数据已清理，应用即将关闭。请重新启动应用。",
+      "cancelButton": "取消",
+      "confirmClearButton": "确认清理",
       "clearButton": "清理",
       "configFileTitle": "配置文件管理",
       "configFileDesc": "配置文件导入与导出，导入配置文件将覆盖当前配置，并且重启后生效。",
@@ -1001,6 +2653,40 @@
       "exportConfigSuccess": "导出成功",
       "importButton": "导入",
       "exportButton": "导出"
+    },
+    "localMcp": {
+      "title": "让 AI 访问 NoteGen",
+      "desc": "允许其他本机 AI 工具通过 MCP 访问当前工作区。",
+      "serviceTitle": "NoteGen MCP Server",
+      "running": "运行中",
+      "stopped": "已停止",
+      "error": "端口错误",
+      "portErrorTitle": "无法启动本地 MCP Server",
+      "permissionDesc": "外部 AI 可管理当前工作区（{workspace}）中的全部 Markdown 文件，切换工作区后自动跟随。",
+      "defaultWorkspace": "默认工作区",
+      "defaultConnectionName": "NoteGen",
+      "portTitle": "服务端口",
+      "portDesc": "仅监听本机，保存后立即生效；已有 Agent 需要更新连接地址。",
+      "save": "保存",
+      "portInvalid": "端口必须是 1024 到 65535 之间的整数",
+      "portSaved": "服务端口已更新",
+      "portUpdateFailed": "无法更新服务端口",
+      "connect": "开启并复制配置",
+      "copyConfig": "复制连接配置",
+      "configCopied": "连接配置已复制",
+      "regenerate": "重置访问密钥",
+      "regenerateTitle": "重置访问密钥？",
+      "regenerateDesc": "所有 Agent 中的旧配置会立即失效，需要使用新的连接配置重新连接。",
+      "resetAccessTitle": "重置访问密钥",
+      "resetAccessDesc": "仅在配置泄露或需要断开所有 Agent 时使用。",
+      "resetAccess": "重置密钥",
+      "cancel": "取消",
+      "secretTitle": "连接配置已复制",
+      "secretDesc": "可将同一份配置粘贴到多个 Agent，并可随时回到此处再次复制。",
+      "done": "完成",
+      "loadFailed": "无法加载本地 MCP 设置",
+      "updateFailed": "无法更新本地 MCP Server",
+      "actionFailed": "连接操作失败"
     },
     "chat": {
       "title": "对话设置",
@@ -1057,40 +2743,14 @@
         }
       },
       "condense": {
-        "title": "对话摘要",
         "enable": {
-          "title": "启用摘要",
-          "desc": "自动压缩长对话以节省 token 使用量"
+          "title": "自动压缩上下文",
+          "desc": "接近模型上限时提前压缩；关闭后仅在真正超限时紧急压缩并重试"
         },
         "model": {
-          "title": "摘要模型",
-          "desc": "选择用于生成摘要的 AI 模型",
+          "title": "压缩模型",
+          "desc": "用于生成会话压缩摘要；未指定时使用主模型",
           "placeholder": "使用主模型"
-        },
-        "threshold": {
-          "title": "触发阈值",
-          "desc": "AI 消息超过此数量时检查压缩"
-        },
-        "minToken": {
-          "title": "最小 Token 数",
-          "desc": "单条消息超过此 token 数才进行压缩"
-        },
-        "keepLatest": {
-          "title": "保留最新条数",
-          "desc": "保留最新的 N 条 AI 消息不进行压缩"
-        },
-        "maxLength": {
-          "title": "摘要长度限制",
-          "desc": "控制生成摘要的最大字数"
-        },
-        "prompt": {
-          "title": "自定义摘要提示词",
-          "desc": "自定义生成摘要时使用的提示词模板",
-          "label": "提示词模板",
-          "placeholder": "输入自定义提示词...",
-          "help": "使用 {content} 作为原始内容的占位符",
-          "save": "保存",
-          "reset": "重置为默认"
         }
       },
       "conversationTitle": {
@@ -1099,37 +2759,71 @@
           "title": "标题生成模型",
           "desc": "选择用于生成会话标题的 AI 模型"
         }
-      },
-      "inspiration": {
-        "title": "灵感模型",
-        "model": {
-          "title": "灵感生成模型",
-          "desc": "用于生成快速提示词建议，帮助用户快速开始对话"
-        }
       }
     },
     "ai": {
-      "title": "模型配置",
-      "desc": "在这里，你可以添加和管理各种自定义模型提供服务，配置后将解锁 AI 相关功能，例如整理和对话功能。",
+      "title": "模型平台",
+      "menuTitle": "模型服务",
+      "desc": "集中管理 AI 模型平台、连接凭据和不同能力的模型，可用于对话、整理、知识库和语音等功能。",
+      "providersTitle": "模型平台",
+      "providersDesc": "先选择平台，再分别配置连接信息和该平台提供的模型。",
+      "providerListTitle": "模型平台",
+      "addedPlatforms": "已添加",
+      "providerCount": "共 {count} 个平台",
+      "searchProviders": "搜索平台或地址",
+      "endpointMissing": "尚未配置服务地址",
+      "noProviderResults": "没有匹配的模型平台",
+      "noProvidersTitle": "还没有模型平台",
+      "noProvidersDesc": "可以从平台模板开始，也可以添加自定义 AI 服务。",
+      "providerReady": "已就绪",
+      "providerIncomplete": "待完善",
+      "modelCount": "{count} 个模型",
+      "templateProvider": "平台模板",
+      "customProvider": "自定义平台",
+      "connectionTab": "连接设置",
+      "modelsTab": "模型列表",
+      "connectionTitle": "连接设置",
+      "connectionDesc": "管理服务地址、API Key、网络代理和自定义请求头。修改会自动保存。",
+      "loadingProviderTemplate": "正在读取平台模板信息",
+      "apiKeyPlaceholder": "输入平台提供的 API Key",
+      "apiEndpoint": "API 地址",
+      "showApiKey": "显示 API Key",
+      "hideApiKey": "隐藏 API Key",
+      "manageHeaders": "管理",
+      "removeHeader": "删除请求头",
+      "noModelsTitle": "尚未添加模型",
+      "noModelsDesc": "添加该平台提供的模型，并为它选择对话、嵌入、重排或语音等能力类型。",
+      "selectProviderTitle": "选择一个模型平台",
+      "selectProviderDesc": "从左侧列表中选择要管理的模型平台。",
+      "searchModels": "搜索或输入模型名称",
+      "noModelResults": "没有找到模型",
+      "modelNamePlaceholder": "输入模型名称",
+      "refreshModelList": "重新获取模型列表",
+      "loadingModels": "正在获取模型列表…",
+      "searchProviderTemplates": "搜索平台模板",
+      "loadingProviderTemplates": "正在获取平台模板…",
+      "providerTemplates": "平台模板",
+      "noProviderTemplateResults": "没有匹配的模板",
+      "noProviderTemplateResultsDesc": "可以清空搜索后选择自定义平台。",
       "modelTitle": "自定义名称",
       "modelConfigTitle": "模型配置",
       "modelConfigDesc": "每一个配置对应一个 AI 模型，你可以通过模板或自定义创建新的配置。",
-      "providerInfo": "供应商信息",
-      "providerInfoDesc": "此配置基于供应商模板创建，名称和地址已预设，无需修改。",
-      "create": "创建新配置",
-      "createDesc": "选择空配置或使用供应商模板创建新的配置。",
+      "providerInfo": "平台信息",
+      "providerInfoDesc": "此平台通过模板添加，名称和地址已预设，无需修改。",
+      "create": "添加自定义平台",
+      "createDesc": "选择平台模板，或添加自定义 AI 服务。",
       "createSection": {
-        "title": "自定义模型配置",
-        "descWithoutModels": "添加自定义 AI 模型配置来使用更强大的模型服务。"
+        "title": "自定义平台",
+        "descWithoutModels": "添加自定义模型平台来使用更多模型服务。"
       },
       "config": "配置单",
-      "custom": "自定义模型配置",
+      "custom": "自定义平台",
       "addCustomModel": "自定义",
-      "deleteCustomModel": "删除",
-      "deleteCustomModelConfirm": "确认删除此自定义模型配置吗?",
-      "copyConfig": "复制",
+      "deleteCustomModel": "删除平台",
+      "deleteCustomModelConfirm": "确认删除此模型平台吗?",
+      "copyConfig": "复制平台",
       "builtin": "内置",
-      "modelSupport": "仅支持 openai 协议的 AI 模型",
+      "modelSupport": "支持通用的 AI 对话接口",
       "apiKeyUrl": "创建 API Key",
       "modelType": {
         "title": "模型类型",
@@ -1137,8 +2831,8 @@
         "chat": "对话",
         "image": "生图",
         "video": "视频",
-        "tts": "文本转语音",
-        "stt": "语音转文本",
+        "tts": "语音合成",
+        "stt": "语音识别",
         "embedding": "嵌入",
         "rerank": "重排序"
       },
@@ -1149,12 +2843,19 @@
         }
       },
       "selectModel": "请选择模型",
-      "modelProviderDesc": "自定义模型仅支持 openai 协议的 AI 模型。",
+      "modelProviderDesc": "请填写 AI 服务商提供的接口信息。",
       "modelTitleDesc": "自定义名称，用于标识 AI 模型，请勿重复。",
-      "modelBaseUrlDesc": "你只需要配置到版本号即可，例如：https://api.openai.com/v1，后缀会自动添加。",
+      "modelBaseUrlDesc": "配置到服务商要求的版本路径即可，例如：https://api.example.com/v1。",
       "modelDesc": "部分模型支持获取模型列表，如果不支持请手动配置。",
       "temperatureDesc": "使用什么采样温度，介于 0 和 2 之间。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使输出更加集中和确定。 我们通常建议改变这个或top_p但不是两者。",
       "topPDesc": "一种替代温度采样的方法，称为核采样，其中模型考虑具有 top_p 概率质量的标记的结果。所以 0.1 意味着只考虑构成前 10% 概率质量的标记。 我们通常建议改变这个或temperature但不是两者。",
+      "proxyModeTitle": "网络代理",
+      "proxyModeDesc": "为当前模型平台选择代理方式。继承模式使用高级设置中的全局代理。",
+      "proxyModeInherit": "继承全局代理",
+      "proxyModeDirect": "直连",
+      "proxyModeCustom": "自定义代理",
+      "proxyURLPlaceholder": "例如：http://127.0.0.1:7890 或 socks5h://127.0.0.1:1080",
+      "proxyURLInvalid": "请输入有效的 HTTP、HTTPS、SOCKS5 或 SOCKS5H 代理地址。",
       "customHeaders": "自定义请求头",
       "customHeadersDesc": "添加自定义 HTTP 请求头，支持多个键值对配置。",
       "headerKey": "键",
@@ -1167,16 +2868,36 @@
       "voicePlaceholder": "请输入语音类型，如：alloy",
       "enableStream": "流式响应",
       "enableStreamDesc": "启用流式响应可以实时显示生成内容，但某些模型可能不支持此功能。",
-      "selectConfig": "请选择配置",
+      "maxTokens": "最大输出 Token",
+      "maxTokensDesc": "限制单次生成的最大 Token 数；留空时使用模型或平台的默认限制。",
+      "maxTokensPlaceholder": "由模型决定",
+      "contextWindow": "上下文窗口",
+      "contextWindowDesc": "模型可接受的输入与输出 Token 总量；留空时自动推测，并在上下文溢出后学习。",
+      "contextWindowPlaceholder": "自动检测（默认 16K）",
+      "tokenLimitParam": "Token 限制参数",
+      "tokenLimitParamDesc": "默认使用 max_completion_tokens；旧版兼容接口可切换为 max_tokens。",
+      "reasoningEffort": {
+        "title": "推理等级",
+        "default": "默认",
+        "none": "关闭",
+        "minimal": "最低",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "极高",
+        "max": "最高"
+      },
+      "advancedParameters": "高级参数",
+      "selectConfig": "请选择模型平台",
       "models": "模型列表",
-      "modelsDesc": "在这里管理当前配置下的所有模型，每个模型可以有不同的类型和参数。",
+      "modelsDesc": "在这里管理当前平台下的所有模型，每个模型可以有不同的类型和参数。",
       "addModel": "添加模型",
       "newModel": "新模型",
       "checkConnection": "检测连接",
       "model": "模型",
       "defaultModels": {
-        "title": "默认免费模型",
-        "desc": "NoteGen 为用户提供免费的 AI 模型服务，由硅基流动提供支持，无需配置即可使用基础功能。",
+        "title": "NoteGen",
+        "desc": "NoteGen 为用户提供免费的 AI 模型服务，由硅基流动和 AIHubMix 提供支持，无需配置即可使用基础功能。",
         "chatModel": {
           "name": "Qwen/Qwen3-8B",
           "type": "对话模型",
@@ -1202,22 +2923,25 @@
     },
     "imageMethod": {
       "title": "图像识别",
-      "desc": "在这里，你可以配置图像识别相关设置，支持 OCR 和 VLM 两种方式。",
+      "desc": "默认使用系统 OCR 识别图片；配置 VLM 后会优先使用 VLM，失败时自动回退 OCR。",
       "enable": {
         "title": "启用图像识别",
         "desc": "开启后，在截图记录和插图记录时会自动进行图片识别。关闭后将跳过图片识别步骤。"
       },
-      "setPrimary": "设置为默认",
-      "isPrimary": "{type} 已设置为默认",
       "ocr": {
-        "title": "OCR",
-        "languagePacks": "语言包",
-        "checkModels": "在此查询全部模型",
-        "modelInstruction": "以逗号分隔，例如：eng,chi_sim"
+        "title": "系统 OCR",
+        "desc": "默认使用当前系统提供的 OCR 能力。",
+        "noProviders": "当前平台暂无内置 OCR 引擎",
+        "unknownVersion": "未知版本",
+        "ready": "可用",
+        "unavailable": "不可用",
+        "provider": "当前引擎"
       },
       "vlm": {
-        "title": "视觉语言模型",
-        "desc": "通过视觉语言模型识别图片内容。"
+        "title": "VLM 增强（可选）",
+        "desc": "选择视觉语言模型后，图片会先走 VLM 识别；如果模型不可用、识别失败或未返回内容，仍会自动回退系统 OCR。",
+        "noModel": "默认不使用模型",
+        "clearModel": "清除 VLM 模型"
       }
     },
     "file": {
@@ -1228,14 +2952,19 @@
         "desc": "设置应用程序的工作区目录，文件将保存在该目录中。",
         "current": "工作区路径",
         "defaultPath": "默认工作区",
-        "default": "当前使用默认工作区路径。",
+        "default": "默认工作区",
         "custom": "当前使用自定义工作区路径。",
         "select": "选择工作区目录",
         "reset": "重置为默认路径",
         "history": "历史路径",
+        "removeHistory": "移除历史记录",
+        "switchFailed": "切换工作区失败，已恢复原工作区",
+        "iosAccessRequired": "请重新选择此 iOS 工作区目录以恢复访问权限。",
+        "iosFolderMismatch": "所选 iOS 目录与此工作区不匹配。",
         "selectFromHistory": "从历史记录中选择工作区",
         "clearHistory": "清空历史记录",
         "actions": "操作",
+        "list": "工作区",
         "searchPlaceholder": "搜索工作区路径...",
         "noResults": "未找到结果"
       },
@@ -1255,8 +2984,8 @@
       },
       "assets": {
         "title": "写作资源路径",
-        "desc": "设置写作资源的保存路径，例如图片、视频、文件等，与当前编辑的 markdown 文件同级。",
-        "select": "请设置写作资源路径，例如：assets"
+        "desc": "设置写作资源目录名称。编辑器本地插入图片时会使用该目录名，例如 assets 或 images。",
+        "select": "请设置资源目录名称，例如：assets"
       }
     },
     "shortcuts": {
@@ -1265,23 +2994,296 @@
       "resetDefaults": "重置",
       "clear": "清空",
       "noShortcut": "未设置",
+      "recording": "按下新的快捷键",
+      "registrationFailed": "无法注册此快捷键，可能已被系统或其他应用占用，请尝试其他组合。",
+      "saveFailed": "快捷键保存失败，请重试。",
+      "invalidShortcut": "请使用包含 Ctrl、Command 或 Alt 的组合键，或使用功能键。",
+      "conflictEditor": "与编辑器快捷键「{name}」冲突",
+      "conflictGlobal": "与全局快捷键「{name}」冲突",
+      "globalShortcuts": {
+        "title": "全局快捷键",
+        "desc": "这些快捷键由系统注册，NoteGen 不在前台时也可能触发。"
+      },
+      "editorShortcuts": {
+        "title": "编辑器快捷键",
+        "desc": "这些快捷键只在 Markdown 编辑器聚焦时生效。",
+        "suggested": "建议：{shortcut}",
+        "groups": {
+          "basic": "基础编辑",
+          "format": "格式化",
+          "ai": "AI",
+          "table": "表格",
+          "insert": "插入"
+        },
+        "commands": {
+          "undo": {
+            "title": "撤销",
+            "desc": "撤销上一次编辑。"
+          },
+          "redo": {
+            "title": "重做",
+            "desc": "恢复刚撤销的编辑。"
+          },
+          "setParagraph": {
+            "title": "段落",
+            "desc": "将当前块设置为普通段落。"
+          },
+          "toggleHeading1": {
+            "title": "标题 1",
+            "desc": "切换一级标题。"
+          },
+          "toggleHeading2": {
+            "title": "标题 2",
+            "desc": "切换二级标题。"
+          },
+          "toggleHeading3": {
+            "title": "标题 3",
+            "desc": "切换三级标题。"
+          },
+          "toggleHeading4": {
+            "title": "标题 4",
+            "desc": "切换四级标题。"
+          },
+          "toggleHeading5": {
+            "title": "标题 5",
+            "desc": "切换五级标题。"
+          },
+          "toggleHeading6": {
+            "title": "标题 6",
+            "desc": "切换六级标题。"
+          },
+          "openSearch": {
+            "title": "查找 / 替换",
+            "desc": "打开编辑器内搜索面板。"
+          },
+          "openSlashCommand": {
+            "title": "Slash 菜单",
+            "desc": "在光标处打开编辑器命令菜单。"
+          },
+          "toggleOutline": {
+            "title": "大纲",
+            "desc": "显示或隐藏当前文档大纲。"
+          },
+          "toggleBold": {
+            "title": "加粗",
+            "desc": "切换选中文本或后续输入的加粗样式。"
+          },
+          "toggleItalic": {
+            "title": "斜体",
+            "desc": "切换斜体样式。"
+          },
+          "toggleStrike": {
+            "title": "删除线",
+            "desc": "切换删除线样式。"
+          },
+          "toggleUnderline": {
+            "title": "下划线",
+            "desc": "切换下划线样式。"
+          },
+          "toggleInlineCode": {
+            "title": "行内代码",
+            "desc": "切换行内代码样式。"
+          },
+          "toggleHighlight": {
+            "title": "高亮",
+            "desc": "切换高亮样式。"
+          },
+          "openLinkInput": {
+            "title": "链接",
+            "desc": "打开链接输入框。"
+          },
+          "toggleBlockquote": {
+            "title": "引用块",
+            "desc": "切换引用块。"
+          },
+          "toggleBulletList": {
+            "title": "无序列表",
+            "desc": "切换无序列表。"
+          },
+          "toggleOrderedList": {
+            "title": "有序列表",
+            "desc": "切换有序列表。"
+          },
+          "toggleTaskList": {
+            "title": "任务列表",
+            "desc": "切换任务列表。"
+          },
+          "toggleCodeBlock": {
+            "title": "代码块",
+            "desc": "切换代码块。"
+          },
+          "quoteToChat": {
+            "title": "引用到聊天",
+            "desc": "将选中内容发送到 AI 对话引用区。"
+          },
+          "openAiMenu": {
+            "title": "AI 动作菜单",
+            "desc": "打开选中文本的 AI 操作菜单。"
+          },
+          "aiContinue": {
+            "title": "AI 续写",
+            "desc": "基于光标前内容继续写作。"
+          },
+          "aiPolish": {
+            "title": "AI 润色",
+            "desc": "润色选中文本。"
+          },
+          "aiConcise": {
+            "title": "AI 精简",
+            "desc": "精简选中文本。"
+          },
+          "aiExpand": {
+            "title": "AI 扩写",
+            "desc": "扩写选中文本。"
+          },
+          "aiTranslate": {
+            "title": "AI 翻译",
+            "desc": "打开选中文本的翻译菜单。"
+          },
+          "acceptAiSuggestion": {
+            "title": "接受 AI 建议",
+            "desc": "AI 建议浮层打开时接受当前结果。"
+          },
+          "rejectAiSuggestion": {
+            "title": "拒绝 AI 建议",
+            "desc": "AI 建议浮层打开时还原原文。"
+          },
+          "abortAiGeneration": {
+            "title": "终止 AI 生成",
+            "desc": "终止当前 AI 生成任务。"
+          },
+          "insertTable": {
+            "title": "插入表格",
+            "desc": "插入默认三列表格。"
+          },
+          "addColumnBefore": {
+            "title": "左侧插入列",
+            "desc": "在当前单元格左侧插入一列。"
+          },
+          "addColumnAfter": {
+            "title": "右侧插入列",
+            "desc": "在当前单元格右侧插入一列。"
+          },
+          "addRowBefore": {
+            "title": "上方插入行",
+            "desc": "在当前单元格上方插入一行。"
+          },
+          "addRowAfter": {
+            "title": "下方插入行",
+            "desc": "在当前单元格下方插入一行。"
+          },
+          "deleteColumn": {
+            "title": "删除列",
+            "desc": "删除当前表格列。"
+          },
+          "deleteRow": {
+            "title": "删除行",
+            "desc": "删除当前表格行。"
+          },
+          "deleteTable": {
+            "title": "删除表格",
+            "desc": "删除当前表格。"
+          },
+          "alignLeft": {
+            "title": "左对齐",
+            "desc": "设置文本或表格单元格左对齐。"
+          },
+          "alignCenter": {
+            "title": "居中对齐",
+            "desc": "设置文本或表格单元格居中对齐。"
+          },
+          "alignRight": {
+            "title": "右对齐",
+            "desc": "设置文本或表格单元格右对齐。"
+          },
+          "insertImage": {
+            "title": "插入图片",
+            "desc": "选择并插入本地图片。"
+          },
+          "insertInlineMath": {
+            "title": "插入行内公式",
+            "desc": "打开行内 LaTeX 公式输入框。"
+          },
+          "insertBlockMath": {
+            "title": "插入块级公式",
+            "desc": "打开块级 LaTeX 公式输入框。"
+          },
+          "insertMermaid": {
+            "title": "插入 Mermaid 图",
+            "desc": "插入默认 Mermaid 流程图。"
+          },
+          "insertHorizontalRule": {
+            "title": "插入分割线",
+            "desc": "在当前位置插入水平分割线。"
+          }
+        }
+      },
       "shortcuts": {
         "openWindow": {
           "title": "打开/隐藏窗口",
           "desc": "打开/隐藏程序主窗口。"
         },
+        "screenshotRecord": {
+          "title": "截图记录",
+          "desc": "使用全局快捷键在当前桌面框选、标注、复制、保存或贴图。"
+        },
         "quickRecordText": {
           "title": "快速记录文本",
-          "desc": "快速打开程序主窗口，并调出文本记录。"
+          "desc": "直接打开可调整大小的独立文本记录窗口，不唤起主窗口。"
         }
       }
-    }
+    },
+    "navigationGroups": {
+      "extensions": "拓展",
+      "basic": "基础设置",
+      "ai": "AI",
+      "data": "数据与存储"
+    },
+    "searchPlaceholder": "搜索设置...",
+    "noSearchResults": "没有找到相关设置",
+    "title": "设置"
   },
   "record": {
+    "tagging": {
+      "manage": "管理标签",
+      "help": "可选择多个标签，用 / 创建层级，例如 灵感/音乐。主标签保留为保存归属，可通过“转移标签”更改。保存后生效。",
+      "primary": "主标签",
+      "search": "搜索或创建标签",
+      "create": "创建“{name}”",
+      "rules": "标签规则",
+      "rulesHelp": "父标签包含所有子标签；排除优先。这些规则也用于整理笔记。",
+      "match": "包含规则的匹配方式",
+      "all": "满足全部",
+      "any": "满足任一",
+      "ignore": "不限",
+      "include": "包含",
+      "exclude": "排除",
+      "activeRules": "已应用标签规则",
+      "nameRequired": "请输入标签名称",
+      "nameExists": "此标签路径已存在",
+      "collapseTag": "收起 {name}",
+      "expandTag": "展开 {name}",
+      "tagActions": "{name} 的操作",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "browseTags": "标签管理",
+      "searchTags": "搜索标签",
+      "allRecords": "全部记录",
+      "includesChildren": "包含此标签及其子标签的记录",
+      "saveDestination": "新记录保存到 {name}",
+      "retry": "重试",
+      "deleteTagHelp": "删除标签“{name}”？记录不会删除，子标签仍保留在原有路径下。",
+      "underParent": "在“{name}”下创建或编辑子标签。",
+      "rootTagHelp": "创建顶层标签，也可以使用 / 创建多级路径。",
+      "tagName": "标签名称",
+      "savedRefreshFailed": "标签已保存，但列表刷新失败，请重新打开记录列表。",
+      "filtersAdjusted": "标签发生变化，已更新筛选条件并移除失效条件。"
+    },
     "trash": {
-      "title": "清空回收站",
+      "title": "回收站",
       "confirm": "确定清空回收站吗？",
       "records": "共 {count} 条记录可还原",
+      "syncWarning": "该操作会同步到其他设备。",
       "empty": "清空",
       "restoreAll": "全部还原",
       "close": "关闭回收站"
@@ -1297,9 +3299,99 @@
       "record": "记录",
       "detected": "检测到"
     },
+    "capture": {
+      "desktopScreenshotPermissionDenied": "请在 macOS 系统设置 → 隐私与安全性 → 屏幕与系统音频录制（部分版本为屏幕录制）中允许 NoteGen，然后重新打开应用。",
+      "desktopScreenshotUnsupportedSession": "当前桌面会话不支持直接框选截图。Wayland 下请使用系统截图后导入图片；X11 下可使用桌面截图。",
+      "desktopScreenshotCaptureFailed": "桌面截图失败，请检查屏幕权限和显示器连接后重试。",
+      "desktopScreenshotSaveRetry": "截图仍保留在本机，点击重试可继续保存。",
+      "desktopScreenshotSavedTitle": "截图已保存",
+      "desktopScreenshotSavedBody": "已保存到 NoteGen，可稍后在记录中查看。",
+      "saveTarget": "保存到",
+      "saveTargetPlaceholder": "选择标签",
+      "saved": "记录已保存",
+      "savedWithType": "{type} 已保存，可继续处理或整理",
+      "viewRecord": "查看",
+      "processingInBackground": "后台处理中，完成后会自动出现在记录列表。",
+      "elapsedSeconds": "{seconds}s",
+      "importAudio": "导入音频",
+      "smartClipboard": "剪贴板",
+      "clipboardEmpty": "剪贴板为空",
+      "clipboardEmptyDescription": "复制一段文字或链接后再试。",
+      "linkFetchFailed": "网页内容抓取失败",
+      "fileUnsupportedSaved": "文件已保存",
+      "fileUnsupportedDescription": "暂不支持提取该类型的文本，已作为附件记录。",
+      "reparseFile": "重新解析文件",
+      "reparsingFile": "正在重新解析文件",
+      "fileReparseSuccess": "文件内容已重新解析",
+      "documentParseError": {
+        "scannedPdf": "该 PDF 不包含可提取文本，请先进行 OCR，或将页面作为图片记录。",
+        "encrypted": "文件已加密或受密码保护，无法提取内容。",
+        "malformed": "文件结构损坏或缺少必要内容，无法提取文本。",
+        "resourceLimit": "文件内容过于复杂，已超过安全解析限制。",
+        "fileTooLarge": "文件超过 100 MB，已保存记录但未提取内容。",
+        "readFailed": "无法读取文件，已保存原文件路径。",
+        "parseFailed": "文件解析失败，已保存原文件路径。"
+      },
+      "imageUploadFallback": "图片已保存到本地",
+      "imageUploadFallbackDescription": "图床上传失败，已继续使用本地图片。",
+      "screenshotRecordTitle": "截图记录",
+      "screenshotCapturing": "正在获取可截图的窗口...",
+      "screenshotCaptureFailed": "无法获取屏幕截图",
+      "screenshotPermissionHint": "请检查系统录屏权限后重试。",
+      "screenshotEmpty": "未找到可截图的窗口",
+      "screenshotSourceCount": "可用窗口 {count} 个",
+      "screenshotNoSource": "暂无可用窗口",
+      "screenshotRefresh": "重新截图",
+      "retry": "重试",
+      "screenshotSave": "保存截图",
+      "screenshotSaveAndRecognize": "保存并识别",
+      "screenshotSaveOnly": "仅保存截图",
+      "screenshotSaveFailed": "截图记录保存失败",
+      "screenshotRecognitionPending": "截图已保存，正在进行图片识别...",
+      "screenshotRecognitionComplete": "图片识别完成",
+      "screenshotRecognitionFailed": "图片识别失败",
+      "screenshotRecognitionAuto": "自动",
+      "screenshotRecognitionOff": "未识别",
+      "screenshotRecognitionMethod": "识别方式",
+      "screenshotNoText": "这张截图未识别到文字",
+      "screenshotSavedOnly": "已保存图片，未进行识别",
+      "screenshotRecognizing": "识别中...",
+      "screenshotRecognizeAgain": "重新识别",
+      "screenshotAiDescription": "AI 描述",
+      "screenshotOcrContent": "OCR 内容",
+      "screenshotCopyImageLink": "复制图片链接",
+      "screenshotShowInFolder": "在文件夹中显示",
+      "screenshotKeyboardHint": "Enter 保存，Esc 取消，方向键切换来源。",
+      "screenshotModeWindow": "窗口",
+      "screenshotModeRegion": "区域",
+      "screenshotModeDisplay": "屏幕"
+    },
+    "syncStatus": {
+      "checking_remote": "正在检查远程更新",
+      "queued": "已加入同步队列",
+      "uploading": "正在上传同步内容",
+      "uploadingRecords": "正在上传记录",
+      "uploadingSettings": "正在上传配置",
+      "downloading": "正在拉取远程内容",
+      "failed": "同步失败",
+      "conflict": "发现同步冲突",
+      "waiting_provider": "等待配置同步平台",
+      "synced": "已同步",
+      "queuedDesc": "还有 {count} 个任务等待同步",
+      "retry": "重试",
+      "settings": "设置"
+    },
     "mark": {
       "empty": "暂无记录",
       "loading": "加载中...",
+      "detail": {
+        "notFound": "记录不存在或已被删除",
+        "moreActions": "更多操作",
+        "tag": "所属标签",
+        "discardTitle": "放弃未保存的修改？",
+        "discardDescription": "返回后，本次修改将不会保留。",
+        "discard": "放弃修改"
+      },
       "type": {
         "scan": "截图",
         "image": "插图",
@@ -1331,7 +3423,9 @@
       "createdAt": "创建于",
       "progress": {
         "cacheImage": "缓存图片",
+        "vlm": "VLM 识别",
         "ocr": "OCR 识别",
+        "description": "生成描述",
         "aiAnalysis": "AI 内容识别",
         "uploadImage": "上传至图床",
         "jsdelivrCache": "通知 jsdelivr 缓存",
@@ -1356,7 +3450,16 @@
         "title": "链接记录",
         "description": "输入网页链接，系统将自动爬取页面内容并保存",
         "save": "保存",
-        "autoReadClipboard": "自动读取剪贴板链接"
+        "autoReadClipboard": "自动读取剪贴板链接",
+        "searchExcerpt": "以下内容来自网络搜索摘要，并非完整网页正文：",
+        "savedPartialTitle": "链接已保存，正文抓取不完整",
+        "savedFromSearch": "原网页无法完整读取，已使用网络搜索补充标题和摘要。",
+        "captureStatus": {
+          "partial": "仅提取到部分网页正文，可以稍后重新抓取。",
+          "metadata-only": "仅保存了网页标题或描述，没有提取到正文。",
+          "blocked": "网页要求登录或验证，已保留链接。",
+          "failed": "网页请求失败，已保留链接。"
+        }
       },
       "todo": {
         "title": "待办记录",
@@ -1396,11 +3499,13 @@
         "unpin": "取消置顶",
         "newTag": "新建标签",
         "newTagPlaceholder": "输入标签名称...",
+        "newChildTag": "新建子标签",
+        "newChildTagPlaceholder": "在 {name} 下创建子标签",
         "add": "添加"
       },
       "mark": {
-        "empty": "暂无记录",
-        "emptyHint": "使用顶部工具栏开始你的第一条记录吧！",
+        "empty": "还没有记录",
+        "emptyHint": "创建一条新的记录，\n或用文字、图片和录音捕捉灵感。",
         "type": {
           "text": "文本"
         },
@@ -1534,13 +3639,40 @@
         }
       },
       "toolbar": {
+        "more": "更多",
+        "sort": {
+          "title": "排序",
+          "newest": "最新优先",
+          "oldest": "最早优先",
+          "type": "按类型"
+        },
         "search": "搜索",
+        "filter": {
+          "title": "筛选",
+          "description": "按内容、时间和类型即时过滤记录。",
+          "search": "搜索",
+          "searchPlaceholder": "搜索记录内容、描述或链接",
+          "type": "类型",
+          "time": "时间",
+          "tag": "标签",
+          "allTags": "全部标签",
+          "clear": "清空筛选",
+          "selectAllTypes": "选择全部类型",
+          "clearTypes": "清空类型选择",
+          "timeOptions": {
+            "all": "全部时间",
+            "today": "今天",
+            "last7Days": "最近7天",
+            "last30Days": "最近30天"
+          }
+        },
         "trash": "回收站",
         "closeTrash": "关闭回收站",
         "organizeNotes": "整理笔记",
         "organizeSuccess": "笔记整理成功：{title}",
         "organizeError": "整理笔记失败",
         "currentTag": "当前标签",
+        "allTags": "全部标签",
         "restore": "还原",
         "delete": "删除",
         "deleteConfirm": "确定要删除吗？",
@@ -1553,13 +3685,21 @@
         "viewFile": "查看原文件",
         "deleteForever": "彻底删除",
         "multiSelect": "多选",
+        "multiSelectMode": "多选模式",
         "exitMultiSelect": "退出多选",
         "selectAll": "全选",
         "deselectAll": "取消全选",
         "selectedCount": "已选择 {count} 项",
+        "visibleCount": "共 {count} 条记录",
         "moveSelectedTags": "转移选中的 {count} 项",
         "deleteSelected": "删除选中的 {count} 项",
         "deleteSelectedForever": "彻底删除选中的 {count} 项",
+        "view": {
+          "title": "视图",
+          "list": "列表视图",
+          "compact": "紧凑视图",
+          "cards": "卡片视图"
+        },
         "text": "记录文本",
         "recording": "录音记录",
         "scan": "扫描图片",
@@ -1569,17 +3709,38 @@
         "todo": "待办记录"
       },
       "list": {
-        "title": "记录"
+        "title": "记录",
+        "pullToRefresh": "下拉拉取远程记录",
+        "releaseToRefresh": "松开拉取远程记录",
+        "refreshing": "正在拉取远程记录",
+        "emptyFiltered": "没有符合条件的记录",
+        "emptyFilteredHint": "试试调整搜索词或筛选条件",
+        "filteredLabel": "已筛选 {count} 条",
+        "filtered": "已筛选",
+        "filteredByTag": "标签",
+        "filteredByType": "{count} 种类型",
+        "filteredSummary": "当前显示 {count} 条结果 · {filters}",
+        "searchChip": "搜索: {value}",
+        "time": {
+          "today": "今天",
+          "last7Days": "最近7天",
+          "last30Days": "最近30天"
+        }
       }
     },
     "chat": {
       "condensing": "正在压缩上下文...",
       "condensed": {
-        "message": "已压缩 {count} 条历史消息"
+        "message": "已压缩 {count} 条历史消息",
+        "summary": "续接摘要"
       },
       "empty": {
         "title": "开始与 AI 对话",
         "subtitle": "使用 Chat 或 Agent 模式与 AI 互动",
+        "temporary": {
+          "title": "临时会话",
+          "description": "离开后，本次对话内容将自动清空"
+        },
         "currentModel": "当前模型",
         "currentPrompt": "当前 Prompt",
         "currentMode": "对话模式",
@@ -1611,8 +3772,13 @@
       "input": {
         "organize": "整理",
         "chat": "聊天",
+        "lockContext": "锁定关联",
+        "unlockContext": "取消锁定",
+        "removeContext": "移除关联",
         "placeholder": {
           "default": "你可以提问或将记录整理为文章...",
+          "pending": "输入消息，发送后可在待处理列表中调整...",
+          "approval": "输入修改要求以替代当前待确认操作...",
           "noApiKey": "未配置 API Key，无法使用 AI 对话功能...",
           "on": "AI 建议 (开启)",
           "off": "AI 建议 (关闭)",
@@ -1629,6 +3795,7 @@
           "disable": "剪贴板监听(关闭)"
         },
         "send": "发送",
+        "steer": "追加引导",
         "stop": "停止",
         "stopped": "对话已终止",
         "terminate": "终止",
@@ -1642,13 +3809,20 @@
         "modelSelect": {
           "tooltip": "选择 AI 模型",
           "placeholder": "搜索 AI 模型",
-          "noModel": "未找到模型"
+          "noModel": "未找到模型",
+          "nextTurn": "已切换到 {model}，下轮生效",
+          "nextTurnBadge": "下轮生效",
+          "changeWarning": "切换模型可能影响对话连贯性；当前任务仍使用原模型。",
+          "continuityWarning": "切换模型可能影响当前对话的连贯性。",
+          "changedTo": "已切换为 {model}",
+          "changed": "模型已从 {from} 切换为 {to}"
         },
         "promptSelect": {
           "tooltip": "选择 Prompt",
           "placeholder": "搜索 Prompt"
         },
         "newChat": "开始新对话",
+        "temporaryChat": "临时会话",
         "chatLanguage": {
           "tooltip": "选择对话语言",
           "placeholder": "搜索语言"
@@ -1669,6 +3843,50 @@
           "agentDescription": "智能助手，可执行操作"
         },
         "attachImage": "附加图片",
+        "addAttachment": {
+          "title": "添加",
+          "image": {
+            "title": "图片"
+          },
+          "file": {
+            "title": "文件"
+          },
+          "folder": {
+            "title": "文件夹"
+          },
+          "entryCount": "{count} 项",
+          "remove": "移除 {name}",
+          "metadataOnly": "仅元数据",
+          "readFailed": "{count} 个附件读取失败",
+          "selectFailed": "选择附件失败，请重试",
+          "attachmentOnlyPrompt": "请查看并分析我添加的附件。"
+        },
+        "imageAttachment": {
+          "selectSuccess": "已附加 {count} 张图片",
+          "pasteSuccess": "已粘贴 {count} 张图片",
+          "dropSuccess": "已拖入 {count} 张图片",
+          "maxCount": "最多可附加 {count} 张图片",
+          "oversized": "{name} 超过 {size}，已跳过",
+          "oversizedMultiple": "{count} 张图片超过 {size}，已跳过",
+          "unsupported": "{name} 不是支持的图片格式",
+          "unsupportedMultiple": "{count} 个文件不是支持的图片格式",
+          "saveFailed": "图片保存失败，请重试",
+          "saveFailedMultiple": "{count} 张图片保存失败，请重试",
+          "selectFailed": "选择图片失败，请重试",
+          "dropHint": "松开以附加图片",
+          "analysis": {
+            "pending": "等待识别",
+            "normalizing": "正在处理图片",
+            "recognizing": "正在识别",
+            "vlm": "视觉模型",
+            "ocr": "OCR",
+            "ocrFallback": "OCR 回退",
+            "hybrid": "视觉模型 + OCR",
+            "failed": "识别失败",
+            "cancelled": "识别已停止",
+            "retry": "重新识别"
+          }
+        },
         "imageSelector": {
           "title": "选择图片",
           "local": "本地文件",
@@ -1677,6 +3895,11 @@
           "noRecords": "没有可用的图片记录",
           "cancel": "取消",
           "confirm": "确认"
+        },
+        "contextUsage": {
+          "label": "上下文使用率：{percent}%",
+          "usageDetail": "预计上下文使用率：{percent}%",
+          "tokenDetail": "{usedTokens} / {contextWindow} Token"
         },
         "agent": {
           "running": "Agent 运行中",
@@ -1687,9 +3910,64 @@
           "thought": "思考",
           "action": "行动",
           "toolCalls": "工具调用",
+          "resultSummary": "结果摘要",
+          "queryParameters": "查询参数",
+          "toolResult": "工具结果",
+          "deliveryMode": {
+            "label": "运行中消息处理方式",
+            "queued": "已排队 {count} 条消息",
+            "pending": {
+              "title": "待处理消息",
+              "add": "加入待处理列表",
+              "remove": "删除排队消息",
+              "edit": "编辑消息",
+              "save": "保存",
+              "cancel": "取消",
+              "reorder": "拖动调整顺序",
+              "more": "更多操作"
+            },
+            "modes": {
+              "steer": {
+                "title": "调整方向",
+                "description": "当前回复和工具调用结束后，在下一轮优先应用这条新要求。"
+              },
+              "follow-up": {
+                "title": "排队执行",
+                "description": "当前任务完成后，自动开始这条新任务。"
+              }
+            }
+          },
+          "resume": {
+            "action": "继续任务",
+            "prompt": "请继续完成上一轮尚未完成的任务。先检查已有结果和修改，避免重复执行已完成的步骤。"
+          },
+          "permissionMode": {
+            "label": "Agent 权限模式",
+            "modes": {
+              "read-only": {
+                "title": "只读",
+                "description": "仅查看和分析内容，不允许修改。"
+              },
+              "ask": {
+                "title": "修改前确认",
+                "description": "读取无需确认，修改内容前请求批准。"
+              },
+              "auto-edit": {
+                "title": "自动修改",
+                "description": "自动修改本地内容；删除、脚本、技能安装等操作仍需批准。"
+              }
+            }
+          },
           "autoFinal": {
             "createNote": "已创建笔记《{name}》。",
             "createFile": "已创建文件《{name}》。"
+          },
+          "question": {
+            "single": "单选",
+            "multiple": "多选",
+            "done": "完成选择",
+            "notificationTitle": "NoteGen 等待你的回答",
+            "notificationBody": "Agent 有问题需要你补充信息。"
           },
           "confirmation": {
             "title": "确认操作",
@@ -1700,6 +3978,11 @@
             "confirm": "确认",
             "confirmed": "已确认",
             "cancelled": "已取消",
+            "session": "本次会话允许",
+            "notification": {
+              "title": "NoteGen 需要你的确认",
+              "description": "Agent 正在等待你确认一项操作。"
+            },
             "fallback": {
               "title": "即将执行操作",
               "description": "请确认这次操作的目标和内容。"
@@ -1712,9 +3995,22 @@
               "files": "文件列表",
               "newName": "新名称",
               "scriptName": "脚本名称",
-              "command": "命令"
+              "command": "命令",
+              "name": "Skill 名称",
+              "skill_id": "Skill ID",
+              "source": "来源",
+              "revision": "固定版本",
+              "scope": "安装位置",
+              "has_scripts": "包含脚本",
+              "skipped_symlinks": "跳过的符号链接",
+              "replaceExisting": "替换已有 Skill"
             },
             "tools": {
+              "create_memory": {
+                "title": "记住这条信息？",
+                "description": "确认后，AI 会在之后的对话中使用这条信息。",
+                "content": "记忆内容"
+              },
               "create_file": {
                 "title": "创建文件",
                 "description": "将在工作区中新建一个文件。"
@@ -1743,13 +4039,42 @@
                 "title": "在光标处插入内容",
                 "description": "会把内容插入到当前光标位置。"
               },
+              "canvas_apply_operations": {
+                "title": "修改当前画布",
+                "description": "预览 AI 即将在原生画布中执行的节点和连线操作。"
+              },
               "delete_markdown_file": {
                 "title": "删除文件",
                 "description": "将永久删除所选文件。"
               },
               "execute_skill_script": {
                 "title": "运行脚本",
-                "description": "将执行由 skill 提供的脚本或命令。"
+                "description": "将执行此 Skill 中已注册的脚本。"
+              },
+              "install_skill_python_dependencies": {
+                "title": "安装 Skill Python 依赖",
+                "description": "将把列出的 PyPI wheel 安装到此 Skill 的隔离环境中，请逐项确认。"
+              },
+              "uninstall_skill": {
+                "title": "确认移除 Skill",
+                "description": "将永久删除此 Skill、第三方安装记录和隔离运行环境。"
+              },
+              "install_remote_skill": {
+                "title": "确认安装第三方 Skill",
+                "description": "请检查来源、固定版本和风险信息，然后决定是否安装。",
+                "warningTitle": "检测到安装风险",
+                "symlinkWarning": "该 Skill 包含符号链接。继续安装时将跳过这些链接，不会将其写入本地。",
+                "confirm": "确认安装",
+                "continue": "继续安装",
+                "risks": {
+                  "large-archive": "下载包大小为 {actualSize}，超过建议上限 {recommendedSize}。",
+                  "large-files": "有 {count} 个文件超过建议的单文件上限 {recommendedSize}。",
+                  "large-uncompressed-size": "解压后大小为 {actualSize}，超过建议上限 {recommendedSize}。",
+                  "many-files": "包含 {actual} 个文件，超过建议数量 {recommended}。",
+                  "deep-paths": "目录深度为 {actual} 层，超过建议深度 {recommended} 层。",
+                  "executable-scripts": "包含可执行脚本；安装后运行脚本仍会单独请求确认。",
+                  "symbolic-links": "包含 {count} 个符号链接；继续安装时会跳过这些链接。"
+                }
               }
             }
           }
@@ -1761,6 +4086,66 @@
           "searchPlaceholder": "搜索文件...",
           "noFiles": "未找到文件",
           "loading": "加载中..."
+        },
+        "composerMenu": {
+          "loading": "正在加载...",
+          "empty": "没有匹配结果",
+          "commands": {
+            "title": "快捷指令",
+            "placeholder": "搜索指令...",
+            "summarize": {
+              "label": "总结",
+              "description": "提炼重点和结论",
+              "prompt": "请总结以下内容，提炼重点和结论："
+            },
+            "organize": {
+              "label": "整理成笔记",
+              "description": "整理为结构清晰的 Markdown",
+              "prompt": "请将以下内容整理成结构清晰的 Markdown 笔记："
+            },
+            "rewrite": {
+              "label": "润色",
+              "description": "保持原意并改善表达",
+              "prompt": "请润色以下内容，保持原意并改善表达："
+            },
+            "translate": {
+              "label": "翻译",
+              "description": "翻译为指定语言",
+              "prompt": "请将以下内容翻译为："
+            },
+            "searchNotes": {
+              "label": "搜索笔记",
+              "description": "在知识库中查找相关内容",
+              "prompt": "请在我的笔记知识库中搜索并回答："
+            },
+            "createNote": {
+              "label": "创建笔记",
+              "description": "新建一篇结构清晰的 Markdown 笔记",
+              "prompt": "请根据以下要求创建一篇新的 Markdown 笔记："
+            }
+          },
+          "skills": {
+            "title": "Skills",
+            "scope": {
+              "global": "全局",
+              "project": "工作区"
+            }
+          },
+          "resources": {
+            "title": "关联上下文",
+            "placeholder": "搜索文件、文件夹、记录或画布...",
+            "files": "文件",
+            "folders": "文件夹",
+            "records": "记录",
+            "canvases": "画布",
+            "untitledRecord": "未命名记录",
+            "recordFallback": "记录内容",
+            "canvasSummary": "{nodes} 个节点，{edges} 条连线"
+          }
+        },
+        "clearChat": "清空对话",
+        "clearContext": {
+          "tooltip": "清除上下文"
         }
       },
       "header": {
@@ -1794,13 +4179,29 @@
         "copied": "已复制"
       },
       "ragSources": {
-        "label": "知识库检索到 {count} 篇笔记",
-        "openFile": "打开文件"
+        "label": "参考了 {sources}",
+        "articleCount": "{count} 篇文章",
+        "recordCount": "{count} 条记录",
+        "canvasCount": "{count} 个画布",
+        "sourceCount": "{count} 个来源",
+        "openArticle": "打开文章",
+        "openRecord": "打开记录",
+        "openCanvas": "打开画布",
+        "openSource": "打开来源",
+        "typeArticle": "文章",
+        "typeRecord": "记录",
+        "typeCanvas": "画布",
+        "typeSource": "来源",
+        "tagLabel": "标签 {id}",
+        "skillsUsed": "已使用 {count} 个技能",
+        "expandDescription": "展开描述",
+        "collapseDescription": "收起描述"
       },
       "preview": {
         "close": "关闭",
         "copy": "复制",
-        "copied": "已复制！"
+        "copied": "已复制！",
+        "image": "图片预览"
       },
       "control": {
         "edit": "编辑",
@@ -1834,6 +4235,61 @@
         "filterThinkingContent": "移除记录中的思考",
         "startOrganize": "开始整理",
         "manageTemplate": "管理模板",
+        "quickOrganize": "快速整理",
+        "quickOrganizeHelp": "使用当前模板和默认设置，跳过记录选择与生成设置，直接开始整理。",
+        "templateManager": "模板管理",
+        "moreTemplates": "更多",
+        "searchTemplates": "搜索模板",
+        "showMore": "展开",
+        "showLess": "收起",
+        "recordCount": "{count} 条记录",
+        "recordPreview": "记录预览",
+        "previewEmpty": "当前范围内没有可预览的记录",
+        "previewMore": "查看最近 {count} 条",
+        "selectTemplate": "选择模板",
+        "noTemplate": "不使用模板",
+        "stepTemplate": "整理模板",
+        "templateStepDescription": "决定 AI 如何组织记录、采用什么结构，以及使用哪个时间范围的内容。",
+        "stepRecords": "选择记录",
+        "recordsStepDescription": "筛选本次要使用的记录，可按标签切换范围并取消不需要的内容。",
+        "stepSettings": "生成设置",
+        "settingsStepDescription": "设置输出标题、保存位置、素材取舍和本次整理的补充要求。",
+        "nextStep": "下一步",
+        "previousStep": "上一步",
+        "generationSettings": "生成设置",
+        "generationSettingsHelp": "确认输出语言、标题、保存位置和生成内容范围。",
+        "outputLanguage": "输出语言",
+        "outputLanguageAuto": "跟随应用语言",
+        "outputLanguageZh": "简体中文",
+        "outputLanguageZhTW": "繁體中文",
+        "outputLanguageEn": "English",
+        "outputLanguageJa": "日本語",
+        "outputLanguagePtBR": "Português",
+        "outputLanguageDe": "Deutsch",
+        "outputLanguageCustom": "自定义",
+        "outputLanguageCustomPlaceholder": "例如：使用法语；或使用轻松自然的中文",
+        "outputLanguageHelp": "可选择常用语言，也可以选择自定义后手动填写输出语言要求。",
+        "articleTitle": "文章标题",
+        "articleTitlePlaceholder": "留空则由 AI 自动生成标题",
+        "saveFolder": "保存位置",
+        "saveFolderRoot": "根目录",
+        "currentSaveFolder": "当前保存位置",
+        "noFolderAvailable": "暂无文件夹",
+        "includeImages": "包含图片",
+        "includeReferences": "保留引用链接",
+        "additionalRequirement": "补充要求",
+        "additionalRequirementPlaceholder": "可补充这次整理的特别要求",
+        "selectedRecordCount": "已选 {selected}/{total} 条",
+        "selectAllRecords": "全选",
+        "clearRecordSelection": "清空",
+        "useRecord": "使用这条记录",
+        "recordSelectionHelp": "取消勾选不希望 AI 使用的记录，图片和录音可直接预览。",
+        "noRecordsSelected": "请至少选择一条记录",
+        "noRecords": "暂无可整理的记录",
+        "noRecordsInRange": "当前范围内没有记录",
+        "noTemplateAvailable": "暂无可用模板",
+        "copyTemplate": "复制模板",
+        "copySuffix": "副本",
         "cancel": "取消",
         "stop": "停止"
       },
@@ -1851,13 +4307,20 @@
     }
   },
   "search": {
-    "placeholder": "搜索笔记和文章...",
+    "placeholder": "搜索笔记、记录和画布...",
     "results": "{count} 个搜索结果",
+    "exactMatches": "精确结果",
+    "relatedContent": "相关内容",
+    "searchingRelated": "正在查找语义相关内容…",
+    "indexingProgress": "建库 {ready}/{total}",
     "noResults": "暂无搜索结果",
     "tryDifferentKeywords": "尝试使用不同的关键词搜索",
+    "clear": "清除搜索",
+    "openFailed": "无法打开搜索结果",
     "item": {
       "record": "记录",
-      "article": "文章",
+      "article": "文件",
+      "canvas": "画布",
       "matches": "{count}个匹配项",
       "scanType": "截图"
     }
@@ -1871,11 +4334,397 @@
       "howToUse": "如何使用同步功能？"
     }
   },
+  "canvas": {
+    "new": "新建画布",
+    "chooseTemplate": "选择模板",
+    "manager": {
+      "title": "绘图管理器",
+      "view": "视图",
+      "grid": "缩略图视图",
+      "list": "列表视图",
+      "switchToGrid": "切换到缩略图视图",
+      "switchToList": "切换到列表视图",
+      "sort": {
+        "title": "排序",
+        "updated": "最近修改",
+        "created": "创建时间",
+        "name": "名称"
+      },
+      "pin": "置顶画布",
+      "unpin": "取消置顶",
+      "refreshThumbnails": "重新生成缩略图",
+      "closeTrash": "返回绘图管理器",
+      "trashEmpty": "最近删除为空",
+      "trashEmptyDescription": "删除的画布会显示在这里。",
+      "trashCount": "共 {count} 个已删除画布",
+      "sync": {
+        "upload": "上传",
+        "pending": "等待上传",
+        "clickToUpload": "等待上传，点击立即上传",
+        "uploading": "正在上传",
+        "synced": "已上传",
+        "failed": "上传失败",
+        "downloadingAll": "正在拉取远程画布",
+        "deleting": "正在删除并同步",
+        "permanentlyDeleting": "正在永久删除"
+      },
+      "count": "共 {count} 个画布"
+    },
+    "templates": {
+      "blank": "空白画布",
+      "flowchart": "流程图",
+      "mindmap": "思维导图",
+      "timeline": "时间线",
+      "quadrant": "四象限",
+      "kanban": "看板",
+      "swot": "SWOT 分析"
+    },
+    "import": {
+      "action": "导入画布或 Mermaid",
+      "fileType": "画布文件",
+      "defaultTitle": "导入的画布",
+      "success": "画布导入成功",
+      "error": "无法导入这个文件"
+    },
+    "untitled": "未命名画布",
+    "more": "更多操作",
+    "duplicate": "创建副本",
+    "duplicateTitle": "{title} 副本",
+    "delete": "删除画布",
+    "trash": "最近删除",
+    "restore": "恢复画布",
+    "deleteDialog": {
+      "title": "删除这张画布？",
+      "description": "“{title}”会移到最近删除，你可以稍后恢复。",
+      "cancel": "取消",
+      "confirm": "移到最近删除"
+    },
+    "permanentDelete": "永久删除",
+    "permanentDeleteDialog": {
+      "title": "永久删除这张画布？",
+      "description": "“{title}”的本地内容会被删除；如已配置同步，远程同步文件也会一并删除。此操作无法撤销。",
+      "cancel": "取消",
+      "confirm": "永久删除",
+      "deleting": "正在删除",
+      "error": "永久删除失败，请检查同步配置和网络后重试。"
+    },
+    "rename": "重命名",
+    "loading": "正在加载画布...",
+    "undo": "撤销",
+    "redo": "重做",
+    "layout": "整理",
+    "export": "导出",
+    "exportSuccess": "画布已导出",
+    "exportError": "导出画布失败",
+    "aiPreview": "AI 修改预览",
+    "tools": {
+      "label": "画布工具",
+      "select": "选择",
+      "hand": "抓手",
+      "connector": "连线",
+      "pen": "画笔",
+      "highlighter": "荧光笔",
+      "eraser": "橡皮擦"
+    },
+    "toolbox": {
+      "ai": "AI 生成图形",
+      "aiPrompt": "请根据我的描述，在当前画布中生成由原生节点和连线组成、可以独立编辑的图形：",
+      "shapes": "图形库",
+      "media": "媒体",
+      "drawing": "绘图",
+      "close": "关闭面板",
+      "commonShapes": "常用图形",
+      "flowchartShapes": "流程图",
+      "dataShapes": "数据与存储",
+      "favorites": "收藏",
+      "recent": "最近使用",
+      "searchShapes": "搜索图形",
+      "noShapes": "没有匹配的图形",
+      "favorite": "收藏图形",
+      "unfavorite": "取消收藏",
+      "customComponents": "个人组件",
+      "deleteCustomComponent": "删除个人组件",
+      "saveCustomComponent": "保存个人组件",
+      "saveCustomComponentDescription": "将当前选中的节点和内部连线保存为可复用组件。",
+      "customComponentName": "组件名称",
+      "customComponentDefaultName": "我的组件",
+      "customComponentSaved": "个人组件已保存",
+      "connectionShape": "选择连接图形",
+      "connectionShapeDescription": "创建图形并自动连接到当前节点。",
+      "aiDescription": "描述希望生成或修改的图形",
+      "aiGenerate": "发送到 AI",
+      "aiScopes": {
+        "append": "追加",
+        "replace": "替换",
+        "selection": "修改选中",
+        "appendPrompt": "保留当前内容并追加以下图形：",
+        "replacePrompt": "替换当前画布内容并生成以下图形：",
+        "selectionPrompt": "只修改当前选中的节点和连线："
+      },
+      "aiPresets": {
+        "flowchart": "流程图",
+        "flowchartPrompt": "生成一个结构清晰的业务流程图",
+        "architecture": "架构图",
+        "architecturePrompt": "生成一个分层的软件系统架构图",
+        "sequence": "时序流程",
+        "sequencePrompt": "用可独立编辑的节点和连线表达参与者之间的时序交互",
+        "mindmap": "思维导图",
+        "mindmapPrompt": "生成一个以中心主题向外展开的思维导图"
+      }
+    },
+    "brush": {
+      "penTitle": "画笔",
+      "highlighterTitle": "荧光笔",
+      "strokeTitle": "笔刷样式",
+      "color": "颜色",
+      "size": "笔刷宽度"
+    },
+    "nodes": {
+      "process": "处理步骤",
+      "decision": "判断条件",
+      "terminator": "开始 / 结束",
+      "inputOutput": "输入 / 输出",
+      "document": "文档",
+      "multiDocument": "多文档",
+      "database": "数据库",
+      "predefinedProcess": "子流程",
+      "manualInput": "手动输入",
+      "preparation": "准备",
+      "delay": "延迟",
+      "display": "显示",
+      "connector": "页面连接符",
+      "offPageConnector": "跨页连接符",
+      "internalStorage": "内部存储",
+      "storedData": "存储数据",
+      "text": "文本",
+      "note": "笔记引用",
+      "record": "记录",
+      "image": "图片",
+      "link": "网页链接",
+      "todo": "待办事项",
+      "group": "分组",
+      "chart": "数据图表"
+    },
+    "chart": {
+      "createTitle": "创建数据图表",
+      "editTitle": "编辑数据图表",
+      "description": "输入数据后直接插入画布，节点会在后台完成解析。",
+      "titleLabel": "图表标题",
+      "titlePlaceholder": "留空则自动生成",
+      "titleDescription": "自动标题会在每次生成图表数据时重新生成。",
+      "typeLabel": "图表类型",
+      "dataLabel": "数据",
+      "dataPlaceholder": "月份,桌面端,移动端\n一月,186,80\n二月,305,200",
+      "dataDescription": "支持自然语言描述，以及 CSV、TSV、Markdown 表格和 JSON 格式。",
+      "generate": "生成预览",
+      "generating": "正在解析",
+      "preview": "预览",
+      "primarySeries": "数值字段",
+      "summary": "{rows} 行数据 · {series} 个系列",
+      "emptyPreviewTitle": "等待生成预览",
+      "emptyPreviewDescription": "输入数据并生成预览，确认图表类型和内容。",
+      "cancel": "取消",
+      "insert": "插入画布",
+      "update": "重新生成",
+      "nodeLoading": "正在生成图表…",
+      "nodeErrorTitle": "图表生成失败",
+      "nodeErrorHint": "双击节点修改数据并重试。",
+      "types": {
+        "auto": "自动识别",
+        "area": "面积图",
+        "bar": "柱状图",
+        "line": "折线图",
+        "pie": "饼图",
+        "radar": "雷达图",
+        "radial": "径向图"
+      },
+      "notes": {
+        "label": "引用笔记",
+        "placeholder": "选择笔记",
+        "selected": "已选择 {count} 篇笔记",
+        "title": "图表数据来源",
+        "description": "选择一篇或多篇笔记作为图表数据来源。",
+        "search": "搜索笔记",
+        "empty": "没有找到笔记",
+        "manualInput": "手动输入"
+      },
+      "recommendations": {
+        "time-series": "检测到时间序列，推荐折线图",
+        "continuous": "检测到连续累计数据，推荐面积图",
+        "proportion": "检测到占比数据，推荐饼图",
+        "progress": "检测到进度数据，推荐径向图",
+        "multidimensional": "检测到多维比较，推荐雷达图",
+        "categorical": "检测到分类数据，推荐柱状图",
+        "ai": "由 AI 根据数据语义推荐"
+      },
+      "appearance": {
+        "title": "图表外观",
+        "variant": "容器样式",
+        "palette": "配色方案",
+        "showTitle": "显示标题",
+        "showLegend": "显示图例",
+        "showGrid": "显示网格",
+        "showXAxis": "显示分类轴",
+        "showYAxis": "显示数值轴",
+        "variants": {
+          "card": "卡片",
+          "minimal": "简洁",
+          "transparent": "透明"
+        },
+        "palettes": {
+          "system": "系统",
+          "cool": "冷色",
+          "warm": "暖色",
+          "monochrome": "单色"
+        }
+      },
+      "errors": {
+        "CHART_NEEDS_HEADER_AND_ROW": "至少需要表头和一行数据。",
+        "CHART_NEEDS_TWO_COLUMNS": "至少需要两列数据。",
+        "CHART_INVALID_MARKDOWN_TABLE": "Markdown 表格格式无效。",
+        "CHART_JSON_ARRAY_REQUIRED": "JSON 必须是对象数组，或包含 data 数组。",
+        "CHART_EMPTY_DATA": "数据不能为空。",
+        "CHART_NUMERIC_SERIES_REQUIRED": "没有找到可绘制的数值列。",
+        "CHART_MISSING_NUMERIC_VALUE": "数值系列中存在空值或非数值内容。",
+        "CHART_EMPTY_INPUT": "请输入数据。",
+        "CHART_AI_REQUIRED": "该内容需要 AI 才能解析。",
+        "CHART_AI_ADDED_VALUE": "AI 返回了输入中不存在的数值，已阻止生成。",
+        "CHART_AI_SERIES_MISMATCH": "AI 返回的数据系列长度不一致。",
+        "CHART_AI_INVALID_JSON": "AI 没有返回有效的图表数据。",
+        "CHART_AI_NOT_CONFIGURED": "请先在设置中配置编辑器或主 AI 模型。",
+        "CHART_GENERATION_INTERRUPTED": "上次生成过程已中断。",
+        "CHART_UNKNOWN_ERROR": "图表生成失败，请检查数据后重试。"
+      }
+    },
+    "linkNode": {
+      "urlPrompt": "输入网页地址",
+      "labelPrompt": "输入链接标题"
+    },
+    "utilityNodes": {
+      "title": "实用节点",
+      "description": "添加图片、网页链接或待办事项。"
+    },
+    "arrange": {
+      "title": "对齐与分组",
+      "description": "整理当前选择的多个节点。",
+      "alignHorizontal": "水平居中对齐",
+      "alignVertical": "垂直居中对齐",
+      "distributeHorizontal": "水平均匀分布",
+      "distributeVertical": "垂直均匀分布",
+      "group": "创建分组"
+    },
+    "group": {
+      "defaultLabel": "分组"
+    },
+    "edge": {
+      "title": "连线样式",
+      "description": "调整选中连线的路径和文字。",
+      "orthogonal": "折线",
+      "straight": "直线",
+      "curve": "曲线",
+      "editLabel": "编辑连线文字",
+      "labelPrompt": "输入连线文字",
+      "labelDescription": "文字会显示在连线中间，留空可移除。",
+      "saveLabel": "保存文字"
+    },
+    "selection": {
+      "tools": "节点工具",
+      "style": "节点样式",
+      "color": "强调色",
+      "customColor": "自定义颜色",
+      "border": "边框",
+      "solid": "实线",
+      "dashed": "虚线",
+      "dotted": "点线",
+      "borderWidth": "边框粗细",
+      "fill": "背景填充",
+      "transparent": "透明",
+      "customFill": "自定义填充色",
+      "lock": "锁定节点",
+      "unlock": "解锁节点",
+      "copyStyle": "复制样式",
+      "pasteStyle": "粘贴样式",
+      "styleCopied": "节点样式已复制",
+      "stylePasted": "节点样式已应用",
+      "imagePasted": "图片已粘贴到画布",
+      "imagePasteError": "粘贴图片失败",
+      "chatContext": "已关联画布元素：{nodes} 个节点，{edges} 条连线",
+      "chatContextNodes": "{nodes} 个节点",
+      "chatContextNodesAndRelations": "{nodes} 个节点 · {relations} 条关系",
+      "removeChatContext": "取消关联画布元素"
+    },
+    "layer": {
+      "front": "置于顶层",
+      "forward": "上移一层",
+      "backward": "下移一层",
+      "back": "置于底层"
+    },
+    "noteNode": {
+      "title": "添加笔记引用",
+      "description": "从文件管理器选择一篇笔记，双击节点可以打开原文件。",
+      "search": "搜索笔记...",
+      "empty": "没有找到笔记",
+      "group": "工作区笔记",
+      "added": "已添加笔记“{name}”"
+    },
+    "footer": {
+      "nodes": "{count} 个节点",
+      "edges": "{count} 条连线",
+      "grid": "显示网格",
+      "snap": "吸附到网格",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "fit": "适应视图",
+      "layout": "自动整理",
+      "export": "导出",
+      "import": {
+        "title": "导入",
+        "file": "选择文件",
+        "content": "输入内容",
+        "contentTitle": "导入画布内容",
+        "contentDescription": "支持 NoteGen Canvas JSON 或 Mermaid 流程图内容，导入后会替换当前画布。",
+        "contentPlaceholder": "粘贴 Canvas JSON 或 Mermaid 内容…",
+        "confirm": "导入到当前画布"
+      },
+      "exportMenu": {
+        "record": "导出为插图记录",
+        "recordError": "保存插图记录失败",
+        "computer": "保存到电脑",
+        "source": "可编辑文件",
+        "png2x": "PNG · 2× 高清",
+        "png4x": "PNG · 4× 超清",
+        "svg": "SVG · 矢量图",
+        "canvasFile": "NoteGen Canvas JSON",
+        "mermaid": "Mermaid 流程图"
+      }
+    },
+    "contextMenu": {
+      "selectAll": "全选",
+      "copy": "复制",
+      "paste": "粘贴",
+      "duplicate": "创建副本",
+      "delete": "删除所选内容"
+    },
+    "empty": {
+      "title": "还没有画布",
+      "description": "创建画布，用结构图和自由绘画整理想法。"
+    }
+  },
   "navigation": {
+    "canvases": "画布",
     "chat": "对话",
     "record": "记录",
     "quickRecord": "快捷记录",
     "write": "写作",
+    "me": "我的",
+    "mobileDock": {
+      "chat": "对话",
+      "record": "记录",
+      "quickRecord": "快捷",
+      "write": "写作",
+      "me": "我的",
+      "canvas": "画布"
+    },
     "search": "搜索",
     "githubImageHosting": "Github 图床",
     "login": "登录",
@@ -1891,7 +4740,45 @@
     "hideCenterPanel": "隐藏编辑器",
     "showRightSidebar": "显示右侧边栏",
     "hideRightSidebar": "隐藏右侧边栏",
-    "searchPlaceholder": "搜索笔记或记录..."
+    "searchPlaceholder": "搜索笔记、记录或画布...",
+    "navigate": "导航"
+  },
+  "activity": {
+    "title": "活跃度日历",
+    "description": "按天查看你的记录、对话、写作和绘图活跃情况。",
+    "drawer": {
+      "title": "活跃度",
+      "today": "今天"
+    },
+    "loading": "正在加载活跃度数据...",
+    "empty": "暂无活跃度数据",
+    "refresh": "刷新",
+    "summary": {
+      "totalCount": "总活跃次数",
+      "activeDays": "活跃天数",
+      "records": "记录次数",
+      "chats": "对话次数",
+      "writing": "写作活跃",
+      "canvas": "绘图活跃"
+    },
+    "labels": {
+      "record": "记录",
+      "writing": "写作",
+      "chat": "对话",
+      "canvas": "绘图"
+    },
+    "heatmap": {
+      "title": "最近 26 周热力图",
+      "range": "{startDate} - {endDate}",
+      "less": "少",
+      "more": "多",
+      "dayCount": "次活动",
+      "emptyDay": "无活动"
+    },
+    "detail": {
+      "title": "当天明细",
+      "empty": "选择一个日期查看当天的活动明细。"
+    }
   },
   "marks": {
     "types": {
@@ -1932,8 +4819,21 @@
       "confirmPull": "确认拉取"
     },
     "emptyState": {
-      "title": "开始创作",
-      "subtitle": "选择一个文件开始编辑，或创建新的笔记",
+      "title": "先记录，再整理",
+      "subtitle": "随时记下想法，让 AI 帮你整理成清晰的笔记",
+      "customize": {
+        "title": "自定义",
+        "menuLabel": "显示与排序",
+        "dragHandle": "拖动排序：{section}",
+        "reset": "恢复默认",
+        "resetOnboarding": "重置新手引导",
+        "sections": {
+          "actions": "快捷入口",
+          "onboarding": "新手引导",
+          "activity": "活跃度",
+          "activityDetail": "当天明细"
+        }
+      },
       "tip": "💡 提示：你也可以从左侧文件管理器中选择文件",
       "actions": {
         "newNote": {
@@ -1952,6 +4852,75 @@
           "title": "打开工作区",
           "desc": "选择或切换工作区目录"
         }
+      },
+      "onboarding": {
+        "title": "新手引导",
+        "subtitle": "跟着这三步体验 NoteGen 的核心工作流。",
+        "start": "开始引导",
+        "viewHint": "查看提示",
+        "continue": "继续下一步",
+        "completed": "已完成",
+        "allDone": "新手任务已全部完成，你已经体验了 NoteGen 的基础工作流。",
+        "stepLabel": "任务 ({current}/{total})",
+        "stepCompletedLabel": "已完成任务 ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "已完成任务 (2/3)",
+          "description": "你已经把记录整理成了一篇笔记。要继续体验下一步，用 AI Agent 把这篇笔记翻译成双语版本吗？",
+          "confirm": "继续下一步",
+          "cancel": "暂时不用"
+        },
+        "agentPrompt": {
+          "label": "示例提示词",
+          "use": "使用这条提示词",
+          "intro": "请将我刚刚整理出的这篇笔记直接修改为中英双语版本。",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "创建第一条记录",
+            "desc": "先记录一段示例内容，熟悉记录入口。"
+          },
+          "organizeNote": {
+            "title": "整理成笔记",
+            "desc": "把刚才的记录整理成一篇正式笔记。"
+          },
+          "aiPolish": {
+            "title": "用 Agent 翻译成双语",
+            "desc": "用 AI Agent 将刚整理好的笔记翻译成双语版本。"
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "你已经创建了第一条记录",
+            "desc": "现在你已经知道如何快速记录内容了。"
+          },
+          "organize-note": {
+            "title": "你已经把记录整理成笔记",
+            "desc": "下一步可以体验 AI 如何继续修改这篇笔记。"
+          },
+          "ai-polish": {
+            "title": "你已经用 Agent 处理了笔记",
+            "desc": "你已经体验了从记录到整理，再到 Agent 处理内容的完整流程。"
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "这里可以快速记录内容",
+            "desc": "点击这个文本记录入口，系统会自动带入一段示例内容，你也可以自己改。"
+          },
+          "organize-note": {
+            "title": "这里可以整理记录",
+            "desc": "点击这个按钮，把刚才的记录整理成一篇正式笔记。"
+          },
+          "ai-polish": {
+            "title": "这里可以用 Agent 处理刚生成的笔记",
+            "desc": "把示例提示词填进对话框后发送，Agent 会基于当前笔记生成双语版本。"
+          }
+        }
       }
     },
     "unsupportedFile": {
@@ -1966,37 +4935,120 @@
       "openDirectory": "打开文件目录"
     },
     "file": {
+      "empty": {
+        "title": "还没有笔记",
+        "description": "创建一篇新的笔记，\n或从本地导入已有笔记。"
+      },
+      "treeLabel": "工作区文件",
+      "expandFolder": "展开文件夹",
+      "collapseFolder": "折叠文件夹",
+      "search": {
+        "label": "搜索文件",
+        "placeholder": "搜索文件...",
+        "clear": "清除搜索",
+        "resultCount": "{count} 项",
+        "searchingLocal": "正在搜索本地文件…",
+        "localNotFoundSearchingRemote": "本地未找到，正在搜索远程文件…",
+        "localFoundSearchingRemote": "已找到 {count} 个本地结果，正在搜索远程文件…",
+        "emptyTitle": "没有匹配的文件",
+        "emptyDescription": "换一个关键词试试。",
+        "localNotFoundRemoteUnavailable": "本地未找到匹配文件，远程同步尚未配置。",
+        "remoteError": "远程搜索失败",
+        "retry": "重试",
+        "folderProgress": "目录 {loaded}/{total}"
+      },
       "toolbar": {
         "accessRepo": "访问仓库",
         "loadingSync": "正在加载同步信息",
         "configSync": "配置同步",
-        "newArticle": "新建文章",
+        "newArticle": "新建笔记",
         "newFolder": "新建文件夹",
         "refresh": "刷新",
         "toggleFolders": "文件夹展开折叠",
         "expandAll": "全部展开",
         "collapseAll": "全部折叠",
+        "expandFolderTree": "展开",
+        "collapseFolderTree": "折叠",
         "sortByName": "按名称排序",
         "sortByCreated": "按创建时间排序",
         "sortByModified": "按修改时间排序",
         "sortAsc": "升序排列",
         "sortDesc": "降序排列",
         "sort": "排序",
-        "hideCloudFiles": "隐藏云端文件",
-        "showCloudFiles": "显示云端文件",
         "processingVectors": "正在处理向量数据",
         "calculateVectors": "知识库计算（全量）",
-        "importMarkdown": "导入",
+        "importMarkdown": "导入笔记",
+        "convertDocuments": "导入为 Markdown",
+        "convertDialogTitle": "导入为 Markdown",
+        "convertDialogDescription": "选择一个或多个文档，在当前工作区生成同名 Markdown 文件，源文件不会被修改。",
+        "convertTypeColumn": "文件类型",
+        "convertExtensions": "扩展名",
+        "convertOtherDocuments": "其他文档",
+        "convertChooseDocuments": "选择文档",
+        "convertCancel": "取消",
+        "convertFileType": "可转换文档",
+        "convertSuccess": "导入完成",
+        "convertSuccessDesc": "已生成 {count} 个 Markdown 文件",
+        "convertPartialDesc": "成功 {success} 个，失败 {failed} 个",
+        "convertError": "导入失败",
+        "importNotion": "导入 Notion（.zip）",
         "importing": "正在导入...",
         "importSuccess": "导入成功",
         "importSuccessDesc": "成功导入 {count} 个文件",
         "importError": "导入失败"
+      },
+      "cloudLibrary": {
+        "title": "文件视图与同步",
+        "more": "更多",
+        "fileView": "文件视图",
+        "syncFiles": "同步文件",
+        "showAssetsFolders": "显示资源文件夹",
+        "showKnowledgeBaseStatus": "显示知识库状态",
+        "files": "远程文件",
+        "showRemoteFiles": "显示远程文件",
+        "syncStaticAssets": "上传静态资源",
+        "preparingFiles": "正在获取文件列表...",
+        "uploadFiles": "上传本地文件",
+        "downloadFiles": "下载远程文件",
+        "uploadFilesWarning": "将上传全部本地 Markdown 文件，并覆盖远端同路径文件。远端独有文件不会删除。是否继续？",
+        "uploadFilesWithAssetsWarning": "将上传全部本地 Markdown 文件和静态资源，并覆盖远端同路径文件。远端独有文件不会删除。是否继续？",
+        "uploadFilesComplete": "本地文件上传完成",
+        "uploadFilesResult": "上传 {uploaded} 个，失败 {failed} 个",
+        "pullAll": "拉取全部远程文件",
+        "pullComplete": "远程文件拉取完成",
+        "pullResult": "下载 {downloaded} 个，跳过本地已有 {skipped} 个，失败 {failed} 个",
+        "knowledgeBase": "知识库",
+        "autoUpdate": "自动更新知识库",
+        "recalculate": "全部重新计算",
+        "uploadKnowledgeBase": "上传知识库",
+        "downloadKnowledgeBase": "下载知识库",
+        "uploadPrivacyWarning": "知识库包含笔记分块正文和向量，将上传到当前同步仓库。是否继续？",
+        "downloadOverwriteWarning": "下载会替换本机现有知识库，但不会修改 Markdown 文件。是否继续？",
+        "uploadComplete": "知识库上传完成",
+        "downloadComplete": "知识库下载完成",
+        "knowledgeResult": "{documents} 个文档，{vectors} 个向量分块",
+        "missingSources": "知识库已导入，但有 {count} 个来源文件尚未拉取",
+        "operationFailed": "操作失败",
+        "operations": {
+          "pull-files": "正在拉取文件",
+          "upload-files": "正在上传文件",
+          "upload-rag": "正在上传知识库",
+          "download-rag": "正在下载知识库"
+        }
       },
       "sync": {
         "syncingRemote": "正在拉取远程文件",
         "syncComplete": "同步完成",
         "pullingRemote": "正在从远程服务器获取最新内容...",
         "pullComplete": "拉取完成"
+      },
+      "syncStatus": {
+        "loading": "正在同步",
+        "error": "上次同步失败",
+        "dirty": "本地有未同步修改",
+        "synced": "本地与远端均存在",
+        "local-only": "仅本地",
+        "remote-only": "仅远端"
       },
       "context": {
         "viewDirectory": "查看目录",
@@ -2006,17 +5058,56 @@
         "rename": "重命名",
         "deleteSyncFile": "删除同步文件",
         "deleteLocalFile": "删除本地文件",
+        "deleteLocalFolder": "删除本地文件夹",
+        "deleteRemoteFolder": "删除远程文件夹",
         "delete": "删除",
         "confirmDelete": "确定要删除文件夹 \"{name}\" 吗？此操作将删除文件夹及其所有内容。",
+        "confirmDeleteRemoteFolder": "确定要删除远程文件夹“{name}”及其所有远程内容吗？本地内容会保留。",
         "deleteSuccess": "删除成功",
+        "deleteRemoteSuccess": "远程文件夹已删除",
+        "deleteSelectedLocal": "删除本地 {count} 项",
+        "deleteSelectedRemote": "删除远程 {count} 项",
+        "confirmDeleteSelectedRemote": "确定要删除远程的 {count} 项吗？本地内容会保留。",
+        "deleteSelectedRemoteSuccess": "已删除远程 {count} 项",
+        "deleteSelectedRemoteResult": "远程删除完成：成功 {deleted} 项，失败 {failed} 项",
+        "movedToTrash": "已将 {count} 项移到系统废纸篓",
         "deleteFailed": "删除失败",
+        "moveFailed": "移动失败",
+        "moveComplete": "移动完成",
+        "moveResult": "成功 {moved} 项，失败 {failed} 项",
+        "moveFailure": {
+          "conflict": "目标位置存在同名项目，未移动任何内容",
+          "invalid-target": "不能移动到自身或子目录",
+          "move-failed": "移动失败，已回滚先前操作",
+          "rollback-failed": "移动失败，且部分项目无法自动回滚"
+        },
+        "invalidMoveTarget": "不能移动到自身或子目录",
+        "dropTarget": "移动 {count} 项到 {name}",
         "newFile": "新建文件",
         "newFolder": "新建文件夹",
-        "syncFolder": "同步",
-        "syncFolderDesc": "同步当前文件夹下的所有 Markdown 文件",
-        "syncFolderSuccess": "文件夹同步成功",
-        "syncFolderError": "文件夹同步失败",
-        "syncFolderProgress": "正在同步文件夹...",
+        "duplicate": "创建副本",
+        "uploadFile": "上传文件",
+        "uploadFileProgress": "正在上传文件...",
+        "uploadFileSuccess": "文件上传成功",
+        "uploadFileError": "文件上传失败",
+        "uploadFolder": "上传文件夹",
+        "uploadFolderProgress": "正在上传文件夹...",
+        "uploadFolderSuccess": "文件夹上传完成",
+        "uploadFolderResult": "上传 {uploaded} 个，失败 {failed} 个",
+        "uploadFolderError": "文件夹上传失败",
+        "configureSync": "前往同步设置",
+        "syncRepoRequired": "请先配置当前工作区的同步仓库名称",
+        "syncNotConfigured": "同步尚未配置",
+        "syncReauthenticationRequired": "自托管登录已失效，请前往同步设置重新授权",
+        "syncConfigured": "{platform} 同步已配置",
+        "syncAvailable": "{platform} 同步可用",
+        "syncChecking": "正在检查 {platform} 同步",
+        "syncUnavailable": "{platform} 同步不可用",
+        "syncFolder": "下载文件夹",
+        "syncFolderDesc": "下载当前远程文件夹下的全部文件",
+        "syncFolderSuccess": "文件夹下载完成",
+        "syncFolderError": "文件夹下载失败",
+        "syncFolderProgress": "正在下载文件夹...",
         "deleteSyncFileSuccess": "删除成功",
         "deleteSyncFileError": "删除失败",
         "knowledgeBase": "知识库",
@@ -2070,7 +5161,8 @@
         "assets": "静态资源"
       },
       "error": {
-        "fileExists": "文件名已存在"
+        "fileExists": "名称已存在",
+        "invalidName": "名称不能包含斜杠、反斜杠或控制字符"
       },
       "clipboard": {
         "copied": "已复制到剪贴板",
@@ -2087,6 +5179,8 @@
         "save": "保存",
         "emptyDir": "该目录为空",
         "root": "根目录",
+        "editor": "编辑器",
+        "backToFiles": "返回文件管理",
         "openFiles": "打开文件",
         "remote": "远程文件",
         "remoteFileNotPulled": "仅云端 · 点击后拉取",
@@ -2095,7 +5189,12 @@
         "folder": "文件夹",
         "folderChildren": "{files} 个文件 · {folders} 个文件夹",
         "filePlaceholder": "示例.md",
-        "folderPlaceholder": "示例文件夹"
+        "folderPlaceholder": "示例文件夹",
+        "dragToParent": "拖到这里移动到上一级",
+        "dragReleaseToMove": "松手移动到此处",
+        "moveInvalidTarget": "不能移动到该文件夹",
+        "moveFailed": "移动失败",
+        "refreshFailed": "刷新文件列表失败，请检查网络和同步配置后重试。"
       },
       "deleteConfirm": "确认删除此文件吗？"
     },
@@ -2231,6 +5330,48 @@
     }
   },
   "mobile": {
+    "me": {
+      "profile": {
+        "deviceName": "同步平台",
+        "deviceSubtitle": "同步你的记录与设置",
+        "syncPlatform": "同步平台",
+        "gitSubtitle": "已连接 {provider}，可以同步你的记录与设置",
+        "storageSubtitle": "当前通过 {provider} 同步你的记录与设置",
+        "unconfiguredSubtitle": "还没有配置同步，当前数据仅保存在本地",
+        "streak": "已连续活跃 {count} 天"
+      },
+      "activity": {
+        "tip": "点击热力图中的日期，查看当天的活动时间轴。",
+        "range": "最近 {count} 周",
+        "rangePlaceholder": "最近 16 周",
+        "drawerEmpty": "选择一个日期查看当天的活动详情。",
+        "drawerSummary": "当天共 {total} 条活动，含 {record} 条记录、{writing} 条写作、{chat} 条对话、{canvas} 条绘图。"
+      },
+      "sync": {
+        "title": "同步",
+        "configured": "已连接",
+        "unconfigured": "未配置",
+        "localOnly": "本地存储"
+      },
+      "stats": {
+        "weekly": "本周活跃",
+        "weeklyHint": "本周累计活动次数",
+        "streak": "连续活跃",
+        "streakHint": "连续活跃天数"
+      },
+      "status": {
+        "title": "当前配置",
+        "sync": "备份方案",
+        "model": "默认模型",
+        "configured": "已连接",
+        "unconfigured": "未配置",
+        "modelFallback": "未设置默认模型"
+      },
+      "settings": {
+        "title": "设置",
+        "description": "直接在这里进入各项功能设置。"
+      }
+    },
     "chat": {
       "drawer": {
         "settings": {
@@ -2239,7 +5380,10 @@
         "tools": {
           "title": "工具",
           "newChat": "开始新对话",
-          "start": "开始"
+          "start": "开始",
+          "clear": "清除",
+          "clearChat": "清空对话",
+          "clearContext": "清除上下文"
         },
         "attachments": {
           "title": "附件",
@@ -2289,6 +5433,8 @@
     "retrySuccess": "重新识别完成",
     "retryError": "重新识别失败",
     "noContentDetected": "未识别到内容",
+    "pendingTranscription": "原音频已保存，待重新识别",
+    "pendingModelConfiguration": "原音频已保存，配置语音识别后可转写",
     "doubleClickToSelectFile": "双击选择音频文件",
     "mode": {
       "builtin": "浏览器识别",
@@ -2301,11 +5447,81 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "tableToolbar": {
+      "row": "行",
+      "column": "列",
+      "alignment": "对齐"
+    },
+    "codeBlockPreview": {
+      "findPlugin": "搜索插件",
+      "findPluginFor": "搜索支持 {language} 的插件",
+      "invalidOutput": "渲染结果无法显示。",
+      "renderer": "渲染器",
+      "chooseRenderer": "请选择此语言的默认渲染器",
+      "preview": "预览",
+      "editSource": "编辑源码",
+      "retry": "重试预览",
+      "failed": "预览失败。",
+      "empty": "输入图表源码后可预览。",
+      "loading": "正在渲染图表…",
+      "imageAlt": "{language} 图表预览",
+      "exportImage": "导出图片",
+      "exporting": "正在导出…",
+      "exportSuccess": "图片已导出",
+      "exportFailed": "图片导出失败",
+      "svgUnavailable": "此预览为位图，无法导出矢量 SVG。"
+    },
+    "readingMode": {
+      "busy": "编辑器正在处理操作，请稍后重试",
+      "search": "搜索笔记",
+      "label": "当前笔记只读",
+      "readOnly": "只读",
+      "editing": "编辑",
+      "enable": "只读打开",
+      "disable": "取消只读"
+    },
+    "developerPerformance": {
+      "documentSize": "文档大小",
+      "mode": "文档模式",
+      "view": "编辑视图",
+      "renderTime": "渲染耗时",
+      "largeDocument": "长文档",
+      "standardDocument": "常规文档"
+    },
     "placeholder": "输入 / 唤起菜单，或直接开始写作...",
+    "markdownParseFallback": {
+      "title": "可视化解析失败，已切换到源码模式",
+      "description": "原文已完整保留，你可以继续编辑或修正语法后重试可视化模式。",
+      "retry": "重试可视化模式"
+    },
+    "largeMarkdownMode": {
+      "title": "超大文档已启用轻量模式",
+      "description": "正文由视口化源码编辑器显示，暂不解析完整可视化文档，以缩短首次可见和可编辑时间。",
+      "openVisual": "进入可视化编辑",
+      "preparing": "正在准备可视化编辑…"
+    },
+    "smartFileLink": {
+      "fileMatches": "文件匹配",
+      "pathMatches": "路径匹配",
+      "enhancedResults": "增强搜索结果",
+      "actions": "操作",
+      "enhance": "增强搜索",
+      "searching": "正在搜索相关文件..."
+    },
     "outline": {
       "title": "大纲",
       "open": "打开大纲",
-      "close": "关闭大纲"
+      "close": "关闭大纲",
+      "empty": "暂无标题",
+      "noResults": "没有匹配的标题",
+      "searchPlaceholder": "搜索标题",
+      "clearSearch": "清空搜索",
+      "expandHeading": "展开 {title}",
+      "collapseHeading": "折叠 {title}",
+      "untitledHeading": "未命名 H{level}",
+      "resizeHandle": "拖拽调整大纲宽度",
+      "editHeading": "编辑标题 {title}",
+      "dragHeading": "移动 {title} 及其子章节"
     },
     "translation": {
       "fail": "翻译失败",
@@ -2322,15 +5538,52 @@
       "line": "引用自 {fileName} 第 {line} 行",
       "lines": "引用自 {fileName} 第 {start}-{end} 行"
     },
+    "blockHandle": {
+      "controls": "块操作",
+      "addBelow": "在下方新增一行",
+      "dragOrOpen": "拖动块，或点击打开操作菜单",
+      "copyContent": "复制内容",
+      "copyMarkdown": "复制 Markdown",
+      "duplicate": "创建副本",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "clearFormatting": "清除格式",
+      "turnInto": "转换为",
+      "paragraph": "正文"
+    },
+    "githubAlert": {
+      "changeType": "切换提示块类型",
+      "titleLabel": "提示块标题",
+      "normalQuote": "普通引用"
+    },
     "bubbleMenu": {
       "ai": "AI",
       "polish": "润色",
       "concise": "精简",
       "expand": "扩展",
+      "generateCanvas": "从选区生成画布",
+      "canvasFlowchart": "生成流程图",
+      "canvasMindmap": "生成思维导图",
+      "canvasTimeline": "生成时间线",
+      "canvasTasks": "提取任务关系",
+      "canvasSource": "以下是 Markdown 选区原文：",
+      "canvasPromptSuffix": "请先读取当前空白画布，再使用画布工具生成内容；先展示操作预览，等待我确认后应用。",
+      "canvasPrompts": {
+        "flowchart": "把选中文本整理成清晰的流程图。",
+        "mindmap": "把选中文本整理成层级清晰的思维导图。",
+        "timeline": "识别时间、阶段和里程碑，生成时间线画布。",
+        "tasks": "提取任务、依赖关系和先后顺序，生成任务关系图。"
+      },
       "translate": "翻译",
       "translateSubtitle": "翻译为",
       "quoteToChat": "引用到对话",
       "link": "链接",
+      "linkText": "显示文字",
+      "linkTextPlaceholder": "输入链接文字",
+      "linkUrl": "链接地址",
+      "openLink": "打开链接",
+      "removeLink": "移除链接",
+      "saveLink": "保存",
       "linkPlaceholder": "输入链接地址",
       "confirm": "确认",
       "cancel": "取消",
@@ -2361,8 +5614,16 @@
     "aiSuggestion": {
       "accept": "接受",
       "reject": "拒绝",
+      "undo": "撤销",
       "generating": "生成中...",
       "abort": "终止"
+    },
+    "canvasDrop": {
+      "hint": "松开以插入画布图片",
+      "generating": "正在生成画布图片…",
+      "success": "画布已插入",
+      "successDescription": "已生成静态图片：{path}",
+      "failed": "插入画布失败"
     },
     "image": {
       "insert": "插入图片",
@@ -2374,15 +5635,26 @@
       "sizeMedium": "中 (50%)",
       "sizeLarge": "大 (75%)",
       "sizeOriginal": "原始尺寸",
+      "source": "地址",
+      "alt": "替代文本",
+      "deleteShort": "删除",
+      "settings": "图片设置",
       "editAlt": "编辑替代文本",
       "editSrc": "编辑地址",
+      "editSize": "设置尺寸",
+      "resetSize": "重置尺寸",
+      "widthPlaceholder": "宽",
+      "heightPlaceholder": "高",
       "altPlaceholder": "输入替代文本...",
       "srcPlaceholder": "输入图片地址...",
       "delete": "删除图片",
+      "reset": "重置",
       "confirm": "确认",
-      "cancel": "取消"
+      "cancel": "取消",
+      "failed": "图片处理失败"
     },
     "mermaid": {
+      "title": "图表",
       "rendering": "渲染中...",
       "renderError": "渲染错误",
       "clickToEdit": "点击编辑源码",
@@ -2425,12 +5697,24 @@
       "items": {
         "continue": "续写",
         "continueDesc": "AI 续写内容",
-        "heading1": "标题1",
+        "generateSection": "生成章节",
+        "generateSectionDesc": "根据当前笔记生成一个新章节",
+        "summarize": "总结",
+        "summarizeDesc": "总结当前笔记内容",
+        "customInstruction": "自定义指令",
+        "customInstructionDesc": "输入自己的指令并让 AI 执行",
+        "heading1": "一级标题",
         "heading1Desc": "大标题",
-        "heading2": "标题2",
+        "heading2": "二级标题",
         "heading2Desc": "中标题",
-        "heading3": "标题3",
+        "heading3": "三级标题",
         "heading3Desc": "小标题",
+        "heading4": "四级标题",
+        "heading4Desc": "四级标题",
+        "heading5": "五级标题",
+        "heading5Desc": "五级标题",
+        "heading6": "六级标题",
+        "heading6Desc": "六级标题",
         "bulletList": "无序列表",
         "bulletListDesc": "创建简单的项目列表",
         "orderedList": "有序列表",
@@ -2439,6 +5723,8 @@
         "taskListDesc": "创建带复选框的任务列表",
         "image": "图片",
         "imageDesc": "插入本地图片或图床图片",
+        "file": "文件",
+        "fileDesc": "选择本地文件并插入链接",
         "table": "表格",
         "tableDesc": "插入表格",
         "blockquote": "引用",
@@ -2473,14 +5759,116 @@
         "saveSuccess": "保存成功",
         "savePath": "保存路径: __PATH__",
         "failed": "插入图片失败"
+      },
+      "fileInsert": {
+        "failed": "插入文件链接失败"
+      },
+      "customPrompt": {
+        "ariaLabel": "自定义 AI 指令",
+        "placeholder": "输入 AI 指令",
+        "submit": "执行"
       }
     }
+  },
+  "editorWindow": {
+    "missing": "编辑窗口会话不存在或已经关闭",
+    "fileMissing": "文件已被移动或删除，无法继续保存",
+    "opening": "正在打开笔记…",
+    "saving": "正在保存",
+    "unsaved": "未保存",
+    "discardTitle": "放弃未保存的更改？",
+    "discardDescription": "文件无法保存。关闭窗口将丢失当前更改。",
+    "discardCancel": "继续编辑",
+    "discardConfirm": "放弃并关闭",
+    "pin": "窗口置顶",
+    "unpin": "取消窗口置顶",
+    "more": "更多窗口操作",
+    "close": "关闭窗口"
   },
   "tabContext": {
     "close": "关闭",
     "closeOthers": "关闭其他",
     "closeAll": "关闭全部",
     "closeLeft": "关闭左侧",
-    "closeRight": "关闭右侧"
+    "closeRight": "关闭右侧",
+    "pinTab": "固定标签页",
+    "unpinTab": "取消固定标签页",
+    "restartPluginTab": "重新启动{name}",
+    "navigateBack": "后退",
+    "navigateForward": "前进",
+    "previewTab": "预览标签页",
+    "splitLeft": "向左拆分",
+    "splitRight": "向右拆分",
+    "splitUp": "向上拆分",
+    "splitDown": "向下拆分",
+    "openInNewWindow": "在新窗口打开",
+    "moveToNewWindow": "移动到新窗口",
+    "openWindowFailed": "无法打开独立编辑窗口",
+    "maximizeGroup": "最大化编辑器组",
+    "restoreGroup": "恢复编辑器组",
+    "closeGroup": "关闭编辑器组",
+    "groupActions": "编辑器组操作",
+    "newTab": "新标签页",
+    "newNote": "新建笔记",
+    "newRecord": "新建记录",
+    "newCanvas": "新建画布",
+    "newBrowser": "浏览器",
+    "browserAddress": "输入网页地址",
+    "browserInvalidUrl": "请输入有效的 HTTP 或 HTTPS 地址",
+    "browserOpenFailed": "无法打开网页",
+    "browserUnavailable": "浏览器功能仅在桌面应用中可用",
+    "browserReload": "刷新",
+    "browserOpenExternal": "在系统浏览器中打开",
+    "browserStartTitle": "开始浏览",
+    "browserSearchPlaceholder": "搜索网页或输入网址",
+    "browserSearch": "搜索",
+    "browserSearchEngine": "搜索引擎",
+    "browserViewAll": "查看全部",
+    "browserLoadMore": "加载更多",
+    "browserBookmarks": "收藏",
+    "browserHistory": "历史记录",
+    "browserNoBookmarks": "暂无收藏网页",
+    "browserNoHistory": "暂无浏览记录",
+    "browserAddBookmark": "收藏当前网页",
+    "browserRemoveBookmark": "取消收藏",
+    "browserSaveRecord": "保存为链接记录",
+    "browserRemoveHistory": "删除这条记录",
+    "browserClearHistory": "清空历史记录",
+    "browserBackToPage": "返回网页",
+    "browserBackToStart": "返回新标签页",
+    "browserLibraryLoading": "正在读取浏览器数据…",
+    "emptyGroup": "将标签页拖到此处，或从文件列表打开笔记",
+    "loadingLayout": "正在恢复编辑器布局…",
+    "undo": "撤销",
+    "redo": "重做"
+  },
+  "syncOverview": {
+    "localOnly": "仅本地存储",
+    "localOnlyDescription": "当前只保存在本机，不会同步到远端。",
+    "title": "同步状态",
+    "reorderItem": "拖动调整 {name} 的位置",
+    "markdown": "Markdown 文件",
+    "records": "记录",
+    "settings": "设置",
+    "conversations": "对话",
+    "notConfigured": "未配置同步",
+    "unavailable": "同步服务不可用",
+    "checking": "正在检查同步连接",
+    "ready": "同步已就绪",
+    "syncing": "正在同步",
+    "queued": "等待同步",
+    "recentlySynced": "最近同步成功：{type} · {time}",
+    "typeSeparator": "、",
+    "failed": "同步失败",
+    "synced": "已同步",
+    "idle": "暂无状态",
+    "noActivity": "暂无同步记录",
+    "disabled": "未启用",
+    "selfHostedConnection": "自托管同步的连接状态显示在上方；详细传输状态暂不可用。"
+  },
+  "quickRecordWindow": {
+    "loadError": "无法读取记录设置，请重试。",
+    "saveError": "暂未确认保存成功，请重试确认；草稿已保留，不会重复保存。",
+    "retry": "重试"
   }
 }

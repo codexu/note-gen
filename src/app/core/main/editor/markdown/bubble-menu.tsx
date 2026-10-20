@@ -1,5 +1,7 @@
 'use client'
 
+import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
+import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { Editor } from '@tiptap/react'
 import {
   Bold,
@@ -8,23 +10,40 @@ import {
   Underline,
   Code,
   Link,
+  Unlink,
+  ExternalLink,
   Highlighter,
   Quote,
   List,
   ListOrdered,
   CheckSquare,
   Sparkles,
-  MessageCircle,
   Minimize2,
   Maximize2,
   Languages,
-  ChevronRight
+  ChevronRight,
+  Workflow,
+  BrainCircuit,
+  Timer,
+  ListTodo,
 } from 'lucide-react'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
+import { TextSelection } from '@tiptap/pm/state'
 import { cn } from '@/lib/utils'
 import { useTranslations } from 'next-intl'
-import { fetchAiTranslate } from '@/lib/ai/translate'
 import { toast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
+
+const EDITOR_SELECTION_TARGET = { kind: 'editor-selection' } as const
 
 const POPULAR_LANGUAGES = [
   { name: 'English', code: 'English', i18nKey: 'languages.English' },
@@ -38,53 +57,139 @@ const POPULAR_LANGUAGES = [
   { name: 'العربية', code: 'Arabic', i18nKey: 'languages.Arabic' },
 ]
 
+function ToolbarButton({
+  active = false,
+  ...props
+}: React.ComponentProps<typeof Button> & { active?: boolean }) {
+  return <Button type="button" variant={active ? "secondary" : "ghost"} size="icon-sm" {...props} />
+}
+
+function ToolbarSeparator() {
+  return (
+    <div className="mx-1 flex h-5 items-center">
+      <Separator orientation="vertical" className="h-full" />
+    </div>
+  )
+}
+
+const KEYBOARD_SELECTION_KEYS = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+])
+
 interface BubbleMenuProps {
+  pluginsEnabled?: boolean
   editor: Editor
   onAIPolish?: () => void
   onAIConcise?: () => void
   onAIExpand?: () => void
-  onQuoteToChat?: () => void
+  onAITranslate?: (targetLanguage: string) => void
+  onCreateCanvas?: (type: 'flowchart' | 'mindmap' | 'timeline' | 'tasks') => void
+  openAiMenuSignal?: number
+  openTranslateMenuSignal?: number
+  openLinkInputSignal?: number
+}
+
+interface LinkEditorState {
+  from: number
+  to: number
+  text: string
+  url: string
+  existing: boolean
+}
+
+function getSelectedText(editor: Editor): string {
+  const { from, to } = editor.state.selection
+
+  return editor.state.doc.textBetween(from, to, '\n', '\n')
+}
+
+function hasTextSelection(editor: Editor): boolean {
+  const { doc, selection } = editor.state
+  const { from, to } = selection
+
+  if (selection.empty || from === to || from < 0 || to < 0 || from > doc.content.size || to > doc.content.size) {
+    return false
+  }
+
+  return getSelectedText(editor).trim().length > 0
+}
+
+function isKeyboardSelectionIntent(event: KeyboardEvent): boolean {
+  if (event.isComposing) {
+    return false
+  }
+
+  if (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === 'a'
+  ) {
+    return true
+  }
+
+  return event.shiftKey && KEYBOARD_SELECTION_KEYS.has(event.key)
 }
 
 export function BubbleMenu({
+  pluginsEnabled = false,
   editor,
   onAIPolish,
   onAIConcise,
   onAIExpand,
-  onQuoteToChat,
+  onAITranslate,
+  onCreateCanvas,
+  openAiMenuSignal = 0,
+  openTranslateMenuSignal = 0,
+  openLinkInputSignal = 0,
 }: BubbleMenuProps) {
   const t = useTranslations('editor')
+  const pluginMenuOwner = useId()
+  const linkTextInputId = useId()
+  const linkUrlInputId = useId()
   const [show, setShow] = useState(false)
+  const [selectionRevision, setSelectionRevision] = useState(0)
+  const selectionSnapshot = useRef<{ doc: Editor['state']['doc']; from: number; to: number } | null>(null)
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const [showAISubmenu, setShowAISubmenu] = useState(false)
   const [showTranslateSubmenu, setShowTranslateSubmenu] = useState(false)
   const [customTranslateLang, setCustomTranslateLang] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
-  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null)
+  const isLinkEditorOpen = linkEditor !== null
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isInteractingWithMenu, setIsInteractingWithMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const linkUrlInputRef = useRef<HTMLInputElement>(null)
   const aiSubmenuRef = useRef<HTMLDivElement>(null)
   const translateSubmenuRef = useRef<HTMLDivElement>(null)
+  const hasUserSelectionIntentRef = useRef(false)
+  const isPointerSelectingRef = useRef(false)
+  const isComposingRef = useRef(false)
+  const positionFrameRef = useRef<number | null>(null)
+
+  const hideMenu = useCallback(() => {
+    setShow(false)
+    setShowAISubmenu(false)
+    setShowTranslateSubmenu(false)
+    setLinkEditor(null)
+  }, [])
 
   // 处理翻译
   const handleTranslate = useCallback(async (targetLanguage: string) => {
-    const selectedText = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)
-    if (!selectedText) {
+    const selectedText = getSelectedText(editor)
+    if (!selectedText.trim()) {
       toast({ title: t('translation.fail'), description: t('translation.failNoSelection'), variant: 'destructive' })
       return
     }
-    toast({ title: t('translation.translating'), description: t('translation.translatingTo', { language: targetLanguage }) })
-    try {
-      const result = await fetchAiTranslate(selectedText, targetLanguage)
-      if (result) {
-        editor.chain().focus().insertContent(result).run()
-        toast({ title: t('translation.success'), description: t('translation.successTo', { language: targetLanguage }) })
-      }
-    } catch (error) {
-      toast({ title: t('translation.fail'), description: error instanceof Error ? error.message : t('common.error'), variant: 'destructive' })
-    }
-  }, [editor, t])
+    onAITranslate?.(targetLanguage)
+  }, [editor, onAITranslate, t])
 
   const handleCustomTranslate = useCallback(async () => {
     const targetLanguage = customTranslateLang.trim()
@@ -98,69 +203,281 @@ export function BubbleMenu({
 
   // 更新定位
   const updatePosition = useCallback(() => {
+    if (editor.isDestroyed) {
+      hideMenu()
+      return false
+    }
     const { selection } = editor.state
     const { from, to } = selection
 
-    // 检查选区是否有效（空选区、光标位置、无效位置都不显示）
-    if (from === to || from < 0 || to < 0 || from > editor.state.doc.content.size || to > editor.state.doc.content.size) {
-      setShow(false)
-      return
+    if (isComposingRef.current) {
+      hideMenu()
+      return false
     }
 
-    // 检查编辑器是否有焦点（没有焦点时不显示）
-    // 但如果选区有文本内容（from !== to），即使失去焦点也保持显示
-    // 这样可以避免点击工具栏按钮时菜单被隐藏
-    const hasSelection = from !== to
-    if (!hasSelection && !editor.view.hasFocus()) {
-      setShow(false)
-      return
+    if (isPointerSelectingRef.current) {
+      hideMenu()
+      return false
     }
+
+    // 恢复的选区不主动显示菜单，但菜单显示逻辑不能修改编辑器选区。
+    // 原生全选等操作可能不经过这里的 keydown 意图检测。
+    if (!hasUserSelectionIntentRef.current) {
+      hideMenu()
+      return false
+    }
+
+    // 检查选区是否有效（空选区、光标位置、无实际文本内容都不显示）
+    if (!hasTextSelection(editor)) {
+      hideMenu()
+      return false
+    }
+
+    if (from < 0 || to < 0 || from > editor.state.doc.content.size || to > editor.state.doc.content.size) {
+      hideMenu()
+      return false
+    }
+
+    const node = editor.state.doc.nodeAt(from)
 
     // 检查是否是图片节点
-    const node = editor.state.doc.nodeAt(from)
     if (node?.type.name === 'image') {
-      setShow(false)
-      return
+      hideMenu()
+      return false
     }
 
     // 检查是否是数学公式节点，如果是则不显示 bubble menu
     if (node?.type.name === 'inlineMath' || node?.type.name === 'blockMath') {
-      setShow(false)
+      hideMenu()
+      return false
+    }
+
+    // 使用视口坐标定位，避免长文档滚动后 EditorContent 与滚动容器的坐标系发生偏移。
+    const editorElement = editor.view.dom
+    const scrollContainer = editorElement.closest<HTMLElement>('.editor-scroll-container')
+    if (!scrollContainer) {
+      hideMenu()
+      return false
+    }
+
+    try {
+      const startCoords = editor.view.coordsAtPos(from)
+      const endCoords = editor.view.coordsAtPos(to)
+      const scrollBounds = scrollContainer.getBoundingClientRect()
+
+      const anchorTop = Math.min(startCoords.top, endCoords.top)
+      const anchorBottom = Math.max(startCoords.bottom, endCoords.bottom)
+      const menuHeight = menuRef.current?.offsetHeight || 40
+      const currentMenuWidth = menuRef.current?.offsetWidth || 360
+      const gap = 8
+
+      const minimumLeft = scrollBounds.left + 8
+      const maximumLeft = scrollBounds.right - currentMenuWidth - 8
+      const left = Math.max(minimumLeft, Math.min(startCoords.left, Math.max(minimumLeft, maximumLeft)))
+
+      const spaceAbove = anchorTop - scrollBounds.top
+      const preferredTop = spaceAbove >= menuHeight + gap
+        ? anchorTop - menuHeight - gap
+        : anchorBottom + gap
+      const visibleTop = scrollBounds.top + 8
+      const visibleBottom = scrollBounds.bottom - 8
+      const maxTop = Math.max(visibleTop, visibleBottom - menuHeight)
+      const top = Math.max(visibleTop, Math.min(preferredTop, maxTop))
+      setPosition(previous => previous.top === top && previous.left === left ? previous : { top, left })
+
+      setShow(true)
+      return true
+    } catch {
+      hideMenu()
+      return false
+    }
+  }, [editor, hideMenu])
+
+  const updateMenu = useCallback(() => {
+    if (editor.isDestroyed) return
+    const { doc, selection } = editor.state
+    const previous = selectionSnapshot.current
+    const selectionChanged = !previous || previous.doc !== doc
+      || previous.from !== selection.from || previous.to !== selection.to
+    if (selectionChanged) {
+      selectionSnapshot.current = { doc, from: selection.from, to: selection.to }
+    }
+    if (!isPointerSelectingRef.current && !hasTextSelection(editor)) {
+      hasUserSelectionIntentRef.current = false
+    }
+    // Read all geometry before scheduling React writes for the toolbar.
+    updatePosition()
+    if (selectionChanged && (!selection.empty || (previous && previous.from !== previous.to))) {
+      setSelectionRevision(value => value + 1)
+    }
+  }, [editor, updatePosition])
+
+  const schedulePositionUpdate = useCallback(() => {
+    if (positionFrameRef.current !== null) return
+    positionFrameRef.current = requestAnimationFrame(() => {
+      positionFrameRef.current = null
+      updateMenu()
+    })
+  }, [updateMenu])
+
+  useEffect(() => () => {
+    if (positionFrameRef.current !== null) cancelAnimationFrame(positionFrameRef.current)
+    positionFrameRef.current = null
+  }, [schedulePositionUpdate])
+
+  useEffect(() => {
+    hasUserSelectionIntentRef.current = false
+    isPointerSelectingRef.current = false
+    hideMenu()
+
+    if (editor.isDestroyed) return
+    const editorElement = editor.view.dom
+    const ownerDocument = editorElement.ownerDocument
+
+    const handleCompositionStart = () => {
+      isComposingRef.current = true
+      hideMenu()
+    }
+
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false
+    }
+
+    const handlePointerStart = () => {
+      isPointerSelectingRef.current = true
+      hasUserSelectionIntentRef.current = false
+      hideMenu()
+    }
+
+    const finishPointerSelection = () => {
+      if (!isPointerSelectingRef.current) {
+        return
+      }
+
+      isPointerSelectingRef.current = false
+      hasUserSelectionIntentRef.current = true
+      schedulePositionUpdate()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isKeyboardSelectionIntent(event)) {
+        return
+      }
+
+      hasUserSelectionIntentRef.current = true
+      schedulePositionUpdate()
+    }
+
+    editorElement.addEventListener('mousedown', handlePointerStart, true)
+    editorElement.addEventListener('touchstart', handlePointerStart, { passive: true })
+    editorElement.addEventListener('keydown', handleKeyDown, true)
+    editorElement.addEventListener('compositionstart', handleCompositionStart)
+    editorElement.addEventListener('compositionend', handleCompositionEnd)
+    ownerDocument.addEventListener('mouseup', finishPointerSelection)
+    ownerDocument.addEventListener('touchend', finishPointerSelection)
+    ownerDocument.addEventListener('touchcancel', finishPointerSelection)
+
+    return () => {
+      editorElement.removeEventListener('mousedown', handlePointerStart, true)
+      editorElement.removeEventListener('touchstart', handlePointerStart)
+      editorElement.removeEventListener('keydown', handleKeyDown, true)
+      editorElement.removeEventListener('compositionstart', handleCompositionStart)
+      editorElement.removeEventListener('compositionend', handleCompositionEnd)
+      ownerDocument.removeEventListener('mouseup', finishPointerSelection)
+      ownerDocument.removeEventListener('touchend', finishPointerSelection)
+      ownerDocument.removeEventListener('touchcancel', finishPointerSelection)
+    }
+  }, [editor, hideMenu, schedulePositionUpdate])
+
+  useEffect(() => {
+    if (!openAiMenuSignal) return
+
+    if (!updatePosition()) {
       return
     }
 
-    // 获取编辑器元素和滚动容器
-    const editorElement = document.querySelector('.ProseMirror')
-    const scrollContainer = editorElement?.parentElement
-    if (!editorElement || !scrollContainer) return
+    setShowAISubmenu(true)
+    setShowTranslateSubmenu(false)
+    setLinkEditor(null)
+  }, [openAiMenuSignal, updatePosition])
 
-    const containerBounds = scrollContainer.getBoundingClientRect()
+  useEffect(() => {
+    if (!openTranslateMenuSignal) return
 
-    // 获取选区坐标（视口坐标）
-    const coords = editor.view.coordsAtPos(from)
-
-    // 转换为滚动容器内的相对坐标
-    const relativeTop = coords.top - containerBounds.top + scrollContainer.scrollTop
-    const relativeLeft = coords.left - containerBounds.left + scrollContainer.scrollLeft
-
-    // 计算菜单位置（顶部在选区上方）
-    const top = relativeTop - 48 // 48 是大约的菜单高度 + 间距
-
-    // 边界检测：left 在 [0, 容器宽度 - 菜单宽度] 范围内
-    const currentMenuWidth = menuRef.current?.offsetWidth || 360
-    // maxLeft 不能为负数
-    const maxLeft = Math.max(0, containerBounds.width - currentMenuWidth)
-    const left = Math.min(relativeLeft, maxLeft)
-
-    // 如果上方空间不够，改为在光标下方显示
-    if (relativeTop < 48) {
-      setPosition({ top: relativeTop + 24, left })
-    } else {
-      setPosition({ top, left })
+    if (!updatePosition()) {
+      return
     }
 
+    setShowAISubmenu(true)
+    setShowTranslateSubmenu(true)
+    setLinkEditor(null)
+  }, [openTranslateMenuSignal, updatePosition])
+
+  useEffect(() => {
+    if (!openLinkInputSignal) return
+
+    const { from, to } = editor.state.selection
+    const text = getSelectedText(editor)
+    if (!text.trim()) return
+
+    const url = editor.getAttributes('link').href
+    hasUserSelectionIntentRef.current = true
+    setLinkEditor({ from, to, text, url: typeof url === 'string' ? url : '', existing: Boolean(url) })
     setShow(true)
+    setShowAISubmenu(false)
+    setShowTranslateSubmenu(false)
+  }, [editor, openLinkInputSignal])
+
+  useEffect(() => {
+    const handleLinkEdit = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        editor?: unknown
+        from?: unknown
+        to?: unknown
+        label?: unknown
+        href?: unknown
+      }>).detail
+
+      if (
+        !detail
+        || detail.editor !== editor
+        || typeof detail.from !== 'number'
+        || typeof detail.to !== 'number'
+        || typeof detail.label !== 'string'
+        || typeof detail.href !== 'string'
+      ) return
+
+      hasUserSelectionIntentRef.current = true
+      editor.commands.setTextSelection({ from: detail.from, to: detail.to })
+      setLinkEditor({
+        from: detail.from,
+        to: detail.to,
+        text: detail.label,
+        url: detail.href,
+        existing: true,
+      })
+      setShowAISubmenu(false)
+      setShowTranslateSubmenu(false)
+      setShow(true)
+    }
+
+    document.addEventListener('tiptap-link-edit', handleLinkEdit)
+    return () => document.removeEventListener('tiptap-link-edit', handleLinkEdit)
   }, [editor])
+
+  useLayoutEffect(() => {
+    if (!show) return
+    updatePosition()
+  }, [linkEditor, show, updatePosition])
+
+  useLayoutEffect(() => {
+    if (!editor.isDestroyed) editor.view.dom.dispatchEvent(new Event('notegen-selection-menu-position'))
+  }, [editor, position, show])
+
+  useLayoutEffect(() => {
+    if (!show || !isLinkEditorOpen) return
+    linkUrlInputRef.current?.focus({ preventScroll: true })
+  }, [isLinkEditorOpen, show])
 
   // AI子菜单边界检测
   useEffect(() => {
@@ -222,71 +539,116 @@ export function BubbleMenu({
   }, [showTranslateSubmenu, show])
 
   useEffect(() => {
-    const updateHandler = () => updatePosition()
-
-    // 初始化时检查是否有有效的选区
-    const { selection } = editor.state
-    const { from, to } = selection
-
-    // 只有在有选中文本时才显示工具栏
-    if (from !== to) {
+    if (hasTextSelection(editor)) {
       updatePosition()
     } else {
-      setShow(false)
+      hideMenu()
     }
 
-    editor.on('selectionUpdate', updateHandler)
-    editor.on('transaction', updatePosition)
+    editor.on('selectionUpdate', schedulePositionUpdate)
+    editor.on('transaction', schedulePositionUpdate)
 
     return () => {
-      editor.off('selectionUpdate', updateHandler)
-      editor.off('transaction', updatePosition)
+      editor.off('selectionUpdate', schedulePositionUpdate)
+      editor.off('transaction', schedulePositionUpdate)
     }
-  }, [editor, updatePosition])
+  }, [editor, hideMenu, schedulePositionUpdate, updatePosition])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShow(false)
-        setShowAISubmenu(false)
-        setShowTranslateSubmenu(false)
+      if (event.target instanceof Element && !editor.isDestroyed
+        && event.target.closest('[data-editor-table-menu]')?.getAttribute('data-editor-table-menu') === editor.view.dom.dataset.tableMenuOwner) return
+      if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
+      if (event.target instanceof Element && event.target.closest('[data-plugin-selection-popover]')) return
+      if (!menuRef.current?.contains(event.target as Node)) {
+        hasUserSelectionIntentRef.current = false
+        if (!editor.isDestroyed && event.target instanceof Node && !editor.view.dom.contains(event.target)) {
+          isPointerSelectingRef.current = false
+        }
+        hideMenu()
         setIsInteractingWithMenu(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [editor, hideMenu, pluginMenuOwner])
 
   // Update position on scroll
   useEffect(() => {
-    const scrollContainer = document.querySelector('.ProseMirror')?.parentElement
+    if (editor.isDestroyed) return
+    const scrollContainer = editor.view.dom.closest<HTMLElement>('.editor-scroll-container')
     if (!scrollContainer) return
 
     const handleScroll = () => {
-      if (show) {
-        updatePosition()
-      }
+      if (show) schedulePositionUpdate()
     }
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
-    return () => scrollContainer.removeEventListener('scroll', handleScroll)
-  }, [show, updatePosition])
-
-  const setLink = useCallback(() => {
-    if (showLinkInput) {
-      if (linkUrl === '') {
-        editor.chain().focus().extendMarkRange('link').unsetLink().run()
-      } else {
-        editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run()
-      }
-      setShowLinkInput(false)
-      setLinkUrl('')
-    } else {
-      const previousUrl = editor.getAttributes('link').href
-      setLinkUrl(previousUrl || '')
-      setShowLinkInput(true)
+    window.addEventListener('resize', handleScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
     }
-  }, [editor, linkUrl, showLinkInput])
+  }, [editor, show, schedulePositionUpdate])
+
+  const openLinkEditorForSelection = useCallback(() => {
+    const { from, to } = editor.state.selection
+    const text = getSelectedText(editor)
+    if (!text.trim()) return
+
+    const url = editor.getAttributes('link').href
+    setLinkEditor({ from, to, text, url: typeof url === 'string' ? url : '', existing: Boolean(url) })
+    setShowAISubmenu(false)
+    setShowTranslateSubmenu(false)
+  }, [editor])
+
+  const applyLink = useCallback(() => {
+    if (!linkEditor) return
+
+    const text = linkEditor.text.trim()
+    const url = linkEditor.url.trim()
+    const { from, to } = linkEditor
+    if (!text || !url || from < 0 || to > editor.state.doc.content.size || from >= to) return
+
+    const linkMark = editor.state.schema.marks.link
+    if (!linkMark) return
+
+    const marks = (editor.state.doc.nodeAt(from)?.marks ?? editor.state.doc.resolve(from).marks())
+      .filter(mark => mark.type !== linkMark)
+    const linkedText = editor.state.schema.text(text, [...marks, linkMark.create({ href: url })])
+    const transaction = editor.state.tr.replaceWith(from, to, linkedText)
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(from + linkedText.nodeSize)))
+    editor.view.dispatch(transaction)
+    editor.view.focus()
+    hideMenu()
+  }, [editor, hideMenu, linkEditor])
+
+  const removeLink = useCallback(() => {
+    if (!linkEditor) return
+
+    const text = linkEditor.text.trim()
+    const { from, to } = linkEditor
+    if (!text || from < 0 || to > editor.state.doc.content.size || from >= to) return
+
+    const linkMark = editor.state.schema.marks.link
+    const marks = (editor.state.doc.nodeAt(from)?.marks ?? editor.state.doc.resolve(from).marks())
+      .filter(mark => mark.type !== linkMark)
+    const plainText = editor.state.schema.text(text, marks)
+    const transaction = editor.state.tr.replaceWith(from, to, plainText)
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(from + plainText.nodeSize)))
+    editor.view.dispatch(transaction)
+    editor.view.focus()
+    hideMenu()
+  }, [editor, hideMenu, linkEditor])
+
+  const openCurrentLink = useCallback(() => {
+    const url = linkEditor?.url.trim()
+    if (!url) return
+
+    document.dispatchEvent(new CustomEvent('tiptap-current-link-open', {
+      detail: { editor, href: url },
+    }))
+  }, [editor, linkEditor])
 
   const toggleBold = () => editor.chain().focus().toggleBold().run()
   const toggleItalic = () => editor.chain().focus().toggleItalic().run()
@@ -300,124 +662,207 @@ export function BubbleMenu({
   const toggleTaskList = () => editor.chain().focus().toggleTaskList().run()
   const toggleCodeBlock = () => editor.chain().focus().toggleCodeBlock().run()
 
-  const handleQuoteToChat = useCallback(() => {
-    onQuoteToChat?.()
-    setShow(false)
-    setShowAISubmenu(false)
-  }, [onQuoteToChat])
-
-  const isActive = (name: string, attrs?: Record<string, unknown>) =>
-    editor.isActive(name, attrs)
+  const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs)
 
   if (!show) return null
 
   return (
     <div
       ref={menuRef}
-      className="absolute z-50 transition-[top,left] duration-150 ease-out"
+      data-editor-bubble-menu
+      className="fixed left-0 top-0 z-50 max-w-[calc(100%_-_1rem)] transition-transform duration-150 ease-out"
       style={{
-        top: position.top,
-        left: position.left
+        transform: `translate3d(${position.left}px, ${position.top}px, 0)`,
       }}
     >
-      {/* 工具栏 */}
+      {linkEditor ? (
+        <form
+          className="w-96 max-w-full rounded-lg bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          onSubmit={(event) => {
+            event.preventDefault()
+            applyLink()
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            hideMenu()
+            editor.view.focus()
+          }}
+        >
+          <FieldGroup className="gap-2">
+            <Field className="gap-1">
+              <FieldLabel htmlFor={linkTextInputId}>
+                {t('bubbleMenu.linkText')}
+              </FieldLabel>
+              <Input
+                id={linkTextInputId}
+                value={linkEditor.text}
+                onChange={(event) => setLinkEditor(current => current && ({ ...current, text: event.target.value }))}
+                placeholder={t('bubbleMenu.linkTextPlaceholder')}
+                aria-label={t('bubbleMenu.linkText')}
+              />
+            </Field>
+            <Field className="gap-1">
+              <FieldLabel htmlFor={linkUrlInputId}>
+                {t('bubbleMenu.linkUrl')}
+              </FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  ref={linkUrlInputRef}
+                  id={linkUrlInputId}
+                  value={linkEditor.url}
+                  onChange={(event) => setLinkEditor(current => current && ({ ...current, url: event.target.value }))}
+                  placeholder={t('bubbleMenu.linkPlaceholder')}
+                  aria-label={t('bubbleMenu.linkUrl')}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    onClick={openCurrentLink}
+                    disabled={!linkEditor.url.trim()}
+                    title={t('bubbleMenu.openLink')}
+                  >
+                    <ExternalLink />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+          </FieldGroup>
+
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div>
+              {linkEditor.existing && (
+                <Button type="button" variant="ghost" size="xs" onClick={removeLink}>
+                  <Unlink data-icon="inline-start" />
+                  {t('bubbleMenu.removeLink')}
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" size="xs" onClick={hideMenu}>
+                {t('bubbleMenu.cancel')}
+              </Button>
+              <Button type="submit" size="xs" disabled={!linkEditor.text.trim() || !linkEditor.url.trim()}>
+                {t('bubbleMenu.saveLink')}
+              </Button>
+            </div>
+          </div>
+        </form>
+      ) : (
       <div
-        className="flex items-center gap-0.5 px-1 py-1 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 border border-border rounded-lg shadow-lg"
+        className="flex items-center gap-1 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
       >
         {/* AI 操作 */}
         <div className="relative">
-          <button
-            className={cn('p-1.5 rounded hover:bg-muted transition-colors text-primary', showAISubmenu && 'bg-muted')}
+          <ToolbarButton
+            active={showAISubmenu}
+            className="text-primary"
             onClick={() => setShowAISubmenu(!showAISubmenu)}
             title={t('bubbleMenu.ai')}
           >
-            <Sparkles className="w-4 h-4" />
-          </button>
+            <Sparkles />
+          </ToolbarButton>
 
           {showAISubmenu && (
             <div
               ref={aiSubmenuRef}
-              className="absolute top-full mt-1 py-1 bg-background border border-border rounded-lg shadow-lg min-w-32 z-50 data-right-edge:left-auto data-right-edge:right-0 data-right-edge:translate-x-0 data-bottom-edge:top-full data-bottom-edge:mt-1 data-bottom-edge:translate-y-0"
+              className="absolute top-full mt-1 min-w-36 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 data-right-edge:right-0 data-right-edge:left-auto data-right-edge:translate-x-0 data-bottom-edge:top-full data-bottom-edge:mt-1 data-bottom-edge:translate-y-0"
             >
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIPolish?.() }}>
-                <Sparkles className="w-3.5 h-3.5" /><span>{t('bubbleMenu.polish')}</span>
-              </button>
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIConcise?.() }}>
-                <Minimize2 className="w-3.5 h-3.5" /><span>{t('bubbleMenu.concise')}</span>
-              </button>
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); onAIExpand?.() }}>
-                <Maximize2 className="w-3.5 h-3.5" /><span>{t('bubbleMenu.expand')}</span>
-              </button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { setShowAISubmenu(false); onAIPolish?.() }}>
+                <Sparkles data-icon="inline-start" /><span>{t('bubbleMenu.polish')}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { setShowAISubmenu(false); onAIConcise?.() }}>
+                <Minimize2 data-icon="inline-start" /><span>{t('bubbleMenu.concise')}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { setShowAISubmenu(false); onAIExpand?.() }}>
+                <Maximize2 data-icon="inline-start" /><span>{t('bubbleMenu.expand')}</span>
+              </Button>
 
-              <div className="border-t border-border my-1" />
+              <Separator className="my-1" />
+              <p className="px-2 py-1 text-xs font-medium text-muted-foreground">{t('bubbleMenu.generateCanvas')}</p>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { hideMenu(); onCreateCanvas?.('flowchart') }}>
+                <Workflow data-icon="inline-start" /><span>{t('bubbleMenu.canvasFlowchart')}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { hideMenu(); onCreateCanvas?.('mindmap') }}>
+                <BrainCircuit data-icon="inline-start" /><span>{t('bubbleMenu.canvasMindmap')}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { hideMenu(); onCreateCanvas?.('timeline') }}>
+                <Timer data-icon="inline-start" /><span>{t('bubbleMenu.canvasTimeline')}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={() => { hideMenu(); onCreateCanvas?.('tasks') }}>
+                <ListTodo data-icon="inline-start" /><span>{t('bubbleMenu.canvasTasks')}</span>
+              </Button>
 
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => setShowTranslateSubmenu(!showTranslateSubmenu)}>
-                <Languages className="w-3.5 h-3.5" /><span>{t('bubbleMenu.translate')}</span><ChevronRight className={cn('w-3.5 h-3.5 ml-auto transition-transform', showTranslateSubmenu && 'rotate-90')} />
-              </button>
+              <Separator className="my-1" />
 
-              {showTranslateSubmenu && (
-                <div
-                  ref={translateSubmenuRef}
-                  className="absolute top-0 left-full ml-1 py-1 bg-background border border-border rounded-lg shadow-lg min-w-40 z-50 max-h-60 overflow-y-auto data-translate-submenu-right:left-auto data-translate-submenu-right:right-full data-translate-submenu-right:ml-0 data-translate-submenu-right:mr-1"
-                  data-submenu="translate"
+              <div
+                className="relative"
+                onMouseEnter={() => setShowTranslateSubmenu(true)}
+                onMouseLeave={() => setShowTranslateSubmenu(false)}
+              >
+                <Button type="button" variant="ghost" size="sm" className="w-full justify-start"
+                  onClick={() => setShowTranslateSubmenu(!showTranslateSubmenu)}
                 >
-                  {POPULAR_LANGUAGES.map((lang) => (
-                    <button key={lang.code} className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); setShowTranslateSubmenu(false); handleTranslate(lang.code) }}>
-                      <span>{t(`bubbleMenu.${lang.i18nKey}`)}</span>
-                    </button>
-                  ))}
-                  <div className="border-t border-border my-1" />
-                  <div className="px-3 py-1 flex items-center gap-1">
-                    <input type="text" placeholder={t('bubbleMenu.customLanguagePlaceholder')} value={customTranslateLang} onChange={(e) => setCustomTranslateLang(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { handleCustomTranslate() } else if (e.key === 'Escape') { setShowTranslateSubmenu(false); setCustomTranslateLang('') } }} className="w-full px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
-                  </div>
-                </div>
-              )}
+                  <Languages data-icon="inline-start" /><span>{t('bubbleMenu.translate')}</span><ChevronRight data-icon="inline-end" className={cn('ml-auto transition-transform', showTranslateSubmenu && 'rotate-90')} />
+                </Button>
 
-              <button className="w-full px-3 py-1.5 text-left text-sm hover:bg-muted flex items-center gap-2" onClick={() => { setShowAISubmenu(false); handleQuoteToChat() }}>
-                <MessageCircle className="w-3.5 h-3.5" /><span>{t('bubbleMenu.quoteToChat')}</span>
-              </button>
+                {showTranslateSubmenu && (
+                  <div
+                    ref={translateSubmenuRef}
+                    className="absolute top-0 left-full ml-1 max-h-60 min-w-40 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 data-translate-submenu-right:right-full data-translate-submenu-right:left-auto data-translate-submenu-right:mr-1 data-translate-submenu-right:ml-0"
+                    data-submenu="translate"
+                  >
+                    {POPULAR_LANGUAGES.map((lang) => (
+                      <Button type="button" variant="ghost" size="sm" key={lang.code} className="w-full justify-start" onClick={() => { setShowAISubmenu(false); setShowTranslateSubmenu(false); handleTranslate(lang.code) }}>
+                        <span>{t(`bubbleMenu.${lang.i18nKey}`)}</span>
+                      </Button>
+                    ))}
+                    <Separator className="my-1" />
+                    <div className="flex items-center px-1 py-1">
+                      <Input type="text" placeholder={t('bubbleMenu.customLanguagePlaceholder')} value={customTranslateLang} onChange={(e) => setCustomTranslateLang(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { handleCustomTranslate() } else if (e.key === 'Escape') { setShowTranslateSubmenu(false); setCustomTranslateLang('') } }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
 
-        <div className="w-px h-5 bg-border mx-1" />
+        <ToolbarSeparator />
 
+        {pluginsEnabled ? <PluginEditorToolbar editor={editor} location="editor/selection" owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && editor.isActive('link') ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'link' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && editor.isActive('codeBlock') ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'codeBlock' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled && (editor.isActive('inlineMath') || editor.isActive('blockMath')) ? <PluginEditorToolbar editor={editor} location="editor/node-actions" target={{ nodeKind: 'math' }} owner={pluginMenuOwner} /> : null}
+        {pluginsEnabled ? <PluginEmbeddedViews location="editor/selection-panel" contextKey={String(selectionRevision)} target={EDITOR_SELECTION_TARGET} compact /> : null}
         {/* 文本格式化 */}
         <div className="flex gap-0.5">
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bold') && 'bg-muted text-primary')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('italic') && 'bg-muted text-primary')} onClick={toggleItalic} title={t('bubbleMenu.italic')}><Italic className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('strike') && 'bg-muted text-primary')} onClick={toggleStrike} title={t('bubbleMenu.strike')}><Strikethrough className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('underline') && 'bg-muted text-primary')} onClick={toggleUnderline} title={t('bubbleMenu.underline')}><Underline className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('code') && 'bg-muted text-primary')} onClick={toggleCode} title={t('bubbleMenu.inlineCode')}><Code className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('highlight') && 'bg-muted text-primary')} onClick={toggleHighlight} title={t('bubbleMenu.highlight')}><Highlighter className="w-4 h-4" /></button>
+          <ToolbarButton active={isActive('bold')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold /></ToolbarButton>
+          <ToolbarButton active={isActive('italic')} onClick={toggleItalic} title={t('bubbleMenu.italic')}><Italic /></ToolbarButton>
+          <ToolbarButton active={isActive('strike')} onClick={toggleStrike} title={t('bubbleMenu.strike')}><Strikethrough /></ToolbarButton>
+          <ToolbarButton active={isActive('underline')} onClick={toggleUnderline} title={t('bubbleMenu.underline')}><Underline /></ToolbarButton>
+          <ToolbarButton active={isActive('code')} onClick={toggleCode} title={t('bubbleMenu.inlineCode')}><Code /></ToolbarButton>
+          <ToolbarButton active={isActive('highlight')} onClick={toggleHighlight} title={t('bubbleMenu.highlight')}><Highlighter /></ToolbarButton>
         </div>
 
-        <div className="w-px h-5 bg-border mx-1" />
+        <ToolbarSeparator />
 
-        {/* 链接 */}
-        <div className="relative">
-          {showLinkInput ? (
-            <div className="flex items-center gap-1 px-1">
-              <input type="url" placeholder={t('bubbleMenu.linkPlaceholder')} value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setLink() } else if (e.key === 'Escape') { setShowLinkInput(false); setLinkUrl('') } }} className="w-32 px-2 py-1 text-sm bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary" autoFocus />
-              <button className="p-1 rounded hover:bg-muted text-xs" onClick={setLink}>{t('bubbleMenu.confirm')}</button>
-              <button className="p-1 rounded hover:bg-muted text-xs" onClick={() => { setShowLinkInput(false); setLinkUrl('') }}>{t('bubbleMenu.cancel')}</button>
-            </div>
-          ) : (
-            <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('link') && 'bg-muted text-primary')} onClick={setLink} title={t('bubbleMenu.link')}><Link className="w-4 h-4" /></button>
-          )}
-        </div>
+        <ToolbarButton active={isActive('link')} onClick={openLinkEditorForSelection} title={t('bubbleMenu.link')}><Link /></ToolbarButton>
 
-        <div className="w-px h-5 bg-border mx-1" />
+        <ToolbarSeparator />
 
         {/* 块级元素 */}
         <div className="flex gap-0.5">
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('blockquote') && 'bg-muted text-primary')} onClick={toggleBlockquote} title={t('bubbleMenu.blockquote')}><Quote className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('bulletList') && 'bg-muted text-primary')} onClick={toggleBulletList} title={t('bubbleMenu.bulletList')}><List className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('orderedList') && 'bg-muted text-primary')} onClick={toggleOrderedList} title={t('bubbleMenu.orderedList')}><ListOrdered className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('taskList') && 'bg-muted text-primary')} onClick={toggleTaskList} title={t('bubbleMenu.taskList')}><CheckSquare className="w-4 h-4" /></button>
-          <button className={cn('p-1.5 rounded hover:bg-muted transition-colors', isActive('codeBlock') && 'bg-muted text-primary')} onClick={toggleCodeBlock} title={t('bubbleMenu.codeBlock')}><Code className="w-4 h-4" /></button>
+          <ToolbarButton active={isActive('blockquote')} onClick={toggleBlockquote} title={t('bubbleMenu.blockquote')}><Quote /></ToolbarButton>
+          <ToolbarButton active={isActive('bulletList')} onClick={toggleBulletList} title={t('bubbleMenu.bulletList')}><List /></ToolbarButton>
+          <ToolbarButton active={isActive('orderedList')} onClick={toggleOrderedList} title={t('bubbleMenu.orderedList')}><ListOrdered /></ToolbarButton>
+          <ToolbarButton active={isActive('taskList')} onClick={toggleTaskList} title={t('bubbleMenu.taskList')}><CheckSquare /></ToolbarButton>
+          <ToolbarButton active={isActive('codeBlock')} onClick={toggleCodeBlock} title={t('bubbleMenu.codeBlock')}><Code /></ToolbarButton>
         </div>
+
       </div>
+      )}
     </div>
   )
 }

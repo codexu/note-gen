@@ -1,3 +1,5 @@
+import type { FileTreeSyncStatus } from '@/app/core/main/file/file-tree-action-policy'
+
 export type BrowserEntry = {
   name: string
   type: 'folder' | 'file'
@@ -9,4 +11,5 @@ export type BrowserEntry = {
   size?: number
   fileCount?: number
   folderCount?: number
+  syncStatus: FileTreeSyncStatus
 }

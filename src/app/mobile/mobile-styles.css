@@ -1,31 +1,475 @@
 /* Prevent zoom on input focus */
 input, textarea, select, [contenteditable] {
-  font-size: 16px !important; /* Prevent iOS zoom */
-  touch-action: manipulation; /* Disable double-tap zoom */
+  font-size: 16px !important;
+  touch-action: manipulation;
 }
 
-/* Fix for iOS viewport when keyboard appears */
-@supports (-webkit-touch-callout: none) {
-  html, body {
-    height: 100%;
-    position: fixed;
-    overflow: hidden;
-    -webkit-overflow-scrolling: touch;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+:root {
+  --mobile-viewport-height: 100vh;
+  --mobile-viewport-width: 100vw;
+  --mobile-viewport-offset-top: 0px;
+  --mobile-keyboard-inset: 0px;
+  --mobile-footbar-height: 3.5rem;
+  --mobile-footbar-gap: 0px;
+  --mobile-footbar-bottom: calc(env(safe-area-inset-bottom) + var(--mobile-footbar-gap));
+  --mobile-footbar-reserved-space: calc(var(--mobile-footbar-height) + var(--mobile-footbar-gap) + env(safe-area-inset-bottom));
+  --mobile-footbar-fade-height: calc(var(--mobile-footbar-reserved-space) + 2rem);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --mobile-viewport-height: 100dvh;
   }
 }
 
-/* Fix for Android viewport when keyboard appears */
-@media screen and (-webkit-min-device-pixel-ratio:0) {
-  html, body {
-    position: fixed;
+/*
+ * Keep the visual icon compact while giving primary controls a reliable
+ * finger-sized hit area. The class is added to the document root so the rule
+ * also reaches controls rendered through portals (drawers and dialogs).
+ */
+.mobile-app-active [data-slot="button"],
+.mobile-app-active [data-slot="input"],
+.mobile-app-active [data-slot="select-trigger"],
+.mobile-app-active [data-slot="tabs-trigger"],
+.mobile-app-active button:not([data-slot]) {
+  min-height: 2.75rem;
+}
+
+.mobile-app-active [data-slot="tabs-list"][data-orientation="horizontal"] {
+  height: auto !important;
+  min-height: 3.125rem;
+  overflow: visible !important;
+}
+
+.mobile-app-active [data-slot="tabs-trigger"][data-orientation="horizontal"] {
+  height: 2.75rem !important;
+  min-height: 2.75rem;
+}
+
+.mobile-app-active [data-slot="button"][data-size^="icon"] {
+  min-width: 2.75rem;
+}
+
+.mobile-app-active button:not([data-slot])[aria-label] {
+  min-width: 2.75rem;
+}
+
+.mobile-app-active header [data-slot="button"][data-size^="icon"] > svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  padding: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable]:not([contenteditable="false"]),
+.ProseMirror,
+.ProseMirror *,
+#mobile-chat #chats-wrapper .markdown-body,
+#mobile-chat #chats-wrapper .markdown-body *,
+#mobile-chat #chats-wrapper .streamdown-document,
+#mobile-chat #chats-wrapper .streamdown-document *,
+#mobile-chat #chats-wrapper .whitespace-pre-wrap,
+#mobile-chat #chats-wrapper .whitespace-pre-wrap *,
+#mobile-chat #chats-wrapper .note-wrapper,
+#mobile-chat #chats-wrapper .note-wrapper *,
+.select-text,
+[data-allow-text-selection] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#mobile-chat #chats-wrapper button,
+#mobile-chat #chats-wrapper button * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep focus/selection scrolling inside page content, not the app frame. */
+.mobile-app-shell {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--mobile-viewport-height, 100vh);
+  min-height: 0;
+  overflow: clip;
+  transform: translateY(var(--mobile-viewport-offset-top, 0px));
+  padding-top: env(safe-area-inset-top);
+  background: hsl(var(--background));
+}
+
+.mobile-app-main {
+  min-height: 0;
+  height: 100%;
+}
+
+.mobile-footbar {
+  position: absolute;
+  isolation: isolate;
+  z-index: 40;
+  right: 0;
+  bottom: var(--mobile-footbar-bottom);
+  left: 0;
+  height: var(--mobile-footbar-height);
+  min-height: var(--mobile-footbar-height);
+  background: transparent;
+  pointer-events: none;
+}
+
+.mobile-footbar::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: calc(-1 * var(--mobile-footbar-bottom));
+  left: 0;
+  height: var(--mobile-footbar-fade-height);
+  background: linear-gradient(
+    to top,
+    hsl(var(--background)) 0%,
+    hsl(var(--background) / 0.96) 18%,
+    hsl(var(--background) / 0.72) 44%,
+    hsl(var(--background) / 0.28) 72%,
+    hsl(var(--background) / 0) 100%
+  );
+  pointer-events: none;
+}
+
+.mobile-footbar > div {
+  position: relative;
+  z-index: 1;
+  height: var(--mobile-footbar-height);
+  pointer-events: auto;
+}
+
+.mobile-keyboard-open .mobile-footbar {
+  display: none;
+}
+
+.mobile-dock-surface {
+  border: 1px solid hsl(var(--border) / 0.6);
+  background: hsl(var(--background) / 0.7);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .mobile-dock-surface {
+    background: hsl(var(--background) / 0.6);
+  }
+}
+
+.mobile-setting-screen button,
+.mobile-setting-screen .shadow,
+.mobile-setting-screen .shadow-sm,
+.mobile-setting-screen .shadow-md,
+.mobile-setting-screen .shadow-lg,
+.mobile-setting-screen .shadow-xl,
+.mobile-setting-screen .shadow-2xl {
+  box-shadow: none;
+}
+
+/*
+ * Android System WebView 104 predates Tailwind CSS 4's browser baseline.
+ * Keep the personal/settings sheet on plain CSS values so its essential
+ * layout does not depend on color-mix(), @property, :has(), or range media
+ * queries.
+ */
+.mobile-me-sheet-surface,
+.mobile-setting-backdrop-surface,
+.mobile-setting-header {
+  background-color: hsl(var(--background)) !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.mobile-me-sheet-content {
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.mobile-me-sheet-overlay,
+.mobile-setting-backdrop {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.mobile-setting-header {
+  border-color: hsl(var(--border)) !important;
+}
+
+.mobile-setting-screen .mobile-setting-inline-item {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+}
+
+.mobile-setting-screen .mobile-setting-inline-item > [data-slot="item-content"] {
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.mobile-setting-screen .mobile-setting-inline-item [data-slot="item-title"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mobile-setting-screen .mobile-setting-inline-action {
+  width: auto !important;
+  min-width: 1rem;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+  margin-left: auto;
+  align-self: center;
+  justify-content: flex-end;
+}
+
+/*
+ * Tailwind 4 的透明色会被部分旧版 Android WebView 错误显示为实色。
+ * 移动端危险操作统一使用实色背景和前景色，避免红底红字导致内容不可见。
+ */
+.mobile-app-active button[data-variant="destructive"],
+.mobile-app-active [role="button"][data-variant="destructive"] {
+  background-color: hsl(var(--destructive)) !important;
+  color: hsl(var(--destructive-foreground)) !important;
+  opacity: 1;
+}
+
+.mobile-app-active button[data-variant="destructive"]:hover,
+.mobile-app-active [role="button"][data-variant="destructive"]:hover {
+  background-color: hsl(var(--destructive)) !important;
+  color: hsl(var(--destructive-foreground)) !important;
+}
+
+.mobile-app-active button[data-variant="destructive"] > svg,
+.mobile-app-active button[data-variant="destructive"] > span,
+.mobile-app-active [role="button"][data-variant="destructive"] > svg,
+.mobile-app-active [role="button"][data-variant="destructive"] > span {
+  color: inherit !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.mobile-setting-screen button[data-variant="destructive"],
+.mobile-setting-screen [role="button"][data-variant="destructive"] {
+  background-color: hsl(var(--destructive)) !important;
+  color: hsl(var(--destructive-foreground)) !important;
+  opacity: 1;
+}
+
+.mobile-setting-screen button[data-variant="destructive"] > svg,
+.mobile-setting-screen button[data-variant="destructive"] > span,
+.mobile-setting-screen [role="button"][data-variant="destructive"] > svg,
+.mobile-setting-screen [role="button"][data-variant="destructive"] > span {
+  color: inherit !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.mobile-setting-screen [data-slot="badge"][data-variant="destructive"] {
+  background-color: hsl(var(--destructive) / 0.12) !important;
+  color: hsl(var(--destructive)) !important;
+}
+
+.mobile-setting-screen [data-slot="alert"][data-variant="destructive"] {
+  background-color: hsl(var(--card)) !important;
+  color: hsl(var(--destructive)) !important;
+}
+
+.mobile-setting-screen [data-slot="item"][data-variant="muted"],
+.mobile-setting-screen [data-slot="card-footer"] {
+  background-color: hsl(var(--muted)) !important;
+}
+
+/*
+ * Tailwind 4 emits color-mix() for color opacity utilities. WebView 104
+ * drops those declarations, so muted/status surfaces become transparent.
+ * Keep the fallback local to mobile settings and let newer WebViews use the
+ * generated Tailwind values.
+ */
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .mobile-setting-screen [data-slot="card"] {
+    box-shadow: 0 0 0 1px hsl(var(--border)) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-muted/10"] {
+    background-color: hsl(var(--muted) / 0.1) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-muted/20"] {
+    background-color: hsl(var(--muted) / 0.2) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-muted/30"] {
+    background-color: hsl(var(--muted) / 0.3) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-muted/40"] {
+    background-color: hsl(var(--muted) / 0.4) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-muted/50"] {
+    background-color: hsl(var(--muted) / 0.5) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-primary/5"] {
+    background-color: hsl(var(--primary) / 0.05) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-primary/10"] {
+    background-color: hsl(var(--primary) / 0.1) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-destructive/10"] {
+    background-color: hsl(var(--destructive) / 0.1) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-destructive/20"] {
+    background-color: hsl(var(--destructive) / 0.2) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-input/30"] {
+    background-color: hsl(var(--input) / 0.3) !important;
+  }
+
+  .mobile-setting-screen [class~="bg-input/50"] {
+    background-color: hsl(var(--input) / 0.5) !important;
+  }
+
+  .mobile-setting-screen [class~="border-border/30"] {
+    border-color: hsl(var(--border) / 0.3) !important;
+  }
+
+  .mobile-setting-screen [class~="border-border/50"] {
+    border-color: hsl(var(--border) / 0.5) !important;
+  }
+
+  .mobile-setting-screen [class~="border-border/60"] {
+    border-color: hsl(var(--border) / 0.6) !important;
+  }
+
+  .mobile-setting-screen [class~="border-destructive/30"] {
+    border-color: hsl(var(--destructive) / 0.3) !important;
+  }
+
+  .mobile-setting-screen [class~="border-primary/20"] {
+    border-color: hsl(var(--primary) / 0.2) !important;
+  }
+
+  .mobile-setting-screen [class~="border-primary/30"] {
+    border-color: hsl(var(--primary) / 0.3) !important;
+  }
+}
+
+.mobile-setting-screen [data-setting-page] {
+  gap: 1.25rem;
+}
+
+.mobile-setting-screen [data-mobile-setting-section="true"] {
+  padding-block: 0.125rem;
+}
+
+@media (max-width: 639px) {
+  .mobile-setting-screen [data-setting-section-header] {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .mobile-setting-screen [data-setting-section-actions] {
     width: 100%;
-    height: 100%;
-    overflow: hidden;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
+
+  .mobile-setting-screen [data-setting-section-actions] > [data-slot="button"] {
+    width: 100%;
+  }
+
+  .mobile-setting-screen [data-slot="item"] {
+    align-items: flex-start;
+  }
+
+  .mobile-setting-screen [data-slot="item-actions"] {
+    margin-left: auto;
+    max-width: 100%;
+  }
+}
+
+.mobile-chat-input-wrapper {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  bottom: var(--mobile-footbar-reserved-space);
+  left: 0;
+  background: transparent;
+  padding-bottom: 0.25rem;
+}
+
+.mobile-keyboard-open .mobile-chat-input-wrapper {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  padding-bottom: 0.25rem;
+}
+
+#mobile-chat {
+  position: relative;
+}
+
+#mobile-chat #chats-wrapper {
+  padding-bottom: calc(var(--mobile-footbar-reserved-space) + 9rem);
+  scroll-padding-bottom: calc(var(--mobile-footbar-reserved-space) + 9rem);
+}
+
+.mobile-keyboard-open #mobile-chat #chats-wrapper {
+  padding-bottom: 1rem;
+  scroll-padding-bottom: 1rem;
+}
+
+.mobile-under-dock-scroll {
+  padding-bottom: var(--mobile-footbar-reserved-space);
+  scroll-padding-bottom: var(--mobile-footbar-reserved-space);
+}
+
+.mobile-keyboard-open .mobile-under-dock-scroll {
+  padding-bottom: 0.5rem;
+  scroll-padding-bottom: 0.5rem;
+}
+
+.mobile-editor-footer {
+  margin-bottom: var(--mobile-footbar-reserved-space);
+}
+
+.mobile-keyboard-open .mobile-editor-footer {
+  margin-bottom: 0;
 }
 
 /* Ensure input elements are properly sized on mobile */
@@ -37,7 +481,27 @@ input, textarea, select {
 
 /* Keep top-level mobile page headers visually consistent */
 .mobile-page-header {
-  height: 3rem;
-  min-height: 3rem;
-  max-height: 3rem;
+  height: 3.5rem;
+  min-height: 3.5rem;
+  max-height: 3.5rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-app-active [data-slot="drawer-content"][data-vaul-drawer-direction="bottom"],
+  .mobile-app-active [data-slot="drawer-content"][data-vaul-drawer-direction="top"] {
+    width: min(100%, 42rem);
+    margin-inline: auto;
+    border-inline: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  .mobile-page-header {
+    padding-inline: max(1rem, calc((100vw - 48rem) / 2));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .mobile-app-active [data-slot="drawer-content"][data-vaul-drawer-direction="bottom"],
+  .mobile-app-active [data-slot="drawer-content"][data-vaul-drawer-direction="top"] {
+    max-height: min(92vh, var(--mobile-viewport-height, 100vh));
+  }
 }

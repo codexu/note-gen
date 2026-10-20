@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "id": "note-gen-chat",
+      "model": "Qwen/Qwen3-8B",
+      "modelType": "chat",
+      "temperature": 0.7,
+      "topP": 1,
+      "enableStream": true
+    },
+    {
+      "id": "note-gen-embedding",
+      "model": "BAAI/bge-m3",
+      "modelType": "embedding"
+    },
+    {
+      "id": "note-gen-vlm",
+      "model": "Qwen/Qwen3.5-4B",
+      "modelType": "chat"
+    }
+  ]
+}

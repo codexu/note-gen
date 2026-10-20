@@ -26,9 +26,10 @@ import {
 } from './types'
 import { parseSkillFile, generateSkillId, detectScriptType } from './parser'
 import { validateSkillYamlMetadata } from './validator'
-import { readTextFile, readDir, BaseDirectory, DirEntry } from '@tauri-apps/plugin-fs'
+import { readFile, readTextFile, readDir, BaseDirectory, DirEntry } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
 import { exists } from '@tauri-apps/plugin-fs'
+import { Store } from '@tauri-apps/plugin-store'
 
 // ============================================================================
 // SkillManager 类
@@ -46,8 +47,23 @@ import { exists } from '@tauri-apps/plugin-fs'
  */
 class SkillManager {
   private skills: Map<string, SkillContent> = new Map()
+  private installedSkills: Map<string, SkillContent> = new Map()
   private skillFiles: Map<string, SkillFileInfo> = new Map()
+  private enabledOverrides: Record<string, boolean> = {}
   private initialized = false
+
+  private async hashFile(filePath: string, scope: SkillScope): Promise<string> {
+    const bytes = scope === 'global'
+      ? await readFile(filePath, { baseDir: BaseDirectory.AppData })
+      : await (async () => {
+          const options = await getFilePathOptions(filePath)
+          return options.baseDir
+            ? await readFile(options.path, { baseDir: options.baseDir })
+            : await readFile(options.path)
+        })()
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  }
 
   // ========================================================================
   // 初始化
@@ -62,6 +78,8 @@ class SkillManager {
       return
     }
 
+    const store = await Store.load('store.json')
+    this.enabledOverrides = await store.get<Record<string, boolean>>('skills.enabledSkills') || {}
     await this.discoverSkills()
     this.initialized = true
   }
@@ -71,6 +89,7 @@ class SkillManager {
    */
   async reload(): Promise<void> {
     this.skills.clear()
+    this.installedSkills.clear()
     this.skillFiles.clear()
     this.initialized = false
     await this.initialize()
@@ -84,11 +103,11 @@ class SkillManager {
    * 发现并加载所有 Skills
    */
   async discoverSkills(): Promise<void> {
-    // 加载工作区 Skills
-    await this.discoverProjectSkills()
-
     // 加载全局 Skills
     await this.discoverGlobalSkills()
+
+    // 工作区 Skill 与全局 Skill 同名时覆盖全局版本。
+    await this.discoverProjectSkills()
   }
 
   /**
@@ -295,7 +314,7 @@ class SkillManager {
             ? parsed.metadata.allowedTools.split(/\s+/).filter(v => v.length > 0)
             : undefined,
         userInvocable: parsed.metadata.userInvocable ?? DEFAULT_USER_INVOCABLE,
-        enabled: DEFAULT_SKILL_ENABLED,
+        enabled: this.enabledOverrides[skillId] ?? DEFAULT_SKILL_ENABLED,
         createdAt: now,
         updatedAt: now,
       },
@@ -327,8 +346,7 @@ class SkillManager {
   }
 
   /**
-   * 从 scripts/ 目录加载脚本（支持第一层子目录递归）
-   * 限制递归深度为 1，避免扫描过深
+   * 从 scripts/ 目录加载脚本，限制递归深度以避免无界扫描。
    */
   private async loadScriptsFromDirectory(
     scriptsDir: string,
@@ -338,8 +356,8 @@ class SkillManager {
   ): Promise<SkillScript[]> {
     const scripts: SkillScript[] = []
 
-    // 限制递归深度为 1（只扫描 scripts 下的直接子目录）
-    const maxDepth = 1
+    // 与导入层保持一致，允许合理的嵌套结构但避免无界扫描。
+    const maxDepth = 10
 
     try {
       let entries: DirEntry[]
@@ -371,13 +389,19 @@ class SkillManager {
             continue
           }
 
+          // scriptsDir already points at the current recursion level. Using
+          // relativePath here duplicates parent segments (for example
+          // scripts/office/office/soffice.py) and silently drops nested scripts
+          // when hashing fails.
+          const scriptPath = `${scriptsDir}/${entry.name}`
           scripts.push({
             name: relativePath, // 使用相对路径作为脚本名称（如 "office/unpack.py"）
-            path: `${scriptsDir}/${relativePath}`,
+            path: scriptPath,
             type: scriptType,
+            sha256: await this.hashFile(scriptPath, scope),
           })
         } else if (entry.isDirectory && depth < maxDepth) {
-          // 递归加载子目录中的脚本（深度限制为 1）
+          // 递归加载子目录中的脚本（受 maxDepth 限制）
           const subScripts = await this.loadScriptsFromDirectory(
             `${scriptsDir}/${entry.name}`,
             scope,
@@ -553,6 +577,10 @@ class SkillManager {
    * 注册 Skill
    */
   registerSkill(skill: SkillContent): void {
+    this.installedSkills.set(
+      `${skill.metadata.scope}:${skill.metadata.id}`,
+      skill
+    )
     this.skills.set(skill.metadata.id, skill)
   }
 
@@ -561,6 +589,11 @@ class SkillManager {
    */
   unregisterSkill(skillId: string): void {
     this.skills.delete(skillId)
+    for (const key of this.installedSkills.keys()) {
+      if (key.endsWith(`:${skillId}`)) {
+        this.installedSkills.delete(key)
+      }
+    }
     this.skillFiles.delete(skillId)
   }
 
@@ -576,21 +609,28 @@ class SkillManager {
   }
 
   /**
+   * 获取所有作用域中实际安装的 Skills，包括被同名项目 Skill 覆盖的全局 Skill。
+   */
+  getAllInstalledSkills(): SkillContent[] {
+    return Array.from(this.installedSkills.values())
+  }
+
+  /**
    * 获取指定作用域的 Skills
    */
   getSkillsByScope(scope: SkillScope): SkillContent[] {
-    return this.getAllSkills().filter(
+    return this.getAllInstalledSkills().filter(
       (skill) => skill.metadata.scope === scope
     )
   }
 
   /**
-   * 获取所有已加载的 Skills（移除启用/禁用判断，直接返回所有）
+   * 获取所有已启用的 Skills
    */
   async getEnabledSkills(): Promise<SkillContent[]> {
-    // 直接返回所有已加载的 Skills，不进行启用/禁用过滤
-    const allSkills = this.getAllSkills()
-    return allSkills
+    return this.getAllSkills().filter(
+      (skill) => skill.metadata.enabled !== false
+    )
   }
 
   /**
@@ -598,7 +638,7 @@ class SkillManager {
    */
   getUserInvocableSkills(): SkillContent[] {
     return this.getAllSkills().filter(
-      (skill) => skill.metadata.userInvocable !== false
+      (skill) => skill.metadata.enabled !== false && skill.metadata.userInvocable !== false
     )
   }
 
@@ -898,6 +938,70 @@ class SkillManager {
   getAllSkillFileInfo(): SkillFileInfo[] {
     return Array.from(this.skillFiles.values())
   }
+
+  /**
+   * Read one installed Skill resource through a logical path.
+   *
+   * Agent-facing callers must never resolve Skill resources through note
+   * paths. Keeping this lookup inside the manager makes the installed Skill
+   * package a separate, read-only namespace.
+   */
+  async readSkillResource(id: string, resourcePath: string): Promise<string> {
+    const skill = this.skills.get(id)
+    const fileInfo = this.skillFiles.get(id)
+    if (!skill || !fileInfo) {
+      throw new Error(`Skill not found: ${id}`)
+    }
+
+    const normalized = resourcePath.replace(/\\/g, '/').replace(/^\.\//, '')
+    const segments = normalized.split('/')
+    if (
+      !normalized
+      || normalized.startsWith('/')
+      || /^[a-zA-Z]:\//.test(normalized)
+      || segments.some(segment => !segment || segment === '.' || segment === '..')
+    ) {
+      throw new Error('Invalid Skill resource path')
+    }
+
+    if (normalized === 'SKILL.md') {
+      return skill.instructions
+    }
+
+    const relativeToSkill = (storedPath: string) => {
+      const normalizedStored = storedPath.replace(/\\/g, '/')
+      const normalizedDirectory = fileInfo.directory.replace(/\\/g, '/').replace(/\/+$/, '')
+      return normalizedStored.startsWith(`${normalizedDirectory}/`)
+        ? normalizedStored.slice(normalizedDirectory.length + 1)
+        : normalizedStored
+    }
+
+    const resources = [
+      ...skill.scripts.map(script => ({ logicalPath: `scripts/${script.name}`, storedPath: script.path })),
+      ...skill.references.map(reference => ({
+        logicalPath: relativeToSkill(reference.path),
+        storedPath: reference.path.includes('/')
+          ? reference.path
+          : `${fileInfo.directory}/${reference.path}`,
+      })),
+      ...skill.assets.map(asset => ({
+        logicalPath: relativeToSkill(asset.path),
+        storedPath: asset.path.includes('/')
+          ? asset.path
+          : `${fileInfo.directory}/${asset.path}`,
+      })),
+    ]
+    const resource = resources.find(candidate => candidate.logicalPath === normalized)
+    if (!resource) {
+      throw new Error(`Skill resource is not registered: ${normalized}`)
+    }
+
+    const content = await this.readFileContent(resource.storedPath, skill.metadata.scope)
+    const maxLength = 100_000
+    return content.length > maxLength
+      ? `${content.slice(0, maxLength)}\n\n[Resource truncated at ${maxLength} characters]`
+      : content
+  }
 }
 
 // ============================================================================
@@ -909,6 +1013,7 @@ export const skillManager = new SkillManager()
 // 重置管理器（主要用于测试）
 export function resetSkillManager(): void {
   ;(skillManager as any).skills.clear()
+  ;(skillManager as any).installedSkills.clear()
   ;(skillManager as any).skillFiles.clear()
   ;(skillManager as any).initialized = false
 }

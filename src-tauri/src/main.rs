@@ -1,77 +1,362 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod screenshot;
-mod fuzzy_search;
-mod keywords;
-mod window;
+mod ai;
+mod analytics;
+#[cfg(target_os = "android")]
+mod android_ocr;
 mod app_setup;
 mod backup;
-mod mcp;
+mod backup_manager;
+mod browser;
+mod cloud_folder_sync;
+mod database_recovery;
+mod deep_link;
 mod device;
+mod document_parser;
+mod file_open;
+mod fonts;
+mod fuzzy_search;
+mod local_mcp;
+mod mcp;
+mod mcp_runtime;
+mod notion_import;
+mod ocr_packages;
+mod printing;
+mod record_transaction;
+mod quick_record;
+mod plugins;
+mod plugin_terminal;
+mod remote_skills;
+mod screenshot;
+mod screenshot_cleanup;
+mod self_hosted_crypto;
+mod self_hosted_files;
+mod self_hosted_security;
+mod skill_runtime;
 mod skills;
+mod storefront;
+mod system_trash;
+mod system_permissions;
 mod tray;
+mod web_clipper;
+mod window;
+#[cfg(all(target_os = "windows", not(debug_assertions)))]
+mod windows_installer;
 
-use screenshot::{screenshot};
-use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
-use keywords::{rank_keywords};
+use ai::{
+    ai_binary_request, ai_chat_completion_stream, ai_json_request, ai_multipart_request,
+    cancel_ai_request, AiRequestManager,
+};
 use backup::{export_app_data, import_app_data, import_app_data_from_file};
-use skills::import_skill_zip;
-use mcp::{start_mcp_stdio_server, stop_mcp_server, send_mcp_message, McpServerManager};
+use backup_manager::{create_managed_backup, list_managed_backups, restore_managed_backup};
+use cloud_folder_sync::{
+    delete_cloud_folder_sync_file, get_icloud_sync_folder, list_cloud_folder_sync_files,
+    migrate_workspace_to_cloud_folder, read_cloud_folder_sync_file, test_cloud_folder_sync,
+    write_cloud_folder_sync_file,
+};
 use device::get_device_id;
+use fonts::list_system_fonts;
+use fuzzy_search::{fuzzy_search, fuzzy_search_parallel};
+use local_mcp::{
+    create_local_mcp_connection, get_local_mcp_status, get_or_create_local_mcp_connection,
+    list_local_mcp_connections, rename_local_mcp_connection, reset_local_mcp_access_token,
+    reset_local_mcp_connection_token, resolve_local_mcp_request, revoke_local_mcp_connection,
+    set_local_mcp_enabled, set_local_mcp_port, set_local_mcp_ready, LocalMcpState,
+};
+use mcp::{
+    send_mcp_message, send_mcp_notification, start_mcp_stdio_server, stop_mcp_server,
+    McpServerManager,
+};
+use mcp_runtime::{
+    cancel_mcp_runtime_install, inspect_mcp_runtime, install_mcp_runtime, RuntimeInstallManager,
+};
+use notion_import::import_notion_zip;
+use ocr_packages::{list_ocr_providers, run_ocr_provider};
+use plugins::{
+    plugin_commit_host_state, plugin_confirm_activation, plugin_fetch_market, plugin_import_local,
+    plugin_install_market, plugin_list_installed, plugin_read_host_state,
+    plugin_delete_workspace_note, plugin_list_workspace_notes, plugin_move_workspace_note,
+    plugin_network_fetch, plugin_open_or_create_note, plugin_read_entry, plugin_read_locale,
+    plugin_read_usage, plugin_read_workspace_note, plugin_rollback, plugin_uninstall, plugin_write_workspace_note,
+    plugin_storage_get, plugin_storage_set, plugin_storage_remove,
+    PluginManager,
+};
+use remote_skills::{
+    cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
+    RemoteSkillManager,
+};
+use screenshot::cleanup_temp_screenshot_dir;
+use skill_runtime::{
+    cancel_skill_script, inspect_skill_python, install_skill_python_dependencies, run_skill_script,
+    SkillProcessManager,
+};
+use skills::{
+    import_skill, import_skill_zip, install_skill_package, uninstall_skill, validate_skill_package,
+};
+use tray::update_tray_record_toolbar_config;
+use web_clipper::{
+    approve_web_clipper_pairing, get_web_clipper_status, list_web_clipper_connections,
+    reject_web_clipper_pairing, resolve_web_clipper_request, revoke_web_clipper_connection,
+    set_web_clipper_enabled, set_web_clipper_ready, WebClipperState,
+};
+
+#[tauri::command]
+fn open_developer_tools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
+#[tauri::command]
+fn close_developer_tools(window: tauri::WebviewWindow) {
+    window.close_devtools();
+}
+
+#[tauri::command]
+fn is_developer_tools_open(window: tauri::WebviewWindow) -> bool {
+    window.is_devtools_open()
+}
 
 fn main() {
     tauri::Builder::default()
-        // 核心插件 - 最先加载
+        // 单实例插件必须最先加载，避免 Windows 文件关联二次启动时继续初始化托盘等资源。
+        .plugin(tauri_plugin_single_instance::init(
+            window::handle_single_instance,
+        ))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg(window::AUTOSTART_ARG)
+                .build(),
+        )
+        // 核心插件
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(window::handle_single_instance))
-
         // MCP 服务器管理器
+        .manage(file_open::PendingOpenFiles::default())
         .manage(McpServerManager::new())
-
+        .manage(RuntimeInstallManager::new())
+        .manage(AiRequestManager::new())
+        .manage(SkillProcessManager::default())
+        .manage(RemoteSkillManager::default())
+        .manage(PluginManager::default())
+        .manage(plugin_terminal::PluginTerminalManager::default())
+        .manage(WebClipperState::new())
+        .manage(LocalMcpState::new())
+        .manage(deep_link::PendingPluginInstallRequests::default())
         // 系统级插件
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
-
         // UI 相关插件
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::new()
+            .with_filter(|label| !label.starts_with("desktop-screenshot-") && !label.starts_with("screenshot-pin-"))
+            .build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-
         // 功能插件
         .plugin(tauri_plugin_updater::Builder::new().build())
-
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
-            screenshot,
+            browser::browser_create,
+            browser::browser_set_theme,
+            browser::browser_set_bounds,
+            browser::browser_set_visible,
+            browser::browser_snapshot,
+            browser::browser_navigate,
+            browser::browser_history,
+            browser::browser_history_state,
+            browser::browser_reload,
+            browser::browser_get_url,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            browser::browser_get_content,
+            browser::browser_close,
+            system_permissions::get_system_media_permissions,
+            #[cfg(target_os = "macos")]
+            system_permissions::request_screen_capture_permission,
+            record_transaction::execute_record_transaction,
+            quick_record::remember_quick_record_foreground,
+            quick_record::hide_quick_record_window,
+            open_developer_tools,
+            close_developer_tools,
+            is_developer_tools_open,
+            screenshot::screenshot,
+            screenshot::cleanup_screenshot_cache,
+            screenshot::begin_desktop_screenshot,
+            screenshot::get_desktop_screenshot,
+            screenshot::ready_desktop_screenshot,
+            screenshot::set_desktop_screenshot_dialog_mode,
+            screenshot::complete_desktop_screenshot,
+            screenshot::cancel_desktop_screenshot,
+            screenshot::fail_desktop_screenshot,
+            screenshot::drain_desktop_screenshot_results,
+            screenshot::remove_desktop_screenshot_result,
+            screenshot::pin_screenshot,
+            screenshot::get_pinned_screenshot,
+            screenshot::read_pinned_screenshot,
+            screenshot::save_pinned_screenshot,
+            screenshot::fail_pinned_screenshot_record,
+            screenshot::ready_pinned_screenshot,
             fuzzy_search,
             fuzzy_search_parallel,
-            rank_keywords,
             export_app_data,
             import_app_data,
             import_app_data_from_file,
+            create_managed_backup,
+            list_managed_backups,
+            restore_managed_backup,
+            get_icloud_sync_folder,
+            test_cloud_folder_sync,
+            write_cloud_folder_sync_file,
+            read_cloud_folder_sync_file,
+            delete_cloud_folder_sync_file,
+            list_cloud_folder_sync_files,
+            migrate_workspace_to_cloud_folder,
+            database_recovery::delete_local_database,
+            import_skill,
             import_skill_zip,
+            import_notion_zip,
+            validate_skill_package,
+            install_skill_package,
+            uninstall_skill,
+            plugin_read_host_state,
+            plugin_commit_host_state,
+            plugin_storage_get,
+            plugin_storage_set,
+            plugin_storage_remove,
+            plugin_list_installed,
+            plugin_fetch_market,
+            plugin_install_market,
+            plugin_confirm_activation,
+            plugin_import_local,
+            plugins::plugin_development_revision,
+            plugin_uninstall,
+            plugin_rollback,
+            plugin_read_entry,
+            plugins::plugin_read_resource,
+            plugins::plugin_read_preview_chunk,
+            plugin_read_locale,
+            plugin_read_usage,
+            plugin_terminal::plugin_terminal_open,
+            plugin_terminal::plugin_terminal_write,
+            plugin_terminal::plugin_terminal_resize,
+            plugin_terminal::plugin_terminal_close,
+            plugin_open_or_create_note,
+            plugin_read_workspace_note,
+            plugins::plugin_read_attachment,
+            plugins::plugin_create_attachment,
+            plugin_list_workspace_notes,
+            plugin_write_workspace_note,
+            plugin_delete_workspace_note,
+            plugin_move_workspace_note,
+            plugin_network_fetch,
+            search_remote_skills,
+            inspect_remote_skill,
+            install_remote_skill,
+            cancel_remote_skill_download,
+            run_skill_script,
+            cancel_skill_script,
+            inspect_skill_python,
+            install_skill_python_dependencies,
             start_mcp_stdio_server,
             stop_mcp_server,
             send_mcp_message,
+            send_mcp_notification,
+            inspect_mcp_runtime,
+            install_mcp_runtime,
+            cancel_mcp_runtime_install,
             get_device_id,
+            document_parser::parse_document,
+            list_system_fonts,
+            analytics::track_analytics_event,
+            ai_json_request,
+            ai_binary_request,
+            ai_multipart_request,
+            ai_chat_completion_stream,
+            cancel_ai_request,
+            update_tray_record_toolbar_config,
+            list_ocr_providers,
+            run_ocr_provider,
+            storefront::get_app_storefront_country_code,
+            printing::print_webview,
+            file_open::drain_pending_open_files,
+            deep_link::drain_pending_plugin_install_requests,
+            system_trash::move_paths_to_trash,
+            approve_web_clipper_pairing,
+            reject_web_clipper_pairing,
+            get_web_clipper_status,
+            list_web_clipper_connections,
+            revoke_web_clipper_connection,
+            set_web_clipper_enabled,
+            set_web_clipper_ready,
+            resolve_web_clipper_request,
+            create_local_mcp_connection,
+            get_local_mcp_status,
+            get_or_create_local_mcp_connection,
+            list_local_mcp_connections,
+            rename_local_mcp_connection,
+            reset_local_mcp_access_token,
+            reset_local_mcp_connection_token,
+            resolve_local_mcp_request,
+            revoke_local_mcp_connection,
+            set_local_mcp_enabled,
+            set_local_mcp_port,
+            set_local_mcp_ready,
+            self_hosted_crypto::self_hosted_generate_workspace_key,
+            self_hosted_crypto::self_hosted_generate_device_key_pair,
+            self_hosted_crypto::self_hosted_encrypt,
+            self_hosted_crypto::self_hosted_encrypt_bytes,
+            self_hosted_crypto::self_hosted_decrypt,
+            self_hosted_crypto::self_hosted_decrypt_packed,
+            self_hosted_crypto::self_hosted_decrypt_packed_bytes,
+            self_hosted_crypto::self_hosted_sha256,
+            self_hosted_crypto::self_hosted_derive_argon2id_key,
+            self_hosted_crypto::self_hosted_wrap_workspace_key,
+            self_hosted_crypto::self_hosted_unwrap_workspace_key,
+            self_hosted_security::self_hosted_secure_set,
+            self_hosted_security::self_hosted_secure_get,
+            self_hosted_security::self_hosted_secure_delete,
+            self_hosted_files::self_hosted_portable_path,
+            self_hosted_files::self_hosted_import_object_id,
+            self_hosted_files::self_hosted_atomic_write,
+            self_hosted_files::self_hosted_delete_file,
+            self_hosted_files::self_hosted_create_directory,
+            self_hosted_files::self_hosted_delete_directory,
+            self_hosted_files::self_hosted_move_path,
+            self_hosted_files::self_hosted_pending_file_journal,
+            self_hosted_files::self_hosted_recover_file_journal,
         ])
-
         // 应用设置 - 在所有插件和命令注册后
-        .setup(app_setup::setup_app)
-
+        .setup(|app| {
+            screenshot::cleanup_temp_screenshot_dir(app.handle());
+            screenshot::cleanup_desktop_screenshot_captures(app.handle());
+            screenshot::cleanup_pinned_screenshot_cache(app.handle());
+            app_setup::setup_app(app)
+        })
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app_handle, event| match event {
+        .run(|app_handle, event| match event {
             #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
-                window::handle_macos_reopen(&_app_handle, has_visible_windows);
+            tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } => {
+                window::handle_macos_reopen(&app_handle, has_visible_windows);
+            }
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            tauri::RunEvent::Opened { urls } => {
+                file_open::handle_opened_urls(&app_handle, urls);
+            }
+            tauri::RunEvent::Exit => {
+                cleanup_temp_screenshot_dir(&app_handle);
+                screenshot::cleanup_desktop_screenshot_captures(&app_handle);
+                screenshot::cleanup_pinned_screenshot_cache(&app_handle);
+                screenshot_cleanup::flush_on_exit(&app_handle);
             }
             _ => {}
         });

@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "SwiftRs",
+        "repositoryURL": "https://github.com/Brendonovich/swift-rs",
+        "state": {
+          "branch": null,
+          "revision": "f64a4514de07f450ec5b6aa297624cd3479d9579",
+          "version": "1.0.7"
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-write-image-base64"
+description = "Enables the write_image_base64 command without any pre-configured scope."
+commands.allow = ["write_image_base64"]
+
+[[permission]]
+identifier = "deny-write-image-base64"
+description = "Denies the write_image_base64 command without any pre-configured scope."
+commands.deny = ["write_image_base64"]

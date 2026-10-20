@@ -33,14 +33,14 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
 
   return (
     <>
-      <div className='flex items-center justify-between mt-2'>
+      <div className='mt-2 flex flex-wrap items-center justify-between gap-1'>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1">
           <MessageInfo chat={chat} />
           <CondensedIndicator chat={chat} />
         </div>
 
-        <div className='flex items-center'>
+        <div className='ml-auto flex items-center'>
           {children || null}
 
           <CopyControl

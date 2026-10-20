@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
   CopySlash,
@@ -13,6 +14,15 @@ import {
   GripVertical
 } from 'lucide-react'
 import useSettingStore, { RecordToolbarItem } from '@/stores/setting'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item'
 import {
   DndContext,
   closestCenter,
@@ -28,41 +38,42 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { SettingSection } from '../components/setting-base'
 
 // 工具配置：图标和描述键
 const TOOL_CONFIGS = {
   text: {
-    icon: <CopySlash className="size-4" />,
+    icon: <CopySlash />,
     titleKey: 'record.mark.toolbar.text',
     descKey: 'settings.record.toolbar.recordToolbar.text.desc',
   },
   recording: {
-    icon: <Mic className="size-4" />,
+    icon: <Mic />,
     titleKey: 'record.mark.toolbar.recording',
     descKey: 'settings.record.toolbar.recordToolbar.recording.desc',
   },
   scan: {
-    icon: <ScanLine className="size-4" />,
+    icon: <ScanLine />,
     titleKey: 'record.mark.toolbar.scan',
     descKey: 'settings.record.toolbar.recordToolbar.scan.desc',
   },
   image: {
-    icon: <ImagePlus className="size-4" />,
+    icon: <ImagePlus />,
     titleKey: 'record.mark.toolbar.image',
     descKey: 'settings.record.toolbar.recordToolbar.image.desc',
   },
   link: {
-    icon: <Link2 className="size-4" />,
+    icon: <Link2 />,
     titleKey: 'record.mark.toolbar.link',
     descKey: 'settings.record.toolbar.recordToolbar.link.desc',
   },
   file: {
-    icon: <FileText className="size-4" />,
+    icon: <FileText />,
     titleKey: 'record.mark.toolbar.file',
     descKey: 'settings.record.toolbar.recordToolbar.file.desc',
   },
   todo: {
-    icon: <CheckSquare className="size-4" />,
+    icon: <CheckSquare />,
     titleKey: 'record.mark.toolbar.todo',
     descKey: 'settings.record.toolbar.recordToolbar.todo.desc',
   },
@@ -93,32 +104,33 @@ function SortableItem({ item, config, onToggle, t }: SortableItemProps) {
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <div className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-accent/50 transition-colors">
-        {/* 拖拽句柄 */}
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0">
-          <GripVertical className="size-4 text-muted-foreground" />
-        </div>
-
-        {/* 工具图标 */}
-        <div className="shrink-0 text-muted-foreground">
+    <div ref={setNodeRef} style={style} role="listitem" className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        {...attributes}
+        {...listeners}
+        aria-label={`${t('common.sort')} ${config ? t(config.titleKey) : item.id}`}
+        className="absolute top-1/2 left-1 -translate-y-1/2 cursor-grab touch-none text-muted-foreground/40 hover:text-muted-foreground focus-visible:text-muted-foreground active:cursor-grabbing sm:right-full sm:left-auto sm:mr-1"
+      >
+        <GripVertical />
+      </Button>
+      <Item variant="outline" className="pl-11 sm:pl-3">
+        <ItemMedia variant="icon" className="text-muted-foreground">
           {config?.icon}
-        </div>
-
-        {/* 标题和描述 */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium">{config ? t(config.titleKey) : item.id}</div>
-          <div className="text-xs text-muted-foreground truncate">{config ? t(config.descKey) : ''}</div>
-        </div>
-
-        {/* 开关 */}
-        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{config ? t(config.titleKey) : item.id}</ItemTitle>
+          <ItemDescription className="line-clamp-1">{config ? t(config.descKey) : ''}</ItemDescription>
+        </ItemContent>
+        <ItemActions className="mobile-setting-inline-action" onClick={(e) => e.stopPropagation()}>
           <Switch
             checked={item.enabled}
             onCheckedChange={() => onToggle(item.id)}
           />
-        </div>
-      </div>
+        </ItemActions>
+      </Item>
     </div>
   )
 }
@@ -165,11 +177,10 @@ export function ToolbarSettings() {
     .sort((a, b) => a.order - b.order)
 
   return (
-    <div className="space-y-4">
-      {/* 标题 */}
-      <h3 className="text-lg font-semibold">{t('settings.record.toolbar.title')}</h3>
-
-      <div className="space-y-1">
+    <SettingSection
+      title={t('settings.record.toolbar.title')}
+      desc={t('settings.record.toolbar.recordToolbar.desc')}
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -179,18 +190,19 @@ export function ToolbarSettings() {
           items={sortedConfig.map(item => item.id)}
           strategy={verticalListSortingStrategy}
         >
-          {sortedConfig.map((item) => (
-            <SortableItem
-              key={item.id}
-              item={item}
-              config={TOOL_CONFIGS[item.id as keyof typeof TOOL_CONFIGS]}
-              onToggle={handleToggle}
-              t={t}
-            />
-          ))}
+          <ItemGroup className="gap-2">
+            {sortedConfig.map((item) => (
+              <SortableItem
+                key={item.id}
+                item={item}
+                config={TOOL_CONFIGS[item.id as keyof typeof TOOL_CONFIGS]}
+                onToggle={handleToggle}
+                t={t}
+              />
+            ))}
+          </ItemGroup>
         </SortableContext>
       </DndContext>
-      </div>
-    </div>
+    </SettingSection>
   )
 }

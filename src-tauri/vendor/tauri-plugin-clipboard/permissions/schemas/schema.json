@@ -1,0 +1,642 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PermissionFile",
+  "description": "Permission file that can define a default permission, a set of permissions or a list of inlined permissions.",
+  "type": "object",
+  "properties": {
+    "default": {
+      "description": "The default permission set for the plugin",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DefaultPermission"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "set": {
+      "description": "A list of permissions sets defined",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PermissionSet"
+      }
+    },
+    "permission": {
+      "description": "A list of inlined permissions",
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Permission"
+      }
+    }
+  },
+  "definitions": {
+    "DefaultPermission": {
+      "description": "The default permission set of the plugin.\n\nWorks similarly to a permission with the \"default\" identifier.",
+      "type": "object",
+      "required": [
+        "permissions"
+      ],
+      "properties": {
+        "version": {
+          "description": "The version of the permission.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 1.0
+        },
+        "description": {
+          "description": "Human-readable description of what the permission does. Tauri convention is to use `<h4>` headings in markdown content for Tauri documentation generation purposes.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permissions": {
+          "description": "All permissions this set contains.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "PermissionSet": {
+      "description": "A set of direct permissions grouped together under a new name.",
+      "type": "object",
+      "required": [
+        "description",
+        "identifier",
+        "permissions"
+      ],
+      "properties": {
+        "identifier": {
+          "description": "A unique identifier for the permission.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human-readable description of what the permission does.",
+          "type": "string"
+        },
+        "permissions": {
+          "description": "All permissions this set contains.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PermissionKind"
+          }
+        }
+      }
+    },
+    "Permission": {
+      "description": "Descriptions of explicit privileges of commands.\n\nIt can enable commands to be accessible in the frontend of the application.\n\nIf the scope is defined it can be used to fine grain control the access of individual or multiple commands.",
+      "type": "object",
+      "required": [
+        "identifier"
+      ],
+      "properties": {
+        "version": {
+          "description": "The version of the permission.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 1.0
+        },
+        "identifier": {
+          "description": "A unique identifier for the permission.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human-readable description of what the permission does. Tauri internal convention is to use `<h4>` headings in markdown content for Tauri documentation generation purposes.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commands": {
+          "description": "Allowed or denied commands when using this permission.",
+          "default": {
+            "allow": [],
+            "deny": []
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Commands"
+            }
+          ]
+        },
+        "scope": {
+          "description": "Allowed or denied scoped when using this permission.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Scopes"
+            }
+          ]
+        },
+        "platforms": {
+          "description": "Target platforms this permission applies. By default all platforms are affected by this permission.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Target"
+          }
+        }
+      }
+    },
+    "Commands": {
+      "description": "Allowed and denied commands inside a permission.\n\nIf two commands clash inside of `allow` and `deny`, it should be denied by default.",
+      "type": "object",
+      "properties": {
+        "allow": {
+          "description": "Allowed command.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "description": "Denied command, which takes priority.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Scopes": {
+      "description": "An argument for fine grained behavior control of Tauri commands.\n\nIt can be of any serde serializable type and is used to allow or prevent certain actions inside a Tauri command. The configured scope is passed to the command and will be enforced by the command implementation.\n\n## Example\n\n```json { \"allow\": [{ \"path\": \"$HOME/**\" }], \"deny\": [{ \"path\": \"$HOME/secret.txt\" }] } ```",
+      "type": "object",
+      "properties": {
+        "allow": {
+          "description": "Data that defines what is allowed by the scope.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Value"
+          }
+        },
+        "deny": {
+          "description": "Data that defines what is denied by the scope. This should be prioritized by validation logic.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Value"
+          }
+        }
+      }
+    },
+    "Value": {
+      "description": "All supported ACL values.",
+      "anyOf": [
+        {
+          "description": "Represents a null JSON value.",
+          "type": "null"
+        },
+        {
+          "description": "Represents a [`bool`].",
+          "type": "boolean"
+        },
+        {
+          "description": "Represents a valid ACL [`Number`].",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Number"
+            }
+          ]
+        },
+        {
+          "description": "Represents a [`String`].",
+          "type": "string"
+        },
+        {
+          "description": "Represents a list of other [`Value`]s.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Value"
+          }
+        },
+        {
+          "description": "Represents a map of [`String`] keys to [`Value`]s.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/Value"
+          }
+        }
+      ]
+    },
+    "Number": {
+      "description": "A valid ACL number.",
+      "anyOf": [
+        {
+          "description": "Represents an [`i64`].",
+          "type": "integer",
+          "format": "int64"
+        },
+        {
+          "description": "Represents a [`f64`].",
+          "type": "number",
+          "format": "double"
+        }
+      ]
+    },
+    "Target": {
+      "description": "Platform target.",
+      "oneOf": [
+        {
+          "description": "MacOS.",
+          "type": "string",
+          "enum": [
+            "macOS"
+          ]
+        },
+        {
+          "description": "Windows.",
+          "type": "string",
+          "enum": [
+            "windows"
+          ]
+        },
+        {
+          "description": "Linux.",
+          "type": "string",
+          "enum": [
+            "linux"
+          ]
+        },
+        {
+          "description": "Android.",
+          "type": "string",
+          "enum": [
+            "android"
+          ]
+        },
+        {
+          "description": "iOS.",
+          "type": "string",
+          "enum": [
+            "iOS"
+          ]
+        }
+      ]
+    },
+    "PermissionKind": {
+      "type": "string",
+      "oneOf": [
+        {
+          "description": "Enables the available_types command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-available-types",
+          "markdownDescription": "Enables the available_types command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the available_types command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-available-types",
+          "markdownDescription": "Denies the available_types command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clear",
+          "markdownDescription": "Enables the clear command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clear",
+          "markdownDescription": "Denies the clear command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the execute command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-execute",
+          "markdownDescription": "Enables the execute command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the execute command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-execute",
+          "markdownDescription": "Denies the execute command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-has-files",
+          "markdownDescription": "Enables the has_files command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-has-files",
+          "markdownDescription": "Denies the has_files command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-has-html",
+          "markdownDescription": "Enables the has_html command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-has-html",
+          "markdownDescription": "Denies the has_html command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_image command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-has-image",
+          "markdownDescription": "Enables the has_image command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_image command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-has-image",
+          "markdownDescription": "Denies the has_image command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-has-rtf",
+          "markdownDescription": "Enables the has_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-has-rtf",
+          "markdownDescription": "Denies the has_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-has-text",
+          "markdownDescription": "Enables the has_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-has-text",
+          "markdownDescription": "Denies the has_text command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_monitor_running command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-is-monitor-running",
+          "markdownDescription": "Enables the is_monitor_running command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_monitor_running command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-is-monitor-running",
+          "markdownDescription": "Denies the is_monitor_running command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ping",
+          "markdownDescription": "Enables the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ping command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ping",
+          "markdownDescription": "Denies the ping command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-files",
+          "markdownDescription": "Enables the read_files command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-files",
+          "markdownDescription": "Denies the read_files command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_files_uris command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-files-uris",
+          "markdownDescription": "Enables the read_files_uris command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_files_uris command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-files-uris",
+          "markdownDescription": "Denies the read_files_uris command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-html",
+          "markdownDescription": "Enables the read_html command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-html",
+          "markdownDescription": "Denies the read_html command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_image_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-image-base64",
+          "markdownDescription": "Enables the read_image_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_image_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-image-base64",
+          "markdownDescription": "Denies the read_image_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_image_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-image-binary",
+          "markdownDescription": "Enables the read_image_binary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_image_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-image-binary",
+          "markdownDescription": "Denies the read_image_binary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-rtf",
+          "markdownDescription": "Enables the read_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-rtf",
+          "markdownDescription": "Denies the read_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-text",
+          "markdownDescription": "Enables the read_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-text",
+          "markdownDescription": "Denies the read_text command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the start_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-start-monitor",
+          "markdownDescription": "Enables the start_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the start_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-start-monitor",
+          "markdownDescription": "Denies the start_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-monitor",
+          "markdownDescription": "Enables the stop_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_monitor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-monitor",
+          "markdownDescription": "Denies the stop_monitor command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-files",
+          "markdownDescription": "Enables the write_files command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_files command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-files",
+          "markdownDescription": "Denies the write_files command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_files_uris command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-files-uris",
+          "markdownDescription": "Enables the write_files_uris command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_files_uris command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-files-uris",
+          "markdownDescription": "Denies the write_files_uris command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-html",
+          "markdownDescription": "Enables the write_html command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_html command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-html",
+          "markdownDescription": "Denies the write_html command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_html_and_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-html-and-text",
+          "markdownDescription": "Enables the write_html_and_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_html_and_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-html-and-text",
+          "markdownDescription": "Denies the write_html_and_text command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_image_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-image-base64",
+          "markdownDescription": "Enables the write_image_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_image_base64 command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-image-base64",
+          "markdownDescription": "Denies the write_image_base64 command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_image_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-image-binary",
+          "markdownDescription": "Enables the write_image_binary command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_image_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-image-binary",
+          "markdownDescription": "Denies the write_image_binary command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-rtf",
+          "markdownDescription": "Enables the write_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_rtf command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-rtf",
+          "markdownDescription": "Denies the write_rtf command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the write_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-write-text",
+          "markdownDescription": "Enables the write_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the write_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-text",
+          "markdownDescription": "Denies the write_text command without any pre-configured scope."
+        },
+        {
+          "description": "This enables all monitor related commands",
+          "type": "string",
+          "const": "monitor-all",
+          "markdownDescription": "This enables all monitor related commands"
+        },
+        {
+          "description": "This enables all read related commands to clipboard",
+          "type": "string",
+          "const": "read-all",
+          "markdownDescription": "This enables all read related commands to clipboard"
+        },
+        {
+          "description": "This enables all write related commands to clipboard",
+          "type": "string",
+          "const": "write-all",
+          "markdownDescription": "This enables all write related commands to clipboard"
+        }
+      ]
+    }
+  }
+}

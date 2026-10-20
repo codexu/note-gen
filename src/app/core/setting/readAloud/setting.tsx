@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import useSettingStore from "@/stores/setting";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ResponsiveSelect } from "@/components/responsive-select";
 import type { SpeechMode } from '@/lib/speech/types';
 
 export function Setting() {
@@ -99,16 +99,13 @@ export function Setting() {
           <ItemDescription>{t('options.mode.desc')}</ItemDescription>
         </ItemContent>
         <ItemActions>
-          <Select value={textToSpeechMode} onValueChange={(value) => setTextToSpeechMode(value as SpeechMode)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {modeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ResponsiveSelect
+            title={t('options.mode.title')}
+            value={textToSpeechMode}
+            onValueChange={value => setTextToSpeechMode(value as SpeechMode)}
+            className="w-full sm:w-[180px]"
+            options={modeOptions}
+          />
         </ItemActions>
       </Item>
 
@@ -137,7 +134,7 @@ export function Setting() {
                 min={0.5}
                 max={2}
                 step={0.1}
-                className="w-[180px]"
+                className="w-full sm:w-[180px]"
               />
               <span className="text-zinc-500 w-10">{speed}x</span>
             </div>

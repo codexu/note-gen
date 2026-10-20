@@ -11,6 +11,8 @@ import {
   AlignRight,
 } from 'lucide-react'
 import { useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 
 interface TableToolbarProps {
   editor: Editor
@@ -66,91 +68,83 @@ export function TableToolbar({ editor }: TableToolbarProps) {
   const isTableActive = editor.isActive('table')
 
   return (
-    <div className="table-toolbar relative">
-      <button
+    <div className="table-toolbar relative flex items-center gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={insertTable}
         disabled={!canInsertTable}
-        className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
         title="插入表格"
       >
-        <TableIcon size={18} />
-      </button>
+        <TableIcon />
+      </Button>
 
       {isTableActive && (
-        <div className="flex items-center gap-1 ml-2 border-l border-gray-300 dark:border-gray-600 pl-2">
-          <button
+        <ButtonGroup>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={addColumnBefore}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="在左侧插入列"
           >
-            <Columns size={18} className="rotate-180" />
-          </button>
-          <button
+            <Columns className="rotate-180" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={addColumnAfter}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="在右侧插入列"
           >
-            <Columns size={18} />
-          </button>
-          <button
+            <Columns />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={addRowBefore}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="在上方插入行"
           >
-            <Rows size={18} className="rotate-180" />
-          </button>
-          <button
+            <Rows className="rotate-180" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={addRowAfter}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="在下方插入行"
           >
-            <Rows size={18} />
-          </button>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-          <button
+            <Rows />
+          </Button>
+          <ButtonGroupSeparator />
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={setColumnAlignmentLeft}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="左对齐"
           >
-            <AlignLeft size={18} />
-          </button>
-          <button
+            <AlignLeft />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={setColumnAlignmentCenter}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="居中对齐"
           >
-            <AlignCenter size={18} />
-          </button>
-          <button
+            <AlignCenter />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm"
             onClick={setColumnAlignmentRight}
-            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             title="右对齐"
           >
-            <AlignRight size={18} />
-          </button>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
-          <button
+            <AlignRight />
+          </Button>
+          <ButtonGroupSeparator />
+          <Button type="button" variant="destructive" size="icon-sm"
             onClick={deleteColumn}
-            className="p-2 rounded hover:bg-red-200 dark:hover:bg-red-900 text-red-600"
             title="删除列"
           >
-            <Trash2 size={18} />
-          </button>
-          <button
+            <Trash2 />
+          </Button>
+          <Button type="button" variant="destructive" size="icon-sm"
             onClick={deleteRow}
-            className="p-2 rounded hover:bg-red-200 dark:hover:bg-red-900 text-red-600"
             title="删除行"
           >
-            <Rows size={18} className="rotate-45" />
-          </button>
-          <button
+            <Rows className="rotate-45" />
+          </Button>
+          <Button type="button" variant="destructive" size="icon-sm"
             onClick={deleteTable}
-            className="p-2 rounded hover:bg-red-200 dark:hover:bg-red-900 text-red-600"
             title="删除表格"
           >
-            <Trash2 size={18} />
-          </button>
-        </div>
+            <Trash2 />
+          </Button>
+        </ButtonGroup>
       )}
     </div>
   )

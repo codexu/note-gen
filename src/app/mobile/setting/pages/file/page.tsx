@@ -1,7 +1,7 @@
-'use client';
+'use client'
 
-import { SettingWorkspace } from "@/app/core/setting/file/setting-workspace";
+import SettingFilePage from '@/app/core/setting/file/page'
 
 export default function FilePage() {
-  return <SettingWorkspace />
+  return <SettingFilePage />
 }

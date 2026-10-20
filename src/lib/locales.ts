@@ -10,4 +10,5 @@ export const locales = [
   'فارسی', 
   'Русский', 
   'Čeština',
+  'Deutsch',
 ]

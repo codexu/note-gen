@@ -4,25 +4,64 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir } from '@tauri-apps/api/path';
 import { getWorkspacePath } from "./workspace";
 
+const RESOLVED_IMAGE_SRC_RE = /^(?:https?:|data:|blob:|asset:|tauri:|file:)/i
+const HTTP_URL_RE = /^https?:\/\//i
+let appDataDirPromise: Promise<string> | null = null
+const convertedImageSrcCache = new Map<string, string>()
+const convertedWorkspaceImageSrcCache = new Map<string, string>()
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function isHttpUrl(url?: string | null) {
+  return HTTP_URL_RE.test(url ?? '')
+}
+
+function normalizeAppDataAssetPath(path: string) {
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+function getCachedAppDataDir() {
+  appDataDirPromise ||= appDataDir()
+  return appDataDirPromise
+}
+
 export async function convertImage(path: string) {
-  const appDataDirPath = await appDataDir()
-  const imagePath = appDataDirPath + path
-  return convertFileSrc(imagePath)
+  if (RESOLVED_IMAGE_SRC_RE.test(path)) {
+    return path
+  }
+
+  const normalizedPath = normalizeAppDataAssetPath(path)
+  const cachedSrc = convertedImageSrcCache.get(normalizedPath)
+  if (cachedSrc) {
+    return cachedSrc
+  }
+
+  const appDataDirPath = await getCachedAppDataDir()
+  const imagePath = appDataDirPath + normalizedPath
+  const src = convertFileSrc(imagePath)
+  convertedImageSrcCache.set(normalizedPath, src)
+  return src
 }
 
 export async function convertImageByWorkspace(path: string) {
   const workspace = await getWorkspacePath()
+  const cacheKey = `${workspace.isCustom ? workspace.path : 'app-data'}:${path}`
+  const cachedSrc = convertedWorkspaceImageSrcCache.get(cacheKey)
+  if (cachedSrc) {
+    return cachedSrc
+  }
+
   let fullPath: string
   if (workspace.isCustom) {
     fullPath = `${workspace.path}/${path}`
   } else {
-    fullPath = `${await appDataDir()}/article/${path}`
+    fullPath = `${await getCachedAppDataDir()}/article/${path}`
   }
-  return convertFileSrc(fullPath)
+  const src = convertFileSrc(fullPath)
+  convertedWorkspaceImageSrcCache.set(cacheKey, src)
+  return src
 }
 
 export function convertBytesToSize(bytes: number) {

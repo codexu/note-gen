@@ -8,6 +8,7 @@ import { readTextFile } from "@tauri-apps/plugin-fs"
 import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { computedParentPath } from "@/lib/path"
+import useVectorStore from "@/stores/vector"
 
 interface VectorKnowledgeMenuProps {
   item: DirTree
@@ -18,6 +19,7 @@ interface VectorKnowledgeMenuProps {
 export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: VectorKnowledgeMenuProps) {
   const t = useTranslations('article.file')
   const { clearFileVector, checkFileVectorIndexed, setVectorCalcStatus } = useArticleStore()
+  const { isAutoVectorEnabled } = useVectorStore()
   const [autoCalcEnabled, setAutoCalcEnabled] = useState(true)
   const [excludeFromKB, setExcludeFromKB] = useState(false)
   const filePath = computedParentPath(item)
@@ -148,6 +150,7 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
           <Switch
             checked={autoCalcEnabled}
             onCheckedChange={handleToggleAutoCalc}
+            disabled={!isAutoVectorEnabled}
             className="ml-4"
           />
         </div>

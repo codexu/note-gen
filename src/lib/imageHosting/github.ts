@@ -90,6 +90,7 @@ export async function uploadImageByGithub(file: File) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('githubImageAccessToken')
   const username = await store.get('githubImageUsername')
+  const repoName = await getImageRepoName()
 
   if (!accessToken || !username) {
     console.error('[GitHub Image] Missing accessToken or username')
@@ -107,9 +108,6 @@ export async function uploadImageByGithub(file: File) {
   try {
     const ext = file.type.split('/')[1]
     const filename = `${id}.${ext}`.replace(/\s/g, '_')
-    
-    // 获取实际使用的仓库名（自定义或默认）
-    const repoName = await getImageRepoName()
     
     // 设置请求头
     const headers = new Headers();

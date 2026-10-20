@@ -1,331 +1,276 @@
 'use client'
 
-import { MessageSquare, Highlighter, SquarePen, Settings, User, Plus } from "lucide-react"
+import { Highlighter, MessageSquare, Palette, Plus, Square, SquarePen } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
-import { cn } from "@/lib/utils"
-import { Store } from "@tauri-apps/plugin-store"
+import dynamic from 'next/dynamic'
+import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
-import { useSidebarStore } from "@/stores/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
-import useSettingStore from "@/stores/setting"
-import useSyncStore from "@/stores/sync"
-import { UserInfo } from "@/lib/sync/github.types"
-import { getUserInfo } from "@/lib/sync/github"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+  InteractiveMenu,
+  type InteractiveMenuItem,
+} from '@/components/ui/modern-mobile-menu'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
 import { MobileRecordTools } from '@/components/mobile-record-tools'
+import useRecordingStore from '@/stores/recording'
+import emitter from '@/lib/emitter'
+import useMarkStore from '@/stores/mark'
+import useCanvasStore from '@/stores/canvas'
+import useArticleStore from '@/stores/article'
+import useChatStore from '@/stores/chat'
 
-// 普通导航按钮组件
-interface NormalNavButtonProps {
-  item: {
-    title: string
-    url: string
-    icon: React.ComponentType<{ className?: string }>
-  }
-  isActive: boolean
-  onClick: () => void
+const OrganizeNotes = dynamic(
+  () => import('@/app/core/main/mark/organize-notes').then(module => module.OrganizeNotes),
+  { ssr: false },
+)
+
+type FootbarItem = InteractiveMenuItem & {
+  url: string
+  isQuickAction?: boolean
 }
 
-function NormalNavButton({ item, isActive, onClick }: NormalNavButtonProps) {
+function RecordingDockIcon() {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center w-1/5 py-1 transition-colors relative",
-        isActive ? "text-primary" : "text-muted-foreground hover:text-primary"
-      )}
-    >
-      <item.icon className="h-5 w-5" />
-      <span className="text-xs mt-0.5">{item.title}</span>
-      {isActive && (
-        <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-primary" />
-      )}
-    </button>
+    <span className="inline-flex size-5 items-center justify-center text-red-500">
+      <Square className="size-4 animate-pulse fill-current" />
+    </span>
   )
 }
 
-// 头像导航按钮组件
-interface AvatarNavButtonProps {
-  item: {
-    title: string
-    url: string
-  }
-  isActive: boolean
-  avatarUrl: string
-  onClick: () => void
-}
-
-function AvatarNavButton({ item, isActive, avatarUrl, onClick }: AvatarNavButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center w-1/5 py-1 transition-colors relative",
-        isActive ? "text-primary" : "text-muted-foreground hover:text-primary"
-      )}
-    >
-      <div className="flex flex-col items-center">
-        <Avatar className="h-6 w-6">
-          <AvatarImage 
-            src={avatarUrl} 
-            alt="Profile" 
-          />
-          <AvatarFallback>
-            <User className="h-4 w-4" />
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-xs mt-0.5">{item.title}</span>
-        {isActive && (
-          <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-primary" />
-        )}
-      </div>
-    </button>
-  )
+function formatRecordingDuration(seconds: number) {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
 export function AppFootbar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { toggleFileSidebar } = useSidebarStore()
-  const [quickRecordOpen, setQuickRecordOpen] = useState(false)
-  const { 
-    githubUsername,
-    accessToken,
-    primaryBackupMethod,
-    giteeAccessToken,
-    gitlabAccessToken,
-    giteaAccessToken,
-    setGithubUsername,
-    setGitlabUsername,
-    setGiteaUsername,
-  } = useSettingStore()
-  const {
-    setUserInfo,
-    setSyncRepoInfo,
-    setGiteeSyncRepoInfo,
-    setGitlabSyncProjectInfo,
-    setGiteeUserInfo,
-    setGitlabUserInfo,
-    setGiteaSyncRepoInfo,
-    setGiteaUserInfo,
-    giteeUserInfo,
-    gitlabUserInfo,
-    giteaUserInfo,
-  } = useSyncStore()
   const t = useTranslations()
-  
-  // 检查是否有 GitHub、Gitee、Gitlab 或 Gitea 账号，用于显示头像
-  const hasGithubAccount = Boolean(githubUsername && accessToken)
-  const hasGiteeAccount = Boolean(giteeAccessToken)
-  const hasGitlabAccount = Boolean(gitlabAccessToken)
-  const hasGiteaAccount = Boolean(giteaAccessToken)
-  const showAvatar = hasGithubAccount || hasGiteeAccount || hasGitlabAccount || hasGiteaAccount
+  const [quickActionOpen, setQuickActionOpen] = useState(false)
+  const organizeRef = useRef<{ openOrganize: () => void }>(null)
+  const pendingOrganizeRef = useRef(false)
+  const dockSwipeStartRef = useRef<{ x: number; y: number } | null>(null)
+  const suppressDockClickRef = useRef(false)
+  const suppressDockClickTimerRef = useRef<number | null>(null)
+  const { isRecording, recordingDuration } = useRecordingStore()
+  const activeFilePath = useArticleStore(state => state.activeFilePath)
+  const activeMarkId = useMarkStore(state => state.activeMarkId)
+  const activeCanvasId = useCanvasStore(state => state.activeCanvasId)
 
-  // 获取当前主要备份方式的用户信息
-  async function handleGetUserInfo() {
-    try {
-      if (primaryBackupMethod === 'github') {
-        if (accessToken) {
-          setSyncRepoInfo(undefined)
-          const res = await getUserInfo()
-          if (res) {
-            setUserInfo(res.data as UserInfo)
-            setGithubUsername(res.data.login)
-          }
-        }
-      } else if (primaryBackupMethod === 'gitee') {
-        if (giteeAccessToken) {
-          // 获取 Gitee 用户信息
-          setGiteeSyncRepoInfo(undefined)
-          const res = await import('@/lib/sync/gitee').then(module => module.getUserInfo())
-          if (res) {
-            setGiteeUserInfo(res)
-          }
-        }
-      } else if (primaryBackupMethod === 'gitlab') {
-        if (gitlabAccessToken) {
-          // 获取 Gitlab 用户信息
-          setGitlabSyncProjectInfo(undefined)
-          const { getUserInfo } = await import('@/lib/sync/gitlab')
-          const res = await getUserInfo()
-          if (res) {
-            setGitlabUserInfo(res)
-            setGitlabUsername(res.username)
-          }
-        }
-      } else if (primaryBackupMethod === 'gitea') {
-        if (giteaAccessToken) {
-          // 获取 Gitea 用户信息
-          setGiteaSyncRepoInfo(undefined)
-          const { getUserInfo } = await import('@/lib/sync/gitea')
-          const res = await getUserInfo()
-          if (res) {
-            setGiteaUserInfo(res)
-            setGiteaUsername(res.username)
-          }
-        }
-      } else {
-        setUserInfo(undefined)
-        setGiteeUserInfo(undefined)
-        setGitlabUserInfo(undefined)
-        setGiteaUserInfo(undefined)
-      }
-    } catch (err) {
-      console.error('Failed to get user info:', err)
-    }
-  }
-  
-  // 根据主备份方式获取正确的头像地址
-  const getAvatarUrl = () => {
-    switch (primaryBackupMethod) {
-      case 'github':
-        if (hasGithubAccount && githubUsername) {
-          return `https://github.com/${githubUsername}.png`
-        }
-        break
-      case 'gitee':
-        if (hasGiteeAccount && giteeUserInfo?.avatar_url) {
-          return giteeUserInfo.avatar_url
-        }
-        break
-      case 'gitlab':
-        if (hasGitlabAccount && gitlabUserInfo?.avatar_url) {
-          return gitlabUserInfo.avatar_url
-        }
-        break
-      case 'gitea':
-        if (hasGiteaAccount && giteaUserInfo?.avatar_url) {
-          return giteaUserInfo.avatar_url
-        }
-        break
-      default:
-        return ''
-    }
-    return ''
-  }
-
-  const avatarUrl = getAvatarUrl()
-    
-  // 底部导航菜单项
-  const items = [
+  const items: FootbarItem[] = [
     {
-      title: t('navigation.chat'),
-      url: "/mobile/chat",
+      id: 'chat',
+      label: t('navigation.mobileDock.chat'),
+      url: '/mobile/chat',
       icon: MessageSquare,
     },
     {
-      title: t('navigation.record'),
-      url: "/mobile/record",
-      icon: Highlighter,
-    },
-    {
-      title: t('navigation.quickRecord'),
-      url: "#quick-record",
-      icon: Plus,
-      isQuickRecord: true,
-    },
-    {
-      title: t('navigation.write'),
-      url: "/mobile/writing",
+      id: 'writing',
+      label: t('navigation.mobileDock.write'),
+      url: '/mobile/writing',
       icon: SquarePen,
     },
     {
-      title: t('navigation.setting'),
-      url: "/mobile/setting",
-      icon: Settings,
+      id: 'quick-action',
+      label: isRecording
+        ? formatRecordingDuration(recordingDuration)
+        : t('navigation.mobileDock.quickRecord'),
+      url: '#quick-action',
+      icon: Plus,
+      iconElement: isRecording ? <RecordingDockIcon /> : undefined,
+      isQuickAction: true,
+      swipeDisabled: true,
+    },
+    {
+      id: 'record',
+      label: t('navigation.mobileDock.record'),
+      url: activeMarkId === null
+        ? '/mobile/record'
+        : `/mobile/record/detail?id=${encodeURIComponent(activeMarkId)}`,
+      icon: Highlighter,
+    },
+    {
+      id: 'canvas',
+      label: t('navigation.mobileDock.canvas'),
+      url: activeCanvasId
+        ? `/mobile/canvas/editor?id=${encodeURIComponent(activeCanvasId)}`
+        : '/mobile/canvas',
+      icon: Palette,
     },
   ]
 
-  // 处理导航点击事件
-  async function menuHandler(item: typeof items[0]) {
-    if (item.isQuickRecord) {
-      // 快捷记录按钮：打开浮动弹窗
-      setQuickRecordOpen(!quickRecordOpen)
+  const routeActiveIndex = items.findIndex(item => {
+    if (item.id === 'chat' && pathname.startsWith('/mobile/setting')) return true
+    if (item.id === 'record') return pathname.startsWith('/mobile/record')
+    if (item.id === 'canvas') return pathname.startsWith('/mobile/canvas')
+    return pathname === item.url
+  })
+  const quickActionIndex = items.findIndex(item => item.isQuickAction)
+  const activeIndex =
+    (isRecording || quickActionOpen) && quickActionIndex >= 0
+      ? quickActionIndex
+      : Math.max(routeActiveIndex, 0)
+
+  const menuHandler = useCallback(async (item: FootbarItem) => {
+    pendingOrganizeRef.current = false
+    if (item.isQuickAction) {
+      if (isRecording) {
+        setQuickActionOpen(false)
+        emitter.emit('toolbar-shortcut-recording')
+        return
+      }
+      setQuickActionOpen(open => !open)
       return
     }
-    
-    if (pathname === '/core/article' && item.url === '/core/article') {
-      toggleFileSidebar()
-    } else {
-      router.push(item.url)
+
+    setQuickActionOpen(false)
+    const chatState = useChatStore.getState()
+    if (item.id === 'writing') {
+      chatState.setMobileActiveContexts({ articlePath: activeFilePath || null })
+    } else if (item.id === 'record') {
+      chatState.setMobileActiveContexts({ markId: activeMarkId })
+    } else if (item.id === 'canvas') {
+      chatState.setMobileActiveContexts({ canvasId: activeCanvasId })
     }
+    router.push(item.url)
     const store = await Store.load('store.json')
-    store.set('currentPage', item.url)
-  }
+    await store.set('currentPage', item.url)
+  }, [activeCanvasId, activeFilePath, activeMarkId, isRecording, router])
 
   useEffect(() => {
-    if (accessToken || giteeAccessToken || gitlabAccessToken || giteaAccessToken) {
-      handleGetUserInfo()
+    function handleDockSwipe(direction: 'previous' | 'next') {
+      if (quickActionOpen) return
+
+      const pageItems = items.filter(item => !item.isQuickAction)
+      const activeItem = items[routeActiveIndex]
+      const currentPageIndex = pageItems.findIndex(item => item.id === activeItem?.id)
+      const nextPageIndex = currentPageIndex + (direction === 'next' ? 1 : -1)
+      const nextItem = pageItems[nextPageIndex]
+
+      if (nextItem) void menuHandler(nextItem)
     }
-  }, [accessToken, giteeAccessToken, gitlabAccessToken, giteaAccessToken, primaryBackupMethod])
+
+    emitter.on('mobile-dock-swipe', handleDockSwipe)
+    return () => emitter.off('mobile-dock-swipe', handleDockSwipe)
+  }, [items, menuHandler, quickActionOpen, routeActiveIndex])
+
+  useEffect(() => {
+    return () => {
+      if (suppressDockClickTimerRef.current !== null) {
+        window.clearTimeout(suppressDockClickTimerRef.current)
+        suppressDockClickTimerRef.current = null
+      }
+      suppressDockClickRef.current = false
+    }
+  }, [])
+
+  function handleDockTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const target = event.target
+    if (
+      quickActionOpen
+      || event.touches.length !== 1
+      || (target instanceof Element && target.closest('[data-swipe-disabled="true"]'))
+    ) {
+      dockSwipeStartRef.current = null
+      return
+    }
+
+    const touch = event.touches[0]
+    dockSwipeStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  function handleDockTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const start = dockSwipeStartRef.current
+    dockSwipeStartRef.current = null
+    if (!start || event.changedTouches.length !== 1) return
+
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+
+    suppressDockClickRef.current = true
+    if (suppressDockClickTimerRef.current !== null) {
+      window.clearTimeout(suppressDockClickTimerRef.current)
+    }
+    suppressDockClickTimerRef.current = window.setTimeout(() => {
+      suppressDockClickRef.current = false
+      suppressDockClickTimerRef.current = null
+    }, 700)
+    emitter.emit('mobile-dock-swipe', deltaX < 0 ? 'next' : 'previous')
+  }
+
+  function handleDockClickCapture(event: React.MouseEvent<HTMLDivElement>) {
+    if (!suppressDockClickRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    suppressDockClickRef.current = false
+    if (suppressDockClickTimerRef.current !== null) {
+      window.clearTimeout(suppressDockClickTimerRef.current)
+      suppressDockClickTimerRef.current = null
+    }
+  }
+
+  function handleMobileOrganize() {
+    pendingOrganizeRef.current = true
+    setQuickActionOpen(false)
+  }
 
   return (
-    <div className="w-full border-t bg-background h-14 relative">
-      <div className="flex h-full items-center justify-around">
-        {items.map((item, index) => {
-          // 快捷记录按钮 - 使用 Popover
-          if (item.isQuickRecord) {
-            return (
-              <Popover key={index} open={quickRecordOpen} onOpenChange={setQuickRecordOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="w-1/5 flex items-center justify-center"
-                    aria-label={item.title}
-                    title={item.title}
-                  >
-                    <span
-                      className={cn(
-                        "inline-flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-transform active:scale-95",
-                        quickRecordOpen && "ring-2 ring-primary/30"
-                      )}
-                    >
-                      <Plus className="size-6" />
-                    </span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="center"
-                  side="top"
-                  sideOffset={10}
-                  collisionPadding={12}
-                  className="w-[min(92vw,360px)] rounded-2xl p-3"
-                >
-                    <MobileRecordTools onClose={() => setQuickRecordOpen(false)} />
-                </PopoverContent>
-              </Popover>
-            )
-          }
-          
-          // 头像按钮（最后一项且有头像）
-          const isAvatarButton = index === items.length - 1 && showAvatar && avatarUrl
-          if (isAvatarButton) {
-            return (
-              <AvatarNavButton
-                key={index}
-                item={item}
-                isActive={pathname === item.url}
-                avatarUrl={avatarUrl}
-                onClick={() => menuHandler(item)}
-              />
-            )
-          }
-          
-          // 普通按钮
-          return (
-            <NormalNavButton
-              key={index}
-              item={item}
-              isActive={pathname === item.url}
-              onClick={() => menuHandler(item)}
-            />
-          )
-        })}
+    <div className="flex h-full w-full items-center justify-center px-2 min-[380px]:px-3">
+      <div
+        className="w-full"
+        onTouchStart={handleDockTouchStart}
+        onTouchEnd={handleDockTouchEnd}
+        onTouchCancel={() => { dockSwipeStartRef.current = null }}
+        onClickCapture={handleDockClickCapture}
+      >
+        <InteractiveMenu
+          accentColor={isRecording ? 'rgb(239 68 68)' : undefined}
+          activeIndex={activeIndex}
+          aria-label={t('navigation.navigate')}
+          className="w-full"
+          items={items}
+          onActiveIndexChange={index => {
+            const item = items[index]
+            if (item) void menuHandler(item)
+          }}
+        />
       </div>
+      <Drawer open={quickActionOpen} onOpenChange={setQuickActionOpen}>
+        <DrawerContent
+          onCloseAutoFocus={event => {
+            if (!pendingOrganizeRef.current) return
+            event.preventDefault()
+            // Wait for the drawer's modal/focus locks to be released before
+            // mounting the dialog. A frame after setOpen(false) is too early
+            // because the drawer remains mounted during its exit animation.
+            window.requestAnimationFrame(() => {
+              if (!pendingOrganizeRef.current) return
+              pendingOrganizeRef.current = false
+              organizeRef.current?.openOrganize()
+            })
+          }}
+        >
+          <DrawerHeader className="sr-only">
+            <DrawerTitle>{t('navigation.mobileDock.quickRecord')}</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+            <MobileRecordTools
+              onClose={() => setQuickActionOpen(false)}
+              onOrganize={handleMobileOrganize}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
+      <OrganizeNotes ref={organizeRef} />
     </div>
   )
 }

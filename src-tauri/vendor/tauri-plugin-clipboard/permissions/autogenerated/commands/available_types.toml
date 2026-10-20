@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-available-types"
+description = "Enables the available_types command without any pre-configured scope."
+commands.allow = ["available_types"]
+
+[[permission]]
+identifier = "deny-available-types"
+description = "Denies the available_types command without any pre-configured scope."
+commands.deny = ["available_types"]

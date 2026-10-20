@@ -11,7 +11,9 @@ export default function SettingLayout({
     <div id="setting-page" className="flex h-full">
       <SettingTab />
       <div className="flex-1 p-8 overflow-y-auto h-full">
-        {children}
+        <div className="mx-auto w-full max-w-5xl">
+          {children}
+        </div>
       </div>
     </div>
   )

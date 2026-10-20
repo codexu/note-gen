@@ -2,7 +2,9 @@
 
 import * as React from 'react'
 import { CheckCircle2, ArrowUpCircle, ArrowDownCircle, AlertTriangle, Loader2, CloudOff } from 'lucide-react'
-import { Badge, BadgeProps } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/badge'
+import type { VariantProps } from 'class-variance-authority'
+import { badgeVariants } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSyncManager } from '@/hooks/use-sync-manager'
 import { cn } from '@/lib/utils'
@@ -13,7 +15,7 @@ interface SyncStatusBadgeProps {
   path?: string
   showLabel?: boolean
   className?: string
-  badgeProps?: BadgeProps
+  badgeProps?: React.ComponentProps<typeof Badge>
 }
 
 export function SyncStatusBadge({ path, showLabel = false, className, badgeProps }: SyncStatusBadgeProps) {
@@ -30,48 +32,53 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
     }
   }
 
-  const statusConfig = {
+  const statusConfig: Record<SyncStatusType, {
+    icon: typeof CheckCircle2
+    label: string
+    variant: VariantProps<typeof badgeVariants>['variant']
+    iconClassName: string
+  }> = {
     synced: {
       icon: CheckCircle2,
       label: '已同步',
-      color: 'bg-green-100 text-green-800 hover:bg-green-100',
-      iconColor: 'text-green-600',
+      variant: 'secondary',
+      iconClassName: 'text-primary',
     },
     local_newer: {
       icon: ArrowUpCircle,
       label: '待推送',
-      color: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
-      iconColor: 'text-blue-600',
+      variant: 'outline',
+      iconClassName: 'text-primary',
     },
     remote_newer: {
       icon: ArrowDownCircle,
       label: '有更新',
-      color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
-      iconColor: 'text-yellow-600',
+      variant: 'outline',
+      iconClassName: 'text-foreground',
     },
     conflict: {
       icon: AlertTriangle,
       label: '冲突',
-      color: 'bg-red-100 text-red-800 hover:bg-red-100',
-      iconColor: 'text-red-600',
+      variant: 'destructive',
+      iconClassName: 'text-destructive',
     },
     unknown: {
       icon: CloudOff,
       label: '未同步',
-      color: 'bg-gray-100 text-gray-800 hover:bg-gray-100',
-      iconColor: 'text-gray-600',
+      variant: 'secondary',
+      iconClassName: 'text-muted-foreground',
     },
     syncing: {
       icon: Loader2,
       label: '同步中',
-      color: 'bg-blue-100 text-blue-800',
-      iconColor: 'text-blue-600 animate-spin',
+      variant: 'secondary',
+      iconClassName: 'animate-spin text-primary',
     },
     offline: {
       icon: CloudOff,
       label: '离线',
-      color: 'bg-gray-100 text-gray-800',
-      iconColor: 'text-gray-600',
+      variant: 'outline',
+      iconClassName: 'text-muted-foreground',
     },
   }
 
@@ -96,10 +103,9 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
     <Tooltip>
       <TooltipTrigger asChild>
         <Badge
-          variant="outline"
+          variant={config.variant}
           className={cn(
             'gap-1.5 cursor-pointer',
-            config.color,
             className
           )}
           onClick={refreshStatus}
@@ -108,19 +114,19 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
           {isLoading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Icon className={cn('h-3.5 w-3.5', config.iconColor, status === 'syncing' && 'animate-spin')} />
+            <Icon className={cn('size-3.5', config.iconClassName)} />
           )}
           {showLabel && <span className="text-xs font-medium">{config.label}</span>}
           {isPending && (
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-primary" />
             </span>
           )}
         </Badge>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs">
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           <p className="font-medium">{config.label}</p>
           {path && <p className="text-xs text-muted-foreground truncate">{path}</p>}
           <p className="text-xs text-muted-foreground">{formatLastSyncTime()}</p>

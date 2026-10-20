@@ -25,7 +25,7 @@ import { useMcpStore } from '@/stores/mcp'
 import type { MCPServerConfig } from '@/lib/mcp/types'
 import { useToast } from '@/hooks/use-toast'
 import { mcpServerManager } from '@/lib/mcp/server-manager'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 
@@ -42,6 +42,7 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
 
   const [jsonText, setJsonText] = useState('')
   const [error, setError] = useState('')
+  const [importing, setImporting] = useState(false)
 
   // 将 mcpServers 格式转换为标准配置数组
   const convertMcpServersFormat = (parsed: any): MCPServerConfig[] => {
@@ -151,6 +152,7 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
       return
     }
 
+    setImporting(true)
     try {
       const parsed = JSON.parse(jsonText)
 
@@ -236,6 +238,8 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
       }
     } catch (e) {
       setError(t('jsonInvalidJson') + ': ' + (e as Error).message)
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -263,7 +267,7 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
               <DrawerDescription>{t('jsonImportDesc')}</DrawerDescription>
             </DrawerHeader>
 
-            <div className="space-y-4 px-4 overflow-y-auto">
+            <div className="flex flex-col gap-4 px-4">
               <div className="space-y-2">
                 <Label htmlFor="json-input">{t('jsonInput')}</Label>
                 <Textarea
@@ -282,6 +286,7 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
   }
 }`}
                   rows={12}
+                  maxRows={18}
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">{t('jsonInputHelp')}</p>
@@ -299,7 +304,10 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
               <Button variant="outline" onClick={handleCancel}>
                 {t('cancel')}
               </Button>
-              <Button onClick={handleImport}>{t('import')}</Button>
+              <Button onClick={handleImport} disabled={importing}>
+                {importing && <Loader2 className="animate-spin" />}
+                {t('import')}
+              </Button>
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
@@ -330,6 +338,7 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
   }
 }`}
                   rows={12}
+                  maxRows={24}
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">{t('jsonInputHelp')}</p>
@@ -347,7 +356,10 @@ export function JsonImportDialog({ open, onOpenChange }: JsonImportDialogProps) 
               <Button variant="outline" onClick={handleCancel}>
                 {t('cancel')}
               </Button>
-              <Button onClick={handleImport}>{t('import')}</Button>
+              <Button onClick={handleImport} disabled={importing}>
+                {importing && <Loader2 className="animate-spin" />}
+                {t('import')}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

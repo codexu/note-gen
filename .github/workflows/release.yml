@@ -1,12 +1,22 @@
 name: 'publish'
+run-name: 'Publish NoteGen from dev'
 
 on:
-  push:
-    branches:
-      - release
+  workflow_dispatch:
 
 jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require dev branch
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/dev" ]; then
+            echo "::error::Select the dev branch when running this workflow."
+            exit 1
+          fi
+
   build-android:
+    needs: validate-source
     outputs:
       appVersion: ${{ steps.get_version.outputs.version }}
     runs-on: ubuntu-latest
@@ -15,26 +25,29 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: lts/*
+          node-version: 24
           cache: 'pnpm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The legacy tools package is no longer available in the Android SDK repository.
+          packages: 'platform-tools'
 
       - name: Install Android NDK
         run: |
@@ -57,8 +70,22 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build frontend
-        run: pnpm build
+      - name: Embed and verify plugin marketplace root public key
+        env:
+          PLUGIN_MARKET_ROOT_PUBLIC_KEY: ${{ vars.PLUGIN_MARKET_ROOT_PUBLIC_KEY }}
+          PLUGIN_MARKET_ENABLED: ${{ vars.PLUGIN_MARKET_ENABLED }}
+        run: |
+          if [ "$PLUGIN_MARKET_ENABLED" = "false" ]; then
+            printf '# Marketplace explicitly disabled for this release.\n' > src-tauri/plugin-market-public-key.txt
+            echo "::notice::Plugin marketplace disabled by PLUGIN_MARKET_ENABLED=false."
+            exit 0
+          fi
+          if [ -z "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" ]; then
+            echo "::error::Configure PLUGIN_MARKET_ROOT_PUBLIC_KEY, or explicitly set PLUGIN_MARKET_ENABLED=false for a release without the marketplace."
+            exit 1
+          fi
+          printf '%s\n' "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" > src-tauri/plugin-market-public-key.txt
+          pnpm plugin-market:check-key
 
       - name: Setup NDK toolchain
         run: |
@@ -69,19 +96,46 @@ jobs:
         run: |
           export PATH=$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
           
-          # Initialize Android project if not exists
-          if [ ! -d "src-tauri/gen/android" ]; then
-            echo "📱 Initializing Android project..."
-            pnpm tauri android init
-          else
-            echo "✅ Android project already initialized"
-          fi
+          # Recreate Android project on every CI run to avoid stale/incomplete generated files
+          echo "📱 Reinitializing Android project..."
+          rm -rf src-tauri/gen/android
+          pnpm tauri android init
           
           # Verify initialization
-          if [ ! -d "src-tauri/gen/android" ]; then
+          if [ ! -d "src-tauri/gen/android/app/src/main" ]; then
             echo "❌ Android initialization failed"
             exit 1
           fi
+
+          # Restore Android customizations that must survive the generated project reset.
+          echo "🧩 Restoring tracked Android customizations..."
+          git checkout -- \
+            src-tauri/gen/android/app/build.gradle.kts \
+            src-tauri/gen/android/app/src/main/AndroidManifest.xml \
+            src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/OcrPlugin.kt \
+            src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/SystemBarsPlugin.kt \
+            src-tauri/gen/android/app/src/main/res/values/colors.xml \
+            src-tauri/gen/android/app/src/main/res/values/themes.xml \
+            src-tauri/gen/android/app/src/main/res/values-night/themes.xml
+
+          MANIFEST_PATH="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          test -f "$MANIFEST_PATH"
+          test -f "src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/OcrPlugin.kt"
+          test -f "src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/SystemBarsPlugin.kt"
+          test -f "src-tauri/gen/android/app/src/main/res/values/colors.xml"
+          test -f "src-tauri/gen/android/app/src/main/res/values/themes.xml"
+          test -f "src-tauri/gen/android/app/src/main/res/values-night/themes.xml"
+          grep -q 'android.permission.RECORD_AUDIO' "$MANIFEST_PATH"
+          grep -q 'android:label="NoteGen"' "$MANIFEST_PATH"
+          grep -q 'android:icon="@mipmap/ic_launcher"' "$MANIFEST_PATH"
+          grep -q 'android:roundIcon="@mipmap/ic_launcher"' "$MANIFEST_PATH"
+          grep -q 'Theme.note_gen' "$MANIFEST_PATH"
+          grep -q 'class OcrPlugin' "src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/OcrPlugin.kt"
+          grep -q 'class SystemBarsPlugin' "src-tauri/gen/android/app/src/main/java/com/codexu/NoteGen/SystemBarsPlugin.kt"
+          grep -q 'Theme.MaterialComponents.DayNight.NoActionBar' "src-tauri/gen/android/app/src/main/res/values/themes.xml"
+          grep -q 'text-recognition:16.0.1' "src-tauri/gen/android/app/build.gradle.kts"
+          grep -q 'text-recognition-chinese' "src-tauri/gen/android/app/build.gradle.kts"
+          grep -q 'text-recognition-japanese' "src-tauri/gen/android/app/build.gradle.kts"
           
           # Set custom Android icon
           echo "🎨 Setting custom Android icon..."
@@ -93,6 +147,8 @@ jobs:
             "src-tauri/gen/android/app/src/main/res/mipmap-xxhdpi"
             "src-tauri/gen/android/app/src/main/res/mipmap-xxxhdpi"
           )
+
+          mkdir -p "${MIPMAP_DIRS[@]}"
           
           # Install ImageMagick for icon conversion
           sudo apt-get update && sudo apt-get install -y imagemagick
@@ -106,8 +162,8 @@ jobs:
           
           echo "✅ Android icon set successfully"
           
-          echo "🔨 Building Android APK and AAB..."
-          pnpm tauri android build --apk --aab
+          echo "🔨 Building ARM64 APK..."
+          pnpm tauri android build --apk --split-per-abi --target aarch64
 
       - name: Decode keystore
         env:
@@ -119,78 +175,78 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          VERSION=$(grep -o '"version": *"[^"]*"' src-tauri/tauri.conf.json | head -1 | sed 's/"version": *"\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          node <<'NODE'
+          const fs = require('node:fs')
+          const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'))
+          const [major, minor, patch] = config.version.split('-')[0].split('.').map(Number)
+          const versionCode = config.bundle.android?.versionCode ?? (major * 1000000 + minor * 1000 + patch)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${config.version}\nversionCode=${versionCode}\n`)
+          console.log(`Version: ${config.version} (${versionCode})`)
+          NODE
 
-      - name: Sign and Rename APK
+      - name: Sign, Rename, and Verify APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           cd src-tauri
-          APK_PATH="gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
           VERSION="${{ steps.get_version.outputs.version }}"
-          SIGNED_APK="gen/android/app/build/outputs/apk/universal/release/NoteGen_${VERSION}_android-universal.apk"
-          
+          VERSION_CODE="${{ steps.get_version.outputs.versionCode }}"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          APK_DIR="gen/android/app/build/outputs/apk/arm64/release"
+          APK_PATH="${APK_DIR}/app-arm64-release-unsigned.apk"
+          SIGNED_APK="${APK_DIR}/NoteGen_${VERSION}_android-arm64.apk"
+
           if [ ! -f "$APK_PATH" ]; then
             echo "❌ APK file not found at $APK_PATH"
-            ls -la gen/android/app/build/outputs/apk/universal/release/ || true
+            find gen/android/app/build/outputs/apk -maxdepth 3 -type f -name '*.apk' -print || true
             exit 1
           fi
-          
-          echo "📝 Signing APK with apksigner (V1 + V2 signatures)..."
-          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -n 1)/apksigner sign \
+
+          echo "🔍 Verifying APK version against tauri.conf.json..."
+          APK_BADGING=$("$BUILD_TOOLS/aapt" dump badging "$APK_PATH")
+          APK_VERSION=$(printf '%s\n' "$APK_BADGING" | sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p")
+          APK_VERSION_CODE=$(printf '%s\n' "$APK_BADGING" | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p")
+          if [ "$APK_VERSION" != "$VERSION" ] || [ "$APK_VERSION_CODE" != "$VERSION_CODE" ]; then
+            echo "::error::Expected APK version $VERSION ($VERSION_CODE), found $APK_VERSION ($APK_VERSION_CODE). Check the Tauri CLI version and generated tauri.properties."
+            exit 1
+          fi
+
+          echo "📝 Signing ARM64 APK with apksigner..."
+          "$APKSIGNER" sign \
             --ks android-release.keystore \
             --ks-key-alias note-gen \
             --ks-pass pass:"$ANDROID_KEYSTORE_PASSWORD" \
             --key-pass pass:"$ANDROID_KEY_PASSWORD" \
             --out "$SIGNED_APK" \
             "$APK_PATH"
-          
-          echo "✅ APK signed successfully"
-          
-          # Verify signature
-          echo "🔍 Verifying APK signature..."
-          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -n 1)/apksigner verify --verbose "$SIGNED_APK"
-          
-          # Show file info
-          ls -lh "$SIGNED_APK"
 
-      - name: Rename AAB
-        run: |
-          cd src-tauri
-          VERSION="${{ steps.get_version.outputs.version }}"
-          AAB_PATH="gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab"
-          RENAMED_AAB="gen/android/app/build/outputs/bundle/universalRelease/NoteGen_${VERSION}_android-universal.aab"
-          
-          if [ -f "$AAB_PATH" ]; then
-            mv "$AAB_PATH" "$RENAMED_AAB"
-            echo "✅ AAB renamed to: $RENAMED_AAB"
-            ls -lh "$RENAMED_AAB"
+          echo "🔍 Verifying ARM64 APK signature and ABI..."
+          "$APKSIGNER" verify --verbose "$SIGNED_APK"
+          APK_ABIS=$(unzip -Z1 "$SIGNED_APK" | awk -F/ '/^lib\/[^\/]+\/.*\.so$/ { print $2 }' | sort -u | paste -sd, -)
+          if [ "$APK_ABIS" != "arm64-v8a" ]; then
+            echo "❌ Expected only ABI 'arm64-v8a', found '$APK_ABIS' in $SIGNED_APK"
+            exit 1
           fi
+
+          echo "✅ ARM64 APK signed and verified"
+          ls -lh "$SIGNED_APK"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/NoteGen_*.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/arm64/release/NoteGen_*.apk
           if-no-files-found: error
-
-      - name: Upload AAB as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-aab
-          path: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/NoteGen_*.aab
-          if-no-files-found: warn
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: note-gen-v${{ steps.get_version.outputs.version }}
-          files: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/NoteGen_*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/NoteGen_*.aab
+          name: NoteGen v${{ steps.get_version.outputs.version }}
+          files: src-tauri/gen/android/app/build/outputs/apk/arm64/release/NoteGen_*.apk
           draft: false
           prerelease: false
 
@@ -199,29 +255,8 @@ jobs:
         run: |
           rm -f src-tauri/android-release.keystore
 
-  upgradeLink-upload-android:
-    needs: build-android
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Android APK to UpgradeLink
-        uses: toolsetlink/upgradelink-action@3.0.2
-        with:
-          access_key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
-          access_secret: ${{ secrets.UPGRADE_LINK_ACCESS_SECRET }}
-          config: |
-            {
-              "app_type": "file",
-              "request": {
-                "app_key": "${{ secrets.UPGRADE_LINK_ANDROID_APP_KEY }}",
-                "version": "${{ needs.build-android.outputs.appVersion }}",
-                "url": "https://github.com/${{ github.repository }}/releases/download/note-gen-v${{ needs.build-android.outputs.appVersion }}/NoteGen_${{ needs.build-android.outputs.appVersion }}_android-universal.apk",
-                "prompt_upgrade_content": "新版本已发布，包含重要功能更新和 bug 修复"
-              }
-            }
-
   publish-tauri:
+    needs: validate-source
     outputs:
       appVersion: ${{ steps.set_output.outputs.appVersion }}
     permissions:
@@ -232,47 +267,88 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
+            name: 'macos-arm64'
+            bundlePath: 'src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/NoteGen_*.dmg'
+            appPath: 'src-tauri/target/aarch64-apple-darwin/release/bundle/macos/NoteGen.app'
+            targetArch: 'arm64'
+          - platform: 'macos-15-intel'
             args: '--target x86_64-apple-darwin'
+            name: 'macos-x64'
+            bundlePath: 'src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/NoteGen_*.dmg'
+            appPath: 'src-tauri/target/x86_64-apple-darwin/release/bundle/macos/NoteGen.app'
+            targetArch: 'x86_64'
           - platform: 'ubuntu-24.04'
             args: '--bundles deb,rpm'
+            name: 'linux-deb-rpm'
+            bundlePath: 'src-tauri/target/release/bundle/(rpm|deb)/NoteGen_*.(rpm|deb)'
+          - platform: 'ubuntu-22.04'
+            args: '--bundles appimage'
+            name: 'linux-appimage'
+            bundlePath: 'src-tauri/target/release/bundle/appimage/NoteGen_*.AppImage'
+            noSign: true
           - platform: 'windows-latest'
-            args: ''
+            # Keep manual installs and the legacy windows-x86_64 updater on MSI.
+            args: '--bundles msi'
+            name: 'windows'
+            bundlePath: 'src-tauri\target\release\bundle\msi\NoteGen_*.msi'
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
           run_install: true
 
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: lts/*
+          node-version: 24
           cache: 'pnpm'
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.platform, 'macos-') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
+          if [ "${{ matrix.platform }}" = "ubuntu-22.04" ]; then
+            sudo add-apt-repository -y ppa:pipewire-debian/pipewire-upstream
+          fi
           sudo apt-get update
           sudo apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libgbm-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: install frontend dependencies
         run: pnpm install
 
+      - name: Embed and verify plugin marketplace root public key
+        shell: bash
+        env:
+          PLUGIN_MARKET_ROOT_PUBLIC_KEY: ${{ vars.PLUGIN_MARKET_ROOT_PUBLIC_KEY }}
+          PLUGIN_MARKET_ENABLED: ${{ vars.PLUGIN_MARKET_ENABLED }}
+        run: |
+          if [ "$PLUGIN_MARKET_ENABLED" = "false" ]; then
+            printf '# Marketplace explicitly disabled for this release.\n' > src-tauri/plugin-market-public-key.txt
+            echo "::notice::Plugin marketplace disabled by PLUGIN_MARKET_ENABLED=false."
+            exit 0
+          fi
+          if [ -z "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" ]; then
+            echo "::error::Configure PLUGIN_MARKET_ROOT_PUBLIC_KEY, or explicitly set PLUGIN_MARKET_ENABLED=false for a release without the marketplace."
+            exit 1
+          fi
+          printf '%s\n' "$PLUGIN_MARKET_ROOT_PUBLIC_KEY" > src-tauri/plugin-market-public-key.txt
+          pnpm plugin-market:check-key
+
       - name: Import Apple Certificate
-        if: matrix.platform == 'macos-latest'
+        id: import_apple_certificate
+        if: startsWith(matrix.platform, 'macos-')
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          EXPECTED_APPLE_SIGNING_IDENTITY_SHA1: A32FAF7F3494DC03D9BAAC6CE857740DEB69123E
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'temporary_keychain_password' }}
         run: |
           # Create variables
@@ -288,11 +364,22 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           # Import certificate to keychain
-          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychains -d user -s $KEYCHAIN_PATH
+          security default-keychain -s $KEYCHAIN_PATH
 
           # Enable codesigning from a non user interactive shell
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Resolve the imported identity from the temporary keychain so the
+          # workflow does not depend on a manually synchronized identity string.
+          APPLE_SIGNING_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | awk -v expected="$EXPECTED_APPLE_SIGNING_IDENTITY_SHA1" '$2 == expected {print $2; exit}')
+          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "Expected Apple codesigning identity was not found in imported certificate"
+            security find-identity -v -p codesigning $KEYCHAIN_PATH
+            exit 1
+          fi
+          echo "apple_signing_identity=$APPLE_SIGNING_IDENTITY" >> $GITHUB_OUTPUT
 
       - uses: tauri-apps/tauri-action@v0.5.23
         id: tauri-action
@@ -300,16 +387,39 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_SIGNING_IDENTITY: ${{ steps.import_apple_certificate.outputs.apple_signing_identity || secrets.APPLE_SIGNING_IDENTITY }}
         with:
           tagName: note-gen-v__VERSION__
           releaseName: 'NoteGen v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+          updaterJsonPreferNsis: false
+
+      - name: Verify macOS bundle architectures
+        if: matrix.targetArch
+        env:
+          APP_PATH: ${{ matrix.appPath }}
+          EXPECTED_ARCH: ${{ matrix.targetArch }}
+        run: |
+          MAIN_EXECUTABLE="$APP_PATH/Contents/MacOS/note-gen"
+          OCR_EXECUTABLE="$APP_PATH/Contents/Resources/resources/ocr/notegen-ocr-vision"
+
+          test -f "$MAIN_EXECUTABLE"
+          test -f "$OCR_EXECUTABLE"
+          test "$(lipo -archs "$MAIN_EXECUTABLE")" = "$EXPECTED_ARCH"
+          test "$(lipo -archs "$OCR_EXECUTABLE")" = "$EXPECTED_ARCH"
 
       
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            ${{ matrix.bundlePath }}
+          if-no-files-found: warn
+
       - name: Generate release tag
         id: save_tag
         if: matrix.platform == 'ubuntu-24.04'
@@ -327,27 +437,227 @@ jobs:
           echo "appVersion=${{ steps.save_tag.outputs.appVersion }}" >> $GITHUB_OUTPUT
 
       - name: Cleanup keychain
-        if: matrix.platform == 'macos-latest' && always()
+        if: startsWith(matrix.platform, 'macos-') && always()
         run: |
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           security delete-keychain $KEYCHAIN_PATH || true
 
-  upgradeLink-upload:
-    needs: publish-tauri
+  mirror-release-to-aliyun:
+    needs:
+      - build-android
+      - publish-tauri
+    if: ${{ always() && needs.build-android.result == 'success' && (needs.publish-tauri.result == 'success' || github.repository == 'codexu/note-gen-deploy-test') }}
     permissions:
-      contents: write
+      contents: read
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.build-android.outputs.appVersion }}
+      OSSUTIL_VERSION: 2.3.0
+      OSSUTIL_LINUX_AMD64_SHA256: 3ae4d9fc85a7a6e9f5654d1599766f1a3a42a3692870887b5ae9338d582ef65a
+      OSS_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      OSS_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      OSS_REGION: ${{ secrets.ALIYUN_REGION_ID }}
+      OSS_ENDPOINT: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
+      ALIYUN_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      ALIYUN_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      ALIYUN_REGION_ID: ${{ secrets.ALIYUN_REGION_ID }}
+      ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+      ALIYUN_CDN_DOMAIN: ${{ secrets.ALIYUN_CDN_DOMAIN }}
     steps:
-      - name: Send a request to UpgradeLink
-        uses: toolsetlink/upgradelink-action@3.0.2
-        with:
-          access_key: ${{ secrets.UPGRADE_LINK_ACCESS_KEY }}
-          access_secret: ${{ secrets.UPGRADE_LINK_ACCESS_SECRET }}
-          config: |
-            {
-              "app_type": "tauri",
-              "request": {
-                "app_key": "${{ secrets.UPGRADE_LINK_TAURI_KEY }}",
-                "latest_json_url": "https://github.com/${{ github.repository }}/releases/download/note-gen-v${{ needs.publish-tauri.outputs.appVersion }}/latest.json"
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate Aliyun configuration
+        run: |
+          set -euo pipefail
+          required_vars=(
+            OSS_ACCESS_KEY_ID
+            OSS_ACCESS_KEY_SECRET
+            OSS_REGION
+            OSS_ENDPOINT
+            ALIYUN_ACCESS_KEY_ID
+            ALIYUN_ACCESS_KEY_SECRET
+            ALIYUN_REGION_ID
+            ALIYUN_OSS_BUCKET
+            ALIYUN_CDN_DOMAIN
+          )
+
+          for var_name in "${required_vars[@]}"; do
+            if [ -z "${!var_name}" ]; then
+              echo "::error::Missing required secret or environment value: ${var_name}"
+              exit 1
+            fi
+          done
+
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$VERSION"
+          gh release download "note-gen-v${VERSION}" --dir dist-release --clobber
+          test -f dist-release/latest.json
+          mkdir -p dist-oss
+          find dist-release -maxdepth 1 -type f ! -name 'latest.json' -exec cp {} dist-oss/ \;
+          test "$(find dist-oss -maxdepth 1 -type f | wc -l)" -gt 0
+          ls -lh dist-release dist-oss
+
+      - name: Install ossutil
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          curl -fsSLo "ossutil-${OSSUTIL_VERSION}-linux-amd64.zip" "https://gosspublic.alicdn.com/ossutil/v2/${OSSUTIL_VERSION}/ossutil-${OSSUTIL_VERSION}-linux-amd64.zip"
+          echo "${OSSUTIL_LINUX_AMD64_SHA256}  ossutil-${OSSUTIL_VERSION}-linux-amd64.zip" | sha256sum -c -
+          unzip -q "ossutil-${OSSUTIL_VERSION}-linux-amd64.zip"
+          sudo install -m 755 "ossutil-${OSSUTIL_VERSION}-linux-amd64/ossutil" /usr/local/bin/ossutil
+          ossutil version || ossutil --version || ossutil
+
+      - name: Configure ossutil
+        run: |
+          set -euo pipefail
+          OSSUTIL_CONFIG="$RUNNER_TEMP/.ossutilconfig"
+          {
+            echo "[default]"
+            echo "accessKeyID=${OSS_ACCESS_KEY_ID}"
+            echo "accessKeySecret=${OSS_ACCESS_KEY_SECRET}"
+            echo "region=${OSS_REGION}"
+            echo "endpoint=${OSS_ENDPOINT}"
+          } > "$OSSUTIL_CONFIG"
+          chmod 600 "$OSSUTIL_CONFIG"
+          echo "OSSUTIL_CONFIG=$OSSUTIL_CONFIG" >> "$GITHUB_ENV"
+
+      - name: Install Alibaba Cloud CLI
+        uses: aliyun/setup-aliyun-cli-action@v1
+
+      - name: Mirror installers to OSS
+        run: |
+          set -euo pipefail
+          RELEASE_PREFIX="oss://${ALIYUN_OSS_BUCKET}/releases/note-gen-v${VERSION}/"
+          if ! ossutil cp -r dist-oss/ "$RELEASE_PREFIX" \
+              -c "$OSSUTIL_CONFIG" \
+              --update \
+              --force \
+              --no-progress \
+              --cache-control "public, max-age=31536000, immutable"; then
+            echo "::group::ossutil error report"
+            find ossutil_output -maxdepth 2 -type f -name '*.report' -print -exec sed -E 's/(AccessKeyId=)[^&[:space:]]+/\1***/g' {} \; || true
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Rewrite latest.json for CDN
+        run: |
+          set -euo pipefail
+          CDN_DOMAIN="${ALIYUN_CDN_DOMAIN#https://}"
+          CDN_DOMAIN="${CDN_DOMAIN#http://}"
+          CDN_DOMAIN="${CDN_DOMAIN%/}"
+          CDN_BASE_URL="https://${CDN_DOMAIN}"
+          RELEASE_BASE_URL="${CDN_BASE_URL}/releases/note-gen-v${VERSION}"
+          export RELEASE_BASE_URL
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          const latestJsonPath = 'dist-release/latest.json'
+          const outputPath = 'latest.aliyun.json'
+          const version = process.env.VERSION
+          const releaseBaseUrl = process.env.RELEASE_BASE_URL
+          const tag = `note-gen-v${version}`
+          const marker = `/releases/download/${tag}/`
+          const original = JSON.parse(fs.readFileSync(latestJsonPath, 'utf8'))
+          let replacements = 0
+
+          function rewrite(value) {
+            if (typeof value === 'string') {
+              try {
+                const url = new URL(value)
+                const markerIndex = url.pathname.indexOf(marker)
+                if (url.hostname === 'github.com' && markerIndex !== -1) {
+                  const assetName = url.pathname.slice(markerIndex + marker.length)
+                  replacements += 1
+                  return `${releaseBaseUrl}/${assetName}`
+                }
+              } catch {
+                return value
               }
+
+              return value
             }
+
+            if (Array.isArray(value)) {
+              return value.map(rewrite)
+            }
+
+            if (value && typeof value === 'object') {
+              return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, rewrite(entry)]))
+            }
+
+            return value
+          }
+
+          const rewritten = rewrite(original)
+          const downloadUrls = []
+
+          function collectUrls(value) {
+            if (typeof value === 'string') {
+              if (/^https?:\/\//.test(value)) {
+                downloadUrls.push(value)
+              }
+              return
+            }
+
+            if (Array.isArray(value)) {
+              value.forEach(collectUrls)
+              return
+            }
+
+            if (value && typeof value === 'object') {
+              Object.values(value).forEach(collectUrls)
+            }
+          }
+
+          collectUrls(rewritten)
+
+          if (replacements === 0) {
+            throw new Error('No GitHub release asset URLs were rewritten in latest.json')
+          }
+
+          const githubReleaseUrls = downloadUrls.filter((url) => url.includes(`github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}/`))
+          if (githubReleaseUrls.length > 0) {
+            throw new Error(`Found ${githubReleaseUrls.length} unreplaced GitHub release asset URL(s)`)
+          }
+
+          const invalidCdnUrls = downloadUrls.filter((url) => url.includes('/releases/') && !url.startsWith(`${releaseBaseUrl}/`))
+          if (invalidCdnUrls.length > 0) {
+            throw new Error(`Found ${invalidCdnUrls.length} release URL(s) outside the CDN release prefix`)
+          }
+
+          fs.writeFileSync(outputPath, `${JSON.stringify(rewritten, null, 2)}\n`)
+          console.log(`Rewrote ${replacements} release asset URL(s) to ${releaseBaseUrl}`)
+          NODE
+
+      - name: Upload CDN updater manifest
+        run: |
+          set -euo pipefail
+          ossutil cp latest.aliyun.json "oss://${ALIYUN_OSS_BUCKET}/updates/latest.json" \
+            -c "$OSSUTIL_CONFIG" \
+            --force \
+            --no-progress \
+            --content-type "application/json; charset=utf-8" \
+            --cache-control "public, max-age=60"
+
+      - name: Refresh CDN updater manifest
+        run: |
+          set -euo pipefail
+          CDN_DOMAIN="${ALIYUN_CDN_DOMAIN#https://}"
+          CDN_DOMAIN="${CDN_DOMAIN#http://}"
+          CDN_DOMAIN="${CDN_DOMAIN%/}"
+          aliyun configure set \
+            --mode AK \
+            --access-key-id "$ALIYUN_ACCESS_KEY_ID" \
+            --access-key-secret "$ALIYUN_ACCESS_KEY_SECRET" \
+            --region "$ALIYUN_REGION_ID"
+          aliyun cdn RefreshObjectCaches \
+            --ObjectPath "https://${CDN_DOMAIN}/updates/latest.json" \
+            --ObjectType File \
+            --region "$ALIYUN_REGION_ID"

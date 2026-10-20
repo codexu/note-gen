@@ -1,12 +1,18 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from "react"
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { FileManager } from "./file-manager"
-import { FileFooter } from "./file-footer"
 import useArticleStore from "@/stores/article"
 import useClipboardStore from "@/stores/clipboard"
 import { isMobileDevice } from "@/lib/check"
 import { platform } from "@tauri-apps/plugin-os"
+import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
+import { flattenFileTree, getFileSelectionEntries, toClipboardItems } from "./file-selection"
+import { useShallow } from 'zustand/react/shallow'
+import { useWorkspaceFileWatcher } from './use-workspace-file-watcher'
+import useSettingStore from '@/stores/setting'
+import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { filterFileTreeByVisibility } from './file-tree-model'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -15,8 +21,21 @@ type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
  * 只有当文件管理器区域获得焦点时才响应快捷键
  */
 function useFileManagerShortcuts() {
-  const { activeFilePath, fileTree } = useArticleStore()
-  const { setClipboardItem } = useClipboardStore()
+  const { activeFilePath, fileTree, selectedFilePaths, showCloudFiles, showAssetsFolders } = useArticleStore(useShallow((state) => ({
+    activeFilePath: state.activeFilePath,
+    fileTree: state.fileTree,
+    selectedFilePaths: state.selectedFilePaths,
+    showCloudFiles: state.showCloudFiles,
+    showAssetsFolders: state.showAssetsFolders,
+  })))
+  const assetsPath = useSettingStore(state => state.assetsPath)
+  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
+  const visibleFileTree = useMemo(() => filterFileTreeByVisibility(fileTree, {
+    showCloudFiles,
+    showAssetsFolders,
+    assetsFolderName,
+  }), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles])
+  const { setClipboardItem, setClipboardItems } = useClipboardStore()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isFocused, setIsFocused] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -46,51 +65,25 @@ function useFileManagerShortcuts() {
     }
   }, [currentPlatform])
 
-  const isEditableTarget = useCallback((target: EventTarget | null): boolean => {
-    if (!(target instanceof HTMLElement)) {
-      return false
-    }
-
-    if (target.isContentEditable) {
-      return true
-    }
-
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
-      return true
-    }
-
-    return !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
-  }, [])
-
   // 获取当前激活的 item（文件或文件夹）
   const getActiveItem = useCallback((): { path: string; isDirectory: boolean; isLocale: boolean; name: string; sha?: string } | null => {
     if (!activeFilePath) return null
 
     // 递归查找文件树中匹配的项
-    function findInTree(tree: typeof fileTree, targetPath: string): ReturnType<typeof getActiveItem> {
-      for (const item of tree) {
-        const itemPath = item.parent ? `${item.parent.name}/${item.name}` : item.name
-
-        if (itemPath === targetPath || (item.parent && targetPath === `${item.parent.name}/${item.name}`)) {
-          return {
-            path: activeFilePath,
-            isDirectory: item.isDirectory,
-            isLocale: item.isLocale,
-            name: item.name,
-            sha: item.sha
-          }
-        }
-
-        if (item.children) {
-          const found = findInTree(item.children, targetPath)
-          if (found) return found
-        }
+    function findInTree(tree: typeof visibleFileTree, targetPath: string): ReturnType<typeof getActiveItem> {
+      const entry = flattenFileTree(tree).find(item => item.path === targetPath)
+      if (!entry) return null
+      return {
+        path: entry.path,
+        isDirectory: entry.isDirectory,
+        isLocale: entry.isLocale,
+        name: entry.name,
+        sha: entry.sha
       }
-      return null
     }
 
-    return findInTree(fileTree, activeFilePath)
-  }, [activeFilePath, fileTree])
+    return findInTree(visibleFileTree, activeFilePath)
+  }, [activeFilePath, visibleFileTree])
 
   // 处理快捷键
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -99,7 +92,8 @@ function useFileManagerShortcuts() {
       return
     }
 
-    if (isEditableTarget(e.target)) {
+    const editableTarget = isEditableKeyboardTarget(e.target)
+    if (editableTarget) {
       return
     }
 
@@ -108,24 +102,46 @@ function useFileManagerShortcuts() {
       return
     }
 
+    const selectedEntries = getFileSelectionEntries(visibleFileTree, selectedFilePaths)
+    const allSelectedEntriesAreLocal = selectedEntries.every(entry => entry.isLocale)
     const activeItem = getActiveItem()
-    if (!activeItem || !activeItem.isLocale) {
+
+    const modPressed = isModKey(e)
+
+    // 全选: Cmd+A / Ctrl+A
+    // 以最后选中的项目为锚点，选择它所在父文件夹下的全部直接子项。
+    if (modPressed && e.key.toLowerCase() === 'a') {
+      e.preventDefault()
+      e.stopPropagation()
+      window.dispatchEvent(new CustomEvent('filemanager-select-all', {
+        detail: {
+          anchorPath: selectedEntries.at(-1)?.path ?? activeItem?.path ?? '',
+        },
+      }))
       return
     }
 
-    const modPressed = isModKey(e)
+    if (selectedEntries.length === 0 && (!activeItem || !activeItem.isLocale)) {
+      return
+    }
 
     // 复制: Cmd+C / Ctrl+C
     if (modPressed && e.key === 'c') {
       e.preventDefault()
       e.stopPropagation()
-      setClipboardItem({
-        path: activeItem.path,
-        name: activeItem.name,
-        isDirectory: activeItem.isDirectory,
-        sha: activeItem.sha,
-        isLocale: activeItem.isLocale
-      }, 'copy')
+      if (selectedEntries.length > 0) {
+        if (allSelectedEntriesAreLocal) {
+          setClipboardItems(toClipboardItems(selectedEntries), 'copy')
+        }
+      } else if (activeItem) {
+        setClipboardItem({
+          path: activeItem.path,
+          name: activeItem.name,
+          isDirectory: activeItem.isDirectory,
+          sha: activeItem.sha,
+          isLocale: activeItem.isLocale
+        }, 'copy')
+      }
       return
     }
 
@@ -133,13 +149,19 @@ function useFileManagerShortcuts() {
     if (modPressed && e.key === 'x') {
       e.preventDefault()
       e.stopPropagation()
-      setClipboardItem({
-        path: activeItem.path,
-        name: activeItem.name,
-        isDirectory: activeItem.isDirectory,
-        sha: activeItem.sha,
-        isLocale: activeItem.isLocale
-      }, 'cut')
+      if (selectedEntries.length > 0) {
+        if (allSelectedEntriesAreLocal) {
+          setClipboardItems(toClipboardItems(selectedEntries), 'cut')
+        }
+      } else if (activeItem) {
+        setClipboardItem({
+          path: activeItem.path,
+          name: activeItem.name,
+          isDirectory: activeItem.isDirectory,
+          sha: activeItem.sha,
+          isLocale: activeItem.isLocale
+        }, 'cut')
+      }
       return
     }
 
@@ -148,8 +170,11 @@ function useFileManagerShortcuts() {
       e.preventDefault()
       e.stopPropagation()
       // 触发粘贴操作（通过事件或直接调用）
-      const event = new CustomEvent('filemanager-paste', { detail: { targetPath: activeItem.path } })
-      window.dispatchEvent(event)
+      const pasteTargetPath = selectedEntries.length === 1 ? selectedEntries[0].path : activeItem?.path
+      if (pasteTargetPath) {
+        const event = new CustomEvent('filemanager-paste', { detail: { targetPath: pasteTargetPath } })
+        window.dispatchEvent(event)
+      }
       return
     }
 
@@ -161,8 +186,12 @@ function useFileManagerShortcuts() {
     if (isDeleteKey) {
       e.preventDefault()
       e.stopPropagation()
-      const event = new CustomEvent('filemanager-delete', { detail: { item: activeItem } })
-      window.dispatchEvent(event)
+      if (selectedEntries.length > 0) {
+        window.dispatchEvent(new CustomEvent('filemanager-delete-selection'))
+      } else if (activeItem) {
+        const event = new CustomEvent('filemanager-delete', { detail: { item: activeItem } })
+        window.dispatchEvent(event)
+      }
       return
     }
 
@@ -174,11 +203,14 @@ function useFileManagerShortcuts() {
     if (isRenameKey) {
       e.preventDefault()
       e.stopPropagation()
-      const event = new CustomEvent('filemanager-rename', { detail: { path: activeItem.path } })
-      window.dispatchEvent(event)
+      const renamePath = selectedEntries.length === 1 ? selectedEntries[0].path : activeItem?.path
+      if (renamePath && selectedEntries.length <= 1) {
+        const event = new CustomEvent('filemanager-rename', { detail: { path: renamePath } })
+        window.dispatchEvent(event)
+      }
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, setClipboardItem, isEditableTarget])
+  }, [isFocused, getActiveItem, isModKey, currentPlatform, selectedFilePaths, setClipboardItem, setClipboardItems, visibleFileTree])
 
   // 注册全局快捷键
   useEffect(() => {
@@ -243,26 +275,43 @@ function useFileManagerShortcuts() {
 }
 
 export function FileSidebar() {
-  const { initCollapsibleList, initSortSettings, initShowCloudFiles } = useArticleStore()
+  useWorkspaceFileWatcher()
+  const {
+    initCollapsibleList,
+    initSortSettings,
+    initShowCloudFiles,
+    initShowAssetsFolders,
+    initSyncStaticAssets,
+    initShowKnowledgeBaseStatus,
+  } = useArticleStore(useShallow((state) => ({
+    initCollapsibleList: state.initCollapsibleList,
+    initSortSettings: state.initSortSettings,
+    initShowCloudFiles: state.initShowCloudFiles,
+    initShowAssetsFolders: state.initShowAssetsFolders,
+    initSyncStaticAssets: state.initSyncStaticAssets,
+    initShowKnowledgeBaseStatus: state.initShowKnowledgeBaseStatus,
+  })))
   const { sidebarRef, focusSidebar } = useFileManagerShortcuts()
 
   useEffect(() => {
     initCollapsibleList()
     initSortSettings()
     initShowCloudFiles()
+    initShowAssetsFolders()
+    initSyncStaticAssets()
+    initShowKnowledgeBaseStatus()
   }, [])
 
   return (
     <div
       ref={sidebarRef}
       id="article-sidebar"
-      className="w-full h-full flex flex-col outline-none"
+      className="flex h-full w-full flex-col bg-background text-foreground outline-none"
       tabIndex={-1}
     >
-      <div className="flex-1 overflow-x-hidden overflow-y-auto">
-        <FileManager focusSidebar={focusSidebar} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <FileManager focusSidebar={focusSidebar} showSearch={false} />
       </div>
-      <FileFooter />
     </div>
   )
 }

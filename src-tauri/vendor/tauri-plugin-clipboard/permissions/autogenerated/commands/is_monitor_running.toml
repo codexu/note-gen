@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-is-monitor-running"
+description = "Enables the is_monitor_running command without any pre-configured scope."
+commands.allow = ["is_monitor_running"]
+
+[[permission]]
+identifier = "deny-is-monitor-running"
+description = "Denies the is_monitor_running command without any pre-configured scope."
+commands.deny = ["is_monitor_running"]

@@ -2,16 +2,8 @@ import { Store } from "@tauri-apps/plugin-store";
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { toast } from '@/hooks/use-toast';
 import { v4 as uuid } from 'uuid';
-
-interface S3Config {
-  accessKeyId: string
-  secretAccessKey: string
-  region: string
-  bucket: string
-  endpoint?: string
-  customDomain?: string
-  pathPrefix?: string
-}
+import type { S3Config } from './types';
+import { buildObjectStorageUrl } from './object-storage-presets';
 
 // 生成 AWS 签名 V4 (使用 Web Crypto API)
 async function generateSignature(
@@ -31,7 +23,10 @@ async function generateSignature(
   
   // 创建规范请求
   // 必须对路径进行 URI 编码，但要保留斜杠
-  const canonicalUri = new URL(url).pathname.split('/').map(encodeURIComponent).join('/');
+  const canonicalUri = new URL(url).pathname
+    .split('/')
+    .map((part) => encodeURIComponent(decodeURIComponent(part)))
+    .join('/');
   const canonicalQuerystring = '';
 
   // AWS V4 签名要求 Headers 的 Key 必须全部转为小写
@@ -161,28 +156,7 @@ export async function testS3Connection(config: S3Config): Promise<boolean> {
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    const endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
-    const bucket = config.bucket.trim();
-    
-    // 智能判断 URL 风格
-    let url = `${endpoint}/${bucket}`;
-    
-    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
-    // 将 https://oss-cn-beijing.aliyuncs.com/bucket 改为 https://bucket.oss-cn-beijing.aliyuncs.com
-    const isAliyun = endpoint.includes('aliyuncs.com');
-    const isAWS = endpoint.includes('amazonaws.com');
-    
-    if (isAliyun || isAWS) {
-       try {
-         const urlObj = new URL(endpoint);
-         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-         url = urlObj.toString();
-         // 移除末尾斜杠
-         if (url.endsWith('/')) url = url.slice(0, -1);
-       } catch {
-         console.warn('[S3] Failed to construct Virtual Hosted URL, falling back to Path Style');
-       }
-    }
+    const url = buildObjectStorageUrl(config);
     
 
     const emptyPayload = new ArrayBuffer(0);
@@ -221,7 +195,7 @@ export async function testS3Connection(config: S3Config): Promise<boolean> {
         console.warn('ListObjects (GET) failed with 403, trying PutObject to verify write permission...');
         
         const testKey = '.connection-test';
-        const testUrl = `${url}/${testKey}`.replace(/([^:]\/)\/+/g, "$1");
+        const testUrl = buildObjectStorageUrl(config, testKey);
         const testContent = new TextEncoder().encode('test');
         
         const putHeaders = {
@@ -305,29 +279,7 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
     const key = prefix ? `${prefix}/${filename}` : filename;
     
     // 准备上传
-    let endpoint = (config.endpoint || `https://s3.${config.region}.amazonaws.com`).trim();
-    // 移除 endpoint 末尾的斜杠
-    if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
-
-    const bucket = config.bucket.trim();
-    let url = `${endpoint}/${bucket}/${key}`;
-
-    // 针对阿里云 OSS、AWS S3 等支持 Virtual Hosted Style 的服务进行优化
-    const isAliyun = endpoint.includes('aliyuncs.com');
-    const isAWS = endpoint.includes('amazonaws.com');
-    
-    if (isAliyun || isAWS) {
-       try {
-         const urlObj = new URL(endpoint);
-         urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-         // 重新构建 URL，包含 key
-         url = `${urlObj.toString()}/${key}`;
-         // 处理可能的双斜杠
-         url = url.replace(/([^:]\/)\/+/g, "$1");
-       } catch {
-         console.warn('[S3 Upload] Failed to switch to Virtual Hosted Style');
-       }
-    }
+    const url = buildObjectStorageUrl(config, key);
     // 读取文件内容
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
@@ -359,18 +311,7 @@ export async function uploadImageByS3(file: File): Promise<string | undefined> {
         const domain = config.customDomain.trim().replace(/\/+$/, '');
         return `${domain}/${key}`;
       } else {
-        // 如果使用了 Virtual Hosted Style，返回优化后的 URL
-        if (isAliyun || isAWS) {
-           try {
-             const urlObj = new URL(endpoint);
-             urlObj.hostname = `${bucket}.${urlObj.hostname}`;
-             const baseUrl = urlObj.toString().replace(/\/+$/, '');
-             return `${baseUrl}/${key}`;
-           } catch {
-             return `${endpoint}/${bucket}/${key}`;
-           }
-        }
-        return `${endpoint}/${bucket}/${key}`;
+        return buildObjectStorageUrl(config, key);
       }
     } else {
       const errorText = await response.text();

@@ -8,14 +8,20 @@ import {
   DrawerContent,
   DrawerTrigger,
   DrawerClose,
+  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
-import { FileSelector } from "@/app/core/main/chat/file-selector"
+import dynamic from "next/dynamic"
 import { MarkdownFile } from "@/lib/files"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
+
+const FileSelector = dynamic(
+  () => import('@/app/core/main/chat/file-selector').then(module => module.FileSelector),
+  { ssr: false },
+)
 
 interface ChatAttachmentsDrawerProps {
   onImageSelect: () => void
@@ -46,10 +52,10 @@ export function ChatAttachmentsDrawer({
           />
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
-          <DrawerTitle className="sr-only">
-            {t('attachments.title')}
-          </DrawerTitle>
-          <div className="p-4 overflow-auto">
+          <DrawerHeader>
+            <DrawerTitle>{t('attachments.title')}</DrawerTitle>
+          </DrawerHeader>
+          <div className="p-4">
             <div className="grid grid-cols-3 gap-2">
               <Button
                 variant="outline"

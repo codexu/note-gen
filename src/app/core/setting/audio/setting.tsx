@@ -6,8 +6,9 @@ import { Slider } from "@/components/ui/slider";
 import { useState, useEffect } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import useSettingStore from "@/stores/setting";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ResponsiveSelect } from "@/components/responsive-select";
 import type { SpeechMode } from '@/lib/speech/types';
+import { SettingSection } from '../components/setting-base'
 
 export function Setting() {
   const t = useTranslations('settings.audio');
@@ -96,14 +97,9 @@ export function Setting() {
   };
 
   return (
-    <ItemGroup className="gap-6">
-      {/* TTS朗读设置部分 */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-foreground">{t('tts.title')}</h3>
-        <p className="text-xs text-muted-foreground">{t('tts.desc')}</p>
-      </div>
-
-      <ItemGroup className="gap-4">
+    <div className="flex flex-col gap-6">
+      <SettingSection title={t('tts.title')} desc={t('tts.desc')}>
+        <ItemGroup>
         <Item variant="outline">
           <ItemMedia variant="icon"><Volume2 className="size-4" /></ItemMedia>
           <ItemContent>
@@ -111,16 +107,13 @@ export function Setting() {
             <ItemDescription>{t('tts.modeDesc')}</ItemDescription>
           </ItemContent>
           <ItemActions>
-            <Select value={textToSpeechMode} onValueChange={(value) => setTextToSpeechMode(value as SpeechMode)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {modeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ResponsiveSelect
+              title={t('mode.title')}
+              value={textToSpeechMode}
+              onValueChange={value => setTextToSpeechMode(value as SpeechMode)}
+              className="w-full sm:w-[180px]"
+              options={modeOptions}
+            />
           </ItemActions>
         </Item>
 
@@ -150,22 +143,18 @@ export function Setting() {
                   min={0.5}
                   max={2}
                   step={0.1}
-                  className="w-[180px]"
+                  className="w-full sm:w-[180px]"
                 />
                 <span className="text-zinc-500 w-10">{speed}x</span>
               </div>
             </ItemActions>
           </Item>
         )}
-      </ItemGroup>
+        </ItemGroup>
+      </SettingSection>
 
-      {/* STT语音识别设置部分 */}
-      <div className="space-y-2 mt-8">
-        <h3 className="text-sm font-medium text-foreground">{t('stt.title')}</h3>
-        <p className="text-xs text-muted-foreground">{t('stt.desc')}</p>
-      </div>
-
-      <ItemGroup className="gap-4">
+      <SettingSection title={t('stt.title')} desc={t('stt.desc')}>
+        <ItemGroup>
         <Item variant="outline">
           <ItemMedia variant="icon"><Mic className="size-4" /></ItemMedia>
           <ItemContent>
@@ -176,7 +165,8 @@ export function Setting() {
             <ModelSelect modelKey="stt" />
           </ItemActions>
         </Item>
-      </ItemGroup>
-    </ItemGroup>
+        </ItemGroup>
+      </SettingSection>
+    </div>
   )
 }

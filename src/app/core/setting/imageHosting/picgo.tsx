@@ -6,15 +6,16 @@ import useImageStore from "@/stores/imageHosting";
 import { checkPicgoState, type PicgoImageHostingSetting } from "@/lib/imageHosting/picgo";
 import { CheckCircle, LoaderCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item";
+import { SyncStateEnum } from "@/lib/sync/github.types";
 
 const DEFAULT_URL = 'http://127.0.0.1:36677'
 
 export default function PicgoImageHosting() {
-  useTranslations('settings.imageHosting');
-  useImageStore()
+  const t = useTranslations('settings.imageHosting.picgo');
+  const { picgoState, setPicgoState } = useImageStore()
 
-  const [loading, setLoading] = useState(false)
-  const [picgoState, setPicgoState] = useState(false)
   const [url, setUrl] = useState(DEFAULT_URL)
 
   async function init() {
@@ -29,11 +30,9 @@ export default function PicgoImageHosting() {
   }
 
   async function handleCheckPicgoState() {
-    setLoading(true)
-    setPicgoState(false)
+    setPicgoState(SyncStateEnum.checking)
     const state = await checkPicgoState()
-    setPicgoState(state)
-    setLoading(false)
+    setPicgoState(state ? SyncStateEnum.success : SyncStateEnum.fail)
   }
 
   async function handleSaveUrl(url: string) {
@@ -54,59 +53,53 @@ export default function PicgoImageHosting() {
   }, [])
 
   const getStatusIcon = () => {
-    if (loading) {
-      return <LoaderCircle className="size-4 animate-spin text-blue-500" />;
+    if (picgoState === SyncStateEnum.checking) {
+      return <LoaderCircle className="size-4 animate-spin text-muted-foreground" />;
     }
-    if (picgoState) {
-      return <CheckCircle className="size-4 text-green-500" />;
+    if (picgoState === SyncStateEnum.success) {
+      return <CheckCircle className="size-4 text-primary" />;
     }
-    return <XCircle className="size-4 text-red-500" />;
+    return <XCircle className="size-4 text-muted-foreground" />;
   };
 
   const getStatusText = () => {
-    if (loading) {
-      return '检测中';
+    if (picgoState === SyncStateEnum.checking) {
+      return t('connecting');
     }
-    if (picgoState) {
-      return '已连接';
+    if (picgoState === SyncStateEnum.success) {
+      return t('connected');
     }
-    return '未连接';
+    return t('disconnected');
   };
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>PicGo 图床</CardTitle>
-            <CardDescription>
-              使用 PicGo 客户端作为图片上传工具
-            </CardDescription>
-          </div>
-        </div>
+        <CardTitle>{t('title')}</CardTitle>
+        <CardDescription>{t('description')}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 状态显示 */}
-        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-          <span className="text-sm font-medium">连接状态</span>
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            <span className="text-sm">{getStatusText()}</span>
-          </div>
-        </div>
-
-
-        {/* URL 配置 */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">PicGo Server</label>
-          <Input
-            type="text"
-            value={url}
-            onChange={(e) => handleSaveUrl(e.target.value)}
-            placeholder="http://127.0.0.1:36677"
-          />
-        </div>
-
+      <CardContent>
+        <FieldGroup>
+          <Item variant="muted">
+            <ItemContent>
+              <ItemTitle>{t('status')}</ItemTitle>
+            </ItemContent>
+            <ItemActions>
+              {getStatusIcon()}
+              <span className="text-sm">{getStatusText()}</span>
+            </ItemActions>
+          </Item>
+          <Field>
+            <FieldLabel htmlFor="picgo-server">PicGo Server</FieldLabel>
+            <Input
+              id="picgo-server"
+              value={url}
+              onChange={(e) => handleSaveUrl(e.target.value)}
+              placeholder="http://127.0.0.1:36677"
+            />
+            <FieldDescription>{t('desc')}</FieldDescription>
+          </Field>
+        </FieldGroup>
       </CardContent>
     </Card>
   )

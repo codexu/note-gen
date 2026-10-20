@@ -1,39 +1,59 @@
-function normalizeSegment(segment: string) {
-  return segment.replace(/\s/g, '_')
-}
-
 function encodePath(path: string) {
   return path
     .split('/')
     .filter(Boolean)
-    .map(segment => encodeURIComponent(normalizeSegment(segment)))
+    .map(segment => encodeURIComponent(segment))
     .join('/')
 }
 
-export function buildRepoContentPath({
-  path,
-  filename,
-}: {
+export function debugSyncPath(_scope: string, _payload: Record<string, unknown>) {
+  void _scope
+  void _payload
+  // Sync diagnostics are intentionally quiet in normal builds.
+}
+
+export function debugSyncPerf(_scope: string, _payload: Record<string, unknown>) {
+  void _scope
+  void _payload
+  // Sync diagnostics are intentionally quiet in normal builds.
+}
+
+export function buildRemoteLogicalPath(options: {
   path?: string
   filename?: string
+  preserveWhitespace?: boolean
 }) {
+  const { path, filename } = options
   const normalizedPath = path?.replace(/^\/+|\/+$/g, '') || ''
-  const normalizedFilename = filename ? normalizeSegment(filename) : ''
+  const normalizedFilename = filename || ''
 
   if (!normalizedPath) {
-    return normalizedFilename ? encodePath(normalizedFilename) : ''
+    return normalizedFilename
   }
 
   if (!normalizedFilename) {
-    return encodePath(normalizedPath)
+    return normalizedPath
   }
 
-  const segments = normalizedPath.split('/').filter(Boolean).map(normalizeSegment)
+  const segments = normalizedPath
+    .split('/')
+    .filter(Boolean)
   if (segments[segments.length - 1] !== normalizedFilename) {
     segments.push(normalizedFilename)
   }
 
-  return segments.map(encodeURIComponent).join('/')
+  return segments.join('/')
+}
+
+export function buildRepoContentPath(options: {
+  path?: string
+  filename?: string
+  preserveWhitespace?: boolean
+}) {
+  const logicalPath = buildRemoteLogicalPath(options)
+  const encodedPath = encodePath(logicalPath)
+
+  return encodedPath
 }
 
 export function buildRepoContentsEndpoint(path?: string) {
@@ -51,13 +71,23 @@ type RemoteDirectoryEntry = {
   sha?: string
 }
 
+function isFileEntry(entry: RemoteDirectoryEntry) {
+  return entry.type === 'file' || entry.type === 'blob'
+}
+
 export function pickNestedFileEntry(entries: RemoteDirectoryEntry[], requestedPath: string) {
-  const files = entries.filter(entry => entry.type === 'file' && typeof entry.path === 'string')
+  const files = entries.filter(entry => isFileEntry(entry) && typeof entry.path === 'string')
   if (files.length === 0) {
     return null
   }
 
-  const expectedName = requestedPath.split('/').filter(Boolean).pop()?.replace(/\s/g, '_')
+  const normalizedRequestedPath = requestedPath.replace(/^\/+|\/+$/g, '')
+  const expectedName = normalizedRequestedPath.split('/').filter(Boolean).pop()
+  const pathMatch = files.find(entry => entry.path === normalizedRequestedPath)
+  if (pathMatch) {
+    return pathMatch
+  }
+
   if (expectedName) {
     const namedMatch = files.find(entry => entry.name === expectedName)
     if (namedMatch) {
@@ -85,19 +115,42 @@ export function getRemoteFileContent(file: unknown, path: string) {
   return content
 }
 
+export function isMissingRemoteFileError(message: string) {
+  return message.includes('远程文件不存在') || message.includes('远程路径指向的是目录')
+}
+
+export function hasEmptyRemoteFileContent(file: unknown) {
+  if (typeof file !== 'object' || file === null || Array.isArray(file)) {
+    return false
+  }
+
+  const content = (file as { content?: unknown }).content
+  return typeof content === 'string' && content.trim().length === 0
+}
+
 export function decodeBase64ToString(content: unknown) {
+  return new TextDecoder().decode(decodeBase64ToBytes(content))
+}
+
+export function decodeBase64ToBytes(content: unknown): Uint8Array {
   if (typeof content !== 'string') {
     throw new Error('远程文件内容不是有效的 Base64 字符串')
   }
 
   const normalized = content.replace(/\s+/g, '')
   if (!normalized) {
-    return ''
+    return new Uint8Array()
   }
 
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized) || normalized.length % 4 === 1) {
     throw new Error('远程文件内容不是有效的 Base64 字符串')
   }
 
-  return Buffer.from(normalized, 'base64').toString('utf-8')
+  return new Uint8Array(Buffer.from(normalized, 'base64'))
+}
+
+export function encodeRemoteFileContent(content: string | Uint8Array): string {
+  return typeof content === 'string'
+    ? Buffer.from(content, 'utf-8').toString('base64')
+    : Buffer.from(content).toString('base64')
 }

@@ -1,469 +1,488 @@
 'use client'
 
-import { useCallback, useRef, useState, useEffect, memo } from 'react'
-import { X, FileText, Folder, Plus, Undo2, Redo2 } from 'lucide-react'
-import { useTranslations } from 'next-intl'
+import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
+
+import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ExternalLink, FileLock, FilePlus2, FileText, Folder, Globe2, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
+import { platform } from '@tauri-apps/plugin-os'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { checkIsTauri } from '@/lib/check'
+import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import { useLocale, useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import emitter from '@/lib/emitter'
 import { TooltipButton } from '@/components/tooltip-button'
+import { Button } from '@/components/ui/button'
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
+  ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem,
+  ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger,
 } from '@/components/ui/enhanced-context-menu'
-import { platform } from '@tauri-apps/plugin-os'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import useSettingStore from '@/stores/setting'
+import type { Mark } from '@/db/marks'
+import { isRecordTabPath } from '../mark/mark-record-tab'
+import { getMarkTypeListBadgeClasses } from '../mark/mark-type-meta'
+import { getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
+import type { EditorSplitDirection } from './editor-group-layout'
+import { canOpenInEditorWindow } from '@/lib/editor-windows'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
+import { PluginIcon } from '@/components/plugins/plugin-icon'
+import { usePluginStore } from '@/stores/plugins'
+import { isPluginEnabledInWorkspace } from '@/lib/plugins/internal-types'
+import { isPluginDisplayVisible } from '@/lib/plugins/display-preferences'
+import { usePluginLocalization } from '@/lib/plugins/localization'
+import { resolvePluginViewTitle } from '@/app/core/setting/plugins/plugin-display'
+import { openPluginView } from '@/lib/plugins/ui-registry'
+import { parsePluginEditorTabPath } from '@/lib/plugins/editor-tab'
+import { toast } from 'sonner'
 
 export interface TabInfo {
   id: string
   path: string
   name: string
   isFolder: boolean
+  kind?: 'file' | 'record' | 'canvas' | 'blank' | 'plugin' | 'browser'
+  autoCreated?: boolean
+  preview?: boolean
+  pinned?: boolean
+  markId?: number
+  markType?: Mark['type']
+  canvasId?: string
+  url?: string
 }
 
 interface TabBarProps {
+  groupId: string
   tabs: TabInfo[]
   activeTabId: string
-  onTabSwitch: (path: string) => void
+  isActiveGroup: boolean
+  isMaximized: boolean
+  onTabSwitch: (tabId: string) => void
   onNewTab: () => void
-  onCloseTab: (path: string) => void
-  onCloseOtherTabs: (path: string) => void
+  onNewNote: () => void
+  onNewRecord: () => void
+  onNewCanvas: () => void
+  onNewBrowser: () => void
+  onCloseTab: (tabId: string) => void
+  onCloseOtherTabs: (tabId: string) => void
   onCloseAllTabs: () => void
-  onCloseLeftTabs: (path: string) => void
-  onCloseRightTabs: (path: string) => void
-  showUndoRedo?: boolean // 保留这个 prop 以保持兼容性，但主要使用 store 中的值
+  onCloseLeftTabs: (tabId: string) => void
+  onCloseRightTabs: (tabId: string) => void
+  onSplitTab: (tabId: string, direction: EditorSplitDirection) => void
+  onMoveToNewWindow: (tabId: string) => void
+  onPinTab: (tabId: string) => void
+  onUnpinTab: (tabId: string) => void
+  onRestartPluginTab: (tabId: string) => void
+  onToggleMaximize: () => void
+  canCloseGroup: boolean
+  onCloseGroup: () => void
 }
 
-// Sortable Tab with Context Menu
 function SortableTabWithMenu({
-  tab,
-  isActive,
-  tabs,
-  modKey,
-  onTabSwitch,
-  onCloseTab,
-  onCloseOtherTabs,
-  onCloseAllTabs,
-  onCloseLeftTabs,
-  onCloseRightTabs,
+  tab, groupId, isActive, tabs, modKey, onTabSwitch, onCloseTab,
+  onCloseOtherTabs, onCloseAllTabs, onCloseLeftTabs, onCloseRightTabs,
+  onSplitTab, onMoveToNewWindow, onPinTab, onUnpinTab, onRestartPluginTab,
 }: {
   tab: TabInfo
+  groupId: string
   isActive: boolean
   tabs: TabInfo[]
   modKey: string
-  onTabSwitch: (path: string) => void
-  onCloseTab: (path: string) => void
-  onCloseOtherTabs: (path: string) => void
+  onTabSwitch: (tabId: string) => void
+  onCloseTab: (tabId: string) => void
+  onCloseOtherTabs: (tabId: string) => void
   onCloseAllTabs: () => void
-  onCloseLeftTabs: (path: string) => void
-  onCloseRightTabs: (path: string) => void
+  onCloseLeftTabs: (tabId: string) => void
+  onCloseRightTabs: (tabId: string) => void
+  onSplitTab: (tabId: string, direction: EditorSplitDirection) => void
+  onMoveToNewWindow: (tabId: string) => void
+  onPinTab: (tabId: string) => void
+  onUnpinTab: (tabId: string) => void
+  onRestartPluginTab: (tabId: string) => void
+  localizationRevision: number
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: tab.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `editor-tab:${groupId}:${tab.id}`,
+    data: { type: 'editor-tab', groupId, tabId: tab.id },
+  })
   const t = useTranslations('tabContext')
-  const currentIndex = tabs.findIndex(t => t.id === tab.id)
-  const canCloseLeft = currentIndex > 0
-  const canCloseRight = currentIndex < tabs.length - 1
-  const hasOthers = tabs.length > 1
-
-  const handleAction = (action: 'close' | 'closeOthers' | 'closeAll' | 'closeLeft' | 'closeRight') => {
-    switch (action) {
-      case 'close':
-        onCloseTab(tab.path)
-        break
-      case 'closeOthers':
-        onCloseOtherTabs(tab.path)
-        break
-      case 'closeAll':
-        onCloseAllTabs()
-        break
-      case 'closeLeft':
-        onCloseLeftTabs(tab.path)
-        break
-      case 'closeRight':
-        onCloseRightTabs(tab.path)
-        break
-    }
-  }
+  const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const readOnly = useEditorReadingStore(state => Boolean(state.readOnlyFiles[readingKey(readingWorkspacePath, tab.path)]))
+  const tReading = useTranslations('editor.readingMode')
+  const recordTypeT = useTranslations('record.mark.type')
+  const locale = useLocale()
+  const currentIndex = tabs.findIndex(item => item.id === tab.id)
+  const isRecordTab = tab.kind === 'record' || isRecordTabPath(tab.path)
+  const isCanvasTab = tab.kind === 'canvas' || isCanvasTabPath(tab.path)
+  const pluginTab = parsePluginEditorTabPath(tab.path)
+  const plugin = usePluginStore(state => pluginTab ? state.installed.find(item => item.manifest.id === pluginTab.pluginId) : undefined)
+  const workspaceId = usePluginStore(state => state.currentWorkspaceId)
+  const workspaceStates = usePluginStore(state => state.workspaceStates)
+  const pluginView = pluginTab && plugin?.manifest.contributes.views?.find(view => view.id === pluginTab.viewId)
+  const pluginState = pluginTab && workspaceId ? workspaceStates[workspaceId]?.[pluginTab.pluginId] : undefined
+  const pluginIcon = pluginView?.icon
+  const displayName = plugin && pluginView ? resolvePluginViewTitle(plugin, pluginView, locale, pluginState?.settings) : tab.name
+  const canDetach = canOpenInEditorWindow(tab)
+  const canClose = tabs.length > 1 || tab.kind !== 'blank' || !tab.autoCreated
+  const recordTypeLabel = isRecordTab ? recordTypeT(tab.markType || 'text') : ''
+  const baseTitle = isRecordTab ? `${recordTypeLabel}: ${tab.name}` : tab.kind === 'blank' || tab.kind === 'browser' || pluginTab ? displayName : tab.path
+  const hasClosableOtherTabs = tabs.some(item => item.id !== tab.id && !item.pinned)
+  const hasClosableLeftTabs = tabs.slice(0, currentIndex).some(item => !item.pinned)
+  const hasClosableRightTabs = tabs.slice(currentIndex + 1).some(item => !item.pinned)
+  const hasClosableUnpinnedTabs = tabs.some(item => !item.pinned && (tabs.length > 1 || item.kind !== 'blank'))
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
-          style={style}
+          style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.45 : 1 }}
           data-tab-id={tab.id}
           className={cn(
-            'group relative flex items-center gap-1.5 px-3 h-9 text-sm cursor-pointer transition-all shrink-0',
-            isActive
-              ? 'text-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground'
+            'group relative flex h-12 max-w-56 shrink-0 cursor-pointer items-center gap-1.5 px-3 text-sm transition-colors',
+            isActive ? 'bg-muted/40 font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
-          title={tab.path}
-          onClick={() => onTabSwitch(tab.path)}
+          title={`${tab.preview ? `${t('previewTab')}: ` : ''}${baseTitle}${readOnly ? ` (${tReading('readOnly')})` : ''}`}
+          onClick={() => onTabSwitch(tab.id)}
+          onAuxClick={event => {
+            if (event.button !== 1 || !canClose) return
+            event.preventDefault()
+            onCloseTab(tab.id)
+          }}
+          onDoubleClick={event => {
+            if ((event.target as HTMLElement).closest('button,[role="menuitem"]')) return
+            if (tab.kind !== 'blank' && !tab.pinned) onPinTab(tab.id)
+          }}
           {...attributes}
           {...listeners}
         >
-          {tab.isFolder ? (
-            <Folder className="w-4 h-4 shrink-0 text-amber-500" />
+          {tab.kind === 'blank' ? (
+            <FilePlus2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          ) : tab.kind === 'browser' ? (
+            <Globe2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          ) : pluginTab ? (
+            <PluginIcon name={pluginIcon} className="size-4 shrink-0" />
+          ) : isRecordTab ? (
+            <span className={cn(getMarkTypeListBadgeClasses(tab.markType || 'text'), 'shrink-0 text-[10px]')}>{recordTypeLabel}</span>
+          ) : isCanvasTab ? (
+            <Palette className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+          ) : tab.isFolder ? (
+            <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
+          ) : readOnly ? (
+            <FileLock className={cn('size-4 shrink-0', isActive && 'text-primary')} aria-label={tReading('readOnly')} />
           ) : (
-            <FileText className={cn('w-4 h-4 shrink-0', isActive ? 'text-primary' : '')} />
+            <PluginFileIcon path={tab.path} fallback={<FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />} />
           )}
-          <span className="truncate max-w-40">{tab.name}</span>
-
-          {/* Close button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onCloseTab(tab.path)
+          {tab.pinned && <Pin className="size-3.5 shrink-0 text-primary" />}
+          <span className={cn('truncate', tab.preview && 'italic')}>{displayName}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="ml-1 size-5 opacity-0 transition-opacity group-hover:opacity-100"
+            aria-label={t('close')}
+            disabled={!canClose}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={event => {
+              event.stopPropagation()
+              onCloseTab(tab.id)
             }}
-            className={cn(
-              'p-1 rounded transition-all shrink-0 ml-1',
-              'opacity-0 group-hover:opacity-100',
-              'hover:bg-muted'
-            )}
           >
-            <X className="w-3 h-3" />
-          </button>
-
-          {/* Active indicator line */}
-          {isActive && (
-            <div className="absolute -bottom-px left-0 right-0 h-0.5 bg-primary" />
-          )}
+            <X />
+          </Button>
+          {isActive && <div className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
         </div>
       </ContextMenuTrigger>
-
-      <ContextMenuContent className="w-48">
-        <ContextMenuItem onClick={() => handleAction('close')}>
-          {t('close')}
-          <ContextMenuShortcut>{modKey}W</ContextMenuShortcut>
-        </ContextMenuItem>
+      <ContextMenuContent>
+        {pluginTab && <><ContextMenuGroup>
+          <ContextMenuItem onClick={() => onRestartPluginTab(tab.id)}><RotateCw />{t('restartPluginTab', { name: displayName })}</ContextMenuItem>
+        </ContextMenuGroup><ContextMenuSeparator /></>}
+        <ContextMenuGroup>
+          {readOnly && (
+            <ContextMenuItem onClick={() => {
+              if (!useEditorReadingStore.getState().setReadOnly(readingWorkspacePath, tab.path, false)) {
+                toast.error(tReading('busy'))
+              }
+            }}>
+              <LockKeyholeOpen />{tReading('disable')}
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem
+            disabled={tab.kind === 'blank'}
+            onClick={() => tab.pinned ? onUnpinTab(tab.id) : onPinTab(tab.id)}
+          >
+            {tab.pinned ? <PinOff /> : <Pin />}
+            {t(tab.pinned ? 'unpinTab' : 'pinTab')}
+          </ContextMenuItem>
+        </ContextMenuGroup>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => handleAction('closeOthers')}
-          disabled={!hasOthers}
-        >
-          {t('closeOthers')}
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => handleAction('closeLeft')}
-          disabled={!canCloseLeft}
-        >
-          {t('closeLeft')}
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => handleAction('closeRight')}
-          disabled={!canCloseRight}
-        >
-          {t('closeRight')}
-        </ContextMenuItem>
+        <ContextMenuGroup>
+          <ContextMenuItem disabled={!canClose} onClick={() => onCloseTab(tab.id)}>{t('close')}<ContextMenuShortcut>{modKey}W</ContextMenuShortcut></ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableOtherTabs} onClick={() => onCloseOtherTabs(tab.id)}>{t('closeOthers')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableLeftTabs} onClick={() => onCloseLeftTabs(tab.id)}>{t('closeLeft')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableRightTabs} onClick={() => onCloseRightTabs(tab.id)}>{t('closeRight')}</ContextMenuItem>
+          <ContextMenuItem disabled={!hasClosableUnpinnedTabs} onClick={onCloseAllTabs}>{t('closeAll')}</ContextMenuItem>
+        </ContextMenuGroup>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => handleAction('closeAll')}
-          disabled={tabs.length === 0}
-        >
-          {t('closeAll')}
-        </ContextMenuItem>
+        <ContextMenuGroup>
+          <ContextMenuItem disabled={tabs.length < 2} onClick={() => onSplitTab(tab.id, 'left')}><PanelLeft />{t('splitLeft')}</ContextMenuItem>
+          <ContextMenuItem disabled={tabs.length < 2} onClick={() => onSplitTab(tab.id, 'right')}><PanelRight />{t('splitRight')}</ContextMenuItem>
+          <ContextMenuItem disabled={tabs.length < 2} onClick={() => onSplitTab(tab.id, 'up')}><PanelTop />{t('splitUp')}</ContextMenuItem>
+          <ContextMenuItem disabled={tabs.length < 2} onClick={() => onSplitTab(tab.id, 'down')}><PanelBottom />{t('splitDown')}</ContextMenuItem>
+        </ContextMenuGroup>
+        <ContextMenuSeparator />
+        <ContextMenuGroup>
+          <ContextMenuItem disabled={!canDetach} onClick={() => onMoveToNewWindow(tab.id)}><ExternalLink />{t('moveToNewWindow')}</ContextMenuItem>
+        </ContextMenuGroup>
+        {!isRecordTab && !isCanvasTab && tab.kind !== 'blank' && !tab.isFolder && /\.md$/i.test(tab.path) ? (
+          <PluginFileMenuItems location="tab/context" context={{ kind: 'file', relativePath: tab.path, selectedPaths: [tab.path] }} />
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   )
 }
 
-// Memoize to prevent unnecessary re-renders
 const MemoizedSortableTabWithMenu = memo(SortableTabWithMenu)
 
 export function TabBar({
-  tabs,
-  activeTabId,
-  onTabSwitch,
-  onNewTab,
-  onCloseTab,
-  onCloseOtherTabs,
-  onCloseAllTabs,
-  onCloseLeftTabs,
-  onCloseRightTabs,
+  groupId, tabs, activeTabId, isActiveGroup, isMaximized,
+  onTabSwitch, onNewTab, onNewNote, onNewRecord, onNewCanvas, onNewBrowser, onCloseTab, onCloseOtherTabs, onCloseAllTabs,
+  onCloseLeftTabs, onCloseRightTabs, onSplitTab, onMoveToNewWindow,
+  onPinTab, onUnpinTab, onRestartPluginTab, onToggleMaximize, canCloseGroup, onCloseGroup,
 }: TabBarProps) {
   const { showEditorUndoRedo } = useSettingStore()
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [scrollState, setScrollState] = useState({ left: 0, width: 0, scrollWidth: 0 })
+  const t = useTranslations('tabContext')
+  const locale = useLocale()
+  const installedPlugins = usePluginStore(state => state.installed)
+  const workspaceId = usePluginStore(state => state.currentWorkspaceId)
+  const workspaceStates = usePluginStore(state => state.workspaceStates)
+  const pluginSettings = usePluginStore(state => state.deviceSettings)
+  const localizationRevision = usePluginLocalization(installedPlugins, locale)
+  const pluginTabViews = installedPlugins.flatMap(plugin => {
+    const state = workspaceId ? workspaceStates[workspaceId]?.[plugin.manifest.id] : undefined
+    if (!isPluginEnabledInWorkspace(plugin, state) || !isPluginDisplayVisible(pluginSettings, plugin.manifest.id, 'editor-tab')) return []
+    return (plugin.manifest.contributes.views ?? [])
+      .filter(view => (view.location as string) === 'editor-tab')
+      .map(view => ({ plugin, view, title: resolvePluginViewTitle(plugin, view, locale, state?.settings) }))
+  }).sort((a, b) => ((a.view as { order?: number }).order ?? 0) - ((b.view as { order?: number }).order ?? 0)
+    || a.plugin.manifest.id.localeCompare(b.plugin.manifest.id)
+    || a.view.id.localeCompare(b.view.id))
+  const [currentPlatform, setCurrentPlatform] = useState('')
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [scrollIndicator, setScrollIndicator] = useState({ left: 0, width: 0, visible: false })
+  const scrollIndicatorTimerRef = useRef<number | null>(null)
+  const { setNodeRef: setTabListDropRef } = useDroppable({
+    id: `editor-tab-list:${groupId}`,
+    data: { type: 'editor-tab-list', groupId },
+  })
+  const tabListRef = useRef<HTMLDivElement | null>(null)
+  const setTabListRef = useCallback((node: HTMLDivElement | null) => {
+    tabListRef.current = node
+    setTabListDropRef(node)
+  }, [setTabListDropRef])
+  const activeTab = tabs.find(tab => tab.id === activeTabId)
+  const canSplit = tabs.length > 1 && Boolean(activeTab)
+  const canCloseActiveTab = Boolean(activeTab && (
+    tabs.length > 1 || activeTab.kind !== 'blank' || !activeTab.autoCreated || canCloseGroup
+  ))
+  const activeCanvasId = activeTab && (activeTab.kind === 'canvas' || isCanvasTabPath(activeTab.path))
+    ? activeTab.canvasId || getCanvasIdFromTabPath(activeTab.path)
+    : null
+  const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl+'
 
-  // Query undo/redo capability from editor
   const queryCanUndoRedo = useCallback(() => {
-    emitter.emit('editor-can-undo-redo', {
-      resolve: (can) => {
-        setCanUndo(can.undo)
-        setCanRedo(can.redo)
-      }
-    })
+    if (!isActiveGroup) return
+    const resolve = (value: { undo: boolean; redo: boolean }) => {
+      setCanUndo(value.undo)
+      setCanRedo(value.redo)
+    }
+    if (activeCanvasId) emitter.emit('canvas-can-undo-redo', { canvasId: activeCanvasId, resolve })
+    else emitter.emit('editor-can-undo-redo', { resolve })
+  }, [activeCanvasId, isActiveGroup])
+
+  useEffect(() => {
+    try { setCurrentPlatform(platform()) } catch { setCurrentPlatform('') }
   }, [])
 
-  // Query on mount and when activeTabId changes
   useEffect(() => {
     queryCanUndoRedo()
-  }, [activeTabId, queryCanUndoRedo])
-
-  // Listen for undo/redo state changes from editor
-  useEffect(() => {
-    const handleUndoRedoChanged = (can: { undo: boolean; redo: boolean }) => {
-      setCanUndo(can.undo)
-      setCanRedo(can.redo)
+    if (!isActiveGroup) return
+    const handleChange = (value: { undo: boolean; redo: boolean }) => {
+      setCanUndo(value.undo)
+      setCanRedo(value.redo)
     }
+    if (activeCanvasId) {
+      emitter.on('canvas-undo-redo-changed', handleChange)
+      return () => emitter.off('canvas-undo-redo-changed', handleChange)
+    }
+    emitter.on('editor-undo-redo-changed', handleChange)
+    return () => emitter.off('editor-undo-redo-changed', handleChange)
+  }, [activeCanvasId, isActiveGroup, queryCanUndoRedo])
 
-    emitter.on('editor-undo-redo-changed', handleUndoRedoChanged)
+  useEffect(() => {
+    if (!activeTabId) return
+    const activeTabElement = Array.from(tabListRef.current?.children ?? [])
+      .find(element => element instanceof HTMLElement && element.dataset.tabId === activeTabId)
+    if (activeTabElement instanceof HTMLElement) {
+      activeTabElement.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+  }, [activeTabId])
+
+  const updateScrollIndicator = useCallback((show: boolean) => {
+    const target = tabListRef.current
+    if (!target) return
+    const { clientWidth, scrollLeft, scrollWidth } = target
+    if (scrollWidth <= clientWidth) {
+      setScrollIndicator({ left: 0, width: 0, visible: false })
+      return
+    }
+    const width = Math.max(24, clientWidth * (clientWidth / scrollWidth))
+    const left = (scrollLeft / (scrollWidth - clientWidth)) * (clientWidth - width)
+    setScrollIndicator(current => ({ left, width, visible: show || current.visible }))
+    if (!show) return
+    if (scrollIndicatorTimerRef.current !== null) window.clearTimeout(scrollIndicatorTimerRef.current)
+    scrollIndicatorTimerRef.current = window.setTimeout(() => {
+      setScrollIndicator(current => ({ ...current, visible: false }))
+      scrollIndicatorTimerRef.current = null
+    }, 700)
+  }, [])
+
+  useEffect(() => {
+    const target = tabListRef.current
+    if (!target) return
+    const observer = new ResizeObserver(() => updateScrollIndicator(false))
+    observer.observe(target)
+    Array.from(target.children).forEach(child => observer.observe(child))
+    updateScrollIndicator(false)
     return () => {
-      emitter.off('editor-undo-redo-changed', handleUndoRedoChanged)
+      observer.disconnect()
+      if (scrollIndicatorTimerRef.current !== null) window.clearTimeout(scrollIndicatorTimerRef.current)
     }
+  }, [tabs, updateScrollIndicator])
+
+  useEffect(() => {
+    const target = tabListRef.current
+    if (!target) return
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+      event.preventDefault()
+      if (target.scrollWidth > target.clientWidth) target.scrollLeft += event.deltaY
+    }
+    target.addEventListener('wheel', handleWheel, { passive: false })
+    return () => target.removeEventListener('wheel', handleWheel)
   }, [])
 
-  // Get current platform
-  const [currentPlatform, setCurrentPlatform] = useState<'macos' | 'windows' | 'linux' | 'unknown'>('unknown')
   useEffect(() => {
-    try {
-      const p = platform()
-      if (p === 'macos') {
-        setCurrentPlatform('macos')
-      } else if (p === 'windows') {
-        setCurrentPlatform('windows')
-      } else if (p === 'linux') {
-        setCurrentPlatform('linux')
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !isActiveGroup
+        || event.defaultPrevented
+        || event.isComposing
+        || event.altKey
+        || event.shiftKey
+        || !(event.metaKey || event.ctrlKey)
+        || event.key.toLowerCase() !== 'w'
+      ) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.repeat) return
+      if (!canCloseActiveTab) {
+        if (checkIsTauri()) void getCurrentWindow().hide()
+        return
       }
-    } catch {
-      setCurrentPlatform('unknown')
+      onCloseTab(activeTabId)
     }
-  }, [])
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [activeTabId, canCloseActiveTab, isActiveGroup, onCloseTab])
 
-  // Keyboard shortcut for closing tab (Cmd/Ctrl + W)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = currentPlatform === 'macos'
-      const modKey = isMac ? e.metaKey : e.ctrlKey
-
-      // Cmd/Ctrl + W: Close current tab
-      if (modKey && e.key === 'w' && activeTabId) {
-        e.preventDefault()
-        onCloseTab(tabs.find(t => t.id === activeTabId)?.path || '')
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentPlatform, activeTabId, tabs, onCloseTab])
-
-  const t = useTranslations('tabContext')
-
-  // Get modifier key display text
-  const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl'
-
-  // Dnd sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  // Update scroll state
-  const updateScrollState = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current
-      setScrollState({ left: scrollLeft, width: clientWidth, scrollWidth })
-    }
-  }, [])
-
-  useEffect(() => {
-    updateScrollState()
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener('scroll', updateScrollState)
-      const resizeObserver = new ResizeObserver(updateScrollState)
-      resizeObserver.observe(container)
-      return () => {
-        container.removeEventListener('scroll', updateScrollState)
-        resizeObserver.disconnect()
-      }
-    }
-  }, [updateScrollState, tabs])
-
-  // Scroll active tab into view
-  useEffect(() => {
-    if (!activeTabId || !scrollContainerRef.current) return
-
-    const tabElement = document.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement
-    if (!tabElement) return
-
-    const container = scrollContainerRef.current
-    const tabRect = tabElement.getBoundingClientRect()
-    const containerRect = container.getBoundingClientRect()
-
-    // Check if tab is outside the visible area
-    const isOutside =
-      tabRect.right > containerRect.right ||
-      tabRect.left < containerRect.left
-
-    if (isOutside) {
-      // Calculate scroll position to center the tab
-      const scrollLeft = tabRect.left - containerRect.left + container.scrollLeft
-      container.scrollTo({
-        left: scrollLeft,
-        behavior: 'smooth'
-      })
-    }
-  }, [activeTabId, tabs])
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (over && active.id !== over.id) {
-      // Let parent handle reordering via callback
-    }
-  }, [])
-
-  // Handle wheel scroll to horizontal scroll
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (scrollContainerRef.current) {
-      e.preventDefault()
-      scrollContainerRef.current.scrollLeft += e.deltaY
-    }
-  }, [])
-
-  if (tabs.length === 0) {
-    return null
+  const sortableIds = useMemo(() => tabs.map(tab => `editor-tab:${groupId}:${tab.id}`), [groupId, tabs])
+  const runUndoRedo = (redo: boolean) => {
+    if (activeCanvasId) emitter.emit(redo ? 'canvas-redo' : 'canvas-undo', { canvasId: activeCanvasId })
+    else emitter.emit(redo ? 'editor-redo' : 'editor-undo')
+    window.setTimeout(queryCanUndoRedo, 0)
   }
 
-  // Calculate scrollbar thumb position and width
-  const showScrollbar = scrollState.scrollWidth > scrollState.width
-  const thumbWidth = showScrollbar
-    ? Math.max(20, (scrollState.width / scrollState.scrollWidth) * 100)
-    : 0
-  const thumbLeft = showScrollbar
-    ? (scrollState.left / (scrollState.scrollWidth - scrollState.width)) * (100 - thumbWidth)
-    : 0
-
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="relative tab-scrollbar-wrapper">
-        <div className="flex items-center h-12 bg-background border-b">
-          {/* Undo/Redo buttons - fixed on the left */}
-          {showEditorUndoRedo && (
-            <div className="flex items-center gap-0.5 px-2 border-r border-border shrink-0">
-              <TooltipButton
-                icon={<Undo2 className="w-4 h-4" />}
-                tooltipText={`撤销 (${modKey}+Z)`}
-                onClick={() => {
-                  emitter.emit('editor-undo')
-                  // Update state after action
-                  setTimeout(queryCanUndoRedo, 0)
-                }}
-                disabled={!canUndo}
-              />
-              <TooltipButton
-                icon={<Redo2 className="w-4 h-4" />}
-                tooltipText={`重做 (${modKey}+Shift+Z)`}
-                onClick={() => {
-                  emitter.emit('editor-redo')
-                  // Update state after action
-                  setTimeout(queryCanUndoRedo, 0)
-                }}
-                disabled={!canRedo}
-              />
-            </div>
-          )}
-
-          {/* Tabs scroll container */}
-          <div
-            ref={scrollContainerRef}
-            className="flex items-center h-12 px-1 overflow-x-auto tab-scrollbar gap-1"
-            onWheel={handleWheel}
-          >
-            {/* Tabs */}
-            <SortableContext
-              items={tabs.map(t => t.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {tabs.map((tab) => (
-                <MemoizedSortableTabWithMenu
-                  key={tab.id}
-                  tab={tab}
-                  isActive={activeTabId === tab.id}
-                  tabs={tabs}
-                  modKey={modKey}
-                  onTabSwitch={onTabSwitch}
-                  onCloseTab={onCloseTab}
-                  onCloseOtherTabs={onCloseOtherTabs}
-                  onCloseAllTabs={onCloseAllTabs}
-                  onCloseLeftTabs={onCloseLeftTabs}
-                  onCloseRightTabs={onCloseRightTabs}
-                />
-              ))}
-            </SortableContext>
-
-            {/* New tab button */}
-            <button
-              onClick={onNewTab}
-              className="flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
-              title={t('closeAll')}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+    <div className="flex h-12 shrink-0 items-center border-b bg-background">
+      {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && activeTab.kind !== 'plugin' && activeTab.kind !== 'browser' && (
+        <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
+          <TooltipButton icon={<Undo2 />} tooltipText={`${t('undo')} (${modKey}Z)`} side="bottom" buttonClassName="size-7" disabled={!canUndo} onClick={() => runUndoRedo(false)} />
+          <TooltipButton icon={<Redo2 />} tooltipText={`${t('redo')} (${modKey}Shift+Z)`} side="bottom" buttonClassName="size-7" disabled={!canRedo} onClick={() => runUndoRedo(true)} />
         </div>
-
-        {/* Custom absolute scrollbar */}
-        {showScrollbar && (
-          <div className="tab-scrollbar-track">
+      )}
+      <div className="tab-scrollbar-wrapper min-w-0 flex-1 self-stretch">
+        <div
+          ref={setTabListRef}
+          className="tab-scrollbar flex h-full min-w-0 items-center overflow-x-auto"
+          onScroll={() => updateScrollIndicator(true)}
+        >
+          <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
+            {tabs.map(tab => (
+              <MemoizedSortableTabWithMenu
+                key={tab.id} tab={tab} groupId={groupId} isActive={activeTabId === tab.id} localizationRevision={localizationRevision}
+                tabs={tabs} modKey={modKey} onTabSwitch={onTabSwitch} onCloseTab={onCloseTab}
+                onCloseOtherTabs={onCloseOtherTabs} onCloseAllTabs={onCloseAllTabs}
+                onCloseLeftTabs={onCloseLeftTabs} onCloseRightTabs={onCloseRightTabs}
+                onSplitTab={onSplitTab} onMoveToNewWindow={onMoveToNewWindow}
+                onPinTab={onPinTab} onUnpinTab={onUnpinTab} onRestartPluginTab={onRestartPluginTab}
+              />
+            ))}
+          </SortableContext>
+          {isActiveGroup && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="mx-1" aria-label={t('newTab')}><Plus /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={onNewTab}><Plus />{t('newTab')}</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onNewNote}><FileText />{t('newNote')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onNewRecord}><MessageSquareText />{t('newRecord')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onNewCanvas}><Palette />{t('newCanvas')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onNewBrowser}><Globe2 />{t('newBrowser')}</DropdownMenuItem>
+                {pluginTabViews.length > 0 && <DropdownMenuSeparator />}
+                {pluginTabViews.map(({ plugin, view, title }) => <DropdownMenuItem key={`${plugin.manifest.id}:${view.id}`} onClick={() => {
+                  void openPluginView(plugin.manifest.id, view.id, undefined, true).catch(error => toast.error(error instanceof Error ? error.message : String(error)))
+                }}><PluginIcon name={view.icon ?? 'plus'} />{title}</DropdownMenuItem>)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {scrollIndicator.width > 0 && (
+          <div className={cn('tab-scrollbar-track', scrollIndicator.visible && 'is-scrolling')}>
             <div
               className="tab-scrollbar-thumb"
-              style={{
-                width: `${thumbWidth}%`,
-                left: `${thumbLeft}%`,
-              }}
+              style={{ width: scrollIndicator.width, transform: `translateX(${scrollIndicator.left}px)` }}
             />
           </div>
         )}
       </div>
-    </DndContext>
+      {isActiveGroup && (
+        <div className="flex shrink-0 items-center gap-0.5 px-1">
+          <TooltipButton icon={<PanelRight />} tooltipText={t('splitRight')} side="bottom" buttonClassName="size-7" disabled={!canSplit} onClick={() => activeTabId && onSplitTab(activeTabId, 'right')} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={t('groupActions')}><MoreHorizontal /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="!w-max min-w-40 whitespace-nowrap">
+              <DropdownMenuGroup>
+                <DropdownMenuItem disabled={!canSplit} onClick={() => activeTabId && onSplitTab(activeTabId, 'left')}><PanelLeft />{t('splitLeft')}</DropdownMenuItem>
+                <DropdownMenuItem disabled={!canSplit} onClick={() => activeTabId && onSplitTab(activeTabId, 'right')}><PanelRight />{t('splitRight')}</DropdownMenuItem>
+                <DropdownMenuItem disabled={!canSplit} onClick={() => activeTabId && onSplitTab(activeTabId, 'up')}><PanelTop />{t('splitUp')}</DropdownMenuItem>
+                <DropdownMenuItem disabled={!canSplit} onClick={() => activeTabId && onSplitTab(activeTabId, 'down')}><PanelBottom />{t('splitDown')}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onToggleMaximize}><Maximize2 />{isMaximized ? t('restoreGroup') : t('maximizeGroup')}</DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup><DropdownMenuItem disabled={!canCloseGroup} onClick={onCloseGroup}><X />{t('closeGroup')}</DropdownMenuItem></DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
   )
 }
 

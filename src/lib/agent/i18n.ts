@@ -41,4 +41,25 @@ export const agentTranslations = {
       },
     },
   },
+  de: {
+    modeSelect: {
+      chat: 'Chat',
+      agent: 'Agent',
+    },
+    agent: {
+      running: 'Agent läuft',
+      thinking: 'Denkt nach',
+      acting: 'Ausführung',
+      observation: 'Beobachtung',
+      toolCalls: 'Werkzeugaufrufe',
+      confirmation: {
+        title: 'Aktion bestätigen',
+        description: 'Der Agent möchte die folgende Aktion ausführen. Bitte bestätige, um fortzufahren.',
+        tool: 'Werkzeug',
+        parameters: 'Parameter',
+        cancel: 'Abbrechen',
+        confirm: 'Bestätigen',
+      },
+    },
+  },
 }

@@ -1,10 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": [
+  "description": "Capability for NoteGen application webviews",
+  "webviews": [
     "main",
-    "screenshot"
+    "screenshot",
+    "pdf-print-*",
+    "editor-*"
   ],
   "permissions": [
     "core:default",
@@ -43,6 +45,8 @@
       ]
     },
     "fs:allow-exists",
+    "fs:allow-watch",
+    "fs:allow-unwatch",
     {
       "identifier": "fs:allow-mkdir",
       "allow": [
@@ -88,39 +92,17 @@
     "core:window:allow-set-focus",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
+    "core:window:allow-set-title",
     "core:window:allow-hide",
     "core:window:allow-show",
     "core:window:allow-destroy",
     "core:path:allow-resolve-directory",
     "shell:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "bash",
-          "cmd": "bash",
-          "sidecar": false,
-          "args": true
-        },
-        {
-          "name": "python",
-          "cmd": "python",
-          "sidecar": false,
-          "args": true
-        },
-        {
-          "name": "python3",
-          "cmd": "python3",
-          "sidecar": false,
-          "args": true
-        }
-      ]
-    }
-    ,
     "core:app:allow-default-window-icon",
     "core:window:allow-unminimize",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
+    "core:window:allow-set-always-on-top",
     {
       "identifier": "http:allow-fetch",
       "allow": [
@@ -140,6 +122,7 @@
     },
     "os:default",
     "dialog:default",
+    "notification:default",
     "http:default",
     {
       "identifier": "opener:allow-open-path",
@@ -150,6 +133,12 @@
       ]
     },
     "opener:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "app-settings:" }]
+    },
+    "clipboard-manager:allow-write-html",
+    "clipboard-manager:allow-write-text"
   ]
 }

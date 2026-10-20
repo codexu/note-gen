@@ -5,8 +5,7 @@ import useTagStore from "@/stores/tag";
 import useSettingStore from "@/stores/setting";
 import useMarkStore from "@/stores/mark";
 import { v4 as uuid } from 'uuid'
-import ocr from "@/lib/ocr";
-import { fetchAiDesc, fetchAiDescByImage } from "@/lib/ai/description";
+import { recognizeImageWithFallback } from "@/lib/image-recognition";
 import { insertMark, Mark } from "@/db/marks";
 import { CheckCircle, Highlighter, ImagePlus, LoaderCircle } from "lucide-react";
 import { Chat } from "@/db/chats";
@@ -16,6 +15,7 @@ import useChatStore from '@/stores/chat';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
 import { uploadImage } from '@/lib/imageHosting';
+import { getImageRecognitionProgressText } from '@/lib/image-recognition-progress';
 
 export function ChatClipboard({chat}: { chat: Chat }) {
   const [loading, setLoading] = useState(false)
@@ -23,10 +23,10 @@ export function ChatClipboard({chat}: { chat: Chat }) {
   const [countdown, setCountdown] = useState(5) // 5 seconds countdown
   const [isCountingDown, setIsCountingDown] = useState(!chat.inserted) // Start countdown if not recorded
   const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { primaryModel, primaryImageMethod, enableImageRecognition } = useSettingStore()
+  const { primaryModel, enableImageRecognition } = useSettingStore()
   const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
   const { updateInsert, deleteChat } = useChatStore()
-  const t = useTranslations('record.queue')
+  const t = useTranslations()
   
   useEffect(() => {
     if (chat.inserted) {
@@ -65,7 +65,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     setLoading(true)
     const queueId = uuid()
     // 获取文件后缀
-    addQueue({ queueId, tagId: currentTagId!, progress: '保存图片', type: 'image', startTime: Date.now() })
+    addQueue({ queueId, tagId: currentTagId!, progress: t('record.mark.progress.saveImage'), type: 'image', startTime: Date.now() })
     const isImageFolderExists = await exists('image', { baseDir: BaseDirectory.AppData})
     if (!isImageFolderExists) {
       await mkdir('image', { baseDir: BaseDirectory.AppData})
@@ -79,26 +79,23 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     
     // Skip image recognition if disabled
     if (!enableImageRecognition) {
-      setQueue(queueId, { progress: t('save') });
+      setQueue(queueId, { progress: t('record.mark.progress.save') });
       content = ''
       desc = ''
-    } else if (primaryImageMethod === 'vlm') {
-      // 使用 VLM 识别图片
-      setQueue(queueId, { progress: t('ai') });
-      const file = await readFile(toPath, { baseDir: BaseDirectory.AppData })
-      const base64 = `data:image/png;base64,${Buffer.from(file).toString('base64')}`
-      content = await fetchAiDescByImage(base64) || 'VLM Error'
-      desc = content
     } else {
-      // 使用 OCR 识别图片
-      setQueue(queueId, { progress: t('ocr') });
-      content = await ocr(toPath)
-      setQueue(queueId, { progress: t('ai') });
-      if (primaryModel) {
-        desc = await fetchAiDesc(content).then(res => res ? res : content) || content
-      } else {
-        desc = content
-      }
+      const file = await readFile(toPath, { baseDir: BaseDirectory.AppData })
+      const result = await recognizeImageWithFallback({
+        imagePath: toPath,
+        base64: `data:image/png;base64,${Buffer.from(file).toString('base64')}`,
+        shouldGenerateDescription: Boolean(primaryModel),
+        onProgress: (stage) => {
+          setQueue(queueId, {
+            progress: getImageRecognitionProgressText(t, stage),
+          })
+        },
+      })
+      content = result.content
+      desc = result.desc
     }
     const mark: Partial<Mark> = {
       tagId: currentTagId,
@@ -107,7 +104,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
       url: `${queueId}.png`,
       desc,
     }
-    setQueue(queueId, { progress: t('upload') });
+    setQueue(queueId, { progress: t('record.mark.progress.uploadImage') });
     const fileData = await readFile(toPath, { baseDir: BaseDirectory.AppData  })
     const blob = new Blob([new Uint8Array(fileData)], { type: 'image/png' })
     const file = new File([blob], `${queueId}.png`, { type: 'image/png' })
@@ -143,7 +140,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
     type === 'image' && chat.image ? 
       <div className="flex-col leading-6">
         <p className="flex items-center">
-          {t('detected')}
+          {t('record.queue.detected')}
           {isCountingDown && (
             <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
           )}
@@ -170,7 +167,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
       </div> :
       <div className="flex-col leading-6">
         <p className='flex items-center'>
-          {t('detected')}
+          {t('record.queue.detected')}
           {isCountingDown && (
             <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
           )}

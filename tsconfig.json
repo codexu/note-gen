@@ -23,6 +23,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/core/record/mark/control-scan.tsx.bak"],
-  "exclude": ["node_modules", "docs/**"]
+  "include": ["next-env.d.ts", "next.config.ts", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "src/app/core/record/mark/control-scan.tsx.bak"],
+  "exclude": ["node_modules"]
 }

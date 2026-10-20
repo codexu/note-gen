@@ -8,24 +8,28 @@ import useArticleStore from '@/stores/article'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/hooks/use-toast'
 import { useTranslations } from 'next-intl'
+import { Separator } from '@/components/ui/separator'
+import useRecordingStore from '@/stores/recording'
+import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
 
 interface MobileRecordToolsProps {
   onClose?: () => void
+  onOrganize?: () => void
 }
 
-export function MobileRecordTools({ onClose }: MobileRecordToolsProps) {
+export function MobileRecordTools({ onClose, onOrganize }: MobileRecordToolsProps) {
   const router = useRouter()
   const t = useTranslations()
   const { loadFileTree, setActiveFilePath } = useArticleStore()
+  const { isRecording } = useRecordingStore()
 
-  // 移动端固定的记录工具（排除截图）
-  const mobileTools = [
-    { id: 'write' },
+  const recordTools = [
     { id: 'text' },
     { id: 'recording' },
     { id: 'image' },
     { id: 'link' },
-    { id: 'file' }
+    { id: 'file' },
+    { id: 'todo' },
   ]
 
   const createQuickWriteFile = async () => {
@@ -55,9 +59,18 @@ export function MobileRecordTools({ onClose }: MobileRecordToolsProps) {
 
   const handleQuickWrite = async () => {
     try {
+      if (!await prepareActiveEditorDeactivationDurably(
+        useArticleStore.getState().activeFilePath,
+      )) {
+        return
+      }
       const fileName = await createQuickWriteFile()
       await loadFileTree()
-      await setActiveFilePath(fileName)
+      await setActiveFilePath(
+        fileName,
+        true,
+        { deactivationAlreadyPrepared: true },
+      )
       router.push('/mobile/writing')
       onClose?.()
     } catch {
@@ -75,6 +88,11 @@ export function MobileRecordTools({ onClose }: MobileRecordToolsProps) {
       return
     }
 
+    if (toolId === 'organize') {
+      onOrganize?.()
+      return
+    }
+
     // 发射工具快捷键事件
     emitter.emit(`toolbar-shortcut-${toolId}` as any)
     // 点击后关闭弹窗
@@ -83,18 +101,38 @@ export function MobileRecordTools({ onClose }: MobileRecordToolsProps) {
     }
   }
 
-  // 暂时忽略 onClose 参数的 lint 警告，未来可能用于在操作成功后关闭抽屉
-  void onClose
-
   return (
-    <div className="grid w-full grid-cols-3 gap-1">
-      {mobileTools.map((tool) => (
-        <SimpleMobileTool 
-          key={tool.id}
-          toolId={tool.id}
+    <div className="flex w-full flex-col gap-2">
+      <div className="flex items-center gap-2 px-2 py-1">
+        <span className="text-xs font-medium text-[hsl(var(--component-inactive-color))]">{t('navigation.write')}</span>
+        <Separator className="flex-1 bg-border/60" />
+      </div>
+      <div className="grid w-full grid-cols-2 gap-1.5">
+        <SimpleMobileTool
+          toolId="write"
+          label={t('navigation.files')}
           onToolClick={handleToolClick}
         />
-      ))}
+        <SimpleMobileTool
+          toolId="organize"
+          onToolClick={handleToolClick}
+        />
+      </div>
+      <div className="flex items-center gap-2 px-2 py-1">
+        <span className="text-xs font-medium text-[hsl(var(--component-inactive-color))]">{t('navigation.record')}</span>
+        <Separator className="flex-1 bg-border/60" />
+      </div>
+      <div className="grid w-full grid-cols-2 gap-1.5">
+        {recordTools.map((tool) => (
+          <SimpleMobileTool
+            key={tool.id}
+            toolId={tool.id}
+            onToolClick={handleToolClick}
+            active={tool.id === 'recording' && isRecording}
+            label={tool.id === 'recording' && isRecording ? t('recording.recording') : undefined}
+          />
+        ))}
+      </div>
     </div>
   )
 }

@@ -52,7 +52,9 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
       const result = await calculateFolderVectors({
         folderPath: path,
-        mode: 'missing',
+        // processMarkdownFile 会用内容哈希跳过未变化文件；这里检查全部文件，
+        // 避免已有索引的文件在外部修改后一直保留旧内容。
+        mode: 'recalculate',
         checkFileVectorIndexed,
         setVectorCalcStatus,
       });

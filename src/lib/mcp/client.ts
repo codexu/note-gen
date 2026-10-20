@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type {
   MCPServerConfig,
   JSONRPCRequest,
@@ -6,6 +7,8 @@ import type {
   InitializeResult,
   MCPTool,
   MCPResource,
+  MCPResourceTemplate,
+  MCPReadResourceResult,
   CallToolResult,
 } from './types'
 
@@ -17,9 +20,13 @@ export class MCPClient {
   private config: MCPServerConfig
   private requestId = 0
   private isInitialized = false
+  private initializeResult?: InitializeResult
+  private readonly defaultTimeout: number
+  private sessionId?: string
   
   constructor(config: MCPServerConfig) {
     this.config = config
+    this.defaultTimeout = config.timeout ?? 30_000
   }
   
   /**
@@ -64,7 +71,9 @@ export class MCPClient {
    * 初始化协议
    */
   async initialize(): Promise<InitializeResult> {
-    const response = await this.sendRequest('initialize', {
+    if (this.initializeResult) return this.initializeResult
+
+    const response = await this.sendRequest<InitializeResult>('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
       clientInfo: {
@@ -73,40 +82,26 @@ export class MCPClient {
       },
     })
     
+    if (!response.protocolVersion) throw new Error('MCP server did not return a protocol version')
+    this.initializeResult = response
+    await this.sendNotification('notifications/initialized')
     this.isInitialized = true
-    return response as InitializeResult
+    return response
   }
   
   /**
    * 列出可用工具
    */
   async listTools(): Promise<MCPTool[]> {
-    // HTTP 服务器可能不需要初始化
-    if (this.config.type === 'stdio' && !this.isInitialized) {
-      await this.initialize()
-    }
-    
-    // 尝试不同的方法名格式
-    try {
-      const response = await this.sendRequest('tools/list', {})
-      return response.tools || []
-    } catch {
-      // 如果 tools/list 不支持，尝试 listTools
-      try {
-        const response = await this.sendRequest('listTools', {})
-        return response.tools || []
-      } catch {
-        // 如果都不支持，返回空数组
-        console.warn('Server does not support tool listing')
-        return []
-      }
-    }
+    const initialized = await this.initialize()
+    if (!initialized.capabilities.tools) return []
+    return this.collectPages<MCPTool>('tools/list', 'tools')
   }
   
   /**
    * 调用工具
    */
-  async callTool(name: string, args: any = {}): Promise<CallToolResult> {
+  async callTool(name: string, args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<CallToolResult> {
     if (!this.isInitialized) {
       await this.initialize()
     }
@@ -114,7 +109,7 @@ export class MCPClient {
     const response = await this.sendRequest('tools/call', {
       name,
       arguments: args,
-    })
+    }, signal)
     
     return response as CallToolResult
   }
@@ -123,24 +118,26 @@ export class MCPClient {
    * 列出资源
    */
   async listResources(): Promise<MCPResource[]> {
-    if (!this.isInitialized) {
-      await this.initialize()
-    }
-    
-    const response = await this.sendRequest('resources/list', {})
-    return response.resources || []
+    const initialized = await this.initialize()
+    if (!initialized.capabilities.resources) return []
+    return this.collectPages<MCPResource>('resources/list', 'resources')
   }
   
   /**
    * 读取资源
    */
-  async readResource(uri: string): Promise<string> {
+  async listResourceTemplates(): Promise<MCPResourceTemplate[]> {
+    const initialized = await this.initialize()
+    if (!initialized.capabilities.resources) return []
+    return this.collectPages<MCPResourceTemplate>('resources/templates/list', 'resourceTemplates')
+  }
+
+  async readResource(uri: string): Promise<MCPReadResourceResult> {
     if (!this.isInitialized) {
       await this.initialize()
     }
     
-    const response = await this.sendRequest('resources/read', { uri })
-    return response.contents?.[0]?.text || ''
+    return await this.sendRequest<MCPReadResourceResult>('resources/read', { uri })
   }
   
   /**
@@ -155,12 +152,14 @@ export class MCPClient {
       }
     }
     this.isInitialized = false
+    this.initializeResult = undefined
+    this.sessionId = undefined
   }
   
   /**
    * 发送 JSON-RPC 请求
    */
-  private async sendRequest(method: string, params: any): Promise<any> {
+  private async sendRequest<T>(method: string, params: unknown, signal?: AbortSignal): Promise<T> {
     const request: JSONRPCRequest = {
       jsonrpc: '2.0',
       id: ++this.requestId,
@@ -169,20 +168,71 @@ export class MCPClient {
     }
     
     if (this.config.type === 'stdio') {
-      return this.sendStdioRequest(request)
+      return this.withTimeout(this.sendStdioRequest<T>(request), signal)
     } else {
-      return this.sendHttpRequest(request)
+      return this.withTimeout(this.sendHttpRequest<T>(request, signal), signal)
     }
+  }
+
+  private async collectPages<T>(method: string, field: 'tools' | 'resources' | 'resourceTemplates'): Promise<T[]> {
+    const items: T[] = []
+    const cursors = new Set<string>()
+    let cursor: string | undefined
+
+    for (let page = 0; page < 1_000; page += 1) {
+      const response = await this.sendRequest<Partial<Record<'tools' | 'resources' | 'resourceTemplates', T[]>> & { nextCursor?: string }>(
+        method,
+        cursor ? { cursor } : {}
+      )
+      items.push(...(response[field] || []))
+      if (!response.nextCursor) return items
+      if (cursors.has(response.nextCursor)) throw new Error(`MCP ${method} returned a duplicate cursor`)
+      cursors.add(response.nextCursor)
+      cursor = response.nextCursor
+    }
+    throw new Error(`MCP ${method} exceeded the pagination limit`)
+  }
+
+  private async sendNotification(method: string, params: Record<string, unknown> = {}): Promise<void> {
+    const notification = { jsonrpc: '2.0' as const, method, params }
+    if (this.config.type === 'stdio') {
+      await invoke('send_mcp_notification', {
+        serverId: this.config.id,
+        message: JSON.stringify(notification),
+      })
+      return
+    }
+    if (!this.config.url) throw new Error('HTTP server URL is required')
+    const response = await tauriFetch(this.config.url, {
+      method: 'POST',
+      headers: this.getHttpHeaders(),
+      body: JSON.stringify(notification),
+    })
+    if (!response.ok) throw new Error(`MCP notification failed with HTTP ${response.status}`)
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError')
+    return await new Promise<T>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error(`MCP request timed out after ${this.defaultTimeout}ms`)), this.defaultTimeout)
+      const onAbort = () => reject(new DOMException('Request aborted', 'AbortError'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      promise.then(resolve, reject).finally(() => {
+        window.clearTimeout(timeout)
+        signal?.removeEventListener('abort', onAbort)
+      })
+    })
   }
   
   /**
    * 发送 stdio 请求
    */
-  private async sendStdioRequest(request: JSONRPCRequest): Promise<any> {
+  private async sendStdioRequest<T>(request: JSONRPCRequest): Promise<T> {
     try {
       const responseStr = await invoke<string>('send_mcp_message', {
         serverId: this.config.id,
         message: JSON.stringify(request),
+        timeoutMs: this.defaultTimeout,
       })
       
       const response: JSONRPCResponse = JSON.parse(responseStr)
@@ -191,7 +241,7 @@ export class MCPClient {
         throw new Error(response.error.message)
       }
       
-      return response.result
+      return response.result as T
     } catch (error) {
       throw new Error(`Stdio request failed: ${error}`)
     }
@@ -200,38 +250,38 @@ export class MCPClient {
   /**
    * 发送 HTTP 请求
    */
-  private async sendHttpRequest(request: JSONRPCRequest): Promise<any> {
+  private getHttpHeaders() {
+    let customHeaders: Record<string, string> = {}
+    if (this.config.headers) customHeaders = this.config.headers
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      ...(this.sessionId ? { 'Mcp-Session-Id': this.sessionId } : {}),
+      ...(this.initializeResult?.protocolVersion ? { 'MCP-Protocol-Version': this.initializeResult.protocolVersion } : {}),
+      ...customHeaders,
+    }
+  }
+
+  private async sendHttpRequest<T>(request: JSONRPCRequest, signal?: AbortSignal): Promise<T> {
     if (!this.config.url) {
       throw new Error('HTTP server URL is required')
     }
     
     try {
-      // 解析自定义 headers
-      let customHeaders: Record<string, string> = {}
-      if (this.config.headers) {
-        try {
-          customHeaders = typeof this.config.headers === 'string' 
-            ? JSON.parse(this.config.headers) 
-            : this.config.headers
-        } catch (e) {
-          console.warn('Failed to parse custom headers:', e)
-        }
-      }
-      
-      const response = await fetch(this.config.url, {
+      const response = await tauriFetch(this.config.url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
-          ...customHeaders,
-        },
+        headers: this.getHttpHeaders(),
         body: JSON.stringify(request),
+        signal,
       })
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => response.statusText)
         throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
+
+      const returnedSessionId = response.headers.get('mcp-session-id')
+      if (returnedSessionId) this.sessionId = returnedSessionId
       
       // 检查响应的 Content-Type
       const contentType = response.headers.get('content-type')
@@ -245,21 +295,22 @@ export class MCPClient {
         // 1. event: message\ndata: {...}\n\n
         // 2. data: {...}\n\n
         const lines = text.split('\n')
-        let jsonData = ''
-        
+        let matchedResponse: JSONRPCResponse | undefined
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            jsonData = line.substring(6) // 移除 "data: " 前缀
-            break
+            const candidate = JSON.parse(line.substring(6)) as JSONRPCResponse
+            if (String(candidate.id) === String(request.id)) {
+              matchedResponse = candidate
+              break
+            }
           }
         }
-        
-        if (jsonData) {
-          const jsonResponse: JSONRPCResponse = JSON.parse(jsonData)
-          if (jsonResponse.error) {
-            throw new Error(jsonResponse.error.message)
+
+        if (matchedResponse) {
+          if (matchedResponse.error) {
+            throw new Error(matchedResponse.error.message)
           }
-          return jsonResponse.result
+          return matchedResponse.result as T
         }
         throw new Error('Invalid SSE response format')
       }
@@ -271,7 +322,7 @@ export class MCPClient {
         throw new Error(jsonResponse.error.message)
       }
       
-      return jsonResponse.result
+      return jsonResponse.result as T
     } catch (error) {
       // 静默处理错误，不在控制台输出
       throw error

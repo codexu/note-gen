@@ -1,10 +1,12 @@
 'use client'
 
+import { isMobileDevice } from '@/lib/check'
+
 import { useEffect, useState } from 'react'
 import { File, FolderOpen, ExternalLink } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { appDataDir } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 
@@ -46,17 +48,30 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
 
   // 获取文件元信息
   useEffect(() => {
-    const fetchMetadata = async () => {
-      try {
-        const { stat } = await import('@tauri-apps/plugin-fs')
-        const pathOptions = await getFilePathOptions(filePath)
+    let cancelled = false
 
-        let fileStat
-        if (pathOptions.baseDir) {
-          fileStat = await stat(pathOptions.path, { baseDir: pathOptions.baseDir })
-        } else {
-          fileStat = await stat(pathOptions.path)
+    const fetchMetadata = async () => {
+      setLoading(true)
+      setMetadata(null)
+
+      try {
+        const { exists, stat } = await import('@tauri-apps/plugin-fs')
+        const pathOptions = await getFilePathOptions(filePath)
+        const fileExists = pathOptions.baseDir
+          ? await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+          : await exists(pathOptions.path)
+
+        // 同步列表中可能暂时存在尚未下载的远程路径。它不是本地文件，
+        // 因此没有可读取的元数据，也不应作为错误上报。
+        if (!fileExists || cancelled) {
+          return
         }
+
+        const fileStat = pathOptions.baseDir
+          ? await stat(pathOptions.path, { baseDir: pathOptions.baseDir })
+          : await stat(pathOptions.path)
+
+        if (cancelled) return
 
         setMetadata({
           size: fileStat.size,
@@ -64,13 +79,25 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
           createdAt: fileStat.birthtime?.getTime() || null
         })
       } catch (error) {
-        console.error('Failed to get file metadata:', error)
+        const message = error instanceof Error ? error.message : String(error)
+        const isMissingPath = message.includes('No such file or directory')
+          || message.toLowerCase().includes('not found')
+
+        if (!cancelled && !isMissingPath) {
+          console.error('Failed to get file metadata:', error)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
-    fetchMetadata()
+    void fetchMetadata()
+
+    return () => {
+      cancelled = true
+    }
   }, [filePath])
 
   // 格式化文件大小
@@ -108,19 +135,21 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
     }
   }
 
-  // 打开文件目录
+  // 在文件管理器中定位文件
   const handleOpenDirectory = async () => {
     try {
       const workspace = await getWorkspacePath()
-      const folderPath = filePath.substring(0, filePath.lastIndexOf('/'))
+      const isMobile = isMobileDevice()
+      const targetPath = isMobile ? filePath.split('/').slice(0, -1).join('/') : filePath
+      const openInFileManager = isMobile ? openPath : revealItemInDir
 
       if (workspace.isCustom) {
-        const pathOptions = await getFilePathOptions(folderPath)
-        await openPath(pathOptions.path)
+        const pathOptions = await getFilePathOptions(targetPath)
+        await openInFileManager(pathOptions.path)
       } else {
         const appDir = await appDataDir()
         const { join } = await import('@tauri-apps/api/path')
-        await openPath(await join(appDir, 'article', folderPath))
+        await openInFileManager(await join(appDir, 'article', targetPath))
       }
     } catch (error) {
       console.error('Failed to open directory:', error)

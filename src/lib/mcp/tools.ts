@@ -14,7 +14,7 @@ export function getSelectedServerTools(): Array<{
   const result: Array<{ serverId: string; serverName: string; tool: MCPTool }> = []
   
   for (const server of store.servers) {
-    if (store.selectedServerIds.includes(server.id)) {
+    if (server.enabled && store.selectedServerIds.includes(server.id)) {
       const tools = mcpServerManager.getServerTools(server.id)
       for (const tool of tools) {
         result.push({
@@ -127,7 +127,8 @@ export function validateToolArgs(tool: MCPTool, args: any): {
  */
 export function formatToolResult(result: CallToolResult): string {
   if (result.isError) {
-    return `❌ Error: ${result.content[0]?.text || 'Unknown error'}`
+    const errorText = result.content.find(content => content.type === 'text')?.text
+    return `❌ Error: ${errorText || 'Unknown error'}`
   }
   
   const textContent = result.content
@@ -151,4 +152,3 @@ export function toolToOpenAIFunction(tool: MCPTool) {
     },
   }
 }
-

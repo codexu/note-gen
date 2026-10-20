@@ -2,6 +2,7 @@ import useSettingStore from '@/stores/setting'
 import { resolvePreferredSpeechEngine } from '@/lib/speech/runtime.ts'
 import type { SpeechTask } from '@/lib/speech/types.ts'
 import { NO_TRANSCRIPTION_MESSAGE } from '@/lib/speech/transcription-fallback.ts'
+import { blobToBytes, invokeAiBinary, invokeAiMultipart, resolveAiRequestConfig } from '@/lib/ai/tauri-client'
 
 /**
  * 使用浏览器原生语音合成API进行朗读
@@ -138,29 +139,13 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
     speed: speed
   }
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${audioConfig.apiKey}`
-  }
-
-  // 添加自定义头部
-  if (audioConfig.customHeaders) {
-    Object.assign(headers, audioConfig.customHeaders)
-  }
-
   try {
-    const response = await fetch(`${audioConfig.baseURL}/audio/speech`, {
+    return await invokeAiBinary({
+      config: await resolveAiRequestConfig(audioConfig),
+      path: '/audio/speech',
       method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody)
+      body: requestBody,
     })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`音频生成失败: ${response.status} ${errorText}`)
-    }
-
-    return await response.arrayBuffer()
   } catch (error) {
     console.error('音频生成错误:', error)
     throw error
@@ -392,6 +377,19 @@ export async function transcribeRecording(audioBlob: Blob): Promise<string> {
   return fetchAudioTranscription(audioBlob)
 }
 
+function getAudioFileName(audioBlob: Blob): string {
+  const mimeType = audioBlob.type.toLowerCase()
+
+  if (mimeType.includes('wav')) return 'audio.wav'
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'audio.mp3'
+  if (mimeType.includes('mp4') || mimeType.includes('m4a')) return 'audio.mp4'
+  if (mimeType.includes('ogg')) return 'audio.ogg'
+  if (mimeType.includes('flac')) return 'audio.flac'
+  if (mimeType.includes('aac')) return 'audio.aac'
+
+  return 'audio.webm'
+}
+
 /**
  * 调用STT模型将音频转换为文本
  */
@@ -410,7 +408,7 @@ export async function fetchAudioTranscription(audioBlob: Blob): Promise<string> 
     // 检查新的 models 数组结构
     if (config.models && config.models.length > 0) {
       const targetModel = config.models.find(model => 
-        model.id === sttModel && model.modelType === 'stt'
+        model.modelType === 'stt' && (model.id === sttModel || `${config.key}-${model.id}` === sttModel)
       )
       if (targetModel) {
         // 返回合并了模型配置的 AiConfig
@@ -438,33 +436,20 @@ export async function fetchAudioTranscription(audioBlob: Blob): Promise<string> 
     throw new Error('语音识别模型配置不完整')
   }
 
-  // 创建 FormData
-  const formData = new FormData()
-  formData.append('file', audioBlob, 'audio.webm')
-  formData.append('model', sttConfig.model || 'FunAudioLLM/SenseVoiceSmall')
-
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${sttConfig.apiKey}`
-  }
-
-  // 添加自定义头部
-  if (sttConfig.customHeaders) {
-    Object.assign(headers, sttConfig.customHeaders)
-  }
-
   try {
-    const response = await fetch(`${sttConfig.baseURL}/audio/transcriptions`, {
-      method: 'POST',
-      headers,
-      body: formData
+    const result = await invokeAiMultipart<AudioTranscriptionResponse>({
+      config: await resolveAiRequestConfig(sttConfig),
+      path: '/audio/transcriptions',
+      fileFieldName: 'file',
+      fields: {
+        model: sttConfig.model || 'FunAudioLLM/SenseVoiceSmall'
+      },
+      file: {
+        bytes: await blobToBytes(audioBlob),
+        fileName: getAudioFileName(audioBlob),
+        contentType: audioBlob.type || 'audio/webm',
+      }
     })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`语音识别失败: ${response.status} ${errorText}`)
-    }
-
-    const result: AudioTranscriptionResponse = await response.json()
     return result.text
   } catch (error) {
     console.error('语音识别错误:', error)

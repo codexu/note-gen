@@ -2,6 +2,7 @@ import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useTranslations } from 'next-intl'
 import {
   Dialog,
@@ -27,30 +28,44 @@ import useMarkStore from "@/stores/mark"
 import useTagStore from "@/stores/tag"
 import { Link, CircleX } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
-import { fetch } from '@tauri-apps/plugin-http'
 import { v4 as uuidv4 } from 'uuid'
 import emitter from '@/lib/emitter'
-import { useRouter } from 'next/navigation'
-import { handleRecordComplete } from '@/lib/record-navigation'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 import { hasText, readText } from 'tauri-plugin-clipboard-api'
 import { Store } from '@tauri-apps/plugin-store'
+import { invoke } from '@tauri-apps/api/core'
+import { toast } from '@/hooks/use-toast'
+import { RecordSaveTarget } from './record-save-target'
+import useSettingStore from '@/stores/setting'
+import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
+import { useRecordCompletion } from './use-record-completion'
+import { captureLink } from '@/lib/link-capture'
+import {
+  localizeCapturedImages,
+  removeLinkAssetGroup,
+} from '@/lib/web-capture/images'
 
-export function ControlLink() {
+type BrowserPageContent = { title: string; url: string; text: string; truncated: boolean }
+
+export function ControlLink({ pageUrl, browserTabId, browserToolbar = false }: { pageUrl?: string; browserTabId?: string; browserToolbar?: boolean } = {}) {
   const t = useTranslations();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [autoReadClipboard, setAutoReadClipboard] = useState(true)
-  const isMobile = useIsMobile() || checkIsMobileDevice()
+  const mobileViewport = useIsMobile()
+  const isMobile = !browserToolbar && (mobileViewport || checkIsMobileDevice())
+  const completeRecord = useRecordCompletion()
 
-  const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { fetchMarks, addQueue, setQueue, removeQueue } = useMarkStore()
+  const { currentTagId, tags, fetchTags, initTags } = useTagStore()
+  const { addQueue, setQueue, removeQueue } = useMarkStore()
+  const [creatingTag, setCreatingTag] = useState(false)
+  const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
 
   // 初始化时从 store 读取设置
   useEffect(() => {
+    if (browserToolbar) return
     async function loadSetting() {
       try {
         const store = await Store.load('store.json')
@@ -63,7 +78,7 @@ export function ControlLink() {
       }
     }
     loadSetting()
-  }, [])
+  }, [browserToolbar])
 
   // 保存设置到 store
   const handleAutoReadChange = useCallback(async (checked: boolean) => {
@@ -110,24 +125,62 @@ export function ControlLink() {
     }
   }, [autoReadClipboard])
 
+  const prepareUrl = useCallback(async () => {
+    if (browserToolbar) {
+      setUrl(pageUrl || '')
+      return
+    }
+    await checkClipboard()
+  }, [browserToolbar, checkClipboard, pageUrl])
+
   const handleOpen = useCallback(async () => {
     setOpen(true)
-    await checkClipboard()
-  }, [checkClipboard])
+    await prepareUrl()
+  }, [prepareUrl])
 
   const handleOpenChange = useCallback(async (open: boolean) => {
     setOpen(open)
     if (open) {
-      await checkClipboard()
+      await prepareUrl()
     }
-  }, [checkClipboard])
+  }, [prepareUrl])
 
   useEffect(() => {
+    if (browserToolbar) return
     emitter.on('toolbar-shortcut-link', handleOpen)
     return () => {
       emitter.off('toolbar-shortcut-link', handleOpen)
     }
-  }, [handleOpen])
+  }, [browserToolbar, handleOpen])
+
+  useEffect(() => {
+    if (!open) {
+      setCreatingTag(false)
+      return
+    }
+
+    let cancelled = false
+    const prepareTags = async () => {
+      await initTags()
+      await fetchTags()
+      if (!cancelled) {
+        const tagState = useTagStore.getState()
+        const settingState = useSettingStore.getState()
+        setSelectedTagId(getRecordSaveTagIdFromTags({
+          mode: settingState.recordSaveTargetMode,
+          currentTagId: tagState.currentTagId,
+          lastTagId: settingState.lastRecordTagId,
+          fixedTagId: settingState.fixedRecordTagId,
+          tagIds: tagState.tags.map((tag) => tag.id),
+        }))
+      }
+    }
+
+    void prepareTags()
+    return () => {
+      cancelled = true
+    }
+  }, [fetchTags, initTags, open])
 
   // 检查是否是有效的 URL
   function isValidUrl(text: string): boolean {
@@ -145,9 +198,9 @@ export function ControlLink() {
   }
 
   async function handleSuccess() {
-    if (!url) return
-    let targetUrl = url
-    if (!targetUrl.startsWith('http')) {
+    if (!url || creatingTag) return
+    let targetUrl = url.trim()
+    if (!/^https?:\/\//i.test(targetUrl)) {
       targetUrl = `https://${targetUrl}`
       setUrl(targetUrl)
     }
@@ -158,132 +211,84 @@ export function ControlLink() {
     // 添加到队列中显示加载状态
     addQueue({
       queueId,
-      tagId: currentTagId!,
+      tagId: selectedTagId,
       type: 'link',
       progress: '0%',
       startTime: Date.now()
     })
-    
-    // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
-    handleRecordComplete(router)
-    
-    try {
-      setQueue(queueId, { progress: '30%' });
-      
-      // 使用 Tauri 的 HTTP 插件获取页面内容
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP 错误: ${response.status}`);
-      }
-      
-      setQueue(queueId, { progress: '60%' });
-      
-      // 获取 HTML 内容
-      const html = await response.text();
+    let shouldCleanupAssets = false
 
-      // 创建一个 DOMParser 来解析 HTML
-      const pageContent = await parseHtmlContent(html, targetUrl);
-      
-      setQueue(queueId, { progress: '90%' });
-      
-      if (pageContent.error) {
-        throw new Error(pageContent.error);
+    try {
+      const browserPagePromise = browserTabId
+        ? invoke<BrowserPageContent>('browser_get_content', { tabId: browserTabId }).catch(() => null)
+        : Promise.resolve(null)
+      setQueue(queueId, { progress: '30%' });
+      const page = await captureLink(targetUrl)
+      const currentPage = await browserPagePromise
+      let browserPage: BrowserPageContent | null = null
+      if (currentPage?.text) {
+        try {
+          if (new URL(currentPage.url).href === new URL(targetUrl).href) browserPage = currentPage
+        } catch {
+          // Keep the original link capture result for an invalid edited URL.
+        }
       }
-      
-      // 提取有用的内容
-      const { title, metaDesc, mainContent, bodyText } = pageContent;
-      
-      // 构建描述
-      const desc = `${title}\n${metaDesc}`;
-      
-      // 构建内容（优先使用主要内容，如果没有则使用正文）
-      const content = mainContent || bodyText;
+      setQueue(queueId, { progress: '65%' })
+      const localizedImages = await localizeCapturedImages(page, queueId)
+      shouldCleanupAssets = localizedImages.savedPaths.length > 0
+      setQueue(queueId, { progress: '90%' })
+
+      const fallbackContent = page.excerpt
+        ? page.method === 'search'
+          ? `> ${t('record.mark.link.searchExcerpt')}\n>\n> ${page.excerpt}`
+          : page.excerpt
+        : ''
+      const useBrowserContent = !!browserPage && !localizedImages.contentMarkdown
+      const savedUrl = useBrowserContent ? (browserPage?.url || targetUrl) : (page.canonicalUrl || page.finalUrl || targetUrl)
+      const content = localizedImages.contentMarkdown || (useBrowserContent ? (browserPage?.text || '') : fallbackContent)
       
       // 保存到数据库
-      await insertMark({ 
-        tagId: currentTagId, 
+      const result = await insertMark({
+        tagId: selectedTagId,
         type: 'link', 
-        desc: desc, 
+        desc: useBrowserContent ? (browserPage?.title || page.title) : page.title,
         content: content,
-        url: targetUrl 
+        url: savedUrl,
       });
-      
-      await fetchMarks();
-      await fetchTags();
-      getCurrentTag();
+      shouldCleanupAssets = false
+      const markId = Number(result.lastInsertId || 0) || null
+      await completeRecord({
+        markId,
+        tagId: selectedTagId,
+        typeLabel: t('record.mark.type.link'),
+      })
+
+      if (page.status !== 'success' && !useBrowserContent) {
+        toast({
+          title: t('record.mark.link.savedPartialTitle'),
+          description: page.method === 'search'
+            ? t('record.mark.link.savedFromSearch')
+            : t(`record.mark.link.captureStatus.${page.status}`),
+        })
+      }
       
       setUrl('');
       setOpen(false);
       
     } catch (error) {
+      if (shouldCleanupAssets) {
+        await removeLinkAssetGroup(queueId)
+      }
       console.error('Error crawling page:', error);
+      toast({
+        title: t('common.error'),
+        description: error instanceof Error ? error.message : t('record.capture.linkFetchFailed'),
+        variant: 'destructive',
+      })
     } finally {
       removeQueue(queueId);
       setLoading(false);
     }
-  }
-
-  // 在浏览器环境中解析 HTML 内容
-  function parseHtmlContent(html: string, url: string): Promise<any> {
-    return new Promise((resolve) => {
-      try {
-        // 创建一个临时的 div 元素
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        
-        // 获取页面标题
-        const title = doc.title || new URL(url).hostname;
-        
-        // 获取元描述
-        const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-        
-        // 尝试获取主要内容
-        let mainContent = '';
-        const mainElement = doc.querySelector('main') || 
-                           doc.querySelector('article') || 
-                           doc.querySelector('#content') || 
-                           doc.querySelector('.content');
-        
-        if (mainElement) {
-          mainContent = mainElement.textContent || '';
-        }
-        
-        // 获取所有文本内容作为备选
-        let bodyText = '';
-        if (doc.body) {
-          bodyText = doc.body.textContent || '';
-        }
-        
-        // 限制文本长度
-        if (mainContent.length > 10000) {
-          mainContent = mainContent.substring(0, 10000);
-        }
-        
-        if (bodyText.length > 10000) {
-          bodyText = bodyText.substring(0, 10000);
-        }
-        
-        resolve({
-          title,
-          metaDesc,
-          mainContent,
-          bodyText,
-          url
-        });
-      } catch (error) {
-        resolve({ 
-          error: `解析 HTML 内容失败: ${error}`,
-          title: new URL(url).hostname,
-          metaDesc: '',
-          mainContent: '',
-          bodyText: '',
-          url
-        });
-      }
-    });
   }
 
   return (
@@ -293,14 +298,21 @@ export function ControlLink() {
           <DrawerTrigger asChild>
             <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
           </DrawerTrigger>
-          <DrawerContent>
+          <DrawerContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}>
             <DrawerHeader>
               <DrawerTitle>{t('record.mark.link.title') || '链接记录'}</DrawerTitle>
               <DrawerDescription>
                 {t('record.mark.link.description') || '输入网页链接，系统将自动爬取页面内容并保存'}
               </DrawerDescription>
             </DrawerHeader>
-            <div className="px-4">
+            <div className="space-y-4 px-4">
+              <RecordSaveTarget
+                selectedTagId={selectedTagId}
+                tags={tags}
+                onTagChange={setSelectedTagId}
+                disabled={loading}
+                onCreatingChange={setCreatingTag}
+              />
               <div className="relative">
                 <Input
                   placeholder="https://example.com"
@@ -341,7 +353,7 @@ export function ControlLink() {
                 <Button
                   type="submit"
                   onClick={handleSuccess}
-                  disabled={!url || loading}
+                  disabled={!url || loading || creatingTag}
                 >
                   {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
                 </Button>
@@ -351,16 +363,43 @@ export function ControlLink() {
         </Drawer>
       ) : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogTrigger asChild>
-            <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
-          </DialogTrigger>
-          <DialogContent className="min-w-full md:min-w-[500px]">
+          {browserToolbar ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('tabContext.browserSaveRecord')}
+                    disabled={!pageUrl}
+                    onClick={() => void handleOpen()}
+                  >
+                    <Link data-icon="inline-start" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('tabContext.browserSaveRecord')}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <DialogTrigger asChild>
+              <TooltipButton icon={<Link />} tooltipText={t('record.mark.type.link') || '链接'} />
+            </DialogTrigger>
+          )}
+          <DialogContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }} className="min-w-full md:min-w-[500px]">
             <DialogHeader>
               <DialogTitle>{t('record.mark.link.title') || '链接记录'}</DialogTitle>
               <DialogDescription>
                 {t('record.mark.link.description') || '输入网页链接，系统将自动爬取页面内容并保存'}
               </DialogDescription>
             </DialogHeader>
+            <RecordSaveTarget
+              selectedTagId={selectedTagId}
+              tags={tags}
+              onTagChange={setSelectedTagId}
+              disabled={loading}
+              onCreatingChange={setCreatingTag}
+            />
             <div className="relative">
               <Input
                 placeholder="https://example.com"
@@ -378,8 +417,8 @@ export function ControlLink() {
                 </button>
               )}
             </div>
-            <DialogFooter className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
+            <DialogFooter className="flex items-center gap-4">
+              {!browserToolbar && <div className="flex items-center gap-2">
                 <Checkbox
                   id="auto-read-clipboard"
                   checked={autoReadClipboard}
@@ -392,15 +431,15 @@ export function ControlLink() {
                 >
                   {t('record.mark.link.autoReadClipboard') || '自动读取剪贴板链接'}
                 </Label>
-              </div>
-              <div className="flex items-center gap-4">
+              </div>}
+              <div className="ml-auto flex items-center gap-4">
                 <p className="text-sm text-zinc-500">
                   {loading ? '正在爬取页面内容...' : ''}
                 </p>
                 <Button
                   type="submit"
                   onClick={handleSuccess}
-                  disabled={!url || loading}
+                  disabled={!url || loading || creatingTag}
                 >
                   {loading ? '处理中...' : (t('record.mark.link.save') || '保存')}
                 </Button>

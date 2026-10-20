@@ -24,6 +24,7 @@ export function FileToolbar() {
     giteeCustomSyncRepo,
     gitlabCustomSyncRepo,
     giteaCustomSyncRepo,
+    workspacePath,
     gitlabInstanceType,
     gitlabCustomUrl,
     giteaInstanceType,
@@ -37,17 +38,17 @@ export function FileToolbar() {
   const repoName = React.useMemo(() => {
     switch (primaryBackupMethod) {
       case 'github':
-        return githubCustomSyncRepo.trim() || RepoNames.sync
+        return githubCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync)
       case 'gitee':
-        return giteeCustomSyncRepo.trim() || RepoNames.sync
+        return giteeCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync)
       case 'gitlab':
-        return gitlabCustomSyncRepo.trim() || RepoNames.sync
+        return gitlabCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync)
       case 'gitea':
-        return giteaCustomSyncRepo.trim() || RepoNames.sync
+        return giteaCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync)
       default:
         return RepoNames.sync
     }
-  }, [primaryBackupMethod, githubCustomSyncRepo, giteeCustomSyncRepo, gitlabCustomSyncRepo, giteaCustomSyncRepo])
+  }, [primaryBackupMethod, workspacePath, githubCustomSyncRepo, giteeCustomSyncRepo, gitlabCustomSyncRepo, giteaCustomSyncRepo])
 
   async function openRemoteRepo() {
     if (!username || !primaryBackupMethod) return
@@ -98,7 +99,7 @@ export function FileToolbar() {
       />
       {/* 同步 */}
       {
-        primaryBackupMethod && username ?
+        primaryBackupMethod && username && repoName ?
           <TooltipButton
             icon={fileTreeLoading ? <LoaderCircle className="animate-spin size-4" /> : <FolderGit2 />}
             tooltipText={fileTreeLoading ? t('loadingSync') : t('accessRepo')}

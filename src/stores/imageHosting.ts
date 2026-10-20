@@ -3,18 +3,10 @@ import { getImageFiles } from '@/lib/imageHosting/github';
 import { GithubRepoInfo, OctokitResponse, SyncStateEnum, UserInfo } from '@/lib/sync/github.types';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
+import type { S3Config } from '@/lib/imageHosting/types';
+import type { ImageHostingType } from '@/lib/image-hosting-config';
 
-interface S3Config {
-  accessKeyId: string
-  secretAccessKey: string
-  region: string
-  bucket: string
-  endpoint?: string
-  customDomain?: string
-  pathPrefix?: string
-}
-
-interface MarkState {
+interface ImageHostingState {
   initMainHosting: () => Promise<void>
   path: string
   setPath: (path: string) => void
@@ -41,9 +33,18 @@ interface MarkState {
   setS3Config: (config: S3Config) => Promise<void>
   s3State: SyncStateEnum
   setS3State: (state: SyncStateEnum) => void
+
+  // S.EE / PicGo 连接状态
+  smmsState: SyncStateEnum
+  setSmmsState: (state: SyncStateEnum) => void
+  picgoState: SyncStateEnum
+  setPicgoState: (state: SyncStateEnum) => void
+
+  serviceStates: Partial<Record<ImageHostingType, SyncStateEnum>>
+  setServiceState: (provider: ImageHostingType, state: SyncStateEnum) => void
 }
 
-const useImageStore = create<MarkState>((set, get) => ({
+const useImageStore = create<ImageHostingState>((set, get) => ({
   initMainHosting: async () => {
     const store = await Store.load('store.json');
     const mainImageHosting = await store.get<string>('mainImageHosting')
@@ -115,6 +116,23 @@ const useImageStore = create<MarkState>((set, get) => ({
   s3State: SyncStateEnum.fail,
   setS3State: (s3State) => {
     set({ s3State })
+  },
+  smmsState: SyncStateEnum.fail,
+  setSmmsState: (smmsState) => {
+    set({ smmsState })
+  },
+  picgoState: SyncStateEnum.fail,
+  setPicgoState: (picgoState) => {
+    set({ picgoState })
+  },
+  serviceStates: {},
+  setServiceState: (provider, state) => {
+    set((current) => ({
+      serviceStates: {
+        ...current.serviceStates,
+        [provider]: state,
+      },
+    }))
   },
 }))
 

@@ -9,12 +9,10 @@ import useArticleStore from '@/stores/article'
 import { getVectorDocumentsByFilename } from '@/db/vector'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
 import { calculateFolderVectors } from '@/lib/folder-vector'
 import { toast } from '@/hooks/use-toast'
 
 dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 interface FolderStats {
   totalFiles: number

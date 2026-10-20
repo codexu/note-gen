@@ -1,5 +1,5 @@
 const PRIMARY_ACTIONS = {
-  text: ['quote', 'ai', 'bold', 'highlight', 'italic', 'underline', 'strike', 'code', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'codeBlock'],
+  text: ['ai', 'bold', 'highlight', 'italic', 'underline', 'strike', 'code', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'codeBlock'],
   image: ['image-src', 'image-alt', 'delete-image', 'more'],
   table: ['add-row', 'add-column', 'align', 'more'],
 } as const

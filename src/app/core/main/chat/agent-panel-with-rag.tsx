@@ -1,15 +1,34 @@
 "use client"
 import * as React from "react"
 import { AgentPlan } from "@/components/ui/agent-plan"
-import { FileText, ChevronRight, Database, ExternalLink } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { FileText, ChevronRight, Database, ExternalLink, NotebookPen, PanelsTopLeft } from "lucide-react"
+import { useLocale, useTranslations } from "next-intl"
+import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
+import { createCanvasTab } from "@/app/core/main/canvas/canvas-tab"
 import useArticleStore from "@/stores/article"
+import useCanvasStore from "@/stores/canvas"
+import useMarkStore from "@/stores/mark"
+import { useSidebarStore } from "@/stores/sidebar"
+import useTagStore from "@/stores/tag"
+import { AgentRunTimeline } from "./agent-run-timeline"
+import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 
 interface RagSourceDetail {
   filepath: string
   filename: string
   content: string
+  sourceKey?: string
+  sourceType?: 'article' | 'record' | 'canvas'
+  sourceId?: string
+  locator?: {
+    filePath?: string
+    markId?: number
+    tagId?: number
+    canvasId?: string
+    nodeIds?: string[]
+  }
+  updatedAt?: number
 }
 
 interface AgentPanelWithRagProps {
@@ -47,9 +66,11 @@ interface AgentPanelWithRagProps {
     originalContent?: string
     modifiedContent?: string
     filePath?: string
+    from?: number
+    to?: number
     canApproveForSession?: boolean
-    sessionApprovalType?: "write" | "runtime-script-skill"
-    sessionApprovalSkillId?: string
+    sessionApprovalType?: "runtime-script"
+    sessionApprovalKey?: string
   }
   confirmationHistory?: Array<{
     toolName: string
@@ -57,12 +78,21 @@ interface AgentPanelWithRagProps {
     status: "pending" | "confirmed" | "cancelled"
     timestamp: number
     scope?: "once" | "conversation"
-    sessionApprovalType?: "write" | "runtime-script-skill"
-    sessionApprovalSkillId?: string
+    sessionApprovalType?: "runtime-script"
+    sessionApprovalKey?: string
   }>
   currentStepStartTime?: number
   onConfirm?: (scope?: "once" | "conversation") => void
   onCancel?: () => void
+}
+
+interface StructuredAgentHistory {
+  modelName?: string
+  runId?: string
+  status?: AgentRunStatus
+  traceEvents?: AgentTraceEvent[]
+  toolCalls?: ToolCall[]
+  loadedSkills?: AgentSkillSummary[]
 }
 
 /**
@@ -87,9 +117,31 @@ export function AgentPanelWithRag({
   onCancel,
 }: AgentPanelWithRagProps) {
   const t = useTranslations()
+  const locale = useLocale()
+  const router = useRouter()
+  const pathname = usePathname()
   const [isRagExpanded, setIsRagExpanded] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<string[]>([])
-  const { setActiveFilePath, readArticle } = useArticleStore()
+  const { setActiveFilePath } = useArticleStore()
+
+  const structuredHistory = React.useMemo<StructuredAgentHistory | null>(() => {
+    if (!agentHistoryJson) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(agentHistoryJson) as StructuredAgentHistory
+      return parsed && typeof parsed === "object" ? parsed : null
+    } catch {
+      return null
+    }
+  }, [agentHistoryJson])
+
+  const hasStructuredHistory = Boolean(
+    structuredHistory?.runId ||
+    structuredHistory?.status ||
+    structuredHistory?.traceEvents?.length
+  )
 
   // 创建文件名到详情的映射
   const detailMap = React.useMemo(
@@ -97,11 +149,66 @@ export function AgentPanelWithRag({
     [ragSourceDetails]
   )
 
-  // 打开文件
-  const handleOpenFile = (e: React.MouseEvent, filepath: string) => {
+  const sourceSummary = React.useMemo(() => {
+    const counts = { article: 0, record: 0, canvas: 0, unknown: 0 }
+    ragSources.forEach((source) => {
+      const sourceType = detailMap.get(source)?.sourceType
+      if (sourceType) counts[sourceType] += 1
+      else counts.unknown += 1
+    })
+    const parts = [
+      counts.article ? t('record.chat.ragSources.articleCount', { count: counts.article }) : '',
+      counts.record ? t('record.chat.ragSources.recordCount', { count: counts.record }) : '',
+      counts.canvas ? t('record.chat.ragSources.canvasCount', { count: counts.canvas }) : '',
+      counts.unknown ? t('record.chat.ragSources.sourceCount', { count: counts.unknown }) : '',
+    ].filter(Boolean)
+    return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(parts)
+  }, [detailMap, locale, ragSources, t])
+
+  const handleOpenSource = async (e: React.MouseEvent, detail: RagSourceDetail) => {
     e.stopPropagation()
-    setActiveFilePath(filepath)
-    readArticle(filepath)
+    if (detail.sourceType === 'record' && detail.locator?.markId) {
+      if (detail.locator.tagId) await useTagStore.getState().setCurrentTagId(detail.locator.tagId)
+      await useSidebarStore.getState().setLeftSidebarTab('notes')
+      await useMarkStore.getState().fetchMarks()
+      useMarkStore.getState().setPendingScrollMarkId(detail.locator.markId)
+      useMarkStore.getState().setHighlightedMarkId(detail.locator.markId)
+      if (pathname.startsWith('/mobile')) router.push('/mobile/record')
+      return
+    }
+    if (detail.sourceType === 'canvas' && detail.locator?.canvasId) {
+      const canvasId = detail.locator.canvasId
+      useCanvasStore.getState().setPendingFocus({ canvasId, nodeIds: detail.locator.nodeIds || [] })
+      const project = await useCanvasStore.getState().openProject(canvasId)
+      if (!project) return
+      if (pathname.startsWith('/mobile')) {
+        router.push(`/mobile/canvas/editor?id=${encodeURIComponent(canvasId)}`)
+        return
+      }
+      await useArticleStore.getState().addTab(createCanvasTab(project))
+      await useSidebarStore.getState().setLeftSidebarTab('canvases')
+      return
+    }
+    const filepath = detail.locator?.filePath || detail.filepath
+    if (!filepath) return
+    await setActiveFilePath(
+      filepath,
+      true,
+      pathname.startsWith('/mobile') ? undefined : { tabOpenMode: 'preview' },
+    )
+  }
+
+  const sourceIcon = (sourceType?: RagSourceDetail['sourceType']) => {
+    if (sourceType === 'record') return <NotebookPen className="size-4 text-muted-foreground" />
+    if (sourceType === 'canvas') return <PanelsTopLeft className="size-4 text-muted-foreground" />
+    return <FileText className="size-4 text-muted-foreground" />
+  }
+
+  const openSourceLabel = (sourceType?: RagSourceDetail['sourceType']) => {
+    if (sourceType === 'record') return t('record.chat.ragSources.openRecord')
+    if (sourceType === 'canvas') return t('record.chat.ragSources.openCanvas')
+    if (sourceType === 'article') return t('record.chat.ragSources.openArticle')
+    return t('record.chat.ragSources.openSource')
   }
 
   // 切换单个文件的展开状态
@@ -124,6 +231,21 @@ export function AgentPanelWithRag({
     return null
   }
 
+  if (hasStructuredHistory) {
+    return (
+      <AgentRunTimeline
+        modelName={structuredHistory?.modelName}
+        status={structuredHistory?.status || "completed"}
+        isRunning={false}
+        traceEvents={structuredHistory?.traceEvents || []}
+        toolCalls={structuredHistory?.toolCalls || []}
+        ragSources={ragSources}
+        ragSourceDetails={ragSourceDetails}
+        loadedSkills={structuredHistory?.loadedSkills || []}
+      />
+    )
+  }
+
   return (
     <div className="w-full">
       <div className="overflow-hidden">
@@ -132,16 +254,18 @@ export function AgentPanelWithRag({
           {hasRag && (
             <>
               <li>
-                <div
-                  className="group flex items-center gap-2 py-2 cursor-pointer"
+                <button
+                  type="button"
+                  className="group flex min-h-11 w-full items-center gap-2 py-2 text-left"
                   onClick={() => setIsRagExpanded(!isRagExpanded)}
+                  aria-expanded={isRagExpanded}
                 >
                   <div className="shrink-0">
                     <Database className="size-4.5 text-blue-500" />
                   </div>
                   <div className="flex min-w-0 grow items-center justify-between">
                     <span className="text-sm">
-                      {t("record.chat.ragSources.label", { count: ragSources.length })}
+                      {t("record.chat.ragSources.label", { sources: sourceSummary })}
                     </span>
                     <ChevronRight
                       className={`size-4 text-muted-foreground shrink-0 transition-transform ${
@@ -149,7 +273,7 @@ export function AgentPanelWithRag({
                       }`}
                     />
                   </div>
-                </div>
+                </button>
               </li>
 
               {/* 文件列表 */}
@@ -160,15 +284,18 @@ export function AgentPanelWithRag({
 
                 return (
                   <li key={source} className="mt-1">
-                    <div
-                      className="group flex items-center gap-2 py-1 cursor-pointer"
+                    <button
+                      type="button"
+                      className="group flex min-h-11 w-full items-center gap-2 py-1 text-left disabled:cursor-default"
                       onClick={() => hasDetail && toggleFileExpansion(source)}
+                      disabled={!hasDetail}
+                      aria-expanded={hasDetail ? isFileExpanded : undefined}
                     >
                       <div className="shrink-0">
                         <div className="size-4.5" />
                       </div>
                       <div className="shrink-0">
-                        <FileText className="size-4 text-muted-foreground" />
+                        {sourceIcon(detail?.sourceType)}
                       </div>
                       <div className="flex min-w-0 grow items-center justify-between gap-2">
                         <span
@@ -188,7 +315,7 @@ export function AgentPanelWithRag({
                           />
                         )}
                       </div>
-                    </div>
+                    </button>
 
                     {/* 展开的详情内容 */}
                     {isFileExpanded && hasDetail && detail?.content && (
@@ -197,16 +324,16 @@ export function AgentPanelWithRag({
                           <div className="flex items-center justify-between gap-2 py-1">
                             <div className="flex items-center gap-2">
                               <Database className="size-3.5 text-blue-500 shrink-0" />
-                              <span className="font-medium text-xs">引用内容</span>
+                              <span className="font-medium text-xs">{t('record.chat.input.agent.observation')}</span>
                             </div>
-                            {detail?.filepath && (
+                            {detail && (
                               <button
-                                onClick={(e) => handleOpenFile(e, detail.filepath)}
+                                onClick={(e) => void handleOpenSource(e, detail)}
                                 className="shrink-0 flex items-center gap-1 text-xs text-primary hover:underline"
-                                title={t("record.chat.ragSources.openFile", { defaultValue: "Open file" })}
+                                title={openSourceLabel(detail.sourceType)}
                               >
                                 <ExternalLink className="size-3" />
-                                <span>打开文件</span>
+                                <span>{openSourceLabel(detail.sourceType)}</span>
                               </button>
                             )}
                           </div>

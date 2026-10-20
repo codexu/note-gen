@@ -3,12 +3,7 @@ import { GlobeIcon, Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { fetchAiTranslate } from "@/lib/ai/translate"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveActionMenu } from "@/components/responsive-action-menu"
 import { scrollToBottom } from '@/lib/utils'
 import { TooltipButton } from "@/components/tooltip-button"
 
@@ -64,10 +59,25 @@ export function TranslateControl({ chat, onTranslatedContent }: TranslateControl
     return null
   }
 
+  const items = selectedLanguage
+    ? [{
+        key: 'original',
+        label: translateT('showOriginal'),
+        onSelect: resetTranslation,
+      }]
+    : languageOptions.map(language => ({
+        key: language,
+        label: language,
+        onSelect: () => handleTranslate(language),
+      }))
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <div>
+    <ResponsiveActionMenu
+      title={translateT('tooltip')}
+      desktopAlign="start"
+      items={items}
+      trigger={
+        <div className="inline-flex">
           <TooltipButton
             icon={isTranslating ? <Loader2 className="size-4 animate-spin" /> : <GlobeIcon className="size-4" />}
             tooltipText={translateT('tooltip')}
@@ -76,23 +86,7 @@ export function TranslateControl({ chat, onTranslatedContent }: TranslateControl
             size="sm"
           />
         </div>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {selectedLanguage ? (
-          <DropdownMenuItem onClick={resetTranslation}>
-            {translateT('showOriginal')}
-          </DropdownMenuItem>
-        ) : (
-          languageOptions.map((language) => (
-            <DropdownMenuItem 
-              key={language}
-              onClick={() => handleTranslate(language)}
-            >
-              {language}
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+    />
   )
 }

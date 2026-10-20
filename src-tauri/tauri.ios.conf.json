@@ -1,1 +1,10 @@
-{"bundle": {"iOS": {"developmentTeam": "RGZC4ZTJMU"}}}
+{
+  "bundle": {
+    "resources": [
+      "icons"
+    ],
+    "iOS": {
+      "developmentTeam": "RGZC4ZTJMU"
+    }
+  }
+}

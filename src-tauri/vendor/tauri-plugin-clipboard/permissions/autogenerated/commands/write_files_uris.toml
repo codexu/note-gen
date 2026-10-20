@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-write-files-uris"
+description = "Enables the write_files_uris command without any pre-configured scope."
+commands.allow = ["write_files_uris"]
+
+[[permission]]
+identifier = "deny-write-files-uris"
+description = "Denies the write_files_uris command without any pre-configured scope."
+commands.deny = ["write_files_uris"]

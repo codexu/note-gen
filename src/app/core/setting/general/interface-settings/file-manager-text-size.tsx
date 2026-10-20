@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl'
 import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Folder } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import useSettingStore from '@/stores/setting'
 
 const textSizeOptions = [
@@ -23,22 +23,24 @@ export function FileManagerTextSizeSettings() {
 
   return (
     <Item variant="outline">
-      <ItemMedia variant="icon"><Folder className="size-4" /></ItemMedia>
+      <ItemMedia variant="icon"><Folder /></ItemMedia>
       <ItemContent>
         <ItemTitle>{t('fileManagerTextSize.title')}</ItemTitle>
         <ItemDescription>{t('fileManagerTextSize.desc')}</ItemDescription>
       </ItemContent>
-      <ItemActions>
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
         <Select value={fileManagerTextSize} onValueChange={handleSizeChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {textSizeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <span className="text-center w-full">{option.desc}</span>
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {textSizeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  <span className="w-full text-center">{option.desc}</span>
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </ItemActions>

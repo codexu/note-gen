@@ -1,5 +1,335 @@
 import { Tool, ToolResult } from '../types'
 import emitter from '@/lib/emitter'
+import useArticleStore from '@/stores/article'
+import { markEditorPathMutation } from '@/lib/editor-deactivation'
+import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
+import { exists, readTextFile } from '@tauri-apps/plugin-fs'
+import { getFilePathOptions } from '@/lib/workspace'
+import type { AgentEditorStateSnapshot } from '../types'
+
+const EDITOR_TOOL_RESPONSE_TIMEOUT_MS = 200
+let storeBackedContentVersion = 0
+
+function incrementStoreBackedContentVersion() {
+  storeBackedContentVersion += 1
+  return storeBackedContentVersion
+}
+
+function normalizeEditorFilePath(filePath: string) {
+  return filePath.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/').trim()
+}
+
+function isCurrentEditorTarget(filePath: unknown): filePath is string {
+  const activeFilePath = useArticleStore.getState().activeFilePath
+  return typeof filePath === 'string'
+    && filePath.length > 0
+    && Boolean(activeFilePath)
+    && normalizeEditorFilePath(filePath) === normalizeEditorFilePath(activeFilePath || '')
+}
+
+function getEditorTargetChangedResult(): ToolResult {
+  return {
+    success: false,
+    error: 'EDITOR_TARGET_CHANGED',
+    message: '活动编辑器已切换，未执行写入',
+  }
+}
+
+function buildEditorContentPayload(markdown: string, version: number): AgentEditorStateSnapshot & { text: string } {
+  const normalizedMarkdown = markdown.replace(/&nbsp;/g, ' ')
+  const text = normalizedMarkdown
+  const markdownLines = normalizedMarkdown.split('\n')
+  const totalLines = markdownLines.length
+  const lineNumberWidth = String(totalLines).length
+  const numberedLines = markdownLines
+    .map((line, index) => `${String(index + 1).padStart(lineNumberWidth)} | ${line}`)
+    .join('\n')
+
+  return {
+    markdown: normalizedMarkdown,
+    text,
+    wordCount: text.split(/\s+/).filter(w => w).length,
+    charCount: text.length,
+    totalLines,
+    numberedLines,
+    version,
+  }
+}
+
+export async function readCurrentEditorState(): Promise<AgentEditorStateSnapshot> {
+  return new Promise((resolve) => {
+    let settled = false
+
+    const finalize = (data: AgentEditorStateSnapshot) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      resolve(data)
+    }
+
+    const timeoutId = setTimeout(() => {
+      void hydrateStoreBackedEditorContent().then(data => finalize(data ?? getStoreBackedEditorContent()))
+    }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
+
+    emitter.emit('editor-get-content', {
+      resolve: (data) => {
+        clearTimeout(timeoutId)
+        finalize({
+          markdown: data.markdown,
+          wordCount: data.wordCount,
+          charCount: data.charCount,
+          totalLines: data.totalLines ?? data.markdown.split('\n').length,
+          numberedLines: data.numberedLines ?? buildEditorContentPayload(data.markdown, data.version).numberedLines,
+          version: data.version,
+          selection: data.selection,
+        })
+      },
+    })
+  })
+}
+
+function getStoreBackedEditorContent() {
+  const { currentArticle } = useArticleStore.getState()
+  return buildEditorContentPayload(currentArticle || '', storeBackedContentVersion)
+}
+
+async function hydrateStoreBackedEditorContent(expectedFilePath?: string) {
+  const articleStore = useArticleStore.getState()
+
+  if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
+    return null
+  }
+
+  if (articleStore.currentArticle || !articleStore.activeFilePath) {
+    return getStoreBackedEditorContent()
+  }
+
+  try {
+    const targetFilePath = expectedFilePath || articleStore.activeFilePath
+    if (!targetFilePath) return getStoreBackedEditorContent()
+    const pathOptions = await getFilePathOptions(targetFilePath)
+    const fileExists = pathOptions.baseDir
+      ? await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await exists(pathOptions.path)
+
+    if (!fileExists) {
+      return getStoreBackedEditorContent()
+    }
+
+    const content = pathOptions.baseDir
+      ? await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await readTextFile(pathOptions.path)
+
+    if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
+      return null
+    }
+    articleStore.setCurrentArticle(content)
+    return buildEditorContentPayload(content, storeBackedContentVersion)
+  } catch {
+    return getStoreBackedEditorContent()
+  }
+}
+
+function replaceNthOccurrence(content: string, searchContent: string, replaceContent: string, occurrence: number) {
+  let searchFrom = 0
+  let foundIndex = -1
+
+  for (let index = 0; index < occurrence; index += 1) {
+    foundIndex = content.indexOf(searchContent, searchFrom)
+    if (foundIndex === -1) {
+      return null
+    }
+    searchFrom = foundIndex + searchContent.length
+  }
+
+  return `${content.slice(0, foundIndex)}${replaceContent}${content.slice(foundIndex + searchContent.length)}`
+}
+
+async function saveStoreBackedEditorContent(markdown: string, expectedFilePath?: string) {
+  const articleStore = useArticleStore.getState()
+  if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
+    return false
+  }
+  incrementStoreBackedContentVersion()
+  articleStore.setCurrentArticle(markdown)
+
+  const targetFilePath = expectedFilePath || articleStore.activeFilePath
+  if (!targetFilePath) {
+    return true
+  }
+
+  try {
+    if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
+      return false
+    }
+    markEditorPathMutation(targetFilePath)
+    await articleStore.saveCurrentArticle(markdown, targetFilePath)
+    await articleStore.flushPendingArticleSave(targetFilePath)
+  } catch {
+    return false
+  }
+  return true
+}
+
+async function insertIntoStoreBackedEditor(params: Record<string, any>): Promise<ToolResult> {
+  if (!isCurrentEditorTarget(params.filePath)) return getEditorTargetChangedResult()
+  const storeContent = await hydrateStoreBackedEditorContent(params.filePath)
+  if (!storeContent || !isCurrentEditorTarget(params.filePath)) {
+    return getEditorTargetChangedResult()
+  }
+  const currentMarkdown = storeContent.markdown
+  const insertContent = (params.content || '') as string
+  const articleStore = useArticleStore.getState()
+  const activeFilePath = articleStore.activeFilePath
+  const savedViewState = activeFilePath
+    ? articleStore.getEditorViewState(activeFilePath)
+    : null
+  const requestedPosition = typeof params.position === 'number'
+    ? params.position
+    : savedViewState
+      ? Math.max(savedViewState.selectionFrom, savedViewState.selectionTo)
+      : currentMarkdown.length
+  const insertPosition = Math.min(Math.max(requestedPosition, 0), currentMarkdown.length)
+  const updatedMarkdown = `${currentMarkdown.slice(0, insertPosition)}${insertContent}${currentMarkdown.slice(insertPosition)}`
+
+  if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
+    return getEditorTargetChangedResult()
+  }
+
+  return {
+    success: true,
+    data: {
+      success: true,
+      insertedLength: insertContent.length,
+      newCursorPosition: insertPosition + insertContent.length,
+    },
+    message: `成功插入 ${insertContent.length} 个字符`,
+  }
+}
+
+function getEditorSelectionFallbackResult(): ToolResult {
+  return {
+    success: false,
+    data: { text: '', from: 0, to: 0, startLine: 1, endLine: 1 },
+    message: '当前没有活跃编辑器，无法获取选中内容',
+  }
+}
+
+function getInsertFallbackResult(): ToolResult {
+  return {
+    success: false,
+    error: 'No active editor',
+    message: '当前没有活跃编辑器，无法按光标位置插入内容',
+  }
+}
+
+async function replaceEditorContentWithStore(params: Record<string, any>): Promise<ToolResult> {
+  if (!isCurrentEditorTarget(params.filePath)) return getEditorTargetChangedResult()
+  const storeContent = await hydrateStoreBackedEditorContent(params.filePath)
+  if (!storeContent || !isCurrentEditorTarget(params.filePath)) {
+    return getEditorTargetChangedResult()
+  }
+  const currentMarkdown = storeContent.markdown
+  const replaceContent = (params.content || params.replaceContent || '') as string
+
+  if (params.version !== undefined && params.version !== storeContent.version) {
+    return {
+      success: false,
+      error: 'Content has changed, please get editor content again',
+      message: '编辑器内容已变化，请重新获取内容后再操作',
+    }
+  }
+
+  if (params.startLine !== undefined && params.endLine !== undefined) {
+    let updatedMarkdown = ''
+    try {
+      updatedMarkdown = replaceLinesInRange(
+        currentMarkdown,
+        params.startLine,
+        params.endLine,
+        replaceContent.split('\n')
+      )
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        message: error instanceof Error ? error.message : '替换失败',
+      }
+    }
+
+    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
+      return getEditorTargetChangedResult()
+    }
+
+    return {
+      success: true,
+      data: {
+        success: true,
+        insertedLength: replaceContent.length,
+        message: `成功替换第 ${params.startLine}-${params.endLine} 行内容`,
+      },
+      message: `成功替换第 ${params.startLine}-${params.endLine} 行内容`,
+    }
+  }
+
+  if (params.from !== undefined && params.to !== undefined) {
+    const from = Math.max(0, Math.min(params.from, currentMarkdown.length))
+    const to = Math.max(from, Math.min(params.to, currentMarkdown.length))
+    const updatedMarkdown = `${currentMarkdown.slice(0, from)}${replaceContent}${currentMarkdown.slice(to)}`
+
+    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
+      return getEditorTargetChangedResult()
+    }
+
+    return {
+      success: true,
+      data: {
+        success: true,
+        insertedLength: replaceContent.length,
+        message: `成功替换 ${to - from} 个字符`,
+      },
+      message: `成功替换 ${to - from} 个字符`,
+    }
+  }
+
+  if (params.searchContent) {
+    const updatedMarkdown = replaceNthOccurrence(
+      currentMarkdown,
+      params.searchContent,
+      replaceContent,
+      params.occurrence || 1
+    )
+
+    if (updatedMarkdown === null) {
+      return {
+        success: false,
+        error: `找不到文本 "${params.searchContent}"`,
+        message: `找不到文本 "${params.searchContent}"`,
+      }
+    }
+
+    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
+      return getEditorTargetChangedResult()
+    }
+
+    return {
+      success: true,
+      data: {
+        success: true,
+        insertedLength: replaceContent.length,
+        message: `成功替换匹配文本 "${params.searchContent}"`,
+      },
+      message: `成功替换匹配文本 "${params.searchContent}"`,
+    }
+  }
+
+  return {
+    success: false,
+    error: 'No active editor',
+    message: '当前没有活跃编辑器，仅支持按行号或按文本搜索替换',
+  }
+}
 
 // 1. 获取当前选中内容
 export const getEditorSelectionTool: Tool = {
@@ -22,14 +352,29 @@ export const getEditorSelectionTool: Tool = {
   parameters: [],
   execute: async (): Promise<ToolResult> => {
     return new Promise((resolve) => {
+      let settled = false
+
+      const finalize = (result: ToolResult) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        resolve(result)
+      }
+
+      const timeoutId = setTimeout(() => {
+        finalize(getEditorSelectionFallbackResult())
+      }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
+
       emitter.emit('editor-get-selection', {
         resolve: (data) => {
-          resolve({
-            success: !!data.text,
+          clearTimeout(timeoutId)
+          finalize({
+            success: true,
             data,
             message: data.text
               ? `选中内容：${data.text.slice(0, 50)}${data.text.length > 50 ? '...' : ''} (行 ${data.startLine}-${data.endLine})`
-              : '当前没有选中文本',
+              : `当前没有选中文本，光标位于第 ${data.startLine || 1} 行，位置 ${data.from}。`,
           })
         },
       })
@@ -52,27 +397,22 @@ export const getEditorContentTool: Tool = {
 - \`wordCount\`: Number of words
 - \`charCount\`: Number of characters
 - \`totalLines\`: Total number of lines
+- \`numberedLines\`: The current content rendered line by line with 1-based line numbers
 - \`version\`: Version number for content verification (use this when calling replace_editor_content)
 
-**Note:** Use read_markdown_file if you need the saved file content.`,
+**Recommended workflow for document-wide edits:** Read \`numberedLines\`, then call \`replace_editor_content\` with \`startLine: 1\`, \`endLine: totalLines\`, and \`version\`.
+
+**Note:** Prefer this tool for the currently open file. Use read_markdown_file only when you specifically need the saved on-disk content of another file.`,
   category: 'editor',
   requiresConfirmation: false,
   parameters: [],
   execute: async (): Promise<ToolResult> => {
-    return new Promise((resolve) => {
-      emitter.emit('editor-get-content', {
-        resolve: (data: { markdown: string; html?: string; text: string; wordCount: number; charCount: number; totalLines?: number; version: number }) => {
-          resolve({
-            success: true,
-            data: {
-              ...data,
-              version: data.version,
-            },
-            message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字，${data.totalLines || '?'} 行, v${data.version})`,
-          })
-        },
-      })
-    })
+    const data = await readCurrentEditorState()
+    return {
+      success: true,
+      data,
+      message: `编辑器内容：${data.markdown.slice(0, 50)}${data.markdown.length > 50 ? '...' : ''} (${data.wordCount} 字，${data.totalLines} 行, v${data.version})`,
+    }
   },
 }
 
@@ -106,10 +446,52 @@ export const insertAtCursorTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     return new Promise((resolve) => {
+      let settled = false
+      const articleStore = useArticleStore.getState()
+      const activeFilePath = articleStore.activeFilePath
+      const savedViewState = activeFilePath
+        ? articleStore.getEditorViewState(activeFilePath)
+        : null
+      const cursorPosition = savedViewState
+        ? Math.max(savedViewState.selectionFrom, savedViewState.selectionTo)
+        : undefined
+
+      const finalize = (result: ToolResult) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        resolve(result)
+      }
+
+      const timeoutId = setTimeout(() => {
+        if (params.replaceSelection === true) {
+          finalize({
+            success: false,
+            error: 'Active selection unavailable',
+            message: '当前活动选区不可用，未执行替换',
+          })
+          return
+        }
+        void insertIntoStoreBackedEditor({
+          ...params,
+          position: cursorPosition,
+        }).then(finalize).catch(() => finalize(getInsertFallbackResult()))
+      }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
+
       emitter.emit('editor-insert', {
+        filePath: typeof params.filePath === 'string' ? params.filePath : activeFilePath || '',
         content: params.content,
+        replaceSelection: params.replaceSelection === true,
+        expectedSelection: params.replaceSelection === true && typeof params.expectedSelection === 'string'
+          ? params.expectedSelection
+          : undefined,
+        expectedSelectionToken: params.replaceSelection === true && typeof params.expectedSelectionToken === 'string'
+          ? params.expectedSelectionToken
+          : undefined,
         resolve: (result) => {
-          resolve({
+          clearTimeout(timeoutId)
+          finalize({
             success: result.success,
             data: result,
             message: result.success
@@ -127,10 +509,17 @@ export const replaceEditorContentTool: Tool = {
   name: 'replace_editor_content',
   description: `📝 **Editor Operation**: Replace content in the specified range with new content.
 
+**IMPORTANT - Editing Priority**:
+For the currently open document, prefer these modes in order:
+1. Position-based (\`from\`/\`to\`) when the user provided an exact quoted selection
+2. Line-based (\`startLine\`/\`endLine\`) for section/list/block edits in the current editor content
+3. Text-based search (\`searchContent\`) only as a fallback when line numbers are unavailable and the target text is short and unique
+
 **IMPORTANT - Prefer Exact Quoted Range**:
 When the user quotes content from the editor and exact selection positions are provided, you MUST use position-based mode (\`from\`/\`to\`) so that only the quoted selection is replaced.
 - If quote context includes \`from\` and \`to\`, use them directly
-- Only use line-based mode (\`startLine\`/\`endLine\`) when exact positions are not available
+- For current-document structural edits without exact positions, use line-based mode (\`startLine\`/\`endLine\`)
+- Only use text-based search when exact positions and line numbers are both unavailable
 - NEVER expand a quoted edit to the whole document
 
 **Use Cases:**
@@ -145,7 +534,7 @@ When the user quotes content from the editor and exact selection positions are p
 - \`endLine\`: End line number (1-based, required for line-based mode)
 - \`replaceContent\`: New content to replace with
 
-**Mode 2: Text-based search**
+**Mode 2: Text-based search (fallback only)**
 - \`searchContent\`: Text to search for (must match exactly)
 - \`replaceContent\`: New content to replace with
 - \`occurrence\`: Which occurrence to replace (1-based, default: 1)
@@ -216,13 +605,23 @@ When the user quotes content from the editor and exact selection positions are p
   ],
   execute: async (params): Promise<ToolResult> => {
     return new Promise((resolve) => {
+      let settled = false
+
+      const finalize = (result: ToolResult) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        resolve(result)
+      }
+
       // 确定使用哪种模式
       const hasPositionParams = params.from !== undefined || params.to !== undefined;
       const hasSearchParams = params.searchContent;
       const hasLineParams = params.startLine !== undefined && params.endLine !== undefined;
 
       if (!hasPositionParams && !hasSearchParams && !hasLineParams && !params.content) {
-        resolve({
+        finalize({
           success: false,
           error: 'Missing required parameters',
           message: '请提供 content 或 searchContent 或 startLine/endLine 参数',
@@ -230,7 +629,14 @@ When the user quotes content from the editor and exact selection positions are p
         return;
       }
 
+      const timeoutId = setTimeout(() => {
+        void replaceEditorContentWithStore(params).then(finalize)
+      }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
+
       emitter.emit('editor-replace', {
+        filePath: typeof params.filePath === 'string'
+          ? params.filePath
+          : useArticleStore.getState().activeFilePath || '',
         content: params.content || params.replaceContent,
         range: (params.from !== undefined && params.to !== undefined)
           ? { from: params.from, to: params.to }
@@ -241,20 +647,21 @@ When the user quotes content from the editor and exact selection positions are p
         endLine: params.endLine,
         expectedVersion: params.version,
         resolve: (result) => {
+          clearTimeout(timeoutId)
           if (result.versionMismatch) {
-            resolve({
+            finalize({
               success: false,
               error: result.error,
               message: '编辑器内容已变化，请重新获取内容后再操作',
             });
           } else if (result.success) {
-            resolve({
+            finalize({
               success: true,
               data: result,
               message: result.message || `成功替换 ${result.insertedLength} 个字符`,
             });
           } else {
-            resolve({
+            finalize({
               success: false,
               error: result.error,
               message: result.message || '替换失败',

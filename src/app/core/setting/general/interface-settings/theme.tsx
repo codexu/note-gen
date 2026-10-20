@@ -4,33 +4,46 @@ import { useTranslations } from 'next-intl'
 import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Palette, Moon, Sun, SunMoon } from 'lucide-react'
 import { useTheme } from "next-themes"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 export function ThemeSettings() {
   const t = useTranslations('settings.general.interface')
   const { theme, setTheme } = useTheme()
+  const activeTheme = theme || 'system'
+
+  function handleThemeChange(value: string) {
+    if (value) setTheme(value)
+  }
 
   return (
     <Item variant="outline">
-      <ItemMedia variant="icon"><Palette className="size-4" /></ItemMedia>
+      <ItemMedia variant="icon"><Palette /></ItemMedia>
       <ItemContent>
         <ItemTitle>{t('theme.title')}</ItemTitle>
         <ItemDescription>{t('theme.desc')}</ItemDescription>
       </ItemContent>
-      <ItemActions>
-        <Tabs value={theme || 'system'} onValueChange={setTheme}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="light" className="flex items-center gap-2">
-              <Sun className="size-4" />
-            </TabsTrigger>
-            <TabsTrigger value="dark" className="flex items-center gap-2">
-              <Moon className="size-4" />
-            </TabsTrigger>
-            <TabsTrigger value="system" className="flex items-center gap-2">
-              <SunMoon className="size-4" />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={activeTheme}
+          onValueChange={handleThemeChange}
+          aria-label={t('theme.title')}
+          className="w-full sm:w-auto"
+        >
+          <ToggleGroupItem value="light" aria-label={t('theme.options.light')} className="flex-1 sm:flex-none">
+            <Sun />
+            <span>{t('theme.options.light')}</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="dark" aria-label={t('theme.options.dark')} className="flex-1 sm:flex-none">
+            <Moon />
+            <span>{t('theme.options.dark')}</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="system" aria-label={t('theme.options.system')} className="flex-1 sm:flex-none">
+            <SunMoon />
+            <span>{t('theme.options.system')}</span>
+          </ToggleGroupItem>
+        </ToggleGroup>
       </ItemActions>
     </Item>
   )

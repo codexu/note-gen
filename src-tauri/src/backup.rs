@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
-use tauri::{AppHandle, Manager, command};
+use tauri::{command, AppHandle, Manager};
 
 use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
@@ -31,8 +31,7 @@ pub async fn import_app_data_from_file(
         fs::remove_dir_all(&temp_dir)
             .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
     }
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     // 使用 zip crate 解压
     extract_zip(temp_zip_path.as_path(), &temp_dir)?;
@@ -46,8 +45,9 @@ pub async fn import_app_data_from_file(
     }
 
     // 复制其他文件
-    for entry in fs::read_dir(&temp_dir)
-        .map_err(|e| format!("Failed to read temp directory: {}", e))? {
+    for entry in
+        fs::read_dir(&temp_dir).map_err(|e| format!("Failed to read temp directory: {}", e))?
+    {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
 
@@ -65,17 +65,22 @@ pub async fn import_app_data_from_file(
         let dest_path = data_dir.join(&file_name);
 
         if src_path.is_file() {
-            fs::copy(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e))?;
+            fs::copy(&src_path, &dest_path).map_err(|e| {
+                format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e)
+            })?;
         } else if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy directory {}: {}", file_name.to_string_lossy(), e))?;
+            copy_dir_recursive(&src_path, &dest_path).map_err(|e| {
+                format!(
+                    "Failed to copy directory {}: {}",
+                    file_name.to_string_lossy(),
+                    e
+                )
+            })?;
         }
     }
 
     // 清理临时目录
-    fs::remove_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
+    fs::remove_dir_all(&temp_dir).map_err(|e| format!("Failed to remove temp directory: {}", e))?;
     fs::remove_file(&temp_zip_path)
         .map_err(|e| format!("Failed to remove temp zip file: {}", e))?;
 
@@ -136,8 +141,7 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         fs::remove_dir_all(&temp_dir)
             .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
     }
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     // 使用 zip crate 解压
     extract_zip(PathBuf::from(&zip_path).as_path(), &temp_dir)?;
@@ -151,8 +155,9 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
     }
 
     // 复制其他文件
-    for entry in fs::read_dir(&temp_dir)
-        .map_err(|e| format!("Failed to read temp directory: {}", e))? {
+    for entry in
+        fs::read_dir(&temp_dir).map_err(|e| format!("Failed to read temp directory: {}", e))?
+    {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
 
@@ -170,17 +175,22 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         let dest_path = data_dir.join(&file_name);
 
         if src_path.is_file() {
-            fs::copy(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e))?;
+            fs::copy(&src_path, &dest_path).map_err(|e| {
+                format!("Failed to copy file {}: {}", file_name.to_string_lossy(), e)
+            })?;
         } else if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy directory {}: {}", file_name.to_string_lossy(), e))?;
+            copy_dir_recursive(&src_path, &dest_path).map_err(|e| {
+                format!(
+                    "Failed to copy directory {}: {}",
+                    file_name.to_string_lossy(),
+                    e
+                )
+            })?;
         }
     }
 
     // 清理临时目录
-    fs::remove_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to remove temp directory: {}", e))?;
+    fs::remove_dir_all(&temp_dir).map_err(|e| format!("Failed to remove temp directory: {}", e))?;
 
     Ok(())
 }
@@ -197,8 +207,7 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
         let dest_path = dest.join(entry.file_name());
 
         if src_path.is_file() {
-            fs::copy(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy file: {}", e))?;
+            fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
         } else if src_path.is_dir() {
             copy_dir_recursive(&src_path, &dest_path)?;
         }
@@ -212,12 +221,13 @@ fn compress_dir(src_dir: &Path, dest_file: &Path) -> Result<(), String> {
     // 确保父目录存在
     if let Some(parent) = dest_file.parent() {
         if parent != src_dir {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create parent directory: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent directory: {}", e))?;
         }
     }
 
-    let file = fs::File::create(dest_file)
-        .map_err(|e| format!("Failed to create zip file: {}", e))?;
+    let file =
+        fs::File::create(dest_file).map_err(|e| format!("Failed to create zip file: {}", e))?;
 
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -225,7 +235,8 @@ fn compress_dir(src_dir: &Path, dest_file: &Path) -> Result<(), String> {
     let base_path = src_dir.to_path_buf();
     add_dir_to_zip(&mut zip, &base_path, &base_path, &options)?;
 
-    zip.finish().map_err(|e| format!("Failed to finish zip: {}", e))?;
+    zip.finish()
+        .map_err(|e| format!("Failed to finish zip: {}", e))?;
 
     Ok(())
 }
@@ -240,8 +251,8 @@ fn add_dir_to_zip<W: Write + Seek>(
         return Ok(());
     }
 
-    for entry in fs::read_dir(current_path)
-        .map_err(|e| format!("Failed to read directory: {}", e))?
+    for entry in
+        fs::read_dir(current_path).map_err(|e| format!("Failed to read directory: {}", e))?
     {
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
         let path = entry.path();
@@ -254,8 +265,8 @@ fn add_dir_to_zip<W: Write + Seek>(
             zip.start_file(file_name, *options)
                 .map_err(|e| format!("Failed to start file in zip: {}", e))?;
 
-            let mut file = fs::File::open(&path)
-                .map_err(|e| format!("Failed to open file: {}", e))?;
+            let mut file =
+                fs::File::open(&path).map_err(|e| format!("Failed to open file: {}", e))?;
             let mut buffer = Vec::new();
             file.read_to_end(&mut buffer)
                 .map_err(|e| format!("Failed to read file: {}", e))?;
@@ -274,13 +285,13 @@ fn add_dir_to_zip<W: Write + Seek>(
 
 // 解压 zip 文件
 fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
-    let file = fs::File::open(zip_path)
-        .map_err(|e| format!("Failed to open zip file: {}", e))?;
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+    let file = fs::File::open(zip_path).map_err(|e| format!("Failed to open zip file: {}", e))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| format!("Failed to read zip archive: {}", e))?;
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
+        let mut file = archive
+            .by_index(i)
             .map_err(|e| format!("Failed to read file from zip: {}", e))?;
 
         let outpath = match file.enclosed_name() {
@@ -298,8 +309,8 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
                         .map_err(|e| format!("Failed to create parent directory: {}", e))?;
                 }
             }
-            let mut outfile = fs::File::create(&outpath)
-                .map_err(|e| format!("Failed to create file: {}", e))?;
+            let mut outfile =
+                fs::File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
             std::io::copy(&mut file, &mut outfile)
                 .map_err(|e| format!("Failed to extract file: {}", e))?;
         }

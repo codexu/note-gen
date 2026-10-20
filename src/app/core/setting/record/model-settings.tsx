@@ -11,14 +11,13 @@ import {
 } from '@/components/ui/item'
 import { PenTool } from 'lucide-react'
 import { ModelSelect } from '../components/model-select'
+import { SettingSection } from '../components/setting-base'
 
 export function ModelSettings() {
   const t = useTranslations('settings.record.model')
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold mb-4">{t('title')}</h3>
-
+    <SettingSection title={t('title')}>
       <Item variant="outline">
         <ItemMedia variant="icon">
           <PenTool className="size-4" />
@@ -31,6 +30,6 @@ export function ModelSettings() {
           <ModelSelect modelKey="markDesc" />
         </ItemActions>
       </Item>
-    </div>
+    </SettingSection>
   )
 }

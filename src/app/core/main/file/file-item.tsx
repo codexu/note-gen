@@ -1,9 +1,13 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, ContextMenuShortcut } from "@/components/ui/enhanced-context-menu";
+import { useEditorReadingStore } from '@/stores/editor-reading'
+import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
+import { isMobileDevice } from '@/lib/check'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import useArticleStore, { DirTree } from "@/stores/article";
-import { BaseDirectory, exists, readTextFile, remove, rename, writeTextFile } from "@tauri-apps/plugin-fs";
-import { Copy, Database, File, FileDown, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
+import { BaseDirectory, exists, rename, writeTextFile } from "@tauri-apps/plugin-fs";
+import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
+import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { ask } from '@tauri-apps/plugin-dialog';
 import { platform } from '@tauri-apps/plugin-os';
@@ -11,7 +15,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/sync/github.types";
 import { S3Config, WebDAVConfig } from "@/types/sync";
 import { cloneDeep } from "lodash-es";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
@@ -23,26 +27,136 @@ import { deleteFile as deleteGitlabFile } from "@/lib/sync/gitlab";
 import { deleteFile as deleteGiteaFile } from "@/lib/sync/gitea";
 import { s3Delete } from "@/lib/sync/s3";
 import { webdavDelete } from "@/lib/sync/webdav";
+import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import { generateUniqueFilename } from "@/lib/default-filename";
 import { MobileActionMenu, MobileMenuItem, MobileSeparator } from "./mobile-action-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import useSettingStore from "@/stores/setting";
 import { VectorKnowledgeMenu } from "./vector-knowledge-menu";
 import { isSkillsFolder } from "@/lib/skills/utils";
+import { exportMarkdownFile, type MarkdownExportFormat } from "../editor/markdown/markdown-export";
+import { setFileManagerDragData } from "./file-dnd";
+import { debugSyncPath } from "@/lib/sync/remote-file";
+import { BatchSelectionContextMenu } from "./batch-selection-context-menu";
+import { getTopLevelSelectionEntries, type FileSelectionEntry } from "./file-selection";
+import { pasteIntoFolder } from "./folder-item/paste-into-folder";
+import { downloadRemoteLibraryFile, uploadLocalLibraryFile } from "@/lib/sync/remote-library";
+import { useShallow } from 'zustand/react/shallow';
+import { FileTreeRow, type FileTreeItemProps } from "./file-tree-row";
+import { Badge } from '@/components/ui/badge'
+import { getFileTreeSyncStatus, getSyncConfiguration, validateFileTreeName, type FileTreeSyncStatus } from "./file-tree-action-policy";
+import { useSettingsDialogStore } from "@/stores/settings-dialog";
+import { FileTreeDecorations } from "./file-tree-decorations";
+import { moveEntryToSystemTrash } from './system-trash'
+import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
+import {
+  prepareActiveEditorDeactivationDurably,
+  prepareActiveEditorPathMutationDurably,
+} from '@/lib/editor-deactivation'
+import { canOpenInEditorWindow, openEditorWindow } from '@/lib/editor-windows'
+import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
-export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?: () => void }) {
+function shouldAutoSyncOnInitialRead(options?: { isNewFile?: boolean }) {
+  return options?.isNewFile !== true
+}
+
+function buildFileRenamePlan({
+  originalName,
+  currentPath,
+  enteredName,
+}: {
+  originalName: string
+  currentPath: string
+  enteredName: string
+}) {
+  const needsMarkdownSuffix = originalName === '' && !enteredName.endsWith('.md')
+  const displayName = needsMarkdownSuffix ? `${enteredName}.md` : enteredName
+  const parentPath = currentPath.split('/').slice(0, -1).join('/')
+  const targetRelativePath = parentPath ? `${parentPath}/${displayName}` : displayName
+
+  return {
+    operation: originalName === '' ? 'create' : 'rename',
+    displayName,
+    targetRelativePath,
+  } as const
+}
+
+function showPdfExportStartToast() {
+  toast({
+    title: '正在准备 PDF',
+    description: '请在系统打印窗口中选择“另存为 PDF”。',
+  })
+}
+
+export function FileItem({
+  item,
+  focusSidebar,
+  selectedPathSet,
+  selectionEntries,
+  treeItemProps,
+  level = 0,
+  syncStatus: providedSyncStatus,
+}: {
+  item: DirTree
+  focusSidebar?: () => void
+  selectedPathSet: Set<string>
+  selectionEntries: FileSelectionEntry[]
+  treeItemProps?: FileTreeItemProps
+  level?: number
+  syncStatus?: FileTreeSyncStatus
+}) {
   const [isEditing, setIsEditing] = useState(item.isEditing)
   const [name, setName] = useState(item.name)
-  const [isComposing, setIsComposing] = useState(false) // 追踪输入法合成状态
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const [, setIsComposing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { activeFilePath, setActiveFilePath, readArticle, fileTree, setFileTree, loadFileTree, vectorIndexedFiles, checkFileVectorIndexed, cleanTabsByDeletedFile, cleanTabsByDeletedFolder } = useArticleStore()
-  const setArticleState = useArticleStore.setState
-  const { setClipboardItem, clipboardItem, clipboardOperation } = useClipboardStore()
-  const { fileManagerTextSize } = useSettingStore()
+  const {
+    activeFilePath,
+    setActiveFilePath,
+    fileTree,
+    setFileTree,
+    loadFileTree,
+    vectorIndexedFiles,
+    showKnowledgeBaseStatus,
+    checkFileVectorIndexed,
+    cleanTabsByDeletedFile,
+    cleanTabsByDeletedFolder,
+    syncOpenTabsForPathChange,
+    setSelectedFilePaths,
+    setEntryLoading,
+    setEntrySyncError,
+    markFileLocal,
+    reconcileLocalFile,
+    clearFileRemoteState,
+  } = useArticleStore(useShallow((state) => ({
+    activeFilePath: state.activeFilePath,
+    setActiveFilePath: state.setActiveFilePath,
+    fileTree: state.fileTree,
+    setFileTree: state.setFileTree,
+    loadFileTree: state.loadFileTree,
+    vectorIndexedFiles: state.vectorIndexedFiles,
+    showKnowledgeBaseStatus: state.showKnowledgeBaseStatus,
+    checkFileVectorIndexed: state.checkFileVectorIndexed,
+    cleanTabsByDeletedFile: state.cleanTabsByDeletedFile,
+    cleanTabsByDeletedFolder: state.cleanTabsByDeletedFolder,
+    syncOpenTabsForPathChange: state.syncOpenTabsForPathChange,
+    setSelectedFilePaths: state.setSelectedFilePaths,
+    setEntryLoading: state.setEntryLoading,
+    setEntrySyncError: state.setEntrySyncError,
+    markFileLocal: state.markFileLocal,
+    reconcileLocalFile: state.reconcileLocalFile,
+    clearFileRemoteState: state.clearFileRemoteState,
+  })))
+  const { setClipboardItem, clipboardItem, clipboardItems, clipboardOperation } = useClipboardStore()
+  const { fileManagerTextSize, primaryBackupMethod } = useSettingStore()
   const t = useTranslations('article.file')
+  const tCommon = useTranslations('common')
+  const tTabs = useTranslations('tabContext')
   const isMobile = useIsMobile()
+  const [exportingFormat, setExportingFormat] = useState<MarkdownExportFormat | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
   // 检查路径是否在 skills 文件夹下
   const isInSkillsFolder = (itemPath: string): boolean => {
@@ -51,6 +165,17 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   }
 
   const path = computedParentPath(item)
+
+  const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const tReading = useTranslations('editor.readingMode')
+  const canSetReadOnly = /\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template)$/i.test(item.name)
+  const setFileReadOnly = (value: boolean): boolean => {
+    if (!useEditorReadingStore.getState().setReadOnly(readingWorkspacePath, path, value)) {
+      toast({ title: tReading('busy'), variant: 'destructive' })
+      return false
+    }
+    return true
+  }
 
   // 向量状态更新回调
   const handleVectorUpdated = useCallback(() => {
@@ -70,92 +195,108 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   }
 
   const iconSize = getIconSize(fileManagerTextSize)
+  const syncStatus = providedSyncStatus ?? getFileTreeSyncStatus(item)
+  const syncStatusTitle = item.syncError ?? t(`syncStatus.${syncStatus}`)
 
   // 检查文件是否被剪切
-  const isCut = clipboardOperation === 'cut' && clipboardItem?.path === path
+  const isCut = clipboardOperation === 'cut' && clipboardItems.some(entry => entry.path === path)
+  const isSelected = selectedPathSet.has(path)
+  const useSelectionMenu = isSelected && selectionEntries.length > 1
 
   // 检查文件是否已计算向量（skills 文件夹下的文件不显示）
   const hasVector = item.isFile && !isInSkillsFolder(path) && vectorIndexedFiles.has(path)
+  const canExportMarkdownFile = item.isLocale && item.name !== '' && /\.(md|markdown|txt)$/i.test(item.name)
+  const standaloneTab = {
+    id: `standalone-${path}`,
+    path,
+    name: item.name,
+    isFolder: false,
+    kind: 'file' as const,
+  }
+  const canOpenInNewWindow = item.isLocale && item.name !== '' && canOpenInEditorWindow(standaloneTab)
 
   // 向量计算状态图标
   const renderVectorIcon = () => {
-    if (isInSkillsFolder(path)) return null
+    if (!showKnowledgeBaseStatus || isInSkillsFolder(path)) return null
 
     const status = item.vectorCalcStatus
 
     if (status === 'calculating') {
-      return <LoaderCircle className={`${iconSize} mr-2 animate-spin`} />
+      return (
+        <span title={t('context.knowledgeBase')} aria-label={t('context.knowledgeBase')}>
+          <LoaderCircle className={`${iconSize} shrink-0 animate-spin text-muted-foreground`} />
+        </span>
+      )
     } else if (status === 'completed' || hasVector) {
-      return <Database className={`${iconSize} text-muted-foreground mr-2 opacity-60`} />
+      return (
+        <span title={t('context.knowledgeBase')} aria-label={t('context.knowledgeBase')}>
+          <Database className={`${iconSize} shrink-0 text-muted-foreground opacity-60`} />
+        </span>
+      )
     }
     return null
   }
 
-  const isRoot = path.split('/').length === 1
+  const renderFileTypeIcon = () => {
+    if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
+      return <ImageIcon className={`${iconSize} shrink-0`} />
+    }
+    if (item.name.match(/\.(md|markdown|txt)$/i)) {
+      return <FileText className={`${iconSize} shrink-0`} />
+    }
+    if (item.name.match(/\.(json|yaml|yml|toml)$/i)) {
+      return <FileJson className={`${iconSize} shrink-0`} />
+    }
+    if (item.name.match(/\.(py|js|ts|jsx|tsx|css|scss|less|html|xml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro)$/i)) {
+      return <FileCode className={`${iconSize} shrink-0`} />
+    }
+    return <File className={`${iconSize} shrink-0`} />
+  }
+
   const folderPath = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
   // 不需要 cloneDeep，因为 getCurrentFolder 只读取数据不修改
   const currentFolder = getCurrentFolder(folderPath, fileTree)
 
   // 优化的输入处理，支持输入法
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target
-    const value = input.value
-    const cursorPosition = input.selectionStart || 0
-    
-    // 如果正在使用输入法合成，不进行空格替换
-    if (isComposing) {
-      setName(value)
-      return
-    }
-    
-    // 检查是否包含空格，只有包含空格时才需要处理光标位置
-    if (value.includes(' ')) {
-      const sanitizedValue = value.replace(/\s+/g, '_')
-      setName(sanitizedValue)
-      
-      // 保持光标位置
-      requestAnimationFrame(() => {
-        if (input.selectionStart !== null) {
-          input.setSelectionRange(cursorPosition, cursorPosition)
-        }
-      })
-    } else {
-      setName(value)
-    }
-  }, [isComposing])
+    setName(e.target.value)
+    setRenameError(null)
+  }, [])
 
   // 输入法合成开始
   const handleCompositionStart = useCallback(() => {
     setIsComposing(true)
   }, [])
 
-  // 输入法合成结束，进行空格替换
+  // 输入法合成结束
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
     setIsComposing(false)
-    const input = e.currentTarget
-    const value = input.value
-    const cursorPosition = input.selectionStart || 0
-    
-    // 只有当值包含空格时才需要替换和恢复光标位置
-    if (value.includes(' ')) {
-      const sanitizedValue = value.replace(/\s+/g, '_')
-      setName(sanitizedValue)
-      
-      // 计算新的光标位置（空格变为下划线，长度不变，所以位置保持不变）
-      requestAnimationFrame(() => {
-        if (input.selectionStart !== null) {
-          input.setSelectionRange(cursorPosition, cursorPosition)
-        }
-      })
-    } else {
-      setName(value)
-    }
+    setName(e.currentTarget.value)
   }, [])
 
-  async function handleSelectFile() {
+  async function handleSelectFile(readOnly = false) {
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
     const currentPath = computedParentPath(item)
+
+    if (!item.isLocale) {
+      setEntryLoading(currentPath, true)
+      try {
+        await downloadRemoteLibraryFile(currentPath)
+        markFileLocal(currentPath)
+      } catch (error) {
+        toast({
+          title: t('cloudLibrary.operationFailed'),
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        })
+        return
+      } finally {
+        setEntryLoading(currentPath, false)
+      }
+    }
+
+    if (canSetReadOnly && !setFileReadOnly(readOnly)) return
 
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
       // 图片文件：设置 activeFilePath，让 EditorLayout 显示图片编辑器
@@ -172,6 +313,31 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     }
   }
 
+  function handleFileClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    focusSidebar?.()
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      return
+    }
+
+    void handleSelectFile()
+  }
+
+  function handleFileContextMenu(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    e.stopPropagation()
+    focusSidebar?.()
+    if (!isSelected) {
+      setSelectedFilePaths([path])
+    }
+  }
+
+  async function handleOpenInNewWindow() {
+    const opened = await openEditorWindow({
+      ...standaloneTab,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    })
+    if (!opened) toast({ title: tTabs('openWindowFailed'), variant: 'destructive' })
+  }
+
   async function handleDeleteFile() {
     // 添加确认弹窗
     const answer = await ask(t('deleteConfirm'), {
@@ -181,68 +347,21 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     // 如果用户确认删除，则继续执行
     if (answer) {
       try {
-        // 获取工作区路径信息
-        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-        const workspace = await getWorkspacePath()
-
         // 使用当前路径，而不是重新计算的路径
         const currentPath = computedParentPath(item)
+        if (!await prepareActiveEditorPathMutationDurably(activeFilePath, [currentPath])) return
+        const trashed = await moveEntryToSystemTrash(currentPath)
 
-        // 根据工作区类型正确删除文件
-        const pathOptions = await getFilePathOptions(currentPath)
-
-        if (workspace.isCustom) {
-          // 自定义工作区
-          await remove(pathOptions.path)
-        } else {
-          // 默认工作区
-          await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
-
-        // 更新文件树
-        if (currentFolder) {
-          const index = currentFolder.children?.findIndex(file => file.name === item.name)
-          if (index !== undefined && index !== -1 && currentFolder.children) {
-            const current = currentFolder.children[index]
-            if (current.sha) {
-              // 有云端版本：只标记为非本地文件，保留云端文件
-              current.isLocale = false
-            } else {
-              // 纯本地文件：直接从文件树中移除
-              currentFolder.children.splice(index, 1)
-            }
-          }
-        } else {
-          // 根目录文件：需要克隆 fileTree 来更新
-          const cacheTree = cloneDeep(fileTree)
-          const index = cacheTree.findIndex(file => file.name === item.name)
-          if (index !== undefined && index !== -1) {
-            const current = cacheTree[index]
-            if (current.sha) {
-              // 有云端版本：只标记为非本地文件，保留云端文件
-              current.isLocale = false
-            } else {
-              // 纯本地文件：直接从文件树中移除
-              cacheTree.splice(index, 1)
-            }
-          }
-          setFileTree(cacheTree)
-        }
-
-        // 删除向量数据库中的记录
-        try {
-          const { deleteVectorDocumentsByFilename } = await import('@/db/vector')
-          await deleteVectorDocumentsByFilename(path)
-          // 从向量索引映射中移除
-          const newMap = new Map(vectorIndexedFiles)
-          newMap.delete(path)
-          setArticleState({ vectorIndexedFiles: newMap })
-        } catch (error) {
-          console.error(`删除文件 ${item.name} 的向量数据失败:`, error)
-        }
-
-        // 清理已被删除的文件对应的 tabs（包括自动选择其他 tab）
+        reconcileLocalFile(currentPath, false)
         await cleanTabsByDeletedFile(currentPath)
+        if (vectorIndexedFiles.has(currentPath)) {
+          const nextVectorIndexedFiles = new Map(useArticleStore.getState().vectorIndexedFiles)
+          nextVectorIndexedFiles.delete(currentPath)
+          useArticleStore.setState({ vectorIndexedFiles: nextVectorIndexedFiles })
+        }
+        toast({
+          title: t('context.movedToTrash', { count: trashed ? 1 : 0 }),
+        })
       } catch (error) {
         console.error('Delete file failed:', error)
         toast({
@@ -262,49 +381,39 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     if (answer) {
       const currentPath = computedParentPath(item)
 
-      // 设置 loading 状态
-      const cacheTree = cloneDeep(fileTree)
-      const setLoadingStatus = (items: typeof cacheTree): boolean => {
-        for (const entry of items) {
-          const entryPath = computedParentPath(entry)
-          if (entryPath === currentPath && entry.isFile) {
-            entry.loading = true
-            return true
-          }
-          if (entry.children && setLoadingStatus(entry.children)) {
-            return true
-          }
-        }
-        return false
-      }
-      if (setLoadingStatus(cacheTree)) {
-        setFileTree(cacheTree)
-      }
+      setEntryLoading(currentPath, true)
 
       try {
         // 获取当前主要备份方式
         const store = await Store.load('store.json');
-        const backupMethod = await store.get<'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav'>('primaryBackupMethod') || 'github';
+        const backupMethod = await store.get<'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>('primaryBackupMethod') || 'github';
+        if (backupMethod === 'local' || backupMethod === 'cloudFolder' || backupMethod === 'selfHosted') {
+          setEntryLoading(currentPath, false)
+          return
+        }
+        const repoName = backupMethod === 's3' || backupMethod === 'webdav'
+          ? RepoNames.sync
+          : await getSyncRepoName(backupMethod)
 
         let success = false
         switch (backupMethod) {
           case 'github': {
-            const result = await deleteFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            const result = await deleteFile({ path: currentPath, sha: item.sha as string, repo: repoName });
             success = !!result
             break;
           }
           case 'gitee': {
-            const result = await deleteGiteeFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            const result = await deleteGiteeFile({ path: currentPath, sha: item.sha as string, repo: repoName });
             success = result !== false
             break;
           }
           case 'gitlab': {
-            const result = await deleteGitlabFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            const result = await deleteGitlabFile({ path: currentPath, sha: item.sha as string, repo: repoName });
             success = !!result
             break;
           }
           case 'gitea': {
-            const result = await deleteGiteaFile({ path: currentPath, sha: item.sha as string, repo: RepoNames.sync });
+            const result = await deleteGiteaFile({ path: currentPath, sha: item.sha as string, repo: repoName });
             success = !!result
             break;
           }
@@ -327,80 +436,18 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
         }
 
         if (success) {
-          // 只更新当前文件的状态，不刷新整个文件树
-          const cacheTree = cloneDeep(fileTree)
-
-          // 递归查找并更新/删除文件
-          const updateOrRemoveFile = (items: typeof cacheTree): boolean => {
-            for (let i = 0; i < items.length; i++) {
-              const entry = items[i]
-              const entryPath = computedParentPath(entry)
-              if (entryPath === currentPath && entry.isFile) {
-                if (entry.isLocale) {
-                  // 本地存在：只清除远程 SHA
-                  entry.sha = undefined
-                  entry.loading = undefined
-                } else {
-                  // 本地不存在：从列表中移除
-                  items.splice(i, 1)
-                }
-                return true
-              }
-              if (entry.children && updateOrRemoveFile(entry.children)) {
-                return true
-              }
-            }
-            return false
-          }
-
-          if (updateOrRemoveFile(cacheTree)) {
-            setFileTree(cacheTree)
-          }
+          clearFileRemoteState(currentPath)
 
           toast({
             title: t('context.delete'),
             description: t('context.deleteSyncFileSuccess'),
           });
         } else {
-          // 删除失败，清除 loading 状态
-          const cacheTree = cloneDeep(fileTree)
-          const clearLoadingStatus = (items: typeof cacheTree): boolean => {
-            for (const entry of items) {
-              const entryPath = computedParentPath(entry)
-              if (entryPath === currentPath && entry.isFile) {
-                entry.loading = undefined
-                return true
-              }
-              if (entry.children && clearLoadingStatus(entry.children)) {
-                return true
-              }
-            }
-            return false
-          }
-          if (clearLoadingStatus(cacheTree)) {
-            setFileTree(cacheTree)
-          }
+          setEntryLoading(currentPath, false)
           throw new Error('删除操作返回失败')
         }
       } catch (error) {
-        // 删除失败，清除 loading 状态
-        const cacheTree = cloneDeep(fileTree)
-        const clearLoadingStatus = (items: typeof cacheTree): boolean => {
-          for (const entry of items) {
-            const entryPath = computedParentPath(entry)
-            if (entryPath === currentPath && entry.isFile) {
-              entry.loading = undefined
-              return true
-            }
-            if (entry.children && clearLoadingStatus(entry.children)) {
-              return true
-            }
-          }
-          return false
-        }
-        if (clearLoadingStatus(cacheTree)) {
-          setFileTree(cacheTree)
-        }
+        setEntryLoading(currentPath, false)
         console.error('[handleDeleteSyncFile] 删除远程文件失败:', error);
         toast({
           title: t('context.delete'),
@@ -415,6 +462,7 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     // 延迟执行，确保上下文菜单完全关闭
     setTimeout(() => {
       setIsEditing(true)
+      setRenameError(null)
       setTimeout(() => {
         const input = inputRef.current
         if (input) {
@@ -435,6 +483,9 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
     // 获取工作区路径信息
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
+    const originalName = item.name
+    const nextTree = cloneDeep(fileTree)
+    const nextFolder = getCurrentFolder(folderPath, nextTree)
     
     let finalName = name
     
@@ -444,64 +495,111 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
       finalName = await generateUniqueFilename(parentPath, 'Untitled')
       setName(finalName)
     } else {
-      // 统一处理：将空格替换为下划线，确保本地和远程文件名一致
-      finalName = name.replace(/\s+/g, '_')
+      finalName = name
       setName(finalName)
     }
   
-    if (finalName && finalName.trim() !== '' && finalName !== item.name) {
-      // 确保新文件名如果需要.md后缀则添加后缀
-      let displayName = finalName;
-      if (item.name === '' && !displayName.endsWith('.md')) {
-        displayName += '.md';
+    if (finalName && finalName.trim() !== '' && finalName !== originalName) {
+      if (validateFileTreeName(finalName)) {
+        setRenameError(t('error.invalidName'))
+        setTimeout(() => inputRef.current?.focus(), 0)
+        return
+      }
+      const renamePlan = buildFileRenamePlan({
+        originalName,
+        currentPath: path,
+        enteredName: finalName,
+      })
+      debugSyncPath('file.renamePlan', {
+        originalName,
+        enteredName: finalName,
+        displayName: renamePlan.displayName,
+        targetRelativePath: renamePlan.targetRelativePath,
+      })
+      const { displayName, operation, targetRelativePath } = renamePlan
+      if (!await prepareActiveEditorDeactivationDurably(activeFilePath)) {
+        setTimeout(() => inputRef.current?.focus(), 0)
+        return
+      }
+      if (
+        operation === 'rename'
+        && !await prepareActiveEditorPathMutationDurably(activeFilePath, [path])
+      ) {
+        setTimeout(() => inputRef.current?.focus(), 0)
+        return
       }
       
       // 更新缓存树中的名称
-      if (currentFolder && currentFolder.children) {
-        const fileIndex = currentFolder?.children?.findIndex(file => file.name === item.name)
+      if (nextFolder && nextFolder.children) {
+        const fileIndex = nextFolder?.children?.findIndex(file => file.name === originalName)
         if (fileIndex !== undefined && fileIndex !== -1) {
-          currentFolder.children[fileIndex].name = displayName
-          currentFolder.children[fileIndex].isEditing = false
+          nextFolder.children[fileIndex].name = displayName
+          nextFolder.children[fileIndex].isEditing = false
         }
       } else {
-        // 根目录文件：需要克隆 fileTree 来更新
-        const cacheTree = cloneDeep(fileTree)
-        const fileIndex = cacheTree.findIndex(file => file.name === item.name)
+        const fileIndex = nextTree.findIndex(file => file.name === originalName)
         if (fileIndex !== -1 && fileIndex !== undefined) {
-          cacheTree[fileIndex].name = displayName
-          cacheTree[fileIndex].isEditing = false
+          nextTree[fileIndex].name = displayName
+          nextTree[fileIndex].isEditing = false
         }
-        setFileTree(cacheTree)
       }
-      
       // 确定是重命名现有文件还是创建新文件
-      if (item.name !== '') {
+      if (operation === 'rename') {
         // 重命名现有文件
         // 获取源路径和目标路径
         const oldPathOptions = await getFilePathOptions(path)
-        const newPathRelative = path.split('/').slice(0, -1).join('/') + '/' + displayName
-        const newPathOptions = await getFilePathOptions(newPathRelative)
+        const newPathOptions = await getFilePathOptions(targetRelativePath)
+        const targetExists = workspace.isCustom
+          ? await exists(newPathOptions.path)
+          : await exists(newPathOptions.path, { baseDir: newPathOptions.baseDir })
+        if (targetExists) {
+          setRenameError(t('error.fileExists'))
+          setTimeout(() => inputRef.current?.focus(), 0)
+          return
+        }
         
         // 根据工作区类型执行重命名操作
-        if (workspace.isCustom) {
-          await rename(oldPathOptions.path, newPathOptions.path)
-        } else {
-          await rename(oldPathOptions.path, newPathOptions.path, { 
-            newPathBaseDir: BaseDirectory.AppData, 
-            oldPathBaseDir: BaseDirectory.AppData 
-          })
+        try {
+          if (await moveSelfHostedWorkspacePath(path, targetRelativePath)) {
+            // Rust journal already completed the atomic move.
+          } else if (workspace.isCustom) {
+            await rename(oldPathOptions.path, newPathOptions.path)
+          } else {
+            await rename(oldPathOptions.path, newPathOptions.path, {
+              newPathBaseDir: BaseDirectory.AppData,
+              oldPathBaseDir: BaseDirectory.AppData
+            })
+          }
+          await syncOpenTabsForPathChange(path, targetRelativePath)
+          try {
+            await rewriteWorkspaceMarkdownMediaPaths([{
+              sourcePath: path,
+              targetPath: targetRelativePath,
+            }])
+          } catch (error) {
+            if (await moveSelfHostedWorkspacePath(targetRelativePath, path)) {
+              // Rust journal already completed the rollback.
+            } else if (workspace.isCustom) {
+              await rename(newPathOptions.path, oldPathOptions.path)
+            } else {
+              await rename(newPathOptions.path, oldPathOptions.path, {
+                newPathBaseDir: BaseDirectory.AppData,
+                oldPathBaseDir: BaseDirectory.AppData,
+              })
+            }
+            await syncOpenTabsForPathChange(targetRelativePath, path)
+            throw error
+          }
+        } catch (error) {
+          setRenameError(error instanceof Error ? error.message : String(error))
+          setTimeout(() => inputRef.current?.focus(), 0)
+          return
         }
+        const { renameVectorDocumentsByFilename } = await import('@/db/vector')
+        await renameVectorDocumentsByFilename(path, targetRelativePath)
       } else {
         // 创建新文件
-        let newFilePath = finalName
-        if (!newFilePath.endsWith('.md')) {
-          newFilePath += '.md'
-        }
-        
-        // 获取新文件的完整路径
-        const parentPath = path.split('/').slice(0, -1).join('/')
-        const fullRelativePath = parentPath ? `${parentPath}/${newFilePath}` : newFilePath
-        const pathOptions = await getFilePathOptions(fullRelativePath)
+        const pathOptions = await getFilePathOptions(targetRelativePath)
         
         // 检查文件是否已存在
         let isExists = false
@@ -512,8 +610,8 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
         }
         
         if (isExists) {
-          toast({ title: '文件名已存在' })
-          setTimeout(() => inputRef.current?.focus(), 300);
+          setRenameError(t('error.fileExists'))
+          setTimeout(() => inputRef.current?.focus(), 0)
           return
         } else {
           // 创建新文件
@@ -524,19 +622,22 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
           }
         }
       }
+      setFileTree(nextTree)
       
       // 构建新文件的完整路径用于激活文件
-      let newPath = path.split('/').slice(0, -1).join('/') + '/' + displayName
+      let newPath = targetRelativePath
       // 判断 newPath 是否以 / 开头
       if (newPath.startsWith('/')) {
         newPath = newPath.slice(1)
       }
-      setActiveFilePath(newPath)
-      // 新建文件后自动选择该文件并读取内容
-      readArticle(newPath, '', true)
+      await setActiveFilePath(
+        newPath,
+        shouldAutoSyncOnInitialRead({ isNewFile: true }),
+        { deactivationAlreadyPrepared: true },
+      )
     } else {
       // 处理取消创建或无变更的情况
-      if (item.name === '') {
+      if (originalName === '') {
         // 只有当原文件名为空（新建文件）时才删除列表项
         if (currentFolder && currentFolder.children) {
           const index = currentFolder?.children?.findIndex(item => item.name === '')
@@ -577,27 +678,26 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   }
 
   async function handleShowFileManager() {
-    // 获取工作区路径信息
     const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
     const workspace = await getWorkspacePath()
-    
-    // 确定文件所在的目录路径
-    const folderPath = item.parent ? computedParentPath(item.parent) : ''
-    
-    // 根据工作区类型确定正确的路径
+    const isMobile = isMobileDevice()
+    const targetPath = isMobile ? path.split('/').slice(0, -1).join('/') : path
+    const openInFileManager = isMobile ? openPath : revealItemInDir
+
     if (workspace.isCustom) {
-      // 自定义工作区 - 直接使用工作区路径
-      const pathOptions = await getFilePathOptions(folderPath)
-      openPath(pathOptions.path)
+      const pathOptions = await getFilePathOptions(targetPath)
+      await openInFileManager(pathOptions.path)
     } else {
-      // 默认工作区 - 使用 AppData 目录
       const appDir = await appDataDir()
-      openPath(await join(appDir, 'article', folderPath))
+      await openInFileManager(await join(appDir, 'article', targetPath))
     }
   }
 
-  async function handleDragStart(ev: React.DragEvent<HTMLDivElement>) {
-    ev.dataTransfer.setData('text', path)
+  function handleDragStart(ev: React.DragEvent<HTMLElement>) {
+    const selectedPaths = selectedPathSet.has(path)
+      ? getTopLevelSelectionEntries(selectionEntries).map(entry => entry.path)
+      : [path]
+    setFileManagerDragData(ev.dataTransfer, selectedPaths)
   }
 
   async function handleCopyFile() {
@@ -623,139 +723,87 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   }
 
   async function handlePasteFile() {
-    if (!clipboardItem) {
-      toast({ title: t('clipboard.empty'), variant: 'destructive' })
+    const targetDir = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
+    await pasteIntoFolder({
+      clipboardItem,
+      clipboardItems,
+      clipboardOperation,
+      folderPath: targetDir,
+      emptyToastTitle: t('clipboard.empty'),
+      pastedToastTitle: t('clipboard.pasted'),
+      pasteFailedToastTitle: t('clipboard.pasteFailed'),
+      loadFileTree,
+      setClipboardItem,
+      cleanTabsByDeletedFile,
+      cleanTabsByDeletedFolder,
+    })
+  }
+
+  async function handleExportFile(format: MarkdownExportFormat) {
+    try {
+      setExportingFormat(format)
+      const exported = await exportMarkdownFile(
+        format,
+        path,
+        { onPdfRenderStart: showPdfExportStartToast },
+      )
+
+      if (exported) {
+        toast({ title: format === 'pdf' ? '已打开 PDF 打印窗口' : '导出成功' })
+      }
+    } catch (error) {
+      console.error(`Export selected file failed: ${path}`, error)
+      toast({
+        title: '导出失败',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      })
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
+  async function handleUploadFile() {
+    if (isUploading || !item.isLocale || item.name === '') return
+    const sync = await getSyncConfiguration()
+    if (!sync.configured) {
+      toast({
+        title: sync.reason === 'missing-repository'
+          ? t('context.syncRepoRequired')
+          : t('context.syncNotConfigured'),
+        description: t('context.configureSync'),
+      })
+      useSettingsDialogStore.getState().openSettings('sync')
       return
     }
 
+    setIsUploading(true)
+    setEntryLoading(path, true)
+    setEntrySyncError(path)
+    const progressToast = toast({
+      title: t('context.uploadFileProgress'),
+      description: item.name,
+      duration: Infinity,
+    })
     try {
-      const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-      const workspace = await getWorkspacePath()
-
-      // 粘贴目标：文件所在的目录（同级粘贴）
-      const targetDir = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
-
-      // 检查是否会造成循环嵌套
-      if (clipboardItem.isDirectory) {
-        // 检查是否粘贴到其子文件夹内部（targetDir 以 clipboardItem.path/ 开头）
-        // 注意：允许粘贴到自身内部（targetDir === clipboardItem.path），但需要特殊处理避免循环
-        if (targetDir.startsWith(clipboardItem.path + '/')) {
-          toast({ title: '无法将父文件夹粘贴到其子文件夹内部', variant: 'destructive' })
-          return
-        }
-      }
-
-      if (clipboardItem.isDirectory) {
-        // 粘贴文件夹
-        const { generateCopyFoldername } = await import('@/lib/default-filename')
-        const { mkdir, readDir } = await import('@tauri-apps/plugin-fs')
-
-        const targetName = await generateCopyFoldername(targetDir, clipboardItem.name)
-        const targetPathRelative = targetDir ? `${targetDir}/${targetName}` : targetName
-        const targetPathOptions = await getFilePathOptions(targetPathRelative)
-        const sourcePathOptions = await getFilePathOptions(clipboardItem.path)
-
-        // 检查是否是粘贴到自身内部（需要避免循环引用）
-        const isPasteIntoSelf = targetDir === clipboardItem.path
-
-        // 创建目标文件夹
-        if (workspace.isCustom) {
-          await mkdir(targetPathOptions.path)
-        } else {
-          await mkdir(targetPathOptions.path, { baseDir: targetPathOptions.baseDir })
-        }
-
-        // 递归复制文件夹内容
-        const copyDirRecursively = async (srcRelative: string, destRelative: string) => {
-          const entries = await readDir(
-            srcRelative,
-            workspace.isCustom ? {} : { baseDir: sourcePathOptions.baseDir || BaseDirectory.AppData }
-          )
-
-          for (const entry of entries) {
-            const srcEntryPath = `${srcRelative}/${entry.name}`
-            const destEntryPath = `${destRelative}/${entry.name}`
-
-            if (entry.isDirectory) {
-              // 如果粘贴到自身内部，跳过与目标文件夹同名的子文件夹（避免循环引用）
-              if (isPasteIntoSelf && entry.name === targetName) {
-                continue
-              }
-
-              if (workspace.isCustom) {
-                await mkdir(destEntryPath)
-              } else {
-                await mkdir(destEntryPath, { baseDir: targetPathOptions.baseDir })
-              }
-              await copyDirRecursively(srcEntryPath, destEntryPath)
-            } else {
-              try {
-                let content = ''
-                if (workspace.isCustom) {
-                  content = await readTextFile(srcEntryPath)
-                  await writeTextFile(destEntryPath, content)
-                } else {
-                  content = await readTextFile(srcEntryPath, { baseDir: sourcePathOptions.baseDir || BaseDirectory.AppData })
-                  await writeTextFile(destEntryPath, content, { baseDir: targetPathOptions.baseDir })
-                }
-              } catch (err) {
-                console.error(`Error copying file ${srcEntryPath}:`, err)
-              }
-            }
-          }
-        }
-
-        await copyDirRecursively(sourcePathOptions.path, targetPathOptions.path)
-
-        // 如果是剪切操作，删除原文件夹
-        if (clipboardOperation === 'cut') {
-          if (workspace.isCustom) {
-            await remove(sourcePathOptions.path, { recursive: true })
-          } else {
-            await remove(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir, recursive: true })
-          }
-          // 清理已被删除的原文件夹对应的 tabs
-          await cleanTabsByDeletedFolder(clipboardItem?.path || '')
-          setClipboardItem(null, 'none')
-        }
-      } else {
-        // 粘贴文件
-        const sourcePathOptions = await getFilePathOptions(clipboardItem.path)
-        const { generateCopyFilename } = await import('@/lib/default-filename')
-        const uniqueFilename = await generateCopyFilename(targetDir, clipboardItem.name)
-        const targetPathRelative = targetDir ? `${targetDir}/${uniqueFilename}` : uniqueFilename
-        const targetPathOptions = await getFilePathOptions(targetPathRelative)
-
-        // Read content from source file
-        let content = ''
-        if (workspace.isCustom) {
-          content = await readTextFile(sourcePathOptions.path)
-          await writeTextFile(targetPathOptions.path, content)
-        } else {
-          content = await readTextFile(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir })
-          await writeTextFile(targetPathOptions.path, content, { baseDir: targetPathOptions.baseDir })
-        }
-
-        // If cut operation, delete the original file
-        if (clipboardOperation === 'cut') {
-          if (workspace.isCustom) {
-            await remove(sourcePathOptions.path)
-          } else {
-            await remove(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir })
-          }
-          // 清理已被删除的原文件对应的 tabs
-          await cleanTabsByDeletedFile(clipboardItem?.path || '')
-          // Clear clipboard after cut & paste operation
-          setClipboardItem(null, 'none')
-        }
-      }
-
-      // Refresh file tree
-      loadFileTree()
-      toast({ title: t('clipboard.pasted') })
+      const sha = await uploadLocalLibraryFile(path)
+      useArticleStore.getState().markFileRemote(path, sha)
+      progressToast.update({
+        title: t('context.uploadFileSuccess'),
+        description: item.name,
+        duration: 3000,
+      })
     } catch (error) {
-      console.error('Paste operation failed:', error)
-      toast({ title: t('clipboard.pasteFailed'), variant: 'destructive' })
+      setEntrySyncError(path, error instanceof Error ? error.message : String(error))
+      progressToast.update({
+        title: t('context.uploadFileError'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+        duration: 5000,
+      })
+    } finally {
+      setEntryLoading(path, false)
+      setIsUploading(false)
     }
   }
 
@@ -781,7 +829,7 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   useEffect(() => {
     if (item.isEditing) {
       setIsEditing(true)
-      setName(name)
+      setName(item.name)
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [item])
@@ -843,28 +891,35 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
   const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl'
   const deleteKey = currentPlatform === 'macos' ? '⌫' : 'Del'
   const renameKey = currentPlatform === 'macos' ? '↩' : 'F2'
-
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger>
-          <div
-            className={`${path === activeFilePath ? 'file-manange-item active' : 'file-manange-item'} ${!isRoot && 'translate-x-5 w-[calc(100%-20px)]!'}`}
-            onClick={handleSelectFile}
+        <ContextMenuTrigger asChild>
+          <FileTreeRow
+            path={path}
+            kind="file"
+            level={level}
+            active={path === activeFilePath}
+            selected={isSelected}
+            treeItemProps={treeItemProps}
+            onActivate={handleFileClick}
+            onContextMenu={handleFileContextMenu}
           >
             {
               isEditing ? 
-              <div className="flex gap-1 items-center w-full select-none">
-                <span className={item.parent ? 'size-0' : `${iconSize} ml-1`} />
-                <File className={iconSize} />
+              <div className="flex min-w-0 w-full items-center gap-1 select-none">
+                <File className={`${iconSize} shrink-0`} />
                 <Input
                   ref={inputRef}
-                  className={`h-5 rounded-sm text-${fileManagerTextSize} px-1 font-normal flex-1 mr-1`}
+                  className={`h-5 min-w-0 flex-1 rounded-sm text-${fileManagerTextSize} px-1 font-normal mr-1 ${renameError ? 'border-destructive focus-visible:ring-destructive/30' : ''}`}
                   value={name}
+                  aria-invalid={Boolean(renameError)}
+                  title={renameError ?? undefined}
                   onBlur={handleRename}
                   onChange={handleInputChange}
                   onCompositionStart={handleCompositionStart}
                   onCompositionEnd={handleCompositionEnd}
+                  onClick={(event) => event.stopPropagation()}
                   onKeyDown={(e) => {
                     // 阻止删除快捷键冒泡到全局快捷键处理器
                     if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -877,23 +932,39 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                     }
                   }}
                 />
+                {renameError ? (
+                  <Badge variant="destructive" className="mr-1 max-w-28 shrink-0 truncate">
+                    {renameError}
+                  </Badge>
+                ) : null}
               </div> :
               item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i) ?
               <span
-                draggable
-                onDragStart={handleDragStart}
                 title={item.name}
-                className={`${!item.isLocale || isCut ? 'opacity-50' : ''} flex justify-between flex-1 select-none items-center gap-1 dark:hover:text-white`}>
-                <div className="flex flex-1 gap-1 select-none relative items-center">
-                  <span className={item.parent ? 'size-0' : `${iconSize} ml-1`}></span>
-                  <div className="relative flex items-center">
-                    <ImageIcon className={iconSize} />
-                  </div>
-                  <span className={`text-${fileManagerTextSize} flex-1 line-clamp-1`}>{item.name}</span>
-                  {path === activeFilePath && renderVectorIcon()}
+                className={`${!item.isLocale || isCut ? 'opacity-50' : ''} flex min-w-0 flex-1 select-none items-center justify-between gap-1 overflow-hidden dark:hover:text-white`}>
+                <div
+                  data-file-manager-drag-handle
+                  draggable
+                  onDragStart={handleDragStart}
+                  className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
+                >
+                  <div className="relative flex shrink-0 items-center">{<PluginFileIcon path={path} fallback={renderFileTypeIcon()} className={`${iconSize} shrink-0`} />}</div>
+                  <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
+                <FileTreeDecorations
+                  iconSize={iconSize}
+                  knowledge={renderVectorIcon()}
+                  syncStatus={syncStatus}
+                  syncTitle={syncStatusTitle}
+                />
                 {isMobile && (
                   <MobileActionMenu className="ml-1">
+                    {canSetReadOnly ? (
+                      <MobileMenuItem onClick={() => void handleSelectFile(true)}>
+                        <FileLock className="mr-2 size-4" />
+                        {tReading('enable')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem onClick={handleShowFileManager}>
                       {t('context.viewDirectory')}
                     </MobileMenuItem>
@@ -904,16 +975,22 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                     <MobileMenuItem onClick={handleCopyFile}>
                       {t('context.copy')}
                     </MobileMenuItem>
-                    <MobileMenuItem disabled={!clipboardItem} onClick={handlePasteFile}>
+                    <MobileMenuItem disabled={!clipboardItem && clipboardItems.length === 0} onClick={handlePasteFile}>
                       {t('context.paste')}
+                    </MobileMenuItem>
+                    <MobileSeparator />
+                    <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
+                      {t('context.uploadFile')}
                     </MobileMenuItem>
                     <MobileSeparator />
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
-                    <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
-                      {t('context.deleteSyncFile')}
-                    </MobileMenuItem>
+                    {primaryBackupMethod !== 'cloudFolder' ? (
+                      <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
+                        {t('context.deleteSyncFile')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
                       {t('context.deleteLocalFile')}
                     </MobileMenuItem>
@@ -921,26 +998,31 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                 )}
               </span> :
               <span
-                draggable
-                onDragStart={handleDragStart}
                 title={item.name}
-                className={`${!item.isLocale || isCut ? 'opacity-50' : ''} flex justify-between flex-1 select-none items-center gap-1 dark:hover:text-white`}>
-                <div className="flex flex-1 gap-1 select-none relative items-center">
-                  <span className={item.parent ? 'size-0' : `${iconSize} ml-1`}></span>
-                  <div className="relative flex items-center">
-                    { item.loading ? (
-                      <LoaderCircle className={`${iconSize} animate-spin`} />
-                    ) : item.isLocale ? (
-                      item.sha ? <FileUp className={iconSize} /> : <File className={iconSize} />
-                    ) : (
-                      <FileDown className={iconSize} />
-                    )}
-                  </div>
-                  <span className={`text-${fileManagerTextSize} flex-1 line-clamp-1`}>{item.name}</span>
-                  {path === activeFilePath && renderVectorIcon()}
+                className={`${!item.isLocale || isCut ? 'opacity-50' : ''} flex min-w-0 flex-1 select-none items-center justify-between gap-1 overflow-hidden dark:hover:text-white`}>
+                <div
+                  data-file-manager-drag-handle
+                  draggable
+                  onDragStart={handleDragStart}
+                  className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
+                >
+                  <div className="relative flex shrink-0 items-center">{<PluginFileIcon path={path} fallback={renderFileTypeIcon()} className={`${iconSize} shrink-0`} />}</div>
+                  <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
+                <FileTreeDecorations
+                  iconSize={iconSize}
+                  knowledge={renderVectorIcon()}
+                  syncStatus={syncStatus}
+                  syncTitle={syncStatusTitle}
+                />
                 {isMobile && (
                   <MobileActionMenu className="ml-1">
+                    {canSetReadOnly ? (
+                      <MobileMenuItem onClick={() => void handleSelectFile(true)}>
+                        <FileLock className="mr-2 size-4" />
+                        {tReading('enable')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem onClick={handleShowFileManager}>
                       {t('context.viewDirectory')}
                     </MobileMenuItem>
@@ -951,16 +1033,22 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                     <MobileMenuItem onClick={handleCopyFile}>
                       {t('context.copy')}
                     </MobileMenuItem>
-                    <MobileMenuItem disabled={!clipboardItem} onClick={handlePasteFile}>
+                    <MobileMenuItem disabled={!clipboardItem && clipboardItems.length === 0} onClick={handlePasteFile}>
                       {t('context.paste')}
+                    </MobileMenuItem>
+                    <MobileSeparator />
+                    <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
+                      {t('context.uploadFile')}
                     </MobileMenuItem>
                     <MobileSeparator />
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
-                    <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
-                      {t('context.deleteSyncFile')}
-                    </MobileMenuItem>
+                    {primaryBackupMethod !== 'cloudFolder' ? (
+                      <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
+                        {t('context.deleteSyncFile')}
+                      </MobileMenuItem>
+                    ) : null}
                     <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
                       {t('context.deleteLocalFile')}
                     </MobileMenuItem>
@@ -968,60 +1056,144 @@ export function FileItem({ item, focusSidebar }: { item: DirTree; focusSidebar?:
                 )}
               </span>
             }
-          </div>
+          </FileTreeRow>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem inset onClick={handleShowFileManager} menuType="file">
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t('context.viewDirectory')}
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <VectorKnowledgeMenu
-            item={item}
-            hasVector={hasVector}
-            onVectorUpdated={handleVectorUpdated}
-          />
-          <ContextMenuSeparator />
-          <ContextMenuItem inset disabled={!item.isLocale} onClick={handleCutFile} menuType="file">
-            <File className="mr-2 h-4 w-4" />
-            {t('context.cut')}
-            <ContextMenuShortcut menuType="file">
-              <Kbd>{modKey}X</Kbd>
-            </ContextMenuShortcut>
-          </ContextMenuItem>
-          <ContextMenuItem inset onClick={handleCopyFile} menuType="file">
-            <Copy className="mr-2 h-4 w-4" />
-            {t('context.copy')}
-            <ContextMenuShortcut menuType="file">
-              <Kbd>{modKey}C</Kbd>
-            </ContextMenuShortcut>
-          </ContextMenuItem>
-          <ContextMenuItem inset disabled={!clipboardItem} onClick={handlePasteFile} menuType="file">
-            <File className="mr-2 h-4 w-4" />
-            {t('context.paste')}
-            <ContextMenuShortcut menuType="file">
-              <Kbd>{modKey}V</Kbd>
-            </ContextMenuShortcut>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem disabled={!item.isLocale} inset onClick={handleStartRename} menuType="file">
-            <File className="mr-2 h-4 w-4" />
-            {t('context.rename')}
-            <ContextMenuShortcut menuType="file">
-              <Kbd>{renameKey}</Kbd>
-            </ContextMenuShortcut>
-          </ContextMenuItem>
-          <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile} menuType="file">
-            <RefreshCwOff className="mr-2 h-4 w-4" />
-            {t('context.deleteSyncFile')}
-          </ContextMenuItem>
-          <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile} menuType="file">
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t('context.deleteLocalFile')}
-            <ContextMenuShortcut menuType="file">
-              <Kbd>{deleteKey}</Kbd>
-            </ContextMenuShortcut>
-          </ContextMenuItem>
+          {useSelectionMenu ? (
+            <BatchSelectionContextMenu entries={selectionEntries} modKey={modKey} deleteKey={deleteKey} />
+          ) : (
+            <>
+              <ContextMenuItem
+                inset
+                disabled={!canOpenInNewWindow}
+                onClick={() => void handleOpenInNewWindow()}
+                menuType="file"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                {tTabs('openInNewWindow')}
+              </ContextMenuItem>
+              {canSetReadOnly ? (
+                <ContextMenuItem inset onClick={() => void handleSelectFile(true)} menuType="file">
+                  <FileLock className="mr-2 size-4" />
+                  {tReading('enable')}
+                </ContextMenuItem>
+              ) : null}
+              <ContextMenuItem inset onClick={handleShowFileManager} menuType="file">
+                <FolderOpen className="mr-2 h-4 w-4" />
+                {t('context.viewDirectory')}
+              </ContextMenuItem>
+              <PluginFileMenuItems context={{
+                kind: 'file',
+                relativePath: path,
+                selectedPaths: selectionEntries.map((entry) => entry.path),
+              }} />
+              <ContextMenuSub>
+                <ContextMenuSubTrigger inset disabled={!canExportMarkdownFile || exportingFormat !== null} menuType="file">
+                  <Download className="mr-2 h-4 w-4" />
+                  {tCommon('export')}
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <ContextMenuItem
+                    inset
+                    disabled={exportingFormat !== null}
+                    onClick={() => { void handleExportFile('markdown') }}
+                    menuType="file"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Markdown
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    inset
+                    disabled={exportingFormat !== null}
+                    onClick={() => { void handleExportFile('html') }}
+                    menuType="file"
+                  >
+                    <FileCode className="mr-2 h-4 w-4" />
+                    HTML
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    inset
+                    disabled={exportingFormat !== null}
+                    onClick={() => { void handleExportFile('json') }}
+                    menuType="file"
+                  >
+                    <FileJson className="mr-2 h-4 w-4" />
+                    JSON
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    inset
+                    disabled={exportingFormat !== null}
+                    onClick={() => { void handleExportFile('pdf') }}
+                    menuType="file"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    PDF
+                  </ContextMenuItem>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                inset
+                disabled={isUploading || !item.isLocale || item.name === ''}
+                onClick={() => void handleUploadFile()}
+                menuType="file"
+              >
+                {isUploading
+                  ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  : <FileUp className="mr-2 h-4 w-4" />}
+                {t('context.uploadFile')}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <VectorKnowledgeMenu
+                item={item}
+                hasVector={hasVector}
+                onVectorUpdated={handleVectorUpdated}
+              />
+              <ContextMenuSeparator />
+              <ContextMenuItem inset disabled={!item.isLocale} onClick={handleCutFile} menuType="file">
+                <File className="mr-2 h-4 w-4" />
+                {t('context.cut')}
+                <ContextMenuShortcut menuType="file">
+                  <Kbd>{modKey}X</Kbd>
+                </ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem inset onClick={handleCopyFile} menuType="file">
+                <Copy className="mr-2 h-4 w-4" />
+                {t('context.copy')}
+                <ContextMenuShortcut menuType="file">
+                  <Kbd>{modKey}C</Kbd>
+                </ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem inset disabled={!clipboardItem && clipboardItems.length === 0} onClick={handlePasteFile} menuType="file">
+                <File className="mr-2 h-4 w-4" />
+                {t('context.paste')}
+                <ContextMenuShortcut menuType="file">
+                  <Kbd>{modKey}V</Kbd>
+                </ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem disabled={!item.isLocale} inset onClick={handleStartRename} menuType="file">
+                <File className="mr-2 h-4 w-4" />
+                {t('context.rename')}
+                <ContextMenuShortcut menuType="file">
+                  <Kbd>{renameKey}</Kbd>
+                </ContextMenuShortcut>
+              </ContextMenuItem>
+              {primaryBackupMethod !== 'cloudFolder' ? (
+                <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile} menuType="file">
+                  <RefreshCwOff className="mr-2 h-4 w-4" />
+                  {t('context.deleteSyncFile')}
+                </ContextMenuItem>
+              ) : null}
+              <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile} menuType="file">
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('context.deleteLocalFile')}
+                <ContextMenuShortcut menuType="file">
+                  <Kbd>{deleteKey}</Kbd>
+                </ContextMenuShortcut>
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
     </>

@@ -4,8 +4,14 @@ import { Clipboard, ClipboardX } from 'lucide-react'
 import { TooltipButton } from '@/components/tooltip-button'
 import { useState, useEffect } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
+import { Switch } from '@/components/ui/switch'
+import { Item, ItemActions, ItemContent, ItemTitle } from '@/components/ui/item'
 
-export function ClipboardMonitor() {
+interface ClipboardMonitorProps {
+  display?: 'icon' | 'panel'
+}
+
+export function ClipboardMonitor({ display = 'icon' }: ClipboardMonitorProps) {
   const t = useTranslations('record.chat.input.clipboardMonitor')
   const [isEnabled, setIsEnabled] = useState(true)
 
@@ -33,6 +39,23 @@ export function ClipboardMonitor() {
     setIsEnabled(newState)
     const store = await Store.load('store.json')
     await store.set('clipboardMonitor', newState)
+  }
+
+  if (display === 'panel') {
+    return (
+      <Item size="sm" className="min-h-10 flex-nowrap py-2">
+        <ItemContent className="min-w-0">
+          <ItemTitle>{isEnabled ? t('enable') : t('disable')}</ItemTitle>
+        </ItemContent>
+        <ItemActions className="shrink-0">
+          <Switch
+            checked={isEnabled}
+            aria-label={isEnabled ? t('enable') : t('disable')}
+            onCheckedChange={() => void toggleClipboardMonitor()}
+          />
+        </ItemActions>
+      </Item>
+    )
   }
 
   return (

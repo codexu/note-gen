@@ -4,10 +4,13 @@ import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { collectMarkdownFiles } from '@/lib/files'
 import { RepoNames } from './github.types'
+import { getSyncRepoName } from './repo-utils'
 import { getGiteaApiBaseUrl } from './gitea'
 import { s3Upload } from './s3'
 import { webdavUpload } from './webdav'
 import { S3Config, WebDAVConfig } from '@/types/sync'
+import { buildGithubCreateTreePayload, buildGitlabCommitActions } from './folder-sync-payload'
+import { buildRepoContentPath, debugSyncPath } from './remote-file'
 
 export interface FolderSyncResult {
   success: boolean
@@ -17,6 +20,8 @@ export interface FolderSyncResult {
   message: string
   errors?: string[]
 }
+
+type GitProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
 export class FolderSync {
   private platform: string = 'github'
@@ -67,6 +72,11 @@ export class FolderSync {
 
         // 相对路径作为远程路径
         const remotePath = file.path
+        debugSyncPath('folderSync.collectFile', {
+          localFolderPath,
+          sourcePath: file.path,
+          remotePath,
+        })
 
         filesToUpload.push({
           path: remotePath,
@@ -77,30 +87,33 @@ export class FolderSync {
       // 3. 根据平台执行批量提交
       const message = `Sync folder: ${localFolderPath} - ${new Date().toLocaleString('zh-CN')}`
       let success = false
+      const repoName = this.platform === 's3' || this.platform === 'webdav'
+        ? RepoNames.sync
+        : await getSyncRepoName(this.platform as GitProvider)
 
       switch (this.platform) {
         case 'github': {
           // GitHub 批量提交
-          success = await this._githubBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._githubBatchCommit(repoName, filesToUpload, message)
           break
         }
         case 'gitee': {
           // 先获取远程文件 SHA（用于覆盖）
-          const giteeFiles = await this._getGiteeFiles(RepoNames.sync)
+          const giteeFiles = await this._getGiteeFiles(repoName)
           for (const file of filesToUpload) {
             if (giteeFiles[file.path]) {
               file.sha = giteeFiles[file.path].sha
             }
           }
           // Gitee: 逐个上传，带 SHA 可以覆盖
-          success = await this._giteeBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._giteeBatchCommit(repoName, filesToUpload, message)
           break
         }
         case 'gitlab':
-          success = await this._gitlabBatchCommit(RepoNames.sync, filesToUpload, message)
+          success = await this._gitlabBatchCommit(repoName, filesToUpload, message)
           break
         case 'gitea':
-          success = await this._giteaBatchCommit(RepoNames.sync, filesToUpload)
+          success = await this._giteaBatchCommit(repoName, filesToUpload)
           break
         case 's3':
           success = await this._s3BatchUpload(filesToUpload)
@@ -199,28 +212,36 @@ export class FolderSync {
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
 
-    // 构建 tree
-    // 注意：GitHub API 不允许同时提供 sha 和 content
-    // 只提供 content，让 GitHub 自动处理（新文件创建 blob，已存在文件也会创建新的 blob）
-    const tree = files.map((file) => ({
-      path: file.path,
-      mode: '100644',
-      type: 'blob',
-      content: Buffer.from(file.content).toString('base64'),
-    }))
-
     const headers = new Headers()
     headers.append('Authorization', `Bearer ${accessToken}`)
     headers.append('Accept', 'application/vnd.github+json')
     headers.append('X-GitHub-Api-Version', '2022-11-28')
     headers.append('Content-Type', 'application/json')
 
-    // 1. 创建 tree
+    // 1. 获取当前 commit 和对应的 tree，后续提交必须基于它，避免覆盖仓库其他目录
+    const refUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/ref/heads/main`
+    const refResponse = await fetch(refUrl, { method: 'GET', headers, proxy })
+    if (!refResponse.ok) return false
+    const refData = await refResponse.json()
+    const parentCommitSha = refData.object.sha
+
+    const parentCommitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits/${parentCommitSha}`
+    const parentCommitResponse = await fetch(parentCommitUrl, { method: 'GET', headers, proxy })
+    if (!parentCommitResponse.ok) return false
+    const parentCommitData = await parentCommitResponse.json()
+    const baseTreeSha = parentCommitData.tree?.sha
+
+    if (!baseTreeSha) {
+      console.error('获取 GitHub base tree 失败')
+      return false
+    }
+
+    // 2. 基于当前 tree 创建新 tree，只覆盖本次同步的文件
     const createTreeUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/trees`
     const treeResponse = await fetch(createTreeUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ tree }),
+      body: JSON.stringify(buildGithubCreateTreePayload(files, baseTreeSha)),
       proxy,
     })
 
@@ -230,13 +251,6 @@ export class FolderSync {
     }
 
     const treeData = await treeResponse.json()
-
-    // 2. 获取当前 commit SHA
-    const refUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/ref/heads/main`
-    const refResponse = await fetch(refUrl, { method: 'GET', headers, proxy })
-    if (!refResponse.ok) return false
-    const refData = await refResponse.json()
-    const parentCommitSha = refData.object.sha
 
     // 3. 创建 commit
     const commitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits`
@@ -265,7 +279,7 @@ export class FolderSync {
       headers,
       body: JSON.stringify({
         sha: commitData.sha,
-        force: true,
+        force: false,
       }),
       proxy,
     })
@@ -345,8 +359,11 @@ export class FolderSync {
     const headers = new Headers()
     headers.append('Authorization', `Bearer ${giteaAccessToken}`)
 
-    // 对路径进行编码处理，与 getFiles 保持一致
-    const encodedPath = path.replace(/\s/g, '_').split('/').map(encodeURIComponent).join('/')
+      const encodedPath = buildRepoContentPath({ path })
+      debugSyncPath('folderSync.gitea.listFiles', {
+        inputPath: path,
+        encodedPath,
+      })
     const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents${encodedPath ? '/' + encodedPath : ''}`
 
     try {
@@ -408,7 +425,13 @@ export class FolderSync {
 
     const uploadPromises = files.map(async (file) => {
       const base64Content = Buffer.from(file.content).toString('base64')
-      const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${file.path}`
+      const encodedPath = buildRepoContentPath({ path: file.path })
+      debugSyncPath('folderSync.gitee.uploadFile', {
+        inputPath: file.path,
+        encodedPath,
+        hasSha: Boolean(file.sha),
+      })
+      const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${encodedPath}`
 
       const body: Record<string, unknown> = {
         access_token: giteeAccessToken,
@@ -474,12 +497,7 @@ export class FolderSync {
     headers.append('Content-Type', 'application/json;charset=iso-8859-1')
 
     // 构建 actions 数组
-    const actions = files.map(file => ({
-      action: file.sha ? 'update' : 'create',
-      file_path: file.path,
-      content: Buffer.from(file.content).toString('base64'),
-      ...(file.sha && { sha: file.sha })
-    }))
+    const actions = buildGitlabCommitActions(files)
 
     const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(gitlabProjectId)}/repository/commits`
 
@@ -554,15 +572,14 @@ export class FolderSync {
       const file = files[i]
       const base64Content = Buffer.from(file.content).toString('base64')
 
-      // 分离路径和文件名
-      const lastSlashIndex = file.path.lastIndexOf('/')
-      const dirPath = lastSlashIndex > 0 ? file.path.substring(0, lastSlashIndex) : ''
-      const fileName = lastSlashIndex > 0 ? file.path.substring(lastSlashIndex + 1) : file.path
-
-      // 编码路径
-      const normalizedPath = dirPath
-        ? `${dirPath.split('/').map(p => encodeURIComponent(p.replace(/\s/g, '_'))).join('/')}/${fileName.replace(/\s/g, '_')}`
-        : fileName.replace(/\s/g, '_')
+      const fileName = file.path.split('/').pop() || file.path
+      const normalizedPath = buildRepoContentPath({ path: file.path })
+      debugSyncPath('folderSync.gitea.uploadFile', {
+        inputPath: file.path,
+        filename: fileName,
+        normalizedPath,
+        hasSha: Boolean(file.sha),
+      })
 
       const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents/${normalizedPath}`
 

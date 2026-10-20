@@ -6,5 +6,6 @@ export enum EmitterShortcutEvents {
 }
 
 export enum EmitterRecordEvents {
-  refreshMarks = "refresh-marks"
+  refreshMarks = "refresh-marks",
+  openNewTag = "open-new-record-tag"
 }

@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { confirm } from '@tauri-apps/plugin-dialog'
+import { getCurrentSyncContext, getSyncMetadataKey } from '@/lib/sync/sync-context'
 
 /**
  * 冲突解决策略类型
@@ -49,8 +50,8 @@ export async function getUserName(): Promise<string> {
 export async function checkFileLock(filePath: string): Promise<SyncLock | null> {
   const store = await Store.load('store.json')
   const locks = await store.get<Record<string, SyncLock>>('fileLocks') || {}
-  
-  const lock = locks[filePath]
+  const lockKey = await getSyncMetadataKey(filePath)
+  const lock = locks[lockKey]
   if (!lock) {
     return null
   }
@@ -59,7 +60,7 @@ export async function checkFileLock(filePath: string): Promise<SyncLock | null> 
   const now = Date.now()
   if (now - lock.timestamp > 5 * 60 * 1000) {
     // 锁已过期，清除
-    delete locks[filePath]
+    delete locks[lockKey]
     await store.set('fileLocks', locks)
     await store.save()
     return null
@@ -80,9 +81,10 @@ export async function checkFileLock(filePath: string): Promise<SyncLock | null> 
 export async function acquireFileLock(filePath: string): Promise<boolean> {
   const store = await Store.load('store.json')
   const locks = await store.get<Record<string, SyncLock>>('fileLocks') || {}
+  const lockKey = await getSyncMetadataKey(filePath)
   
   // 检查是否已被其他设备锁定
-  const existingLock = locks[filePath]
+  const existingLock = locks[lockKey]
   if (existingLock) {
     const currentDeviceId = await getDeviceId()
     if (existingLock.deviceId !== currentDeviceId) {
@@ -98,7 +100,7 @@ export async function acquireFileLock(filePath: string): Promise<boolean> {
   const deviceId = await getDeviceId()
   const userName = await getUserName()
   
-  locks[filePath] = {
+  locks[lockKey] = {
     filePath,
     deviceId,
     timestamp: Date.now(),
@@ -117,12 +119,13 @@ export async function acquireFileLock(filePath: string): Promise<boolean> {
 export async function releaseFileLock(filePath: string): Promise<void> {
   const store = await Store.load('store.json')
   const locks = await store.get<Record<string, SyncLock>>('fileLocks') || {}
+  const lockKey = await getSyncMetadataKey(filePath)
   
   const currentDeviceId = await getDeviceId()
-  const lock = locks[filePath]
+  const lock = locks[lockKey]
   
   if (lock && lock.deviceId === currentDeviceId) {
-    delete locks[filePath]
+    delete locks[lockKey]
     await store.set('fileLocks', locks)
     await store.save()
   }
@@ -340,7 +343,10 @@ export async function getFileSyncStatus(filePath: string): Promise<{
   
   // 获取最后同步时间
   const syncTimes = await store.get<Record<string, number>>('lastSyncTimes') || {}
-  const lastSyncTime = syncTimes[filePath]
+  const scopedKey = await getSyncMetadataKey(filePath)
+  const context = await getCurrentSyncContext()
+  const lastSyncTime = syncTimes[scopedKey]
+    ?? (context.workspaceKey === '__default__' ? syncTimes[filePath] : undefined)
   
   return {
     isLocked: !!lockInfo,
@@ -356,7 +362,7 @@ export async function updateFileSyncTime(filePath: string): Promise<void> {
   const store = await Store.load('store.json')
   const syncTimes = await store.get<Record<string, number>>('lastSyncTimes') || {}
 
-  syncTimes[filePath] = Date.now()
+  syncTimes[await getSyncMetadataKey(filePath)] = Date.now()
   await store.set('lastSyncTimes', syncTimes)
   await store.save()
 }
@@ -367,7 +373,10 @@ export async function updateFileSyncTime(filePath: string): Promise<void> {
 export async function getFileRestoreTime(filePath: string): Promise<number | undefined> {
   const store = await Store.load('store.json')
   const restoreTimes = await store.get<Record<string, number>>('lastRestoreTimes') || {}
-  return restoreTimes[filePath]
+  const scopedKey = await getSyncMetadataKey(filePath)
+  const context = await getCurrentSyncContext()
+  return restoreTimes[scopedKey]
+    ?? (context.workspaceKey === '__default__' ? restoreTimes[filePath] : undefined)
 }
 
 /**
@@ -377,7 +386,7 @@ export async function updateFileRestoreTime(filePath: string): Promise<void> {
   const store = await Store.load('store.json')
   const restoreTimes = await store.get<Record<string, number>>('lastRestoreTimes') || {}
 
-  restoreTimes[filePath] = Date.now()
+  restoreTimes[await getSyncMetadataKey(filePath)] = Date.now()
   await store.set('lastRestoreTimes', restoreTimes)
   await store.save()
 }

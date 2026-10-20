@@ -1,34 +1,93 @@
 'use client'
-import { 
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
+import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
+import { NoteGenModelLabel } from '@/components/notegen-model-label'
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, CircleCheck, CircleX, LoaderCircle } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ResponsiveSelect } from "@/components/responsive-select"
+import {
+  ChartScatter,
+  ChevronDown,
+  CircleCheck,
+  CircleX,
+  ListOrdered,
+  LoaderCircle,
+  MessageSquare,
+  Mic,
+  Trash2,
+  Volume2,
+  type LucideIcon,
+} from "lucide-react"
 import { ModelConfig, ModelType, AiConfig } from "../config"
 import { useTranslations } from 'next-intl'
 import ModelSelect from "./modelSelect"
 import { useState, useRef } from "react"
 import { createOpenAIClient } from "@/lib/ai/utils"
 import { toast } from "@/hooks/use-toast"
-import { fetch } from "@tauri-apps/plugin-http"
+import { blobToBytes, invokeAiBinary, invokeAiJson, invokeAiMultipart, resolveAiRequestConfig } from "@/lib/ai/tauri-client"
 
 interface ModelCardProps {
   modelConfig: ModelConfig
   aiConfig: AiConfig
-  onUpdate: (modelId: string, field: keyof ModelConfig, value: any) => void
+  mobile?: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onUpdate: <K extends keyof ModelConfig>(modelId: string, field: K, value: ModelConfig[K]) => void
   onDelete: (modelId: string) => void
 }
 
-export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }: ModelCardProps) {
+interface RerankCheckResponse {
+  results?: unknown[]
+}
+
+interface EmbeddingCheckResponse {
+  data?: Array<{ embedding?: number[] }>
+}
+
+const modelTypeOptions: Array<{
+  value: ModelType
+  icon: LucideIcon
+}> = [
+  { value: 'chat', icon: MessageSquare },
+  { value: 'tts', icon: Volume2 },
+  { value: 'stt', icon: Mic },
+  { value: 'embedding', icon: ChartScatter },
+  { value: 'rerank', icon: ListOrdered },
+]
+
+export default function ModelCard({
+  modelConfig,
+  aiConfig,
+  mobile = false,
+  open,
+  onOpenChange,
+  onUpdate,
+  onDelete,
+}: ModelCardProps) {
+  const { detail: limitedDetail, activeModelName: limitedName } = useNoteGenLimitedUsage()
   const t = useTranslations('settings.ai')
+  const tc = useTranslations('common')
   const [checkState, setCheckState] = useState<'ok' | 'error' | 'checking' | 'init'>('init')
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -46,8 +105,7 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
       if (aiStatus) {
         setCheckState('ok')
         toast({
-          description: t('connectionSuccess'),
-          className: 'border-green-500 bg-green-50 text-green-800'
+          description: t('connectionSuccess')
         })
       } else {
         setCheckState('error')
@@ -73,30 +131,22 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
         voice: model.voice,
         enableStream: model.enableStream
       }
+      const requestConfig = await resolveAiRequestConfig(fullAiConfig)
 
       switch (model.modelType) {
         case 'rerank':
           const query = 'Apple'
           const documents = ["apple","banana","fruit","vegetable"]
-          const response = await fetch(aiConfig.baseURL + '/rerank', {
+          const rerankData = await invokeAiJson<RerankCheckResponse>({
+            config: requestConfig,
+            path: '/rerank',
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
-            },
-            body: JSON.stringify({
+            body: {
               model: model.model,
               query,
               documents
-            }),
-            signal
-          })
-          if (!response.ok) {
-            throw new Error(`重排序请求失败: ${response.status} ${response.statusText}`)
-          }
-          const rerankData = await response.json()
+            }
+          }, signal)
           if (!rerankData || !rerankData.results) {
             throw new Error('重排序结果格式不正确')
           }
@@ -104,25 +154,16 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
         case 'embedding':
           const testText = '测试文本'
-          const embeddingData = await fetch(aiConfig.baseURL + '/embeddings', {
+          const embeddingDataJson = await invokeAiJson<EmbeddingCheckResponse>({
+            config: requestConfig,
+            path: '/embeddings',
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
-            },
-            body: JSON.stringify({
+            body: {
               model: model.model,
               input: testText,
               encoding_format: 'float'
-            }),
-            signal
-          })
-          if (!embeddingData.ok) {
-            throw new Error(`嵌入请求失败: ${embeddingData.status} ${embeddingData.statusText}`)
-          }
-          const embeddingDataJson = await embeddingData.json()
+            }
+          }, signal)
           if (!embeddingDataJson || !embeddingDataJson.data || !embeddingDataJson.data[0] || !embeddingDataJson.data[0].embedding) {
             throw new Error('嵌入结果格式不正确')
           }
@@ -130,57 +171,43 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
 
         case 'tts':
           const testAudioText = '测试音频生成'
-          const ttsResponse = await fetch(aiConfig.baseURL + '/audio/speech', {
+          const ttsBuffer = await invokeAiBinary({
+            config: requestConfig,
+            path: '/audio/speech',
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              'Origin': "",
-              ...(aiConfig.customHeaders || {})
-            },
-            body: JSON.stringify({
+            body: {
               model: model.model,
               input: testAudioText,
               voice: model.voice || 'alloy'
-            }),
-            signal
-          })
-          if (!ttsResponse.ok) {
-            throw new Error(`TTS请求失败: ${ttsResponse.status} ${ttsResponse.statusText}`)
-          }
-          const ttsContentType = ttsResponse.headers.get('content-type')
-          if (!ttsContentType || !ttsContentType.includes('audio')) {
+            }
+          }, signal)
+          if (!ttsBuffer.byteLength) {
             throw new Error('TTS模型返回格式不正确')
           }
           return true
 
         case 'stt':
-          // STT 测试：只检查 API 端点连通性
-          // 发送一个简单的测试请求，不验证具体返回内容
-          // 因为空音频文件可能导致服务器ffmpeg解析失败，但这不代表模型不可用
           const testAudioBlob = new Blob([new Uint8Array(100)], { type: 'audio/webm' })
-          const sttFormData = new FormData()
-          sttFormData.append('file', testAudioBlob, 'test.webm')
-          sttFormData.append('model', model.model)
-          
-          const sttResponse = await fetch(aiConfig.baseURL + '/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${aiConfig.apiKey}`,
-              ...(aiConfig.customHeaders || {})
-            },
-            body: sttFormData,
-            signal
-          })
-          
-          // 对于STT，只要API响应了（即使是400错误），就认为连接成功
-          // 400错误通常是因为测试音频无效，但说明API端点是可达的
-          if (sttResponse.status === 401 || sttResponse.status === 403) {
-            // 认证错误才是真正的失败
-            throw new Error(`STT认证失败 (${sttResponse.status})`)
+          try {
+            await invokeAiMultipart({
+              config: requestConfig,
+              path: '/audio/transcriptions',
+              fileFieldName: 'file',
+              fields: {
+                model: model.model
+              },
+              file: {
+                bytes: await blobToBytes(testAudioBlob),
+                fileName: 'test.webm',
+                contentType: 'audio/webm',
+              }
+            }, signal)
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            if (message.includes('401') || message.includes('403')) {
+              throw new Error(message)
+            }
           }
-          
-          // 其他情况（包括200成功和400音频解析失败）都认为连接成功
           return true
 
         default:
@@ -191,7 +218,6 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
               role: 'user' as const,
               content: 'Hello'
             }],
-            stream: model.enableStream !== false,
           })
           return true
       }
@@ -207,155 +233,307 @@ export default function ModelCard({ modelConfig, aiConfig, onUpdate, onDelete }:
   const renderCheckIcon = () => {
     switch (checkState) {
       case 'ok':
-        return <CircleCheck className="text-green-500 size-4" />
+        return <CircleCheck data-icon="inline-start" className="text-primary" />
       case 'error':
-        return <CircleX className="text-red-500 size-4" />
+        return <CircleX data-icon="inline-start" className="text-destructive" />
       case 'checking':
-        return <LoaderCircle className="animate-spin size-4" />
+        return <LoaderCircle data-icon="inline-start" className="animate-spin" />
       default:
         return null
     }
   }
 
   return (
-    <AccordionItem value={modelConfig.id} className="border rounded-lg">
-      <div className="flex items-center justify-between flex-wrap">
-        <div className="flex-1">
-          <AccordionTrigger className="w-full px-4 py-4 hover:no-underline">
-            <div className="flex items-center">
-              <span className="text-base font-semibold">
-                {modelConfig.model || t('newModel')}
-              </span>
-              <Badge variant="secondary" className="ml-2">
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <Card size="sm">
+        {mobile ? (
+          <CardHeader
+            className="cursor-pointer gap-3"
+            onClick={() => onOpenChange(!open)}
+          >
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <CardTitle className="min-w-0 flex-1 break-words text-base font-semibold">
+                <NoteGenModelLabel model={modelConfig.model || t('newModel')} builtin={aiConfig.key === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} />
+              </CardTitle>
+              <div onClick={(event) => event.stopPropagation()}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="group shrink-0"
+                    aria-label={t('models')}
+                  >
+                    <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+            </div>
+            <div
+              className="flex items-center justify-between gap-3 border-t border-border/60 pt-3"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Badge variant="secondary">
                 {t(`modelType.${modelConfig.modelType}`)}
               </Badge>
+              <ButtonGroup>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCheck}
+                  disabled={!modelConfig.model || checkState === 'checking'}
+                >
+                  {renderCheckIcon()}
+                  {t('checkConnection')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={tc('delete')}
+                  onClick={() => onDelete(modelConfig.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </ButtonGroup>
             </div>
-          </AccordionTrigger>
-        </div>
-        <div className="flex items-center justify-end gap-2 p-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCheck}
-            disabled={!modelConfig.model || checkState === 'checking'}
+          </CardHeader>
+        ) : (
+          <CardHeader
+            className="cursor-pointer items-center"
+            onClick={() => onOpenChange(!open)}
           >
-            {renderCheckIcon()}
-            {t('checkConnection')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onDelete(modelConfig.id)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-      </div>      
-      <AccordionContent className="px-4 pb-4 space-y-4">
-        {/* 模型选择 */}
-        <div className="space-y-2">
-          <Label>{t('model')}</Label>
-          <ModelSelect
-            model={modelConfig.model}
-            setModel={(model) => onUpdate(modelConfig.id, 'model', model)}
-            aiConfig={aiConfig}
-          />
-        </div>
-
-        {/* 模型类型 */}
-        <div className="space-y-2">
-          <Label>{t('modelType.title')}</Label>
-          <RadioGroup
-            value={modelConfig.modelType}
-            onValueChange={(value) => onUpdate(modelConfig.id, 'modelType', value as ModelType)}
-            className="flex flex-wrap gap-4"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="chat" id={`chat-${modelConfig.id}`} />
-              <Label htmlFor={`chat-${modelConfig.id}`}>{t('modelType.chat')}</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="tts" id={`tts-${modelConfig.id}`} />
-              <Label htmlFor={`tts-${modelConfig.id}`}>{t('modelType.tts')}</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="stt" id={`stt-${modelConfig.id}`} />
-              <Label htmlFor={`stt-${modelConfig.id}`}>{t('modelType.stt')}</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="embedding" id={`embedding-${modelConfig.id}`} />
-              <Label htmlFor={`embedding-${modelConfig.id}`}>{t('modelType.embedding')}</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="rerank" id={`rerank-${modelConfig.id}`} />
-              <Label htmlFor={`rerank-${modelConfig.id}`}>{t('modelType.rerank')}</Label>
-            </div>
-          </RadioGroup>
-        </div>
-
-        {/* Chat模型的特殊配置 */}
-        {modelConfig.modelType === 'chat' && (
-          <>
-            <div className="space-y-2">
-              <Label>Temperature</Label>
-              <div className="flex gap-2 items-center">
-                <Slider
-                  className="flex-1"
-                  value={[modelConfig.temperature || 0.7]}
-                  max={2}
-                  step={0.01}
-                  onValueChange={(value) => onUpdate(modelConfig.id, 'temperature', value[0])}
-                />
-                <span className="text-sm text-muted-foreground w-12">
-                  {(modelConfig.temperature || 0.7).toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Top P</Label>
-              <div className="flex gap-2 items-center">
-                <Slider
-                  className="flex-1"
-                  value={[modelConfig.topP || 1.0]}
-                  max={1}
-                  min={0}
-                  step={0.01}
-                  onValueChange={(value) => onUpdate(modelConfig.id, 'topP', value[0])}
-                />
-                <span className="text-sm text-muted-foreground w-12">
-                  {(modelConfig.topP || 1.0).toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>{t('enableStream')}</Label>
-                <div className="text-sm text-muted-foreground">
-                  {t('enableStreamDesc')}
-                </div>
-              </div>
-              <Switch
-                checked={modelConfig.enableStream !== false}
-                onCheckedChange={(checked) => onUpdate(modelConfig.id, 'enableStream', checked)}
-              />
-            </div>
-          </>
+            <CardTitle className="flex min-w-0 items-center gap-2">
+              <span className="truncate"><NoteGenModelLabel model={modelConfig.model || t('newModel')} builtin={aiConfig.key === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} /></span>
+              <Badge variant="secondary">
+                {t(`modelType.${modelConfig.modelType}`)}
+              </Badge>
+            </CardTitle>
+            <CardAction
+              className="row-span-1 flex items-center gap-2 self-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ButtonGroup>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCheck}
+                  disabled={!modelConfig.model || checkState === 'checking'}
+                >
+                  {renderCheckIcon()}
+                  {t('checkConnection')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={tc('delete')}
+                  onClick={() => onDelete(modelConfig.id)}
+                >
+                  <Trash2 />
+                </Button>
+              </ButtonGroup>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="group"
+                  aria-label={t('models')}
+                >
+                  <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+            </CardAction>
+          </CardHeader>
         )}
 
-        {/* TTS模型的特殊配置 */}
-        {modelConfig.modelType === 'tts' && (
-          <div className="space-y-2">
-            <Label>{t('voice')}</Label>
-            <Input
-              value={modelConfig.voice || ''}
-              onChange={(e) => onUpdate(modelConfig.id, 'voice', e.target.value)}
-              placeholder={t('voicePlaceholder')}
-            />
-          </div>
-        )}
-      </AccordionContent>
-    </AccordionItem>
+        <CollapsibleContent>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel>{t('model')}</FieldLabel>
+                <ModelSelect
+                  model={modelConfig.model}
+                  setModel={(model) => onUpdate(modelConfig.id, 'model', model)}
+                  aiConfig={aiConfig}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel>{t('modelType.title')}</FieldLabel>
+                {mobile ? (
+                  <ResponsiveSelect
+                    title={t('modelType.title')}
+                    value={modelConfig.modelType}
+                    onValueChange={value => onUpdate(modelConfig.id, 'modelType', value as ModelType)}
+                    options={modelTypeOptions.map(({ value }) => ({
+                      value,
+                      label: t(`modelType.${value}`),
+                    }))}
+                  />
+                ) : (
+                  <Tabs
+                    className="w-full"
+                    orientation="horizontal"
+                    value={modelConfig.modelType}
+                    onValueChange={(value) => onUpdate(modelConfig.id, 'modelType', value as ModelType)}
+                  >
+                    <TabsList className="grid h-8 w-full grid-cols-5">
+                      {modelTypeOptions.map(({ value, icon: Icon }) => (
+                        <TabsTrigger
+                          key={value}
+                          value={value}
+                          title={t(`modelType.${value}`)}
+                          className="min-w-0 !w-auto !justify-center px-1"
+                        >
+                          <Icon data-icon="inline-start" />
+                          <span className="truncate">{t(`modelType.${value}`)}</span>
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                )}
+              </Field>
+
+              {modelConfig.modelType === 'chat' && (
+                <Collapsible className="flex flex-col gap-3">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="group w-full justify-between bg-transparent px-0 hover:bg-transparent data-[state=open]:bg-transparent"
+                    >
+                      <span>{t('advancedParameters')}</span>
+                      <ChevronDown
+                        data-icon="inline-end"
+                        className="transition-transform group-data-[state=open]:rotate-180"
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <FieldGroup>
+                          <Field>
+                            <FieldLabel>{t('maxTokens')}</FieldLabel>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={modelConfig.maxTokens ?? ''}
+                              placeholder={t('maxTokensPlaceholder')}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                onUpdate(modelConfig.id, 'maxTokens', value === '' ? undefined : Number(value))
+                              }}
+                            />
+                            <FieldDescription>{t('maxTokensDesc')}</FieldDescription>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel>{t('contextWindow')}</FieldLabel>
+                            <Input
+                              type="number"
+                              min={1024}
+                              step={1024}
+                              value={modelConfig.contextWindow ?? ''}
+                              placeholder={t('contextWindowPlaceholder')}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                onUpdate(modelConfig.id, 'contextWindow', value === '' ? undefined : Number(value))
+                              }}
+                            />
+                            <FieldDescription>{t('contextWindowDesc')}</FieldDescription>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel>{t('tokenLimitParam')}</FieldLabel>
+                            <RadioGroup
+                              value={modelConfig.tokenLimitParam || 'max_completion_tokens'}
+                              onValueChange={(value) => onUpdate(
+                                modelConfig.id,
+                                'tokenLimitParam',
+                                value as ModelConfig['tokenLimitParam']
+                              )}
+                            >
+                              <Field orientation="horizontal" className={mobile ? 'mobile-setting-token-option' : undefined}>
+                                <RadioGroupItem
+                                  value="max_completion_tokens"
+                                  id={`max-completion-tokens-${modelConfig.id}`}
+                                />
+                                <FieldLabel htmlFor={`max-completion-tokens-${modelConfig.id}`}>
+                                  max_completion_tokens
+                                </FieldLabel>
+                              </Field>
+                              <Field orientation="horizontal" className={mobile ? 'mobile-setting-token-option' : undefined}>
+                                <RadioGroupItem
+                                  value="max_tokens"
+                                  id={`max-tokens-${modelConfig.id}`}
+                                />
+                                <FieldLabel htmlFor={`max-tokens-${modelConfig.id}`}>
+                                  max_tokens
+                                </FieldLabel>
+                              </Field>
+                            </RadioGroup>
+                            <FieldDescription>{t('tokenLimitParamDesc')}</FieldDescription>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel>Temperature</FieldLabel>
+                            <div className="flex items-center gap-3">
+                              <Slider
+                                className="flex-1"
+                                value={[modelConfig.temperature ?? 0.7]}
+                                max={2}
+                                step={0.01}
+                                onValueChange={(value) => onUpdate(modelConfig.id, 'temperature', value[0])}
+                              />
+                              <Badge variant="outline">
+                                {(modelConfig.temperature ?? 0.7).toFixed(2)}
+                              </Badge>
+                            </div>
+                          </Field>
+
+                          <Field>
+                            <FieldLabel>Top P</FieldLabel>
+                            <div className="flex items-center gap-3">
+                              <Slider
+                                className="flex-1"
+                                value={[modelConfig.topP ?? 1.0]}
+                                max={1}
+                                min={0}
+                                step={0.01}
+                                onValueChange={(value) => onUpdate(modelConfig.id, 'topP', value[0])}
+                              />
+                              <Badge variant="outline">
+                                {(modelConfig.topP ?? 1.0).toFixed(2)}
+                              </Badge>
+                            </div>
+                          </Field>
+
+                          <Field orientation="horizontal" className={mobile ? 'mobile-setting-inline-switch-field' : undefined}>
+                            <FieldContent>
+                              <FieldTitle>{t('enableStream')}</FieldTitle>
+                              <FieldDescription>{t('enableStreamDesc')}</FieldDescription>
+                            </FieldContent>
+                            <Switch
+                              checked={modelConfig.enableStream !== false}
+                              onCheckedChange={(checked) => onUpdate(modelConfig.id, 'enableStream', checked)}
+                            />
+                          </Field>
+                    </FieldGroup>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {modelConfig.modelType === 'tts' && (
+                <Field>
+                  <FieldLabel>{t('voice')}</FieldLabel>
+                  <Input
+                    value={modelConfig.voice || ''}
+                    onChange={(event) => onUpdate(modelConfig.id, 'voice', event.target.value)}
+                    placeholder={t('voicePlaceholder')}
+                  />
+                </Field>
+              )}
+            </FieldGroup>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   )
 }

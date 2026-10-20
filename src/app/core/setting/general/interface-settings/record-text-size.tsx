@@ -2,7 +2,7 @@
 import { useTranslations } from 'next-intl'
 import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Bookmark } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import useSettingStore from '@/stores/setting'
 
 const textSizeOptions = [
@@ -23,22 +23,24 @@ export function RecordTextSizeSettings() {
 
   return (
     <Item variant="outline">
-      <ItemMedia variant="icon"><Bookmark className="size-4" /></ItemMedia>
+      <ItemMedia variant="icon"><Bookmark /></ItemMedia>
       <ItemContent>
         <ItemTitle>{t('recordTextSize.title')}</ItemTitle>
         <ItemDescription>{t('recordTextSize.desc')}</ItemDescription>
       </ItemContent>
-      <ItemActions>
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
         <Select value={recordTextSize} onValueChange={handleSizeChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {textSizeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                <span className="text-center w-full">{option.desc}</span>
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {textSizeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  <span className="w-full text-center">{option.desc}</span>
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </ItemActions>

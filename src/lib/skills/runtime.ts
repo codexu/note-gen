@@ -1,11 +1,24 @@
 import { appDataDir } from '@tauri-apps/api/path'
-import { BaseDirectory, exists, mkdir, readDir, rename } from '@tauri-apps/plugin-fs'
-import { Command } from '@tauri-apps/plugin-shell'
-import { skillManager } from './manager'
-import { buildShellCommand, resolveSkillDirectory } from './path-utils'
-import { detectPythonCommand, ensureDependencyForCommand } from './dependency-installer'
+import { invoke } from '@tauri-apps/api/core'
+import { BaseDirectory, exists, mkdir, readDir, readFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
-import { classifySkillScriptPath } from './runtime-paths'
+import { skillManager } from './manager'
+import { resolveSkillDirectory } from './path-utils'
+import type { SkillScript } from './types'
+
+const DEFAULT_TIMEOUT_MS = 60_000
+const MAX_TIMEOUT_MS = 300_000
+const MAX_ARGUMENTS = 20
+const MAX_ARGUMENT_LENGTH = 4096
+const MAX_OUTPUT_FILES = 100
+const MAX_OUTPUT_DEPTH = 10
+const OUTPUT_PATH_FLAGS = new Set([
+  '--out', '--output', '--output-dir', '--out-dir', '--output-path', '-o',
+])
+
+const OUTPUT_FILE_EXTENSIONS = new Set([
+  'pptx', 'pdf', 'docx', 'xlsx', 'ipynb', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'md', 'json', 'csv', 'txt',
+])
 
 export interface SkillRuntimeContext {
   skillId: string
@@ -13,17 +26,16 @@ export interface SkillRuntimeContext {
   runtimeDir: string
   outputDir: string
   appArticleDir: string
-  fsBaseDir?: BaseDirectory
-  skillDirFsPath: string
-  runtimeDirFsPath: string
   outputDirFsPath: string
+  outputBaseDir?: BaseDirectory
 }
 
 export interface SkillExecutionRequest {
   skillId: string
-  command: string
+  scriptId: string
   args?: string[]
   timeout?: number
+  signal?: AbortSignal
 }
 
 export interface SkillExecutionData {
@@ -32,11 +44,16 @@ export interface SkillExecutionData {
   working_directory: string
   runtime_directory: string
   output_directory: string
+  script_id: string
+  script_hash: string
   stdout: string
   stderr: string
-  dependency_installed?: string
+  output_truncated: boolean
   output_files?: string[]
   timeout?: boolean
+  cancelled?: boolean
+  stdout_log?: string
+  stderr_log?: string
 }
 
 export interface SkillExecutionOutcome {
@@ -46,23 +63,32 @@ export interface SkillExecutionOutcome {
   data: SkillExecutionData
 }
 
-const OUTPUT_FILE_EXTENSIONS = new Set([
-  'pptx',
-  'pdf',
-  'docx',
-  'xlsx',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'svg',
-  'md',
-  'json',
-  'csv',
-  'txt',
-])
+export interface SkillPythonStatus {
+  available: boolean
+  managed: boolean
+  interpreter?: string
+  version?: string
+}
 
-const SCRIPT_FILE_EXTENSIONS = new Set(['js', 'mjs', 'cjs', 'py', 'sh', 'bash'])
+export interface SkillPythonInstallResult {
+  interpreter: string
+  version: string
+  packages: string[]
+  stdout: string
+  stderr: string
+}
+
+interface ProcessResult {
+  code: number
+  stdout: string
+  stderr: string
+  truncated: boolean
+  timedOut: boolean
+  aborted: boolean
+  executionTimeMs: number
+  stdoutLog: string
+  stderrLog: string
+}
 
 function getExtension(filePath: string): string {
   const fileName = filePath.split('/').pop() || filePath
@@ -70,86 +96,146 @@ function getExtension(filePath: string): string {
   return index === -1 ? '' : fileName.slice(index + 1).toLowerCase()
 }
 
-function isScriptLikeFile(filePath: string): boolean {
-  return SCRIPT_FILE_EXTENSIONS.has(getExtension(filePath))
-}
-
-function isOutputLikeFile(filePath: string): boolean {
+function isOutputFile(filePath: string): boolean {
   return OUTPUT_FILE_EXTENSIONS.has(getExtension(filePath))
 }
 
-function isAbsolutePath(filePath: string): boolean {
-  return filePath.startsWith('/')
-}
-
-function isSkillBuiltInPath(filePath: string): boolean {
-  return filePath.startsWith('scripts/') || filePath.startsWith('scripts\\')
-}
-
-function isSafeRelativePath(filePath: string): boolean {
-  return !filePath.startsWith('..') && !isAbsolutePath(filePath)
-}
-
-function toPosixPath(filePath: string): string {
-  return filePath.replace(/\\/g, '/')
-}
-
-async function pathExists(filePath: string, baseDir?: BaseDirectory): Promise<boolean> {
-  try {
-    return baseDir ? await exists(filePath, { baseDir }) : await exists(filePath)
-  } catch {
-    return false
+function normalizeScriptId(scriptId: string): string {
+  const normalized = scriptId.replace(/\\/g, '/').replace(/^scripts\//, '')
+  const segments = normalized.split('/')
+  if (
+    !normalized
+    || normalized.startsWith('/')
+    || /^[a-zA-Z]:\//.test(normalized)
+    || segments.some(segment => !segment || segment === '.' || segment === '..')
+  ) {
+    throw new Error('Invalid script_id: expected a registered path below scripts/')
   }
+  return normalized
 }
 
-async function ensureDir(dir: string, baseDir?: BaseDirectory): Promise<void> {
-  if (!(await pathExists(dir, baseDir))) {
-    if (baseDir) {
-      await mkdir(dir, { baseDir, recursive: true })
-    } else {
-      await mkdir(dir, { recursive: true })
-    }
-  }
-}
-
-async function resolveWritableRuntimeDir(
-  fileInfoDirectory: string
-): Promise<{ runtimeDirPath: string; runtimeDirFsPath: string; baseDir?: BaseDirectory }> {
-  const appDataPath = await appDataDir()
-  const fallbackOptions = await getFilePathOptions(`${fileInfoDirectory}/runtime`)
-  await ensureDir(fallbackOptions.path, fallbackOptions.baseDir)
-
-  return {
-    runtimeDirPath: fallbackOptions.baseDir
-      ? `${appDataPath}/${fallbackOptions.path}`
-      : fallbackOptions.path,
-    runtimeDirFsPath: fallbackOptions.path,
-    baseDir: fallbackOptions.baseDir,
-  }
-}
-
-async function resolveContext(skillId: string): Promise<SkillRuntimeContext> {
+function resolveRegisteredScript(skillId: string, scriptId: string): SkillScript {
   const skill = skillManager.getSkill(skillId)
   if (!skill) {
     throw new Error(`Skill not found: ${skillId}`)
   }
 
+  const normalized = normalizeScriptId(scriptId)
+  const script = skill.scripts.find(candidate => candidate.name.replace(/\\/g, '/') === normalized)
+  if (!script) {
+    throw new Error(`Script is not registered for Skill "${skillId}": ${scriptId}`)
+  }
+  return script
+}
+
+async function verifyScriptIntegrity(scriptPath: string, expectedHash: string): Promise<void> {
+  const bytes = await readFile(scriptPath)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const actualHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  if (actualHash !== expectedHash) {
+    throw new Error('Skill script changed after it was loaded. Reload the Skill before approving execution.')
+  }
+}
+
+function isPathInside(candidate: string, parent: string): boolean {
+  const normalizedCandidate = candidate.replace(/\\/g, '/').replace(/\/+$/, '')
+  const normalizedParent = parent.replace(/\\/g, '/').replace(/\/+$/, '')
+  return normalizedCandidate === normalizedParent || normalizedCandidate.startsWith(`${normalizedParent}/`)
+}
+
+async function validateArguments(args: string[], context: SkillRuntimeContext): Promise<string[]> {
+  if (args.length > MAX_ARGUMENTS) {
+    throw new Error(`Too many script arguments: maximum is ${MAX_ARGUMENTS}`)
+  }
+
+  const validated: string[] = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg.length > MAX_ARGUMENT_LENGTH || arg.includes('\0')) {
+      throw new Error(`Invalid script argument: maximum length is ${MAX_ARGUMENT_LENGTH} characters`)
+    }
+
+    const normalized = arg.replace(/\\/g, '/')
+    const isAbsolute = normalized.startsWith('/') || /^[a-zA-Z]:\//.test(normalized)
+    if (isAbsolute) {
+      const allowed = [context.skillDir, context.runtimeDir, context.outputDir, context.appArticleDir]
+        .some(root => isPathInside(normalized, root))
+      if (!allowed) {
+        throw new Error(`External path arguments are not allowed: ${arg}`)
+      }
+    } else if (normalized.split('/').includes('..')) {
+      throw new Error(`Path traversal is not allowed in script arguments: ${arg}`)
+    }
+
+    if (normalized.startsWith('article/')) {
+      validated.push(`${context.appArticleDir}/${normalized.slice('article/'.length)}`)
+      continue
+    }
+
+    if (!isAbsolute && !normalized.startsWith('-')) {
+      const workspacePath = `${context.appArticleDir}/${normalized}`
+      if (await exists(workspacePath)) {
+        validated.push(workspacePath)
+        continue
+      }
+    }
+
+    if (!isAbsolute && OUTPUT_PATH_FLAGS.has(args[index - 1] || '')) {
+      const outputName = normalized.split('/').filter(Boolean).pop()
+      if (!outputName) {
+        throw new Error(`Invalid output path argument: ${arg}`)
+      }
+      validated.push(`${context.outputDir}/${outputName}`)
+      continue
+    }
+
+    if (isOutputFile(normalized)) {
+      // Relative paths with a recognized artifact extension are outputs when
+      // they do not resolve to an existing workspace input. Redirect them to
+      // the Skill's user-visible output directory instead of allowing a
+      // script to write into its installed, read-only package directory.
+      let outputRelative = normalized.replace(/^outputs?\//, '')
+      if (outputRelative.startsWith(`${context.skillId}/`)) {
+        outputRelative = outputRelative.slice(context.skillId.length + 1)
+      }
+      validated.push(`${context.outputDir}/${outputRelative}`)
+      continue
+    }
+    validated.push(arg)
+  }
+  return validated
+}
+
+async function ensureDir(path: string, baseDir?: BaseDirectory): Promise<void> {
+  const present = baseDir ? await exists(path, { baseDir }) : await exists(path)
+  if (!present) {
+    if (baseDir) {
+      await mkdir(path, { baseDir, recursive: true })
+    } else {
+      await mkdir(path, { recursive: true })
+    }
+  }
+}
+
+async function resolveContext(skillId: string): Promise<SkillRuntimeContext> {
+  const skill = skillManager.getSkill(skillId)
   const fileInfo = skillManager.getSkillFileInfo(skillId)
-  if (!fileInfo) {
-    throw new Error(`Cannot determine Skill directory for: ${skillId}`)
+  if (!skill || !fileInfo) {
+    throw new Error(`Cannot resolve Skill directory: ${skillId}`)
   }
 
   const skillDir = await resolveSkillDirectory(fileInfo.directory, skill.metadata.scope)
-  const appDataPath = await appDataDir()
-  const appArticleDir = `${appDataPath.replace(/\/$/, '')}/article`
-  const outputDir = `${appArticleDir}/outputs/${skillId}`
-  const runtimeResolution = await resolveWritableRuntimeDir(fileInfo.directory)
-  const runtimeDir = runtimeResolution.runtimeDirPath
-  const outputDirOptions = await getFilePathOptions(`outputs/${skillId}`)
-  const skillDirOptions = await getFilePathOptions(fileInfo.directory)
-  const fsBaseDir = runtimeResolution.baseDir ?? outputDirOptions.baseDir ?? skillDirOptions.baseDir
+  const appDataPath = (await appDataDir()).replace(/\/$/, '')
+  const appArticleDir = `${appDataPath}/article`
+  const runtimeOptions = skill.metadata.scope === 'global'
+    ? { path: `skill-runtimes/${skillId}`, baseDir: BaseDirectory.AppData }
+    : await getFilePathOptions(`${fileInfo.directory}/runtime`)
+  const outputOptions = await getFilePathOptions(`outputs/${skillId}`)
+  const runtimeDir = runtimeOptions.baseDir ? `${appDataPath}/${runtimeOptions.path}` : runtimeOptions.path
+  const outputDir = outputOptions.baseDir ? `${appDataPath}/${outputOptions.path}` : outputOptions.path
 
-  await ensureDir(outputDirOptions.path, outputDirOptions.baseDir)
+  await ensureDir(runtimeOptions.path, runtimeOptions.baseDir)
+  await ensureDir(outputOptions.path, outputOptions.baseDir)
 
   return {
     skillId,
@@ -157,368 +243,212 @@ async function resolveContext(skillId: string): Promise<SkillRuntimeContext> {
     runtimeDir,
     outputDir,
     appArticleDir,
-    fsBaseDir,
-    skillDirFsPath: skillDirOptions.path,
-    runtimeDirFsPath: runtimeResolution.runtimeDirFsPath,
-    outputDirFsPath: outputDirOptions.path,
+    outputDirFsPath: outputOptions.path,
+    outputBaseDir: outputOptions.baseDir,
   }
 }
 
-async function normalizeArg(arg: string, context: SkillRuntimeContext): Promise<string> {
-  if (!arg || typeof arg !== 'string') {
-    return arg
-  }
-
-  if (isAbsolutePath(arg)) {
-    return arg
-  }
-
-  const classified = classifySkillScriptPath(arg)
-  const normalized = classified.normalizedArg
-
-  if (isSkillBuiltInPath(normalized)) {
-    return normalized
-  }
-
-  if (!normalized.includes('/') && isScriptLikeFile(normalized)) {
-    const runtimeCandidate = `${context.runtimeDir}/${normalized}`
-    const runtimeCandidateFsPath = `${context.runtimeDirFsPath}/${normalized}`
-    if (await pathExists(runtimeCandidateFsPath, context.fsBaseDir)) {
-      return runtimeCandidate
-    }
-
-    const skillRootCandidate = `${context.skillDir}/${normalized}`
-    const skillRootCandidateFsPath = `${context.skillDirFsPath}/${normalized}`
-    if (await pathExists(skillRootCandidateFsPath, context.fsBaseDir)) {
-      return skillRootCandidate
-    }
-
-    return runtimeCandidate
-  }
-
-  if (normalized.startsWith('article/')) {
-    return `${context.appArticleDir}/${normalized.replace(/^article\//, '')}`
-  }
-
-  if (normalized.startsWith('../article/')) {
-    return `${context.appArticleDir}/${normalized.replace(/^\.\.\/article\//, '')}`
-  }
-
-  if (!normalized.includes('/') && isOutputLikeFile(normalized)) {
-    const articleCandidate = `${context.appArticleDir}/${normalized}`
-    const articleCandidateFsPath = `article/${normalized}`.replace(/^article\/article\//, 'article/')
-    if (await pathExists(articleCandidateFsPath, BaseDirectory.AppData)) {
-      return articleCandidate
-    }
-
-    return `${context.outputDir}/${normalized}`
-  }
-
-  if (isSafeRelativePath(normalized)) {
-    const runtimeCandidate = `${context.runtimeDir}/${normalized}`
-    const runtimeCandidateFsPath = `${context.runtimeDirFsPath}/${normalized}`
-    if (await pathExists(runtimeCandidateFsPath, context.fsBaseDir)) {
-      return runtimeCandidate
-    }
-  }
-
-  return normalized
+export async function inspectSkillPython(skillId: string): Promise<SkillPythonStatus> {
+  const context = await resolveContext(skillId)
+  return await invoke<SkillPythonStatus>('inspect_skill_python', {
+    request: {
+      skillId,
+      skillRoot: context.skillDir,
+      runtimeDir: context.runtimeDir,
+    },
+  })
 }
 
-function parseCommand(command: string, args: string[]): { cmd: string; cmdArgs: string[] } {
-  if (command.includes(' ')) {
-    const commandParts = command.trim().split(/\s+/)
-    return {
-      cmd: commandParts[0],
-      cmdArgs: [...commandParts.slice(1), ...args],
-    }
-  }
-
-  return {
-    cmd: command,
-    cmdArgs: [...args],
-  }
+export async function installSkillPythonDependencies(
+  skillId: string,
+  packages: string[],
+  signal?: AbortSignal
+): Promise<SkillPythonInstallResult> {
+  signal?.throwIfAborted()
+  const context = await resolveContext(skillId)
+  const result = await invoke<SkillPythonInstallResult>('install_skill_python_dependencies', {
+    request: {
+      skillId,
+      skillRoot: context.skillDir,
+      runtimeDir: context.runtimeDir,
+      packages,
+    },
+  })
+  signal?.throwIfAborted()
+  return result
 }
 
-async function normalizeExecutionPlan(
-  command: string,
-  args: string[]
-): Promise<{ command: string; args: string[] }> {
-  if (command === 'python' || command === 'python3') {
-    const pythonCommand = (await detectPythonCommand(command)) || command
-
-    if (args[0] === '-m' && args[1] === 'markitdown' && args[2]) {
-      return {
-        command: pythonCommand,
-        args: [
-          '-c',
-          [
-            'from markitdown import MarkItDown',
-            'import sys',
-            'result = MarkItDown().convert(sys.argv[1])',
-            'print(getattr(result, "text_content", str(result)))',
-          ].join('; '),
-          args[2],
-        ],
-      }
-    }
-
-    return {
-      command: pythonCommand,
-      args,
-    }
-  }
-
-  if (command === 'pip' || command === 'pip3') {
-    const pythonCommand = (await detectPythonCommand('python3')) || 'python3'
-    return {
-      command: pythonCommand,
-      args: ['-m', 'pip', ...args],
-    }
-  }
-
-  return {
-    command,
-    args,
-  }
-}
-
-function determineWorkingDirectory(
+async function runCommand(
+  script: SkillScript,
+  args: string[],
   context: SkillRuntimeContext,
-  command: string,
-  processedArgs: string[]
-): string {
-  if ((command === 'node' || command === 'python' || command === 'python3' || command === 'bash' || command === 'sh') && processedArgs.length > 0) {
-    const candidateScript = processedArgs.find((arg) => !arg.startsWith('-') && isScriptLikeFile(arg))
-    if (candidateScript && candidateScript.startsWith(`${context.runtimeDir}/`)) {
-      return context.runtimeDir
-    }
-  }
-
-  return context.skillDir
-}
-
-async function snapshotOutputFiles(context: SkillRuntimeContext): Promise<Set<string>> {
-  const snapshot = new Set<string>()
-  const entries = context.fsBaseDir
-    ? await readDir(context.outputDirFsPath, { baseDir: context.fsBaseDir })
-    : await readDir(context.outputDirFsPath)
-
-  for (const entry of entries) {
-    if (entry.isFile && entry.name && isOutputLikeFile(entry.name) && !isScriptLikeFile(entry.name)) {
-      snapshot.add(`outputs/${context.skillId}/${entry.name}`)
-    }
-  }
-
-  return snapshot
-}
-
-async function collectGeneratedOutputs(context: SkillRuntimeContext, previousOutputs: Set<string>): Promise<string[]> {
-  const movedFiles: string[] = []
-  const seenTargets = new Set<string>()
-
-  async function moveOutputFile(fullPathFs: string, relativeFromRuntime: string): Promise<void> {
-    const normalizedRelativePath = toPosixPath(relativeFromRuntime).replace(/^\/+/, '')
-    if (!normalizedRelativePath || !isOutputLikeFile(normalizedRelativePath) || isScriptLikeFile(normalizedRelativePath)) {
-      return
-    }
-
-    const targetPathFs = `${context.outputDirFsPath}/${normalizedRelativePath}`.replace(/\/+/g, '/')
-    const outputRelativePath = `outputs/${context.skillId}/${normalizedRelativePath}`.replace(/\/+/g, '/')
-
-    if (seenTargets.has(outputRelativePath)) {
-      return
-    }
-
-    seenTargets.add(outputRelativePath)
-
-    try {
-      if (fullPathFs === targetPathFs) {
-        movedFiles.push(outputRelativePath)
-        return
-      }
-
-      const targetDirFsPath = targetPathFs.slice(0, targetPathFs.lastIndexOf('/'))
-      await ensureDir(targetDirFsPath, context.fsBaseDir)
-
-      if (context.fsBaseDir) {
-        await rename(fullPathFs, targetPathFs, {
-          oldPathBaseDir: context.fsBaseDir,
-          newPathBaseDir: context.fsBaseDir,
-        })
-      } else {
-        await rename(fullPathFs, targetPathFs)
-      }
-
-      movedFiles.push(outputRelativePath)
-    } catch (error) {
-      console.error('[skill-runtime] Failed to move generated output', {
-        source: fullPathFs,
-        target: targetPathFs,
-        error: String(error),
-      })
-    }
-  }
-
-  async function walkRuntime(currentDirFsPath: string, currentRelativeFromRuntime = ''): Promise<void> {
-    const entries = context.fsBaseDir
-      ? await readDir(currentDirFsPath, { baseDir: context.fsBaseDir })
-      : await readDir(currentDirFsPath)
-
-    for (const entry of entries) {
-      if (!entry.name) continue
-
-      const relativeFromRuntime = currentRelativeFromRuntime
-        ? `${currentRelativeFromRuntime}/${entry.name}`
-        : entry.name
-      const fullPathFs = `${context.runtimeDirFsPath}/${relativeFromRuntime}`.replace(/\/+/g, '/')
-
-      if (entry.isDirectory) {
-        await walkRuntime(fullPathFs, relativeFromRuntime)
-        continue
-      }
-
-      if (!entry.isFile) {
-        continue
-      }
-
-      await moveOutputFile(fullPathFs, relativeFromRuntime)
-    }
-  }
-
-  await walkRuntime(context.runtimeDirFsPath)
-
-  const existingOutputEntries = context.fsBaseDir
-    ? await readDir(context.outputDirFsPath, { baseDir: context.fsBaseDir })
-    : await readDir(context.outputDirFsPath)
-
-  for (const entry of existingOutputEntries) {
-    if (entry.isFile && entry.name && isOutputLikeFile(entry.name) && !isScriptLikeFile(entry.name)) {
-      const outputRelativePath = `outputs/${context.skillId}/${entry.name}`
-      if (!seenTargets.has(outputRelativePath) && !previousOutputs.has(outputRelativePath)) {
-        movedFiles.push(outputRelativePath)
-      }
-    }
-  }
-
-  return Array.from(new Set(movedFiles))
-}
-
-export async function executeSkillRuntime(
-  request: SkillExecutionRequest
-): Promise<SkillExecutionOutcome> {
-  const startTime = Date.now()
-  const executionTimeout = Math.min(Math.max(request.timeout || 60000, 1000), 300000)
-
-  const context = await resolveContext(request.skillId)
-  const parsed = parseCommand(request.command, Array.isArray(request.args) ? request.args : [])
-  const normalizedPlan = await normalizeExecutionPlan(parsed.cmd, parsed.cmdArgs)
-  const normalizedCommand = normalizedPlan.command
-  const processedArgs: string[] = []
-  const existingOutputs = await snapshotOutputFiles(context)
-
-  for (const arg of normalizedPlan.args) {
-    processedArgs.push(await normalizeArg(arg, context))
-  }
-
-  const envPrefix = [
-    `SKILL_OUTPUT_DIR="${context.outputDir}"`,
-    `SKILL_RUNTIME_DIR="${context.runtimeDir}"`,
-    `SKILL_ROOT_DIR="${context.skillDir}"`,
-    `NOTEGEN_OUTPUT_DIR="${context.outputDir}"`,
-  ].join(' ')
-  const workingDirectory = determineWorkingDirectory(context, normalizedCommand, processedArgs)
-
-  const shellCommand = parsed.cmd === 'bash' && processedArgs[0] === '-c'
-    ? `cd "${workingDirectory}" && ${envPrefix} ${processedArgs.slice(1).join(' ')}`
-    : `cd "${workingDirectory}" && ${envPrefix} ${buildShellCommand(workingDirectory, workingDirectory, normalizedCommand, processedArgs).replace(`cd "${workingDirectory}" && `, '')}`
-
-  const stdoutChunks: string[] = []
-  const stderrChunks: string[] = []
-
-  async function runShellCommand(): Promise<{ code: number; stdout: string; stderr: string }> {
-    const process = Command.create('bash', ['-c', shellCommand])
-
-    process.stdout.on('data', (line: string) => {
-      stdoutChunks.push(line)
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<ProcessResult> {
+  signal?.throwIfAborted()
+  const executionId = crypto.randomUUID()
+  const abortHandler = () => {
+    void invoke('cancel_skill_script', { executionId }).catch(error => {
+      console.error('[skill-runtime] Failed to kill aborted process', error)
     })
-
-    process.stderr.on('data', (line: string) => {
-      stderrChunks.push(line)
-    })
-
-    const execution = process.execute()
-    const result = await Promise.race([
-      execution,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Script execution timed out after ${executionTimeout}ms`)), executionTimeout)
-      ),
-    ])
-
-    return {
-      code: result.code ?? -1,
-      stdout: stdoutChunks.join('') + (result.stdout || ''),
-      stderr: stderrChunks.join('') + (result.stderr || ''),
-    }
   }
+  signal?.addEventListener('abort', abortHandler, { once: true })
 
   try {
-    let result = await runShellCommand()
-    let installedDependency: string | undefined
+    const result = await invoke<{
+      exitCode: number
+      stdout: string
+      stderr: string
+      outputTruncated: boolean
+      timedOut: boolean
+      cancelled: boolean
+      executionTimeMs: number
+      stdoutLog: string
+      stderrLog: string
+    }>('run_skill_script', {
+      request: {
+        executionId,
+        skillId: context.skillId,
+        skillRoot: context.skillDir,
+        runtimeDir: context.runtimeDir,
+        outputDir: context.outputDir,
+        scriptId: script.name,
+        scriptHash: script.sha256,
+        scriptType: script.type,
+        args,
+        timeoutMs,
+      },
+    })
+    return {
+      code: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      truncated: result.outputTruncated,
+      timedOut: result.timedOut,
+      aborted: result.cancelled,
+      executionTimeMs: result.executionTimeMs,
+      stdoutLog: result.stdoutLog,
+      stderrLog: result.stderrLog,
+    }
+  } finally {
+    signal?.removeEventListener('abort', abortHandler)
+  }
+}
 
-    if (result.code !== 0) {
-      const installResult = await ensureDependencyForCommand({
-        stderr: result.stderr,
-        command: normalizedCommand,
-        workingDirectory: context.skillDir,
-      })
+function describeProcessFailure(result: ProcessResult, timeoutMs: number): string {
+  if (result.aborted) return 'Script execution was cancelled'
+  if (result.timedOut) return `Script execution timed out after ${timeoutMs}ms`
 
-      if (installResult?.success) {
-        installedDependency = installResult.installed
-        stdoutChunks.length = 0
-        stderrChunks.length = 0
-        result = await runShellCommand()
+  const missingPythonModule = result.stderr.match(
+    /ModuleNotFoundError:\s+No module named ["']([^"']+)["']/
+  )
+  if (missingPythonModule) {
+    return `Missing Python dependency "${missingPythonModule[1]}". Install it in the Python environment used by NoteGen; automatic dependency installation is disabled.`
+  }
+
+  return result.stderr || result.stdout || `Script failed with exit code ${result.code}`
+}
+
+async function listOutputFiles(context: SkillRuntimeContext): Promise<Set<string>> {
+  const files = new Set<string>()
+
+  async function walk(directory: string, relative = '', depth = 0): Promise<void> {
+    if (depth > MAX_OUTPUT_DEPTH || files.size >= MAX_OUTPUT_FILES) return
+    const entries = context.outputBaseDir
+      ? await readDir(directory, { baseDir: context.outputBaseDir })
+      : await readDir(directory)
+
+    for (const entry of entries) {
+      if (!entry.name || files.size >= MAX_OUTPUT_FILES) break
+      // Output trees may legitimately contain generated repositories. Hidden
+      // metadata such as .git is neither a user-facing artifact nor safe to
+      // traverse through the note filesystem scope.
+      if (entry.name.startsWith('.')) continue
+      const childRelative = relative ? `${relative}/${entry.name}` : entry.name
+      const childPath = `${directory}/${entry.name}`.replace(/\/+/g, '/')
+      if (entry.isDirectory) {
+        await walk(childPath, childRelative, depth + 1)
+      } else if (entry.isFile && isOutputFile(childRelative)) {
+        files.add(`outputs/${context.skillId}/${childRelative}`)
       }
     }
+  }
 
-    const outputFiles = result.code === 0 ? await collectGeneratedOutputs(context, existingOutputs) : []
-    const executionTime = Date.now() - startTime
+  await walk(context.outputDirFsPath)
+  return files
+}
+
+export function getSkillScriptPermissionKey(skillId: string, scriptId: string, args: string[] = []): string | null {
+  try {
+    const script = resolveRegisteredScript(skillId, scriptId)
+    return `${skillId}:${script.name}@sha256:${script.sha256}:args:${JSON.stringify(args.map(String))}`
+  } catch {
+    return null
+  }
+}
+
+export async function executeSkillRuntime(request: SkillExecutionRequest): Promise<SkillExecutionOutcome> {
+  const startedAt = Date.now()
+  const timeoutMs = Math.min(Math.max(request.timeout || DEFAULT_TIMEOUT_MS, 1000), MAX_TIMEOUT_MS)
+  let context: SkillRuntimeContext | undefined
+  let script: SkillScript | undefined
+
+  try {
+    context = await resolveContext(request.skillId)
+    script = resolveRegisteredScript(request.skillId, request.scriptId)
+    const args = await validateArguments(Array.isArray(request.args) ? request.args.map(String) : [], context)
+    const scriptPath = `${context.skillDir}/scripts/${script.name}`.replace(/\/+/g, '/')
+    await verifyScriptIntegrity(scriptPath, script.sha256)
+    const before = await listOutputFiles(context)
+    const result = await runCommand(script, args, context, timeoutMs, request.signal)
+    const after = result.code === 0 ? await listOutputFiles(context) : new Set<string>()
+    const outputFiles = Array.from(after).filter(file => !before.has(file))
+    const executionTime = Date.now() - startedAt
+    const success = result.code === 0 && !result.timedOut && !result.aborted
+    const truncationNotice = result.truncated ? '\n\n[Output truncated to the last 50 KB / 2000 lines.]' : ''
+    const failureMessage = describeProcessFailure(result, timeoutMs)
 
     return {
-      success: result.code === 0,
-      error: result.code === 0 ? undefined : (result.stderr || `命令执行失败，退出码: ${result.code}`),
+      success,
+      error: success ? undefined : failureMessage,
+      message: success
+        ? `Script executed successfully (exit code: ${result.code}, time: ${executionTime}ms).${outputFiles.length ? `\n\nOutput files:\n${outputFiles.map(file => `- ${file}`).join('\n')}` : ''}\n\nOutput:\n${result.stdout || '(no output)'}${truncationNotice}`
+        : `Script failed (exit code: ${result.code}, time: ${executionTime}ms).\n\n${failureMessage}${truncationNotice}`,
       data: {
         exit_code: result.code,
         execution_time_ms: executionTime,
-        working_directory: workingDirectory,
+        working_directory: context.outputDir,
         runtime_directory: context.runtimeDir,
         output_directory: context.outputDir,
+        script_id: script.name,
+        script_hash: script.sha256,
         stdout: result.stdout,
         stderr: result.stderr,
-        dependency_installed: installedDependency,
+        output_truncated: result.truncated,
         output_files: outputFiles,
+        timeout: result.timedOut,
+        cancelled: result.aborted,
+        stdout_log: result.stdoutLog,
+        stderr_log: result.stderrLog,
       },
-      message: result.code === 0
-        ? `Command executed successfully (exit code: ${result.code}, time: ${executionTime}ms).${installedDependency ? `\n\nAuto-installed dependency: ${installedDependency}` : ''}${outputFiles.length > 0 ? `\n\nOutput files:\n${outputFiles.map(file => `- ${file}`).join('\n')}` : ''}\n\nOutput:\n${result.stdout || '(no output)'}`
-        : `Command failed with exit code ${result.code} (time: ${executionTime}ms).${installedDependency ? `\n\nAuto-installed dependency: ${installedDependency}` : ''}\n\n${result.stderr ? `Error:\n${result.stderr}` : 'No error message'}${result.stdout ? `\n\nOutput:\n${result.stdout}` : ''}`,
     }
   } catch (error) {
-    const executionTime = Date.now() - startTime
-    const errorMessage = error instanceof Error ? error.message : String(error)
-
+    const message = error instanceof Error ? error.message : String(error)
     return {
       success: false,
-      error: `Script execution error: ${errorMessage}`,
-      message: `Script execution failed: ${errorMessage}`,
+      error: `Script execution error: ${message}`,
+      message: `Script execution failed: ${message}`,
       data: {
         exit_code: -1,
-        execution_time_ms: executionTime,
-        working_directory: workingDirectory,
-        runtime_directory: context.runtimeDir,
-        output_directory: context.outputDir,
-        stdout: stdoutChunks.join(''),
-        stderr: stderrChunks.join(''),
-        timeout: errorMessage.includes('timed out'),
+        execution_time_ms: Date.now() - startedAt,
+        working_directory: context?.skillDir || '',
+        runtime_directory: context?.runtimeDir || '',
+        output_directory: context?.outputDir || '',
+        script_id: script?.name || request.scriptId,
+        script_hash: script?.sha256 || '',
+        stdout: '',
+        stderr: '',
+        output_truncated: false,
       },
     }
   }

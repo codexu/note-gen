@@ -1,5 +1,37 @@
 import OpenAI from 'openai';
-import { getAISettings, validateAIService, prepareMessages, createOpenAIClient, handleAIError, convertImageToBase64 } from './utils';
+import { getAISettings, validateAIService, prepareMessages, createOpenAIClient, createAssistantToolCallMessage, createChatCompletionStreamWithToolChoiceFallback, getChatTokenLimitParams, handleAIError, convertImageToBase64, withFastAiRequestOptions, withProviderCompatibleSampling } from './utils';
+
+interface StreamingChatToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+function resolveStreamingChatToolCallIndex(
+  toolCalls: StreamingChatToolCall[],
+  toolCall: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta.ToolCall
+) {
+  if (Number.isInteger(toolCall.index)) {
+    return toolCall.index
+  }
+
+  if (toolCall.id) {
+    const existingIndex = toolCalls.findIndex((current) => current?.id === toolCall.id)
+    if (existingIndex >= 0) {
+      return existingIndex
+    }
+    return toolCalls.length
+  }
+
+  return Math.max(0, toolCalls.length - 1)
+}
+
+function fallbackToolCallId(index: number) {
+  return `tool-call-${Date.now()}-${index}`
+}
 
 /**
  * 非流式方式获取AI结果
@@ -17,7 +49,7 @@ export async function fetchAi(
     const aiConfig = await getAISettings(modelType)
 
     // 验证AI服务
-    if (validateAIService(aiConfig?.baseURL) === null) return ''
+    if (await validateAIService(aiConfig?.baseURL) === null) return ''
 
     // 准备消息
     const prepared = await prepareMessages(text, messages)
@@ -30,11 +62,12 @@ export async function fetchAi(
       messages: finalMessages,
       temperature: aiConfig?.temperature || 1,
       top_p: aiConfig?.topP || 1,
+      ...getChatTokenLimitParams(aiConfig),
     })
 
     return completion.choices[0].message.content || ''
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -131,6 +164,7 @@ export async function fetchAiStream(
       temperature: aiConfig?.temperature,
       top_p: aiConfig?.topP,
       stream: true,
+      ...getChatTokenLimitParams(aiConfig),
     }
 
     // 如果有 MCP 工具，添加到请求中
@@ -139,13 +173,17 @@ export async function fetchAiStream(
       requestParams.tool_choice = 'auto'
     }
 
-    const stream = await openai.chat.completions.create(requestParams, {
+    const compatibleRequestParams = mcpTools?.length
+      ? withFastAiRequestOptions(requestParams, aiConfig)
+      : withProviderCompatibleSampling(requestParams, aiConfig)
+    const stream = await createChatCompletionStreamWithToolChoiceFallback(openai, compatibleRequestParams, {
       signal: abortSignal
-    }) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+    })
 
     let thinking = ''
+    let reasoningDetails: unknown[] = []
     let fullContent = ''
-    const toolCalls: any[] = []
+    const toolCalls: StreamingChatToolCall[] = []
     let hasToolCalls = false
     
     for await (const chunk of stream) {
@@ -153,24 +191,39 @@ export async function fetchAiStream(
         break;
       }
       
-      const delta = chunk.choices[0]?.delta
-      const thinkingContent = (delta as any)?.reasoning_content || ''
+      const delta = chunk.choices?.[0]?.delta
+      const extendedDelta = delta as (typeof delta & {
+        reasoning?: string
+        reasoning_content?: string
+        reasoning_details?: unknown[]
+      }) | undefined
+      const thinkingContent = extendedDelta?.reasoning_content || extendedDelta?.reasoning || ''
       const content = delta?.content || ''
       
       if (thinkingContent) {
-        // 处理思考内容
+        thinking += thinkingContent
+        if (onThinkingUpdate) {
+          onThinkingUpdate(thinking)
+        }
+      }
+      if (Array.isArray(extendedDelta?.reasoning_details)) {
+        reasoningDetails.push(...extendedDelta.reasoning_details)
+      }
+
+      if (content) {
+        fullContent += content
       }
       
       // 处理工具调用
       if (delta?.tool_calls) {
         hasToolCalls = true
         for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index || 0
+          const index = resolveStreamingChatToolCallIndex(toolCalls, toolCall)
           
           // 初始化工具调用对象
           if (!toolCalls[index]) {
             toolCalls[index] = {
-              id: toolCall.id || '',
+              id: toolCall.id || fallbackToolCallId(index),
               type: 'function',
               function: {
                 name: toolCall.function?.name || '',
@@ -199,19 +252,6 @@ export async function fetchAiStream(
         continue
       }
       
-      // 处理思考内容（通过独立回调）
-      if (thinkingContent) {
-        thinking += thinkingContent
-        if (onThinkingUpdate) {
-          onThinkingUpdate(thinking)
-        }
-      }
-      
-      // 处理普通内容
-      if (content) {
-        fullContent += content
-      }
-
       onUpdate(fullContent)
     }
 
@@ -323,29 +363,27 @@ export async function fetchAiStream(
         // 将工具调用和结果添加到消息历史
         conversationMessages = [
           ...conversationMessages,
-          {
-            role: 'assistant' as const,
-            content: null,
-            tool_calls: currentToolCalls
-          },
+          createAssistantToolCallMessage(fullContent, currentToolCalls, thinking, reasoningDetails),
           ...toolResults
         ]
         
-        const nextStream = await openai.chat.completions.create({
+        const nextStream = await createChatCompletionStreamWithToolChoiceFallback(openai, withFastAiRequestOptions({
           model: aiConfig?.model || '',
           messages: conversationMessages,
           temperature: aiConfig?.temperature,
           top_p: aiConfig?.topP,
           stream: true,
           tools: mcpTools,
-          tool_choice: 'auto'
-        }, {
+          tool_choice: 'auto',
+          ...getChatTokenLimitParams(aiConfig),
+        }, aiConfig), {
           signal: abortSignal
-        }) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+        })
         
         // 重置工具调用数组
         currentToolCalls = []
         thinking = ''
+        reasoningDetails = []
         fullContent = ''
         
         // 处理响应
@@ -354,18 +392,36 @@ export async function fetchAiStream(
             break;
           }
           
-          const delta = chunk.choices[0]?.delta
-          const thinkingContent = (delta as any)?.reasoning_content || ''
+          const delta = chunk.choices?.[0]?.delta
+          const extendedDelta = delta as (typeof delta & {
+            reasoning?: string
+            reasoning_content?: string
+            reasoning_details?: unknown[]
+          }) | undefined
+          const thinkingContent = extendedDelta?.reasoning_content || extendedDelta?.reasoning || ''
           const content = delta?.content || ''
+
+          if (thinkingContent) {
+            thinking += thinkingContent
+            if (onThinkingUpdate) {
+              onThinkingUpdate(thinking)
+            }
+          }
+          if (Array.isArray(extendedDelta?.reasoning_details)) {
+            reasoningDetails.push(...extendedDelta.reasoning_details)
+          }
+          if (content) {
+            fullContent += content
+          }
           
           // 检查是否又有新的工具调用
           if (delta?.tool_calls) {
             for (const toolCall of delta.tool_calls) {
-              const index = toolCall.index || 0
+              const index = resolveStreamingChatToolCallIndex(currentToolCalls, toolCall)
               
               if (!currentToolCalls[index]) {
                 currentToolCalls[index] = {
-                  id: toolCall.id || '',
+                  id: toolCall.id || fallbackToolCallId(index),
                   type: 'function',
                   function: {
                     name: toolCall.function?.name || '',
@@ -392,16 +448,6 @@ export async function fetchAiStream(
             continue
           }
           
-          // 处理思考内容（通过独立回调）
-          if (thinkingContent) {
-            thinking += thinkingContent
-            if (onThinkingUpdate) {
-              onThinkingUpdate(thinking)
-            }
-          }
-          if (content) {
-            fullContent += content
-          }
           onUpdate(fullContent)
         }
         
@@ -421,7 +467,7 @@ export async function fetchAiStream(
     return fullContent
   } catch (error) {
     console.error('[fetchAiStream] Error:', error)
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }
 
@@ -450,6 +496,7 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
       temperature: aiConfig?.temperature,
       top_p: aiConfig?.topP,
       stream: true,
+      ...getChatTokenLimitParams(aiConfig),
     }, {
       signal: abortSignal
     })
@@ -459,7 +506,7 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
         break;
       }
       
-      const content = chunk.choices[0]?.delta?.content || ''
+      const content = chunk.choices?.[0]?.delta?.content || ''
       if (content) {
         onUpdate(content)
       }
@@ -467,6 +514,6 @@ export async function fetchAiStreamToken(text: string, onUpdate: (content: strin
     
     return ''
   } catch (error) {
-    return handleAIError(error) || ''
+    return await handleAIError(error) || ''
   }
 }

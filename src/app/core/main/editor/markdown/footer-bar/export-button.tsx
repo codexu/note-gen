@@ -9,130 +9,78 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
 import useArticleStore from '@/stores/article'
+import { toast } from '@/hooks/use-toast'
+import {
+  exportMarkdownSource,
+  getMarkdownExportBaseName,
+  type MarkdownExportFormat,
+} from '../markdown-export'
 
 interface ExportButtonProps {
   editor: Editor
+  markdown?: string
+  getMarkdown?: () => string
 }
 
-export function ExportButton({ editor }: ExportButtonProps) {
+export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [exporting, setExporting] = useState<MarkdownExportFormat | null>(null)
 
-  // Download file helper
-  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+  const showPdfExportStart = useCallback(() => {
+    toast({
+      title: '正在准备 PDF',
+      description: '请在系统打印窗口中选择“另存为 PDF”。',
+    })
   }, [])
 
-  // Export as PDF
-  const exportPdf = useCallback(async () => {
-    const activeFilePath = useArticleStore.getState().activeFilePath
-    const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
-
-    const editorElement = document.querySelector('.tiptap') || document.querySelector('.ProseMirror')
-    if (!editorElement) {
-      console.error('Editor element not found')
-      setIsOpen(false)
-      return
-    }
-
+  const runExport = useCallback(async (format: MarkdownExportFormat) => {
     try {
-      const container = document.createElement('div')
-      container.innerHTML = editorElement.innerHTML
-      container.style.width = '595px'
-      container.style.padding = '40px'
-      container.style.background = 'white'
-      container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      container.style.fontSize = '12px'
-      container.style.lineHeight = '1.6'
-      container.style.color = '#333'
+      setExporting(format)
 
-      const styles = container.querySelectorAll('style, link[rel="stylesheet"]')
-      styles.forEach(s => s.remove())
+      const activeFilePath = useArticleStore.getState().activeFilePath
+      const exported = await exportMarkdownSource(
+        format,
+        {
+          baseName: getMarkdownExportBaseName(activeFilePath),
+          markdown: () => getMarkdown?.() ?? markdown ?? editor.getMarkdown(),
+          json: getMarkdown || markdown !== undefined ? undefined : () => editor.getJSON(),
+          sourcePath: activeFilePath,
+        },
+        { onPdfRenderStart: showPdfExportStart },
+      )
 
-      document.body.appendChild(container)
-
-      const canvas = await html2canvas(container as HTMLElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      })
-
-      document.body.removeChild(container)
-
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'pt',
-        format: 'a4',
-      })
-
-      const imgWidth = 595
-      const pageHeight = 842
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-      let heightLeft = imgHeight
-      let position = 0
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight
+      if (exported) {
+        toast({ title: format === 'pdf' ? '已打开 PDF 打印窗口' : '导出成功' })
       }
-
-      pdf.save(`${fileName}.pdf`)
     } catch (error) {
-      console.error('PDF export failed:', error)
+      console.error(`${format} export failed:`, error)
+      toast({
+        title: '导出失败',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      })
+    } finally {
+      setExporting(null)
+      setIsOpen(false)
     }
+  }, [editor, getMarkdown, markdown, showPdfExportStart])
 
-    setIsOpen(false)
-  }, [])
-
-  const handleExportMarkdown = useCallback(() => {
-    const content = editor.getMarkdown()
-    const activeFilePath = useArticleStore.getState().activeFilePath
-    const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
-    downloadFile(content, `${fileName}.md`, 'text/markdown')
-    setIsOpen(false)
-  }, [editor, downloadFile])
-
-  const handleExportHtml = useCallback(() => {
-    const content = editor.getHTML()
-    const activeFilePath = useArticleStore.getState().activeFilePath
-    const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
-    downloadFile(content, `${fileName}.html`, 'text/html')
-    setIsOpen(false)
-  }, [editor, downloadFile])
-
-  const handleExportJson = useCallback(() => {
-    const content = JSON.stringify(editor.getJSON(), null, 2)
-    const activeFilePath = useArticleStore.getState().activeFilePath
-    const fileName = activeFilePath?.replace(/\.md$/, '') || 'document'
-    downloadFile(content, `${fileName}.json`, 'application/json')
-    setIsOpen(false)
-  }, [editor, downloadFile])
+  const handleExport = useCallback((format: MarkdownExportFormat) => {
+    void runExport(format)
+  }, [runExport])
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
+          type="button"
           title="导出"
-          className="p-1 rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
+          disabled={exporting !== null}
         >
           <Download className="size-3" />
+          <span>导出</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -140,19 +88,43 @@ export function ExportButton({ editor }: ExportButtonProps) {
         side="top"
         sideOffset={4}
       >
-        <DropdownMenuItem onClick={handleExportMarkdown}>
+        <DropdownMenuItem
+          disabled={exporting !== null}
+          onSelect={(event) => {
+            event.preventDefault()
+            handleExport('markdown')
+          }}
+        >
           <FileText size={12} />
           <span>Markdown</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportHtml}>
+        <DropdownMenuItem
+          disabled={exporting !== null}
+          onSelect={(event) => {
+            event.preventDefault()
+            handleExport('html')
+          }}
+        >
           <FileCode size={12} />
           <span>HTML</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportJson}>
+        <DropdownMenuItem
+          disabled={exporting !== null}
+          onSelect={(event) => {
+            event.preventDefault()
+            handleExport('json')
+          }}
+        >
           <FileJson size={12} />
           <span>JSON</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={exportPdf}>
+        <DropdownMenuItem
+          disabled={exporting !== null}
+          onSelect={(event) => {
+            event.preventDefault()
+            handleExport('pdf')
+          }}
+        >
           <FileText size={12} />
           <span>PDF</span>
         </DropdownMenuItem>

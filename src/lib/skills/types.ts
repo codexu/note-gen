@@ -26,6 +26,7 @@ export interface SkillScript {
   name: string                  // 脚本文件名
   path: string                  // 相对路径 (scripts/script-name.py)
   type: ScriptType              // 脚本类型
+  sha256: string                // 脚本内容哈希，用于完整性校验和权限绑定
   description?: string          // 脚本描述
 }
 
@@ -178,18 +179,6 @@ export interface ValidationWarning {
 // ============================================================================
 // 执行相关类型
 // ============================================================================
-
-/**
- * 脚本执行结果
- */
-export interface ScriptExecutionResult {
-  success: boolean
-  scriptName: string
-  output?: string               // 脚本输出
-  error?: string                // 错误信息
-  exitCode?: number             // 退出码
-  executionTime: number          // 执行耗时 (ms)
-}
 
 /**
  * Skill 执行结果

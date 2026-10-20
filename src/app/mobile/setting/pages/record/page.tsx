@@ -1,24 +1,22 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { PenTool } from 'lucide-react'
 import { DefaultModelsSettings } from '@/app/core/setting/components/default-models-settings'
-import { ToolbarSettings } from '@/app/core/setting/record/toolbar-settings'
+import { SaveSettings } from '@/app/core/setting/record/save-settings'
+import {
+  SettingSection,
+  SettingType,
+} from '@/app/core/setting/components/setting-base'
 
 export default function RecordSettingsPage() {
   const t = useTranslations('settings.record')
 
   return (
-    <div className='space-y-6'>
-      <div>
-        <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">
-          <PenTool className="size-6" />
-          {t('title')}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t('desc')}</p>
-      </div>
+    <SettingType id="record" title={t('title')} desc={t('desc')}>
       <DefaultModelsSettings type="record" />
-      <ToolbarSettings />
-    </div>
+      <SettingSection title={t('save.title')} desc={t('save.desc')}>
+        <SaveSettings />
+      </SettingSection>
+    </SettingType>
   )
 }

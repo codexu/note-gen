@@ -1,67 +1,38 @@
+'use client';
+
 import { NextIntlClientProvider } from 'next-intl';
+import type { AbstractIntlMessages } from 'next-intl';
 import { useEffect, useState } from 'react';
-
-// 加载语言文件
-async function loadMessages(locale: string) {
-  try {
-    return (await import(`../../../messages/${locale}.json`)).default;
-  } catch (error) {
-    console.error(`Failed to load messages for locale: ${locale}`, error);
-    // 如果加载失败，返回中文作为后备
-    return (await import(`../../../messages/zh.json`)).default;
-  }
-}
-
-// 加载中文消息作为回退
-async function loadFallbackMessages() {
-  return (await import(`../../../messages/zh.json`)).default;
-}
-
-// 深度合并对象，用中文填充缺失的翻译
-function deepMerge(target: any, source: any): any {
-  const result = { ...target };
-  
-  for (const key in source) {
-    if (source.hasOwnProperty(key)) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
-        // 如果是对象，递归合并
-        result[key] = deepMerge(target[key] || {}, source[key]);
-      } else if (!(key in target)) {
-        // 如果目标中不存在该键，使用源（中文）的值
-        result[key] = source[key];
-      }
-    }
-  }
-  
-  return result;
-}
+import {
+  DEFAULT_LOCALE,
+  PLUGIN_LANGUAGES_CHANGED,
+  LANGUAGE_STORAGE_KEY,
+  loadMessagesWithFallback,
+  normalizeLocale,
+  type SupportedLocale,
+} from '@/i18n/config';
 
 export function NextIntlProvider({ children }: { children: React.ReactNode }) {
-  const [messages, setMessages] = useState<any>(null);
-  const [locale, setLocale] = useState<string>('zh');
+  const [messages, setMessages] = useState<AbstractIntlMessages | null>(null);
+  const [locale, setLocale] = useState<SupportedLocale>(DEFAULT_LOCALE);
 
   useEffect(() => {
-    // 从 localStorage 获取语言设置
-    const savedLocale = localStorage.getItem('app-language') || 'zh';
-    setLocale(savedLocale);
-    
-    // 加载对应的语言文件和中文回退
-    Promise.all([
-      loadMessages(savedLocale),
-      loadFallbackMessages()
-    ]).then(([currentMessages, fallbackMessages]) => {
-      // 如果是中文，直接使用
-      if (savedLocale === 'zh') {
-        setMessages(currentMessages);
-      } else {
-        // 其他语言，用中文填充缺失的翻译
-        const mergedMessages = deepMerge(currentMessages, fallbackMessages);
-        setMessages(mergedMessages);
-      }
-    });
+    let request = 0
+    const refresh = () => {
+      const current = ++request
+      const savedLocale = normalizeLocale(localStorage.getItem(LANGUAGE_STORAGE_KEY))
+      void loadMessagesWithFallback(savedLocale).then(loaded => {
+        if (current !== request) return
+        setLocale(savedLocale)
+        setMessages(loaded)
+      }).catch(error => console.error('Failed to load language', error))
+    }
+    refresh()
+    window.addEventListener(PLUGIN_LANGUAGES_CHANGED, refresh)
+    window.addEventListener('storage', refresh)
+    return () => { request++; window.removeEventListener(PLUGIN_LANGUAGES_CHANGED, refresh); window.removeEventListener('storage', refresh) }
   }, []);
 
-  // 等待消息加载完成
   if (!messages) {
     return null;
   }

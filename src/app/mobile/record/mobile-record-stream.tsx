@@ -3,22 +3,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dayjs from 'dayjs'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
+import { confirm } from '@tauri-apps/plugin-dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Textarea } from '@/components/ui/textarea'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { LocalImage } from '@/components/local-image'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, MoveRight, CheckSquare, XSquare, Filter, Plus, ListChecks, RotateCcw } from 'lucide-react'
-import useMarkStore from '@/stores/mark'
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
+import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
+import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
+import { MobileRecordTagTree } from './mobile-record-tag-tree'
+import { ArrowDown, Trash2, MoveRight, CheckSquare, Filter, Plus, ListChecks, RotateCcw, Search, ChevronDown, XCircle, ImageIcon, MoreVertical } from 'lucide-react'
+import { filterMarks, getTrashRecordFilters } from '@/app/core/main/mark/mark-filters'
+import { getMarkTypeChipClasses, getMarkTypeListBadgeClasses, MARK_TYPE_OPTIONS } from '@/app/core/main/mark/mark-type-meta'
+import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
-import { delMark, delMarkForever, Mark, restoreMark, updateMark as updateMarkDb } from '@/db/marks'
-import { insertTag } from '@/db/tags'
+import { clearTrash, delMark, deleteMarks, delMarkForever, Mark, restoreMark, restoreMarks, updateMarkTag } from '@/db/marks'
+import { insertTag, normalizeTagName } from '@/db/tags'
+import type { RecordTagNode } from '@/lib/record-tag-tree'
+import { cn, isHttpUrl } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
+import { refreshRemoteRecordsNow } from '@/lib/sync/auto-data-sync-queue'
+import { toast } from '@/hooks/use-toast'
 
-const TYPE_OPTIONS: Mark['type'][] = ['text', 'recording', 'image', 'link', 'file', 'scan', 'todo']
+const TIME_OPTIONS: RecordTimePreset[] = ['all', 'today', 'last7Days', 'last30Days']
+const PULL_REFRESH_THRESHOLD = 72
+const PULL_REFRESH_MAX_DISTANCE = 112
+const INITIAL_RENDER_COUNT = 40
+const RENDER_BATCH_SIZE = 40
+let mobileRecordScrollTop = 0
 
 function getMarkPreview(mark: Mark): string {
   if (mark.type === 'text') return mark.content?.trim() || mark.desc?.trim() || ''
@@ -27,49 +42,103 @@ function getMarkPreview(mark: Mark): string {
   return mark.desc?.trim() || mark.content?.trim() || mark.url || ''
 }
 
-export function MobileRecordStream() {
+function getMarkImageSrc(mark: Mark) {
+  if (!mark.url || (mark.type !== 'image' && mark.type !== 'scan')) {
+    return ''
+  }
+
+  if (isHttpUrl(mark.url)) {
+    return mark.url
+  }
+
+  return `/${mark.type === 'scan' ? 'screenshot' : 'image'}/${mark.url}`
+}
+
+interface MobileRecordStreamProps {
+  preview?: boolean
+}
+
+export function MobileRecordStream({ preview = false }: MobileRecordStreamProps = {}) {
   const t = useTranslations()
+  const router = useRouter()
   const {
     trashState,
+    setTrashState,
     marks,
-    allMarks,
     queues,
-    fetchAllMarks,
-    fetchAllTrashMarks,
+    fetchMarkPreviews,
+    fetchTrashMarkPreviews,
+    recordFilters,
+    setRecordSearch,
+    toggleRecordType,
+    setRecordTimePreset,
+    resetRecordFilters,
+    setVisibleMarkIds,
+    initRecordFilters,
+    pendingScrollMarkId,
+    setPendingScrollMarkId,
+    highlightedMarkId,
   } = useMarkStore()
-  const { tags, fetchTags } = useTagStore()
+  const { tags, fetchTags, currentTagId, setCurrentTagId, initTags } = useTagStore()
 
-  const [typeFilters, setTypeFilters] = useState<Set<Mark['type']>>(new Set(TYPE_OPTIONS))
-  const [tagFilter, setTagFilter] = useState<number | 'all'>('all')
   const [multiMode, setMultiMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [tagDrawerOpen, setTagDrawerOpen] = useState(false)
   const [createTagOpen, setCreateTagOpen] = useState(false)
   const [typeFilterOpen, setTypeFilterOpen] = useState(false)
   const [newTagName, setNewTagName] = useState('')
-  const [activeMark, setActiveMark] = useState<Mark | null>(null)
+  const [newTagParent, setNewTagParent] = useState('')
   const [moveTargetMark, setMoveTargetMark] = useState<Mark | null>(null)
-  const [editDesc, setEditDesc] = useState('')
-  const [editContent, setEditContent] = useState('')
-  const [editUrl, setEditUrl] = useState('')
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const touchStartXRef = useRef(0)
-  const touchStartYRef = useRef(0)
-  const isSwipingRef = useRef(false)
-  const swipingMarkIdRef = useRef<number | null>(null)
-  const [swipedMarkId, setSwipedMarkId] = useState<number | null>(null)
-  const [swipeDeltaX, setSwipeDeltaX] = useState(0)
+  const [moveSelectedOpen, setMoveSelectedOpen] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const pullStartXRef = useRef(0)
+  const pullStartYRef = useRef(0)
+  const pullDistanceRef = useRef(0)
+  const isPullGestureRef = useRef(false)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [visibleRecordCount, setVisibleRecordCount] = useState(INITIAL_RENDER_COUNT)
+  const [isRecordDataReady, setIsRecordDataReady] = useState(preview)
 
   useEffect(() => {
-    fetchTags()
-  }, [fetchTags])
+    if (preview) return
 
-  useEffect(() => {
-    if (trashState) {
-      fetchAllTrashMarks()
-    } else {
-      fetchAllMarks()
+    let cancelled = false
+
+    const prepareRecordData = async () => {
+      await Promise.all([initRecordFilters(), initTags()])
+      await fetchTags()
+      if (!cancelled) {
+        setIsRecordDataReady(true)
+      }
     }
-  }, [trashState, fetchAllMarks, fetchAllTrashMarks])
+
+    void prepareRecordData()
+    return () => {
+      cancelled = true
+    }
+  }, [fetchTags, initRecordFilters, initTags, preview])
+
+  useEffect(() => {
+    if (!isRecordDataReady || preview) return
+
+    if (trashState) {
+      void fetchTrashMarkPreviews()
+    } else {
+      void fetchMarkPreviews(true)
+    }
+  }, [currentTagId, fetchMarkPreviews, fetchTrashMarkPreviews, isRecordDataReady, preview, trashState])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = mobileRecordScrollTop
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
 
   useEffect(() => {
     if (!multiMode) {
@@ -77,67 +146,33 @@ export function MobileRecordStream() {
     }
   }, [multiMode])
 
-  useEffect(() => {
-    if (!activeMark) return
-    setEditDesc(activeMark.type === 'text' ? (activeMark.content || '') : (activeMark.desc || ''))
-    setEditContent(activeMark.content || '')
-    setEditUrl(activeMark.url || '')
-  }, [activeMark])
-
-  useEffect(() => {
-    if (!activeMark) return
-    const hasChanges =
-      (activeMark.desc || '') !== editDesc ||
-      (activeMark.content || '') !== editContent ||
-      (activeMark.url || '') !== editUrl
-
-    if (!hasChanges) return
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current)
-    }
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      const updatedMark: Mark = {
-        ...activeMark,
-        desc: activeMark.type === 'text' ? editContent : editDesc,
-        content: editContent,
-        url: editUrl,
-      }
-      await updateMarkDb(updatedMark)
-      setActiveMark(updatedMark)
-      await refreshRecords()
-    }, 300)
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current)
-      }
-    }
-  }, [activeMark, editDesc, editContent, editUrl])
-
-  // 新增记录流程会先刷新 marks（当前标签），这里同步拉取 allMarks 保持时间流实时更新
-  useEffect(() => {
-    if (!trashState) {
-      fetchAllMarks()
-    }
-  }, [marks, trashState, fetchAllMarks])
-
-  const records = trashState ? marks : allMarks
+  const records = marks
   const tagMap = useMemo(() => new Map(tags.map((tag) => [tag.id, tag.name])), [tags])
+  const mobileRecordFilters = useMemo(() => {
+    if (trashState) {
+      return getTrashRecordFilters()
+    }
+
+    return {
+      ...recordFilters,
+      tagId: currentTagId,
+      tagRules: { include: [], exclude: [], match: 'all' as const },
+    }
+  }, [trashState, recordFilters, currentTagId])
 
   const filteredRecords = useMemo(() => {
-    return records.filter((mark) => {
-      if (!typeFilters.has(mark.type)) return false
-      if (tagFilter !== 'all' && mark.tagId !== tagFilter) return false
-      return true
-    })
-  }, [records, typeFilters, tagFilter])
+    return filterMarks(records, mobileRecordFilters, tags)
+  }, [records, mobileRecordFilters, tags])
+
+  const renderedRecords = useMemo(
+    () => filteredRecords.slice(0, visibleRecordCount),
+    [filteredRecords, visibleRecordCount]
+  )
 
   const groupedRecords = useMemo(() => {
     const groups: Array<{ day: string; list: Mark[] }> = []
     const groupMap = new Map<string, Mark[]>()
-    for (const mark of filteredRecords) {
+    for (const mark of renderedRecords) {
       const day = dayjs(mark.createdAt).format('YYYY-MM-DD')
       if (!groupMap.has(day)) groupMap.set(day, [])
       groupMap.get(day)!.push(mark)
@@ -146,7 +181,74 @@ export function MobileRecordStream() {
       groups.push({ day, list: groupMap.get(day)! })
     })
     return groups
-  }, [filteredRecords])
+  }, [renderedRecords])
+
+  useEffect(() => {
+    setVisibleRecordCount(INITIAL_RENDER_COUNT)
+  }, [mobileRecordFilters, trashState])
+
+  useEffect(() => {
+    if (visibleRecordCount >= filteredRecords.length) return
+
+    const target = loadMoreRef.current
+    const scrollContainer = scrollContainerRef.current
+    if (!target || !scrollContainer || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+
+      setVisibleRecordCount((count) => Math.min(count + RENDER_BATCH_SIZE, filteredRecords.length))
+    }, {
+      root: scrollContainer,
+      rootMargin: '240px 0px',
+    })
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [filteredRecords.length, visibleRecordCount])
+
+  useEffect(() => {
+    if (preview) return
+
+    setVisibleMarkIds(filteredRecords.map((mark: Mark) => mark.id))
+    return () => setVisibleMarkIds([])
+  }, [filteredRecords, preview, setVisibleMarkIds])
+
+  useEffect(() => {
+    if (!pendingScrollMarkId || preview) return
+    const targetIndex = filteredRecords.findIndex((mark: Mark) => mark.id === pendingScrollMarkId)
+    if (targetIndex < 0) return
+
+    setVisibleRecordCount((count) => Math.max(count, targetIndex + 1))
+
+    let cancelled = false
+    let attempts = 0
+    const maxAttempts = 20
+
+    const scrollToTarget = () => {
+      if (cancelled) return
+      const target = document.querySelector<HTMLElement>(`[data-mobile-mark-id="${pendingScrollMarkId}"]`)
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setPendingScrollMarkId(null)
+        return
+      }
+
+      if (attempts >= maxAttempts) {
+        setPendingScrollMarkId(null)
+        return
+      }
+
+      attempts += 1
+      window.setTimeout(scrollToTarget, 50)
+    }
+
+    scrollToTarget()
+
+    return () => {
+      cancelled = true
+    }
+  }, [filteredRecords, pendingScrollMarkId, preview, setPendingScrollMarkId])
 
   function getDayLabel(day: string) {
     if (dayjs(day).isSame(dayjs(), 'day')) return t('common.today')
@@ -156,10 +258,92 @@ export function MobileRecordStream() {
 
   async function refreshRecords() {
     if (trashState) {
-      await fetchAllTrashMarks()
+      await fetchTrashMarkPreviews()
     } else {
-      await fetchAllMarks()
+      await fetchMarkPreviews(true)
     }
+  }
+
+  function updatePullDistance(distance: number) {
+    pullDistanceRef.current = distance
+    setPullDistance(distance)
+  }
+
+  function handlePullTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const container = scrollContainerRef.current
+    if (
+      trashState ||
+      multiMode ||
+      isPullRefreshing ||
+      !container ||
+      container.scrollTop > 0 ||
+      event.touches.length !== 1
+    ) {
+      isPullGestureRef.current = false
+      return
+    }
+
+    const touch = event.touches[0]
+    pullStartXRef.current = touch.clientX
+    pullStartYRef.current = touch.clientY
+    isPullGestureRef.current = true
+  }
+
+  function handlePullTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (!isPullGestureRef.current || isPullRefreshing) {
+      return
+    }
+
+    const container = scrollContainerRef.current
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - pullStartXRef.current
+    const deltaY = touch.clientY - pullStartYRef.current
+
+    if (!container || container.scrollTop > 0 || deltaY <= 0 || Math.abs(deltaX) > deltaY) {
+      isPullGestureRef.current = false
+      updatePullDistance(0)
+      return
+    }
+
+    event.preventDefault()
+    updatePullDistance(Math.min(PULL_REFRESH_MAX_DISTANCE, deltaY * 0.45))
+  }
+
+  async function pullRemoteRecords() {
+    setIsPullRefreshing(true)
+    updatePullDistance(56)
+
+    try {
+      const refreshed = await refreshRemoteRecordsNow()
+      if (refreshed) {
+        await Promise.all([
+          fetchTags(),
+          refreshRecords(),
+        ])
+      }
+    } finally {
+      setIsPullRefreshing(false)
+      updatePullDistance(0)
+    }
+  }
+
+  function handlePullTouchEnd() {
+    if (!isPullGestureRef.current) {
+      return
+    }
+
+    isPullGestureRef.current = false
+    if (pullDistanceRef.current >= PULL_REFRESH_THRESHOLD) {
+      void pullRemoteRecords()
+      return
+    }
+
+    updatePullDistance(0)
+  }
+
+  function handlePullTouchCancel() {
+    isPullGestureRef.current = false
+    updatePullDistance(0)
   }
 
   function toggleSelect(id: number) {
@@ -173,6 +357,11 @@ export function MobileRecordStream() {
 
   async function handleDelete(mark: Mark) {
     if (trashState) {
+      const accepted = await confirm(`${t('record.mark.toolbar.deleteForever')}?\n${t('record.trash.syncWarning')}`, {
+        title: t('record.trash.title'),
+        kind: 'warning',
+      })
+      if (!accepted) return
       await delMarkForever(mark.id)
     } else {
       await delMark(mark.id)
@@ -185,474 +374,519 @@ export function MobileRecordStream() {
     await refreshRecords()
   }
 
+  async function handleClearTrash() {
+    const accepted = await confirm(`${t('record.trash.confirm')}\n${t('record.trash.syncWarning')}`, {
+      title: t('record.trash.title'),
+      kind: 'warning',
+    })
+    if (!accepted) return
+    await clearTrash()
+    await fetchTrashMarkPreviews()
+  }
+
+  async function handleRestoreAll() {
+    if (marks.length === 0) return
+    await restoreMarks(marks.map((item) => item.id))
+    await fetchTrashMarkPreviews()
+  }
+
   async function handleMove(mark: Mark, targetTagId: number) {
-    await updateMarkDb({ ...mark, tagId: targetTagId })
+    await updateMarkTag(mark.id, targetTagId)
     await refreshRecords()
-  }
-
-  function getActionWidth() {
-    return 120
-  }
-
-  function handleItemTouchStart(e: React.TouchEvent, markId: number) {
-    if (multiMode) return
-    const touch = e.touches[0]
-    touchStartXRef.current = touch.clientX
-    touchStartYRef.current = touch.clientY
-    isSwipingRef.current = false
-    swipingMarkIdRef.current = markId
-    if (swipedMarkId !== markId) {
-      setSwipedMarkId(null)
-    }
-  }
-
-  function handleItemTouchMove(e: React.TouchEvent) {
-    if (multiMode || swipingMarkIdRef.current === null) return
-    const touch = e.touches[0]
-    const deltaX = touch.clientX - touchStartXRef.current
-    const deltaY = touch.clientY - touchStartYRef.current
-
-    if (!isSwipingRef.current) {
-      if (Math.abs(deltaX) < 8) return
-      if (Math.abs(deltaX) <= Math.abs(deltaY)) return
-      isSwipingRef.current = true
-    }
-
-    e.preventDefault()
-    const maxLeft = -getActionWidth()
-    const next = Math.max(maxLeft, Math.min(0, deltaX))
-    setSwipeDeltaX(next)
-  }
-
-  function handleItemTouchEnd() {
-    if (multiMode || swipingMarkIdRef.current === null) return
-    const id = swipingMarkIdRef.current
-    const maxLeft = -getActionWidth()
-    const shouldOpen = swipeDeltaX < maxLeft / 2
-    setSwipedMarkId(shouldOpen ? id : null)
-    setSwipeDeltaX(0)
-    isSwipingRef.current = false
-    swipingMarkIdRef.current = null
   }
 
   async function handleMoveTargetTag(targetTagId: number) {
     if (!moveTargetMark) return
     await handleMove(moveTargetMark, targetTagId)
     setMoveTargetMark(null)
-    setSwipedMarkId(null)
   }
 
   async function handleDeleteSelected() {
-    const targets = filteredRecords.filter((item) => selectedIds.has(item.id))
-    for (const item of targets) {
-      if (trashState) {
+    const targets = filteredRecords.filter((item: Mark) => selectedIds.has(item.id))
+    if (trashState && targets.length > 0) {
+      const accepted = await confirm(`${t('record.mark.toolbar.deleteSelectedForever', { count: targets.length })}\n${t('record.trash.syncWarning')}`, {
+        title: t('record.trash.title'),
+        kind: 'warning',
+      })
+      if (!accepted) return
+    }
+    if (trashState) {
+      for (const item of targets) {
         await delMarkForever(item.id)
-      } else {
-        await delMark(item.id)
       }
+    } else {
+      await deleteMarks(targets.map((item) => item.id))
     }
     setSelectedIds(new Set())
     await refreshRecords()
   }
 
   async function handleMoveSelected(targetTagId: number) {
-    const targets = filteredRecords.filter((item) => selectedIds.has(item.id))
+    const targets = filteredRecords.filter((item: Mark) => selectedIds.has(item.id))
     for (const item of targets) {
-      await updateMarkDb({ ...item, tagId: targetTagId })
+      await updateMarkTag(item.id, targetTagId)
     }
     setSelectedIds(new Set())
+    setMoveSelectedOpen(false)
     await refreshRecords()
   }
 
   const selectedCount = selectedIds.size
   const isAllSelected = filteredRecords.length > 0 && selectedIds.size === filteredRecords.length
 
-  const tagLabel = tagFilter === 'all' ? t('common.all') : (tags.find((item) => item.id === tagFilter)?.name || t('common.all'))
-
-  const selectedTypeCount = typeFilters.size
   const canMoveBetweenTags = tags.length >= 2
+  const isFilterActive = Boolean(
+    recordFilters.search.trim() ||
+    recordFilters.selectedTypes.length > 0 ||
+    recordFilters.timePreset !== 'all'
+  )
+  const currentTagLabel = tags.find((item) => item.id === currentTagId)?.name || t('record.mark.list.title')
 
-  function toggleTypeFilter(type: Mark['type']) {
-    setTypeFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-      if (next.size === 0) {
-        return new Set(TYPE_OPTIONS)
-      }
-      return next
-    })
+  async function resolveTag(node: RecordTagNode) {
+    if (node.tag) return node.tag.id
+    const result = await insertTag({ name: node.path })
+    if (!result.lastInsertId) throw new Error(t('record.tagging.savedRefreshFailed'))
+    await fetchTags()
+    return Number(result.lastInsertId)
   }
 
-  function selectAllTypes() {
-    setTypeFilters(new Set(TYPE_OPTIONS))
+  async function selectTag(node: RecordTagNode) {
+    try {
+      const id = await resolveTag(node)
+      useMarkStore.getState().setRecordTagRules({ include: [], exclude: [], match: 'all' })
+      useMarkStore.getState().setRecordTagId('all')
+      await setCurrentTagId(id)
+      setTagDrawerOpen(false)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
+  }
+
+  async function moveToTag(node: RecordTagNode, selected: boolean) {
+    try {
+      const id = await resolveTag(node)
+      if (selected) await handleMoveSelected(id)
+      else await handleMoveTargetTag(id)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
+  }
+
+  function beginCreateTag(parent = '') {
+    setNewTagParent(parent)
+    setNewTagName('')
+    setCreateTagOpen(true)
+  }
+
+  function toggleTypeFilter(type: Mark['type']) {
+    toggleRecordType(type)
   }
 
   async function handleCreateTag() {
-    const value = newTagName.trim()
-    if (!value) return
-    const res = await insertTag({ name: value })
-    const newTagId = Number(res.lastInsertId)
-    await fetchTags()
-    setTagFilter(newTagId)
-    setNewTagName('')
-    setCreateTagOpen(false)
+    if (!newTagName.trim()) return
+    try {
+      const value = normalizeTagName(newTagParent ? `${newTagParent}/${newTagName}` : newTagName)
+      if (tags.some(tag => tag.name === value)) throw new Error(t('record.tagging.nameExists'))
+      const res = await insertTag({ name: value })
+      const newTagId = Number(res.lastInsertId)
+      await fetchTags()
+      await setCurrentTagId(newTagId)
+      setNewTagName('')
+      setNewTagParent('')
+      setTagDrawerOpen(false)
+      setCreateTagOpen(false)
+    } catch (error) {
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    }
+  }
+
+  function handleResetFilters() {
+    resetRecordFilters()
+    setTypeFilterOpen(false)
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {!trashState && (
-        <div className="sticky top-0 z-10 border-b bg-background px-3 pb-2 pt-2">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {!multiMode ? (
-              <>
-                <Select value={String(tagFilter)} onValueChange={(value) => setTagFilter(value === 'all' ? 'all' : Number(value))}>
-                  <SelectTrigger className="h-9 min-w-0 flex-1">
-                    <SelectValue placeholder={tagLabel} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('common.all')}</SelectItem>
-                    {tags.map((tag) => (
-                      <SelectItem key={tag.id} value={String(tag.id)}>
-                        {tag.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setCreateTagOpen(true)} title={t('record.mark.tag.newTag')}>
-                  <Plus className="size-4" />
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="mobile-page-header sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background px-2">
+        <div className="flex min-w-0 items-center">
+          <MobileMeSheet />
+          {trashState ? (
+            <div className="truncate px-2 text-sm font-medium">{t('record.trash.title')}</div>
+          ) : multiMode ? (
+            <div className="truncate px-2 text-sm font-medium">{t('record.mark.toolbar.multiSelectMode')}</div>
+          ) : (
+            <Drawer open={tagDrawerOpen} onOpenChange={open => {
+              setTagDrawerOpen(open)
+              if (!open) setCreateTagOpen(false)
+            }}>
+              <DrawerTrigger asChild>
+                <Button variant="ghost" className="h-11 min-w-0 px-2 text-sm font-medium">
+                  <span className="truncate">{currentTagLabel}</span>
+                  <ChevronDown className="ml-1 size-4 shrink-0 text-muted-foreground" />
                 </Button>
-
-                <Button variant={selectedTypeCount === TYPE_OPTIONS.length ? 'outline' : 'default'} size="icon" className="h-9 w-9 shrink-0" title={t('common.filter')} onClick={() => setTypeFilterOpen(true)}>
-                  <Filter className="size-4" />
-                </Button>
-
-                <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setMultiMode(true)} title={t('record.mark.toolbar.multiSelect')}>
-                  <CheckSquare className="size-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    onClick={() => setSelectedIds(isAllSelected ? new Set() : new Set(filteredRecords.map((item) => item.id)))}
-                    title={t('record.mark.toolbar.selectAll')}
-                  >
-                    <ListChecks className="size-4" />
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0"
-                        disabled={selectedCount === 0 || !canMoveBetweenTags}
-                        title={t('record.mark.toolbar.moveTag')}
-                      >
-                        <MoveRight className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {tags.map((tag) => (
-                        <DropdownMenuItem key={tag.id} onClick={() => handleMoveSelected(tag.id)}>
-                          {tag.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button variant="destructive" size="icon" className="h-9 w-9 shrink-0" disabled={selectedCount === 0} onClick={handleDeleteSelected} title={t('record.mark.toolbar.delete')}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-                <Button variant="default" size="icon" className="ml-auto h-9 w-9 shrink-0" onClick={() => setMultiMode(false)} title={t('record.mark.toolbar.exitMultiSelect')}>
-                  <XSquare className="size-4" />
-                </Button>
-              </>
-            )}
-          </div>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
+                {createTagOpen ? <>
+                  <DrawerHeader>
+                    <DrawerTitle>{newTagParent ? t('record.mark.tag.newChildTag') : t('record.mark.tag.newTag')}</DrawerTitle>
+                  </DrawerHeader>
+                  <FieldGroup className="px-4 pb-4">
+                    <Field>
+                      <FieldLabel htmlFor="mobile-record-new-tag">{t('record.tagging.tagName')}</FieldLabel>
+                      {newTagParent ? <div className="text-sm text-muted-foreground">{newTagParent}/</div> : null}
+                      <Input
+                        id="mobile-record-new-tag"
+                        value={newTagName}
+                        onChange={event => setNewTagName(event.target.value)}
+                        placeholder={newTagParent ? t('record.mark.tag.newChildTagPlaceholder', { name: newTagParent }) : t('record.mark.tag.newTagPlaceholder')}
+                        className="h-10"
+                      />
+                    </Field>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="h-10 flex-1" onClick={() => setCreateTagOpen(false)}>{t('common.cancel')}</Button>
+                      <Button className="h-10 flex-1" onClick={handleCreateTag}>{t('record.mark.tag.add')}</Button>
+                    </div>
+                  </FieldGroup>
+                </> : <>
+                  <DrawerHeader>
+                    <DrawerTitle>{t('record.mark.toolbar.filter.tag')}</DrawerTitle>
+                  </DrawerHeader>
+                  <MobileRecordTagTree tags={tags} selectedId={currentTagId} onSelect={selectTag} onCreateChild={beginCreateTag} />
+                  <div className="px-4 pb-4">
+                    <Button variant="outline" className="h-10 w-full justify-start gap-2" onClick={() => beginCreateTag()}>
+                      <Plus className="size-4" />
+                      {t('record.mark.tag.newTag')}
+                    </Button>
+                  </div>
+                </>}
+              </DrawerContent>
+            </Drawer>
+          )}
         </div>
-      )}
 
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="flex items-center">
+          {trashState ? (
+            <>
+              <Button variant="ghost" size="icon" onClick={handleRestoreAll} disabled={marks.length === 0} title={t('record.trash.restoreAll')}>
+                <RotateCcw />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleClearTrash} disabled={marks.length === 0} title={t('record.trash.empty')}>
+                <Trash2 />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => void setTrashState(false, { deferFetch: true })} title={t('common.close')}>
+                <XCircle />
+              </Button>
+            </>
+          ) : multiMode ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedIds(isAllSelected ? new Set() : new Set(filteredRecords.map((item: Mark) => item.id)))}
+                title={t('record.mark.toolbar.selectAll')}
+              >
+                <ListChecks />
+              </Button>
+              <Button variant="ghost" size="icon" disabled={selectedCount === 0 || !canMoveBetweenTags}
+                title={t('record.mark.toolbar.moveTag')} onClick={() => setMoveSelectedOpen(true)}><MoveRight /></Button>
+              <Button variant="ghost" size="icon" className="text-destructive" disabled={selectedCount === 0} onClick={handleDeleteSelected} title={t('record.mark.toolbar.delete')}>
+                <Trash2 />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setMultiMode(false)} title={t('record.mark.toolbar.exitMultiSelect')}>
+                <XCircle />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" className="relative" title={t('record.mark.toolbar.filter.title')} onClick={() => setTypeFilterOpen(true)}>
+                <Filter />
+                {isFilterActive ? (
+                  <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+                ) : null}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setMultiMode(true)} title={t('record.mark.toolbar.multiSelect')}>
+                <CheckSquare />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => void setTrashState(true, { deferFetch: true })} title={t('record.mark.toolbar.trash')}>
+                <Trash2 />
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <div
+        ref={scrollContainerRef}
+        className="mobile-under-dock-scroll min-h-0 flex-1 overscroll-y-contain overflow-y-auto px-3 py-2"
+        onScroll={(event) => {
+          mobileRecordScrollTop = event.currentTarget.scrollTop
+        }}
+        onTouchStart={handlePullTouchStart}
+        onTouchMove={handlePullTouchMove}
+        onTouchEnd={handlePullTouchEnd}
+        onTouchCancel={handlePullTouchCancel}
+      >
+        {(pullDistance > 0 || isPullRefreshing) ? (
+          <div
+            className="flex items-center justify-center gap-2 overflow-hidden text-xs text-muted-foreground transition-[height] duration-150"
+            style={{ height: pullDistance }}
+            role="status"
+          >
+            {isPullRefreshing ? (
+              <Spinner />
+            ) : (
+              <ArrowDown
+                className={cn(
+                  'size-4 transition-transform',
+                  pullDistance >= PULL_REFRESH_THRESHOLD && 'rotate-180'
+                )}
+              />
+            )}
+            <span>
+              {isPullRefreshing
+                ? t('record.mark.list.refreshing')
+                : pullDistance >= PULL_REFRESH_THRESHOLD
+                  ? t('record.mark.list.releaseToRefresh')
+                  : t('record.mark.list.pullToRefresh')}
+            </span>
+          </div>
+        ) : null}
         {!trashState && queues.length > 0 && (
           <div className="mb-3 space-y-2">
             {queues.map((queue) => (
               <div key={queue.queueId} className="rounded-xl border border-dashed bg-muted/40 px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[10px]">
+                  <span className={cn(getMarkTypeListBadgeClasses(queue.type), 'shrink-0 text-[10px]')}>
                     {t(`record.mark.type.${queue.type}`)}
-                  </Badge>
+                  </span>
                   <span className="text-xs text-muted-foreground">{t('common.loading')}</span>
                   <span className="ml-auto text-xs text-muted-foreground">{queue.progress}</span>
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {tagMap.get(queue.tagId) ? `${t('record.capture.saveTarget')}: ${tagMap.get(queue.tagId)} · ` : ''}{t('record.capture.processingInBackground')}
+                </p>
               </div>
             ))}
           </div>
         )}
 
         {groupedRecords.length === 0 ? (
-          <div className="py-14 text-center text-sm text-muted-foreground">{t('record.mark.empty')}</div>
+          <div className="py-14 text-center">
+            <div className="text-sm text-muted-foreground">{isFilterActive ? t('record.mark.list.emptyFiltered') : t('record.mark.empty')}</div>
+            {isFilterActive ? (
+              <Button variant="ghost" size="sm" className="mt-2" onClick={handleResetFilters}>
+                {t('record.mark.toolbar.filter.clear')}
+              </Button>
+            ) : null}
+          </div>
         ) : (
           groupedRecords.map((group) => (
             <div key={group.day} className="mb-4">
               <div className="mb-2 text-xs font-medium text-muted-foreground">{getDayLabel(group.day)}</div>
               <div className="space-y-2">
-                {group.list.map((mark) => {
-                  const actionWidth = getActionWidth()
-                  const isCurrentSwiping = swipingMarkIdRef.current === mark.id
-                  const translateX = isCurrentSwiping
-                    ? swipeDeltaX
-                    : swipedMarkId === mark.id
-                      ? -actionWidth
-                      : 0
-
-                  return (
-                  <div key={mark.id} className="relative overflow-hidden rounded-xl bg-background">
-                    {!multiMode && (
-                      <div className="absolute inset-y-0 right-0 flex items-center gap-2 px-2">
-                        {trashState ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="size-11 rounded-xl shadow-sm"
-                              onClick={() => {
-                                handleRestore(mark)
-                                setSwipedMarkId(null)
-                              }}
-                              title={t('record.mark.toolbar.restore')}
-                              aria-label={t('record.mark.toolbar.restore')}
-                            >
-                              <RotateCcw className="size-4" />
-                              <span className="sr-only">{t('record.mark.toolbar.restore')}</span>
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="size-11 rounded-xl shadow-sm"
-                              onClick={() => {
-                                handleDelete(mark)
-                                setSwipedMarkId(null)
-                              }}
-                              title={t('record.mark.toolbar.deleteForever')}
-                              aria-label={t('record.mark.toolbar.deleteForever')}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="sr-only">{t('record.mark.toolbar.deleteForever')}</span>
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="size-11 rounded-xl shadow-sm"
-                              disabled={!canMoveBetweenTags}
-                              onClick={() => {
-                                setMoveTargetMark(mark)
-                                setSwipedMarkId(null)
-                              }}
-                              title={t('record.mark.toolbar.moveTag')}
-                              aria-label={t('record.mark.toolbar.moveTag')}
-                            >
-                              <MoveRight className="size-4" />
-                              <span className="sr-only">{t('record.mark.toolbar.moveTag')}</span>
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="size-11 rounded-xl shadow-sm"
-                              onClick={() => {
-                                handleDelete(mark)
-                                setSwipedMarkId(null)
-                              }}
-                              title={t('record.mark.toolbar.delete')}
-                              aria-label={t('record.mark.toolbar.delete')}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="sr-only">{t('record.mark.toolbar.delete')}</span>
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    )}
-
+                {group.list.map((mark) => (
                     <div
-                      className="rounded-xl border bg-background px-3 py-3 transition-transform duration-200 ease-out"
-                      style={{ transform: `translateX(${translateX}px)` }}
-                      onTouchStart={(e) => handleItemTouchStart(e, mark.id)}
-                      onTouchMove={handleItemTouchMove}
-                      onTouchEnd={handleItemTouchEnd}
+                      key={mark.id}
+                      data-mobile-mark-id={mark.id}
+                      className={cn(
+                        "rounded-xl bg-background transition-colors",
+                        highlightedMarkId === mark.id && "record-search-highlight"
+                      )}
                     >
-                    <div className="flex items-start gap-2">
-                      {multiMode ? (
-                        <div className="pt-1">
-                          <Checkbox checked={selectedIds.has(mark.id)} onCheckedChange={() => toggleSelect(mark.id)} />
-                        </div>
-                      ) : null}
-
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => {
-                          if (swipedMarkId === mark.id) {
-                            setSwipedMarkId(null)
-                            return
-                          }
-                          setActiveMark(mark)
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-[10px]">
-                            {t(`record.mark.type.${mark.type}`)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{dayjs(mark.createdAt).format('HH:mm')}</span>
-                          {!trashState && (
-                            <span className="ml-auto text-xs text-muted-foreground">{tagMap.get(mark.tagId) || '-'}</span>
-                          )}
-                        </div>
-                        {(mark.type === 'image' || mark.type === 'scan') && mark.url ? (
-                          <div className="mt-2 flex items-center gap-2">
-                            <LocalImage
-                              src={mark.url.includes('http') ? mark.url : `/${mark.type === 'scan' ? 'screenshot' : 'image'}/${mark.url}`}
-                              alt=""
-                              className="h-12 w-12 rounded-md object-cover"
-                            />
-                            <p className="line-clamp-2 text-sm text-muted-foreground">{getMarkPreview(mark) || '-'}</p>
-                          </div>
-                        ) : (
-                          <p className="mt-2 line-clamp-2 text-sm">{getMarkPreview(mark) || '-'}</p>
+                      <div
+                        className={cn(
+                          "rounded-xl border bg-background px-3 py-3",
+                          highlightedMarkId === mark.id && "border-primary/30 shadow-sm"
                         )}
-                      </button>
+                      >
+                        <div className="flex items-start gap-2">
+                          {multiMode ? (
+                            <div className="pt-1">
+                              <Checkbox checked={selectedIds.has(mark.id)} onCheckedChange={() => toggleSelect(mark.id)} />
+                            </div>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 text-left"
+                            onClick={() => router.push(`/mobile/record/detail?id=${mark.id}`)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={cn(getMarkTypeListBadgeClasses(mark.type), 'shrink-0 text-[10px]')}>
+                                {t(`record.mark.type.${mark.type}`)}
+                              </span>
+                              <span className="ml-auto text-xs text-muted-foreground">{dayjs(mark.createdAt).format('HH:mm')}</span>
+                            </div>
+                            {(mark.type === 'image' || mark.type === 'scan') && mark.url ? (
+                              <div className="mt-2 flex items-center gap-2">
+                                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground/60">
+                                  <ImageIcon className="size-4" />
+                                  <LocalImage
+                                    src={getMarkImageSrc(mark)}
+                                    alt=""
+                                    useThumbnail
+                                    thumbnailMaxSize={96}
+                                    generateThumbnail={false}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                </div>
+                                <p className="line-clamp-2 text-sm text-muted-foreground">{getMarkPreview(mark) || '-'}</p>
+                              </div>
+                            ) : (
+                              <p className="mt-2 line-clamp-2 text-sm">{getMarkPreview(mark) || '-'}</p>
+                            )}
+                          </button>
+                          {!multiMode ? (
+                            <MobileActionDrawer
+                              title={getMarkPreview(mark) || t(`record.mark.type.${mark.type}`)}
+                              trigger={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-9 shrink-0"
+                                  aria-label={t('record.mark.toolbar.more')}
+                                  title={t('record.mark.toolbar.more')}
+                                  data-vaul-no-drag
+                                >
+                                  <MoreVertical />
+                                </Button>
+                              }
+                              items={trashState ? [
+                                {
+                                  key: 'restore',
+                                  label: t('record.mark.toolbar.restore'),
+                                  icon: <RotateCcw data-icon="inline-start" />,
+                                  onSelect: () => handleRestore(mark),
+                                },
+                                {
+                                  key: 'delete-forever',
+                                  label: t('record.mark.toolbar.deleteForever'),
+                                  icon: <Trash2 data-icon="inline-start" />,
+                                  onSelect: () => handleDelete(mark),
+                                  destructive: true,
+                                  separatorBefore: true,
+                                },
+                              ] : [
+                                {
+                                  key: 'move-tag',
+                                  label: t('record.mark.toolbar.moveTag'),
+                                  icon: <MoveRight data-icon="inline-start" />,
+                                  onSelect: () => setMoveTargetMark(mark),
+                                  disabled: !canMoveBetweenTags,
+                                },
+                                {
+                                  key: 'delete',
+                                  label: t('record.mark.toolbar.delete'),
+                                  icon: <Trash2 data-icon="inline-start" />,
+                                  onSelect: () => handleDelete(mark),
+                                  destructive: true,
+                                  separatorBefore: true,
+                                },
+                              ]}
+                            />
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
-                    </div>
-                  </div>
-                )})}
+                  ))}
               </div>
             </div>
           ))
         )}
+        {visibleRecordCount < filteredRecords.length ? (
+          <div ref={loadMoreRef} className="h-1" aria-hidden="true" />
+        ) : null}
       </div>
 
-      <Sheet open={Boolean(activeMark)} onOpenChange={(open) => !open && setActiveMark(null)}>
-        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-2xl">
-          {activeMark && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{t(`record.mark.type.${activeMark.type}`)}</SheetTitle>
-              </SheetHeader>
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="text-xs text-muted-foreground">{dayjs(activeMark.createdAt).format('YYYY-MM-DD HH:mm:ss')}</div>
-                {(activeMark.type === 'image' || activeMark.type === 'scan') && activeMark.url && (
-                  <div className="overflow-hidden rounded-lg border bg-muted/20 p-2">
-                    <LocalImage
-                      src={activeMark.url.includes('http') ? activeMark.url : `/${activeMark.type === 'scan' ? 'screenshot' : 'image'}/${activeMark.url}`}
-                      alt=""
-                      className="h-48 w-full rounded-md object-contain"
-                    />
-                  </div>
-                )}
-                {activeMark.type !== 'text' && (
-                  <div>
-                    <div className="mb-1 text-xs text-muted-foreground">{t('record.mark.desc')}</div>
-                    <Textarea
-                      value={editDesc}
-                      onChange={(e) => setEditDesc(e.target.value)}
-                      rows={3}
-                      className="min-h-20"
-                    />
-                  </div>
-                )}
-                <div>
-                  <div className="mb-1 text-xs text-muted-foreground">{t('record.mark.content')}</div>
-                  <Textarea
-                    value={editContent}
-                    onChange={(e) => {
-                      const next = e.target.value
-                      setEditContent(next)
-                      if (activeMark.type === 'text') {
-                        setEditDesc(next)
-                      }
-                    }}
-                    rows={8}
-                    className="min-h-28"
+      <Drawer open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
+        <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
+          <DrawerHeader>
+            <DrawerTitle>{t('record.mark.toolbar.filter.title')}</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.search')}</div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={recordFilters.search}
+                    onChange={(event) => setRecordSearch(event.target.value)}
+                    placeholder={t('record.mark.toolbar.filter.searchPlaceholder')}
+                    className="h-10 pl-9"
                   />
                 </div>
-                {activeMark.type === 'link' && (
-                  <div>
-                    <div className="mb-1 text-xs text-muted-foreground">URL</div>
-                    <Input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} />
-                  </div>
-                )}
               </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
 
-      <Sheet open={createTagOpen} onOpenChange={setCreateTagOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>{t('record.mark.tag.newTag')}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-3">
-            <Input
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              placeholder={t('record.mark.tag.newTagPlaceholder')}
-              className="h-10"
-            />
-            <Button onClick={handleCreateTag} className="h-10 w-full">
-              {t('record.mark.tag.add')}
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.time')}</div>
+                <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/35 p-1">
+                  {TIME_OPTIONS.map((preset) => (
+                    <Button
+                      key={preset}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRecordTimePreset(preset)}
+                      className={cn(
+                        'h-9 justify-center rounded-lg px-2 text-xs font-medium',
+                        recordFilters.timePreset === preset
+                          ? 'bg-background shadow-sm text-foreground hover:bg-background'
+                          : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'
+                      )}
+                    >
+                      {t(`record.mark.toolbar.filter.timeOptions.${preset}`)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
 
-      <Sheet open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>{t('common.filter')}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 space-y-3">
-            <label className="flex h-11 items-center gap-3 rounded-xl border px-3">
-              <Checkbox checked={selectedTypeCount === TYPE_OPTIONS.length} onCheckedChange={selectAllTypes} />
-              <span className="text-sm">{t('common.all')}</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {TYPE_OPTIONS.map((type) => (
-                <label key={type} className="flex h-11 items-center gap-3 rounded-xl border px-3">
-                  <Checkbox checked={typeFilters.has(type)} onCheckedChange={() => toggleTypeFilter(type)} />
-                  <span className="truncate text-sm">{t(`record.mark.type.${type}`)}</span>
-                </label>
-              ))}
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t('record.mark.toolbar.filter.type')}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {MARK_TYPE_OPTIONS.map((type) => (
+                    <Button
+                      key={type}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleTypeFilter(type)}
+                      className={cn(
+                        'h-9 justify-start rounded-lg px-3 text-sm',
+                        getMarkTypeChipClasses(type, recordFilters.selectedTypes.includes(type))
+                      )}
+                    >
+                      {t(`record.mark.type.${type}`)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <Button className="h-10 w-full" onClick={() => setTypeFilterOpen(false)}>
-              {t('common.confirm')}
-            </Button>
+
+            <div className="flex justify-end">
+              <Button variant="outline" className="h-9 gap-2" onClick={handleResetFilters} disabled={!isFilterActive}>
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t('record.mark.toolbar.filter.clear')}
+              </Button>
+            </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       <Sheet open={Boolean(moveTargetMark)} onOpenChange={(open) => !open && setMoveTargetMark(null)}>
-        <SheetContent side="bottom" className="rounded-t-2xl">
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
           <SheetHeader>
             <SheetTitle>{t('record.mark.toolbar.moveTag')}</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-2">
-            {tags.filter((tag) => tag.id !== moveTargetMark?.tagId).map((tag) => (
-              <Button key={tag.id} variant="outline" className="h-10 w-full justify-start" onClick={() => handleMoveTargetTag(tag.id)}>
-                {tag.name}
-              </Button>
-            ))}
-          </div>
+          <MobileRecordTagTree tags={tags} disabledId={moveTargetMark?.tagId} onSelect={node => moveToTag(node, false)} />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={moveSelectedOpen} onOpenChange={setMoveSelectedOpen}>
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
+          <SheetHeader><SheetTitle>{t('record.mark.toolbar.moveTag')}</SheetTitle></SheetHeader>
+          <MobileRecordTagTree tags={tags} onSelect={node => moveToTag(node, true)} />
         </SheetContent>
       </Sheet>
     </div>

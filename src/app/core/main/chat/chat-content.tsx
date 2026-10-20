@@ -1,7 +1,7 @@
 import React from 'react'
 import useChatStore from '@/stores/chat'
 import useTagStore from '@/stores/tag'
-import { ArrowDownToLine, X, Loader2, QuoteIcon } from 'lucide-react'
+import { BotMessageSquare, ChevronDown, X, Loader2, QuoteIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Chat } from '@/db/chats'
 import ChatPreview from './chat-preview'
@@ -19,198 +19,148 @@ import { McpToolCallCard } from './mcp-tool-call'
 import { AgentExecutionStatus } from './agent-execution-status'
 import { AgentPanelWithRag } from './agent-panel-with-rag'
 import { ChatImages } from "./chat-images"
+import {
+  buildChatImageContext,
+  parseChatImageAnalyses,
+  serializeChatImageAnalyses,
+  type PersistedChatImageAnalysis,
+} from '@/lib/chat-image-context'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
+import { parsePersistedChatAttachments } from '@/lib/chat-attachments'
+import { ChatAttachmentSummary } from './chat-file-attachments'
+import emitter from '@/lib/emitter'
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from '@/components/ui/message-scroller'
+import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { parseModelChangeMarker } from './model-selection'
+import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-views'
 
-const BOTTOM_THRESHOLD = 24
-const USER_SCROLL_GRACE_MS = 300
+interface DisplayedConversationCompaction {
+  revision: number
+  coveredThroughChatId: number
+  sourceTokenCount: number
+  summaryTokenCount: number
+  summary: string
+}
 
 const ChatContent = React.memo(function ChatContent() {
-  const { chats, init, agentState, loading } = useChatStore()
+  const { chats, init, agentState, loading, currentConversationId } = useChatStore()
   const { currentTagId } = useTagStore()
-  const [isOnBottom, setIsOnBottom] = useState(true)
-  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
-  const wrapperRef = React.useRef<HTMLDivElement>(null)
-  const contentRef = React.useRef<HTMLDivElement>(null)
-  const bottomAnchorRef = React.useRef<HTMLDivElement>(null)
-  const programmaticScrollRef = React.useRef(false)
-  const autoScrollEnabledRef = React.useRef(true)
-  const delayedScrollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastUserScrollAtRef = React.useRef(0)
-
-  const isNearBottom = useCallback((element: Element) => {
-    return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_THRESHOLD
-  }, [])
-
-  const handleScroll = useCallback(() => {
-    const md = wrapperRef.current
-    if (!md) return
-
-    const onBottom = isNearBottom(md)
-    setIsOnBottom(onBottom)
-
-    if (programmaticScrollRef.current) {
-      if (onBottom) {
-        programmaticScrollRef.current = false
-      }
-      return
-    }
-
-    const isLikelyUserScroll = Date.now() - lastUserScrollAtRef.current < USER_SCROLL_GRACE_MS
-
-    // 只有用户主动离开底部时才关闭自动滚动
-    if (onBottom) {
-      setAutoScrollEnabled(true)
-    } else if (isLikelyUserScroll) {
-      setAutoScrollEnabled(false)
-    }
-  }, [isNearBottom])
-
-  const markUserScrollIntent = useCallback(() => {
-    lastUserScrollAtRef.current = Date.now()
-  }, [])
-
-  const performAutoScroll = useCallback(() => {
-    programmaticScrollRef.current = true
-    bottomAnchorRef.current?.scrollIntoView({ block: 'end' })
-    setIsOnBottom(true)
-
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        programmaticScrollRef.current = false
-        const md = wrapperRef.current
-        if (md) {
-          setIsOnBottom(isNearBottom(md))
-        }
-      }, 0)
-    })
-
-    if (delayedScrollTimeoutRef.current) {
-      clearTimeout(delayedScrollTimeoutRef.current)
-    }
-
-    delayedScrollTimeoutRef.current = setTimeout(() => {
-      if (!autoScrollEnabledRef.current) return
-
-      programmaticScrollRef.current = true
-      bottomAnchorRef.current?.scrollIntoView({ block: 'end' })
-      setIsOnBottom(true)
-
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          programmaticScrollRef.current = false
-          const md = wrapperRef.current
-          if (md) {
-            setIsOnBottom(isNearBottom(md))
-          }
-        }, 0)
-      })
-    }, 500)
-  }, [isNearBottom])
-
-  // 手动滚动到底部并启用自动滚动
-  const handleScrollToBottom = useCallback(() => {
-    performAutoScroll()
-    setAutoScrollEnabled(true)
-  }, [performAutoScroll])
-
-  useEffect(() => {
-    const md = wrapperRef.current
-    if (!md) return
-
-    const handleTouchStart = () => markUserScrollIntent()
-    const handleTouchMove = () => markUserScrollIntent()
-    const handleWheel = () => markUserScrollIntent()
-    const handlePointerDown = () => markUserScrollIntent()
-
-    md.addEventListener('scroll', handleScroll)
-    md.addEventListener('touchstart', handleTouchStart, { passive: true })
-    md.addEventListener('touchmove', handleTouchMove, { passive: true })
-    md.addEventListener('wheel', handleWheel, { passive: true })
-    md.addEventListener('pointerdown', handlePointerDown, { passive: true })
-
-    return () => {
-      md.removeEventListener('scroll', handleScroll)
-      md.removeEventListener('touchstart', handleTouchStart)
-      md.removeEventListener('touchmove', handleTouchMove)
-      md.removeEventListener('wheel', handleWheel)
-      md.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [handleScroll, markUserScrollIntent])
+  const t = useTranslations()
+  const [compactionRunning, setCompactionRunning] = useState(false)
+  const [latestCompaction, setLatestCompaction] = useState<DisplayedConversationCompaction | null>(null)
+  const [expandedCompactionRevision, setExpandedCompactionRevision] = useState<number | null>(null)
 
   useEffect(() => {
     init(currentTagId)
   }, [currentTagId, init])
 
   useEffect(() => {
-    autoScrollEnabledRef.current = autoScrollEnabled
-  }, [autoScrollEnabled])
+    let cancelled = false
+    setCompactionRunning(false)
+    setLatestCompaction(null)
+    setExpandedCompactionRevision(null)
+
+    if (!currentConversationId) {
+      return
+    }
+
+    void import('@/db/conversation-compactions')
+      .then(({ getLatestConversationCompaction }) =>
+        getLatestConversationCompaction(currentConversationId)
+      )
+      .then(compaction => {
+        if (!cancelled) {
+          setLatestCompaction(compaction)
+        }
+      })
+      .catch(error => {
+        console.error('[ConversationCompaction] Failed to load display state:', error)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentConversationId])
 
   useEffect(() => {
-    const md = wrapperRef.current
-    const content = contentRef.current
-    if (!md || !content) return
-
-    const syncScrollState = () => {
-      const onBottom = isNearBottom(md)
-
-      if (autoScrollEnabled) {
-        performAutoScroll()
+    const handleStatus = (event: {
+      conversationId: number
+      status: 'running' | 'completed' | 'failed'
+      revision?: number
+      coveredThroughChatId?: number
+      sourceTokenCount?: number
+      summaryTokenCount?: number
+      summary?: string
+    }) => {
+      if (event.conversationId !== currentConversationId) {
         return
       }
 
-      setIsOnBottom(onBottom)
-    }
-
-    const observer = new ResizeObserver(syncScrollState)
-    const mutationObserver = new MutationObserver(() => {
-      syncScrollState()
-    })
-
-    observer.observe(content)
-    mutationObserver.observe(content, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    })
-
-    return () => {
-      observer.disconnect()
-      mutationObserver.disconnect()
-    }
-  }, [autoScrollEnabled, isNearBottom, performAutoScroll])
-
-  // 监听消息变化，仅在启用自动滚动时才滚动
-  useEffect(() => {
-    if (autoScrollEnabled) {
-      performAutoScroll()
-    }
-  }, [chats, autoScrollEnabled, performAutoScroll])
-
-  // Agent 执行时，仅在启用自动滚动时才滚动到底部
-  useEffect(() => {
-    if (autoScrollEnabled && agentState.isRunning) {
-      performAutoScroll()
-    }
-  }, [agentState.currentThought, agentState.thoughtHistory, agentState.pendingConfirmation, agentState.isRunning, autoScrollEnabled, performAutoScroll])
-
-  // Loading 状态变化时，仅在启用自动滚动时才滚动到底部
-  useEffect(() => {
-    if (autoScrollEnabled && loading) {
-      performAutoScroll()
-    }
-  }, [loading, autoScrollEnabled, performAutoScroll])
-
-  useEffect(() => {
-    return () => {
-      if (delayedScrollTimeoutRef.current) {
-        clearTimeout(delayedScrollTimeoutRef.current)
+      setCompactionRunning(event.status === 'running')
+      if (
+        event.status === 'completed'
+        && typeof event.revision === 'number'
+        && typeof event.coveredThroughChatId === 'number'
+        && typeof event.sourceTokenCount === 'number'
+        && typeof event.summaryTokenCount === 'number'
+        && typeof event.summary === 'string'
+      ) {
+        setLatestCompaction({
+          revision: event.revision,
+          coveredThroughChatId: event.coveredThroughChatId,
+          sourceTokenCount: event.sourceTokenCount,
+          summaryTokenCount: event.summaryTokenCount,
+          summary: event.summary,
+        })
       }
     }
-  }, [])
+
+    emitter.on('conversation-compaction-status', handleStatus)
+    return () => {
+      emitter.off('conversation-compaction-status', handleStatus)
+    }
+  }, [currentConversationId])
+
+  const activeCompaction = useMemo(() => {
+    if (!latestCompaction) {
+      return null
+    }
+
+    const lastClear = chats.findLast(chat => chat.type === 'clear')
+    return lastClear && latestCompaction.coveredThroughChatId <= lastClear.id
+      ? null
+      : latestCompaction
+  }, [chats, latestCompaction])
+
+  const compactedMessageCount = useMemo(() => {
+    if (!activeCompaction) {
+      return 0
+    }
+
+    const lastClearIndex = chats.findLastIndex(chat => chat.type === 'clear')
+    return chats
+      .slice(lastClearIndex + 1)
+      .filter(chat =>
+        (chat.type === 'chat' || chat.type === 'note')
+        && chat.id <= activeCompaction.coveredThroughChatId
+      )
+      .length
+  }, [activeCompaction, chats])
 
   // 判断是否应该显示 loading：loading=true 且最后一个 AI 消息还没有内容
   const shouldShowLoading = useMemo(() => {
     if (!loading) return false
+    if (compactionRunning) return false
     if (agentState.isRunning) return false
 
     const lastChat = chats[chats.length - 1]
@@ -220,35 +170,95 @@ const ChatContent = React.memo(function ChatContent() {
     }
 
     return true
-  }, [loading, agentState.isRunning, chats])
+  }, [loading, compactionRunning, agentState.isRunning, chats])
 
-  return <div ref={wrapperRef} id="chats-wrapper" className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col items-end p-4 gap-6 [overflow-anchor:none]">
-    <div ref={contentRef} className="w-full flex flex-col items-end gap-6">
-      {
-        chats.length ? chats.map((chat) => {
-          return <Message key={chat.id} chat={chat} />
-        }) : <ChatEmpty />
-      }
+  return (
+    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor" scrollPreviousItemPeek={8}>
+      <MessageScroller className="flex-1">
+        <MessageScrollerViewport id="chats-wrapper" className="overflow-x-hidden p-4">
+          <MessageScrollerContent
+            className={cn("items-end", chats.length === 0 && "h-full")}
+          >
+            {chats.length ? chats.map((chat) => (
+              <React.Fragment key={chat.id}>
+                <MessageScrollerItem
+                  messageId={String(chat.id)}
+                  scrollAnchor={chat.role === 'user'}
+                  className="w-full"
+                >
+                  <Message chat={chat} />
+                </MessageScrollerItem>
+                {activeCompaction?.coveredThroughChatId === chat.id && (
+                  <MessageScrollerItem className="w-full">
+                    <div className="flex w-full flex-col gap-2 py-1 text-xs text-muted-foreground">
+                      <div
+                        className="flex w-full items-center gap-3"
+                        title={`${activeCompaction.sourceTokenCount} → ${activeCompaction.summaryTokenCount} tokens`}
+                      >
+                        <Separator className="flex-1" />
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 transition-colors hover:text-foreground"
+                          aria-expanded={expandedCompactionRevision === activeCompaction.revision}
+                          onClick={() => setExpandedCompactionRevision(current => (
+                            current === activeCompaction.revision ? null : activeCompaction.revision
+                          ))}
+                        >
+                          <span>{t('record.chat.condensed.message', { count: compactedMessageCount })}</span>
+                          <ChevronDown
+                            className={cn(
+                              "size-3.5 transition-transform",
+                              expandedCompactionRevision === activeCompaction.revision && "rotate-180"
+                            )}
+                          />
+                        </button>
+                        <Separator className="flex-1" />
+                      </div>
+                      {expandedCompactionRevision === activeCompaction.revision && (
+                        <div className="mx-auto w-full max-w-2xl rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                          <div className="mb-2 font-medium">{t('record.chat.condensed.summary')}</div>
+                          {activeCompaction.summary}
+                        </div>
+                      )}
+                    </div>
+                  </MessageScrollerItem>
+                )}
+              </React.Fragment>
+            )) : (
+              <MessageScrollerItem className="flex min-h-full w-full flex-1">
+                <ChatEmpty />
+              </MessageScrollerItem>
+            )}
 
-      {/* Loading 指示器 - 服务器等待时显示 */}
-      {shouldShowLoading && (
-        <div className="flex w-full min-w-0 -mt-6">
-          <div className='text-sm leading-6 flex-1 flex items-center gap-2 text-muted-foreground'>
-            <Loader2 className="size-4 animate-spin" />
-            <span>正在思考...</span>
-          </div>
-        </div>
-      )}
+            {compactionRunning && (
+              <MessageScrollerItem className="w-full">
+                <div className="flex w-full items-center gap-3 py-1 text-xs text-muted-foreground">
+                  <Separator className="flex-1" />
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    {t('record.chat.condensing')}
+                  </span>
+                  <Separator className="flex-1" />
+                </div>
+              </MessageScrollerItem>
+            )}
 
-      <div ref={bottomAnchorRef} className="h-px w-full" />
-    </div>
-
-    {
-      !isOnBottom && <Button variant="outline" className='sticky bottom-0 size-8 right-0' onClick={handleScrollToBottom}>
-        <ArrowDownToLine className='size-4' />
-      </Button>
-    }
-  </div>
+            {shouldShowLoading && (
+              <MessageScrollerItem className="w-full">
+                <div className="flex w-full min-w-0">
+                  <div className="flex flex-1 items-center gap-2 text-sm leading-6 text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>{t('record.chat.input.agent.thinking')}</span>
+                  </div>
+                </div>
+              </MessageScrollerItem>
+            )}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  )
 })
 ChatContent.displayName = 'ChatContent'
 
@@ -281,6 +291,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
           <div className='text-sm leading-6 wrap-break-word text-primary-foreground'>
             {children}
           </div>
+          <div onClick={event => event.stopPropagation()}><PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} /></div>
           {shouldShowDelete && (
             <Button
               onClick={(event) => {
@@ -304,6 +315,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
     <div className="flex w-full min-w-0">
       <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden'>
         {children}
+        <PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} />
       </div>
     </div>
   )
@@ -312,10 +324,24 @@ MessageWrapper.displayName = 'MessageWrapper'
 
 const Message = React.memo(function Message({ chat }: { chat: Chat }) {
   const t = useTranslations()
-  const { deleteChat, getMcpToolCallsByChatId, loading, agentState } = useChatStore()
+  const { chats, deleteChat, getMcpToolCallsByChatId, loading, agentState, saveChat } = useChatStore()
   const content = chat.content
   const isActiveAgentMessage = chat.role === 'system' && agentState.activeChatId === chat.id
-  const isLiveAgentVisible = isActiveAgentMessage && (agentState.isRunning || agentState.isFinalAnswerMode)
+  const latestChatId = chats[chats.length - 1]?.id
+  const isLatestSystemMessage = chat.role === 'system' && latestChatId === chat.id
+  const isGeneratingMessage = chat.role === 'system' && (
+    (loading && isLatestSystemMessage) ||
+    (isActiveAgentMessage && agentState.isRunning)
+  )
+  const liveAgentContent = isActiveAgentMessage && agentState.isFinalAnswerMode
+    ? agentState.finalAnswerContent
+    : undefined
+  const hasLiveAgentTrace = Boolean(
+    agentState.completedSteps?.length ||
+    agentState.traceEvents?.some((event) => event.type !== 'final') ||
+    agentState.pendingConfirmation
+  )
+  const isLiveAgentVisible = isActiveAgentMessage && (agentState.isRunning || agentState.isFinalAnswerMode || hasLiveAgentTrace)
 
   const handleRemoveClearContext = useCallback(() => {
     deleteChat(chat.id)
@@ -339,6 +365,17 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
         filepath: string
         filename: string
         content: string
+        sourceKey?: string
+        sourceType?: 'article' | 'record' | 'canvas'
+        sourceId?: string
+        locator?: {
+          filePath?: string
+          markId?: number
+          tagId?: number
+          canvasId?: string
+          nodeIds?: string[]
+        }
+        updatedAt?: number
       }>
     } catch {
       return []
@@ -357,6 +394,62 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
       return []
     }
   }, [chat.images])
+  const imageAnalyses = useMemo(
+    () => parseChatImageAnalyses(chat.imageAnalyses),
+    [chat.imageAnalyses]
+  )
+  const displayImageAnalyses = useMemo(
+    () => images.map((imageUrl, index) => (
+      imageAnalyses[index] ?? {
+        imageId: `legacy-${chat.id}-${index}`,
+        sourceUrl: imageUrl,
+        name: `image-${index + 1}`,
+        status: 'failed' as const,
+        method: 'none' as const,
+        errorCode: 'recognition_failed' as const,
+        errorMessage: 'This image has not been analyzed yet.',
+        updatedAt: chat.createdAt,
+      }
+    )),
+    [chat.createdAt, chat.id, imageAnalyses, images]
+  )
+  const retryImageAnalysis = useCallback(async (
+    analysis: PersistedChatImageAnalysis,
+    index: number
+  ) => {
+    const pendingAnalyses = displayImageAnalyses.map(item => (
+      item.imageId === analysis.imageId
+        ? { ...item, status: 'pending' as const, errorCode: undefined, errorMessage: undefined }
+        : item
+    ))
+    const pendingMessage = {
+      ...chat,
+      imageAnalyses: serializeChatImageAnalyses(pendingAnalyses),
+    }
+    await saveChat(pendingMessage, true)
+    const result = await buildChatImageContext(
+      [{
+        id: analysis.imageId,
+        url: images[index] || analysis.sourceUrl,
+        name: analysis.name,
+      }],
+      chat.content?.trim() || t('record.chat.input.addAttachment.attachmentOnlyPrompt')
+    )
+    const completedAnalyses = displayImageAnalyses.map(item => (
+      item.imageId === analysis.imageId
+        ? result.analyses[0]
+        : item
+    ))
+    await saveChat({
+      ...chat,
+      imageAnalyses: serializeChatImageAnalyses(completedAnalyses),
+    }, true)
+  }, [chat, displayImageAnalyses, images, saveChat, t])
+
+  const attachments = useMemo(
+    () => parsePersistedChatAttachments(chat.attachments),
+    [chat.attachments]
+  )
 
   // 解析引用数据
   const quoteData = useMemo(() => {
@@ -378,12 +471,50 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
   }, [chat.quoteData])
 
   switch (chat.type) {
+    case 'model_change': {
+      const marker = parseModelChangeMarker(chat.content)
+      if (!marker) return null
+      const compactModelName = marker.toModel.split('/').filter(Boolean).at(-1) || marker.toModel
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Marker role="status" className="min-w-0 py-1">
+              <MarkerIcon><BotMessageSquare /></MarkerIcon>
+              <MarkerContent className="flex-1 truncate">
+                {t('record.chat.input.modelSelect.changedTo', { model: compactModelName })}
+              </MarkerContent>
+              {marker.appliesNextTurn && (
+                <Badge variant="secondary" className="shrink-0">
+                  {t('record.chat.input.modelSelect.nextTurnBadge')}
+                </Badge>
+              )}
+            </Marker>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t('record.chat.input.modelSelect.changed', {
+              from: marker.fromModel,
+              to: marker.toModel,
+            })}
+          </TooltipContent>
+        </Tooltip>
+      )
+    }
+
     case 'clear':
       return <div className="w-full flex justify-center items-center gap-4 px-10">
         <Separator className='flex-1' />
         <div className="flex justify-center items-center gap-2 w-32 group h-8">
           <p className="text-sm text-center text-muted-foreground">{t('record.chat.input.clearContext.tooltip')}</p>
-          <X className="size-4 hidden group-hover:flex cursor-pointer" onClick={handleRemoveClearContext} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 md:hidden md:group-hover:inline-flex"
+            aria-label={t('common.delete')}
+            onClick={handleRemoveClearContext}
+          >
+            <X />
+          </Button>
         </div>
         <Separator className='flex-1' />
       </div>
@@ -406,9 +537,11 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
                 <ChatPreview text={content || ''} streaming={loading && chat.role === 'system'} />
               </div>
             }
-            <MessageControl chat={chat}>
-              <NoteOutput chat={chat} />
-            </MessageControl>
+            {!isGeneratingMessage && (
+              <MessageControl chat={chat}>
+                <NoteOutput chat={chat} />
+              </MessageControl>
+            )}
           </div>
         }
       </MessageWrapper>
@@ -446,14 +579,8 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
 
             {isLiveAgentVisible && (
               <div className="space-y-2">
-                {!agentState.isFinalAnswerMode && (agentState.isRunning || agentState.completedSteps?.length > 0 || agentState.thoughtHistory?.length > 0) && (
+                {(agentState.isRunning || hasLiveAgentTrace) && (
                   <AgentExecutionStatus />
-                )}
-                {agentState.isFinalAnswerMode && agentState.finalAnswerContent && (
-                  <ChatPreview
-                    text={agentState.finalAnswerContent}
-                    streaming={loading && isActiveAgentMessage}
-                  />
                 )}
               </div>
             )}
@@ -468,16 +595,28 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             )}
 
             <ChatThinking chat={chat} />
-            <ChatPreview text={content || ''} streaming={loading && isActiveAgentMessage} />
-            <MessageControl chat={chat}>
-              <MarkText chat={chat} />
-            </MessageControl>
+            <ChatPreview
+              text={liveAgentContent ?? content ?? ''}
+              streaming={isGeneratingMessage}
+            />
+            {!isGeneratingMessage && (
+              <MessageControl chat={chat}>
+                <MarkText chat={chat} />
+              </MessageControl>
+            )}
           </div>
         ) : (
           // 用户消息
           <div className="w-full space-y-3 text-primary">
             {/* 显示用户消息中的图片 */}
-            {images.length > 0 && <ChatImages images={images} />}
+            {images.length > 0 && (
+              <ChatImages
+                images={images}
+                analyses={displayImageAnalyses}
+                onRetry={retryImageAnalysis}
+              />
+            )}
+            <ChatAttachmentSummary attachments={attachments} />
             {/* 显示用户消息中的引用 */}
             {quoteData && (
               <div className="flex flex-col gap-1 text-[11px]">
@@ -501,7 +640,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
               </div>
             )}
             {content && (
-              <div className="whitespace-pre-wrap">{content}</div>
+              <div className="select-text whitespace-pre-wrap">{content}</div>
             )}
           </div>
         )}

@@ -1,42 +1,7 @@
 import { Tool, ToolResult } from '../types'
 import { skillManager } from '@/lib/skills'
-import { executeSkillRuntime } from '@/lib/skills/runtime'
+import { executeSkillRuntime, installSkillPythonDependencies } from '@/lib/skills/runtime'
 import useArticleStore from '@/stores/article'
-
-export const getCurrentTimeTool: Tool = {
-  name: 'get_current_time',
-  description: 'Get the current date and time. Returns format: YYYY-MM-DD (e.g., 2026-01-18), which is suitable for direct use as part of a filename.',
-  category: 'system',
-  requiresConfirmation: false,
-  parameters: [],
-  execute: async (): Promise<ToolResult> => {
-    try {
-      const now = new Date()
-
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-
-      // 安全的文件名格式：YYYY-MM-DD
-      const safeFileNameDate = `${year}-${month}-${day}`
-
-      return {
-        success: true,
-        data: safeFileNameDate,
-        message: `当前日期：${safeFileNameDate}`,
-      }
-    } catch (error) {
-      console.error('[get_current_time] 获取失败', {
-        error: String(error),
-        errorMessage: error instanceof Error ? error.message : String(error),
-      })
-      return {
-        success: false,
-        error: `获取时间失败: ${error}`,
-      }
-    }
-  },
-}
 
 /**
  * 选择 Skill 工具
@@ -284,44 +249,16 @@ export const loadSkillContentTool: Tool = {
 
 /**
  * 执行 Skill 脚本工具
- * 用于 AI 在 Skill 目录上下文中执行 Python/Shell 脚本
- *
- * 支持的调用方式：
- * 1. 模块执行: command="python", args=["-m", "markitdown", "file.pptx"]
- * 2. 脚本执行: command="python", args=["scripts/thumbnail.py", "file.pptx"]
- * 3. 子目录脚本: command="python", args=["scripts/office/unpack.py", "file.pptx"]
- * 4. 整体命令: command="python -m markitdown file.pptx", args=[]
- *
- * 重要说明：
- * - 工作目录会自动切换到 Skill 的根目录
- * - 脚本路径相对于 Skill 目录（如 "scripts/office/unpack.py"）
- * - 文件参数会自动从工作目录读取
+ * 只能执行 Skill 加载阶段登记的 scripts/ 脚本。
  */
 export const executeSkillScriptTool: Tool = {
   name: 'execute_skill_script',
-  description: `Execute a Python or Shell script within a Skill directory context.
+  description: `Execute one registered script from a loaded Skill.
 
-**When to create a script file vs passing args:**
-- Use args for simple commands: \`{"command": "python", "args": ["-m", "markitdown", "file.pptx"]}\`
-- Create a script file for complex/long scripts, then execute it
-
-**Supported calling patterns:**
-1. Module execution: \`{"command": "python", "args": ["-m", "markitdown", "file.pptx"]}\`
-2. Script execution: \`{"command": "python", "args": ["scripts/thumbnail.py", "file.pptx"]}\`
-3. Nested script: \`{"command": "python", "args": ["scripts/office/unpack.py", "file.pptx"]}\`
-4. Full command: \`{"command": "python -m markitdown file.pptx", "args": []}\`
-
-**Key notes:**
-- Working directory is automatically set to the Skill's root directory (article/skills/{skill_id}/)
-- Temporary/generated scripts should live under \`runtime/\` inside the Skill directory
-- User-visible output files should be written to \`article/outputs/{skill_id}/\` whenever possible
-- TWO types of scripts:
-  1. **Skill's built-in scripts**: Use relative path like "scripts/my-script.py" (these exist in the skill directory)
-  2. **Runtime scripts**: Use bare filename like "generate_ppt.js" (these should be created in the Skill's \`runtime/\` directory and will be resolved automatically)
-- For runtime files: just pass the filename (e.g., "generate_ppt.js") - it will be resolved from the Skill's \`runtime/\` directory when present
-- For skill's scripts: use path relative to skill directory (e.g., "scripts/thumbnail.py")
-- If you need to pass complex or long script content, create a script file first using create_file, then execute it
-- The skill_id must match the Skill's ID (e.g., "pptx", "pdf")`,
+- script_id must exactly match an entry shown under the Skill's Available Scripts list.
+- Arbitrary commands, inline code, modules, absolute script paths, and generated runtime scripts are not supported.
+- Pass only data arguments needed by the registered script.
+- User-visible files must be written to the SKILL_OUTPUT_DIR environment variable.`,
   category: 'system',
   requiresConfirmation: false,
   parameters: [
@@ -332,15 +269,21 @@ export const executeSkillScriptTool: Tool = {
       required: true,
     },
     {
-      name: 'command',
+      name: 'script_id',
       type: 'string',
-      description: 'The command to execute. Use "python" for Python modules/scripts, or a full command string (e.g., "python -m markitdown").',
+      description: 'Registered script ID from the Skill Available Scripts list, e.g. "thumbnail.py" or "office/unpack.py".',
       required: true,
     },
     {
       name: 'args',
       type: 'array',
-      description: 'Arguments to pass to the command. Max 10 items. For scripts, include the script path relative to Skill directory (e.g., "scripts/office/unpack.py"). If you need to pass complex script content, create a script file first.',
+      description: 'Data arguments passed to the registered script. Maximum 20 items. Do not include an interpreter or script path.',
+      required: false,
+    },
+    {
+      name: 'arguments',
+      type: 'array',
+      description: 'Alias for args. Prefer args; this field is accepted for compatibility with models that emit "arguments".',
       required: false,
     },
     {
@@ -350,9 +293,75 @@ export const executeSkillScriptTool: Tool = {
       required: false,
     },
   ],
-  execute: async (params: Record<string, any>): Promise<ToolResult> => {
+  execute: async (params: Record<string, any>): Promise<ToolResult> => executeRegisteredSkillScript(params),
+}
+
+export const installSkillPythonDependenciesTool: Tool = {
+  name: 'install_skill_python_dependencies',
+  description: `Create or update this Skill's isolated Python environment with explicitly named PyPI packages.
+
+- Use only after a registered Python script reports a missing dependency or the Skill explicitly documents it.
+- Never guess packages from arbitrary stderr and never call this tool automatically.
+- URLs, local paths, flags, environment markers, and source distributions are rejected.
+- Every invocation requires user confirmation.`,
+  category: 'system',
+  requiresConfirmation: true,
+  parameters: [
+    {
+      name: 'skill_id',
+      type: 'string',
+      description: 'The installed Skill ID whose isolated Python environment will be updated.',
+      required: true,
+    },
+    {
+      name: 'packages',
+      type: 'array',
+      description: 'Exact PyPI distribution specs, for example ["pypdf>=5", "Pillow"]. Maximum 20.',
+      required: true,
+    },
+  ],
+  execute: async (params: Record<string, any>): Promise<ToolResult> => installSkillDependencies(params),
+}
+
+export async function installSkillDependencies(
+  params: Record<string, any>,
+  signal?: AbortSignal
+): Promise<ToolResult> {
+  const skillId = typeof params.skill_id === 'string' ? params.skill_id : ''
+  const packages = Array.isArray(params.packages) ? params.packages.map(String) : []
+  if (!skillId || !skillManager.getSkill(skillId)) {
+    return { success: false, error: 'Invalid skill_id: Skill is not installed' }
+  }
+  if (packages.length === 0 || packages.length > 20) {
+    return { success: false, error: 'packages must contain between 1 and 20 PyPI package specs' }
+  }
+  try {
+    const result = await installSkillPythonDependencies(skillId, packages, signal)
+    return {
+      success: true,
+      message: `Prepared isolated Python ${result.version} environment for Skill "${skillId}". Installed: ${result.packages.join(', ')}.`,
+      data: result,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function executeRegisteredSkillScript(
+  params: Record<string, any>,
+  signal?: AbortSignal
+): Promise<ToolResult> {
     try {
-      const { skill_id, command, args, timeout } = params
+      const { skill_id, script_id, timeout } = params
+      const rawArgs = Array.isArray(params.args)
+        ? params.args
+        : Array.isArray(params.arguments)
+          ? params.arguments
+          : []
+      const args = rawArgs.map((arg) => String(arg))
 
       if (!skill_id || typeof skill_id !== 'string') {
         return {
@@ -361,18 +370,19 @@ export const executeSkillScriptTool: Tool = {
         }
       }
 
-      if (!command || typeof command !== 'string') {
+      if (!script_id || typeof script_id !== 'string') {
         return {
           success: false,
-          error: 'Invalid command: must be a non-empty string',
+          error: 'Invalid script_id: must identify a registered Skill script',
         }
       }
 
       const outcome = await executeSkillRuntime({
         skillId: skill_id,
-        command,
-        args: Array.isArray(args) ? args : [],
+        scriptId: script_id,
+        args,
         timeout,
+        signal,
       })
 
       if (outcome.success && Array.isArray(outcome.data?.output_files) && outcome.data.output_files.length > 0) {
@@ -404,12 +414,11 @@ export const executeSkillScriptTool: Tool = {
         error: `Script execution error: ${errorMessage}`,
       }
     }
-  },
 }
 
 export const systemTools: Tool[] = [
-  getCurrentTimeTool,
   selectSkillTool,
   loadSkillContentTool,
   executeSkillScriptTool,
+  installSkillPythonDependenciesTool,
 ]

@@ -14,13 +14,14 @@ interface PasteInFolderProps {
 
 export function PasteInFolder({ item, shortcut }: PasteInFolderProps) {
   const t = useTranslations('article.file');
-  const { clipboardItem, clipboardOperation, setClipboardItem } = useClipboardStore();
-  const { loadFileTree } = useArticleStore();
+  const { clipboardItem, clipboardItems, clipboardOperation, setClipboardItem } = useClipboardStore();
+  const { loadFileTree, cleanTabsByDeletedFile, cleanTabsByDeletedFolder } = useArticleStore();
   const path = computedParentPath(item);
 
   async function handlePasteInFolder() {
     await pasteIntoFolder({
       clipboardItem,
+      clipboardItems,
       clipboardOperation,
       folderPath: path,
       emptyToastTitle: t('clipboard.empty'),
@@ -28,13 +29,15 @@ export function PasteInFolder({ item, shortcut }: PasteInFolderProps) {
       pasteFailedToastTitle: t('clipboard.pasteFailed'),
       loadFileTree,
       setClipboardItem,
+      cleanTabsByDeletedFile,
+      cleanTabsByDeletedFolder,
     })
   }
 
   return (
     <ContextMenuItem
       inset
-      disabled={!clipboardItem}
+      disabled={!clipboardItem && clipboardItems.length === 0}
       onClick={handlePasteInFolder}
       menuType="file"
     >

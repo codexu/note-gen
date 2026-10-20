@@ -1,12 +1,16 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { History, MessageSquarePlus, Search, Trash2 } from "lucide-react"
+import dynamic from "next/dynamic"
+import { History, MessageSquareDashed, MessageSquarePlus, Search, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import "dayjs/locale/zh-cn"
 import "dayjs/locale/en"
+import "dayjs/locale/ja"
+import "dayjs/locale/pt-br"
+import "dayjs/locale/de"
 import useChatStore from "@/stores/chat"
 import useSettingStore from "@/stores/setting"
 import { Button } from "@/components/ui/button"
@@ -18,22 +22,34 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
-import { SearchDialog } from "@/components/search-dialog"
+import { MobileMeSheet } from "@/app/mobile/components/mobile-me-sheet"
+
+const SearchDialog = dynamic(
+  () => import('@/components/search-dialog').then(module => module.SearchDialog),
+  { ssr: false },
+)
 
 dayjs.extend(relativeTime)
 
 function formatRelativeTime(timestamp: number, locale: string): string {
-  const dayjsLocale = locale === "en" ? "en" : "zh-cn"
+  let dayjsLocale = 'en'
+  if (locale === '简体中文' || locale === 'zh') dayjsLocale = 'zh-cn'
+  else if (locale === '日本語' || locale === 'ja') dayjsLocale = 'ja'
+  else if (locale === 'Português' || locale === 'pt-BR') dayjsLocale = 'pt-br'
+  else if (locale === 'Deutsch' || locale === 'de') dayjsLocale = 'de'
   return dayjs(timestamp).locale(dayjsLocale).fromNow()
 }
 
 export function MobileChatHeader() {
   const {
     startNewConversation,
+    startTemporaryConversation,
     conversations,
     currentConversationId,
+    isTemporaryConversation,
     switchConversation,
     deleteConversation,
+    chats,
     loading,
   } = useChatStore()
   const { language } = useSettingStore()
@@ -44,12 +60,13 @@ export function MobileChatHeader() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-
-  const hasCurrentMessages = conversations.some(
-    (conversation) =>
-      conversation.id === currentConversationId && conversation.messageCount > 0
-  )
-  const disableNewChat = !hasCurrentMessages || loading
+  const hasCurrentMessages = isTemporaryConversation
+    ? chats.length > 0
+    : conversations.some(
+      (conversation) =>
+        conversation.id === currentConversationId && conversation.messageCount > 0
+    )
+  const disableNewChat = (!hasCurrentMessages && !isTemporaryConversation) || loading
 
   const filteredConversations = useMemo(() => {
     return conversations
@@ -67,19 +84,18 @@ export function MobileChatHeader() {
   return (
     <>
       <header className="mobile-page-header w-full border-b px-2 flex items-center gap-2 bg-background">
-        <button
-          type="button"
-          aria-label={tSearch("placeholder")}
-          onClick={() => setSearchOpen(true)}
-          className="flex h-9 min-w-0 flex-1 items-center rounded-md border bg-muted/30 px-3 text-left"
-        >
-          <Search className="size-4 shrink-0 text-muted-foreground" />
-          <span className="ml-2 truncate text-sm text-muted-foreground">
-            {tSearch("placeholder")}
-          </span>
-        </button>
+        <MobileMeSheet />
 
-        <div className="flex items-center shrink-0">
+        <div className="ml-auto flex shrink-0 items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={tSearch("placeholder")}
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search />
+          </Button>
+
           <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>
               <Button variant="ghost" size="icon" aria-label={tEmpty("conversationHistory")}>
@@ -109,42 +125,52 @@ export function MobileChatHeader() {
                     </div>
                   ) : (
                     filteredConversations.map((conversation) => (
-                      <button
+                      <div
                         key={conversation.id}
-                        className="w-full text-left p-3 rounded-lg border mb-2 active:bg-accent transition-colors"
-                        onClick={() => {
-                          switchConversation(conversation.id)
-                          setDrawerOpen(false)
-                        }}
+                        className="mb-2 flex min-h-11 w-full items-stretch rounded-lg border transition-colors focus-within:bg-accent active:bg-accent"
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 p-3 text-left"
+                          onClick={() => {
+                            switchConversation(conversation.id)
+                            setDrawerOpen(false)
+                          }}
+                        >
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{conversation.title}</p>
                             <p className="text-xs text-muted-foreground mt-1">
                               {formatRelativeTime(conversation.updatedAt, language)}
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="shrink-0 size-8 text-muted-foreground active:text-destructive"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              deleteConversation(conversation.id)
-                            }}
-                            aria-label={tEmpty("deleteConversation")}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </button>
+                        </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="my-auto shrink-0 text-muted-foreground active:text-destructive"
+                          onClick={() => deleteConversation(conversation.id)}
+                          aria-label={tEmpty("deleteConversation")}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     ))
                   )}
                 </div>
               </div>
             </DrawerContent>
           </Drawer>
+
+          <Button
+            variant={isTemporaryConversation ? "secondary" : "ghost"}
+            size="icon"
+            aria-label={tInput("temporaryChat")}
+            onClick={startTemporaryConversation}
+            disabled={loading || isTemporaryConversation}
+          >
+            <MessageSquareDashed />
+          </Button>
 
           <Button
             variant="ghost"
@@ -155,9 +181,10 @@ export function MobileChatHeader() {
           >
             <MessageSquarePlus className="size-4" />
           </Button>
+
         </div>
       </header>
-      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      {searchOpen ? <SearchDialog open mobile onOpenChange={setSearchOpen} /> : null}
     </>
   )
 }

@@ -1,0 +1,7 @@
+# 项目级 Cargo 源配置。
+# 覆盖本机可能失效的全局 USTC 镜像，避免新增 Rust 依赖无法下载。
+[source.crates-io]
+replace-with = "rsproxy"
+
+[source.rsproxy]
+registry = "sparse+https://rsproxy.cn/index/"

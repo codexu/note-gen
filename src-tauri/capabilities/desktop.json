@@ -5,7 +5,7 @@
     "windows",
     "linux"
   ],
-  "windows": [
+  "webviews": [
     "main"
   ],
   "permissions": [
@@ -32,31 +32,20 @@
     "core:window:allow-unminimize",
     "os:default",
     "shell:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "bash",
-          "cmd": "bash",
-          "sidecar": false,
-          "args": true
-        },
-        {
-          "name": "python",
-          "cmd": "python",
-          "sidecar": false,
-          "args": true
-        },
-        {
-          "name": "python3",
-          "cmd": "python3",
-          "sidecar": false,
-          "args": true
-        }
-      ]
-    },
     "opener:default",
     "opener:allow-open-url",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "autostart:default",
+    "notification:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "x-apple.systempreferences:com.apple.preference.notifications" },
+        { "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" },
+        { "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" },
+        { "url": "ms-settings:notifications" },
+        { "url": "ms-settings:privacy-microphone" }
+      ]
+    }
   ]
 }

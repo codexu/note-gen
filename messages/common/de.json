@@ -1,0 +1,58 @@
+{
+  "maximizeWindow": "Fenster maximieren",
+  "restoreWindow": "Fenster wiederherstellen",
+  "providerSponsor": {
+    "label": "Sponsor",
+    "description": "Stellt NoteGen-Nutzern kostenlose Modellkontingente oder Dienste bereit."
+  },
+  "noteGenLimited": {
+    "usage": "{used}/{limit} genutzt",
+    "unlimited": "Unbegrenzte Anfragen",
+    "description": "Standardmäßig {model} mit bis zu {limit} Anfragen pro Tag, danach automatisch {freeModel}. Jede Modellanfrage zählt, einschließlich Agent-Runden. Zurücksetzung um Mitternacht chinesischer Zeit."
+  },
+  "requestErrors": {
+    "aiRequestFailed": "KI-Anfrage fehlgeschlagen",
+    "embeddingRequestFailed": "Embedding-Anfrage fehlgeschlagen",
+    "unknownError": "Der Dienst hat keine Fehlerdetails zurückgegeben"
+  },
+  "save": "Speichern",
+  "cancel": "Abbrechen",
+  "delete": "Löschen",
+  "edit": "Bearbeiten",
+  "create": "Erstellen",
+  "theme": "Design",
+  "light": "Hell",
+  "dark": "Dunkel",
+  "system": "System",
+  "pin": "Anheften",
+  "unpin": "Lösen",
+  "settings": "Einstellungen",
+  "back": "Zurück",
+  "sync": "Synchronisieren",
+  "language": "Sprache",
+  "confirm": "Bestätigen",
+  "success": "Erfolgreich",
+  "error": "Fehlgeschlagen",
+  "defaultFileName": "Unbenannt",
+  "restartToApply": ", bitte starte die Anwendung neu, damit die Konfiguration wirksam wird",
+  "unsaved": "Nicht gespeichert",
+  "saving": "Speichern...",
+  "close": "Schließen",
+  "open": "Öffnen",
+  "add": "Hinzufügen",
+  "remove": "Entfernen",
+  "search": "Suchen",
+  "filter": "Filtern",
+  "sort": "Sortieren",
+  "export": "Exportieren",
+  "import": "Importieren",
+  "refresh": "Aktualisieren",
+  "loading": "Laden...",
+  "all": "Alle",
+  "today": "Heute",
+  "yesterday": "Gestern",
+  "warning": "Warnung",
+  "info": "Info",
+  "configureSync": "Synchronisation konfigurieren"
+}
+

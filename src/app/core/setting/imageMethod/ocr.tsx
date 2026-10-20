@@ -1,47 +1,47 @@
-import { Input } from "@/components/ui/input";
-import { FormItem } from "../components/setting-base";
 import { useTranslations } from 'next-intl';
-import { useEffect } from "react";
-import useSettingStore from "@/stores/setting";
-import { Store } from "@tauri-apps/plugin-store";
-import { OpenBroswer } from "@/components/open-broswer";
-import { SetDefault } from "./setDefault";
+import { useEffect, useState } from "react";
+import { ScanText } from "lucide-react";
+import {
+  getInstalledOcrProviders,
+  OcrProviderPackage,
+} from "@/lib/ocr-packages";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { Badge } from "@/components/ui/badge";
 
 export function OcrSetting() {
   const t = useTranslations('settings.imageMethod.ocr');
-  const { tesseractList, setTesseractList } = useSettingStore()
+  const [providers, setProviders] = useState<OcrProviderPackage[]>([])
+  const provider = providers[0]
 
-  async function changeHandler(e: React.ChangeEvent<HTMLInputElement>) {
-    setTesseractList(e.target.value)
-    const store = await Store.load('store.json');
-    await store.set('tesseractList', e.target.value)
+  async function refreshPackages() {
+    const installedProviders = await getInstalledOcrProviders()
+    setProviders(installedProviders)
   }
 
   useEffect(() => {
-    async function init() {
-      const store = await Store.load('store.json');
-      const list = await store.get<string>('tesseractList')
-      if (list) {
-        setTesseractList(list)
-      } else {
-        setTesseractList('')
-      }
-    }
-    init()
+    refreshPackages()
   }, [])
 
   return (
-    <div className="space-y-8">
-      <FormItem title={t('languagePacks')}>
-        <Input value={tesseractList} onChange={changeHandler} />
-      </FormItem>
-      <div>
-        <span>
-          <OpenBroswer title={t('checkModels')} url="https://tesseract-ocr.github.io/tessdoc/Data-Files#data-files-for-version-400-november-29-2016" />
-          {t('modelInstruction')}
-        </span>
-      </div>
-      <SetDefault type="ocr" />
-    </div>
+    <Item variant="outline">
+      <ItemMedia variant="icon"><ScanText className="size-4" /></ItemMedia>
+      <ItemContent>
+        <ItemTitle>{t('title')}</ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          {provider ? t('desc') : t('noProviders')}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="max-md:w-full max-md:justify-start">
+        <Badge variant={provider ? 'secondary' : 'outline'}>
+          {provider ? t('ready') : t('unavailable')}
+        </Badge>
+      </ItemActions>
+      {provider && (
+        <ItemFooter className="mt-1 border-t pt-3 text-xs text-muted-foreground max-md:flex-col max-md:items-start">
+          <span>{t('provider')}: {provider.name || provider.id}</span>
+          <span>{[provider.platform, provider.version || t('unknownVersion')].filter(Boolean).join(' · ')}</span>
+        </ItemFooter>
+      )}
+    </Item>
   )
 }

@@ -8,24 +8,39 @@ import { Store } from '@tauri-apps/plugin-store';
 
 export default function NotFound() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(5);
+  const mobile = isMobileDevice()
+  const fallbackPath = mobile ? '/mobile/record' : '/core/main'
+  const fallbackLabel = mobile ? 'Record' : 'Main'
+  const [countdown, setCountdown] = useState(2);
 
-  async function clearRouteStore() {
+  async function resetRouteStore() {
     const store = await Store.load('store.json');
+    await store.set('currentPage', fallbackPath)
     await store.delete('lastSettingPage')
     await store.delete('lastRecordPage')
+    await store.save()
+  }
+
+  async function returnToFallback() {
+    await resetRouteStore()
+
+    if (typeof window !== 'undefined') {
+      window.location.replace(fallbackPath)
+      return
+    }
+
+    router.replace(fallbackPath)
   }
 
   useEffect(() => {
-    clearRouteStore()
-  }, [])
+    void resetRouteStore()
+  }, [fallbackPath])
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push(isMobileDevice() ? '/mobile/chat' : '/core/main');
-    }, 5000);
+      void returnToFallback()
+    }, 2000);
 
-    // Update countdown timer every second
     const countdownInterval = setInterval(() => {
       setCountdown((prevCount) => {
         if (prevCount <= 1) {
@@ -41,14 +56,14 @@ export default function NotFound() {
       clearTimeout(timer);
       clearInterval(countdownInterval);
     };
-  }, [router]);
+  }, [fallbackPath, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <h1 className="text-3xl font-bold mb-4">404 - Page Not Found</h1>
       <div className="text-center">
-        <p className="mb-6">Redirecting to the {isMobileDevice() ? 'Chat' : 'Record'} page in {countdown} seconds...</p>
-        <Button onClick={() => router.push(isMobileDevice() ? '/mobile/chat' : '/core/main')}>Go to {isMobileDevice() ? 'Chat' : 'Record'} Page Now</Button>
+        <p className="mb-6">Redirecting to the {fallbackLabel} page in {countdown} seconds...</p>
+        <Button onClick={() => void returnToFallback()}>Go to {fallbackLabel} Page Now</Button>
       </div>
     </div>
   );

@@ -1,0 +1,214 @@
+{
+  "providers": [
+    {
+      "key": "siliconflow",
+      "sponsored": true,
+      "title": "SiliconFlow",
+      "baseURL": "https://api.siliconflow.cn/v1",
+      "apiKeyUrl": "https://cloud.siliconflow.cn/i/O2ciJeZw",
+      "icon": "https://s2.loli.net/2025/09/09/D8Al2raSvewN5xn.jpg",
+      "enabled": true
+    },
+    {
+      "key": "aihubmix",
+      "sponsored": true,
+      "title": "AIHubMix",
+      "baseURL": "https://aihubmix.com/v1",
+      "apiKeyUrl": "https://aihubmix.com/?aff=6rfO",
+      "icon": "https://aihubmix.com/favicon.ico?v=2",
+      "enabled": true
+    },
+    {
+      "key": "packycode",
+      "title": "PackyCode",
+      "baseURL": "https://www.packyapi.ai/v1",
+      "apiKeyUrl": "https://www.packyapi.ai/register?aff=NqBq",
+      "icon": "https://files.seeusercontent.com/2026/09/14/qWi0/pasted-image-1789372842907.webp",
+      "promotion": "2折",
+      "enabled": true
+    },
+    {
+      "key": "infistar",
+      "title": "无限星河",
+      "baseURL": "https://infistar.cc/v1",
+      "apiKeyUrl": "https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link",
+      "icon": "https://infistar.cc/favicon.ico",
+      "promotion": "送$10",
+      "enabled": true
+    },
+    {
+      "key": "shengsuanyun",
+      "title": "胜算云",
+      "baseURL": "https://router.shengsuanyun.com/api/v1",
+      "apiKeyUrl": "https://www.shengsuanyun.com/?from=CH_YZ0Q43T6",
+      "icon": "https://s2.loli.net/2025/09/15/4qjswKyaRfZ8OxW.png",
+      "enabled": true
+    },
+    {
+      "key": "bailian",
+      "title": "阿里云百炼",
+      "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "apiKeyUrl": "https://bailian.console.aliyun.com/?apiKey=1",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/bailian-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "moonshot",
+      "title": "Kimi",
+      "baseURL": "https://api.moonshot.cn/v1",
+      "apiKeyUrl": "https://platform.kimi.com/console/api-keys",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/kimi-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "zhipu",
+      "title": "智谱 GLM",
+      "baseURL": "https://open.bigmodel.cn/api/paas/v4",
+      "apiKeyUrl": "https://open.bigmodel.cn/apikey/platform",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/zhipu-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "minimax",
+      "title": "MiniMax",
+      "baseURL": "https://api.minimaxi.com/v1",
+      "apiKeyUrl": "https://platform.minimaxi.com/subscribe/token-plan?code=1CnznNlJHf&source=link",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/minimax-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "volcengine",
+      "title": "火山方舟",
+      "baseURL": "https://ark.cn-beijing.volces.com/api/v3",
+      "apiKeyUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/doubao-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "qianfan",
+      "title": "百度千帆",
+      "baseURL": "https://qianfan.baidubce.com/v2",
+      "apiKeyUrl": "https://console.bce.baidu.com/iam/#/iam/apikey/list",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/baiducloud-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "hunyuan",
+      "title": "腾讯云 TokenHub",
+      "baseURL": "https://tokenhub.tencentmaas.com/v1",
+      "apiKeyUrl": "https://console.cloud.tencent.com/tokenhub/apikey",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/tencentcloud-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "stepfun",
+      "title": "阶跃星辰",
+      "baseURL": "https://api.stepfun.com/v1",
+      "apiKeyUrl": "https://platform.stepfun.com/interface-key",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/stepfun-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "lingyiwanwu",
+      "title": "零一万物",
+      "baseURL": "https://api.lingyiwanwu.com/v1",
+      "apiKeyUrl": "https://platform.lingyiwanwu.com/apikeys",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/yi-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "huaweicloud",
+      "title": "华为云 MaaS",
+      "baseURL": "https://api.modelarts-maas.com/openai/v1",
+      "apiKeyUrl": "https://console.huaweicloud.com/modelarts/?region=cn-north-4#/maas/overview",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/huaweicloud-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "baichuan",
+      "title": "百川智能",
+      "baseURL": "https://api.baichuan-ai.com/v1",
+      "apiKeyUrl": "https://platform.baichuan-ai.com/",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/baichuan-color.svg",
+      "enabled": true
+    },
+    {
+      "key": "gemini",
+      "title": "Gemini",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "apiKeyUrl": "https://aistudio.google.com/app/apikey",
+      "icon": "https://s2.loli.net/2025/06/25/JU2jVxLFsW4lB6S.png",
+      "enabled": true
+    },
+    {
+      "key": "grok",
+      "title": "Grok",
+      "baseURL": "https://api.x.ai/v1",
+      "apiKeyUrl": "https://console.x.ai/",
+      "icon": "https://s2.loli.net/2025/06/25/JBZMluaobKq43QE.png",
+      "enabled": true
+    },
+    {
+      "key": "ollama",
+      "title": "Ollama",
+      "baseURL": "http://localhost:11434/v1",
+      "icon": "https://s2.loli.net/2025/06/25/legkEpHACDBQ5Xz.png",
+      "enabled": true
+    },
+    {
+      "key": "lmstudio",
+      "title": "LM Studio",
+      "baseURL": "http://localhost:1234/v1",
+      "icon": "https://s2.loli.net/2025/06/25/IifFV4HTQ9dpGZE.png",
+      "enabled": true
+    },
+    {
+      "key": "deepseek",
+      "title": "DeepSeek",
+      "baseURL": "https://api.deepseek.com",
+      "apiKeyUrl": "https://platform.deepseek.com/api_keys",
+      "icon": "https://s2.loli.net/2025/06/25/n39WmsCDbVLQzjr.png",
+      "enabled": true
+    },
+    {
+      "key": "openrouter",
+      "title": "OpenRouter",
+      "baseURL": "https://openrouter.ai/api/v1",
+      "apiKeyUrl": "https://openrouter.ai/api-keys",
+      "icon": "https://s2.loli.net/2025/06/25/CTjSDHLl4XdvxM5.png",
+      "enabled": true
+    },
+    {
+      "key": "qiniu",
+      "title": "七牛云",
+      "baseURL": "https://openai.qiniu.com/v1",
+      "apiKeyUrl": "https://s.qiniu.com/v6Bnuu",
+      "icon": "https://s2.loli.net/2025/09/15/ALjNPveWrtmsfOY.png",
+      "enabled": true
+    },
+    {
+      "key": "302",
+      "title": "302.AI",
+      "baseURL": "https://api.302.ai/v1",
+      "apiKeyUrl": "https://share.302.ai/jfFrIP",
+      "icon": "https://s2.loli.net/2025/06/26/4CJOQ2U9ibvoGpR.png",
+      "enabled": true
+    },
+    {
+      "key": "gitee",
+      "title": "Gitee AI",
+      "baseURL": "https://ai.gitee.com/v1",
+      "apiKeyUrl": "https://ai.gitee.com/",
+      "icon": "https://s2.loli.net/2025/09/15/ih7aTnGPvELFsVc.png",
+      "enabled": true
+    },
+    {
+      "key": "ucloud",
+      "title": "优云智算",
+      "baseURL": "https://api.modelverse.cn/v1",
+      "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_JL_git_note-gen",
+      "icon": "https://files.seeusercontent.com/2026/03/26/L5pg/logo-compshare_.png",
+      "enabled": true
+    }
+  ]
+}

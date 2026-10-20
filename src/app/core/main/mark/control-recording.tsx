@@ -1,6 +1,5 @@
 import { insertMark } from "@/db/marks"
 import useMarkStore from "@/stores/mark"
-import useTagStore from "@/stores/tag"
 import useSettingStore from "@/stores/setting"
 import useRecordingStore from "@/stores/recording"
 import { Mic } from "lucide-react"
@@ -9,7 +8,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
 import { transcribeRecording } from '@/lib/audio'
-import { useRouter } from 'next/navigation'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readFile, writeFile, BaseDirectory, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { useRef } from 'react'
@@ -17,20 +15,20 @@ import { isMobileDevice } from '@/lib/check'
 import { convertToWav } from '@/lib/audio-converter'
 import { useEffect } from 'react'
 import emitter from '@/lib/emitter'
-import { handleRecordComplete } from '@/lib/record-navigation'
 import { getTranscriptionFallbackMessage } from '@/lib/speech/transcription-fallback.ts'
+import { useRecordCompletion } from './use-record-completion'
+import { getDefaultRecordSaveTagId } from '@/lib/record-save-target'
 
 export function ControlRecording() {
   const t = useTranslations();
-  const router = useRouter();
   const { sttModel } = useSettingStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = isMobileDevice();
   const lastClickTime = useRef<number>(0);
   const clickTimer = useRef<NodeJS.Timeout | null>(null);
+  const completeRecord = useRecordCompletion();
 
-  const { currentTagId, fetchTags, getCurrentTag } = useTagStore()
-  const { fetchMarks, addQueue, removeQueue } = useMarkStore()
+  const { addQueue, removeQueue } = useMarkStore()
   
   // 大模型录音
   const {
@@ -44,10 +42,10 @@ export function ControlRecording() {
   // 监听快捷键
   useEffect(() => {
     const handleToggleRecording = () => {
-      if (isRecording) {
-        handleStop()
+      if (useRecordingStore.getState().isRecording) {
+        void handleStop()
       } else {
-        handleStart()
+        void handleStart()
       }
     }
     
@@ -55,7 +53,7 @@ export function ControlRecording() {
     return () => {
       emitter.off('toolbar-shortcut-recording', handleToggleRecording)
     }
-  }, [isRecording])
+  })
 
   // 格式化录音时长
   const formatDuration = (seconds: number) => {
@@ -68,9 +66,6 @@ export function ControlRecording() {
   const handleStart = async () => {
     try {
       await startRecording()
-      
-      // 记录完成后的导航处理（桌面端切换tab，移动端跳转页面）
-      handleRecordComplete(router)
     } catch (error) {
       cancelRecording()
       toast({
@@ -94,18 +89,19 @@ export function ControlRecording() {
       
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
+      const tagId = await getDefaultRecordSaveTagId()
       
       // 添加到队列中显示识别中的状态
       addQueue({
         queueId,
-        tagId: currentTagId,
+        tagId,
         type: 'recording',
         progress: t('recording.processing'),
         startTime: Date.now()
       })
-      
+
       // 后台异步识别（使用转换后的 WAV）
-      processTranscription(wavBlob, queueId)
+      processTranscription(wavBlob, queueId, tagId)
       
     } catch (error) {
       console.error('停止录音失败:', error)
@@ -152,6 +148,7 @@ export function ControlRecording() {
   const processTranscription = async (
     audioBlob: Blob,
     queueId: string,
+    tagId: number,
   ) => {
     let audioPath = ''
     try {
@@ -176,21 +173,23 @@ export function ControlRecording() {
       const fallbackMessage = getTranscriptionFallbackMessage(sttModel)
       const displayContent = noContent ? (fallbackMessage || t('recording.noContentDetected')) : transcription
       
-      await insertMark({
-        tagId: currentTagId,
+      const result = await insertMark({
+        tagId,
         type: 'recording',
         desc: displayContent.substring(0, 100),
         content: displayContent,
         url: audioPath  // 保存音频文件路径
       })
+      const markId = Number(result.lastInsertId || 0) || null
       
       // 移除队列
       removeQueue(queueId)
-      
-      // 刷新列表
-      await fetchMarks()
-      await fetchTags()
-      getCurrentTag()
+
+      await completeRecord({
+        markId,
+        tagId,
+        typeLabel: t('record.mark.type.recording'),
+      })
       
       // 录制结束后不再显示提示
     } catch (error) {
@@ -248,18 +247,19 @@ export function ControlRecording() {
 
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
+      const tagId = await getDefaultRecordSaveTagId()
       
       // 添加到队列中显示识别中的状态
       addQueue({
         queueId,
-        tagId: currentTagId,
+        tagId,
         type: 'recording',
         progress: t('recording.processing'),
         startTime: Date.now()
       })
       
       // 后台异步识别
-      processTranscription(audioBlob, queueId)
+      processTranscription(audioBlob, queueId, tagId)
       
     } catch (error) {
       console.error('文件选择失败:', error)
@@ -279,18 +279,19 @@ export function ControlRecording() {
     try {
       // 创建队列ID
       const queueId = `recording-${Date.now()}`
+      const tagId = await getDefaultRecordSaveTagId()
       
       // 添加到队列中显示识别中的状态
       addQueue({
         queueId,
-        tagId: currentTagId,
+        tagId,
         type: 'recording',
         progress: t('recording.processing'),
         startTime: Date.now()
       })
       
       // 后台异步识别（File 对象就是 Blob，直接传递）
-      processTranscription(file, queueId)
+      processTranscription(file, queueId, tagId)
       
       // 重置 input
       event.target.value = ''
@@ -317,7 +318,7 @@ export function ControlRecording() {
         clickTimer.current = null
       }
       lastClickTime.current = 0 // 重置，避免三连击
-      handleFileSelect()
+      void handleFileSelect()
     } else {
       // 单击：延迟执行，等待可能的第二次点击
       lastClickTime.current = now
@@ -330,9 +331,9 @@ export function ControlRecording() {
       // 延迟300ms执行单击操作，如果期间有第二次点击则会被取消
       clickTimer.current = setTimeout(() => {
         if (isRecording) {
-          handleStop()
+          void handleStop()
         } else {
-          handleStart()
+          void handleStart()
         }
         clickTimer.current = null
       }, 300)

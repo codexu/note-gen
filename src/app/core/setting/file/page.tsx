@@ -1,7 +1,7 @@
 'use client'
 import { SettingWorkspace } from "./setting-workspace"
 import { SettingAssets } from "./setting-assets"
-import { SettingType } from "../components/setting-base"
+import { SettingSection, SettingType } from "../components/setting-base"
 import { FolderOpen } from "lucide-react"
 import { useTranslations } from 'next-intl'
 
@@ -15,9 +15,13 @@ export default function SettingFilePage() {
       desc={t('desc')}
       icon={<FolderOpen className="w-5 h-5" />}
     >
-      <div className="space-y-8">
-        <SettingWorkspace />
-        <SettingAssets />
+      <div className="flex flex-col gap-6">
+        <SettingSection title={t('workspace.current')}>
+          <SettingWorkspace showTitle={false} />
+        </SettingSection>
+        <SettingSection title={t('assets.title')}>
+          <SettingAssets showTitle={false} />
+        </SettingSection>
       </div>
     </SettingType>
   )

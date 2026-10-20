@@ -17,7 +17,7 @@ function getCurrentTagId(tagId?: number): number {
 
 export const readMarksTool: Tool = {
   name: 'read_marks',
-  description: 'Read all content records (marks) under a specific tag. Uses current selected tag if tagId not specified.',
+  description: 'Read all records under a known, specific tag only when the user explicitly requests that complete tag or a record-management operation needs it. Never use this tool to discover saved knowledge or answer a knowledge question; use knowledge_search instead. Uses the current selected tag if tagId is omitted.',
   category: 'mark',
   requiresConfirmation: false,
   parameters: [
@@ -141,7 +141,7 @@ export const updateMarkTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
-      const marks = await getMarks(params.tagId || 1)
+      const marks = await getAllMarks()
       const mark = marks.find(m => m.id === params.id)
       
       if (!mark) {
@@ -156,6 +156,18 @@ export const updateMarkTool: Tool = {
         content: params.content !== undefined ? params.content : mark.content,
         desc: params.desc !== undefined ? params.desc : mark.desc,
         tagId: params.tagId !== undefined ? params.tagId : mark.tagId,
+      }
+
+      if (
+        updatedMark.content === mark.content &&
+        updatedMark.desc === mark.desc &&
+        updatedMark.tagId === mark.tagId
+      ) {
+        return {
+          success: true,
+          data: { id: mark.id, unchanged: true },
+          message: `记录 ID: ${params.id} 已是目标状态，无需重复更新`,
+        }
       }
       
       await updateMark(updatedMark)
@@ -187,9 +199,19 @@ export const deleteMarkTool: Tool = {
   ],
   execute: async (params): Promise<ToolResult> => {
     try {
+      const marks = await getAllMarks()
+      const mark = marks.find(item => item.id === params.id)
+      if (!mark || mark.deleted === 1) {
+        return {
+          success: true,
+          data: { id: params.id, alreadyAbsent: true },
+          message: `记录 ID: ${params.id} 已删除，无需重复操作`,
+        }
+      }
       await delMark(params.id)
       return {
         success: true,
+        data: { id: params.id, alreadyAbsent: false },
         message: `成功删除记录 ID: ${params.id}`,
       }
     } catch (error) {

@@ -3,20 +3,18 @@
 import { useEffect, useState } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { isMobileDevice } from '@/lib/check'
-import { Search, Settings, Minus, Square, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
+import { Settings, Minus, Square, Copy, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
+import { PluginTitleBar } from './plugins/plugin-title-bar'
 import { PinToggle } from './pin-toggle'
-import { SyncToggle } from './title-bar-toolbars/sync-toggle'
 import AppStatus from './app-status'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import useSettingStore from '@/stores/setting'
-import useArticleStore from '@/stores/article'
 import useUpdateStore from '@/stores/update'
-import React from 'react'
 import { ControlText } from '@/app/core/main/mark/control-text'
 import { ControlRecording } from '@/app/core/main/mark/control-recording'
 import { ControlScan } from '@/app/core/main/mark/control-scan'
@@ -39,18 +37,15 @@ import {
 } from '@dnd-kit/sortable'
 import { DraggableToolbarItem } from './draggable-toolbar-item'
 import { useToolbarShortcuts } from '@/hooks/use-toolbar-shortcuts'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
-interface TitleBarProps {
-  onSearchClick?: () => void
-}
-
-export function TitleBar({ onSearchClick }: TitleBarProps) {
+export function TitleBar() {
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isMobile, setIsMobile] = useState(true)
-  const pathname = usePathname()
-  const router = useRouter()
+  const [isMaximized, setIsMaximized] = useState(false)
+  const { open: settingsOpen, openSettings, closeSettings } = useSettingsDialogStore()
   const { leftSidebarVisible, centerPanelVisible, rightSidebarVisible, toggleLeftSidebar, toggleCenterPanel, toggleRightSidebar } = useSidebarStore()
   
   // 检查关闭面板后是否会导致"仅左"状态或无面板状态
@@ -72,19 +67,9 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
     return false
   }
   const { recordToolbarConfig, setRecordToolbarConfig } = useSettingStore()
-  const { activeFilePath } = useArticleStore()
   const { hasUpdate } = useUpdateStore()
   const t = useTranslations()
   const { isModifierPressed } = useToolbarShortcuts()
-
-  const getFileName = () => {
-    if (!activeFilePath) return ''
-    const parts = activeFilePath.split('/')
-    return parts[parts.length - 1]
-  }
-
-  const searchPlaceholder = getFileName() || t('navigation.searchPlaceholder')
-
 
   // 拖拽传感器配置
   const sensors = useSensors(
@@ -133,6 +118,45 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
 
 
 
+  useEffect(() => {
+    if (isMobile || (currentPlatform !== 'windows' && currentPlatform !== 'linux')) return
+
+    const window = getCurrentWindow()
+    let disposed = false
+    let unlisten: UnlistenFn | undefined
+    let requestId = 0
+
+    const syncMaximized = async () => {
+      const currentRequest = ++requestId
+      try {
+        const maximized = await window.isMaximized()
+        if (!disposed && currentRequest === requestId) setIsMaximized(maximized)
+      } catch (error) {
+        console.error('Error reading maximized window state:', error)
+      }
+    }
+
+    const initialize = async () => {
+      try {
+        const stopListening = await window.onResized(syncMaximized)
+        if (disposed) {
+          stopListening()
+          return
+        }
+        unlisten = stopListening
+      } catch (error) {
+        console.error('Error listening for window resize:', error)
+      }
+      await syncMaximized()
+    }
+
+    void initialize()
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [currentPlatform, isMobile])
+
   const handleMinimize = async () => {
     try {
       const window = getCurrentWindow()
@@ -146,6 +170,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
     try {
       const window = getCurrentWindow()
       await window.toggleMaximize()
+      setIsMaximized(await window.isMaximized())
     } catch (error) {
       console.error('Error maximizing window:', error)
     }
@@ -177,7 +202,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
   return (
     <TooltipProvider>
       <div
-        className="h-[36px] w-full flex flex-nowrap items-center select-none shrink-0 fixed top-0 left-0 right-0 z-[9999] border-b bg-background"
+        className="fixed top-0 right-0 left-0 z-40 flex h-[36px] w-full shrink-0 flex-nowrap items-center border-b bg-background select-none"
         style={{
           // macOS 红绿灯按钮在左侧，需要留出空间（约 70px）
           paddingLeft: isMacOS ? '70px' : '0',
@@ -185,7 +210,7 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
         data-tauri-drag-region
       >
         {/* 左侧记录工具栏按钮 */}
-        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+        <div id="onboarding-target-record-toolbar" className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
           <TooltipProvider>
             <DndContext
               sensors={sensors}
@@ -239,22 +264,15 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
           </TooltipProvider>
         </div>
 
-        {/* 中间搜索输入框 */}
-        <div className="flex-1 flex items-center justify-center px-4 min-w-[200px] max-w-[600px] mx-auto" data-tauri-drag-region>
-          <div 
-            className="relative w-full h-6 max-w-md group cursor-pointer flex justify-center items-center border rounded-sm"
-            onClick={() => onSearchClick?.()}
-            data-tauri-drag-region="false"
-          >
-            <Search className="size-3.5 text-muted-foreground" />
-            <div className="pl-2 text-xs text-muted-foreground transition-colors">
-              <span className="truncate">{searchPlaceholder}</span>
-            </div>
-          </div>
+        <PluginTitleBar location="title-bar-left" />
+
+        <div className="flex min-w-[120px] flex-1 items-center justify-center self-stretch px-[60px]" data-tauri-drag-region>
+          <PluginTitleBar location="title-bar-center" />
         </div>
 
         {/* 右侧按钮 */}
         <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+          <PluginTitleBar location="title-bar-right" />
           {/* 左侧边栏切换按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -318,8 +336,6 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
             </TooltipContent>
           </Tooltip>
           
-          <SyncToggle />
-          
           <PinToggle />
           
           <Tooltip>
@@ -327,27 +343,21 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 relative ${pathname.includes('/core/setting') ? 'bg-primary/50 hover:bg-primary/60' : ''}`}
-                onClick={() => {
-                  if (pathname.includes('/core/setting')) {
-                    router.push('/core/main')
-                  } else {
-                    router.push('/core/setting')
-                  }
-                }}
+                className={`h-8 w-8 relative ${settingsOpen ? 'bg-primary/50 hover:bg-primary/60' : ''}`}
+                onClick={() => settingsOpen ? closeSettings() : openSettings()}
               >
-                {pathname.includes('/core/setting') ? (
+                {settingsOpen ? (
                   <Cog className="h-4 w-4" />
                 ) : (
                   <Settings className="h-4 w-4" />
                 )}
-                {hasUpdate && !pathname.includes('/core/setting') && (
+                {hasUpdate && !settingsOpen && (
                   <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
                 )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>{pathname.includes('/core/setting') ? t('common.back') : t('common.settings')}</p>
+              <p>{settingsOpen ? t('common.back') : t('common.settings')}</p>
             </TooltipContent>
           </Tooltip>
           
@@ -370,8 +380,10 @@ export function TitleBar({ onSearchClick }: TitleBarProps) {
               size="icon"
               className="h-9 w-12 rounded-none hover:bg-accent"
               onClick={handleMaximize}
+              title={isMaximized ? t('common.restoreWindow') : t('common.maximizeWindow')}
+              aria-label={isMaximized ? t('common.restoreWindow') : t('common.maximizeWindow')}
             >
-              <Square className="h-3.5 w-3.5" />
+              {isMaximized ? <Copy data-icon="inline-start" /> : <Square data-icon="inline-start" />}
             </Button>
             <Button
               variant="ghost"

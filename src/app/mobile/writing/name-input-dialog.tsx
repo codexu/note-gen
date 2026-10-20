@@ -2,13 +2,14 @@
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useCallback, useRef } from 'react'
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/responsive-dialog'
 
 interface NameInputDialogProps {
   open: boolean
@@ -35,13 +36,30 @@ export function NameInputDialog({
   onConfirm,
   onOpenChange,
 }: NameInputDialogProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleOpenAutoFocus = useCallback((event: Event) => {
+    event.preventDefault()
+  }, [])
+
+  const handleAnimationEnd = useCallback((event: React.AnimationEvent<HTMLDivElement>) => {
+    if (!open || event.currentTarget.dataset.state !== 'open') return
+
+    inputRef.current?.focus()
+  }, [open])
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[92vw] max-w-sm p-4">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent
+        className="p-4 sm:max-w-sm"
+        onOpenAutoFocus={handleOpenAutoFocus}
+        onAnimationEnd={handleAnimationEnd}
+      >
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{title}</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <Input
+          ref={inputRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
@@ -51,9 +69,8 @@ export function NameInputDialog({
               onConfirm()
             }
           }}
-          autoFocus
         />
-        <DialogFooter className="flex-row justify-end gap-2 sm:space-x-0">
+        <ResponsiveDialogFooter className="flex-row justify-end gap-2 sm:space-x-0">
           <Button
             variant="outline"
             size="sm"
@@ -68,8 +85,8 @@ export function NameInputDialog({
           >
             {confirmText}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

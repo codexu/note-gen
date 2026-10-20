@@ -12,6 +12,7 @@ import {
   SCRIPT_EXTENSIONS,
   SCRIPT_SHEBANG,
 } from './types'
+import { parse as parseYaml } from 'yaml'
 
 // ============================================================================
 // 解析函数
@@ -62,210 +63,42 @@ export function parseSkillFile(content: string): ParsedSkillFile {
  * @returns 解析后的元数据对象
  */
 function parseYamlMetadata(yamlContent: string): SkillYamlMetadata {
-  const metadata: SkillYamlMetadata = {
-    name: '',
-    description: '',
+  const parsed: unknown = parseYaml(yamlContent)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid SKILL.md: YAML frontmatter must be an object')
   }
 
-  const lines = yamlContent.split('\n')
-  let inMetadataSection = false
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // 跳过空行和注释
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue
-    }
-
-    // 检查是否进入 metadata 部分
-    if (trimmed === 'metadata:') {
-      inMetadataSection = true
-      continue
-    }
-
-    // 如果在 metadata 部分中，处理缩进的键值对
-    if (inMetadataSection) {
-      if (trimmed.startsWith('- ')) {
-        // 列表项，跳过（由下面的逻辑处理）
-      } else if (trimmed.startsWith('[')) {
-        // 数组格式，跳过
-      } else {
-        const metadataIndent = line.match(/^(\s+)/)?.[1]?.length || 0
-        if (metadataIndent > 0) {
-          // metadata 下的子项
-          const colonIndex = trimmed.indexOf(':')
-          if (colonIndex > 0) {
-            const key = trimmed.slice(0, colonIndex).trim()
-            const value = trimmed.slice(colonIndex + 1).trim()
-
-            if (!metadata.metadata) {
-              metadata.metadata = {}
-            }
-            metadata.metadata[key] = parseValue(value)
-            continue
-          }
-        } else {
-          // 退出 metadata 部分
-          inMetadataSection = false
-        }
-      }
-    }
-
-    // 检测 allowedTools 的 YAML 列表格式: allowedTools: 后跟 - item 行
-    if ((trimmed.startsWith('allowedTools:') || trimmed.startsWith('allowed-tools:')) &&
-        !trimmed.includes(': ') && !trimmed.includes(':[')) {
-      // 这是列表格式的开始，收集后续的 - item 行
-      const tools: string[] = []
-      const currentLineIndex = lines.indexOf(line)
-      const currentIndent = line.match(/^(\s+)/)?.[1]?.length || 0
-
-      // 收集后续行
-      for (let i = currentLineIndex + 1; i < lines.length; i++) {
-        const nextLine = lines[i]
-        const nextTrimmed = nextLine.trim()
-
-        // 检查是否退出（无缩进或非列表项）
-        const nextIndent = nextLine.match(/^(\s+)/)?.[1]?.length || 0
-        if (nextTrimmed && nextIndent <= currentIndent && !nextTrimmed.startsWith('-')) {
-          break
-        }
-
-        if (nextTrimmed.startsWith('- ')) {
-          const tool = nextTrimmed.replace(/^- /, '').trim().replace(/['"]/g, '')
-          if (tool) {
-            tools.push(tool)
-          }
-        }
-      }
-
-      if (tools.length > 0) {
-        metadata.allowedTools = tools
-        continue
-      }
-    }
-
-    // 解析顶级键值对
-    const colonIndex = trimmed.indexOf(':')
-    if (colonIndex === -1) {
-      continue
-    }
-
-    const key = trimmed.slice(0, colonIndex).trim()
-    const value = trimmed.slice(colonIndex + 1).trim()
-
-    switch (key) {
-      case 'name':
-        metadata.name = value
-        break
-      case 'description':
-        metadata.description = value
-        break
-      case 'license':
-        metadata.license = value
-        break
-      case 'compatibility':
-        metadata.compatibility = value
-        break
-      case 'metadata':
-        // metadata: 开始标记，将在下一次迭代处理
-        inMetadataSection = true
-        if (!metadata.metadata) {
-          metadata.metadata = {}
-        }
-        break
-      case 'allowed-tools':
-      case 'allowedTools':
-        metadata.allowedTools = parseAllowedTools(value)
-        break
-      case 'version':
-        metadata.version = value
-        // 同时存入 metadata 中（向后兼容）
-        if (!metadata.metadata) {
-          metadata.metadata = {}
-        }
-        metadata.metadata.version = value
-        break
-      case 'author':
-        metadata.author = value
-        // 同时存入 metadata 中（向后兼容）
-        if (!metadata.metadata) {
-          metadata.metadata = {}
-        }
-        metadata.metadata.author = value
-        break
-      case 'model':
-        metadata.model = value
-        break
-      case 'userInvocable':
-        metadata.userInvocable = parseBoolean(value)
-        break
-    }
+  const value = parsed as Record<string, unknown>
+  const stringValue = (input: unknown): string | undefined => {
+    if (typeof input === 'string') return input
+    if (typeof input === 'number' || typeof input === 'boolean') return String(input)
+    return undefined
   }
+  const metadataValue = value.metadata
+  const metadata = metadataValue && typeof metadataValue === 'object' && !Array.isArray(metadataValue)
+    ? Object.fromEntries(Object.entries(metadataValue).flatMap(([key, item]) => {
+        const normalized = stringValue(item)
+        return normalized === undefined ? [] : [[key, normalized]]
+      }))
+    : undefined
+  const allowedToolsValue = value['allowed-tools'] ?? value.allowedTools
+  const allowedTools = Array.isArray(allowedToolsValue)
+    ? allowedToolsValue.map(stringValue).filter((tool): tool is string => Boolean(tool))
+    : stringValue(allowedToolsValue)?.split(/\s+/).filter(Boolean)
+  const userInvocableValue = value.userInvocable ?? value['user-invocable']
 
-  return metadata
-}
-
-/**
- * 解析值（去除引号）
- */
-function parseValue(value: string): string {
-  value = value.trim()
-  if ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))) {
-    return value.slice(1, -1)
+  return {
+    name: stringValue(value.name) ?? '',
+    description: stringValue(value.description) ?? '',
+    license: stringValue(value.license),
+    compatibility: stringValue(value.compatibility),
+    metadata,
+    allowedTools,
+    version: stringValue(value.version) ?? metadata?.version,
+    author: stringValue(value.author) ?? metadata?.author,
+    model: stringValue(value.model),
+    userInvocable: typeof userInvocableValue === 'boolean' ? userInvocableValue : undefined,
   }
-  return value
-}
-
-/**
- * 解析 allowedTools 字段
- *
- * 支持多种格式：
- * - 空格分隔: allowed-tools: Bash Read Write
- * - 数组格式: allowedTools: [tool1, tool2]
- * - YAML 列表格式:
- *   allowedTools:
- *     - tool1
- *     - tool2
- *
- * @param value - allowedTools 的值
- * @returns 工具名称数组
- */
-function parseAllowedTools(value: string): string[] {
-  value = value.trim()
-
-  // 空格分隔格式 (官方规范)
-  if (!value.startsWith('[') && !value.startsWith('-')) {
-    return value.split(/\s+/).filter(v => v.length > 0)
-  }
-
-  // 数组格式: [tool1, tool2]
-  if (value.startsWith('[') && value.endsWith(']')) {
-    return value
-      .slice(1, -1)
-      .split(',')
-      .map((v) => v.trim().replace(/['"]/g, ''))
-      .filter((v) => v.length > 0)
-  }
-
-  // 单个值
-  if (value.length > 0 && !value.startsWith('-')) {
-    return [value.replace(/['"]/g, '')]
-  }
-
-  return []
-}
-
-/**
- * 解析布尔值
- *
- * @param value - 布尔值的字符串表示
- * @returns 解析后的布尔值
- */
-function parseBoolean(value: string): boolean {
-  const normalized = value.toLowerCase().trim()
-  return normalized === 'true' || normalized === 'yes' || normalized === '1'
 }
 
 // ============================================================================

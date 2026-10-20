@@ -3,16 +3,14 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { LeftSidebar } from "./left-sidebar"
 import { EditorLayout } from './editor/editor-layout'
-import Chat from './chat'
+import { PluginRightSidebar } from '@/components/plugins/plugin-right-sidebar'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
 import { useEffect, useState, useRef } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
-import { ImperativePanelHandle } from 'react-resizable-panels'
-import { invoke } from "@tauri-apps/api/core"
-import { getCurrentWindow } from "@tauri-apps/api/window"
-import emitter from '@/lib/emitter'
-import { useRouter } from 'next/navigation'
+import { Layout, PanelImperativeHandle } from 'react-resizable-panels'
+import { restoreEditorWindows } from '@/lib/editor-windows'
+import { MainStatusBar } from './main-status-bar'
 
 function getDefaultLayout(layoutKey: string) {
   const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
@@ -60,17 +58,27 @@ function ResizableWrapper() {
     leftSidebarVisible, 
     centerPanelVisible, 
     rightSidebarVisible, 
-    initSidebarState
+    initSidebarState,
+    toggleLeftSidebar,
+    toggleRightSidebar,
   } = useSidebarStore()
   
-  const leftPanelRef = useRef<ImperativePanelHandle>(null)
-  const centerPanelRef = useRef<ImperativePanelHandle>(null)
-  const rightPanelRef = useRef<ImperativePanelHandle>(null)
+  const leftPanelRef = useRef<PanelImperativeHandle>(null)
+  const centerPanelRef = useRef<PanelImperativeHandle>(null)
+  const rightPanelRef = useRef<PanelImperativeHandle>(null)
   
-  const MIN_SIDEBAR_WIDTH_PX = 280
+  const MIN_LEFT_SIDEBAR_WIDTH_PX = 320
+  const MIN_RIGHT_SIDEBAR_WIDTH_PX = 280
   const MIN_EDITOR_WIDTH_PX = 400
-  const [minSidebarSize, setMinSidebarSize] = useState(20)
+  const [minLeftSidebarSize, setMinLeftSidebarSize] = useState(24)
+  const [minRightSidebarSize, setMinRightSidebarSize] = useState(20)
   const [minEditorSize, setMinEditorSize] = useState(30)
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(!leftSidebarVisible)
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(!rightSidebarVisible)
+
+  useEffect(() => {
+    void restoreEditorWindows()
+  }, [])
   
   // 使用稳定的 layoutKey 用于存储，但不作为 React key
   const visiblePanels = [
@@ -82,28 +90,50 @@ function ResizableWrapper() {
   
   const calculateMinSizes = () => {
     const windowWidth = window.innerWidth
-    const minSidebarPercent = Math.max(15, (MIN_SIDEBAR_WIDTH_PX / windowWidth) * 100)
-    const minEditorPercent = Math.max(25, (MIN_EDITOR_WIDTH_PX / windowWidth) * 100)
-    setMinSidebarSize(Math.min(minSidebarPercent, 40))
-    setMinEditorSize(Math.min(minEditorPercent, 50))
+    const preferredSizes = {
+      left: Math.min(Math.max(18, (MIN_LEFT_SIDEBAR_WIDTH_PX / windowWidth) * 100), 40),
+      center: Math.min(Math.max(25, (MIN_EDITOR_WIDTH_PX / windowWidth) * 100), 50),
+      right: Math.min(Math.max(15, (MIN_RIGHT_SIDEBAR_WIDTH_PX / windowWidth) * 100), 40),
+    }
+    const visibleMinimumTotal = (
+      (leftSidebarVisible ? preferredSizes.left : 0)
+      + (centerPanelVisible ? preferredSizes.center : 0)
+      + (rightSidebarVisible ? preferredSizes.right : 0)
+    )
+    const scale = visibleMinimumTotal > 99 ? 99 / visibleMinimumTotal : 1
+
+    setMinLeftSidebarSize(preferredSizes.left * (leftSidebarVisible ? scale : 1))
+    setMinEditorSize(preferredSizes.center * (centerPanelVisible ? scale : 1))
+    setMinRightSidebarSize(preferredSizes.right * (rightSidebarVisible ? scale : 1))
   }
 
   // 初始化侧边栏状态
   useEffect(() => {
     initSidebarState()
+  }, [initSidebarState])
+
+  // 窗口或可见面板变化时，重新平衡各面板的最小宽度
+  useEffect(() => {
     calculateMinSizes()
-    
+
     window.addEventListener('resize', calculateMinSizes)
     return () => window.removeEventListener('resize', calculateMinSizes)
-  }, [])
+  }, [centerPanelVisible, leftSidebarVisible, rightSidebarVisible])
 
   // 当面板可见性变化时，控制面板的折叠和展开
   useEffect(() => {
+    const expandPanel = (panel: PanelImperativeHandle, fallbackSize: number) => {
+      panel.expand()
+      if (panel.getSize().asPercentage < 1) {
+        panel.resize(`${fallbackSize}%`)
+      }
+    }
+
     const timer = setTimeout(() => {
       // 左侧面板
       if (leftPanelRef.current) {
         if (leftSidebarVisible) {
-          leftPanelRef.current.expand()
+          expandPanel(leftPanelRef.current, minLeftSidebarSize)
         } else {
           leftPanelRef.current.collapse()
         }
@@ -112,7 +142,7 @@ function ResizableWrapper() {
       // 中间面板
       if (centerPanelRef.current) {
         if (centerPanelVisible) {
-          centerPanelRef.current.expand()
+          expandPanel(centerPanelRef.current, minEditorSize)
         } else {
           centerPanelRef.current.collapse()
         }
@@ -121,14 +151,14 @@ function ResizableWrapper() {
       // 右侧面板
       if (rightPanelRef.current) {
         if (rightSidebarVisible) {
-          rightPanelRef.current.expand()
+          expandPanel(rightPanelRef.current, minRightSidebarSize)
         } else {
           rightPanelRef.current.collapse()
         }
       }
     }, 100)
     return () => clearTimeout(timer)
-  }, [leftSidebarVisible, centerPanelVisible, rightSidebarVisible])
+  }, [leftSidebarVisible, centerPanelVisible, rightSidebarVisible, minEditorSize, minLeftSidebarSize, minRightSidebarSize])
 
   // 根据面板可见性渲染布局
   // 注意：左侧面板始终渲染，所以 layoutKey 用于存储，但实际布局计算需要考虑左侧始终存在
@@ -147,10 +177,27 @@ function ResizableWrapper() {
   }
   
   const actualLayout = getActualLayout()
+
+  const revealLeftPanel = () => {
+    if (!leftSidebarVisible) {
+      void toggleLeftSidebar()
+      return
+    }
+    leftPanelRef.current?.expand()
+  }
+
+  const revealRightPanel = () => {
+    if (!rightSidebarVisible) {
+      void toggleRightSidebar()
+      return
+    }
+    rightPanelRef.current?.expand()
+  }
   
-  const onLayout = (sizes: number[]) => {
+  const onLayout = (layout: Layout) => {
     // 保存当前面板布局
     const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
+    const sizes = ['left', 'center', 'right'].map((id) => layout[id] ?? 0)
     localStorage.setItem(storageKey, JSON.stringify(sizes));
   };
 
@@ -163,11 +210,13 @@ function ResizableWrapper() {
     panels.push(
       <ResizablePanel
         key="left"
-        ref={leftPanelRef}
-        defaultSize={actualLayout[index++]}
-        minSize={minSidebarSize}
+        id="left"
+        panelRef={leftPanelRef}
+        defaultSize={`${actualLayout[index++]}%`}
+        minSize={`${minLeftSidebarSize}%`}
         collapsible={true}
-        collapsedSize={0}
+        collapsedSize="0%"
+        onResize={(size) => setLeftPanelCollapsed(size.asPercentage < 0.1)}
       >
         <LeftSidebar />
       </ResizablePanel>
@@ -175,11 +224,16 @@ function ResizableWrapper() {
 
     // 左侧和中间之间的分隔条
     // 当中间面板可见时显示；当中间面板不可见但左右都可见时也显示（作为左右分隔条）
-    const shouldShowLeftHandle = leftSidebarVisible && (centerPanelVisible || rightSidebarVisible)
+    const shouldShowLeftHandle = centerPanelVisible || rightSidebarVisible
+    const isLeftHandleCollapsed = leftPanelCollapsed || !leftSidebarVisible
     panels.push(
       <ResizableHandle
         key="handle-left-center"
-        className={`${!shouldShowLeftHandle ? 'hidden' : ''}`}
+        withHandle
+        collapsed={isLeftHandleCollapsed}
+        expandDirection="right"
+        className={shouldShowLeftHandle ? undefined : 'hidden'}
+        onClick={isLeftHandleCollapsed ? revealLeftPanel : undefined}
       />
     )
 
@@ -187,22 +241,31 @@ function ResizableWrapper() {
     panels.push(
       <ResizablePanel
         key="center"
-        ref={centerPanelRef}
-        defaultSize={actualLayout[index++]}
-        minSize={minEditorSize}
+        id="center"
+        panelRef={centerPanelRef}
+        defaultSize={`${actualLayout[index++]}%`}
+        minSize={`${minEditorSize}%`}
         collapsible={true}
-        collapsedSize={0}
+        collapsedSize="0%"
       >
         <EditorLayout />
       </ResizablePanel>
     )
 
     // 中间和右侧之间的分隔条
-    // 只有当中间面板可见时才显示此分隔条
+    // 中间面板可见时作为右侧边界；仅左侧可见时保留右侧折叠句柄
+    const shouldShowRightHandle = centerPanelVisible
+      || (!centerPanelVisible && leftSidebarVisible && !rightSidebarVisible)
+    const isRightHandleCollapsed = rightPanelCollapsed || !rightSidebarVisible
     panels.push(
       <ResizableHandle
         key="handle-center-right"
-        className={`${!centerPanelVisible || !rightSidebarVisible ? 'hidden' : ''}`}
+        withHandle
+        collapsed={isRightHandleCollapsed}
+        expandDirection="left"
+        collapsedTriggerClassName="top-12 bottom-0"
+        className={shouldShowRightHandle ? undefined : 'hidden'}
+        onClick={isRightHandleCollapsed ? revealRightPanel : undefined}
       />
     )
 
@@ -210,13 +273,15 @@ function ResizableWrapper() {
     panels.push(
       <ResizablePanel
         key="right"
-        ref={rightPanelRef}
-        defaultSize={actualLayout[index++]}
-        minSize={minSidebarSize}
+        id="right"
+        panelRef={rightPanelRef}
+        defaultSize={`${actualLayout[index++]}%`}
+        minSize={`${minRightSidebarSize}%`}
         collapsible={true}
-        collapsedSize={0}
+        collapsedSize="0%"
+        onResize={(size) => setRightPanelCollapsed(size.asPercentage < 0.1)}
       >
-        <Chat />
+        <PluginRightSidebar />
       </ResizablePanel>
     )
 
@@ -224,19 +289,20 @@ function ResizableWrapper() {
   }
 
   return (
-    <ResizablePanelGroup 
-      direction="horizontal" 
-      onLayout={onLayout} 
-      className="h-full"
-    >
-      {renderLayout()}
-    </ResizablePanelGroup>
+    <div className="flex h-full min-h-0 flex-col">
+      <ResizablePanelGroup
+        orientation="horizontal"
+        onLayoutChanged={onLayout}
+        className="min-h-0 flex-1"
+      >
+        {renderLayout()}
+      </ResizablePanelGroup>
+      <MainStatusBar />
+    </div>
   )
 }
 
 function Page() {
-  const router = useRouter()
-
   useEffect(() => {
     // 保存当前页面路径
     async function saveCurrentPage() {
@@ -245,39 +311,7 @@ function Page() {
       await store.save()
     }
     saveCurrentPage()
-
-    // 监听托盘事件
-    const window = getCurrentWindow()
-    const unlistenTrayAction = window.listen<string>('tray-action', async (event) => {
-      const action = event.payload
-      switch (action) {
-        case 'screenshot':
-          await invoke('screenshot')
-          emitter.emit('screenshot-shortcut-register', undefined)
-          break
-        case 'text':
-          emitter.emit('text-shortcut-register', undefined)
-          break
-        case 'pin':
-          emitter.emit('window-pin-register', undefined)
-          break
-        case 'link':
-          emitter.emit('link-shortcut-register', undefined)
-          break
-      }
-    })
-
-    // 监听打开设置事件
-    const unlistenOpenSettings = window.listen<void>('open-settings', () => {
-      // 导航到设置页面
-      router.push('/core/setting')
-    })
-
-    return () => {
-      unlistenTrayAction.then(fn => fn())
-      unlistenOpenSettings.then(fn => fn())
-    }
-  }, [router])
+  }, [])
 
   return <ResizableWrapper />
 }

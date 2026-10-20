@@ -1,4 +1,5 @@
 type ChatLike = {
+  id?: number
   role: string
   type: string
   content?: string | null
@@ -8,6 +9,14 @@ type ChatLike = {
 type MessageLike = {
   role: 'system' | 'user' | 'assistant'
   content: string
+}
+
+const MAX_RETAINED_MESSAGE_CHARS = 16_000
+
+function preserveContinuationTail(content: string, enabled: boolean) {
+  if (!enabled || content.length <= MAX_RETAINED_MESSAGE_CHARS) return content
+  const omitted = content.length - MAX_RETAINED_MESSAGE_CHARS
+  return `[Earlier content in this message omitted: ${omitted} characters]\n\n${content.slice(-MAX_RETAINED_MESSAGE_CHARS)}`
 }
 
 /**
@@ -38,9 +47,7 @@ export function buildChatHistoryForAI(chats: ChatLike[], systemPrompt?: string):
     }
 
     const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
-    const content = chat.role === 'user'
-      ? chat.content || ''
-      : chat.condensedContent || chat.content || ''
+    const content = chat.content || ''
 
     if (content) {
       messages.push({ role, content })
@@ -62,6 +69,8 @@ export function buildMessagesWithHistory(
     includeAssistantMessages?: boolean
     includeLatestUserMessage?: boolean
     maxUserMessages?: number
+    conversationSummary?: string
+    coveredThroughChatId?: number
   }
 ): MessageLike[] {
   const messages: MessageLike[] = []
@@ -78,10 +87,30 @@ export function buildMessagesWithHistory(
 
   let chatsAfterClear = getChatsAfterLastClear(chats)
 
+  if (options?.conversationSummary) {
+    messages.push({
+      role: 'system',
+      content: `以下是较早对话的锚定摘要，仅用于恢复上下文。摘要可能省略细节；如果它与最近原始消息冲突，以最近原始消息为准。
+
+<conversation-summary>
+${options.conversationSummary}
+</conversation-summary>`
+    })
+  }
+
+  if (typeof options?.coveredThroughChatId === 'number') {
+    chatsAfterClear = chatsAfterClear.filter(chat =>
+      typeof chat.id !== 'number' || chat.id > options.coveredThroughChatId!
+    )
+  }
+
   if (!includeLatestUserMessage) {
     const lastUserIndex = [...chatsAfterClear].map(chat => chat.role).lastIndexOf('user')
     if (lastUserIndex !== -1) {
-      chatsAfterClear = chatsAfterClear.filter((_, index) => index !== lastUserIndex)
+      // The current user message is appended explicitly below. Remove it together
+      // with any placeholder assistant rows created after it so history remains a
+      // sequence of completed turns.
+      chatsAfterClear = chatsAfterClear.slice(0, lastUserIndex)
     }
   }
 
@@ -89,14 +118,16 @@ export function buildMessagesWithHistory(
     const userIndexes = chatsAfterClear
       .map((chat, index) => chat.role === 'user' ? index : -1)
       .filter(index => index !== -1)
-    const allowedUserIndexes = new Set(userIndexes.slice(-maxUserMessages))
-    chatsAfterClear = chatsAfterClear.filter((chat, index) => {
-      if (chat.role !== 'user') {
-        return true
-      }
 
-      return allowedUserIndexes.has(index)
-    })
+    if (maxUserMessages === 0 || userIndexes.length === 0) {
+      chatsAfterClear = []
+    } else {
+      const firstRetainedUserIndex = userIndexes.at(-maxUserMessages) ?? userIndexes[0]
+      // Retain complete chronological turns. Keeping old assistant messages while
+      // dropping the user messages they answered creates misleading, orphaned
+      // assertions that smaller models may treat as current app state.
+      chatsAfterClear = chatsAfterClear.slice(firstRetainedUserIndex)
+    }
   }
 
   for (const chat of chatsAfterClear) {
@@ -109,9 +140,10 @@ export function buildMessagesWithHistory(
     }
 
     const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
-    const content = chat.role === 'user'
-      ? chat.content || ''
-      : chat.condensedContent || chat.content || ''
+    const content = preserveContinuationTail(
+      chat.content || '',
+      Boolean(options?.conversationSummary)
+    )
 
     if (content) {
       messages.push({ role, content })

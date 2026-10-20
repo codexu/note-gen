@@ -1,15 +1,27 @@
-import { Tag, delTag, getTags, insertTags, deleteAllTags } from '@/db/tags'
+import { Tag, delTag, getTags } from '@/db/tags'
+import { tagSnapshotStatements } from '@/db/record-snapshot'
+import { executeRecordTransaction } from '@/db'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab'
 import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea'
 import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
 import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
-import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { getRemoteFileContent } from '@/lib/sync/remote-file'
+import { cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
+import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
+import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
+import { normalizeTagSnapshot } from '@/lib/tag-sync'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { S3Config, WebDAVConfig } from '@/types/sync'
+import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
+import { setAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
+
+interface RecordDataDownloadOptions {
+  fetchOnly?: boolean
+  allowMissingRemote?: boolean
+}
+
+let tagRefresh: Promise<void> = Promise.resolve()
 
 interface TagState {
   currentTagId: number
@@ -30,7 +42,7 @@ interface TagState {
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
   uploadTags: () => Promise<boolean>
-  downloadTags: () => Promise<Tag[]>
+  downloadTags: (options?: RecordDataDownloadOptions) => Promise<Tag[]>
 }
 
 const useTagStore = create<TagState>((set, get) => ({
@@ -53,16 +65,24 @@ const useTagStore = create<TagState>((set, get) => ({
     const tags = get().tags
     const getcurrentTagId = get().currentTagId
     const currentTag = tags.find((tag) => tag.id === getcurrentTagId)
-    if (currentTag) {
-      set({ currentTag })
-    }
+    set({ currentTag })
   },
 
   // 所有 tag
   tags: [],
   fetchTags: async () => {
-    const tags = await getTags()
-    set({ tags })
+    const refresh = tagRefresh.catch(() => {}).then(async () => {
+      const tags = await getTags()
+      const { default: marks } = await import('./mark')
+      await marks.getState().reconcileRecordTagFilters(tags)
+      set({ tags })
+      if (tags.length && !tags.some(tag => tag.id === get().currentTagId)) {
+        await get().setCurrentTagId(tags.find(tag => tag.isLocked)?.id ?? tags[0].id)
+      }
+      get().getCurrentTag()
+    })
+    tagRefresh = refresh
+    await refresh
   },
 
   deleteTag: async (id: number) => {
@@ -93,7 +113,7 @@ const useTagStore = create<TagState>((set, get) => ({
     const fullPath = `${path}/${filename}`;
     switch (primaryBackupMethod) {
       case 'github':
-        const githubRepo = await getSyncRepoName('github')
+        const githubRepo = await getDataSyncRepoName('github')
         files = await githubGetFiles({ path: fullPath, repo: githubRepo })
         res = await uploadGithubFile({
           file: JSON.stringify(tags),
@@ -103,7 +123,7 @@ const useTagStore = create<TagState>((set, get) => ({
         })
         break;
       case 'gitee':
-        const giteeRepo = await getSyncRepoName('gitee')
+        const giteeRepo = await getDataSyncRepoName('gitee')
         files = await giteeGetFiles({ path: fullPath, repo: giteeRepo })
         res = await uploadGiteeFile({
           file: JSON.stringify(tags),
@@ -113,7 +133,7 @@ const useTagStore = create<TagState>((set, get) => ({
         })
         break;
       case 'gitlab': {
-        const gitlabRepo = await getSyncRepoName('gitlab')
+        const gitlabRepo = await getDataSyncRepoName('gitlab')
         files = await gitlabGetFiles({ path, repo: gitlabRepo })
 
         // 如果目录不存在（files 为 null），先创建目录标记文件
@@ -126,8 +146,8 @@ const useTagStore = create<TagState>((set, get) => ({
               filename: '.gitkeep',
               sha: '',
             })
-          } catch (e) {
-            console.log('[tag store] GitLab create .gitkeep error:', e)
+          } catch {
+            // Ignore .gitkeep creation failures; the main upload path reports errors below.
           }
           // 重新获取文件列表
           files = await gitlabGetFiles({ path, repo: gitlabRepo })
@@ -146,7 +166,7 @@ const useTagStore = create<TagState>((set, get) => ({
         break;
       }
       case 'gitea':
-        const giteaRepo = await getSyncRepoName('gitea')
+        const giteaRepo = await getDataSyncRepoName('gitea')
         files = await giteaGetFiles({ path, repo: giteaRepo })
         const giteaTagFile = Array.isArray(files)
           ? files.find(file => file.name === filename)
@@ -183,6 +203,11 @@ const useTagStore = create<TagState>((set, get) => ({
         }
         break;
       }
+      case 'cloudFolder': {
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        if (config?.path) res = await cloudFolderUpload(config, fullPath, JSON.stringify(tags))
+        break
+      }
     }
     if (res) {
       result = true
@@ -190,28 +215,29 @@ const useTagStore = create<TagState>((set, get) => ({
     set({ syncState: false })
     return result
   },
-  downloadTags: async () => {
+  downloadTags: async (options: RecordDataDownloadOptions = {}) => {
     const path = '.data'
     const filename = 'tags.json'
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
-    let result = []
+    let result: Tag[] = []
+    let hasRemoteData = false
     let files;
     switch (primaryBackupMethod) {
       case 'github':
-        const githubRepo = await getSyncRepoName('github')
+        const githubRepo = await getDataSyncRepoName('github')
         files = await githubGetFiles({ path: `${path}/${filename}`, repo: githubRepo })
         break;
       case 'gitee':
-        const giteeRepo = await getSyncRepoName('gitee')
+        const giteeRepo = await getDataSyncRepoName('gitee')
         files = await giteeGetFiles({ path: `${path}/${filename}`, repo: giteeRepo })
         break;
       case 'gitlab':
-        const gitlabRepo = await getSyncRepoName('gitlab')
+        const gitlabRepo = await getDataSyncRepoName('gitlab')
         files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo })
         break;
       case 'gitea':
-        const giteaRepo2 = await getSyncRepoName('gitea')
+        const giteaRepo2 = await getDataSyncRepoName('gitea')
         files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
         break;
       case 's3': {
@@ -222,6 +248,7 @@ const useTagStore = create<TagState>((set, get) => ({
           if (s3Result) {
             // S3 返回的 content 是字符串，直接解析
             result = JSON.parse(s3Result.content)
+            hasRemoteData = true
           }
         }
         break;
@@ -233,22 +260,55 @@ const useTagStore = create<TagState>((set, get) => ({
           const webdavResult = await webdavDownload(webdavConfig, webdavKey)
           if (webdavResult) {
             result = JSON.parse(webdavResult.content)
+            hasRemoteData = true
           }
         }
         break;
       }
+      case 'cloudFolder': {
+        const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        const cloudResult = config?.path ? await cloudFolderDownload(config, `${path}/${filename}`) : null
+        if (cloudResult) {
+          result = JSON.parse(cloudResult.content)
+          hasRemoteData = true
+        }
+        break
+      }
     }
     // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
-      const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-      result = JSON.parse(configJson)
+      try {
+        if (!options.allowMissingRemote || !hasEmptyRemoteFileContent(files)) {
+          const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
+          result = JSON.parse(configJson)
+          hasRemoteData = true
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown error'
+        if (!options.allowMissingRemote || !isMissingRemoteFileError(message)) {
+          throw error
+        }
+      }
     }
-    if (result.length > 0) {
-      await deleteAllTags()
-      await insertTags(result)
+    if (hasRemoteData) {
+      result = normalizeTagSnapshot(result)
+      const statements = tagSnapshotStatements(result)
+      if (options.fetchOnly) return result
+      setAutoDataSyncApplyingRemote(true)
+      try {
+        await executeRecordTransaction(statements)
+        await get().fetchTags()
+        const tags = get().tags
+        if (tags.length > 0 && !tags.some(tag => tag.id === get().currentTagId)) {
+          await get().setCurrentTagId(tags[0].id)
+        }
+        get().getCurrentTag()
+      } finally {
+        setAutoDataSyncApplyingRemote(false)
+      }
     }
     set({ syncState: false })
-    return result
+    return options.fetchOnly && !hasRemoteData ? getTags() : result
   },
 }))
 

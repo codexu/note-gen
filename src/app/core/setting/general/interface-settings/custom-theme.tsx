@@ -1,5 +1,6 @@
 'use client'
 
+import { PluginThemeSelector } from '@/components/plugins/plugin-theme-selector'
 import { useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
@@ -7,7 +8,13 @@ import { useTheme } from 'next-themes'
 import { Item, ItemMedia, ItemContent, ItemTitle, ItemDescription, ItemActions } from '@/components/ui/item'
 import { Palette, Download, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  ResponsiveDialog as Dialog,
+  ResponsiveDialogContent as DialogContent,
+  ResponsiveDialogDescription as DialogDescription,
+  ResponsiveDialogHeader as DialogHeader,
+  ResponsiveDialogTitle as DialogTitle,
+} from '@/components/responsive-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import useSettingStore from '@/stores/setting'
@@ -199,13 +206,14 @@ export function CustomThemeSettings() {
 
   return (
     <>
+      <PluginThemeSelector />
       <Item variant="outline">
-        <ItemMedia variant="icon"><Palette className="size-4" /></ItemMedia>
+        <ItemMedia variant="icon"><Palette /></ItemMedia>
         <ItemContent>
           <ItemTitle>{t('title')}</ItemTitle>
           <ItemDescription>{t('desc')}</ItemDescription>
         </ItemContent>
-        <ItemActions>
+        <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
           <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
             {t('button')}
           </Button>
@@ -254,6 +262,7 @@ export function CustomThemeSettings() {
                   placeholder={t('export.placeholder')}
                   className="font-mono text-xs"
                   rows={8}
+                  maxRows={16}
                   readOnly
                 />
               </div>
@@ -273,6 +282,7 @@ export function CustomThemeSettings() {
                   placeholder={t('import.placeholder')}
                   className="font-mono text-xs"
                   rows={8}
+                  maxRows={16}
                 />
               </div>
             </TabsContent>

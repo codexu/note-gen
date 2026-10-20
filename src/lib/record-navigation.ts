@@ -1,12 +1,16 @@
 import { isMobileDevice } from './check'
 import { useSidebarStore } from '@/stores/sidebar'
 
+type RecordRouter = {
+  push: (path: string) => void
+}
+
 /**
  * 记录完成后的导航处理
  * 桌面端：切换到记录 tab
  * 移动端：跳转到记录页面
  */
-export function handleRecordComplete(router?: any) {
+export function handleRecordComplete(router?: RecordRouter) {
   const isMobile = isMobileDevice()
   
   if (isMobile) {
@@ -18,7 +22,10 @@ export function handleRecordComplete(router?: any) {
     }
   } else {
     // 桌面端：切换到记录 tab
-    const { setLeftSidebarTab } = useSidebarStore.getState()
-    setLeftSidebarTab('notes')
+    const { leftSidebarVisible, setLeftSidebarTab, toggleLeftSidebar } = useSidebarStore.getState()
+    if (!leftSidebarVisible) {
+      void toggleLeftSidebar()
+    }
+    void setLeftSidebarTab('notes')
   }
 }

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-image-binary"
+description = "Enables the read_image_binary command without any pre-configured scope."
+commands.allow = ["read_image_binary"]
+
+[[permission]]
+identifier = "deny-read-image-binary"
+description = "Denies the read_image_binary command without any pre-configured scope."
+commands.deny = ["read_image_binary"]

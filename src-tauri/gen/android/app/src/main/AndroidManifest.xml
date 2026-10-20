@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+  <application
+    android:label="NoteGen"
+    android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher"
+    android:theme="@style/Theme.note_gen"
+    android:usesCleartextTraffic="${usesCleartextTraffic}">
+    <activity
+      android:name=".MainActivity"
+      android:label="NoteGen"
+      android:exported="true"
+      android:configChanges="uiMode"
+      android:windowSoftInputMode="adjustResize"
+      tools:node="merge"
+      tools:replace="android:windowSoftInputMode">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

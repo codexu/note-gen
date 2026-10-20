@@ -1,15 +1,19 @@
 import {getRequestConfig} from 'next-intl/server';
 import {notFound} from 'next/navigation';
- 
-// 支持的语言列表
-export const locales = ['en', 'zh', 'ja', 'pt-BR', 'zh-TW'];
-export const defaultLocale = 'zh';
- 
+import {
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
+  isSupportedLocale,
+  loadMessagesWithFallback,
+} from './config';
+
+export const locales = SUPPORTED_LOCALES;
+export const defaultLocale = DEFAULT_LOCALE;
+
 export default getRequestConfig(async ({locale}) => {
-  // 验证语言是否支持
-  if (!locales.includes(locale as any)) notFound();
- 
+  if (!locale || !isSupportedLocale(locale)) notFound();
+
   return {
-    messages: (await import(`../messages/${locale}.json`)).default
+    messages: await loadMessagesWithFallback(locale)
   };
 });

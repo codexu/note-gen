@@ -312,13 +312,47 @@ async function ensureCollectionPathExists(
   const parts = collectionPath.split('/').filter(Boolean)
   for (let i = 1; i <= parts.length; i++) {
     const parentPath = parts.slice(0, i).join('/')
-    const ok = await mkcolFullPath(config, parentPath, proxy)
+    const ok = await ensureCollectionExists(config, parentPath, proxy)
     if (!ok) {
       return false
     }
   }
 
   return true
+}
+
+function isCollectionResponse(xml: string, directoryUrl: string): boolean {
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  if (document.getElementsByTagNameNS('*', 'parsererror').length > 0
+    || document.documentElement.localName !== 'multistatus'
+    || document.documentElement.namespaceURI !== 'DAV:') return false
+
+  const requested = new URL(directoryUrl)
+  const path = (url: URL) => decodeURIComponent(url.pathname).replace(/\/+$/, '')
+  return Array.from(document.getElementsByTagNameNS('DAV:', 'response')).some(response => {
+    const href = response.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent?.trim()
+    if (!href) return false
+    const actual = new URL(href, `${directoryUrl.replace(/\/+$/, '')}/`)
+    if (actual.origin !== requested.origin || path(actual) !== path(requested)) return false
+    return Array.from(response.getElementsByTagNameNS('DAV:', 'propstat')).some(propstat => {
+      const status = propstat.getElementsByTagNameNS('DAV:', 'status')[0]?.textContent?.trim() || ''
+      return /^HTTP\/\S+\s+2\d{2}\b/.test(status)
+        && propstat.getElementsByTagNameNS('DAV:', 'collection').length > 0
+    })
+  })
+}
+
+async function ensureCollectionExists(config: WebDAVConfig, fullPath: string, proxy?: Proxy): Promise<boolean> {
+  if (shouldSkipForTemporaryBlock(config, 'ensureCollection', { fullPath })) return false
+  const url = `${buildWebDAVBaseUrl(config)}/${buildRepoContentPath({ path: fullPath })}`
+  const existing = await propfindUrl(url, config, proxy)
+  if (isPropfindSuccess(existing.status)) return isCollectionResponse(await existing.text(), url)
+  // NAS mount points can reject MKCOL even when they already exist. Never
+  // attempt creation after permission, transport or service errors.
+  if (existing.status !== 404 || !await mkcolFullPath(config, fullPath, proxy)) return false
+  // Verify creation, including a race where another client created this path.
+  const created = await propfindUrl(url, config, proxy)
+  return isPropfindSuccess(created.status) && isCollectionResponse(await created.text(), url)
 }
 
 /**
@@ -411,7 +445,7 @@ async function ensureParentDirsExist(
   for (let i = 1; i < parts.length; i++) {
     const relativeParentPath = parts.slice(0, i).join('/')
     const parentPath = pathPrefix ? `${pathPrefix}/${relativeParentPath}` : relativeParentPath
-    await mkcolFullPath(config, parentPath, proxy)
+    if (!await ensureCollectionExists(config, parentPath, proxy)) return false
   }
   return true
 }

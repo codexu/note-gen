@@ -924,10 +924,18 @@
         "emptyDesc": "Hier erscheinen installierte Marktplatz- und Entwicklungs-Plugins."
       },
       "permissionNames": {
-        "ai": { "generate": "Konfigurierte KI-Modelle verwenden (kann Kosten verursachen)" },
-        "clipboard": { "write": "In die Zwischenablage schreiben" },
-        "files": { "export": "Dateien über einen Speicherdialog exportieren" },
-        "terminal": { "open": "Lokales Terminal mit vollem Gerätezugriff öffnen" },
+        "ai": {
+          "generate": "Konfigurierte KI-Modelle verwenden (kann Kosten verursachen)"
+        },
+        "clipboard": {
+          "write": "In die Zwischenablage schreiben"
+        },
+        "files": {
+          "export": "Dateien über einen Speicherdialog exportieren"
+        },
+        "terminal": {
+          "open": "Lokales Terminal mit vollem Gerätezugriff öffnen"
+        },
         "editor": {
           "style": "Notizinhalt gestalten",
           "read": "Aktiven Editor lesen",

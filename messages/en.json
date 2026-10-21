@@ -924,10 +924,18 @@
         "emptyDesc": "Installed marketplace and development plugins appear here."
       },
       "permissionNames": {
-        "ai": { "generate": "Use configured AI models (may incur charges)" },
-        "clipboard": { "write": "Write to the clipboard" },
-        "files": { "export": "Export files through a save dialog" },
-        "terminal": { "open": "Open a local terminal with full device access" },
+        "ai": {
+          "generate": "Use configured AI models (may incur charges)"
+        },
+        "clipboard": {
+          "write": "Write to the clipboard"
+        },
+        "files": {
+          "export": "Export files through a save dialog"
+        },
+        "terminal": {
+          "open": "Open a local terminal with full device access"
+        },
         "editor": {
           "style": "Style note content",
           "read": "Read the active editor",

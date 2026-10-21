@@ -924,10 +924,18 @@
         "emptyDesc": "已安装的市场插件和开发版本会显示在这里。"
       },
       "permissionNames": {
-        "ai": { "generate": "使用已配置的 AI 模型（可能产生费用）" },
-        "clipboard": { "write": "写入剪贴板" },
-        "files": { "export": "通过保存对话框导出文件" },
-        "terminal": { "open": "打开可访问整台设备的本地终端" },
+        "ai": {
+          "generate": "使用已配置的 AI 模型（可能产生费用）"
+        },
+        "clipboard": {
+          "write": "写入剪贴板"
+        },
+        "files": {
+          "export": "通过保存对话框导出文件"
+        },
+        "terminal": {
+          "open": "打开可访问整台设备的本地终端"
+        },
         "editor": {
           "style": "设置笔记正文样式",
           "read": "读取当前编辑器",

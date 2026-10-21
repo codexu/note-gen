@@ -3239,10 +3239,18 @@
         "emptyDesc": "已安裝的市集外掛和開發版本會顯示在這裡。"
       },
       "permissionNames": {
-        "ai": { "generate": "使用已設定的 AI 模型（可能產生費用）" },
-        "clipboard": { "write": "寫入剪貼簿" },
-        "files": { "export": "透過儲存對話框匯出檔案" },
-        "terminal": { "open": "開啟可存取整台裝置的本機終端" },
+        "ai": {
+          "generate": "使用已設定的 AI 模型（可能產生費用）"
+        },
+        "clipboard": {
+          "write": "寫入剪貼簿"
+        },
+        "files": {
+          "export": "透過儲存對話框匯出檔案"
+        },
+        "terminal": {
+          "open": "開啟可存取整台裝置的本機終端"
+        },
         "editor": {
           "style": "設定筆記正文樣式",
           "read": "讀取目前編輯器",

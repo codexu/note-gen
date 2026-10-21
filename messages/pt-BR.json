@@ -3264,10 +3264,18 @@
         "emptyDesc": "Os plugins da loja e de desenvolvimento instalados aparecem aqui."
       },
       "permissionNames": {
-        "ai": { "generate": "Usar modelos de IA configurados (pode gerar custos)" },
-        "clipboard": { "write": "Escrever na área de transferência" },
-        "files": { "export": "Exportar arquivos pela janela de salvamento" },
-        "terminal": { "open": "Abrir terminal local com acesso total ao dispositivo" },
+        "ai": {
+          "generate": "Usar modelos de IA configurados (pode gerar custos)"
+        },
+        "clipboard": {
+          "write": "Escrever na área de transferência"
+        },
+        "files": {
+          "export": "Exportar arquivos pela janela de salvamento"
+        },
+        "terminal": {
+          "open": "Abrir terminal local com acesso total ao dispositivo"
+        },
         "editor": {
           "style": "Estilizar o conteúdo das notas",
           "read": "Ler o editor ativo",

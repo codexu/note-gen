@@ -1979,6 +1979,7 @@
           "memories": "Memories and policy",
           "dataAssets": "Record and conversation assets"
         },
+        "strategyRequired": "続行する前に処理方法を選択してください。マージ、ローカルデータの使用、リモートデータの使用では、データの変更内容が異なります。",
         "strategies": {
           "merge": "Merge",
           "local": "Keep local",
@@ -2033,6 +2034,7 @@
         "selectedModules": "{count} 個のモジュールを選択中",
         "dataOverview": "データの概要",
         "moduleDetails": "モジュールの詳細と同期範囲",
+        "sameCount": "一致 {count}",
         "localOnlyCount": "ローカルのみ {count}",
         "remoteOnlyCount": "リモートのみ {count}",
         "conflictCount": "{count} 件の競合",

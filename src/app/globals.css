@@ -40,6 +40,8 @@
   --color-warning-foreground: hsl(var(--warning-foreground));
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -165,6 +167,8 @@
     --warning-foreground: 32 95% 25%;
     --success: 142 71% 45%;
     --success-foreground: 142 72% 24%;
+    --info: 217 91% 60%;
+    --info-foreground: 221 83% 35%;
     --promotion-gradient-start: 263 70% 50%;
     --promotion-gradient-middle: 330 75% 48%;
     --promotion-gradient-end: 24 90% 45%;
@@ -222,6 +226,8 @@
     --warning-foreground: 48 96% 65%;
     --success: 142 71% 45%;
     --success-foreground: 142 69% 72%;
+    --info: 217 91% 60%;
+    --info-foreground: 213 94% 78%;
     --promotion-gradient-start: 263 90% 70%;
     --promotion-gradient-middle: 330 85% 68%;
     --promotion-gradient-end: 32 95% 62%;

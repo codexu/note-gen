@@ -2441,6 +2441,7 @@
           "memories": "Memories and policy",
           "dataAssets": "Record and conversation assets"
         },
+        "strategyRequired": "Choose how to handle the data before continuing. Merging, using local data, and using remote data produce different changes.",
         "strategies": {
           "merge": "Merge",
           "local": "Keep local",
@@ -2495,6 +2496,7 @@
         "selectedModules": "{count} modules selected",
         "dataOverview": "Data overview",
         "moduleDetails": "Module details and sync scope",
+        "sameCount": "Identical: {count}",
         "localOnlyCount": "Local only: {count}",
         "remoteOnlyCount": "Remote only: {count}",
         "conflictCount": "{count} conflicts",

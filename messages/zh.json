@@ -2441,6 +2441,7 @@
           "memories": "记忆与策略",
           "dataAssets": "记录与对话附件"
         },
+        "strategyRequired": "请选择一种处理方式后继续。合并、使用本地或使用远端会产生不同的数据变更。",
         "strategies": {
           "merge": "合并",
           "local": "保留本地",
@@ -2495,6 +2496,7 @@
         "selectedModules": "已选择 {count} 个模块",
         "dataOverview": "数据概览",
         "moduleDetails": "模块明细与同步范围",
+        "sameCount": "一致 {count}",
         "localOnlyCount": "仅本地 {count}",
         "remoteOnlyCount": "仅远端 {count}",
         "conflictCount": "{count} 项冲突",

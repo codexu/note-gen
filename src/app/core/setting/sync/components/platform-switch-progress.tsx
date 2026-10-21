@@ -41,6 +41,13 @@ import { SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
 const switchStages = ['inspect', 'choose', 'backup', 'sync', 'verify'] as const
 const strategies = ['merge', 'local', 'remote'] as const
 const strategyIcons = { merge: GitMerge, local: HardDrive, remote: CloudDownload }
+const differenceTypes = [
+  { key: 'same', label: 'sameCount', variant: 'success', color: 'bg-success' },
+  { key: 'localOnly', label: 'localOnlyCount', variant: 'warning', color: 'bg-warning' },
+  { key: 'remoteOnly', label: 'remoteOnlyCount', variant: 'info', color: 'bg-info' },
+  { key: 'conflicts', label: 'conflictCount', variant: 'destructive', color: 'bg-destructive' },
+] as const
+type DifferenceCounts = Pick<PlatformSwitchPlan['modules'][number], typeof differenceTypes[number]['key']>
 
 function formatBytes(value: number) {
   return value < 1024 ? `${value} B` : value < 1048576 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`
@@ -135,6 +142,15 @@ function SwitchCurrentOperation({ progress, listing, activity }: {
   </section>
 }
 
+function SwitchDifferenceBadges({ counts }: { counts: DifferenceCounts }) {
+  const p = useTranslations('settings.sync.switchPlan')
+  return <ul className="flex min-w-0 flex-wrap gap-1.5" aria-label={p('differences')}>
+    {differenceTypes.map(({ key, label, variant }) => <li key={key} className="min-w-0 max-w-full">
+      <Badge variant={counts[key] > 0 ? variant : 'secondary'} className="h-auto min-h-5 max-w-full whitespace-normal tabular-nums [overflow-wrap:anywhere]">{p(label, { count: counts[key] })}</Badge>
+    </li>)}
+  </ul>
+}
+
 function SwitchDataOverview({ plan, selected, remoteName }: { plan: PlatformSwitchPlan; selected: SwitchModule[]; remoteName: string }) {
   const p = useTranslations('settings.sync.switchPlan')
   const totals = plan.modules.filter(row => selected.includes(row.id)).reduce((sum, row) => ({
@@ -147,10 +163,10 @@ function SwitchDataOverview({ plan, selected, remoteName }: { plan: PlatformSwit
       <h3 className="text-sm font-medium">{p('dataOverview')}</h3>
       <span className="text-xs text-muted-foreground">{p('selectedModules', { count: selected.length })} · {p('sources.remote')} {p('fileCount', { count: plan.remoteFiles })}</span>
     </div>
-    <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={p('distribution', totals)}>
-      {([['same', 'bg-muted-foreground/40'], ['localOnly', 'bg-chart-1'], ['remoteOnly', 'bg-chart-2'], ['conflicts', 'bg-chart-3']] as const).map(([key, color]) => <span key={key} className={color} style={{ width: `${count ? totals[key] / count * 100 : 0}%` }} />)}
+    <div className="flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+      {differenceTypes.map(({ key, color }) => <span key={key} className={color} style={{ width: `${count ? totals[key] / count * 100 : 0}%` }} />)}
     </div>
-    <p className="text-xs text-muted-foreground">{p('distribution', totals)}</p>
+    <SwitchDifferenceBadges counts={totals} />
     <h4 className="text-sm font-medium">{p('moduleDetails')}</h4>
     <Table aria-label={p('moduleDetails')}>
       <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{remoteName}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
@@ -158,7 +174,7 @@ function SwitchDataOverview({ plan, selected, remoteName }: { plan: PlatformSwit
         <TableCell><Field orientation="horizontal"><Checkbox id={`switch-module-${row.id}`} checked={selected.includes(row.id)} disabled={!plan.available.includes(row.id)} onCheckedChange={value => selectPlatformSwitchModule(row.id, value === true)} /><FieldLabel htmlFor={`switch-module-${row.id}`}>{p(`modules.${row.id}`)}</FieldLabel></Field></TableCell>
         <TableCell className="tabular-nums">{row.local}<p className="text-xs text-muted-foreground">{formatBytes(row.localBytes)}</p>{row.id === 'conversations' && <p className="text-xs text-muted-foreground">{p('messages', { count: row.localMessages })}</p>}</TableCell>
         <TableCell className="tabular-nums">{plan.unavailableModules.includes(row.id) ? p('unreadableSnapshot') : row.remote}<p className="text-xs text-muted-foreground">{formatBytes(row.remoteBytes)}</p>{row.id === 'conversations' && <p className="text-xs text-muted-foreground">{p('messages', { count: row.remoteMessages })}</p>}</TableCell>
-        <TableCell><p className="text-xs text-muted-foreground">{plan.unavailableModules.includes(row.id) ? p('cannotCompare') : p('distribution', { same: row.same, localOnly: row.localOnly, remoteOnly: row.remoteOnly, conflicts: row.conflicts })}</p></TableCell>
+        <TableCell className="min-w-48 whitespace-normal">{plan.unavailableModules.includes(row.id) ? <p className="text-xs text-muted-foreground">{p('cannotCompare')}</p> : <SwitchDifferenceBadges counts={row} />}</TableCell>
       </TableRow>)}</TableBody>
     </Table>
     <p className="text-xs text-muted-foreground">{p('linkedModules')}</p>
@@ -224,7 +240,8 @@ export function PlatformSwitchProgress() {
   const [acknowledged, setAcknowledged] = useState(false)
   const [confirmation, setConfirmation] = useState<'cancel' | 'skip' | null>(null)
   const [skipAcknowledged, setSkipAcknowledged] = useState(false)
-  const [draftStrategy, setDraftStrategy] = useState<SwitchStrategy>('merge')
+  const [draftStrategy, setDraftStrategy] = useState<SwitchStrategy | null>(null)
+  const strategyHintId = useId()
   const acknowledgeId = useId()
   const skipId = useId()
   const scroller = useRef<HTMLDivElement>(null)
@@ -248,7 +265,7 @@ export function PlatformSwitchProgress() {
   useEffect(() => { setConfirmation(null) }, [platform])
   useEffect(() => { if (step === 'completed' || step === 'cancelled') setConfirmation(null) }, [step])
   useEffect(() => { setAcknowledged(false) }, [step, strategy, plan, resolutions])
-  useEffect(() => { setDraftStrategy(strategy || 'merge') }, [platform, step, strategy])
+  useEffect(() => { setDraftStrategy(strategy) }, [platform, step, strategy, plan])
   useEffect(() => {
     if (!open) return
     scroller.current?.querySelector('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0 })
@@ -293,8 +310,8 @@ export function PlatformSwitchProgress() {
   const conflicts = plan?.conflicts.filter(item => selected.includes(item.module)) || []
   const unresolved = strategy === 'merge' ? conflicts.filter(item => !resolutions[item.id]).length : 0
   const unavailableRemote = plan?.unavailableModules.some(module => selected.includes(module)) || false
-  const canChoose = selected.length > 0 && !(draftStrategy === 'remote' && unavailableRemote)
-  const canConfirm = acknowledged && selected.length > 0 && !unresolved && !(strategy === 'remote' && unavailableRemote)
+  const canChoose = draftStrategy !== null && selected.length > 0 && !(draftStrategy === 'remote' && unavailableRemote)
+  const canConfirm = strategy !== null && acknowledged && selected.length > 0 && !unresolved && !(strategy === 'remote' && unavailableRemote)
   const activity = choosing ? p(step === 'review' ? 'reviewTitle' : 'confirmTitle')
     : state.cancelRequested ? p('cancelling') : skipped ? p('skipped') : step === 'completed' ? p('completed') : step === 'cancelled' ? p('cancelled') : step === 'error' ? p('failed')
       : progress ? p(`phases.${progress.phase}`) : t(`settings.sync.switchProgress.${step}`)
@@ -337,7 +354,8 @@ export function PlatformSwitchProgress() {
           {choosing && unavailableRemote && <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('unreadableSnapshot')}</AlertTitle><AlertDescription>{p('emptyLegacyFiles', { paths: plan?.emptyRemoteFiles.join('、') || '' })}</AlertDescription></Alert>}
           {step === 'review' && plan && !nativeEngine && <>
             <FieldSet><FieldLegend variant="label">{p('choose')}</FieldLegend>
-              <ToggleGroup type="single" variant="outline" value={draftStrategy} onValueChange={value => { if (value) setDraftStrategy(value as SwitchStrategy) }} className="grid w-full grid-cols-1 items-stretch gap-3 sm:grid-cols-3" aria-label={p('choose')}>
+              {draftStrategy === null && <Alert variant="warning" id={strategyHintId}><AlertTriangle /><AlertDescription>{p('strategyRequired')}</AlertDescription></Alert>}
+              <ToggleGroup type="single" variant="outline" value={draftStrategy || ''} onValueChange={value => setDraftStrategy(strategies.find(strategy => strategy === value) || null)} className="grid w-full grid-cols-1 items-stretch gap-3 sm:grid-cols-3" aria-label={p('choose')} aria-describedby={draftStrategy === null ? strategyHintId : undefined}>
                 {strategies.map(choice => {
                   const Icon = strategyIcons[choice]
                   return <ToggleGroupItem key={choice} value={choice} disabled={!selected.length || (choice === 'remote' && unavailableRemote)} className="h-auto min-w-0 flex-col items-start gap-3 whitespace-normal p-4 text-left">
@@ -396,7 +414,10 @@ export function PlatformSwitchProgress() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             {step !== 'completed' && step !== 'cancelled' && <Button type="button" variant="outline" disabled={state.cancelRequested} onClick={() => { if (mutated) setConfirmation('cancel'); else void cancelPlatformSwitch() }}>{state.cancelRequested ? <Spinner data-icon="inline-start" /> : <X data-icon="inline-start" />}{p(state.cancelRequested ? 'cancelling' : 'cancelSwitch')}</Button>}
             {step === 'confirm' && <Button type="button" variant="outline" onClick={editPlatformSwitchChoice}><ChevronLeft data-icon="inline-start" />{p('back')}</Button>}
-            {step === 'review' && <Button type="button" disabled={nativeEngine ? !selected.length : !plan || !canChoose} onClick={() => choosePlatformSwitchStrategy(nativeEngine ? 'merge' : draftStrategy)}>{p('continue')}<ArrowRight data-icon="inline-end" /></Button>}
+            {step === 'review' && <Button type="button" disabled={nativeEngine ? !selected.length : !plan || !canChoose} aria-describedby={!nativeEngine && draftStrategy === null ? strategyHintId : undefined} onClick={() => {
+              if (nativeEngine) choosePlatformSwitchStrategy('merge')
+              else if (draftStrategy) choosePlatformSwitchStrategy(draftStrategy)
+            }}>{p('continue')}<ArrowRight data-icon="inline-end" /></Button>}
             {step === 'confirm' && <Button type="button" disabled={!canConfirm} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined} onClick={confirmPlatformSwitch}>{p('confirmExecute')}<ArrowRight data-icon="inline-end" /></Button>}
             {stopped && <Button type="button" variant="outline" onClick={() => setConfirmation('skip')}><SkipForward data-icon="inline-start" />{p(step === 'cancelled' ? 'confirmSkip' : 'skipError')}</Button>}
             {(stopped || skipped) && <Button type="button" onClick={() => void retryPlatformSwitch()}><RefreshCcw data-icon="inline-start" />{p(skipped ? 'verifySkipped' : 'rescanRetry')}</Button>}

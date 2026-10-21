@@ -2004,6 +2004,7 @@
           "memories": "Memories and policy",
           "dataAssets": "Record and conversation assets"
         },
+        "strategyRequired": "Escolha como tratar os dados antes de continuar. As opções de mesclar, usar os dados locais e usar os dados remotos geram alterações diferentes.",
         "strategies": {
           "merge": "Merge",
           "local": "Keep local",
@@ -2058,6 +2059,7 @@
         "selectedModules": "{count} módulos selecionados",
         "dataOverview": "Visão geral dos dados",
         "moduleDetails": "Detalhes dos módulos e escopo da sincronização",
+        "sameCount": "Idênticos: {count}",
         "localOnlyCount": "Somente local: {count}",
         "remoteOnlyCount": "Somente remoto: {count}",
         "conflictCount": "{count} conflitos",

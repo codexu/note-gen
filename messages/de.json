@@ -2302,6 +2302,7 @@
           "memories": "Memories and policy",
           "dataAssets": "Record and conversation assets"
         },
+        "strategyRequired": "Wähle zuerst eine Vorgehensweise, um fortzufahren. Zusammenführen, lokale Daten beibehalten und Remotedaten verwenden führen zu unterschiedlichen Datenänderungen.",
         "strategies": {
           "merge": "Merge",
           "local": "Keep local",
@@ -2356,6 +2357,7 @@
         "selectedModules": "{count} Module ausgewählt",
         "dataOverview": "Datenübersicht",
         "moduleDetails": "Moduldetails und Synchronisierungsumfang",
+        "sameCount": "Identisch: {count}",
         "localOnlyCount": "Nur lokal: {count}",
         "remoteOnlyCount": "Nur remote: {count}",
         "conflictCount": "{count} Konflikte",

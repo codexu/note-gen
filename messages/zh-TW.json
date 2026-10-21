@@ -1979,6 +1979,7 @@
           "memories": "记忆与策略",
           "dataAssets": "记录与对话附件"
         },
+        "strategyRequired": "請先選擇一種處理方式再繼續。合併、使用本機或使用遠端會造成不同的資料變更。",
         "strategies": {
           "merge": "合并",
           "local": "保留本地",
@@ -2033,6 +2034,7 @@
         "selectedModules": "已選擇 {count} 個模組",
         "dataOverview": "資料概覽",
         "moduleDetails": "模組明細與同步範圍",
+        "sameCount": "一致 {count}",
         "localOnlyCount": "僅本機 {count}",
         "remoteOnlyCount": "僅遠端 {count}",
         "conflictCount": "{count} 項衝突",

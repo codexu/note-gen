@@ -192,7 +192,7 @@ export async function dismissPlatformSwitch() {
 }
 export function choosePlatformSwitchStrategy(strategy: SwitchStrategy) {
   const state = usePlatformSwitchStore.getState()
-  if (state.step !== 'review' || !state.selected.length) return
+  if (state.step !== 'review' || !state.selected.length || !['merge', 'local', 'remote'].includes(strategy)) return
   if (strategy === 'remote' && state.plan?.unavailableModules.some(module => state.selected.includes(module))) return
   usePlatformSwitchStore.setState({ strategy, step: 'confirm' })
 }
@@ -405,7 +405,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       activePlan = plan
       assertSwitchActive()
       const selected = [...plan.available]
-      const automatic = plan.remoteEmpty || !selected.length
+      const automatic = !selected.length
       usePlatformSwitchStore.setState({ plan, selected, automatic })
       const decision: Decision | null = automatic ? { strategy: 'local', selected, resolutions: {} } : await new Promise<Decision | null>(resolve => {
         reviewDecision = resolve

@@ -14,7 +14,7 @@ export function MainStatusBar() {
   const loadOrder = useStatusBarOrder(state => state.load)
   useEffect(() => { void loadOrder() }, [loadOrder])
   return (
-    <footer className="scrollbar-hide flex h-6 min-h-6 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-t border-border bg-background px-1 text-xs text-muted-foreground">
+    <footer className="scrollbar-hide flex h-8 min-h-8 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-t border-border bg-background px-2 text-xs text-muted-foreground">
       <StatusBarItem id="system:sync" rank={0}><UnifiedSyncStatus /></StatusBarItem>
       <StatusBarItem id="system:workspace" rank={10}>
         <FileFooter />

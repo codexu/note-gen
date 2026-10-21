@@ -169,7 +169,17 @@ export async function disposePlatformSwitchPlan(plan: Pick<PlatformSwitchPlan, '
   try { await remove(plan.scanCachePath, { baseDir: BaseDirectory.AppData, recursive: true }) }
   catch (error) { console.warn('Failed to remove temporary sync scan cache', error) }
 }
-const blank = (): Snapshot => Object.fromEntries(moduleIds.map(id => [id, []])) as Snapshot
+const blank = (): Snapshot => ({
+  notes: [],
+  assets: [],
+  records: [],
+  tags: [],
+  canvases: [],
+  conversations: [],
+  settings: [],
+  memories: [],
+  dataAssets: [],
+})
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid sync data')
   return value as Record<string, unknown>
@@ -557,12 +567,12 @@ export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgre
     }
     onProgress({ phase: 'compare', kind: 'module', current: 0, total: moduleIds.length })
     const conflicts: SwitchConflict[] = reuse ? reuse.conflicts : []
-    for (const [moduleIndex, module] of (reuse ? [] : moduleIds).entries()) {
-      onProgress({ phase: 'compare', kind: 'module', module, current: moduleIndex, total: moduleIds.length })
-      const right = new Map(remote.snapshot[module].map(entry => [entry.id, entry]))
-      for (const entry of local[module]) {
+    for (const [moduleIndex, moduleId] of (reuse ? [] : moduleIds).entries()) {
+      onProgress({ phase: 'compare', kind: 'module', module: moduleId, current: moduleIndex, total: moduleIds.length })
+      const right = new Map(remote.snapshot[moduleId].map(entry => [entry.id, entry]))
+      for (const entry of local[moduleId]) {
         const other = right.get(entry.id)
-        if (other && other.hash !== entry.hash) conflicts.push({ id: `${module}:${entry.id}`, module, label: entry.label, local: await preview(entry, platform), remote: await preview(other, platform), allowBoth: !entry.deleted && !other.deleted && (module === 'notes' || module === 'canvases' || module === 'conversations') })
+        if (other && other.hash !== entry.hash) conflicts.push({ id: `${moduleId}:${entry.id}`, module: moduleId, label: entry.label, local: await preview(entry, platform), remote: await preview(other, platform), allowBoth: !entry.deleted && !other.deleted && (moduleId === 'notes' || moduleId === 'canvases' || moduleId === 'conversations') })
       }
     }
     return { platform, target, targetLabel: label, workspace, scanCachePath, local, remote: remote.snapshot,
@@ -596,18 +606,18 @@ export function platformSwitchImpact(plan: PlatformSwitchPlan, strategy: SwitchS
 
 function resolveSnapshot(plan: PlatformSwitchPlan, strategy: SwitchStrategy, selected: SwitchModule[], resolutions: Record<string, SwitchResolution>): Snapshot {
   const result = blank()
-  for (const module of selected) {
-    if (strategy !== 'merge') { result[module] = [...(strategy === 'local' ? plan.local[module] : plan.remote[module])].filter(entry => !entry.deleted); continue }
-    const entries = new Map(plan.local[module].map(entry => [entry.id, entry]))
-    for (const remote of plan.remote[module]) {
+  for (const moduleId of selected) {
+    if (strategy !== 'merge') { result[moduleId] = [...(strategy === 'local' ? plan.local[moduleId] : plan.remote[moduleId])].filter(entry => !entry.deleted); continue }
+    const entries = new Map(plan.local[moduleId].map(entry => [entry.id, entry]))
+    for (const remote of plan.remote[moduleId]) {
       const local = entries.get(remote.id)
       if (!local) { entries.set(remote.id, remote); continue }
       if (local.hash === remote.hash) continue
-      const resolution = resolutions[`${module}:${remote.id}`]
+      const resolution = resolutions[`${moduleId}:${remote.id}`]
       if (!resolution) throw new Error('Resolve all conflicts before switching')
       if (resolution === 'remote') entries.set(remote.id, remote)
       if (resolution === 'both') {
-        if (!['notes', 'canvases', 'conversations'].includes(module)) throw new Error('This module requires one value')
+        if (!['notes', 'canvases', 'conversations'].includes(moduleId)) throw new Error('This module requires one value')
         const id = crypto.randomUUID()
         const copy = structuredClone(remote)
         if (copy.file) {
@@ -616,7 +626,7 @@ function resolveSnapshot(plan: PlatformSwitchPlan, strategy: SwitchStrategy, sel
           // The source remains the original path; the entry ID is its destination.
         } else {
           const value = record(copy.value)
-          if (module === 'conversations') {
+          if (moduleId === 'conversations') {
             value.syncId = id
             const item = value as unknown as ConversationSyncItem
             item.messages = item.messages.map(message => ({ ...message, syncId: crypto.randomUUID() }))
@@ -628,7 +638,7 @@ function resolveSnapshot(plan: PlatformSwitchPlan, strategy: SwitchStrategy, sel
         entries.set(copy.id, copy)
       }
     }
-    result[module] = [...entries.values()].filter(entry => !entry.deleted)
+    result[moduleId] = [...entries.values()].filter(entry => !entry.deleted)
   }
   return result
 }
@@ -775,18 +785,18 @@ export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, st
     }
     resolved.canvases = await Promise.all(resolved.canvases.map(entry => entry.side === 'remote' ? valueEntry(entry.id, entry.label, remapReferences(entry.value)) : entry))
   }
-  for (const module of selected) {
-    if (module === 'settings') {
+  for (const moduleId of selected) {
+    if (moduleId === 'settings') {
       // A field-by-field merge must still round-trip as one persisted settings
       // snapshot, including aliases/defaults and local-only field exclusions.
       resolved.settings = await settingsEntries(Object.fromEntries(resolved.settings.map(entry => [entry.id, entry.value])))
       continue
     }
-    resolved[module] = await Promise.all(resolved[module].map(async entry => {
+    resolved[moduleId] = await Promise.all(resolved[moduleId].map(async entry => {
       if (entry.file) return entry
-      const normalized = module === 'conversations' ? await conversationEntry(entry.value as ConversationSyncItem)
-        : module === 'records' ? await markEntry(entry.value as Mark)
-          : module === 'tags' ? await tagEntry(entry.value as Tag)
+      const normalized = moduleId === 'conversations' ? await conversationEntry(entry.value as ConversationSyncItem)
+        : moduleId === 'records' ? await markEntry(entry.value as Mark)
+          : moduleId === 'tags' ? await tagEntry(entry.value as Tag)
             : await valueEntry(entry.id, entry.label, entry.value)
       return { ...entry, ...normalized }
     }))
@@ -815,16 +825,16 @@ export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, st
   if (strategy !== 'remote') {
     const touched: SnapshotEntry[] = []
     let creates = false
-    for (const module of selected) {
-      for (const entry of resolved[module].filter(entry => entry.file)) {
-        const old = plan.remote[module].find(old => old.id === entry.id)
+    for (const moduleId of selected) {
+      for (const entry of resolved[moduleId].filter(entry => entry.file)) {
+        const old = plan.remote[moduleId].find(old => old.id === entry.id)
         if (old?.hash === entry.hash) continue
         if (plan.platform === 'gitee' && entry.size === 0) {
           throw new Error(`SYNC_SWITCH_EMPTY_UPLOAD_UNSUPPORTED: gitee / ${entry.id}`)
         }
         if (old) touched.push(old); else creates = true
       }
-      if (strategy === 'local') touched.push(...plan.remote[module].filter(entry => entry.file && !resolved[module].some(item => item.id === entry.id)))
+      if (strategy === 'local') touched.push(...plan.remote[moduleId].filter(entry => entry.file && !resolved[moduleId].some(item => item.id === entry.id)))
     }
     for (const [path, bytes] of await wireFiles(resolved, selected, { ...plan, conversationTombstones: switchConversationTombstones(plan, strategy, resolved) })) {
       const old = plan.remoteDataFiles.find(entry => entry.id === path)
@@ -851,7 +861,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   const tombstones = switchConversationTombstones(plan, strategy, resolved)
   const effectivePlan = { ...plan, conversationTombstones: tombstones }
   const wires = await wireFiles(resolved, selected, effectivePlan)
-  const expectedInventory = new Map(plan.remoteInventory.map(file => [`${file.scope}:${file.path}`, file]))
+  const expectedInventory = new Map<string, RemoteInventoryEntry>(plan.remoteInventory.map(file => [`${file.scope}:${file.path}`, file]))
   const remoteWrites = new Set<string>()
   const assertRemoteAbsent = async (path: string, scope: RemoteRepositoryScope) => {
     if (await getRemoteFileMetadata(path, scope, plan.platform)) throw new Error('SYNC_SWITCH_STALE')
@@ -928,15 +938,15 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   }
   if (strategy !== 'local') {
     const localModules = selected.filter(id => !['notes', 'assets', 'dataAssets', 'tags'].includes(id))
-    for (const [moduleIndex, module] of localModules.entries()) {
-      const group: SwitchModule[] = module === 'records' ? ['records', 'tags'] : [module]
+    for (const [moduleIndex, moduleId] of localModules.entries()) {
+      const group: SwitchModule[] = moduleId === 'records' ? ['records', 'tags'] : [moduleId]
       const snapshotHash = (snapshot: Snapshot) => stableSyncValue(group.map(id => [id, snapshot[id].filter(entry => !entry.deleted).map(entry => [entry.id, entry.hash]).sort()]))
       if (snapshotHash(plan.local) === snapshotHash(resolved)) continue
-      onProgress({ phase: 'apply', source: 'local', kind: 'module', module, current: moduleIndex, total: localModules.length })
+      onProgress({ phase: 'apply', source: 'local', kind: 'module', module: moduleId, current: moduleIndex, total: localModules.length })
       // Recheck the local domain immediately before replacing it.
       const local = await collectLocal(() => {}, false, group)
       if (snapshotHash(local) !== snapshotHash(plan.local)) throw new Error('SYNC_SWITCH_STALE')
-      await applyMutation({ side: 'local', action: 'module', path: module, before: snapshotHash(plan.local), after: snapshotHash(resolved) },
+      await applyMutation({ side: 'local', action: 'module', path: moduleId, before: snapshotHash(plan.local), after: snapshotHash(resolved) },
         () => applyLocalData(resolved, group, tombstones))
     }
   }
@@ -951,8 +961,8 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   // One-sided modes mirror the selected workspace scope. Every removed byte is backed up.
   if (strategy !== 'merge') {
     const destination = strategy === 'local' ? plan.remote : plan.local
-    for (const module of selected) for (const entry of destination[module]) {
-      if (!entry.file || resolved[module].some(item => item.id === entry.id)) continue
+    for (const moduleId of selected) for (const entry of destination[moduleId]) {
+      if (!entry.file || resolved[moduleId].some(item => item.id === entry.id)) continue
       if (strategy === 'local') {
         await applyMutation({ side: 'remote', action: 'delete', path: entry.id, scope: entry.file.scope, before: entry.hash }, async () => {
           if (!await deleteRemoteFile(entry.id, entry.file!.scope, conditionFor(entry), targetPlatform)) throw new Error(`Failed to remove remote file: ${entry.id}`)
@@ -994,7 +1004,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   onProgress({ phase: 'verify', source: 'remote', kind: 'directory', current: 0, total: 0 })
   const workspaceInventory = await listRemoteLibraryFiles({ platform: plan.platform, includeStaticAssets: true, onListProgress: reportInventory })
   const dataInventory = await listRemoteLibraryFiles({ platform: plan.platform, scope: 'data', onListProgress: reportInventory })
-  const currentRemote = new Map([
+  const currentRemote = new Map<string, RemoteLibraryFile>([
     ...workspaceInventory.map(file => [`workspace:${file.path}`, file] as const),
     ...dataInventory.map(file => [`data:${file.path}`, file] as const),
   ])
@@ -1007,7 +1017,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     if (!remoteWrites.has(key) && ((normalizeRemoteVersion(actual.sha) || actual.sha) !== (normalizeRemoteVersion(expected.sha) || expected.sha)
       || actual.size !== expected.size)) throw new Error('SYNC_SWITCH_STALE')
   }
-  const originalRemote = new Map([
+  const originalRemote = new Map<string, SnapshotEntry>([
     ...selected.flatMap(id => plan.remote[id]).filter(entry => entry.file).map(entry => [`${entry.file!.scope}:${entry.id}`, entry] as const),
     ...plan.remoteDataFiles.map(entry => [`data:${entry.id}`, entry] as const),
   ])
@@ -1050,23 +1060,23 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   }
   // Verify persisted structured content as well as transferred bytes.
   const actualLocal = await collectLocal(value => onProgress({ ...value, phase: 'verify' }), false, selected)
-  for (const module of selected.filter(id => !['notes', 'assets', 'dataAssets'].includes(id))) {
-    onProgress({ phase: 'verify', source: 'local', kind: 'module', module, current: selected.indexOf(module), total: selected.length })
+  for (const moduleId of selected.filter(id => !['notes', 'assets', 'dataAssets'].includes(id))) {
+    onProgress({ phase: 'verify', source: 'local', kind: 'module', module: moduleId, current: selected.indexOf(moduleId), total: selected.length })
     const normalize = async (entries: SnapshotEntry[]) => {
       // Compare persistence semantics at the verification boundary as well as
       // during collection. A snapshot retained across hot reloads, or produced
       // by a legacy reader, may still hash SQL nulls that JSON omitted.
-      return module === 'conversations'
+      return moduleId === 'conversations'
         ? await Promise.all(entries.map(entry => conversationEntry(entry.value as ConversationSyncItem)))
-        : module === 'settings'
+        : moduleId === 'settings'
           ? await settingsEntries(Object.fromEntries(entries.map(entry => [entry.id, entry.value])))
           : entries
     }
-    const expected = await normalize(strategy === 'local' ? plan.local[module].filter(entry => !entry.deleted) : resolved[module])
-    const actual = await normalize(actualLocal[module])
+    const expected = await normalize(strategy === 'local' ? plan.local[moduleId].filter(entry => !entry.deleted) : resolved[moduleId])
+    const actual = await normalize(actualLocal[moduleId])
     const values = (entries: SnapshotEntry[]) => stableSyncValue(entries.map(entry => [entry.id, entry.hash]).sort())
     if (values(expected) !== values(actual)) {
-      const details = module === 'settings' ? (() => {
+      const details = moduleId === 'settings' ? (() => {
         const expectedFields = new Map(expected.map(entry => [entry.id, entry.hash]))
         const actualFields = new Map(actual.map(entry => [entry.id, entry.hash]))
         return [...new Set([...expectedFields.keys(), ...actualFields.keys()])]
@@ -1074,7 +1084,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
           .sort().slice(0, 5).join(', ')
       })() : ''
       // Report field names only; settings values can contain private content.
-      throw new Error(`SYNC_SWITCH_LOCAL_VERIFY: ${module}${details ? ` / ${details}` : ''}`)
+      throw new Error(`SYNC_SWITCH_LOCAL_VERIFY: ${moduleId}${details ? ` / ${details}` : ''}`)
     }
   }
   const inventory = new Map(workspaceInventory.map(file => [file.path, file.sha]))
@@ -1161,9 +1171,9 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
       const chat = (await import('@/stores/chat')).default.getState()
       if (chat.loading || chat.agentState.isRunning) throw new Error('SYNC_SWITCH_CHAT_BUSY')
       if (!moduleIds.includes(op.path as SwitchModule)) throw new Error('Invalid recovery domain')
-      const module = op.path as SwitchModule
-      if (domainFingerprint(manifest.local, module) !== op.before) throw new Error('Invalid recovery domain baseline')
-      for (const entry of (module === 'records' ? [...manifest.local.records, ...manifest.local.tags] : manifest.local[module])) {
+      const moduleId = op.path as SwitchModule
+      if (domainFingerprint(manifest.local, moduleId) !== op.before) throw new Error('Invalid recovery domain baseline')
+      for (const entry of (moduleId === 'records' ? [...manifest.local.records, ...manifest.local.tags] : manifest.local[moduleId])) {
         if (await hash(encoder.encode(stableSyncValue(entry.value))) !== entry.hash) throw new Error('Damaged sync recovery manifest')
       }
       const current = domainFingerprint(await collectLocal(() => {}, false, op.path === 'records' ? ['records', 'tags'] : [op.path as SwitchModule]), op.path as SwitchModule)
@@ -1192,8 +1202,8 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
     onProgress({ phase: 'apply', source: 'local', path: op.path, current: index, total: operations.length })
     if (await check(op) === comparableFingerprint(op, op.before)) continue // Also makes interrupted restoration resumable.
     if (op.action === 'module') {
-      const module = op.path as SwitchModule
-      await applyLocalData(manifest.local, module === 'records' ? ['records', 'tags'] : [module], manifest.localConversationTombstones)
+      const moduleId = op.path as SwitchModule
+      await applyLocalData(manifest.local, moduleId === 'records' ? ['records', 'tags'] : [moduleId], manifest.localConversationTombstones)
     } else {
       const original = originalFile(op)
       if (original) {

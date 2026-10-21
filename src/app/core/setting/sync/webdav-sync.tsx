@@ -37,10 +37,6 @@ export function WebDAVSync() {
         const savedConfig = await store.get<WebDAVConfig>('webdavSyncConfig');
         if (savedConfig) {
           setConfig(savedConfig);
-          // 如果配置完整，自动进行连接检测
-          if (savedConfig.url && savedConfig.username && savedConfig.password) {
-            testConnection(savedConfig);
-          }
         }
       } finally {
         setIsInitialized(true);

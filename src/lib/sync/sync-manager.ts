@@ -414,7 +414,7 @@ export class SyncManager {
   /**
    * 处理冲突
    */
-  async resolveConflict(path: string, strategy: 'ask' | 'local' | 'remote', localContent?: string, remoteContent?: string): Promise<SyncResult> {
+  async resolveConflict(path: string, strategy: 'ask' | 'local' | 'remote', localContent?: string): Promise<SyncResult> {
     try {
       // 如果策略是 ask，需要获取用户选择
       if (strategy === 'ask') {
@@ -518,7 +518,7 @@ export class SyncManager {
           return { success: false, action: 'conflict', error: '用户取消' }
         }
 
-        return await this.resolveConflict(path, choice, localContent, remoteContent)
+        return await this.resolveConflict(path, choice, localContent)
       }
 
       return { success: true, action: 'none' }

@@ -1594,7 +1594,7 @@ export async function uploadConversations() {
   return true
 }
 
-export async function downloadConversations(_options: { allowMissingRemote?: boolean } = {}) {
+export async function downloadConversations() {
   const startedAt = Date.now()
   const store = await Store.load('store.json')
   const storage = await createConversationRemoteStorage(store)

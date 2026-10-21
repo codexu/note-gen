@@ -240,7 +240,7 @@ function mergeCanvasProjects(
 }
 
 async function createCanvasRemoteStorage(store: Store, conditions?: Map<string, RemoteWriteCondition>): Promise<CanvasRemoteStorage | null> {
-  const storage = await createRawCanvasRemoteStorage(store)
+  const storage = await createRawCanvasRemoteStorage(store, conditions)
   if (!storage) return null
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
   return { ...storage, read: async path => {
@@ -255,7 +255,7 @@ async function createCanvasRemoteStorage(store: Store, conditions?: Map<string, 
   } }
 }
 
-async function createRawCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStorage | null> {
+async function createRawCanvasRemoteStorage(store: Store, conditions?: Map<string, RemoteWriteCondition>): Promise<CanvasRemoteStorage | null> {
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
 
   if (provider === 'github') {
@@ -570,7 +570,7 @@ async function persistMergedCanvases(
   return merged
 }
 
-export async function downloadCanvases(_options: { allowMissingRemote?: boolean } = {}) {
+export async function downloadCanvases() {
   const { getCanvasProjects } = await import('@/db/canvases')
   const store = await Store.load('store.json')
   const storage = await createCanvasRemoteStorage(store)

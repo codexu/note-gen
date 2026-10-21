@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 
 import { GiteeSync } from './gitee-sync'
@@ -66,6 +67,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
 import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
@@ -73,6 +75,7 @@ import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
 import useSettingStore from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { SYNC_PLATFORMS, SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
 
 const PLATFORM_ICONS: Record<SyncPlatform, LucideIcon> = {
@@ -97,6 +100,9 @@ const PLATFORM_LOGOS: Partial<Record<SyncPlatform, string>> = {
 
 export default function SyncPage() {
   const t = useTranslations()
+  const pathname = usePathname()
+  const syncSettingsOpen = useSettingsDialogStore(state => state.open && state.activeSection === 'sync')
+  const active = syncSettingsOpen || pathname === '/core/setting/sync'
   const {
     primaryBackupMethod,
     autoSync,
@@ -160,6 +166,7 @@ export default function SyncPage() {
     () => Array.from(new Set([workspacePath, '', ...workspaceHistory])),
     [workspaceHistory, workspacePath],
   )
+  const workspaceReposLoaded = workspaceOptions.every(path => workspaceRepos[path] !== undefined)
 
   useEffect(() => {
     let cancelled = false
@@ -222,17 +229,19 @@ export default function SyncPage() {
     checkingPlatformsRef.current.add(targetPlatform)
     setCheckingPlatforms(new Set(checkingPlatformsRef.current))
     try {
-      await checkSyncProviderStatus(targetPlatform)
+      if (targetPlatform === 'github' || targetPlatform === 'gitee' || targetPlatform === 'gitlab' || targetPlatform === 'gitea') {
+        const { refreshGitSyncProviderStatus } = await import('@/lib/sync/repository-check')
+        await refreshGitSyncProviderStatus(targetPlatform)
+      } else {
+        await checkSyncProviderStatus(targetPlatform)
+      }
+    } catch (error) {
+      console.error('Failed to refresh sync provider status:', error)
     } finally {
       checkingPlatformsRef.current.delete(targetPlatform)
       setCheckingPlatforms(new Set(checkingPlatformsRef.current))
     }
   }, [])
-
-  useEffect(() => {
-    if (isLoading) return
-    void checkPlatformStatus(platform)
-  }, [checkPlatformStatus, isLoading, platform, workspacePath])
 
   function getSyncState(targetPlatform: SyncPlatform) {
     if (checkingPlatforms.has(targetPlatform)) return SyncStateEnum.checking
@@ -317,27 +326,46 @@ export default function SyncPage() {
 
   function renderStatusBadge(state: SyncStateEnum) {
     const isChecking = state === SyncStateEnum.checking || state === SyncStateEnum.creating
+    const label = state === SyncStateEnum.success
+      ? t('settings.sync.status.connected')
+      : state === SyncStateEnum.checking
+        ? t('settings.sync.checking')
+        : state === SyncStateEnum.creating
+          ? t('settings.sync.creating')
+          : t('settings.sync.status.disconnected')
+    const refreshHint = t('settings.sync.workspaceConnection.platformRefreshHint')
 
-    if (state === SyncStateEnum.success) {
-      return (
-        <Badge className="bg-green-600 text-white">
-          {t('settings.sync.status.connected')}
-        </Badge>
-      )
-    }
-
-    if (isChecking) {
-      return (
-        <Badge variant="secondary">
-          <Loader2 data-icon="inline-start" className="animate-spin" />
-          {state === SyncStateEnum.checking
-            ? t('settings.sync.checking')
-            : t('settings.sync.creating')}
-        </Badge>
-      )
-    }
-
-    return <Badge variant="destructive">{t('settings.sync.status.disconnected')}</Badge>
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            asChild
+            variant={state === SyncStateEnum.success ? 'success' : isChecking ? 'secondary' : 'destructive'}
+          >
+            <button
+              type="button"
+              className={cn(
+                'cursor-pointer disabled:cursor-wait disabled:opacity-70',
+                state === SyncStateEnum.success
+                  ? 'hover:bg-success/20'
+                  : !isChecking && 'hover:bg-destructive/20'
+              )}
+              disabled={isChecking}
+              aria-label={`${currentPlatformName}: ${label}. ${refreshHint}`}
+              onClick={() => void checkPlatformStatus(platform)}
+            >
+              {isChecking ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCcw data-icon="inline-start" aria-hidden="true" />
+              )}
+              {label}
+            </button>
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>{refreshHint}</TooltipContent>
+      </Tooltip>
+    )
   }
 
   if (isLoading) {
@@ -445,14 +473,18 @@ export default function SyncPage() {
             <TabsContent value="connection" className="flex flex-col gap-4">
               {renderSyncContent()}
               {platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder' && platform !== 'selfHosted' ? (
-                <WorkspaceRepoMapping
+                workspaceReposLoaded ? <WorkspaceRepoMapping
+                  active={active}
                   platform={platform}
                   workspaceOptions={workspaceOptions}
                   currentWorkspacePath={workspacePath}
                   workspaceRepos={workspaceRepos}
                   defaultRepoName={RepoNames.sync}
                   onRepoChange={(targetWorkspacePath, repo) => handleWorkspaceRepoChange(targetWorkspacePath, platform, repo)}
-                />
+                /> : <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground" role="status">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  {t('settings.sync.checking')}
+                </div>
               ) : null}
             </TabsContent>
 

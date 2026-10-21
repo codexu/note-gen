@@ -44,6 +44,17 @@ export function UnifiedSyncStatus() {
   const locale = useLocale()
   const method = useSettingStore(state => state.primaryBackupMethod)
   const workspacePath = useSettingStore(state => state.workspacePath)
+  const missingRepository = useSettingStore(state => {
+    if (!state.workspacePath) return false
+    switch (state.primaryBackupMethod) {
+      case 'github': return !state.githubCustomSyncRepo.trim()
+      case 'gitee': return !state.giteeCustomSyncRepo.trim()
+      case 'gitlab': return !state.gitlabCustomSyncRepo.trim()
+      case 'gitea': return !state.giteaCustomSyncRepo.trim()
+      default: return false
+    }
+  })
+  const configureLabel = useTranslations('settings.sync.workspaceConnection')('configure')
   const availability = useSyncAvailability()
   const [dataState, setDataState] = useState<AutoDataSyncState>(getAutoDataSyncState)
   const [fileStatus, setFileStatus] = useState<ItemStatus>('idle')
@@ -260,13 +271,15 @@ export function UnifiedSyncStatus() {
 
   const currentStatus = switchSkipped ? p('skipped') : switchStep === 'cancelled' ? p('cancelled') : switchStep === 'error' ? t('failed') : switchBusy ? t('syncing') : switchStep === 'review' || switchStep === 'confirm' ? p('choose') : method === 'local' ? t('localOnly')
     : retrying ? t('syncing')
+    : missingRepository ? t('missingRepository')
     : availability.status === 'not-configured' ? t('notConfigured')
     : availability.status === 'unavailable' ? t('unavailable')
       : hasFailure ? t('failed')
         : availability.status === 'checking' ? t('checking')
           : fileStatus === 'syncing' || dataSyncing ? t('syncing')
             : lastSuccess ? t('synced') : t('ready')
-  const lightClassName = switchSkipped || switchStep === 'cancelled' ? 'bg-warning' : switchStep === 'error' ? 'bg-destructive' : switchBusy ? 'bg-warning animate-pulse' : method === 'local' || availability.status === 'not-configured' ? 'bg-muted-foreground/50'
+  const lightClassName = switchSkipped || switchStep === 'cancelled' ? 'bg-warning' : switchStep === 'error' ? 'bg-destructive' : switchBusy ? 'bg-warning animate-pulse' : method === 'local' ? 'bg-muted-foreground/50'
+    : missingRepository || availability.status === 'not-configured' ? 'bg-warning'
     : retrying ? 'bg-warning animate-pulse'
     : availability.status === 'unavailable' || hasFailure ? 'bg-destructive'
       : availability.status === 'checking' || fileStatus === 'syncing' || dataSyncing ? 'bg-warning animate-pulse'
@@ -277,6 +290,9 @@ export function UnifiedSyncStatus() {
       time: formatSyncTime(lastSuccess.at, locale),
     })
     : t('noActivity')
+  const opensConfiguration = !switchStep && !switchSkipped
+    && (method === 'local' || missingRepository || availability.status === 'not-configured')
+  const actionLabel = opensConfiguration ? configureLabel : t('retry')
 
   return (
     <Tooltip>
@@ -284,15 +300,18 @@ export function UnifiedSyncStatus() {
         <Button
           type="button"
           variant="ghost"
-          size="icon-xs"
-          aria-label={`${t('title')}：${currentStatus}。${recentSync}。${t('retry')}`}
-          aria-disabled={retrying || (!switchStep && !switchSkipped && (method === 'local' || availability.status === 'not-configured'))}
+          size="xs"
+          aria-label={`${t('title')}：${currentStatus}。${recentSync}。${actionLabel}`}
+          aria-disabled={retrying}
           aria-busy={retrying}
           onClick={() => {
-            if (switchStep || switchSkipped || (method !== 'local' && availability.status !== 'not-configured')) void retrySync()
+            if (retrying) return
+            if (opensConfiguration) useSettingsDialogStore.getState().openSettings('sync')
+            else void retrySync()
           }}
         >
           <span aria-hidden="true" className={cn('size-2 rounded-full', lightClassName)} />
+          <span>{currentStatus}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" className="flex max-w-72 flex-col gap-1">
@@ -309,7 +328,8 @@ export function UnifiedSyncStatus() {
             </ol>
           </div>
         )}
-        {method !== 'local' && availability.configured && <p className="text-xs">{t('retryHint')}</p>}
+        {opensConfiguration ? <p className="text-xs">{configureLabel}</p>
+          : method !== 'local' && availability.configured && <p className="text-xs">{t('retryHint')}</p>}
       </TooltipContent>
     </Tooltip>
   )

@@ -1,17 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
+  ArrowRight,
   ChevronsUpDown,
+  CircleAlert,
+  Cloud,
   FolderCheck,
   FolderOpen,
   FolderPlus,
+  GitBranch,
+  HardDrive,
+  Settings2,
   Trash2,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import {
   Command,
   CommandEmpty,
@@ -36,9 +45,12 @@ import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { getDefaultArticleAbsolutePath } from '@/lib/workspace'
 import { getWorkspaceDisplayName } from '@/lib/workspace-name'
+import { RepoNames } from '@/lib/sync/github.types'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { useSkillsStore } from '@/stores/skills'
+import { SYNC_PLATFORM_INFO } from '@/types/sync'
 
 import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
 
@@ -48,6 +60,15 @@ export function FileFooter() {
     workspaceHistory,
     setWorkspacePath,
     removeWorkspaceHistory,
+    primaryBackupMethod,
+    githubCustomSyncRepo,
+    giteeCustomSyncRepo,
+    gitlabCustomSyncRepo,
+    giteaCustomSyncRepo,
+    accessToken,
+    giteeAccessToken,
+    gitlabAccessToken,
+    giteaAccessToken,
   } = useSettingStore()
   const { refreshSkills } = useSkillsStore()
   const {
@@ -56,9 +77,12 @@ export function FileFooter() {
     setActiveFilePath,
   } = useArticleStore()
   const tFile = useTranslations('settings.file')
+  const t = useTranslations('settings.sync.workspaceConnection')
+  const tSync = useTranslations('settings.sync')
   const [open, setOpen] = useState(false)
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
   const [defaultWorkspacePath, setDefaultWorkspacePath] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const defaultWorkspaceName = tFile('workspace.defaultPath')
   const currentWorkspaceName = useMemo(
@@ -68,6 +92,40 @@ export function FileFooter() {
   const currentWorkspacePath = workspacePath
     || defaultWorkspacePath
     || defaultWorkspaceName
+  const repositoryConfiguration = (() => {
+    switch (primaryBackupMethod) {
+      case 'github': return { repo: githubCustomSyncRepo, token: accessToken }
+      case 'gitee': return { repo: giteeCustomSyncRepo, token: giteeAccessToken }
+      case 'gitlab': return { repo: gitlabCustomSyncRepo, token: gitlabAccessToken }
+      case 'gitea': return { repo: giteaCustomSyncRepo, token: giteaAccessToken }
+      default: return null
+    }
+  })()
+  const repository = repositoryConfiguration
+    ? repositoryConfiguration.repo.trim() || (workspacePath ? '' : RepoNames.sync)
+    : ''
+  const missingRepository = repositoryConfiguration !== null && !repository
+  const missingConnection = repositoryConfiguration !== null && !repositoryConfiguration.token.trim()
+  const localOnly = primaryBackupMethod === 'local'
+  const platformName = primaryBackupMethod === 'cloudFolder'
+    ? tSync('cloudFolder.title')
+    : primaryBackupMethod === 'selfHosted'
+      ? tSync('selfHosted.title')
+      : SYNC_PLATFORM_INFO[primaryBackupMethod].name
+  const targetName = localOnly ? t('localOnly') : missingRepository ? t('unbound') : repository || platformName
+  const targetDescription = localOnly ? t('localDescription')
+    : missingRepository ? t('unboundDescription')
+      : missingConnection ? t('setupDescription')
+        : repository ? t(workspacePath ? 'filesScope' : 'defaultScope') : platformName
+  const needsAttention = missingRepository || missingConnection
+  const TargetIcon = needsAttention ? CircleAlert
+    : localOnly ? HardDrive : repositoryConfiguration ? GitBranch : Cloud
+  const workspaceOptions = Array.from(new Set([workspacePath, ...workspaceHistory])).filter(Boolean)
+
+  function openSyncSettings() {
+    setOpen(false)
+    useSettingsDialogStore.getState().openSettings('sync')
+  }
 
   useEffect(() => {
     void getDefaultArticleAbsolutePath('')
@@ -162,24 +220,26 @@ export function FileFooter() {
   }
 
   return (
-    <div className="relative flex h-6 min-h-6 max-h-6 w-fit shrink-0 items-center bg-background text-xs text-muted-foreground">
+    <div className="relative flex w-fit shrink-0 items-center gap-1 text-xs">
       <Popover open={open} onOpenChange={setOpen}>
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="xs"
                 disabled={switchingWorkspace}
-                className="w-auto min-w-0 max-w-[min(20rem,40vw)] shrink-0 justify-start border-0 bg-transparent px-1.5 text-xs font-normal text-muted-foreground focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-ring/30"
-                aria-label={currentWorkspaceName}
+                className="min-w-0 max-w-[min(20rem,35vw)] justify-start"
+                aria-label={`${t('workspaceLabel')}: ${currentWorkspaceName}`}
+                aria-expanded={open}
               >
                 {switchingWorkspace ? (
-                  <Spinner data-icon="inline-start" className="size-3" />
+                  <Spinner data-icon="inline-start" />
                 ) : (
                   <FolderOpen data-icon="inline-start" />
                 )}
-                <span className="min-w-0 max-w-48 truncate text-left">
+                <span className="hidden text-muted-foreground xl:inline">{t('workspaceLabel')}</span>
+                <span className="min-w-0 max-w-48 truncate">
                   {currentWorkspaceName}
                 </span>
                 <ChevronsUpDown data-icon="inline-end" className="opacity-50" />
@@ -195,10 +255,61 @@ export function FileFooter() {
           side="top"
           align="start"
           sideOffset={6}
-          className="w-[var(--radix-popover-trigger-width)] min-w-80 max-w-[calc(100vw-1rem)] p-0"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            searchInputRef.current?.focus()
+          }}
+          className="flex max-h-[var(--radix-popover-content-available-height)] w-96 max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0"
         >
-          <Command>
-            <CommandInput placeholder={tFile('workspace.searchPlaceholder')} />
+          <div className="flex max-h-[50vh] shrink-0 flex-col gap-3 overflow-y-auto bg-muted/30 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">{t('workspaceLabel')}</span>
+              <Badge variant="secondary">{t('current')}</Badge>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary">
+                <FolderOpen className="size-5" />
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="truncate font-medium">{currentWorkspaceName}</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p tabIndex={0} className="truncate text-xs text-muted-foreground">{currentWorkspacePath}</p>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[min(32rem,calc(100vw-2rem))] break-all">
+                    {currentWorkspacePath}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
+              {localOnly ? <HardDrive className="size-4 shrink-0 text-muted-foreground" />
+                : repositoryConfiguration ? <GitBranch className="size-4 shrink-0 text-muted-foreground" />
+                  : <Cloud className="size-4 shrink-0 text-muted-foreground" />}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">{t('targetLabel')}{!localOnly && ` · ${platformName}`}</p>
+                <p className="truncate text-sm font-medium">{targetName}</p>
+              </div>
+              <Button variant="ghost" size="icon-sm" onClick={openSyncSettings} aria-label={t('configure')}>
+                <Settings2 />
+              </Button>
+            </div>
+            {needsAttention ? (
+              <Alert variant="warning" role="status">
+                <CircleAlert />
+                <AlertTitle>{t(missingRepository ? 'unboundTitle' : 'setupRequired')}</AlertTitle>
+                <AlertDescription>{targetDescription}</AlertDescription>
+              </Alert>
+            ) : <p className="text-xs leading-relaxed text-muted-foreground">{targetDescription}</p>}
+            {needsAttention && <Button size="sm" className="self-start" onClick={openSyncSettings}>
+              <Settings2 data-icon="inline-start" />
+              {t('configure')}
+              <ArrowRight data-icon="inline-end" />
+            </Button>}
+          </div>
+          <Separator />
+          <Command className="min-h-0">
+            <CommandInput ref={searchInputRef} placeholder={tFile('workspace.searchPlaceholder')} />
             <CommandList>
               <CommandEmpty>{tFile('workspace.noResults')}</CommandEmpty>
               <CommandGroup heading={tFile('workspace.actions')}>
@@ -221,9 +332,7 @@ export function FileFooter() {
                   onSelect={() => void switchWorkspace('')}
                   className={cn(
                     'items-start [&>svg:last-child]:hidden',
-                    workspacePath
-                      ? 'text-muted-foreground/70 [&>svg:first-child]:opacity-60'
-                      : 'text-foreground [&>svg:first-child]:text-primary'
+                    !workspacePath && 'bg-accent'
                   )}
                 >
                   {workspacePath ? (
@@ -236,14 +345,22 @@ export function FileFooter() {
                       {defaultWorkspaceName}
                     </span>
                     {defaultWorkspacePath && (
-                      <span className="block truncate text-xs text-muted-foreground/70">
-                        {defaultWorkspacePath}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="block truncate text-xs text-muted-foreground/70">
+                            {defaultWorkspacePath}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[min(32rem,calc(100vw-2rem))] break-all">
+                          {defaultWorkspacePath}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </span>
+                  {!workspacePath && <Badge variant="secondary">{t('current')}</Badge>}
                 </CommandItem>
 
-                {workspaceHistory.map((path) => (
+                {workspaceOptions.map((path) => (
                   <CommandItem
                     key={path}
                     value={`${getWorkspaceDisplayName(path, defaultWorkspaceName)} ${path}`}
@@ -253,9 +370,7 @@ export function FileFooter() {
                     onSelect={() => void switchWorkspace(path)}
                     className={cn(
                       'items-start [&>svg:last-child]:hidden',
-                      path === workspacePath
-                        ? 'text-foreground [&>svg:first-child]:text-primary'
-                        : 'text-muted-foreground/70 [&>svg:first-child]:opacity-60'
+                      path === workspacePath && 'bg-accent'
                     )}
                   >
                     {path === workspacePath ? (
@@ -267,10 +382,18 @@ export function FileFooter() {
                       <span className="block truncate font-medium">
                         {getWorkspaceDisplayName(path, defaultWorkspaceName)}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground/70">
-                        {path}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="block truncate text-xs text-muted-foreground/70">
+                            {path}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[min(32rem,calc(100vw-2rem))] break-all">
+                          {path}
+                        </TooltipContent>
+                      </Tooltip>
                     </span>
+                    {path === workspacePath && <Badge variant="secondary">{t('current')}</Badge>}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -300,7 +423,27 @@ export function FileFooter() {
           </Command>
         </PopoverContent>
       </Popover>
-
+      <ArrowRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="xs"
+            variant={needsAttention ? 'outline' : 'ghost'}
+            className={cn('min-w-0 max-w-[min(22rem,35vw)]', needsAttention && 'border-warning/40 bg-warning/10 text-warning-foreground hover:bg-warning/20')}
+            onClick={openSyncSettings}
+            aria-label={`${t('targetLabel')}: ${targetName}. ${t('configure')}`}
+          >
+            <TargetIcon data-icon="inline-start" />
+            {repositoryConfiguration && !missingRepository && <span className="hidden text-muted-foreground lg:inline">{platformName}</span>}
+            <span className="truncate">{missingConnection && !missingRepository ? t('setupRequired') : targetName}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="flex max-w-80 flex-col gap-1">
+          <p className="break-all font-medium">{targetName}</p>
+          <p>{targetDescription}</p>
+          <p>{t('configure')}</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   )
 }

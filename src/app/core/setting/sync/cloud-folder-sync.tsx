@@ -50,7 +50,6 @@ export function CloudFolderSync() {
       if (cancelled) return
       if (saved) setConfig(saved)
       setInitialized(true)
-      if (saved?.path) void testConnection(saved)
     }
     void initialize()
     return () => {

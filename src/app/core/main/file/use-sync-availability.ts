@@ -53,12 +53,12 @@ export function useSyncAvailability() {
   const [configurationRevision, setConfigurationRevision] = useState(0)
   const configurationRequestRef = useRef(0)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (checkConnection = true) => {
     const requestId = ++configurationRequestRef.current
     setConfigurationChecking(true)
     try {
       const next = await getSyncConfiguration()
-      if (next.configured && (next.platform === 's3' || next.platform === 'webdav' || next.platform === 'cloudFolder')) {
+      if (checkConnection && next.configured && (next.platform === 's3' || next.platform === 'webdav' || next.platform === 'cloudFolder')) {
         await checkSyncProviderStatus(next.platform)
       }
       if (configurationRequestRef.current === requestId) setState(next)
@@ -72,7 +72,7 @@ export function useSyncAvailability() {
 
   useEffect(() => {
     setConfigurationRevision(revision => revision + 1)
-    void refresh().catch(error => {
+    void refresh(false).catch(error => {
       console.warn('[sync-availability] Configuration refresh failed', error)
     })
   }, [credentials, refresh, settingsOpen])

@@ -40,10 +40,6 @@ export function S3Sync() {
         const savedConfig = await store.get<S3Config>('s3SyncConfig');
         if (savedConfig) {
           setConfig(savedConfig);
-          // 如果配置完整，自动进行连接检测
-          if (savedConfig.accessKeyId && savedConfig.secretAccessKey && savedConfig.region && savedConfig.bucket) {
-            testConnection(savedConfig);
-          }
         }
       } finally {
         setIsInitialized(true);

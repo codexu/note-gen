@@ -554,7 +554,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ syncState: true })
     try {
       const { downloadConversations } = await import('@/lib/sync/conversation-sync')
-      await downloadConversations({ allowMissingRemote: true })
+      await downloadConversations()
       return get().chats
     } finally {
       set({ syncState: false })

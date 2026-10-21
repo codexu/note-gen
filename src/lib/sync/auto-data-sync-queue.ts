@@ -969,7 +969,7 @@ export async function downloadAutoDataSyncNow(
       downloadStage = 'refresh-tags'
       await useTagStore.getState().fetchTags()
       downloadStage = 'download-canvases'
-      await downloadCanvases({ allowMissingRemote: true })
+      await downloadCanvases()
       const { default: useCanvasStore } = await import('@/stores/canvas')
       downloadStage = 'refresh-canvas-store'
       await useCanvasStore.getState().loadProjects()
@@ -1009,7 +1009,7 @@ export async function downloadAutoDataSyncNow(
     if (shouldDownloadConversations) {
       const domainStartedAt = Date.now()
       downloadStage = 'download-conversations'
-      conversationResult = await downloadConversations({ allowMissingRemote: true })
+      conversationResult = await downloadConversations()
       recordSyncTiming('domainDownload', domainStartedAt, {
         domain: 'conversations',
         success: conversationResult,
@@ -1228,7 +1228,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       ? await useSettingsSyncStore.getState().downloadSettings({ allowMissingRemote: true })
       : true
     const conversationResult = mergeConversations
-      ? await downloadConversations({ allowMissingRemote: true })
+      ? await downloadConversations()
       : true
 
     if (!settingsResult || !conversationResult) {

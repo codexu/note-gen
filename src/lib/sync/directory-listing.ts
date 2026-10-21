@@ -1,3 +1,5 @@
+import { parseSyncJson } from './remote-file'
+
 export interface RemoteDirectoryEntry {
   name: string
   path: string
@@ -14,9 +16,21 @@ export function remoteRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+function responseLocation(response: Response) {
+  try {
+    const url = new URL(response.url)
+    return `${url.origin}${url.pathname}`
+  } catch { return 'remote directory' }
+}
+
+async function readResponseJson(response: Response): Promise<unknown> {
+  const context = `HTTP ${response.status}, ${responseLocation(response)}`
+  return parseSyncJson<unknown>(await response.text(), context)
+}
+
 export async function readDirectoryResponse(response: Response): Promise<unknown> {
-  if (!response.ok) throw new Error(`Remote directory request failed: ${response.status}`)
-  return response.json()
+  if (!response.ok) throw new Error(`Remote directory request failed: HTTP ${response.status} (${responseLocation(response)})`)
+  return readResponseJson(response)
 }
 
 export function parseDirectoryEntries(data: unknown): RemoteDirectoryEntry[] {
@@ -49,17 +63,38 @@ export function parseDirectoryEntries(data: unknown): RemoteDirectoryEntry[] {
 export async function readGitTreeDirectory(
   path: string,
   request: (resource: string) => Promise<Response>,
+  cache?: Map<string, Promise<unknown>>,
 ): Promise<RemoteDirectoryEntry[]> {
-  const repository = remoteRecord(await readDirectoryResponse(await request('')))
+  // A fresh cache belongs to one inventory walk, never to a later validation.
+  // Parent trees and repository metadata are reused across sibling directories.
+  const read = (resource: string, root = false): Promise<unknown> => {
+    const existing = cache?.get(resource)
+    if (existing) return existing
+    const pending = (async () => {
+      const response = await request(resource)
+      if (root && response.status === 409) {
+        const error = remoteRecord(await readResponseJson(response))
+        if (typeof error.message === 'string' && /repository is empty/i.test(error.message)) return { tree: [] }
+        throw new Error('Remote repository tree is unavailable')
+      }
+      return readDirectoryResponse(response)
+    })()
+    cache?.set(resource, pending)
+    return pending
+  }
+  const repository = remoteRecord(await read(''))
+  if (repository.empty === true || repository.empty_repo === true) return []
   if (typeof repository.default_branch !== 'string' || !repository.default_branch) {
+    // Gitee reports null for a new repository's default branch without an
+    // explicit empty flag. Confirm it has no branches before treating it as empty.
+    const branches = await read('/branches')
+    if (Array.isArray(branches) && branches.length === 0) return []
     throw new Error('Remote repository has no default branch')
   }
   let treeSha = repository.default_branch
   const segments = path.split('/').filter(Boolean)
   for (let depth = 0; depth <= segments.length; depth += 1) {
-    const tree = remoteRecord(await readDirectoryResponse(
-      await request(`/git/trees/${encodeURIComponent(treeSha)}`),
-    ))
+    const tree = remoteRecord(await read(`/git/trees/${encodeURIComponent(treeSha)}`, depth === 0))
     if (tree.truncated === true || !Array.isArray(tree.tree)) {
       throw new Error('Remote directory listing is incomplete')
     }

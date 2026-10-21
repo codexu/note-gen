@@ -74,7 +74,7 @@ export async function getLocalRecordedSha(filePath: string): Promise<string | nu
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
   const scopedKey = await getSyncMetadataKey(filePath)
-  if (syncedShas[scopedKey]) return syncedShas[scopedKey]
+  if (Object.prototype.hasOwnProperty.call(syncedShas, scopedKey)) return syncedShas[scopedKey] || null
 
   const context = await getCurrentSyncContext()
   return context.workspaceKey === '__default__' ? syncedShas[filePath] || null : null

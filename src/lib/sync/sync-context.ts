@@ -14,10 +14,10 @@ function isGitSyncProvider(provider: string): provider is GitSyncProvider {
   return GIT_SYNC_PROVIDERS.includes(provider as GitSyncProvider)
 }
 
-export async function getCurrentSyncContext() {
+export async function getCurrentSyncContext(target?: string) {
   const store = await Store.load('store.json')
   const workspacePath = normalizeWorkspacePath(await store.get<string>('workspacePath') || '')
-  const provider = await store.get<string>('primaryBackupMethod') || 'github'
+  const provider = target ?? (await store.get<string>('primaryBackupMethod') || 'github')
   const repo = isGitSyncProvider(provider)
     ? await getOptionalSyncRepoName(provider)
     : provider === 'cloudFolder'
@@ -32,7 +32,7 @@ export async function getCurrentSyncContext() {
   }
 }
 
-export async function getSyncMetadataKey(path: string) {
-  const context = await getCurrentSyncContext()
+export async function getSyncMetadataKey(path: string, target?: string) {
+  const context = await getCurrentSyncContext(target)
   return JSON.stringify([context.workspaceKey, context.provider, context.repo, path])
 }

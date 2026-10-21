@@ -1,3 +1,4 @@
+import type { RemoteWriteCondition } from '@/lib/sync/write-condition'
 import { getAllMarks, getMarkPreviews, getMarks, getTrashMarkPreviews, Mark, updateMark } from '@/db/marks'
 import { replaceRecordSnapshot, validateRecordSnapshot } from '@/db/record-snapshot'
 import { isMobileDevice } from '@/lib/check'
@@ -12,7 +13,7 @@ import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/
 import { cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
 import { CloudFolderConfig, WebDAVConfig } from '@/types/sync'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils';
-import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file';
+import { getRemoteFileContent, isMissingRemoteFileError, parseSyncJson, syncDataError } from '@/lib/sync/remote-file';
 import { Store } from '@tauri-apps/plugin-store';
 import { create } from 'zustand'
 import { S3Config } from '@/types/sync'
@@ -139,7 +140,7 @@ interface MarkState {
   setSyncState: (syncState: boolean) => void
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
-  uploadMarks: () => Promise<boolean>
+  uploadMarks: (condition?: RemoteWriteCondition) => Promise<boolean>
   downloadMarks: (options?: RecordDataDownloadOptions) => Promise<Mark[]>
 }
 
@@ -429,7 +430,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
   setLastSyncTime: (lastSyncTime) => {
     set({ lastSyncTime })
   },
-  uploadMarks: async () => {
+  uploadMarks: async (condition) => {
     set({ syncState: true })
     const path = '.data'
     const filename = 'marks.json'
@@ -551,11 +552,12 @@ const useMarkStore = create<MarkState>((set, get) => ({
       }
       case 'cloudFolder': {
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-        if (config?.path) res = await cloudFolderUpload(config, fullPath, JSON.stringify(marks))
+        if (config?.path) res = await cloudFolderUpload(config, fullPath, JSON.stringify(marks), condition)
         break
       }
     }
     } catch (error) {
+      if (error instanceof Error && /SYNC_(?:SWITCH|ONEDRIVE)_/.test(error.message)) { set({ syncState: false }); throw error }
       console.error('[mark store] uploadMarks error:', error)
     }
     if (res) {
@@ -583,11 +585,11 @@ const useMarkStore = create<MarkState>((set, get) => ({
         break;
       case 'gitlab':
         const gitlabRepoName = await getDataSyncRepoName('gitlab')
-        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepoName })
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, repo: gitlabRepoName })
         break;
       case 'gitea':
         const giteaRepoName = await getDataSyncRepoName('gitea')
-        files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepoName })
+        files = await giteaGetFileContent({ path: `${path}/${filename}`, repo: giteaRepoName })
         break;
       case 's3': {
         const s3Config = await store.get<S3Config>('s3SyncConfig')
@@ -596,7 +598,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
           const s3Result = await s3Download(s3Config, s3Key)
           if (s3Result) {
             // S3 返回的 content 是字符串，直接解析
-            result = JSON.parse(s3Result.content)
+            result = parseSyncJson<Mark[]>(s3Result.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
             hasRemoteData = true
           }
         }
@@ -608,7 +610,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
           const webdavKey = `${path}/${filename}`
           const webdavResult = await webdavDownload(webdavConfig, webdavKey)
           if (webdavResult) {
-            result = JSON.parse(webdavResult.content)
+            result = parseSyncJson<Mark[]>(webdavResult.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
             hasRemoteData = true
           }
         }
@@ -618,7 +620,7 @@ const useMarkStore = create<MarkState>((set, get) => ({
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
         const cloudResult = config?.path ? await cloudFolderDownload(config, `${path}/${filename}`) : null
         if (cloudResult) {
-          result = JSON.parse(cloudResult.content)
+          result = parseSyncJson<Mark[]>(cloudResult.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
           hasRemoteData = true
         }
         break
@@ -627,11 +629,9 @@ const useMarkStore = create<MarkState>((set, get) => ({
     // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
       try {
-        if (!options.allowMissingRemote || !hasEmptyRemoteFileContent(files)) {
-          const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-          result = JSON.parse(configJson)
-          hasRemoteData = true
-        }
+        const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
+        result = parseSyncJson<Mark[]>(configJson, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
+        hasRemoteData = true
       } catch (error) {
         const message = error instanceof Error ? error.message : 'unknown error'
         if (!options.allowMissingRemote || !isMissingRemoteFileError(message)) {
@@ -640,7 +640,8 @@ const useMarkStore = create<MarkState>((set, get) => ({
       }
     }
     if (hasRemoteData) {
-      validateRecordSnapshot(result)
+      try { validateRecordSnapshot(result) }
+      catch { throw syncDataError('INVALID_SCHEMA', `${primaryBackupMethod} / ${path}/${filename}`) }
       if (options.fetchOnly) return result
       if (options.preserveLegacyTags !== false) result = preserveLegacyRecordTags(result, await getAllMarks())
       setAutoDataSyncApplyingRemote(true)

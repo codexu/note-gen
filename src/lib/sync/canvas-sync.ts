@@ -1,3 +1,4 @@
+import type { RemoteWriteCondition } from './write-condition'
 import { Store } from '@tauri-apps/plugin-store'
 import { deleteFile as deleteGithubFile, uploadFile as uploadGithubFile, getFiles as githubGetFiles } from '@/lib/sync/github'
 import { deleteFile as deleteGiteeFile, uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
@@ -5,8 +6,8 @@ import { deleteFile as deleteGitlabFile, uploadFile as uploadGitlabFile, getFile
 import { deleteFile as deleteGiteaFile, uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea'
 import { s3Delete, s3Download, s3Upload } from '@/lib/sync/s3'
 import { webdavDelete, webdavDownload, webdavUpload } from '@/lib/sync/webdav'
-import { cloudFolderDelete, cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
-import { decodeBase64ToString, getRemoteFileContent, hasEmptyRemoteFileContent } from '@/lib/sync/remote-file'
+import { cloudFolderDelete, cloudFolderDownload, cloudFolderUpload, cloudFolderListObjects } from '@/lib/sync/cloud-folder'
+import { decodeBase64ToString, getRemoteFileContent, parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
 import { normalizeCanvasDocument, type CanvasProject, type CanvasProjectType } from '@/types/canvas'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
@@ -65,26 +66,32 @@ function getRemoteSha(value: unknown) {
 }
 
 function decodeRemoteContent(value: unknown, path: string) {
-  if (!value || Array.isArray(value)) return null
-  if (hasEmptyRemoteFileContent(value)) return null
-  return decodeBase64ToString(getRemoteFileContent(value, path))
+  if (!value) return null
+  try { return decodeBase64ToString(getRemoteFileContent(value, path)) }
+  catch { throw syncDataError('INVALID_SCHEMA', path) }
 }
 
-function projectToSyncValue(project: CanvasProject) {
+export function projectToSyncValue(project: CanvasProject) {
+  // Use the same defaults as persistence/readback before hashing or uploading.
+  // Legacy canvas types, document defaults and nullable timestamps must have
+  // one wire representation on both sides of a platform switch.
+  const normalized = normalizeRemoteCanvasProject(project)
+  if (!normalized) throw syncDataError('INVALID_SCHEMA', getCanvasItemPath(project.id))
   return {
-    id: project.id,
-    title: project.title,
-    canvasType: project.canvasType,
-    schemaVersion: project.schemaVersion,
-    document: project.document,
-    createdAt: project.createdAt,
-    updatedAt: project.updatedAt,
-    pinnedAt: project.pinnedAt || null,
-    deletedAt: project.deletedAt || null,
+    id: normalized.id,
+    title: normalized.title,
+    canvasType: normalized.canvasType,
+    schemaVersion: normalized.schemaVersion,
+    document: normalized.document,
+    createdAt: normalized.createdAt,
+    updatedAt: normalized.updatedAt,
+    pinnedAt: normalized.pinnedAt,
+    deletedAt: normalized.deletedAt,
   }
 }
 
 function projectToIndexEntry(project: CanvasProject): CanvasSyncIndexEntry {
+  project = { ...project, ...projectToSyncValue(project) }
   return {
     id: project.id,
     title: project.title,
@@ -158,7 +165,7 @@ export function parseCanvasSyncIndex(content: string | null): CanvasSyncIndex | 
   }
 }
 
-function normalizeRemoteCanvasProject(value: unknown): CanvasProject | null {
+export function normalizeRemoteCanvasProject(value: unknown): CanvasProject | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const candidate = value as Record<string, unknown>
   if (typeof candidate.id !== 'string'
@@ -232,7 +239,23 @@ function mergeCanvasProjects(
   return Array.from(projects.values())
 }
 
-async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStorage | null> {
+async function createCanvasRemoteStorage(store: Store, conditions?: Map<string, RemoteWriteCondition>): Promise<CanvasRemoteStorage | null> {
+  const storage = await createRawCanvasRemoteStorage(store)
+  if (!storage) return null
+  const provider = await store.get<string>('primaryBackupMethod') || 'github'
+  return { ...storage, read: async path => {
+    const content = await storage.read(path)
+    if (content === null) return null
+    const value = parseSyncJson<unknown>(content, `${provider} / ${path}`)
+    const valid = path === CANVAS_SYNC_PATH ? Boolean(parseCanvasSyncIndex(content.replace(/^\uFEFF/, '')))
+      : path === LEGACY_CANVAS_SYNC_PATH ? Array.isArray(value) && value.every(item => normalizeRemoteCanvasProject(item) !== null)
+      : Boolean(normalizeRemoteCanvasProject(value))
+    if (!valid) throw syncDataError('INVALID_SCHEMA', `${provider} / ${path}`)
+    return content.replace(/^\uFEFF/, '')
+  } }
+}
+
+async function createRawCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStorage | null> {
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
 
   if (provider === 'github') {
@@ -285,7 +308,7 @@ async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStor
     const repo = await getDataSyncRepoName('gitlab')
     return {
       read: async path => decodeRemoteContent(
-        await gitlabGetFileContent({ path, ref: 'main', repo }),
+        await gitlabGetFileContent({ path, repo }),
         path
       ),
       write: async (path, content) => {
@@ -310,7 +333,7 @@ async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStor
     const repo = await getDataSyncRepoName('gitea')
     return {
       read: async path => decodeRemoteContent(
-        await giteaGetFileContent({ path, ref: 'main', repo }),
+        await giteaGetFileContent({ path, repo }),
         path
       ),
       write: async (path, content) => {
@@ -335,7 +358,7 @@ async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStor
     const config = await store.get<S3Config>('s3SyncConfig')
     if (!config) return null
     return {
-      read: async path => (await s3Download(config, path))?.content || null,
+      read: async path => (await s3Download(config, path))?.content ?? null,
       write: async (path, content) => Boolean(await s3Upload(config, path, content)),
       remove: async path => s3Delete(config, path),
     }
@@ -345,7 +368,7 @@ async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStor
     const config = await store.get<WebDAVConfig>('webdavSyncConfig')
     if (!config) return null
     return {
-      read: async path => (await webdavDownload(config, path))?.content || null,
+      read: async path => (await webdavDownload(config, path))?.content ?? null,
       write: async (path, content) => Boolean(await webdavUpload(config, path, content)),
       remove: async path => webdavDelete(config, path),
     }
@@ -354,10 +377,21 @@ async function createCanvasRemoteStorage(store: Store): Promise<CanvasRemoteStor
   if (provider === 'cloudFolder') {
     const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
     if (!config?.path) return null
+    const versions: Map<string, RemoteWriteCondition> | undefined = config.provider === 'oneDrive' ? conditions || new Map<string, RemoteWriteCondition>(
+      (await cloudFolderListObjects(config, '.data/')).map(file => [file.key, { version: file.etag }] as const)
+    ) : undefined
     return {
-      read: async path => (await cloudFolderDownload(config, path))?.content || null,
-      write: async (path, content) => Boolean(await cloudFolderUpload(config, path, content)),
-      remove: async path => cloudFolderDelete(config, path),
+      read: async path => (await cloudFolderDownload(config, path))?.content ?? null,
+      write: async (path, content) => {
+        const result = await cloudFolderUpload(config, path, content, versions ? versions.get(path) || { version: null } : undefined)
+        versions?.set(path, { version: result.etag })
+        return Boolean(result)
+      },
+      remove: async path => {
+        const result = await cloudFolderDelete(config, path, versions ? versions.get(path) || { version: null } : undefined)
+        if (result) versions?.set(path, { version: null })
+        return result
+      },
     }
   }
 
@@ -381,11 +415,11 @@ function indexMatchesProjects(index: CanvasSyncIndex, projects: CanvasProject[])
   })
 }
 
-export async function uploadCanvases() {
+export async function uploadCanvases(conditions?: Map<string, RemoteWriteCondition>) {
   const { getCanvasProjects } = await import('@/db/canvases')
   const projects = await getCanvasProjects({ includeDeleted: true })
   const store = await Store.load('store.json')
-  const storage = await createCanvasRemoteStorage(store)
+  const storage = await createCanvasRemoteStorage(store, conditions)
   if (!storage) return false
 
   const remoteIndex = parseCanvasSyncIndex(await storage.read(CANVAS_SYNC_PATH))
@@ -536,7 +570,7 @@ async function persistMergedCanvases(
   return merged
 }
 
-export async function downloadCanvases(options: { allowMissingRemote?: boolean } = {}) {
+export async function downloadCanvases(_options: { allowMissingRemote?: boolean } = {}) {
   const { getCanvasProjects } = await import('@/db/canvases')
   const store = await Store.load('store.json')
   const storage = await createCanvasRemoteStorage(store)
@@ -609,7 +643,6 @@ export async function downloadCanvases(options: { allowMissingRemote?: boolean }
     await uploadCanvases()
     return merged
   } catch (error) {
-    if (!options.allowMissingRemote) throw error
-    return local
+    throw error
   }
 }

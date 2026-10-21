@@ -1,14 +1,10 @@
 import { Store } from '@tauri-apps/plugin-store'
-import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, saveLocalFile, setLocalRecordedSha } from './auto-sync'
-import { decodeBase64ToString } from './github'
+import { getSyncMetadataKey } from './sync-context'
+import { getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
+import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
+import { hasInvalidFileNameChars, sanitizeFilePath } from './filename-utils'
 import { updateFileSyncTime } from './conflict-resolution'
-import { getOptionalSyncRepoName, getSyncRepoName } from './repo-utils'
-import { uploadFile as uploadToGithub, getFiles as getGithubFiles, deleteFile as deleteGithubFile } from './github'
-import { uploadFile as uploadToGitee, getFiles as getGiteeFiles, deleteFile as deleteGiteeFile } from './gitee'
-import { uploadFile as uploadToGitlab, getFileContent as getGitlabFile, deleteFile as deleteGitlabFile } from './gitlab'
-import { uploadFile as uploadToGitea, getFileContent as getGiteaFile, deleteFile as deleteGiteaFile } from './gitea'
-import { s3Upload, s3Download, s3Delete } from './s3'
-import { webdavUpload, webdavDownload, webdavDelete } from './webdav'
+import { getOptionalSyncRepoName } from './repo-utils'
 import {
   androidCloudFolderWorkspaceDelete,
   androidCloudFolderWorkspaceDownloadBytes,
@@ -18,7 +14,8 @@ import {
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import useSyncStore from '@/stores/sync'
 import { toast } from '@/hooks/use-toast'
-import { exists, readTextFile, remove } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
+import { dirname } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { shouldExclude } from '@/config/sync-exclusions'
 import {
@@ -27,46 +24,6 @@ import {
   prepareActiveEditorDeactivationDurably,
   runEditorPathWriteTransaction,
 } from '@/lib/editor-deactivation'
-
-/**
- * 获取 GitLab 分支配置
- */
-async function getGitlabBranch(): Promise<string> {
-  const store = await Store.load('store.json')
-  return await store.get<string>('gitlabBranch') || 'main'
-}
-
-/**
- * 获取 Gitea 分支配置
- */
-async function getGiteaBranch(): Promise<string> {
-  const store = await Store.load('store.json')
-  return await store.get<string>('giteaBranch') || 'main'
-}
-
-/**
- * 获取 S3 配置
- */
-async function getS3Config(): Promise<S3Config | null> {
-  const store = await Store.load('store.json')
-  const config = await store.get<S3Config>('s3SyncConfig')
-  if (config && config.accessKeyId && config.secretAccessKey && config.region && config.bucket) {
-    return config
-  }
-  return null
-}
-
-/**
- * 获取 WebDAV 配置
- */
-async function getWebDAVConfig(): Promise<WebDAVConfig | null> {
-  const store = await Store.load('store.json')
-  const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-  if (config && config.url && config.username && config.password) {
-    return config
-  }
-  return null
-}
 
 async function getCloudFolderWorkspaceConfig(): Promise<CloudFolderConfig | null> {
   const store = await Store.load('store.json')
@@ -227,13 +184,14 @@ export class SyncManager {
   /**
    * 推送文件到远程
    */
-  async pushFile(path: string, content: string): Promise<SyncResult> {
+  async pushFile(path: string, content: string, overwrite = false): Promise<SyncResult> {
     // 检查是否应该排除
     if (shouldExclude(path)) {
       return { success: true, action: 'none', message: '文件被排除在同步之外' }
     }
 
     try {
+      if (await (await Store.load('store.json')).get('platformSwitchRecovery')) throw new Error('SYNC_SWITCH_STALE')
       if (await this.getCurrentPlatform() === 'selfHosted') {
         const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
           import('@/lib/self-hosted-sync/outbox'),
@@ -244,80 +202,31 @@ export class SyncManager {
         return { success: true, action: 'push', message: '已加入自托管同步队列', content }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
-      // S3 不需要 repo，直接设为空字符串
-      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
-      const sha = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? undefined : await this.getRemoteSha(path) || undefined
+      const metadataKey = await getSyncMetadataKey(path, platform)
+      const acceptedVersion = overwrite
+        ? await getWorkspaceOverwriteVersion(path, platform)
+        : await getLocalRecordedSha(path)
       const message = `Sync: ${path} - ${new Date().toLocaleString('zh-CN')}`
-      const filename = path.split('/').pop() || path
-
-      let uploadSuccess = false
-
-      switch (platform) {
-        case 'github': {
-          const result = await uploadToGithub({ file: content, sha, message, repo, path, filename })
-          uploadSuccess = !!result
-          break
-        }
-        case 'gitee': {
-          const result = await uploadToGitee({ file: content, sha, message, repo, path, filename })
-          uploadSuccess = !!result
-          break
-        }
-        case 'gitlab': {
-          const result = await uploadToGitlab({ file: content, sha, message, repo, path, filename })
-          uploadSuccess = !!result
-          break
-        }
-        case 'gitea': {
-          const result = await uploadToGitea({ file: content, sha, message, repo, path, filename })
-          uploadSuccess = !!result
-          break
-        }
-        case 's3': {
-          const s3Config = await getS3Config()
-          if (!s3Config) {
-            return { success: false, action: 'push', error: 'S3 配置未找到' }
-          }
-          // S3 使用相对路径作为 key，不需要添加 pathPrefix
-          const result = await s3Upload(s3Config, path, content)
-          uploadSuccess = !!result
-          if (uploadSuccess && result) {
-            // 更新 ETag 记录
-            useSyncStore.getState().updateS3FileEtag(path, result.etag)
-          }
-          break
-        }
-        case 'webdav': {
-          const webdavConfig = await getWebDAVConfig()
-          if (!webdavConfig) {
-            return { success: false, action: 'push', error: 'WebDAV 配置未找到' }
-          }
-          const result = await webdavUpload(webdavConfig, path, content)
-          uploadSuccess = !!result
-          if (uploadSuccess && result) {
-            // 更新 ETag 记录
-            useSyncStore.getState().updateWebDAVFileEtag(path, result.etag)
-          }
-          break
-        }
-        case 'cloudFolder': {
-          const config = await getCloudFolderWorkspaceConfig()
-          if (!config) {
-            return { success: false, action: 'push', error: '网盘文件夹未配置' }
-          }
-          uploadSuccess = Boolean(await androidCloudFolderWorkspaceUpload(config, path, content))
-          break
-        }
+      let version: string
+      const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
+      if (platform === 'cloudFolder' && config?.provider !== 'oneDrive') {
+        if (!config) return { success: false, action: 'push', error: '网盘文件夹未配置' }
+        const result = await androidCloudFolderWorkspaceUpload(config, path, content)
+        version = result.etag
+      } else {
+        // An idempotent manual retry must also accept the version attached to
+        // the downloaded bytes, rather than a separate, newer metadata read.
+        let matchingVersion: string | undefined
+        try {
+          const remoteFile = await readVersionedWorkspaceFile(path, platform)
+          if (new TextDecoder().decode(remoteFile.content) === content) matchingVersion = remoteFile.version
+        } catch { /* Missing/unreadable remote: the conditional write remains authoritative. */ }
+        version = matchingVersion || await uploadGuardedWorkspaceFile(path, content, platform, acceptedVersion, message, metadataKey)
       }
-
-      if (uploadSuccess) {
-        // 推送成功后更新本地记录的远程 SHA
-        if (platform !== 's3' && platform !== 'webdav') {
-          const newRemoteSha = await this.getRemoteSha(path)
-          if (newRemoteSha) {
-            await setLocalRecordedSha(path, newRemoteSha)
-          }
-        }
+      if (version) {
+        await setLocalRecordedSha(path, version, metadataKey)
+        if (platform === 's3') useSyncStore.getState().updateS3FileEtag(path, version)
+        if (platform === 'webdav') useSyncStore.getState().updateWebDAVFileEtag(path, version)
         await this.logSync(path, 'push', true)
         return { success: true, action: 'push', message: '推送成功' }
       }
@@ -340,87 +249,37 @@ export class SyncManager {
     initialEditorMutationRevision = getEditorPathMutationRevision(path),
   ): Promise<SyncResult> {
     try {
+      const store = await Store.load('store.json')
+      if (await store.get('platformSwitchRecovery')) throw new Error('SYNC_SWITCH_STALE')
       if (await this.getCurrentPlatform() === 'selfHosted') {
         const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
         await getSelfHostedSyncRuntime().wake('foreground')
         return { success: true, action: 'none', message: '已检查自托管同步事件' }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
-      // S3 不需要 repo
-      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
-
-      let content: string | undefined
-
-      switch (platform) {
-        case 'github':
-          const githubFile = await getGithubFiles({ path, repo })
-          content = githubFile?.content
-          break
-        case 'gitee':
-          const giteeFile = await getGiteeFiles({ path, repo })
-          content = giteeFile?.content
-          break
-        case 'gitlab': {
-          const branch = await getGitlabBranch()
-          const gitlabFile = await getGitlabFile({ path, ref: branch, repo })
-          content = gitlabFile?.content
-          break
-        }
-        case 'gitea': {
-          const branch = await getGiteaBranch()
-          const giteaFile = await getGiteaFile({ path, ref: branch, repo })
-          content = giteaFile?.content
-          break
-        }
-        case 's3': {
-          const s3Config = await getS3Config()
-          if (!s3Config) {
-            return { success: false, action: 'pull', error: 'S3 配置未找到' }
-          }
-          // S3 使用相对路径作为 key
-          const s3File = await s3Download(s3Config, path)
-          if (s3File) {
-            content = s3File.content
-            // 更新 ETag 记录
-            useSyncStore.getState().updateS3FileEtag(path, s3File.etag)
-          }
-          break
-        }
-        case 'webdav': {
-          const webdavConfig = await getWebDAVConfig()
-          if (!webdavConfig) {
-            return { success: false, action: 'pull', error: 'WebDAV 配置未找到' }
-          }
-          const webdavFile = await webdavDownload(webdavConfig, path)
-          if (webdavFile) {
-            content = webdavFile.content
-            // 更新 ETag 记录
-            useSyncStore.getState().updateWebDAVFileEtag(path, webdavFile.etag)
-          }
-          break
-        }
-        case 'cloudFolder': {
-          const config = await getCloudFolderWorkspaceConfig()
-          if (!config) {
-            return { success: false, action: 'pull', error: '网盘文件夹未配置' }
-          }
-          const cloudFile = await androidCloudFolderWorkspaceDownloadBytes(config, path)
-          if (cloudFile) content = new TextDecoder().decode(cloudFile.content)
-          break
-        }
-      }
-
-      if (content) {
-        // S3 和 WebDAV 不需要 base64 解码，其他平台需要
-        let decodedContent = content
-        if (platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder') {
-          decodedContent = decodeBase64ToString(content)
-        }
+      const pullMetadataKey = await getSyncMetadataKey(path, platform)
+      const targetIsCurrent = async () => !await store.get('platformSwitchRecovery')
+        && await this.getCurrentPlatform() === platform && await getSyncMetadataKey(path, platform) === pullMetadataKey
+      const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
+      const remoteFile = platform === 'cloudFolder' && config?.provider !== 'oneDrive'
+        ? config ? await androidCloudFolderWorkspaceDownloadBytes(config, path) : null
+        : await readVersionedWorkspaceFile(path, platform)
+      if (remoteFile) {
+        const decodedContent = new TextDecoder().decode(remoteFile.content)
+        const acceptedVersion = 'version' in remoteFile ? remoteFile.version : remoteFile.etag
 
         if (!await prepareActiveEditorDeactivationDurably(path)) {
           return { success: false, action: 'none', error: '编辑器正在处理未完成的内容' }
         }
-        const localPathOptions = await getFilePathOptions(path)
+        const localPathOptions = await getFilePathOptions(hasInvalidFileNameChars(path) ? sanitizeFilePath(path) : path)
+        const writeCapturedFile = async (content: string) => {
+          // Never resolve the workspace again during rollback: it may already
+          // have changed while an older pull was waiting on disk or network.
+          const parent = await dirname(localPathOptions.path)
+          const options = localPathOptions.baseDir ? { baseDir: localPathOptions.baseDir } : {}
+          if (parent && parent !== '.') await mkdir(parent, { ...options, recursive: true })
+          await writeTextFile(localPathOptions.path, content, options)
+        }
         const pullAccepted = await runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
           const stableFileExists = localPathOptions.baseDir
             ? await exists(localPathOptions.path, { baseDir: localPathOptions.baseDir })
@@ -433,7 +292,7 @@ export class SyncManager {
 
           const restoreStableContent = async () => {
             if (stableContent !== null) {
-              await saveLocalFile(path, stableContent)
+              await writeCapturedFile(stableContent)
               return
             }
             const remoteSnapshotExists = localPathOptions.baseDir
@@ -447,12 +306,12 @@ export class SyncManager {
             }
           }
 
-          if (getEditorPathMutationRevision(path) !== initialEditorMutationRevision) {
+          if (!await targetIsCurrent() || getEditorPathMutationRevision(path) !== initialEditorMutationRevision) {
             return false
           }
 
           try {
-            await saveLocalFile(path, decodedContent)
+            await writeCapturedFile(decodedContent)
           } catch (error) {
             await restoreStableContent()
             throw error
@@ -461,9 +320,11 @@ export class SyncManager {
           // This is deliberately the synchronous preflight. A durable flush
           // here would await the transaction gate itself. Any newly flushed
           // editor save is queued behind the gate and detected below.
+          const syncContextIsStable = await targetIsCurrent()
           const editorIsStable = prepareActiveEditorDeactivation()
           if (
-            !editorIsStable
+            !syncContextIsStable
+            || !editorIsStable
             || hasQueuedSave()
             || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
           ) {
@@ -480,13 +341,8 @@ export class SyncManager {
         // in the background so there is no extra await window between the
         // final content verification and handing the snapshot to the editor.
         void (async () => {
-          if (platform !== 's3' && platform !== 'webdav') {
-            const remoteSha = await this.getRemoteSha(path)
-            if (remoteSha) {
-              await setLocalRecordedSha(path, remoteSha)
-            }
-          }
-          await updateFileSyncTime(path)
+          if (acceptedVersion) await setLocalRecordedSha(path, acceptedVersion, pullMetadataKey)
+          await updateFileSyncTime(path, pullMetadataKey)
           await this.logSync(path, 'pull', true)
         })().catch(error => {
           console.error('Failed to finalize pull metadata:', error)
@@ -517,63 +373,29 @@ export class SyncManager {
         return { success: true, action: 'delete', message: '删除操作已加入自托管同步队列' }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
-      // S3 不需要 repo
-      const repo = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? '' : await getSyncRepoName(platform)
-      const sha = (platform === 's3' || platform === 'webdav' || platform === 'cloudFolder') ? undefined : await this.getRemoteSha(path)
-
-      // S3 和 WebDAV 不需要 SHA，但其他平台需要
-      if ((platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder') && !sha) {
-        return { success: true, action: 'none', message: '远程文件不存在，无需删除' }
+      const metadataKey = await getSyncMetadataKey(path, platform)
+      const acceptedVersion = await getLocalRecordedSha(path)
+      const store = await Store.load('store.json')
+      if (await store.get('platformSwitchRecovery')) throw new Error('SYNC_SWITCH_STALE')
+      const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
+      let success: boolean
+      if (platform === 'cloudFolder' && config?.provider !== 'oneDrive') {
+        if (!config) return { success: false, action: 'delete', error: '网盘文件夹未配置' }
+        success = await androidCloudFolderWorkspaceDelete(config, path)
+      } else {
+        const remote = await import('./remote-library')
+        if (!await remote.getRemoteFileMetadata(path, 'workspace', platform)) {
+          return { success: true, action: 'none', message: '远程文件不存在，无需删除' }
+        }
+        if (!acceptedVersion || await this.getCurrentPlatform() !== platform
+          || await getSyncMetadataKey(path, platform) !== metadataKey) throw new Error('SYNC_SWITCH_STALE')
+        await remote.deleteRemoteFile(path, 'workspace', { version: acceptedVersion }, platform)
+        success = true
       }
-
-      let success = false
-
-      switch (platform) {
-        case 'github':
-          success = !!(await deleteGithubFile({ path, sha: sha!, repo }))
-          break
-        case 'gitee':
-          success = !!(await deleteGiteeFile({ path, sha: sha!, repo }))
-          break
-        case 'gitlab':
-          success = !!(await deleteGitlabFile({ path, sha: sha!, repo }))
-          break
-        case 'gitea':
-          success = !!(await deleteGiteaFile({ path, sha: sha!, repo }))
-          break
-        case 's3': {
-          const s3Config = await getS3Config()
-          if (!s3Config) {
-            return { success: false, action: 'delete', error: 'S3 配置未找到' }
-          }
-          // S3 使用相对路径作为 key
-          success = await s3Delete(s3Config, path)
-          if (success) {
-            // 移除 ETag 记录
-            useSyncStore.getState().removeS3FileEtag(path)
-          }
-          break
-        }
-        case 'webdav': {
-          const webdavConfig = await getWebDAVConfig()
-          if (!webdavConfig) {
-            return { success: false, action: 'delete', error: 'WebDAV 配置未找到' }
-          }
-          success = await webdavDelete(webdavConfig, path)
-          if (success) {
-            // 移除 ETag 记录
-            useSyncStore.getState().removeWebDAVFileEtag(path)
-          }
-          break
-        }
-        case 'cloudFolder': {
-          const config = await getCloudFolderWorkspaceConfig()
-          if (!config) {
-            return { success: false, action: 'delete', error: '网盘文件夹未配置' }
-          }
-          success = await androidCloudFolderWorkspaceDelete(config, path)
-          break
-        }
+      if (success) {
+        await setLocalRecordedSha(path, '', metadataKey)
+        if (platform === 's3') useSyncStore.getState().removeS3FileEtag(path)
+        if (platform === 'webdav') useSyncStore.getState().removeWebDAVFileEtag(path)
       }
 
       if (success) {
@@ -601,7 +423,7 @@ export class SyncManager {
       }
 
       // 获取内容
-      if (!localContent) {
+      if (strategy === 'local' && localContent === undefined) {
         const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
         try {
@@ -613,26 +435,12 @@ export class SyncManager {
         }
       }
 
-      if (!remoteContent) {
-        remoteContent = await pullRemoteFile(path)
-      }
-
-      switch (strategy) {
-        case 'local':
-          // 保留本地，删除远程然后重新上传
-          await this.deleteRemoteFile(path)
-          await this.pushFile(path, localContent)
-          toast({ title: '冲突处理', description: '保留本地版本' })
-          break
-        case 'remote':
-          // 使用远程版本
-          await saveLocalFile(path, remoteContent)
-          await updateFileSyncTime(path)
-          toast({ title: '冲突处理', description: '使用远程版本' })
-          break
-      }
-
-      return { success: true, action: 'push', message: '冲突已解决' }
+      const result = strategy === 'local'
+        ? await this.pushFile(path, localContent ?? '', true)
+        : await this.pullFile(path)
+      if (!result.success) return { ...result, action: 'conflict' }
+      toast({ title: '冲突处理', description: strategy === 'local' ? '保留本地版本' : '使用远程版本' })
+      return result
     } catch (error) {
       return { success: false, action: 'conflict', error: String(error) }
     }
@@ -732,6 +540,7 @@ export class SyncManager {
     if (!this.config.autoSync || !this.config.autoPushOnSave) {
       return
     }
+    if (await (await Store.load('store.json')).get('platformSwitchRecovery')) return
 
     // 检查是否应该排除
     if (shouldExclude(path)) {
@@ -778,6 +587,7 @@ export class SyncManager {
     if (!this.config.autoSync || !this.config.autoPullOnOpen) {
       return null
     }
+    if (await (await Store.load('store.json')).get('platformSwitchRecovery')) return null
 
     // 检查是否应该排除
     if (shouldExclude(path)) {
@@ -978,6 +788,7 @@ export async function isSyncConfigured(
 ): Promise<boolean> {
   try {
     const store = await Store.load('store.json')
+    if (await store.get('platformSwitchRecovery')) return false
     const platform = await store.get<string>('primaryBackupMethod') || 'github'
 
     // 检查对应平台的访问令牌（确保不是空字符串）

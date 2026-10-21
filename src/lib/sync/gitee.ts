@@ -1,10 +1,28 @@
+import { assertConditionalResponse } from './write-condition'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent, pickNestedFileEntry } from './remote-file'
+import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent, pickNestedFileEntry } from './remote-file'
 import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file'
+
+async function assertGiteeConditionalResponse(response: Response, version: string | null) {
+  // Gitee reports version conflicts as 400, including duplicate creates. Keep
+  // unrelated validation failures distinct; neither case may drop the guard.
+  if (response.status === 400) {
+    let message = ''
+    try {
+      const body: unknown = await response.clone().json()
+      if (body && typeof body === 'object' && 'message' in body && typeof body.message === 'string') message = body.message
+    } catch { /* Preserve the generic conditional HTTP error below. */ }
+    if (/Blob SHA does not match/i.test(message)
+      || (version === null && /文件名已存在|(?:file|path).*already exists/i.test(message))) {
+      throw new Error('SYNC_SWITCH_STALE')
+    }
+  }
+  assertConditionalResponse(response, { version })
+}
 // Remove unused imports - these types are not actually used in this file
 
 // 自定义类型，类似于 GitHub 的响应
@@ -180,7 +198,7 @@ async function resolveDirectoryFileEntryContent(
   if (entry.url) {
     const response = await fetch(appendAccessToken(entry.url, accessToken), requestOptions)
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json() as GiteeDirectoryFileEntry
+      const data = await readSyncResponseJson(response, `gitee / ${entry.path || entry.name || 'file'}`) as GiteeDirectoryFileEntry
       if (typeof data.content === 'string') {
         return data
       }
@@ -202,8 +220,8 @@ async function resolveDirectoryFileEntryContent(
 }
 
 export async function uploadFile(
-  { file, filename, sha, message, repo, path }:
-  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string })
+  { file, filename, sha, message, repo, path, guarded = false }:
+  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string, guarded?: boolean })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
@@ -220,7 +238,7 @@ export async function uploadFile(
   try {
     let targetPath = path
     let resolvedExistingFile: GiteeDirectoryFileEntry | null = null
-    if (path) {
+    if (path && !guarded) {
       const existingFile = await getFiles({ path, repo })
       if (existingFile && !Array.isArray(existingFile)) {
         resolvedExistingFile = existingFile
@@ -266,6 +284,7 @@ export async function uploadFile(
 
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(finalPath)}`;
     const response = await fetch(url, requestOptions);
+    if (guarded) await assertGiteeConditionalResponse(response, sha || null);
 
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
@@ -307,6 +326,7 @@ export async function uploadFile(
       message: errorData.message || '同步失败'
     };
   } catch (error) {
+    if (guarded) throw error
     toast({
       title: '同步失败',
       description: (error as GiteeError).message,
@@ -315,7 +335,7 @@ export async function uploadFile(
   }
 }
 
-export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+export async function getDirectoryFiles({ path, repo, cache }: { path: string; repo: string; cache?: Map<string, Promise<unknown>> }) {
   const store = await Store.load('store.json')
   const token = await store.get<string>('giteeAccessToken')
   const username = await store.get<string>('giteeUsername')
@@ -326,13 +346,13 @@ export async function getDirectoryFiles({ path, repo }: { path: string; repo: st
   return readGitTreeDirectory(path, resource => fetch(
     `${baseUrl}${resource}?access_token=${encodeURIComponent(token)}`,
     { method: 'GET', proxy },
-  ))
+  ), cache)
 }
 
 export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }): Promise<GiteeGetFilesResult> {
   const store = await Store.load('store.json');
   const accessToken = await store.get<string>('giteeAccessToken')
-  if (!accessToken) return;
+  if (!accessToken) throw new Error('Gitee sync is not configured')
 
   const giteeUsername = await store.get<string>('giteeUsername')
   const normalizedPath = buildRepoContentPath({ path })
@@ -364,7 +384,7 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
     try {
       const response = await fetch(url, requestOptions);
       if (response.status >= 200 && response.status < 300) {
-        const data = await response.json() as GiteeGetFilesResult;
+        const data = await readSyncResponseJson(response, `gitee / ${path}`) as GiteeGetFilesResult;
         if (Array.isArray(data) && looksLikeFilePath(path)) {
           const nestedFile = pickNestedFileEntry(data, path)
           if (nestedFile) {
@@ -394,22 +414,17 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
         }
         return data;
       }
-      return null;
-    } catch {
-      return null;
+      if (response.status === 404) return null
+      throw new Error(`gitee / ${path}: HTTP ${response.status}`)
+    } catch (error) {
+      throw error
     }
   } catch (error) {
-    if ((error as GiteeError).status !== 404) {
-      toast({
-        title: '查询失败',
-        description: (error as GiteeError).message,
-        variant: 'destructive',
-      })
-    }
+    throw error
   }
 }
 
-export async function deleteFile({ path, sha, repo }: { path: string, sha: string, repo: string }) {
+export async function deleteFile({ path, sha, repo, guarded = false }: { path: string, sha: string, repo: string; guarded?: boolean }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('giteeAccessToken')
   if (!accessToken) return;
@@ -442,6 +457,7 @@ export async function deleteFile({ path, sha, repo }: { path: string, sha: strin
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(normalizedPath)}`;
     
     const response = await fetch(url, requestOptions);
+    if (guarded) await assertGiteeConditionalResponse(response, sha || null);
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return { data } as GiteeResponse<any>;
@@ -453,6 +469,7 @@ export async function deleteFile({ path, sha, repo }: { path: string, sha: strin
       message: errorData.message || '删除失败'
     };
   } catch (error) {
+    if (guarded) throw error
     toast({
       title: '删除失败',
       description: (error as GiteeError).message,

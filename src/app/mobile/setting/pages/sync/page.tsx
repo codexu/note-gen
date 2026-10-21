@@ -14,6 +14,8 @@ import { S3Sync } from '@/app/core/setting/sync/s3-sync'
 import { WebDAVSync } from '@/app/core/setting/sync/webdav-sync'
 import { SelfHostedSync } from '@/app/core/setting/sync/self-hosted-sync'
 import { UsePlatformButton } from '@/app/core/setting/sync/components/use-platform-button'
+import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { PlatformSwitchProgress } from '@/app/core/setting/sync/components/platform-switch-progress'
 import { WorkspaceRepoMapping } from '@/app/core/setting/sync/components/workspace-repo-mapping'
 import { DataSyncOverview } from '@/app/core/setting/sync/components/data-sync-overview'
 import { MobileSelectDrawer } from '@/app/mobile/components/mobile-select-drawer'
@@ -49,7 +51,6 @@ export default function SyncPage() {
   const isAndroid = currentPlatform === 'android'
   const {
     primaryBackupMethod,
-    setPrimaryBackupMethod,
     autoSync,
     setAutoSync,
     autoRecordSyncEnabled,
@@ -154,6 +155,7 @@ export default function SyncPage() {
   useEffect(() => {
     async function loadPrimaryBackupMethod() {
       try {
+        await restorePlatformSwitchRecovery()
         const store = await Store.load('store.json')
         const savedMethod = await store.get<SyncPlatform>('primaryBackupMethod')
         const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
@@ -163,14 +165,14 @@ export default function SyncPage() {
             : null,
         )
         if (savedMethod) {
-          const nextTab: MobileSyncPlatform = savedMethod !== 'cloudFolder'
-            ? savedMethod
+          const selected = usePlatformSwitchStore.getState().platform || savedMethod
+          const nextTab: MobileSyncPlatform = selected !== 'cloudFolder'
+            ? selected
             : isIOS
               ? cloudFolderConfig?.provider === 'oneDrive' ? 'oneDrive' : 'iCloud'
               : isAndroid
                 ? 'oneDrive'
                 : 'github'
-          await setPrimaryBackupMethod(toSyncPlatform(nextTab))
           setTab(nextTab)
         }
       } catch (error) {
@@ -181,7 +183,7 @@ export default function SyncPage() {
     }
 
     void loadPrimaryBackupMethod()
-  }, [isAndroid, isIOS, setPrimaryBackupMethod])
+  }, [isAndroid, isIOS])
 
   const selectedSyncPlatform = toSyncPlatform(tab)
   const currentSyncState = getCurrentSyncState(selectedSyncPlatform)
@@ -292,6 +294,7 @@ export default function SyncPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PlatformSwitchProgress />
       <p className="text-sm leading-relaxed text-muted-foreground">
         {selectedSyncPlatform === 'local' ? t('settings.sync.local.description') : t('settings.sync.desc')}
       </p>

@@ -1,5 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
-import { mergeSyncData } from '@/config/sync-exclusions'
+import { mergeSyncData, shouldExcludeFromSync } from '@/config/sync-exclusions'
 import { getDb } from '@/db'
 import type { SyncObjectKind } from './protocol'
 
@@ -186,6 +186,7 @@ async function applySettings(value: unknown) {
   const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
   const merged = mergeSyncData(local, value, { excludeSensitiveConfig })
   for (const [key, nextValue] of Object.entries(merged)) {
+    if (shouldExcludeFromSync(key, { excludeSensitiveConfig })) continue
     if (local[key] !== nextValue) await store.set(key, nextValue)
   }
   await store.save()

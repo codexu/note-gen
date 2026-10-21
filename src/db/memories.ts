@@ -1,3 +1,4 @@
+import { normalizeMemorySyncRecord } from '@/lib/memory/sync-record'
 import { fetchEmbedding, getEmbeddingModelDescriptor } from '@/lib/ai/embedding'
 import { invalidateMemoryCache } from '@/lib/memory/cache-version'
 import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
@@ -103,15 +104,7 @@ const PREFERENCE_KEYWORDS = [
   '中文', '英文', '清单体', '段落', '简洁', '详细', 'tl;dr',
   '格式', '风格', '语言', '回答', '输出', '回复',
 ]
-const MEMORY_SYNC_EXCLUDED_FIELDS = new Set([
-  'embedding',
-  'embeddingModel',
-  'embeddingDimensions',
-  'indexingStatus',
-  'accessCount',
-  'lastAccessedAt',
-  'lastRecallReason',
-])
+
 let memoryReindexRunning = false
 
 const MEMORY_SELECT = `
@@ -602,9 +595,7 @@ export async function getMemorySyncData(): Promise<MemorySyncData> {
 
   return {
     schemaVersion: 1,
-    memories: memories.map(memory => Object.fromEntries(
-      Object.entries(memory).filter(([key]) => !MEMORY_SYNC_EXCLUDED_FIELDS.has(key))
-    ) as MemorySyncRecord),
+    memories: memories.map(normalizeMemorySyncRecord),
     policy,
   }
 }

@@ -94,8 +94,8 @@ export async function getMemoryPolicy(): Promise<MemoryPolicy> {
     useMemories: true,
     generateMemories: result[0]?.generateMemories !== 0,
     excludeExternalContext: true,
-    generationStartedAt: result[0]?.generationStartedAt || Date.now(),
-    updatedAt: result[0]?.updatedAt || Date.now(),
+    generationStartedAt: result[0]?.generationStartedAt ?? Date.now(),
+    updatedAt: result[0]?.updatedAt ?? Date.now(),
   }
 }
 

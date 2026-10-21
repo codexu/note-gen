@@ -124,6 +124,10 @@ export async function restoreManagedBackup(
   backupPath: string,
   currentWorkspacePath: string,
 ): Promise<ManagedBackupRestoreResult> {
+  const { usePlatformSwitchStore } = await import('@/stores/sync-platform-switch')
+  if (usePlatformSwitchStore.getState().platform || await (await Store.load('store.json')).get('platformSwitchRecovery')) {
+    throw new Error('Finish or recover the sync platform switch before restoring a backup')
+  }
   return invoke<ManagedBackupRestoreResult>('restore_managed_backup', {
     backupPath,
     currentWorkspacePath,

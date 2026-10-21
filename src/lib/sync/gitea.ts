@@ -1,9 +1,10 @@
+import { assertConditionalResponse } from './write-condition'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http';
 import { fetch as encodeFetch } from './encode-fetch'
-import { buildRemoteLogicalPath, buildRepoContentPath, debugSyncPath, encodeRemoteFileContent } from './remote-file'
+import { buildRemoteLogicalPath, buildRepoContentPath, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent } from './remote-file'
 import { 
   GiteaInstanceType, 
   GiteaRepositoryInfo, 
@@ -87,7 +88,8 @@ export async function uploadFile({
   sha,
   message,
   repo,
-  path
+  path,
+  guarded = false
 }: {
   file: string | Uint8Array;
   filename?: string;
@@ -95,6 +97,7 @@ export async function uploadFile({
   message?: string;
   repo: string;
   path?: string;
+  guarded?: boolean;
 }) {
   try {
     const store = await Store.load('store.json');
@@ -148,6 +151,7 @@ export async function uploadFile({
       proxy
     });
 
+    if (guarded) assertConditionalResponse(response, { version: sha || null });
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return { data } as GiteaResponse<any>;
@@ -194,6 +198,7 @@ export async function uploadFile({
     } as GiteaError;
 
   } catch (error) {
+    if (guarded) throw error
     toast({
       title: '同步失败',
       description: (error as GiteaError).message || '上传文件时发生错误',
@@ -256,6 +261,10 @@ export async function getDirectoryFiles({ path, repo }: { path: string; repo: st
   const proxy = await getProxyConfig()
   const url = `${baseUrl}/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}/contents/${buildRepoContentPath({ path })}`
   const response = await fetch(url, { method: 'GET', headers, proxy })
+  if (response.status === 404 && !path) {
+    const repository = await readDirectoryResponse(await fetch(`${baseUrl}/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`, { method: 'GET', headers, proxy }))
+    if (repository && typeof repository === 'object' && 'empty' in repository && repository.empty === true) return []
+  }
   if (response.status === 404 && path) {
     await getDirectoryFiles({ path: '', repo })
     return []
@@ -294,7 +303,7 @@ export async function getFiles({ path, repo, sha }: { path: string; repo: string
     });
 
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
+      const data = await readSyncResponseJson(response, `gitea / ${path}`);
 
       // 如果是单个文件，返回文件信息（包含 content）
       if (!Array.isArray(data)) {
@@ -323,23 +332,10 @@ export async function getFiles({ path, repo, sha }: { path: string; repo: string
       return null
     }
 
-    // 401 或其他客户端错误，抛出错误
-    if (response.status >= 400 && response.status < 500) {
-      const errorData = await response.json().catch(() => ({}));
-      throw {
-        status: response.status,
-        message: errorData.message || `获取文件列表失败: ${response.status}`
-      } as GiteaError;
-    }
-
-    return null;
+    throw new Error(`gitea / ${path}: HTTP ${response.status}`)
 
   } catch (error) {
-    // 重新抛出已处理的错误，静默处理其他错误
-    if ((error as GiteaError).status) {
-      throw error;
-    }
-    return null;
+    throw error
   }
 }
 
@@ -347,7 +343,7 @@ export async function getFiles({ path, repo, sha }: { path: string; repo: string
  * 删除 Gitea 仓库文件
  * @param params 删除参数
  */
-export async function deleteFile({ path, sha, repo }: { path: string; sha?: string; repo: string }) {
+export async function deleteFile({ path, sha, repo, guarded = false }: { path: string; sha?: string; repo: string; guarded?: boolean }) {
   try {
     const store = await Store.load('store.json');
     const giteaUsername = await store.get<string>('giteaUsername');
@@ -390,6 +386,7 @@ export async function deleteFile({ path, sha, repo }: { path: string; sha?: stri
       proxy
     });
 
+    if (guarded) assertConditionalResponse(response, { version: sha || null });
     if (response.status >= 200 && response.status < 300) {
       return true
     }
@@ -401,6 +398,7 @@ export async function deleteFile({ path, sha, repo }: { path: string; sha?: stri
     } as GiteaError;
 
   } catch (error) {
+    if (guarded) throw error
     toast({
       title: '删除文件失败',
       description: (error as GiteaError).message || '删除文件时发生错误',
@@ -541,7 +539,7 @@ export async function getFileContentFromCommit({ path, ref, repo }: { path: stri
   }
 }
 
-export async function getFileContent({ path, ref, repo }: { path: string; ref: string; repo: string }) {
+export async function getFileContent({ path, ref, repo }: { path: string; ref?: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const giteaUsername = await store.get<string>('giteaUsername');
@@ -563,7 +561,7 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
       ref,
     })
     // Gitea API 使用 sha 参数而不是 ref 参数来获取特定 commit 的文件内容
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}?sha=${ref}`;
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}${ref ? `?sha=${encodeURIComponent(ref)}` : ''}`;
 
     const response = await encodeFetch(url, {
       method: 'GET',
@@ -572,33 +570,19 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
     });
 
     if (response.status >= 200 && response.status < 300) {
-      const data = await response.json() as GiteaFileContent;
+      const data = await readSyncResponseJson(response, `gitea / ${path}`) as GiteaFileContent;
       return {
         content: data.content || '',
         encoding: data.encoding || 'base64'
       };
     }
 
-    if (response.status >= 400 && response.status < 500) {
-      return {
-        content: '',
-        encoding: 'base64'
-      }
-    }
+    if (response.status === 404) return null
 
-    const errorData = await response.text();
-    throw {
-      status: response.status,
-      message: errorData || '获取文件内容失败'
-    } as GiteaError;
+    throw new Error(`gitea / ${path}: HTTP ${response.status}`)
 
   } catch (error) {
-    toast({
-      title: '获取文件内容失败',
-      description: (error as GiteaError).message || '获取文件内容时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    throw error
   }
 }
 

@@ -1,3 +1,4 @@
+import { parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import { fetch } from '@tauri-apps/plugin-http'
 import type {
   ApiErrorBody, ClientSession, ServerCapabilities, SyncCommandResult,
@@ -343,10 +344,19 @@ export class SelfHostedClient {
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
     })
-    const value: unknown = response.status === 204 ? null : await response.json()
+    if (response.status === 401) await this.onAuthenticationRejected?.()
+    let value: unknown = null
+    if (response.status !== 204) {
+      const content = await response.text()
+      try { value = parseSyncJson<unknown>(content, `selfHosted / ${path.split('?')[0]}`) }
+      catch (error) {
+        if (response.ok) throw error
+        throw new SelfHostedApiError({ code: 'invalid_response', message: error instanceof Error ? error.message : syncDataError('INVALID_JSON', 'selfHosted').message,
+          requestId: '', retryable: response.status >= 500 }, response.status)
+      }
+    }
     if (!response.ok) {
-      const body = value as Partial<ApiErrorBody>
-      if (response.status === 401) await this.onAuthenticationRejected?.()
+      const body = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Partial<ApiErrorBody>
       throw new SelfHostedApiError({
         code: body.code ?? 'request_failed',
         message: body.message ?? `服务器请求失败 (${response.status})`,

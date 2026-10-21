@@ -47,6 +47,7 @@ interface OutboxRow {
 }
 
 export class SelfHostedSyncRuntime {
+  #manualRetryRequested = false
   #running = false
   #rerun = false
   #stopped = true
@@ -153,6 +154,7 @@ export class SelfHostedSyncRuntime {
   }
 
   wake(reason: string): Promise<void> {
+    if (reason === 'manual-retry') this.#manualRetryRequested = true
     if (this.#stopped) return Promise.resolve()
     if (this.#timer) {
       clearTimeout(this.#timer)
@@ -169,17 +171,29 @@ export class SelfHostedSyncRuntime {
   }
 
   async #runWake(reason: string) {
+    const errors = new Set<string>()
     try {
       do {
         this.#rerun = false
+        const manualRetry = this.#manualRetryRequested
+        this.#manualRetryRequested = false
         const bindings = await listBindings()
         const sessions: Array<{ profileId: string; session: SyncSession }> = []
         for (const binding of bindings) {
+          if (this.#stopped) break
           try {
+            if (manualRetry) {
+              const database = await getDb()
+              await database.execute(
+                "update self_hosted_outbox set next_attempt_at = 0 where workspace_id = $1 and state = 'retry'",
+                [binding.workspaceId],
+              )
+            }
             const session = await this.#syncBinding(binding)
             if (session) sessions.push({ profileId: binding.profileId, session })
           } catch (error) {
             if (isSelfHostedAuthenticationError(error)) throw error
+            errors.add(error instanceof Error ? error.message : String(error))
             console.warn('[self-hosted-sync] Workspace synchronization failed', {
               reason,
               workspaceId: binding.workspaceId,
@@ -188,9 +202,10 @@ export class SelfHostedSyncRuntime {
             })
           }
         }
-        if (sessions.length > 0) this.#connectSocket(sessions[0].profileId, sessions.map(item => item.session))
+        if (!this.#stopped && sessions.length > 0) this.#connectSocket(sessions[0].profileId, sessions.map(item => item.session))
       } while (this.#rerun && !this.#stopped)
     } catch (error) {
+      errors.add(error instanceof Error ? error.message : String(error))
       if (isSelfHostedAuthenticationError(error)) {
         const bindings = await listBindings()
         await Promise.all(bindings.map(binding => markProfileReauthenticationRequired(binding.profileId)))
@@ -202,6 +217,7 @@ export class SelfHostedSyncRuntime {
         console.warn('[self-hosted-sync] Synchronization paused until the next retry', { reason, error })
       }
     } finally {
+      emitter.emit('sync-engine-completed', { provider: 'selfHosted', errors: [...errors] })
       this.#running = false
       this.#wakeCompletion = null
       if (!this.#stopped) {
@@ -212,6 +228,7 @@ export class SelfHostedSyncRuntime {
 
   async #syncBinding(binding: Binding) {
     const { profile, client } = await authenticatedClient(binding.profileId)
+    if (this.#stopped) return null
     let session: SyncSession
     try {
       session = await client.syncSession(
@@ -231,6 +248,7 @@ export class SelfHostedSyncRuntime {
       }
       throw error
     }
+    if (this.#stopped) return null
     if (!session.protocol.compatible) {
       await setBindingState(binding.workspaceId, 'protocol-incompatible')
       return null
@@ -240,6 +258,7 @@ export class SelfHostedSyncRuntime {
       binding.workspaceId,
       session.keyVersions.map(key => key.keyVersion),
     )
+    if (this.#stopped) return null
     if (
       session.bootstrap.required
       || binding.bindingState !== 'bound'
@@ -249,6 +268,7 @@ export class SelfHostedSyncRuntime {
       await setBindingState(binding.workspaceId, 'bootstrapping')
       await bootstrapBinding(binding, session)
       await refreshBindingStores(binding)
+      if (this.#stopped) return null
       emitter.emit('self-hosted-binding-ready', { workspaceId: binding.workspaceId })
       // Run reconciliation immediately against the authoritative snapshot so
       // local-only mobile files are uploaded without waiting for the timer.
@@ -260,6 +280,7 @@ export class SelfHostedSyncRuntime {
       session.syncEpoch,
       session.workspace.capabilities.includes('content.update'),
     )
+    if (this.#stopped) return null
     if (binding.workspaceType === 'library' && binding.localRoot) {
       await reconcileLibraryFiles(
         binding.workspaceId,
@@ -267,9 +288,11 @@ export class SelfHostedSyncRuntime {
         session.workspace.capabilities.includes('content.update'),
       )
     }
+    if (this.#stopped) return null
     if (binding.workspaceType === 'account-data') {
       await reconcilePersonalWorkspaceObjects(binding.workspaceId)
     }
+    if (this.#stopped) return null
     await materializeOutbox(
       binding.workspaceId,
       binding.workspaceType,
@@ -280,13 +303,17 @@ export class SelfHostedSyncRuntime {
       Math.max(1, ...session.keyVersions.map(key => key.keyVersion)),
       session.limits.maxObjectBytes,
     )
+    if (this.#stopped) return null
     if (await pushOutbox(binding, session)) this.#rerun = true
+    if (this.#stopped) return null
     await pullEvents(binding, session)
+    if (this.#stopped) return null
     const appliedThrough = await applyInbox(
       binding,
       profile.deviceId,
       objectId => this.#documentSubscriptions.has(`${binding.workspaceId}\0${objectId}`),
     )
+    if (this.#stopped) return null
     for (const listener of this.#realtimeListeners) listener({
       type: 'inbox.applied', workspaceId: binding.workspaceId,
     })

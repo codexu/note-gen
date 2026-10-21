@@ -12,9 +12,12 @@ export interface SyncEngineSwitchReview {
   requiresReview: boolean
 }
 
+export type SyncEngineInspectionStep = 'local' | 'currentRemote' | 'nextRemote'
+
 export async function inspectSyncEngineSwitch(
   current: SyncPlatform,
   next: SyncPlatform,
+  onProgress?: (step: SyncEngineInspectionStep, listing?: { path: string; files: number }) => void,
 ): Promise<SyncEngineSwitchReview> {
   if (current === next) {
     return {
@@ -22,6 +25,7 @@ export async function inspectSyncEngineSwitch(
       currentRemoteObjects: 0, nextRemoteObjects: 0, requiresReview: false,
     }
   }
+  onProgress?.('local')
   const database = await getDb()
   const [changes] = await database.select<Array<{ total: number }>>(
     "select count(*) as total from self_hosted_local_changes where state in ('pending', 'queued')"
@@ -29,7 +33,8 @@ export async function inspectSyncEngineSwitch(
   const [commands] = await database.select<Array<{ total: number }>>(
     "select count(*) as total from self_hosted_outbox where state in ('pending', 'retry')"
   )
-  const remoteObjectCount = async (platform: SyncPlatform) => {
+  const remoteObjectCount = async (platform: SyncPlatform, step: SyncEngineInspectionStep) => {
+    onProgress?.(step)
     if (platform === 'local') return 0
     if (platform === 'selfHosted') {
       const [row] = await database.select<Array<{ total: number }>>(
@@ -42,13 +47,16 @@ export async function inspectSyncEngineSwitch(
     }
     try {
       const { listRemoteLibraryFiles } = await import('./remote-library')
-      return (await listRemoteLibraryFiles({ includeStaticAssets: true, platform })).length
+      return (await listRemoteLibraryFiles({
+        includeStaticAssets: true, platform,
+        onListProgress: (path, files) => onProgress?.(step, { path, files }),
+      })).length
     } catch {
       return -1
     }
   }
   const [currentRemoteObjects, nextRemoteObjects] = await Promise.all([
-    remoteObjectCount(current), remoteObjectCount(next),
+    remoteObjectCount(current, 'currentRemote'), remoteObjectCount(next, 'nextRemote'),
   ])
   return {
     current,

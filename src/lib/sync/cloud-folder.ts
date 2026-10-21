@@ -12,6 +12,7 @@ import {
   testOneDriveConnection,
 } from './onedrive'
 import type { CloudFolderConfig } from '@/types/sync'
+import type { RemoteWriteCondition } from './write-condition'
 
 export interface CloudFolderObject {
   key: string
@@ -208,11 +209,13 @@ export async function cloudFolderUpload(
   config: CloudFolderConfig,
   key: string,
   content: string | Uint8Array,
+  condition?: RemoteWriteCondition,
 ): Promise<CloudFolderObject> {
   if (isOneDriveConfig(config)) {
-    const result = await oneDriveUpload(config, oneDriveSyncKey(key), content)
+    const result = await oneDriveUpload(config, oneDriveSyncKey(key), content, condition)
     return fromOneDriveSyncObject(result)
   }
+  if (condition) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
   const root = await authorizedPath(config)
   if (platform() === 'android') {
     return invoke<CloudFolderObject>('write_android_cloud_folder_file', {
@@ -277,8 +280,9 @@ export async function cloudFolderHeadObject(
   return files.find(file => file.key === key) ?? null
 }
 
-export async function cloudFolderDelete(config: CloudFolderConfig, key: string): Promise<boolean> {
-  if (isOneDriveConfig(config)) return oneDriveDelete(config, oneDriveSyncKey(key))
+export async function cloudFolderDelete(config: CloudFolderConfig, key: string, condition?: RemoteWriteCondition): Promise<boolean> {
+  if (isOneDriveConfig(config)) return oneDriveDelete(config, oneDriveSyncKey(key), condition)
+  if (condition) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
   const root = await authorizedPath(config)
   if (platform() === 'android') {
     return invoke<boolean>('delete_android_cloud_folder_file', {
@@ -319,8 +323,10 @@ export async function androidCloudFolderWorkspaceUpload(
   config: CloudFolderConfig,
   key: string,
   content: string | Uint8Array,
+  condition?: RemoteWriteCondition,
 ): Promise<CloudFolderObject> {
-  if (isOneDriveConfig(config)) return oneDriveUpload(config, key, content)
+  if (isOneDriveConfig(config)) return oneDriveUpload(config, key, content, condition)
+  if (condition) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
   return invoke<CloudFolderObject>('write_android_cloud_folder_file', {
     rootUri: requirePath(config),
     key,
@@ -376,8 +382,10 @@ export async function androidCloudFolderWorkspaceHead(
 export async function androidCloudFolderWorkspaceDelete(
   config: CloudFolderConfig,
   key: string,
+  condition?: RemoteWriteCondition,
 ): Promise<boolean> {
-  if (isOneDriveConfig(config)) return oneDriveDelete(config, key)
+  if (isOneDriveConfig(config)) return oneDriveDelete(config, key, condition)
+  if (condition) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
   return invoke<boolean>('delete_android_cloud_folder_file', {
     rootUri: requirePath(config),
     key,

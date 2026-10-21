@@ -25,8 +25,8 @@ async function fingerprintBytes(content: Uint8Array): Promise<string> {
   return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-async function getStaticAssetOperationKey(path: string): Promise<string> {
-  const context = await getCurrentSyncContext()
+async function getStaticAssetOperationKey(path: string, provider?: string): Promise<string> {
+  const context = await getCurrentSyncContext(provider)
   let target = context.repo
 
   if (context.provider === 's3') {
@@ -55,12 +55,13 @@ export async function createStaticAssetSyncMarker(
   path: string,
   content: Uint8Array,
   operationKey?: string,
+  provider?: string,
 ): Promise<StaticAssetSyncMarker | null> {
   const normalizedPath = normalizeStaticAssetPath(path)
   if (!STATIC_IMAGE_PATH_PATTERN.test(normalizedPath)) return null
 
   const [key, fingerprint] = await Promise.all([
-    operationKey ?? getStaticAssetOperationKey(normalizedPath),
+    operationKey ?? getStaticAssetOperationKey(normalizedPath, provider),
     fingerprintBytes(content),
   ])
   return { key, fingerprint }

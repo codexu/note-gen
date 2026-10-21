@@ -23,6 +23,25 @@ export interface Conversation {
   isPinned: boolean
 }
 
+// Associated features can initialize their tables lazily. Only clean up tables
+// that exist, and keep identifiers on a fixed allowlist before building SQL.
+const optionalConversationCleanupTables = [
+  { name: 'memory_jobs', column: 'conversation_id' },
+  { name: 'conversation_compactions', column: 'conversationId' },
+] as const
+
+export async function getOptionalConversationCleanupTables() {
+  const db = await getDb()
+  const tables = await db.select<Array<{ name: string }>>(
+    `select name from sqlite_master
+     where type = 'table'
+       and name in ('memory_jobs', 'conversation_compactions')`,
+    []
+  )
+  const existing = new Set(tables.map(table => table.name))
+  return optionalConversationCleanupTables.filter(table => existing.has(table.name))
+}
+
 // 创建 conversations 表
 export async function initConversationsDb() {
   const db = await getDb()
@@ -253,32 +272,8 @@ export async function deleteConversation(id: number): Promise<void> {
       deletedAt,
     })
   }
-  const optionalTables = await db.select<{ name: string }[]>(
-    `select name from sqlite_master
-     where type = 'table'
-       and name in ('memory_conversation_policy', 'memory_jobs', 'conversation_compactions')`,
-    []
-  )
-  const existingOptionalTables = new Set(optionalTables.map(table => table.name))
-
-  // 这些关联表由可选功能在不同版本中引入，旧数据库中可能尚不存在。
-  if (existingOptionalTables.has('memory_conversation_policy')) {
-    await db.execute(
-      "delete from memory_conversation_policy where conversation_id = $1",
-      [id]
-    )
-  }
-  if (existingOptionalTables.has('memory_jobs')) {
-    await db.execute(
-      "delete from memory_jobs where conversation_id = $1",
-      [id]
-    )
-  }
-  if (existingOptionalTables.has('conversation_compactions')) {
-    await db.execute(
-      "delete from conversation_compactions where conversationId = $1",
-      [id]
-    )
+  for (const table of await getOptionalConversationCleanupTables()) {
+    await db.execute(`delete from ${table.name} where ${table.column} = $1`, [id])
   }
   // 先删除会话的所有聊天记录
   await db.execute(

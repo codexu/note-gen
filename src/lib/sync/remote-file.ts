@@ -116,7 +116,7 @@ export function getRemoteFileContent(file: unknown, path: string) {
 }
 
 export function isMissingRemoteFileError(message: string) {
-  return message.includes('远程文件不存在') || message.includes('远程路径指向的是目录')
+  return message.includes('远程文件不存在')
 }
 
 export function hasEmptyRemoteFileContent(file: unknown) {
@@ -153,4 +153,50 @@ export function encodeRemoteFileContent(content: string | Uint8Array): string {
   return typeof content === 'string'
     ? Buffer.from(content, 'utf-8').toString('base64')
     : Buffer.from(content).toString('base64')
+}
+
+// Missing files are represented by null by the transport. Present but empty or
+// malformed snapshots must never become an authoritative empty collection.
+export function syncDataError(kind: 'EMPTY_JSON' | 'INVALID_JSON' | 'INVALID_SCHEMA', path: string) {
+  return new Error(`SYNC_DATA_${kind}: ${path}`)
+}
+
+export function parseSyncJson<T>(content: string, path: string, shape?: 'array' | 'object'): T {
+  const normalized = content.replace(/^\uFEFF/, '')
+  if (!normalized.trim()) throw syncDataError('EMPTY_JSON', path)
+  let parsed: unknown
+  try { parsed = JSON.parse(normalized) }
+  catch { throw syncDataError('INVALID_JSON', path) }
+  if ((shape === 'array' && !Array.isArray(parsed))
+    || (shape === 'object' && (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)))) {
+    throw syncDataError('INVALID_SCHEMA', path)
+  }
+  return parsed as T
+}
+
+export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string) {
+  if (message.includes('SYNC_ONEDRIVE_UPLOAD_CONNECTION')) return translate('oneDriveUploadConnection', { path: '' })
+  if (message.includes('SYNC_ONEDRIVE_UPLOAD_PENDING')) return translate('oneDriveUploadPending', { path: '' })
+  if (message === 'SYNC_SWITCH_STALE') return translate('stale', { path: '' })
+  if (message === 'SYNC_SWITCH_CONDITIONAL_UNSUPPORTED') return translate('conditionalUnsupported', { path: '' })
+  if (message === 'SYNC_SWITCH_RECOVERY_CHANGED') return translate('recoveryChanged', { path: '' })
+  const emptyUpload = /^SYNC_SWITCH_EMPTY_UPLOAD_UNSUPPORTED: ([^\n]+)$/.exec(message)
+  if (emptyUpload) return translate('emptyUploadUnsupported', { path: emptyUpload[1] })
+  const localModule = /^SYNC_SWITCH_LOCAL_VERIFY: (records|tags|canvases|conversations|settings|memories)(?: \/ ([^\n]+))?$/.exec(message)
+  if (localModule) {
+    const moduleLabel = translate(`modules.${localModule[1]}`, { path: '' })
+    return translate('localVerificationFailed', { path: localModule[2] ? `${moduleLabel} / ${localModule[2]}` : moduleLabel })
+  }
+  const match = message.match(/SYNC_(?:DATA|SWITCH)_(EMPTY_JSON|INVALID_JSON|INVALID_SCHEMA): ([^\n]+)/)
+  if (!match) return message
+  const key = match[1] === 'EMPTY_JSON' ? 'emptyJsonFile' : match[1] === 'INVALID_JSON' ? 'invalidJsonFile' : 'invalidSchemaFile'
+  return translate(key, { path: match[2] })
+}
+
+// Keep the native Response.json contract for existing provider result types,
+// while reporting malformed API bodies through the shared error vocabulary.
+export async function readSyncResponseJson(response: Response, path: string): ReturnType<Response['json']> {
+  const value = parseSyncJson<unknown>(await response.text(), path)
+  if (value === null || typeof value !== 'object') throw syncDataError('INVALID_SCHEMA', path)
+  return value
 }

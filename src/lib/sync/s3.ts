@@ -1,3 +1,4 @@
+import { conditionalHeaders, assertConditionalResponse, type RemoteWriteCondition } from './write-condition'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { S3Config } from '@/types/sync'
 import { buildRepoContentPath, debugSyncPath, debugSyncPerf } from './remote-file'
@@ -386,7 +387,8 @@ export async function s3Upload(
   key: string,
   content: string | Uint8Array,
   proxy?: Proxy,
-  contentType = 'text/markdown; charset=utf-8'
+  contentType = 'text/markdown; charset=utf-8',
+  condition?: RemoteWriteCondition,
 ): Promise<{ etag: string } | null> {
   const uploadStartedAt = getPerfNow()
   let previousPerfAt = uploadStartedAt
@@ -412,7 +414,9 @@ export async function s3Upload(
       byteLength: contentBytes.byteLength,
     })
 
+    const conditions = conditionalHeaders(condition)
     const headers = {
+      ...conditions,
       Host: new URL(url).host,
       'Content-Type': contentType,
       'Content-Length': contentBytes.byteLength.toString()
@@ -433,12 +437,14 @@ export async function s3Upload(
     requestHeaders.append('Content-Type', contentType)
     requestHeaders.append('X-Amz-Content-Sha256', payloadHashHex)
 
+    for (const [key, value] of Object.entries(conditions)) requestHeaders.set(key, value)
     const response = await fetch(url, {
       method: 'PUT',
       headers: requestHeaders,
       body: contentBytes,
       proxy
     })
+    assertConditionalResponse(response, condition)
     logPerf('putRequest', {
       status: response.status,
     })
@@ -463,6 +469,7 @@ export async function s3Upload(
       return null
     }
   } catch (error) {
+    if (condition) throw error
     logPerf('failed', {
       message: error instanceof Error ? error.message : String(error),
     })
@@ -548,14 +555,14 @@ async function s3DownloadBytesInternal(
         bodyLength: errorText.length,
       })
       console.error('S3 Download failed:', response.status, errorText)
-      return null
+      throw new Error(`s3 / ${key}: HTTP ${response.status}`)
     }
   } catch (error) {
     logPerf('failed', {
       message: error instanceof Error ? error.message : String(error),
     })
     console.error('S3 Download error:', error)
-    return null
+    throw error
   }
 }
 
@@ -579,7 +586,7 @@ export async function s3Download(
 /**
  * 删除 S3 文件
  */
-export async function s3Delete(config: S3Config, key: string, proxy?: Proxy): Promise<boolean> {
+export async function s3Delete(config: S3Config, key: string, proxy?: Proxy, condition?: RemoteWriteCondition): Promise<boolean> {
   try {
     const url = buildS3Url(config, key)
 
@@ -589,7 +596,9 @@ export async function s3Delete(config: S3Config, key: string, proxy?: Proxy): Pr
       .map(b => b.toString(16).padStart(2, '0'))
       .join('')
 
+    const conditions = conditionalHeaders(condition)
     const headers: Record<string, string> = {
+      ...conditions,
       Host: new URL(url).host,
       'X-Amz-Content-Sha256': payloadHashHex
     }
@@ -601,15 +610,18 @@ export async function s3Delete(config: S3Config, key: string, proxy?: Proxy): Pr
     requestHeaders.append('X-Amz-Date', amzDate)
     requestHeaders.append('X-Amz-Content-Sha256', payloadHashHex)
 
+    for (const [key, value] of Object.entries(conditions)) requestHeaders.set(key, value)
     const response = await fetch(url, {
       method: 'DELETE',
       headers: requestHeaders,
       proxy
     })
 
+    assertConditionalResponse(response, condition)
     // 204 No Content 或 200 OK 都表示删除成功
     return response.status === 204 || response.status === 200
   } catch (error) {
+    if (condition) throw error
     console.error('S3 Delete error:', error)
     return false
   }
@@ -791,13 +803,13 @@ export async function s3HeadObject(
         bodyLength: errorText.length,
       })
       console.error('S3 HeadObject failed:', response.status, errorText)
-      return null
+      throw new Error(`S3 metadata request failed: HTTP ${response.status}`)
     }
   } catch (error) {
     logPerf('failed', {
       message: error instanceof Error ? error.message : String(error),
     })
     console.error('S3 HeadObject error:', error)
-    return null
+    throw error
   }
 }

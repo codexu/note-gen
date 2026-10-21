@@ -1,3 +1,4 @@
+import { assertConditionalResponse, type RemoteWriteCondition } from './write-condition'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
@@ -249,6 +250,10 @@ export async function getDirectoryFiles({ path, repo }: { path: string; repo: st
     const response = await fetch(`${baseUrl}/projects/${projectId}/repository/tree?${params}`, {
       method: 'GET', headers, proxy,
     })
+    if (response.status === 404 && !path && page === 1) {
+      const project = await readDirectoryResponse(await fetch(`${baseUrl}/projects/${projectId}`, { method: 'GET', headers, proxy }))
+      if (project && typeof project === 'object' && 'empty_repo' in project && project.empty_repo === true) return []
+    }
     if (response.status === 404 && path && page === 1) {
       // 验证仓库仍然可读，避免把鉴权或配置错误误认为目录已删除。
       await getDirectoryFiles({ path: '', repo })
@@ -474,7 +479,7 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
  * 获取特定 commit 的文件内容
  * @param params 查询参数
  */
-export async function getFileContent({ path, ref, repo }: { path: string; ref: string; repo: string }) {
+export async function getFileContent({ path, ref, repo }: { path: string; ref?: string; repo: string }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
@@ -483,12 +488,13 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
       throw new Error('项目 ID 未配置');
     }
 
+    const branch = ref || await getDefaultBranch(repo)
     const baseUrl = await getGitlabApiBaseUrl();
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
     // 使用 Gitlab API 获取特定 commit 的文件内容
-    const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}/raw?ref=${ref}`;
+    const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}/raw?ref=${encodeURIComponent(branch)}`;
 
     const response = await encodeFetch(url, {
       method: 'GET',
@@ -506,26 +512,12 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref: s
       };
     }
 
-    if (response.status >= 400 && response.status < 500) {
-      return {
-        content: '',
-        encoding: 'base64'
-      }
-    }
+    if (response.status === 404) return null
 
-    const errorData = await response.text();
-    throw {
-      status: response.status,
-      message: errorData || '获取文件内容失败'
-    } as GitlabError;
+    throw new Error(`gitlab / ${path}: HTTP ${response.status}`)
 
   } catch (error) {
-    toast({
-      title: '获取文件内容失败',
-      description: (error as GitlabError).message || '获取文件内容时发生错误',
-      variant: 'destructive',
-    });
-    throw error;
+    throw error
   }
 }
 
@@ -706,4 +698,38 @@ export async function createSyncProject(name: string, isPrivate: boolean = true)
     });
     return null;
   }
+}
+
+/** Bind a blob version to its last commit in one response, then let GitLab
+ * atomically reject a mutation if that commit is no longer current. */
+export async function mutateFileConditionally(path: string, repo: string, condition: RemoteWriteCondition, content?: Uint8Array) {
+  const store = await Store.load('store.json')
+  const projectId = await store.get<string>(`gitlab_${repo}_project_id`)
+  if (!projectId) throw new Error('GitLab sync is not configured')
+  const branch = await getDefaultBranch(repo)
+  const base = await getGitlabApiBaseUrl()
+  const headers = await getCommonHeaders()
+  const proxy = await getProxyConfig()
+  const url = `${base}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(path)}`
+  let lastCommitId: string | undefined
+  if (condition.version !== null) {
+    // GitLab includes UTF-8 file names in metadata headers. The standard Tauri
+    // fetch wrapper cannot construct JS Headers from those Unicode values;
+    // retain the HEAD-only version check using our header-safe transport.
+    const metadata = await encodeFetch(`${url}?ref=${encodeURIComponent(branch)}`, { method: 'HEAD', headers, proxy })
+    assertConditionalResponse(metadata, condition)
+    if (metadata.headers.get('x-gitlab-blob-id') !== condition.version) throw new Error('SYNC_SWITCH_STALE')
+    lastCommitId = metadata.headers.get('x-gitlab-last-commit-id') || undefined
+    if (!lastCommitId) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
+  } else if (!content) throw new Error('SYNC_SWITCH_STALE')
+  const response = await fetch(url, {
+    method: content ? condition.version === null ? 'POST' : 'PUT' : 'DELETE',
+    headers, proxy,
+    body: JSON.stringify({ branch, commit_message: `Sync: ${path}`, last_commit_id: lastCommitId,
+      ...(content ? { content: encodeRemoteFileContent(content), encoding: 'base64' } : {}) }),
+  })
+  // GitLab uses 400 for an existing create target or a changed last_commit_id.
+  if (response.status === 400) throw new Error('SYNC_SWITCH_STALE')
+  assertConditionalResponse(response, condition)
+  return true
 }

@@ -8,6 +8,7 @@ import {
   getRemoteContentType,
   remoteFileExists,
   uploadRemoteBytes,
+  getOneDriveCreateOnlyCondition,
 } from './remote-library'
 
 type RecordAssetMark = {
@@ -103,6 +104,7 @@ async function flushPendingRecordAssetRemoteDeletions() {
 export async function uploadRecordAssets(marks: RecordAssetMark[]) {
   const startedAt = Date.now()
   await flushPendingRecordAssetRemoteDeletions()
+  const createCondition = await getOneDriveCreateOnlyCondition()
 
   const localPaths = Array.from(new Set(
     marks.flatMap(getMarkLocalAssetPaths)
@@ -125,6 +127,7 @@ export async function uploadRecordAssets(marks: RecordAssetMark[]) {
       `Upload record asset: ${localPath}`,
       getRemoteContentType(localPath),
       'data',
+      createCondition,
     )
     uploaded += 1
   }

@@ -2,7 +2,7 @@
 
 import { relaunch } from '@tauri-apps/plugin-process'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { BaseDirectory, copyFile, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, copyFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,12 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { isMobileDevice } from '@/lib/check'
 import { Download, FileJson, Upload } from 'lucide-react'
+import { withPrimaryPlatformLock } from '@/lib/sync/platform-switch-recovery'
+import { usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 export function ConfigFileActions() {
   const t = useTranslations('settings.dev')
+  const switchT = useTranslations('settings.sync.switchPlan')
   const { toast } = useToast()
 
   async function handleImport() {
@@ -28,13 +31,30 @@ export function ConfigFileActions() {
       const file = await open({ title: t('importConfigTitle') })
       if (!file) return
 
-      const content = await readTextFile(file)
-      JSON.parse(content)
-      await writeTextFile('store.json', content, { baseDir: BaseDirectory.AppData })
-
-      const existingStore = await Store.get('store.json')
-      if (existingStore) await existingStore.close()
-      await Store.load('store.json')
+      const imported: unknown = JSON.parse(await readTextFile(file))
+      if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+        throw new Error(t('importConfigInvalid'))
+      }
+      await withPrimaryPlatformLock(async () => {
+        const store = await Store.load('store.json')
+        if (usePlatformSwitchStore.getState().platform || await store.get('platformSwitchRecovery')) {
+          throw new Error(switchT('interrupted'))
+        }
+        const previous = await store.entries()
+        const protectedKeys = new Set(['primaryBackupMethod', 'platformSwitchRecovery'])
+        try {
+          for (const [key] of previous) if (!protectedKeys.has(key)) await store.delete(key)
+          for (const [key, value] of Object.entries(imported)) {
+            if (!protectedKeys.has(key)) await store.set(key, value)
+          }
+          await store.save()
+        } catch (error) {
+          for (const [key] of await store.entries()) if (!protectedKeys.has(key)) await store.delete(key)
+          for (const [key, value] of previous) if (!protectedKeys.has(key)) await store.set(key, value)
+          await store.save()
+          throw error
+        }
+      })
 
       if (isMobileDevice()) {
         toast({ description: t('importConfigSuccessMobile') })

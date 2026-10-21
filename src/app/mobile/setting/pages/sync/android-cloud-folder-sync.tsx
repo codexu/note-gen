@@ -28,22 +28,16 @@ import {
 } from '@/lib/sync/onedrive'
 import {
   prepareOneDriveWorkspace,
-  type OneDriveWorkspacePreparation,
   type OneDriveWorkspaceStrategy,
 } from '@/lib/sync/onedrive-workspace'
-import {
-  listLocalLibraryFiles,
-  pullAllRemoteLibraryFiles,
-  uploadAllLocalLibraryFiles,
-  uploadLocalLibraryFile,
-} from '@/lib/sync/remote-library'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import { useSkillsStore } from '@/stores/skills'
 import useSyncStore from '@/stores/sync'
 import { toast } from '@/hooks/use-toast'
-import type { CloudFolderConfig, SyncPlatform } from '@/types/sync'
+import type { CloudFolderConfig } from '@/types/sync'
 import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
+import { switchSyncPlatform, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 type OneDrivePanelStatus =
   | 'disconnected'
@@ -80,7 +74,10 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
   const t = useTranslations('settings.sync.cloudFolder')
   const oneDriveT = useTranslations('settings.sync.oneDrive')
   const setCloudFolderConnected = useSyncStore(state => state.setCloudFolderConnected)
-  const { workspacePath, setWorkspacePath, setPrimaryBackupMethod } = useSettingStore()
+  const { workspacePath, primaryBackupMethod } = useSettingStore()
+  const switchTarget = usePlatformSwitchStore(state => state.platform)
+  const switchStep = usePlatformSwitchStore(state => state.step)
+  const switchPending = switchTarget !== null && switchStep !== 'completed'
   const {
     loadWorkspaceCollapsibleList,
     loadFileTree,
@@ -181,6 +178,24 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
     }
   }, [oneDriveT, setCloudFolderConnected, t])
 
+  useEffect(() => {
+    if (switchTarget !== 'cloudFolder' || switchStep !== 'completed' || primaryBackupMethod !== 'cloudFolder') return
+    let cancelled = false
+    void (async () => {
+      const store = await Store.load('store.json')
+      const active = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+      if (cancelled || active?.provider !== 'oneDrive') return
+      setConfig(active)
+      setAccountConnected(true)
+      setConnectionMode('active')
+      setCloudFolderConnected(true)
+      setError('')
+      updatePanelStatus('connected')
+      onActiveProviderChange?.('oneDrive')
+    })().catch(cause => console.warn('OneDrive status refresh failed', cause))
+    return () => { cancelled = true }
+  }, [switchTarget, switchStep, primaryBackupMethod, setCloudFolderConnected, onActiveProviderChange])
+
   async function prepareWorkspaceSwitch() {
     const articleState = useArticleStore.getState()
     if (!await prepareActiveEditorDeactivationDurably(articleState.activeFilePath)) {
@@ -194,7 +209,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
   async function refreshWorkspaceContent() {
     await setActiveFilePath('', true, { deactivationAlreadyPrepared: true })
     const lastActivePath = await loadWorkspaceCollapsibleList()
-    await loadFileTree()
+    await loadFileTree({ skipRemoteSync: true })
     if (lastActivePath) {
       await setActiveFilePath(lastActivePath, true, {
         deactivationAlreadyPrepared: true,
@@ -204,122 +219,45 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
     await refreshSkills()
   }
 
-  async function transferWorkspace(preparation: OneDriveWorkspacePreparation) {
-    const startedAt = Date.now()
-    const options = { includeStaticAssets: true }
-    if (preparation.mode === 'pull') {
-      const result = await pullAllRemoteLibraryFiles(options)
-      if (result.failed.length > 0) {
-        throw new Error(oneDriveT('workspaceTransferFailed', { count: result.failed.length }))
-      }
-      const transferred = { downloaded: result.downloaded, uploaded: 0 }
-      logOneDriveTiming('workspaceTransfer', startedAt, { mode: preparation.mode, ...transferred })
-      return transferred
-    }
-
-    if (preparation.mode === 'upload') {
-      const result = await uploadAllLocalLibraryFiles(options)
-      if (result.failed.length > 0) {
-        throw new Error(oneDriveT('workspaceTransferFailed', { count: result.failed.length }))
-      }
-      const transferred = { downloaded: 0, uploaded: result.uploaded }
-      logOneDriveTiming('workspaceTransfer', startedAt, { mode: preparation.mode, ...transferred })
-      return transferred
-    }
-
-    const pullResult = await pullAllRemoteLibraryFiles(options)
-    if (pullResult.failed.length > 0) {
-      throw new Error(oneDriveT('workspaceTransferFailed', { count: pullResult.failed.length }))
-    }
-    const remotePaths = new Set(preparation.remoteFiles.map(file => file.key))
-    const localOnlyFiles = (await listLocalLibraryFiles(options))
-      .filter(file => !remotePaths.has(file.path))
-    let uploaded = 0
-    let failed = 0
-    for (let index = 0; index < localOnlyFiles.length; index += 3) {
-      const batch = localOnlyFiles.slice(index, index + 3)
-      await Promise.all(batch.map(async file => {
-        try {
-          await uploadLocalLibraryFile(file.path)
-          uploaded += 1
-        } catch {
-          failed += 1
-        }
-      }))
-    }
-    if (failed > 0) throw new Error(oneDriveT('workspaceTransferFailed', { count: failed }))
-    const transferred = { downloaded: pullResult.downloaded, uploaded }
-    logOneDriveTiming('workspaceTransfer', startedAt, { mode: preparation.mode, ...transferred })
-    return transferred
-  }
-
   async function activateWorkspace(next: CloudFolderConfig, strategy: OneDriveWorkspaceStrategy) {
+    if (usePlatformSwitchStore.getState().platform) throw new Error('SYNC_SWITCH_STALE')
     if (!await prepareWorkspaceSwitch()) {
       throw new Error('无法在切换工作区前保存当前编辑内容')
     }
-    const previousWorkspacePath = workspacePath
     const preparationStartedAt = Date.now()
-    const preparation = await prepareOneDriveWorkspace(next, previousWorkspacePath || undefined, strategy)
+    const preparation = await prepareOneDriveWorkspace(next, workspacePath || undefined, strategy)
     logOneDriveTiming('workspacePreparation', preparationStartedAt, {
-      strategy,
-      mode: preparation.mode,
-      remoteFiles: preparation.remoteFiles.length,
+      strategy, mode: preparation.mode, remoteFiles: preparation.remoteFiles.length,
     })
-    const configured: CloudFolderConfig = {
-      ...next,
-      oneDriveWorkspacePath: preparation.path,
-    }
-    const autoDataSyncQueue = await import('@/lib/sync/auto-data-sync-queue')
-    await autoDataSyncQueue.prepareAutoDataSyncForRepositoryChange()
+    const configured: CloudFolderConfig = { ...next, oneDriveWorkspacePath: preparation.path }
     const store = await Store.load('store.json')
     const previousConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-    const previousMethod = await store.get<SyncPlatform>('primaryBackupMethod') || 'github'
-    try {
-      await store.set('cloudFolderSyncConfig', configured)
-      await store.save()
-      await setPrimaryBackupMethod('cloudFolder')
-      await setWorkspacePath(preparation.path)
-      await setActiveFilePath('', true, { deactivationAlreadyPrepared: true })
-      const transferred = await transferWorkspace(preparation)
-      await refreshWorkspaceContent()
-      await store.delete(PENDING_ONE_DRIVE_CONFIG_KEY)
-      await store.save()
-
-      setConfig(configured)
-      setAccountConnected(true)
-      setConnectionMode('active')
-      setCloudFolderConnected(true)
-      onActiveProviderChange?.('oneDrive')
-      toast({
-        title: oneDriveT('workspaceReadyTitle'),
-        description: oneDriveT('workspaceReadyDescription', transferred),
-      })
-
-      if (platform() === 'ios' && previousConfig?.bookmarkBase64) {
-        await setIOSWorkspaceFolderAccess(null)
-        await releaseIOSSyncFolder(previousConfig.bookmarkBase64).catch(() => undefined)
-      } else if (previousConfig?.path.startsWith('content://') && previousConfig.path !== next.path) {
-        await releaseAndroidSyncFolder(previousConfig.path).catch(() => undefined)
-      }
-    } catch (cause) {
-      await store.set('cloudFolderSyncConfig', previousConfig || { path: '' } satisfies CloudFolderConfig)
-      await store.save()
-      await setPrimaryBackupMethod(previousMethod)
-      if (useSettingStore.getState().workspacePath !== previousWorkspacePath) {
-        if (!await prepareWorkspaceSwitch()) {
-          throw new Error('无法在回滚工作区前保存当前编辑内容')
-        }
-        await setWorkspacePath(previousWorkspacePath)
-        await refreshWorkspaceContent().catch(() => undefined)
-      }
-      throw cause
-    } finally {
-      autoDataSyncQueue.finishAutoDataSyncRepositoryChange()
+    // The shared coordinator owns preparation recovery, backups, synchronization,
+    // verification and the final primary-provider commit. Never select first.
+    const switched = await switchSyncPlatform('cloudFolder', false, { path: preparation.path, config: configured })
+    const result = usePlatformSwitchStore.getState()
+    if (!switched || useSettingStore.getState().primaryBackupMethod !== 'cloudFolder') {
+      throw new Error(result.error || oneDriveT('workspaceSetupFailed'))
+    }
+    setConfig(configured)
+    setAccountConnected(true)
+    setConnectionMode('active')
+    setCloudFolderConnected(true)
+    onActiveProviderChange?.('oneDrive')
+    // Cleanup/view failures after a verified commit do not roll the platform back.
+    await refreshWorkspaceContent().catch(cause => console.warn('OneDrive view refresh failed', cause))
+    await store.delete(PENDING_ONE_DRIVE_CONFIG_KEY).then(() => store.save()).catch(cause => console.warn('OneDrive setup cleanup failed', cause))
+    toast({ title: oneDriveT('workspaceReadyTitle') })
+    if (platform() === 'ios' && previousConfig?.bookmarkBase64) {
+      await setIOSWorkspaceFolderAccess(null).catch(() => undefined)
+      await releaseIOSSyncFolder(previousConfig.bookmarkBase64).catch(() => undefined)
+    } else if (previousConfig?.path.startsWith('content://') && previousConfig.path !== next.path) {
+      await releaseAndroidSyncFolder(previousConfig.path).catch(() => undefined)
     }
   }
 
   async function connect() {
-    if (pendingAction) return
+    if (pendingAction || usePlatformSwitchStore.getState().platform) return
     setPendingAction('oneDrive')
     setError('')
     setLoginCode(null)
@@ -373,7 +311,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
   }
 
   async function prepareConnectedWorkspace(strategy: OneDriveWorkspaceStrategy) {
-    if (pendingAction || config.provider !== 'oneDrive') return
+    if (pendingAction || usePlatformSwitchStore.getState().platform || config.provider !== 'oneDrive') return
     setPendingAction('workspace')
     setWorkspaceStrategy(strategy)
     setError('')
@@ -407,7 +345,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
   }
 
   async function disconnect() {
-    if (pendingAction) return
+    if (pendingAction || usePlatformSwitchStore.getState().platform) return
     setPendingAction('disconnect')
     setError('')
     updatePanelStatus('disconnecting')
@@ -567,7 +505,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
               <Button
                 variant="outline"
                 size="sm"
-                disabled={Boolean(pendingAction)}
+                disabled={Boolean(pendingAction) || switchPending}
                 onClick={() => void prepareConnectedWorkspace('resume')}
               >
                 <FolderSync data-icon="inline-start" />
@@ -578,7 +516,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   size="sm"
-                  disabled={Boolean(pendingAction)}
+                  disabled={Boolean(pendingAction) || switchPending}
                   onClick={() => void prepareConnectedWorkspace('remote')}
                 >
                   <CloudDownload data-icon="inline-start" />
@@ -587,7 +525,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={Boolean(pendingAction)}
+                  disabled={Boolean(pendingAction) || switchPending}
                   onClick={() => void prepareConnectedWorkspace('current')}
                 >
                   <Copy data-icon="inline-start" />
@@ -630,14 +568,14 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange }: OneDriveClou
                 {oneDriveConnected ? (
                   <Button
                     variant="outline"
-                    disabled={Boolean(pendingAction)}
+                    disabled={Boolean(pendingAction) || switchPending}
                     onClick={() => void disconnect()}
                   >
                     {pendingAction === 'disconnect' ? <Spinner data-icon="inline-start" /> : <LogOut data-icon="inline-start" />}
                     {oneDriveT('disconnect')}
                   </Button>
                 ) : (
-                  <Button disabled={Boolean(pendingAction) || !clientId.trim()} onClick={() => void connect()}>
+                  <Button disabled={Boolean(pendingAction) || switchPending || !clientId.trim()} onClick={() => void connect()}>
                     {pendingAction === 'oneDrive' ? <Spinner data-icon="inline-start" /> : <LogIn data-icon="inline-start" />}
                     {pendingAction === 'oneDrive' ? oneDriveT('connecting') : oneDriveT('connect')}
                   </Button>

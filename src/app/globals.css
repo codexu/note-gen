@@ -38,6 +38,8 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -161,6 +163,8 @@
     --destructive-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 32 95% 25%;
+    --success: 142 71% 45%;
+    --success-foreground: 142 72% 24%;
     --promotion-gradient-start: 263 70% 50%;
     --promotion-gradient-middle: 330 75% 48%;
     --promotion-gradient-end: 24 90% 45%;
@@ -216,6 +220,8 @@
     --destructive-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 48 96% 65%;
+    --success: 142 71% 45%;
+    --success-foreground: 142 69% 72%;
     --promotion-gradient-start: 263 90% 70%;
     --promotion-gradient-middle: 330 85% 68%;
     --promotion-gradient-end: 32 95% 62%;
@@ -776,6 +782,13 @@ ol {
 .dark .search-result.is-current {
   background-color: #ea580c !important;
   color: #fff !important;
+}
+
+/* 错误提示出现时加宽桌面端消息栈，保持卡片对齐并留出窗口边距。 */
+@media (min-width: 640px) {
+  [data-sonner-toaster].toaster:has([data-sonner-toast][data-type="error"]) {
+    --width: min(560px, calc(100vw - 48px)) !important;
+  }
 }
 
 /* Photo preview should leave breathing room around large images. */

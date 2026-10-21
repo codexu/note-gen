@@ -1,11 +1,12 @@
+import type { RemoteWriteCondition } from '@/lib/sync/write-condition'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { filterSyncData, mergeSyncData } from '@/config/sync-exclusions'
+import { filterSyncData, mergeSyncData, shouldExcludeFromSync } from '@/config/sync-exclusions'
 import { uploadFile as uploadGithubFile, getFiles as githubGetFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { uploadFile as uploadGiteeFile, getFiles as giteeGetFiles } from '@/lib/sync/gitee'
 import { uploadFile as uploadGitlabFile, getFiles as gitlabGetFiles, getFileContent as gitlabGetFileContent } from '@/lib/sync/gitlab'
 import { uploadFile as uploadGiteaFile, getFiles as giteaGetFiles, getFileContent as giteaGetFileContent } from '@/lib/sync/gitea'
-import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
+import { getRemoteFileContent, isMissingRemoteFileError, parseSyncJson } from '@/lib/sync/remote-file'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3Download, s3Upload } from '@/lib/sync/s3'
 import { webdavDownload, webdavUpload } from '@/lib/sync/webdav'
@@ -56,7 +57,7 @@ interface SettingsSyncState {
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
   
-  uploadSettings: () => Promise<boolean>
+  uploadSettings: (condition?: RemoteWriteCondition) => Promise<boolean>
   downloadSettings: (options?: SettingsDownloadOptions) => Promise<boolean>
 }
 
@@ -71,7 +72,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
    * 上传配置到远程仓库
    * 会自动过滤掉不应同步的字段（如工作区路径等）
    */
-  uploadSettings: async () => {
+  uploadSettings: async (condition) => {
     try {
       const store = await Store.load('store.json')
       const primaryBackupMethod = await store.get<SettingsSyncProvider>('primaryBackupMethod') || 'github'
@@ -144,7 +145,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       if (primaryBackupMethod === 'cloudFolder') {
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
         if (!config?.path) return false
-        const result = await cloudFolderUpload(config, '.data/settings.json', content)
+        const result = await cloudFolderUpload(config, '.data/settings.json', content, condition)
         if (result) {
           set({ lastSyncTime: new Date().toISOString() })
           return true
@@ -210,6 +211,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       
       return false
     } catch (error) {
+      if (error instanceof Error && /SYNC_(?:SWITCH|ONEDRIVE)_/.test(error.message)) throw error
       console.error('Failed to upload settings:', error)
       debugSettingsSync('upload failed', {
         message: error instanceof Error ? error.message : 'unknown error',
@@ -260,7 +262,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
           return Boolean(options.allowMissingRemote)
         }
 
-        remoteSettings = JSON.parse(file.content)
+        remoteSettings = parseSyncJson<Record<string, unknown>>(file.content, `${primaryBackupMethod} / .data/settings.json`, 'object')
       } else if (primaryBackupMethod === 'webdav') {
         const config = await store.get<WebDAVConfig>('webdavSyncConfig')
         if (!config) {
@@ -273,13 +275,13 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
           return Boolean(options.allowMissingRemote)
         }
 
-        remoteSettings = JSON.parse(file.content)
+        remoteSettings = parseSyncJson<Record<string, unknown>>(file.content, `${primaryBackupMethod} / .data/settings.json`, 'object')
       } else if (primaryBackupMethod === 'cloudFolder') {
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
         if (!config?.path) return false
         const file = await cloudFolderDownload(config, '.data/settings.json')
         if (!file) return Boolean(options.allowMissingRemote)
-        remoteSettings = JSON.parse(file.content)
+        remoteSettings = parseSyncJson<Record<string, unknown>>(file.content, `${primaryBackupMethod} / .data/settings.json`, 'object')
       }
 
       // 获取仓库名称
@@ -308,9 +310,9 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       if (!remoteSettings) {
         const settingsPath = '.data/settings.json'
         const files = primaryBackupMethod === 'gitlab'
-          ? await gitlabGetFileContent({ path: settingsPath, ref: 'main', repo: repoName })
+          ? await gitlabGetFileContent({ path: settingsPath, repo: repoName })
           : primaryBackupMethod === 'gitea'
-          ? await giteaGetFileContent({ path: settingsPath, ref: 'main', repo: repoName })
+          ? await giteaGetFileContent({ path: settingsPath, repo: repoName })
           : await getFiles({
               path: settingsPath,
               repo: repoName,
@@ -325,13 +327,6 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
           return Boolean(options.allowMissingRemote)
         }
 
-        if (options.allowMissingRemote && hasEmptyRemoteFileContent(files)) {
-          debugSettingsSync('download skipped because remote settings file is empty or missing', {
-            provider: primaryBackupMethod,
-          })
-          return true
-        }
-
         debugSettingsSync('git download result', {
           provider: primaryBackupMethod,
           success: true,
@@ -339,7 +334,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
 
         // 解码 base64 内容
         const content = decodeBase64ToString(getRemoteFileContent(files, settingsPath))
-        remoteSettings = JSON.parse(content)
+        remoteSettings = parseSyncJson<Record<string, unknown>>(content, `${primaryBackupMethod} / ${settingsPath}`, 'object')
       }
 
       if (!remoteSettings) {
@@ -358,6 +353,9 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       setAutoDataSyncApplyingRemote(true)
       try {
         for (const [key, value] of Object.entries(mergedSettings)) {
+          // Device/session fields may have changed since this download began.
+          // Preserve the live value rather than rewriting our stale local copy.
+          if (shouldExcludeFromSync(key, { excludeSensitiveConfig })) continue
           await store.set(key, value)
         }
         await store.save()
@@ -383,7 +381,7 @@ const useSettingsSyncStore = create<SettingsSyncState>((set) => ({
       debugSettingsSync('download failed', {
         message,
       })
-      return false
+      throw error
     }
   }
 }))

@@ -358,11 +358,11 @@ export async function getFileSyncStatus(filePath: string): Promise<{
 /**
  * 更新文件的同步时间
  */
-export async function updateFileSyncTime(filePath: string): Promise<void> {
+export async function updateFileSyncTime(filePath: string, scopedKey?: string): Promise<void> {
   const store = await Store.load('store.json')
   const syncTimes = await store.get<Record<string, number>>('lastSyncTimes') || {}
 
-  syncTimes[await getSyncMetadataKey(filePath)] = Date.now()
+  syncTimes[scopedKey || await getSyncMetadataKey(filePath)] = Date.now()
   await store.set('lastSyncTimes', syncTimes)
   await store.save()
 }

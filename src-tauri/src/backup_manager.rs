@@ -562,9 +562,7 @@ fn preserve_device_local_settings(
     restored_store_path: &Path,
     current_store: Option<&serde_json::Value>,
 ) -> Result<(), String> {
-    let Some(current_object) = current_store.and_then(serde_json::Value::as_object) else {
-        return Ok(());
-    };
+    let current_object = current_store.and_then(serde_json::Value::as_object);
     if !restored_store_path.exists() {
         return Ok(());
     }
@@ -577,6 +575,8 @@ fn preserve_device_local_settings(
         .as_object_mut()
         .ok_or_else(|| "Restored settings are not a JSON object".to_string())?;
     let device_local_fields = [
+        "primaryBackupMethod",
+        "platformSwitchRecovery",
         "managedBackupDirectory",
         "managedBackupSchedule",
         "managedBackupRetention",
@@ -596,12 +596,15 @@ fn preserve_device_local_settings(
         "giteaCustomSyncRepo",
     ];
     for field in device_local_fields {
-        if let Some(value) = current_object.get(field) {
+        if let Some(value) = current_object.and_then(|object| object.get(field)) {
             restored_object.insert(field.to_string(), value.clone());
         } else {
             restored_object.remove(field);
         }
     }
+    // A backup cannot choose a primary provider for a fresh installation.
+    restored_object.entry("primaryBackupMethod".to_string())
+        .or_insert_with(|| serde_json::Value::String("local".to_string()));
     let updated = serde_json::to_vec_pretty(&restored)
         .map_err(|error| format!("Failed to serialize restored settings: {error}"))?;
     fs::write(restored_store_path, updated)
@@ -647,6 +650,13 @@ pub fn restore_managed_backup(
         let current_store = fs::read_to_string(app_data_dir.join("store.json"))
             .ok()
             .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
+        if current_store.as_ref().and_then(|value| value.get("platformSwitchRecovery"))
+            .is_some_and(|value| !value.is_null()) {
+            return Err("Finish or recover the interrupted sync platform switch before restoring a backup".to_string());
+        }
+        // Preserve device-local selection in staging before replacing any live
+        // file, so a partial restore cannot temporarily select a backup's provider.
+        preserve_device_local_settings(&restored_app_data.join("store.json"), current_store.as_ref())?;
         fs::create_dir_all(&app_data_dir)
             .map_err(|error| format!("Failed to prepare NoteGen data directory: {error}"))?;
         for transient in ["note.db-wal", "note.db-shm"] {
@@ -657,7 +667,6 @@ pub fn restore_managed_backup(
             }
         }
         copy_directory(&restored_app_data, &app_data_dir, true)?;
-        preserve_device_local_settings(&app_data_dir.join("store.json"), current_store.as_ref())?;
 
         let archived_workspace = if staging_dir.join(WORKSPACE_PREFIX).exists() {
             Some(staging_dir.join(WORKSPACE_PREFIX))

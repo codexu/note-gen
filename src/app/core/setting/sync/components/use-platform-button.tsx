@@ -1,15 +1,13 @@
 'use client'
 
 import { Check, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
-import { confirm } from '@tauri-apps/plugin-dialog'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import useSettingStore from '@/stores/setting'
 import type { SyncPlatform } from '@/types/sync'
-import { inspectSyncEngineSwitch, pauseSyncEngine } from '@/lib/sync/engine-switch'
+import { switchSyncPlatform, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 interface UsePlatformButtonProps {
   platform: SyncPlatform
@@ -23,47 +21,31 @@ export function UsePlatformButton({
   size = 'sm',
 }: UsePlatformButtonProps) {
   const t = useTranslations()
-  const { primaryBackupMethod, setPrimaryBackupMethod } = useSettingStore()
-  const [isSaving, setIsSaving] = useState(false)
+  const p = useTranslations('settings.sync.switchPlan')
+  const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
+  const switchingPlatform = usePlatformSwitchStore(state => state.platform)
+  const step = usePlatformSwitchStore(state => state.step)
+  const skipped = usePlatformSwitchStore(state => state.skipped)
+  const isSaving = switchingPlatform === platform && !['error', 'cancelled', 'review', 'confirm', 'completed'].includes(step)
   const isCurrent = primaryBackupMethod === platform
-
-  async function handleClick() {
-    setIsSaving(true)
-    try {
-      const review = platform === 'local' ? null : await inspectSyncEngineSwitch(primaryBackupMethod, platform)
-      if (review?.requiresReview) {
-        const accepted = await confirm(
-          t('settings.sync.engineSwitchReviewDescription', {
-            changes: review.pendingLocalChanges,
-            commands: review.pendingCommands,
-            currentRemote: review.currentRemoteObjects < 0 ? '?' : review.currentRemoteObjects,
-            nextRemote: review.nextRemoteObjects < 0 ? '?' : review.nextRemoteObjects,
-          }),
-          { title: t('settings.sync.engineSwitchReviewTitle'), kind: 'warning' },
-        )
-        if (!accepted) return
-      }
-      pauseSyncEngine(primaryBackupMethod)
-      await setPrimaryBackupMethod(platform)
-    } catch (error) {
-      console.error('[sync] Failed to switch primary provider', {
-        current: primaryBackupMethod,
-        next: platform,
-        error,
-      })
-      toast.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      setIsSaving(false)
+  const pendingLabel = step === 'cancelled' ? p('cancelled') : step === 'error' ? p('failed') : step === 'review' || step === 'confirm' ? p('waitingChoice') : p('working')
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const previousTarget = useRef(switchingPlatform)
+  useEffect(() => {
+    if (previousTarget.current === platform && switchingPlatform === null && !buttonRef.current?.disabled) {
+      buttonRef.current?.focus()
     }
-  }
+    previousTarget.current = switchingPlatform
+  }, [platform, switchingPlatform])
 
   return (
     <Button
+      ref={buttonRef}
       type="button"
       variant={isCurrent ? 'secondary' : 'default'}
       size={size}
-      disabled={disabled || isCurrent || isSaving}
-      onClick={() => void handleClick()}
+      disabled={disabled || isCurrent || (switchingPlatform !== null && !(step === 'completed' && skipped))}
+      onClick={() => void switchSyncPlatform(platform)}
     >
       {isSaving ? (
         <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -72,7 +54,7 @@ export function UsePlatformButton({
       ) : null}
       {isCurrent
         ? t('settings.sync.currentPlatform')
-        : t('settings.sync.setCurrentPlatform')}
+        : switchingPlatform === platform ? pendingLabel : t('settings.sync.setCurrentPlatform')}
     </Button>
   )
 }

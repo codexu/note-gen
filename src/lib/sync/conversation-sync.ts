@@ -7,15 +7,16 @@ import { deleteFile as deleteGiteaFile, getFileContent as giteaGetFileContent, g
 import { s3Delete, s3Download, s3Upload } from './s3'
 import { webdavDelete, webdavDownload, webdavUpload } from './webdav'
 import { cloudFolderDelete, cloudFolderDownload, cloudFolderUpload } from './cloud-folder'
-import { decodeBase64ToString, getRemoteFileContent, hasEmptyRemoteFileContent } from './remote-file'
+import { decodeBase64ToString, getRemoteFileContent, parseSyncJson, syncDataError } from './remote-file'
 import { getDataSyncRepoName } from './repo-utils'
 import {
   downloadRemoteBytes,
   getRemoteContentType,
   remoteFileExists,
   uploadRemoteBytes,
+  getOneDriveCreateOnlyCondition,
 } from './remote-library'
-import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
+import type { CloudFolderConfig, S3Config, WebDAVConfig, SyncPlatform } from '@/types/sync'
 import type { Chat, ChatType, Role } from '@/db/chats'
 import type { ConversationCompaction } from '@/db/conversation-compactions'
 import type { ConversationSyncTombstone } from '@/db/conversation-sync-state'
@@ -114,8 +115,8 @@ interface ConversationRemoteStorage {
   remove: (path: string) => Promise<boolean>
 }
 
-async function getConversationSyncVersionsKey(store: Store) {
-  const provider = await store.get<string>('primaryBackupMethod') || 'github'
+async function getConversationSyncVersionsKey(store: Store, platform?: SyncPlatform) {
+  const provider = platform ?? (await store.get<string>('primaryBackupMethod') || 'github')
   let target: unknown
   if (provider === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')
@@ -152,11 +153,29 @@ function getRemoteSha(value: unknown) {
 }
 
 function decodeRemoteContent(value: unknown, path: string) {
-  if (!value || Array.isArray(value) || hasEmptyRemoteFileContent(value)) return null
-  return decodeBase64ToString(getRemoteFileContent(value, path))
+  if (!value) return null
+  try { return decodeBase64ToString(getRemoteFileContent(value, path)) }
+  catch { throw syncDataError('INVALID_SCHEMA', path) }
 }
 
 async function createConversationRemoteStorage(store: Store): Promise<ConversationRemoteStorage | null> {
+  const storage = await createRawConversationRemoteStorage(store)
+  if (!storage) return null
+  const provider = await store.get<string>('primaryBackupMethod') || 'github'
+  return { ...storage, read: async path => {
+    const content = await storage.read(path)
+    if (content === null) return null
+    const value = parseSyncJson<unknown>(content, `${provider} / ${path}`)
+    const normalized = content.replace(/^\uFEFF/, '')
+    const valid = path === CONVERSATION_SYNC_INDEX_PATH ? Boolean(parseConversationSyncIndex(normalized))
+      : path === LEGACY_CHATS_SYNC_PATH ? Array.isArray(value) && value.every(item => isRecord(item) && typeof item.createdAt === 'number' && chatRoles.has(item.role as Role) && chatTypes.has(item.type as ChatType))
+      : Boolean(parseConversationSyncItem(normalized))
+    if (!valid) throw syncDataError('INVALID_SCHEMA', `${provider} / ${path}`)
+    return content.replace(/^\uFEFF/, '')
+  } }
+}
+
+async function createRawConversationRemoteStorage(store: Store): Promise<ConversationRemoteStorage | null> {
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
 
   if (provider === 'github') {
@@ -207,13 +226,13 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
     const repo = await getDataSyncRepoName('gitlab')
     return {
       read: async path => decodeRemoteContent(
-        await gitlabGetFileContent({ path, ref: 'main', repo }),
+        await gitlabGetFileContent({ path, repo }),
         path,
       ),
       write: async (path, content, expectedContent) => {
         const existing = await gitlabGetFiles({ path, repo })
         const existingContent = existing
-          ? decodeRemoteContent(await gitlabGetFileContent({ path, ref: 'main', repo }), path)
+          ? decodeRemoteContent(await gitlabGetFileContent({ path, repo }), path)
           : null
         if (expectedContent !== undefined && existingContent !== expectedContent) return false
         return Boolean(await uploadGitlabFile({
@@ -235,13 +254,13 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
     const repo = await getDataSyncRepoName('gitea')
     return {
       read: async path => decodeRemoteContent(
-        await giteaGetFileContent({ path, ref: 'main', repo }),
+        await giteaGetFileContent({ path, repo }),
         path,
       ),
       write: async (path, content, expectedContent) => {
         const existing = await giteaGetFiles({ path, repo })
         const existingContent = existing
-          ? decodeRemoteContent(await giteaGetFileContent({ path, ref: 'main', repo }), path)
+          ? decodeRemoteContent(await giteaGetFileContent({ path, repo }), path)
           : null
         if (expectedContent !== undefined && existingContent !== expectedContent) return false
         return Boolean(await uploadGiteaFile({
@@ -263,10 +282,10 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
     const config = await store.get<S3Config>('s3SyncConfig')
     if (!config) return null
     return {
-      read: async path => (await s3Download(config, path))?.content || null,
+      read: async path => (await s3Download(config, path))?.content ?? null,
       write: async (path, content, expectedContent) => {
         if (expectedContent !== undefined
-          && ((await s3Download(config, path))?.content || null) !== expectedContent) return false
+          && ((await s3Download(config, path))?.content ?? null) !== expectedContent) return false
         return Boolean(await s3Upload(config, path, content))
       },
       remove: async path => s3Delete(config, path),
@@ -277,10 +296,10 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
     const config = await store.get<WebDAVConfig>('webdavSyncConfig')
     if (!config) return null
     return {
-      read: async path => (await webdavDownload(config, path))?.content || null,
+      read: async path => (await webdavDownload(config, path))?.content ?? null,
       write: async (path, content, expectedContent) => {
         if (expectedContent !== undefined
-          && ((await webdavDownload(config, path))?.content || null) !== expectedContent) return false
+          && ((await webdavDownload(config, path))?.content ?? null) !== expectedContent) return false
         return Boolean(await webdavUpload(config, path, content))
       },
       remove: async path => webdavDelete(config, path),
@@ -290,14 +309,26 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
   if (provider === 'cloudFolder') {
     const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
     if (!config?.path) return null
+    const versions = new Map<string, string | null>()
     return {
-      read: async path => (await cloudFolderDownload(config, path))?.content || null,
-      write: async (path, content, expectedContent) => {
-        if (expectedContent !== undefined
-          && ((await cloudFolderDownload(config, path))?.content || null) !== expectedContent) return false
-        return Boolean(await cloudFolderUpload(config, path, content))
+      read: async path => {
+        const file = await cloudFolderDownload(config, path)
+        versions.set(path, file?.etag || null)
+        return file?.content ?? null
       },
-      remove: async path => cloudFolderDelete(config, path),
+      write: async (path, content, expectedContent) => {
+        if (expectedContent !== undefined) {
+          const file = await cloudFolderDownload(config, path)
+          if ((file?.content ?? null) !== expectedContent) return false
+          versions.set(path, file?.etag || null)
+        }
+        const condition = config.provider === 'oneDrive' && versions.has(path) ? { version: versions.get(path)! } : undefined
+        const result = await cloudFolderUpload(config, path, content, condition)
+        versions.set(path, result.etag)
+        return Boolean(result)
+      },
+      remove: async path => cloudFolderDelete(config, path,
+        config.provider === 'oneDrive' && versions.has(path) ? { version: versions.get(path)! } : undefined),
     }
   }
 
@@ -335,7 +366,7 @@ function normalizeTombstone(value: unknown): ConversationSyncTombstone | null {
 
 function normalizeIndexEntry(value: unknown): ConversationSyncIndexEntry | null {
   if (!isRecord(value)) return null
-  if (typeof value.syncId !== 'string'
+  if (typeof value.syncId !== 'string' || !value.syncId
     || typeof value.syncUpdatedAt !== 'number'
     || typeof value.title !== 'string'
     || typeof value.createdAt !== 'number'
@@ -447,9 +478,24 @@ function sanitizeRagSourceDetails(value?: string) {
   }
 }
 
+function normalizeSyncImages(value: unknown): string | undefined {
+  const text = optionalString(value)
+  if (!text) return text
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? JSON.stringify(parsed) : text
+  } catch { return undefined }
+}
+function normalizeSyncImageAnalyses(value: unknown): string | undefined {
+  const text = optionalString(value)
+  if (!text) return undefined
+  const analyses = parsePersistedImageAnalyses(text)
+  return analyses.length ? JSON.stringify(analyses) : undefined
+}
+
 function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
   if (!isRecord(value)) return null
-  if (typeof value.syncId !== 'string'
+  if (typeof value.syncId !== 'string' || !value.syncId
     || typeof value.syncUpdatedAt !== 'number'
     || typeof value.createdAt !== 'number'
     || typeof value.inserted !== 'boolean'
@@ -458,13 +504,13 @@ function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
   return {
     syncId: value.syncId,
     syncUpdatedAt: value.syncUpdatedAt,
-    tagId: optionalNumber(value.tagId),
+    tagId: optionalNumber(value.tagId) ?? 0,
     content: optionalString(value.content),
     role: value.role as Role,
     type: value.type as ChatType,
-    image: optionalString(value.image),
-    images: optionalString(value.images),
-    imageAnalyses: optionalString(value.imageAnalyses),
+    image: optionalString(value.image) || undefined,
+    images: normalizeSyncImages(value.images),
+    imageAnalyses: normalizeSyncImageAnalyses(value.imageAnalyses),
     attachments: sanitizeAttachments(optionalString(value.attachments)),
     inserted: value.inserted,
     createdAt: value.createdAt,
@@ -507,6 +553,8 @@ function normalizeCompaction(value: unknown): ConversationSyncCompaction | null 
   }
 }
 
+const compareSyncIds = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0
+
 export function parseConversationSyncItem(content: string | null): ConversationSyncItem | null {
   if (!content) return null
   try {
@@ -514,7 +562,7 @@ export function parseConversationSyncItem(content: string | null): ConversationS
     if (!isRecord(value)
       || value.format !== CONVERSATION_SYNC_ITEM_FORMAT
       || value.version !== CONVERSATION_SYNC_VERSION
-      || typeof value.syncId !== 'string'
+      || typeof value.syncId !== 'string' || !value.syncId
       || typeof value.syncUpdatedAt !== 'number'
       || typeof value.title !== 'string'
       || typeof value.createdAt !== 'number'
@@ -531,6 +579,16 @@ export function parseConversationSyncItem(content: string | null): ConversationS
       ? null
       : normalizeCompaction(value.compaction)
     if (value.compaction && !compaction) return null
+    const tombstones = new Map<string, ConversationSyncTombstone>()
+    for (const tombstone of messageTombstones) {
+      if (!tombstone || tombstone.entityType !== 'message' || tombstone.conversationSyncId !== value.syncId) return null
+      const previous = tombstones.get(tombstone.syncId)
+      if (!previous || previous.deletedAt < tombstone.deletedAt) tombstones.set(tombstone.syncId, tombstone)
+    }
+    const activeMessages = messages.filter((message): message is ConversationSyncMessage => message !== null && !tombstones.has(message.syncId))
+    if (new Set(activeMessages.map(message => message.syncId)).size !== activeMessages.length) return null
+    if (compaction && (!activeMessages.some(message => message.syncId === compaction.coveredThroughMessageSyncId)
+      || (compaction.tailStartMessageSyncId && !activeMessages.some(message => message.syncId === compaction.tailStartMessageSyncId)))) return null
     return {
       format: CONVERSATION_SYNC_ITEM_FORMAT,
       version: CONVERSATION_SYNC_VERSION,
@@ -540,10 +598,8 @@ export function parseConversationSyncItem(content: string | null): ConversationS
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
       isPinned: value.isPinned,
-      messages: messages.filter((message): message is ConversationSyncMessage => message !== null),
-      messageTombstones: messageTombstones.filter(
-        (tombstone): tombstone is ConversationSyncTombstone => tombstone !== null
-      ),
+      messages: activeMessages.sort((a, b) => a.createdAt - b.createdAt || compareSyncIds(a.syncId, b.syncId)),
+      messageTombstones: [...tombstones.values()].sort((a, b) => compareSyncIds(a.syncId, b.syncId)),
       compaction,
     }
   } catch {
@@ -552,7 +608,7 @@ export function parseConversationSyncItem(content: string | null): ConversationS
 }
 
 function chatToSyncMessage(chat: Chat): ConversationSyncMessage | null {
-  if (!chat.syncId || !chat.syncUpdatedAt) return null
+  if (!chat.syncId || typeof chat.syncUpdatedAt !== 'number' || !Number.isFinite(chat.syncUpdatedAt)) return null
   return {
     syncId: chat.syncId,
     syncUpdatedAt: chat.syncUpdatedAt,
@@ -602,7 +658,7 @@ function compactionToSyncValue(
   }
 }
 
-async function getLocalConversationSyncItems(): Promise<ConversationSyncItem[]> {
+export async function getLocalConversationSyncItems(): Promise<ConversationSyncItem[]> {
   const db = await import('@/db').then(module => module.getDb())
   const { getAllConversations } = await import('@/db/conversations')
   const { getLatestConversationCompaction } = await import('@/db/conversation-compactions')
@@ -638,6 +694,51 @@ async function getLocalConversationSyncItems(): Promise<ConversationSyncItem[]> 
     })
   }
   return items
+}
+
+/** Normalize a publication snapshot without contacting a remote or changing saved messages. */
+export async function getPlatformSwitchConversationItems() {
+  const items = await getLocalConversationSyncItems()
+  return await Promise.all(items.map(async item => {
+    const normalized = parseConversationSyncItem(JSON.stringify({
+      ...item, messages: await Promise.all(item.messages.map(message => normalizeMessageAssets(message, false))),
+    }))
+    if (!normalized) throw new Error('Invalid local conversation snapshot')
+    return normalized
+  }))
+}
+
+/** The switch controller has already backed up both sides before calling this. */
+export async function replacePlatformSwitchConversations(items: ConversationSyncItem[], tombstones: ConversationSyncTombstone[]) {
+  const parsed = items.map(item => parseConversationSyncItem(JSON.stringify(item)))
+  if (parsed.some(item => !item)) throw new Error('Invalid conversation snapshot')
+  const { executeRecordTransaction, getDb } = await import('@/db')
+  const db = await getDb()
+  const current = await db.select<Array<{ id: number; syncId: string }>>('select id, syncId from conversations')
+  const kept = new Set(items.map(item => item.syncId))
+  const { getOptionalConversationCleanupTables } = await import('@/db/conversations')
+  const optionalMemoryTables = (await getOptionalConversationCleanupTables())
+    .filter(table => table.name !== 'conversation_compactions')
+  // Keep surviving conversation IDs so local memory jobs keep their references.
+  await executeRecordTransaction([
+    { sql: 'delete from conversation_compactions', values: [] },
+    { sql: 'delete from chats', values: [] },
+    { sql: 'delete from conversation_sync_tombstones', values: [] },
+    ...current.filter(item => !kept.has(item.syncId)).flatMap(item => [
+      ...optionalMemoryTables.map(table => ({
+        sql: `delete from ${table.name} where ${table.column} = $1`, values: [item.id],
+      })),
+      { sql: 'delete from conversations where id = $1', values: [item.id] },
+    ]),
+  ])
+  await persistMergedConversationItems(parsed.filter((item): item is ConversationSyncItem => item !== null), tombstones)
+  await refreshConversationStoreAfterSync()
+}
+
+export async function acceptPlatformSwitchConversationVersions(items: ConversationSyncItem[], platform: SyncPlatform) {
+  const store = await Store.load('store.json')
+  await store.set(await getConversationSyncVersionsKey(store, platform), Object.fromEntries(items.map(item => [item.syncId, item.syncUpdatedAt])))
+  await store.save()
 }
 
 function bytesToHex(bytes: Uint8Array) {
@@ -693,12 +794,13 @@ async function ensureLocalConversationAsset(path: string, bytes: Uint8Array) {
   }
 }
 
-async function normalizeAndUploadImageReference(source: string) {
+async function normalizeAndUploadImageReference(source: string, upload = true) {
   if (!source || HTTP_URL_PATTERN.test(source)) return source
+  const createCondition = upload ? await getOneDriveCreateOnlyCondition() : undefined
   const localAssetPath = resolveConversationAssetPath(source)
   if (localAssetPath) {
     const remotePath = `${CONVERSATION_SYNC_ASSETS_DIRECTORY}/${source.split('/').pop() || ''}`
-    if (!await remoteFileExists(remotePath, 'data')) {
+    if (upload && !await remoteFileExists(remotePath, 'data')) {
       const bytes = await readFile(localAssetPath, { baseDir: BaseDirectory.AppData })
       await uploadRemoteBytes(
         remotePath,
@@ -706,6 +808,7 @@ async function normalizeAndUploadImageReference(source: string) {
         `Upload conversation asset: ${source}`,
         getRemoteContentType(source),
         'data',
+        createCondition,
       )
     }
     return source
@@ -720,23 +823,24 @@ async function normalizeAndUploadImageReference(source: string) {
   const localPath = `${LOCAL_CONVERSATION_ASSETS_DIRECTORY}/${hash}.${extension}`
   const remotePath = `${CONVERSATION_SYNC_ASSETS_DIRECTORY}/${hash}.${extension}`
   await ensureLocalConversationAsset(localPath, resolved.bytes)
-  if (!await remoteFileExists(remotePath, 'data')) {
+  if (upload && !await remoteFileExists(remotePath, 'data')) {
     await uploadRemoteBytes(
       remotePath,
       resolved.bytes,
       `Upload conversation asset: ${hash}.${extension}`,
       resolved.mimeType || getRemoteContentType(localPath),
       'data',
+      createCondition,
     )
   }
   return localPath
 }
 
-async function normalizeMessageAssets(message: ConversationSyncMessage) {
+async function normalizeMessageAssets(message: ConversationSyncMessage, upload = true) {
   const references = new Map<string, string>()
   const normalize = async (source: string) => {
     if (!references.has(source)) {
-      references.set(source, await normalizeAndUploadImageReference(source))
+      references.set(source, await normalizeAndUploadImageReference(source, upload))
     }
     return references.get(source) || source
   }
@@ -773,7 +877,7 @@ async function normalizeMessageAssets(message: ConversationSyncMessage) {
   return { ...message, image, images, imageAnalyses }
 }
 
-function getMessageImageReferences(message: ConversationSyncMessage) {
+export function getMessageImageReferences(message: ConversationSyncMessage) {
   const references = new Set<string>()
   if (message.image) references.add(message.image)
   if (message.images) {
@@ -961,6 +1065,10 @@ async function persistMergedConversationItems(
   const deletedConversationIds = tombstones
     .filter(tombstone => tombstone.entityType === 'conversation')
     .map(tombstone => tombstone.syncId)
+  const { getOptionalConversationCleanupTables } = await import('@/db/conversations')
+  const optionalMemoryTables = deletedConversationIds.length
+    ? (await getOptionalConversationCleanupTables()).filter(table => table.name !== 'conversation_compactions')
+    : []
   for (const syncId of deletedConversationIds) {
     const rows = await db.select<Array<{ id: number }>>(
       'select id from conversations where syncId = $1',
@@ -968,8 +1076,9 @@ async function persistMergedConversationItems(
     )
     for (const row of rows) {
       await db.execute('delete from conversation_compactions where conversationId = $1', [row.id])
-      await db.execute('delete from memory_conversation_policy where conversation_id = $1', [row.id]).catch(() => undefined)
-      await db.execute('delete from memory_jobs where conversation_id = $1', [row.id]).catch(() => undefined)
+      for (const table of optionalMemoryTables) {
+        await db.execute(`delete from ${table.name} where ${table.column} = $1`, [row.id])
+      }
       await db.execute('delete from chats where conversationId = $1', [row.id])
       await db.execute('delete from conversations where id = $1', [row.id])
     }
@@ -1212,7 +1321,7 @@ export async function hasRemoteConversationSyncData() {
   )
 }
 
-function legacyChatsToItems(content: string): ConversationSyncItem[] {
+export function legacyChatsToItems(content: string): ConversationSyncItem[] {
   let parsed: unknown
   try {
     parsed = JSON.parse(content)
@@ -1416,7 +1525,7 @@ export async function uploadConversations() {
       appliedRemoteDuringUpload = true
     }
     const normalizedMessages = await Promise.all(
-      itemToPublish.messages.map(normalizeMessageAssets)
+      itemToPublish.messages.map(message => normalizeMessageAssets(message))
     )
     const normalizedItem = { ...itemToPublish, messages: normalizedMessages }
     await persistNormalizedMessageAssets(normalizedMessages)
@@ -1485,7 +1594,7 @@ export async function uploadConversations() {
   return true
 }
 
-export async function downloadConversations(options: { allowMissingRemote?: boolean } = {}) {
+export async function downloadConversations(_options: { allowMissingRemote?: boolean } = {}) {
   const startedAt = Date.now()
   const store = await Store.load('store.json')
   const storage = await createConversationRemoteStorage(store)
@@ -1557,10 +1666,6 @@ export async function downloadConversations(options: { allowMissingRemote?: bool
     })
     return true
   } catch (error) {
-    if (options.allowMissingRemote) {
-      const message = error instanceof Error ? error.message : ''
-      if (!/conversation asset/i.test(message) && /not found|404/i.test(message)) return true
-    }
     throw error
   }
 }

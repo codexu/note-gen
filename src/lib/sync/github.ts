@@ -1,9 +1,10 @@
+import { assertConditionalResponse } from './write-condition'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { GithubError, GithubRepoInfo, OctokitResponse } from './github.types';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, encodeRemoteFileContent } from './remote-file'
+import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, readSyncResponseJson, syncDataError, encodeRemoteFileContent } from './remote-file'
 import { readGitTreeDirectory } from './directory-listing'
 export { decodeBase64ToString } from './remote-file';
 
@@ -68,8 +69,8 @@ const GITHUB_RELEASES_CACHE_KEY = 'githubReleasesCache';
 const GITHUB_RELEASES_CACHE_TTL_MS = 1000 * 60 * 30;
 
 export async function uploadFile(
-  { file, filename, sha, message, repo, path }:
-  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string })
+  { file, filename, sha, message, repo, path, guarded = false }:
+  { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string, guarded?: boolean })
 {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
@@ -113,6 +114,7 @@ export async function uploadFile(
 
     const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(contentPath)}`;
     const response = await fetch(url, requestOptions);
+    if (guarded) assertConditionalResponse(response, { version: sha || null });
 
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
@@ -129,6 +131,7 @@ export async function uploadFile(
       message: errorData.message || '同步失败'
     };
   } catch (error) {
+    if (guarded) throw error
     toast({
       title: '同步失败',
       description: (error as GithubError).message,
@@ -137,7 +140,7 @@ export async function uploadFile(
   }
 }
 
-export async function getDirectoryFiles({ path, repo }: { path: string; repo: string }) {
+export async function getDirectoryFiles({ path, repo, cache }: { path: string; repo: string; cache?: Map<string, Promise<unknown>> }) {
   const store = await Store.load('store.json')
   const token = await store.get<string>('accessToken')
   const username = await store.get<string>('githubUsername')
@@ -153,13 +156,13 @@ export async function getDirectoryFiles({ path, repo }: { path: string; repo: st
       'X-GitHub-Api-Version': '2022-11-28',
     },
     proxy,
-  }))
+  }), cache)
 }
 
 export async function getFiles({ path, repo, ref }: { path: string, repo: string, ref?: string }) {
   const store = await Store.load('store.json');
   const accessToken = await store.get('accessToken')
-  if (!accessToken) return;
+  if (!accessToken) throw new Error('GitHub sync is not configured')
 
   const githubUsername = await store.get('githubUsername')
 
@@ -196,27 +199,41 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
     try {
       const response = await fetch(url, requestOptions);
       if (response.status >= 200 && response.status < 300) {
-        const data = await response.json();
+        const data = await readSyncResponseJson(response, `github / ${path}`);
+        // Contents omits inline data for large files (encoding: "none").
+        // Read the immutable blob so metadata and bytes describe the same version.
+        if (!Array.isArray(data) && data.type === 'file'
+          && (data.encoding === 'none'
+            || (data.size > 0 && (typeof data.content !== 'string' || !data.content.trim())))) {
+          if (typeof data.sha !== 'string' || !/^[a-f0-9]{40,64}$/i.test(data.sha)) {
+            throw syncDataError('INVALID_SCHEMA', `github / ${path}`)
+          }
+          const rawHeaders = new Headers(headers)
+          rawHeaders.set('Accept', 'application/vnd.github.raw+json')
+          const rawUrl = `https://api.github.com/repos/${encodeURIComponent(String(githubUsername))}/${encodeURIComponent(repo)}/git/blobs/${data.sha}`
+          const rawResponse = await fetch(rawUrl, { ...requestOptions, headers: rawHeaders })
+          if (!rawResponse.ok) throw new Error(`github / ${path}: HTTP ${rawResponse.status}`)
+          const bytes = new Uint8Array(await rawResponse.arrayBuffer())
+          if (typeof data.size === 'number' && bytes.length !== data.size) {
+            throw syncDataError('INVALID_SCHEMA', `github / ${path}`)
+          }
+          return { ...data, content: encodeRemoteFileContent(bytes), encoding: 'base64' }
+        }
         return data;
       }
-      return null;
-    } catch {
-      return null;
+      if (response.status === 404) return null
+      throw new Error(`github / ${path}: HTTP ${response.status}`)
+    } catch (error) {
+      throw error
     }
   } catch (error) {
-    if ((error as GithubError).status !== 404) {
-      toast({
-        title: '查询失败',
-        description: (error as GithubError).message,
-        variant: 'destructive',
-      })
-    }
+    throw error
   }
 }
 
 export async function deleteFile(
-  { path, sha, repo, token, username }: 
-  { path: string, sha: string, repo: string, token?: string, username?: string }
+  { path, sha, repo, token, username, guarded = false }: 
+  { path: string, sha: string, repo: string, token?: string, username?: string, guarded?: boolean }
 ) {
   const store = await Store.load('store.json');
   const accessToken = token || await store.get('accessToken')
@@ -252,6 +269,7 @@ export async function deleteFile(
     const url = `https://api.github.com/repos/${githubUsername}/${repo}${buildRepoContentsEndpoint(encodedPath)}`;
     const response = await fetch(url, requestOptions);
     
+    if (guarded) assertConditionalResponse(response, { version: sha || null });
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return data;
@@ -260,6 +278,7 @@ export async function deleteFile(
     throw new Error(`删除文件失败: ${response.status} ${response.statusText}`);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
+    if (guarded) throw error
     return false
   }
 }

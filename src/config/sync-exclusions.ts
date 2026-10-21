@@ -62,24 +62,53 @@ export interface SyncExclusionOptions {
 
 export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   // 运行时、设备和页面会话状态
+  'version',
+  'agentCorePromptVersion',
   'activeFilePath',
   'activeTabId',
+  // These contain open files, device-local paths and transient panel state.
+  // In particular, removing a note updates the layout during sync itself.
+  'editorWorkspaceLayout',
+  'outlineOpenByFile',
+  'outlineWidth',
+  'leftSidebarTab',
+  'leftSidebarVisible',
+  'centerPanelVisible',
+  'rightSidebarVisible',
+  'fileSidebarVisible',
+  'noteSidebarVisible',
+  'currentTagId',
+  'currentAi',
+  'currentPromptId',
+  'lastOrganizeTemplateId',
+  'mcp.selectedServerIds',
+  'recordFilters',
+  'globalSearchFilter',
   'collapsibleList',
   'currentPage',
   'fileTreeScrollTop',
   'lastSettingPage',
+  'lastRecordPage',
   'openTabs',
+  'pin',
+  'ignoredVersion',
   'analyticsInstallId',
   'analyticsLastActiveDate',
   'analyticsSeenVersions',
   'desktopOnboardingProgress',
   'lastVectorProcessTime',
   'ragIndexNeedsRebuild',
+  // Index execution and consent belong to this device's local database.
+  'ragKnowledgeIndexPaused',
+  'ragStructuredKnowledgeConsent',
+  'vectorAutoCalcDisabled',
+  'vectorExcludedFiles',
   'learnedContextWindows',
 
   // 可重新生成或重新获取的本地缓存
   'githubReleasesCache',
   'noteGenDefaultModelsCache',
+  'noteGenModelPolicyCache',
   'providerTemplatesCache',
   'remoteSkills.searchCache',
   'lastDownloadedRagSnapshot',
@@ -90,6 +119,14 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'conversationSyncVersions',
   'conversationSyncInitialized',
   'memorySyncInitialized',
+  'pendingRecordAssetRemoteDeletions',
+  // A remote preference must not change this device's sync scope or scheduler.
+  'autoSync',
+  'giteeAutoSync',
+  'gitlabAutoSync',
+  'giteaAutoSync',
+  'autoPullOnOpen',
+  'syncStaticAssets',
   'autoDataSyncEnabled',
   'autoRecordSyncEnabled',
   'autoSettingsSyncEnabled',
@@ -100,6 +137,12 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   // 开发者能力只控制当前设备，不能由其他设备远程开启。
   'developerMode',
   'developerPerformanceInfo',
+  // Local execution/collection permissions and installed capabilities.
+  'agentPermissionMode',
+  'autoReadClipboard',
+  'clipboardMonitor',
+  'clipboardMonitorEnabled',
+  'activeOcrProviderId',
   // User CSS can alter or hide the entire interface, so another device must not apply it remotely.
   'customCss',
   'excludeSensitiveConfig',
@@ -117,6 +160,9 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'autoDataSyncLastLocalUploadMeta',
   'autoDataSyncLastAppliedRemoteMeta',
   'autoDataSyncRecordSnapshots',
+  'platformSwitchRecovery',
+  // The primary provider belongs to this device and its verified switch transaction.
+  'primaryBackupMethod',
   'autoDataSyncBaselineFingerprints',
   'autoDataSyncMemorySettingsMigrated',
   // Development builds may have written this local-only diagnostic key.
@@ -129,25 +175,38 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'managedBackupLastSuccessAt',
   'managedBackupLastError',
   'cloudFolderSyncConfig',
+  'pendingOneDriveConfig',
   'oneDriveAuthTokens',
   'iosWorkspaceFolderAccess',
   'iosWorkspaceFolderAccessHistory',
   // 工作区和资源目录是设备本地状态，任何隐私设置下都不能跨设备覆盖。
   'workspacePath',
   'workspaceHistory',
+  'selfHostedDeferredWorkspacePaths',
+  'selfHostedServerUrlDraft',
+  'selfHostedExperimentalAcknowledged',
   'assetsPath',
   'workspaceSyncRepos',
   'githubCustomSyncRepo',
   'giteeCustomSyncRepo',
   'gitlabCustomSyncRepo',
   'giteaCustomSyncRepo',
+  // Refreshed from this device's credentials; not portable user preferences.
+  'githubUsername',
+  'giteeUsername',
+  'gitlabUsername',
+  'giteaUsername',
+  'githubImageUsername',
+  // A loopback/system proxy on one device is not usable on another device.
+  'proxy',
+  'proxyCustomURL',
+  'systemProxy',
 ]
 
 export const SENSITIVE_SYNC_EXCLUDED_FIELDS: string[] = [
   'appFontFamily',
   'uiScale',
   'contentTextScale',
-  'primaryBackupMethod',
   'aiModelList',
   's3SyncConfig',
   'webdavSyncConfig',
@@ -165,6 +224,7 @@ export const SENSITIVE_SYNC_EXCLUDED_FIELDS: string[] = [
   'qiniuImageConfig',
   'upyunImageConfig',
   'mcpServers',
+  'mcp.servers',
 ]
 
 export const SYNC_EXCLUDED_FIELDS: string[] = [
@@ -183,12 +243,21 @@ const SENSITIVE_SYNC_FIELD_PATTERNS = [
   'credential',
 ]
 
+// GitLab stores project IDs under repository-specific keys, without ':' scopes.
+// Keep this rule narrow so unrelated GitLab preferences remain syncable.
+const ALWAYS_SYNC_EXCLUDED_FIELD_PATTERNS = [/^gitlab_.+_project_id(?::.*)?$/]
+
+function matchesSyncField(fieldName: string, field: string): boolean {
+  return fieldName === field || fieldName.startsWith(`${field}:`)
+}
+
 // 检查字段是否应该被排除在同步之外
 export function shouldExcludeFromSync(fieldName: string, options: SyncExclusionOptions = {}): boolean {
   const normalizedFieldName = fieldName.toLowerCase()
   const excludeSensitiveConfig = options.excludeSensitiveConfig !== false
 
-  if (ALWAYS_SYNC_EXCLUDED_FIELDS.some(field => fieldName === field || fieldName.startsWith(`${field}:`))) {
+  if (ALWAYS_SYNC_EXCLUDED_FIELDS.some(field => matchesSyncField(fieldName, field))
+    || ALWAYS_SYNC_EXCLUDED_FIELD_PATTERNS.some(pattern => pattern.test(fieldName))) {
     return true
   }
 
@@ -197,7 +266,7 @@ export function shouldExcludeFromSync(fieldName: string, options: SyncExclusionO
   }
 
   return (
-    SENSITIVE_SYNC_EXCLUDED_FIELDS.includes(fieldName) ||
+    SENSITIVE_SYNC_EXCLUDED_FIELDS.some(field => matchesSyncField(fieldName, field)) ||
     SENSITIVE_SYNC_FIELD_PATTERNS.some((pattern) => normalizedFieldName.includes(pattern))
   )
 }

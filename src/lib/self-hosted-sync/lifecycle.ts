@@ -4,6 +4,7 @@ import { getDb } from '@/db'
 import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
 import emitter from '@/lib/emitter'
+import type { SyncPlatform } from '@/types/sync'
 
 let listenersInstalled = false
 let activeLibraryWorkspaceId: string | null = null
@@ -25,10 +26,13 @@ function installRuntimeListeners(runtime: ReturnType<typeof getSelfHostedSyncRun
   })
 }
 
-export async function refreshSelfHostedSyncRuntime() {
+export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform) {
   useSyncStore.getState().setSelfHostedRuntimeReady(false)
   const store = await Store.load('store.json')
-  const selected = await store.get<string>('primaryBackupMethod') === 'selfHosted'
+  // An explicit target is allowed only for the controlled switch attempt. On
+  // startup, an interrupted attempt must keep every sync engine paused.
+  const interrupted = target === undefined && Boolean(await store.get('platformSwitchRecovery'))
+  const selected = !interrupted && (target ?? await store.get<string>('primaryBackupMethod')) === 'selfHosted'
   const runtime = getSelfHostedSyncRuntime()
   const profiles = await (await getDb()).select<Array<{ id: string }>>(
     "select id from self_hosted_sync_profiles where state = 'connected' limit 1"

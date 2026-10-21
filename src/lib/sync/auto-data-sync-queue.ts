@@ -1,13 +1,17 @@
 'use client'
 
+import type { RemoteWriteCondition } from './write-condition'
+import { normalizeMemorySyncRecord } from '@/lib/memory/sync-record'
+
 import { Store } from '@tauri-apps/plugin-store'
 import emitter from '@/lib/emitter'
-import { decodeBase64ToString, getRemoteFileContent } from '@/lib/sync/remote-file'
+import { decodeBase64ToString, getRemoteFileContent, parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import type { Mark } from '@/db/marks'
 import type { Tag } from '@/db/tags'
 import { mergeRecordTags, preserveLegacyRecordTags, recordTagIds } from '@/lib/record-tags'
-import { normalizeTagBoolean } from '@/lib/tag-sync'
+import { validateRecordSnapshot } from '@/db/record-snapshot'
+import { normalizeTagSnapshot, normalizeTagBoolean } from '@/lib/tag-sync'
 import { downloadRecordAssets, uploadRecordAssets } from '@/lib/sync/record-assets'
 import { recordSyncTiming } from '@/lib/sync/sync-timing'
 import { filterSyncData } from '@/config/sync-exclusions'
@@ -20,11 +24,13 @@ import {
   LEGACY_CANVAS_SYNC_PATH,
   downloadCanvases,
   parseCanvasSyncIndex,
+  normalizeRemoteCanvasProject,
   uploadCanvases,
 } from '@/lib/sync/canvas-sync'
 import {
   CONVERSATION_SYNC_DIRECTORY,
   CONVERSATION_SYNC_INDEX_PATH,
+  parseConversationSyncIndex,
   downloadConversations,
   getLocalConversationSyncFingerprint,
   getRemoteConversationSyncFingerprint,
@@ -165,6 +171,7 @@ const remoteMetaCache = new Map<string, {
   value: AutoDataSyncRemoteMeta | null
   cachedAt: number
 }>()
+let remoteMetaGeneration = 0
 const remoteMetaRequests = new Map<string, Promise<AutoDataSyncRemoteMeta | null>>()
 let applyingRemote = false
 let applyingRemoteDepth = 0
@@ -190,9 +197,9 @@ let state: AutoDataSyncState = {
 
 const listeners = new Set<AutoDataSyncListener>()
 
-async function getAutoDataSyncStateKey(baseKey: string) {
+async function getAutoDataSyncStateKey(baseKey: string, target?: AutoDataSyncProvider) {
   const store = await Store.load('store.json')
-  const provider = await getAutoDataSyncProvider(store)
+  const provider = target ?? await getAutoDataSyncProvider(store)
   const repo = provider === 'cloudFolder'
     ? (await store.get<CloudFolderConfig>('cloudFolderSyncConfig'))?.path || ''
     : provider === 's3' || provider === 'webdav'
@@ -652,12 +659,60 @@ export async function prepareAutoDataSyncForRepositoryChange() {
   }
   await Promise.all(Array.from(pendingDirtyWrites))
   cancelPendingAutoDataSyncUpload('data-repository-change')
-  while (processing) {
+  while (processing || applyingRemote) {
     await new Promise(resolve => setTimeout(resolve, 25))
   }
 }
 
-export function finishAutoDataSyncRepositoryChange() {
+export type InitialDataSyncStrategy = 'auto' | 'merge' | 'deferred'
+
+/** Platform switching owns reconciliation until its previewed plan is verified. */
+export async function completePlatformSwitchData(domains: AutoDataSyncDomain[], writeMeta?: (content: string) => Promise<void>, target?: AutoDataSyncProvider) {
+  if (domains.length) {
+    await uploadAutoDataSyncMeta(domains, writeMeta, target)
+    if (!target) for (const domain of domains) await clearAutoDataSyncDirtyDomain(domain)
+  }
+}
+
+/** Finalize a verified target without ever consulting/changing the primary platform. */
+export async function acceptPlatformSwitchTargetData(domains: AutoDataSyncDomain[], target: AutoDataSyncProvider) {
+  if (!domains.length) return
+  const store = await Store.load('store.json')
+  const meta = await downloadAutoDataSyncMetaUncached(store, target)
+  await cacheAutoDataSyncMeta(store, target, meta)
+  const key = (base: string) => getAutoDataSyncStateKey(base, target)
+  if (meta) {
+    await store.set(await key(AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY), meta.updatedAtMs)
+    await store.set(await key(AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_KEY), meta)
+    for (const domain of domains) await store.set(await key(`${AUTO_DATA_SYNC_LAST_APPLIED_REMOTE_META_MS_KEY}:${domain}`), meta.domainStates[domain]?.updatedAtMs ?? meta.updatedAtMs)
+  }
+  const dirtyKey = await key(AUTO_DATA_SYNC_DIRTY_DOMAINS_KEY)
+  const dirty = await store.get<AutoDataSyncDomain[]>(dirtyKey) || []
+  await store.set(dirtyKey, dirty.filter(domain => !domains.includes(domain)))
+  const baselineKey = await key(AUTO_DATA_SYNC_BASELINE_FINGERPRINTS_KEY)
+  const fingerprints = await store.get<Record<string, string>>(baselineKey) || {}
+  for (const domain of domains) fingerprints[domain] = await getLocalAutoDataSyncDomainFingerprint(store, domain, target)
+  await store.set(baselineKey, fingerprints)
+  if (domains.includes('settings')) await store.set(await key(AUTO_DATA_SYNC_MEMORY_SETTINGS_MIGRATED_KEY), true)
+  await store.save()
+}
+
+export async function reconcilePlatformSwitchData(): Promise<void> {
+  if (processing || applyingRemote) throw new Error('Data synchronization is busy; retry when it finishes')
+  cancelPendingAutoDataSyncUpload('platform-switch-decision')
+  clearFailedAutoDataSyncTasks()
+  const domains = await getEnabledAutoDataSyncDomains()
+  if (!domains.length) return
+  if (!await isAutoDataSyncProviderConfigured()) {
+    updateState({ phase: 'waiting_provider', status: 'waiting_provider', isSyncing: false })
+    return
+  }
+  await markAutoDataSyncDomainsDirty(domains)
+  await mergeAutoDataSyncDomains(domains)
+  startPeriodicAutoDataSyncMetaCheck()
+}
+
+export function finishAutoDataSyncRepositoryChange(strategy: InitialDataSyncStrategy = 'auto'): Promise<void> {
   repositoryChangePauseDepth = Math.max(0, repositoryChangePauseDepth - 1)
   clearFailedAutoDataSyncTasks()
   updateState({
@@ -671,10 +726,20 @@ export function finishAutoDataSyncRepositoryChange() {
     syncMode: null,
     status: 'idle',
   })
-  void (async () => {
+  return (async () => {
+    if (repositoryChangePauseDepth > 0) return
     const store = await Store.load('store.json')
+    if (strategy === 'deferred') {
+      if (!await store.get('platformSwitchRecovery') && !['local', 'selfHosted'].includes(await store.get<string>('primaryBackupMethod') || '')) startPeriodicAutoDataSyncMetaCheck()
+      return
+    }
     if (['selfHosted', 'local'].includes(await store.get<string>('primaryBackupMethod') || '')) return
+    if (strategy !== 'auto') {
+      await reconcilePlatformSwitchData()
+      return
+    }
     if (!await isAutoDataSyncProviderConfigured()) {
+      updateState({ phase: 'waiting_provider', status: 'waiting_provider', isSyncing: false })
       scheduleProviderRetry()
       return
     }
@@ -784,6 +849,7 @@ export async function downloadAutoDataSyncNow(
   knownRemoteMeta: AutoDataSyncRemoteMeta | null = null,
   options: AutoDataSyncDownloadOptions = {}
 ): Promise<boolean> {
+  if (repositoryChangePauseDepth > 0) return false
   const requestedDomains = options.domains ?? await getEnabledAutoDataSyncDomains()
   if (new Set(requestedDomains).size > 1) {
     const failedDomains: AutoDataSyncDomain[] = []
@@ -1073,6 +1139,7 @@ export async function refreshRemoteRecordsNow(): Promise<boolean> {
 }
 
 async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Promise<boolean> {
+  if (repositoryChangePauseDepth > 0) return false
   if (new Set(targetDomains).size > 1) {
     const failedDomains: AutoDataSyncDomain[] = []
     let lastError: string | null = null
@@ -1106,7 +1173,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
   updateState({
     isSyncing: true,
     phase: 'downloading',
-    currentDomain: null,
+    currentDomain: targetDomains[0] || null,
     syncMode: 'auto',
     status: 'syncing',
     lastError: null,
@@ -1116,6 +1183,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
   try {
     const store = await Store.load('store.json')
     const provider = await getAutoDataSyncProvider(store)
+    const oneDriveConditions = await captureOneDriveDataConditions(store, provider)
     const mergeRecords = targetDomains.includes('records')
     const mergeSettings = targetDomains.includes('settings')
     const mergeConversations = targetDomains.includes('conversations')
@@ -1174,6 +1242,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
 
     if (mergeRecords) {
       const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
+      await downloadCanvases()
       await replaceRecordSnapshot(mergedMarks, mergedTags)
       await downloadRecordAssets(mergedMarks)
       await useTagStore.getState().fetchTags()
@@ -1205,9 +1274,10 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
     })
 
     for (const domain of targetDomains) {
-      await uploadDomain(domain)
+      await uploadDomain(domain, oneDriveConditions)
     }
     await uploadAutoDataSyncMeta(targetDomains)
+    await setOneDriveDataRecovery(store, targetDomains, false)
     for (const domain of targetDomains) {
       await clearAutoDataSyncDirtyDomain(domain)
     }
@@ -1299,6 +1369,9 @@ export async function initAutoDataSyncRuntime(): Promise<void> {
     } else {
       debugAutoDataSync('runtime initialized')
       startPeriodicAutoDataSyncMetaCheck()
+      for (const domain of await getEnabledAutoDataSyncDomains()) {
+        if (await oneDriveDataNeedsRecovery(store, domain)) enqueueAutoDataSync(domain, 'onedrive-write-recovery')
+      }
       if (await needsMemorySettingsMigration(store)) {
         enqueueAutoDataSync('settings', 'memory-settings-migration')
       } else {
@@ -1312,18 +1385,21 @@ export async function initAutoDataSyncRuntime(): Promise<void> {
 }
 
 export async function retryAutoDataSync(domain?: AutoDataSyncDomain): Promise<void> {
-  const failedTask = domain
-    ? failedTasks[domain]
-    : failedTasks.records || failedTasks.settings || failedTasks.conversations
-  if (failedTask) {
-    queue.unshift({
-      ...failedTask,
-      retryCount: 0,
-      readyAt: undefined,
-      mode: 'manual',
-    })
-    delete failedTasks[failedTask.domain]
-    delete failedTaskErrors[failedTask.domain]
+  // A user retry must re-read metadata instead of reusing the failed scan.
+  remoteMetaGeneration += 1
+  remoteMetaCache.clear()
+  remoteMetaRequests.clear()
+
+  const domains = domain ? [domain] : AUTO_DATA_SYNC_DOMAINS
+  const retries = domains.flatMap(key => failedTasks[key] ? [failedTasks[key]!] : [])
+  if (retries.length) {
+    const retryDomains = new Set(retries.map(task => task.domain))
+    queue = queue.filter(task => !retryDomains.has(task.domain))
+    queue.unshift(...retries.map(task => ({ ...task, retryCount: 0, readyAt: undefined, mode: 'manual' as const })))
+    for (const task of retries) {
+      delete failedTasks[task.domain]
+      delete failedTaskErrors[task.domain]
+    }
     await flushAutoDataSyncNow()
     return
   }
@@ -1377,6 +1453,7 @@ async function getEnabledAutoDataSyncDomains() {
 
 export async function isAutoDataSyncProviderConfigured(): Promise<boolean> {
   const store = await Store.load('store.json')
+  if (await store.get('platformSwitchRecovery')) return false
   const provider = await store.get<string>('primaryBackupMethod') || 'github'
 
   switch (provider) {
@@ -1562,6 +1639,7 @@ function startPeriodicAutoDataSyncMetaCheck(): void {
 }
 
 async function processQueue() {
+  if (await (await Store.load('store.json')).get('platformSwitchRecovery') || repositoryChangePauseDepth > 0) return
   if (processing || queue.length === 0) {
     debugAutoDataSync('skip queue processing', {
       processing,
@@ -1669,6 +1747,7 @@ async function processQueue() {
 
       const store = await Store.load('store.json')
       const provider = await getAutoDataSyncProvider(store)
+      const oneDriveConditions = await captureOneDriveDataConditions(store, provider)
       if (
         task.domain === 'records'
         && await shouldPullRemoteRecordsBeforeUpload(store, provider, task.reason)
@@ -1692,7 +1771,9 @@ async function processQueue() {
         return
       }
 
-      const uploadDecision = await guardAutoDataSyncUploadAgainstRemoteNewer(task.domain)
+      const uploadDecision = await oneDriveDataNeedsRecovery(store, task.domain)
+        ? { action: 'merge' as const, domains: [task.domain] }
+        : await guardAutoDataSyncUploadAgainstRemoteNewer(task.domain)
       if (uploadDecision.action === 'merge') {
         const mergeDomains = uploadDecision.domains
         processing = false
@@ -1728,11 +1809,12 @@ async function processQueue() {
         status: 'syncing',
         lastError: null,
       })
-      await uploadDomain(task.domain)
+      await uploadDomain(task.domain, oneDriveConditions)
       debugAutoDataSync('domain uploaded', {
         domain: task.domain,
       })
       await uploadAutoDataSyncMeta([task.domain])
+      await setOneDriveDataRecovery(store, [task.domain], false)
       dropRedundantFrontTasks(task.domain, taskStartedAt)
       if (!queue.some(item => item.domain === task.domain)) {
         await clearAutoDataSyncDirtyDomain(task.domain)
@@ -1754,7 +1836,7 @@ async function processQueue() {
         success: false,
       })
 
-      if (task.retryCount < MAX_RETRY_COUNT) {
+      if (!/SYNC_DATA_(?:EMPTY_JSON|INVALID_JSON|INVALID_SCHEMA):|SYNC_SWITCH_(?:STALE|CONDITIONAL_UNSUPPORTED)|SYNC_ONEDRIVE_/.test(message) && task.retryCount < MAX_RETRY_COUNT) {
         task.retryCount += 1
         const retryDelay = Math.min(5_000 * 2 ** (task.retryCount - 1), 60_000)
         task.readyAt = Date.now() + retryDelay
@@ -1809,9 +1891,9 @@ async function processQueue() {
       currentDomain: null,
       syncMode: null,
       status: 'failed',
-      lastError: failedTaskErrors[failedDomain] || 'Auto data sync failed',
+      lastError: AUTO_DATA_SYNC_DOMAINS.flatMap(domain => failedTasks[domain] ? [failedTaskErrors[domain] || `${domain}: Auto data sync failed`] : []).join('\n'),
       lastFailedAt: Date.now(),
-      affectedDomains: [failedDomain],
+      affectedDomains: AUTO_DATA_SYNC_DOMAINS.filter(domain => Boolean(failedTasks[domain])),
     })
     return
   }
@@ -1839,12 +1921,46 @@ function dropRedundantFrontTasks(domain: AutoDataSyncDomain, taskStartedAt: numb
   }
 }
 
-async function uploadDomain(domain: AutoDataSyncDomain) {
+async function oneDriveDataRecoveryKey(store: Store, domain: AutoDataSyncDomain) {
+  if (await store.get<string>('primaryBackupMethod') !== 'cloudFolder') return null
+  const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+  if (config?.provider !== 'oneDrive') return null
+  return JSON.stringify([await store.get('workspacePath') || '', config.oneDriveClientId || '', config.oneDriveRootId || config.path, domain])
+}
+
+async function oneDriveDataNeedsRecovery(store: Store, domain: AutoDataSyncDomain) {
+  const key = await oneDriveDataRecoveryKey(store, domain)
+  return Boolean(key && await (await Store.load('onedrive_data_sync_recovery.json')).get(key))
+}
+
+async function setOneDriveDataRecovery(store: Store, domains: AutoDataSyncDomain[], pending: boolean) {
+  if (!domains.length || !await oneDriveDataRecoveryKey(store, domains[0])) return
+  const recovery = await Store.load('onedrive_data_sync_recovery.json')
+  for (const domain of domains) {
+    const key = await oneDriveDataRecoveryKey(store, domain)
+    if (!key) continue
+    if (pending) await recovery.set(key, true)
+    else await recovery.delete(key)
+  }
+  await recovery.save()
+}
+
+async function captureOneDriveDataConditions(store: Store, provider: AutoDataSyncProvider) {
+  if (provider !== 'cloudFolder' || (await store.get<CloudFolderConfig>('cloudFolderSyncConfig'))?.provider !== 'oneDrive') return undefined
+  const { listRemoteLibraryFiles } = await import('./remote-library')
+  const files = await listRemoteLibraryFiles({ platform: 'cloudFolder', scope: 'data' })
+  return new Map<string, RemoteWriteCondition>(files.map(file => [file.path, { version: file.sha }]))
+}
+
+async function uploadDomain(domain: AutoDataSyncDomain, conditions?: Map<string, RemoteWriteCondition>) {
   const startedAt = Date.now()
   debugAutoDataSync('upload domain started', { domain })
   await ensureAutoDataSyncRemoteDataPath()
   const store = await Store.load('store.json')
   const provider = await getAutoDataSyncProvider(store)
+  const versions = conditions || await captureOneDriveDataConditions(store, provider)
+  const conditionFor = (path: string) => versions ? versions.get(path) || { version: null } : undefined
+  if (versions) await setOneDriveDataRecovery(store, [domain], true)
 
   if (domain === 'records') {
     const [{ default: useTagStore }, { default: useMarkStore }] = await Promise.all([
@@ -1855,9 +1971,9 @@ async function uploadDomain(domain: AutoDataSyncDomain) {
     const { getAllMarks } = await import('@/db/marks')
     const marks = await getAllMarks()
     await uploadRecordAssets(marks)
-    const tagResult = await useTagStore.getState().uploadTags()
-    const markResult = await useMarkStore.getState().uploadMarks()
-    const canvasResult = await uploadCanvases()
+    const tagResult = await useTagStore.getState().uploadTags(conditionFor(AUTO_DATA_SYNC_TAGS_PATH))
+    const markResult = await useMarkStore.getState().uploadMarks(conditionFor(AUTO_DATA_SYNC_MARKS_PATH))
+    const canvasResult = await uploadCanvases(versions)
     debugAutoDataSync('records upload results', {
       tags: tagResult,
       marks: markResult,
@@ -1883,9 +1999,9 @@ async function uploadDomain(domain: AutoDataSyncDomain) {
 
   const { default: useSettingsSyncStore } = await import('@/stores/settingsSync')
   const { getMemorySyncData } = await import('@/db/memories')
-  const result = await useSettingsSyncStore.getState().uploadSettings()
+  const result = await useSettingsSyncStore.getState().uploadSettings(conditionFor(AUTO_DATA_SYNC_SETTINGS_PATH))
   const memoryResult = result
-    ? await uploadMemorySyncData(store, provider, await getMemorySyncData())
+    ? await uploadMemorySyncData(store, provider, await getMemorySyncData(), conditionFor(AUTO_DATA_SYNC_MEMORIES_PATH))
     : false
   debugAutoDataSync('settings upload result', { settings: result, memories: memoryResult })
 
@@ -1895,13 +2011,19 @@ async function uploadDomain(domain: AutoDataSyncDomain) {
   recordSyncTiming('domainUpload', startedAt, { domain, success: true })
 }
 
-async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
+async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[], writeMeta?: (content: string) => Promise<void>, target?: AutoDataSyncProvider) {
   const startedAt = Date.now()
   const store = await Store.load('store.json')
-  const provider = await getAutoDataSyncProvider(store)
+  const provider = target ?? await getAutoDataSyncProvider(store)
   const now = Date.now()
   const deviceId = await getAutoDataSyncDeviceId()
-  const previousMetadata = await downloadAutoDataSyncMeta(store, provider).catch(() => null)
+  const cloudConfig = provider === 'cloudFolder' && !writeMeta ? await store.get<CloudFolderConfig>('cloudFolderSyncConfig') : undefined
+  const oneDriveMeta = cloudConfig?.provider === 'oneDrive'
+    ? await (await import('./cloud-folder')).cloudFolderDownload(cloudConfig, AUTO_DATA_SYNC_META_PATH) : undefined
+  const previousMetadata = oneDriveMeta !== undefined
+    ? oneDriveMeta ? parseAutoDataSyncMeta(oneDriveMeta.content) : null
+    : writeMeta ? await downloadAutoDataSyncMeta(store, provider) : await downloadAutoDataSyncMeta(store, provider).catch(() => null)
+  if (oneDriveMeta && !previousMetadata) throw syncDataError('INVALID_SCHEMA', `cloudFolder / ${AUTO_DATA_SYNC_META_PATH}`)
   const domainStates: AutoDataSyncRemoteMeta['domainStates'] = {
     ...previousMetadata?.domainStates,
   }
@@ -1937,7 +2059,8 @@ async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
     contentLength: content.length,
   })
 
-  switch (provider) {
+  if (writeMeta) await writeMeta(content)
+  else switch (provider) {
     case 'github':
     case 'gitee':
     case 'gitlab':
@@ -1951,12 +2074,13 @@ async function uploadAutoDataSyncMeta(uploadedDomains: AutoDataSyncDomain[]) {
       await uploadWebDAVMetaFile(store, content)
       break
     case 'cloudFolder':
-      await uploadCloudFolderMetaFile(store, content)
+      await uploadCloudFolderMetaFile(store, content, oneDriveMeta !== undefined ? { version: oneDriveMeta?.etag || null } : undefined)
       break
     default:
       throw new Error('Sync provider is not configured')
   }
 
+  if (target) return // A switch commits only target-scoped baselines after verification.
   const parsedMetadata = parseAutoDataSyncMeta(content)
   if (parsedMetadata) {
     await cacheAutoDataSyncMeta(store, provider, parsedMetadata)
@@ -2062,6 +2186,8 @@ async function checkRemoteAutoDataSync(
   reason: 'startup' | 'periodic',
   options: { uploadDirtyDomains?: boolean; force?: boolean } = {}
 ) {
+  if (repositoryChangePauseDepth > 0) return
+  if (await (await Store.load('store.json')).get('platformSwitchRecovery')) return
   const startedAt = Date.now()
   let enabledDomains: AutoDataSyncDomain[] = []
 
@@ -2580,7 +2706,7 @@ async function shouldPullRemoteRecordsBeforeUpload(
       provider,
       message: error instanceof Error ? error.message : 'unknown error',
     })
-    return false
+    throw error
   }
 }
 
@@ -2617,7 +2743,7 @@ function parseRemoteJsonRecord(content: string | null): Record<string, unknown> 
   }
 }
 
-function parseMemorySyncData(content: string | null): MemorySyncData | null {
+export function parseMemorySyncData(content: string | null): MemorySyncData | null {
   const parsed = parseRemoteJsonRecord(content)
   if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.memories)) return null
   const policy = parsed.policy
@@ -2641,7 +2767,7 @@ function parseMemorySyncData(content: string | null): MemorySyncData | null {
   }
   return {
     schemaVersion: 1,
-    memories: memories as MemorySyncRecord[],
+    memories: (memories as MemorySyncRecord[]).map(normalizeMemorySyncRecord),
     policy: {
       useMemories: true,
       generateMemories: (policy as Record<string, unknown>).generateMemories as boolean,
@@ -2797,7 +2923,8 @@ async function getAutoDataSyncContentFingerprints(
 
 async function getLocalAutoDataSyncDomainFingerprint(
   store: Store,
-  domain: AutoDataSyncDomain
+  domain: AutoDataSyncDomain,
+  target?: AutoDataSyncProvider,
 ): Promise<string> {
   if (domain === 'records') {
     const [tagsDb, marksDb, canvasesDb] = await Promise.all([
@@ -2822,6 +2949,7 @@ async function getLocalAutoDataSyncDomainFingerprint(
   }
 
   const localSettings = Object.fromEntries(await store.entries()) as Record<string, unknown>
+  if (target) localSettings.primaryBackupMethod = target
   const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
   const { getMemorySyncData } = await import('@/db/memories')
   const memoryData = await getMemorySyncData()
@@ -2913,7 +3041,7 @@ async function canApplyRemoteDomainsWithoutConflict(
       domains,
       message: error instanceof Error ? error.message : 'unknown error',
     })
-    return 'unavailable'
+    throw error
   }
 }
 
@@ -2927,6 +3055,27 @@ function areMarkCollectionsEquivalent(left: Mark[], right: Mark[]) {
 }
 
 async function downloadAutoDataSyncRemoteFileContent(
+  store: Store, provider: AutoDataSyncProvider, path: string,
+): Promise<string | null> {
+  const content = await downloadRawAutoDataSyncRemoteFileContent(store, provider, path)
+  if (content === null) return null
+  const array = path === AUTO_DATA_SYNC_MARKS_PATH || path === AUTO_DATA_SYNC_TAGS_PATH || path === LEGACY_CANVAS_SYNC_PATH
+  const value = parseSyncJson<unknown>(content, `${provider} / ${path}`, array ? 'array' : 'object')
+  const normalized = content.replace(/^\uFEFF/, '')
+  try {
+    if (path === AUTO_DATA_SYNC_MARKS_PATH) validateRecordSnapshot(value)
+    if (path === AUTO_DATA_SYNC_TAGS_PATH) normalizeTagSnapshot(value)
+  } catch { throw syncDataError('INVALID_SCHEMA', `${provider} / ${path}`) }
+  if ((path === CANVAS_SYNC_PATH && !parseCanvasSyncIndex(normalized))
+    || (path === CONVERSATION_SYNC_INDEX_PATH && !parseConversationSyncIndex(normalized))
+    || (path === AUTO_DATA_SYNC_MEMORIES_PATH && !parseMemorySyncData(normalized))
+    || (path === LEGACY_CANVAS_SYNC_PATH && !(value as unknown[]).every(item => normalizeRemoteCanvasProject(item) !== null))) {
+    throw syncDataError('INVALID_SCHEMA', `${provider} / ${path}`)
+  }
+  return normalized
+}
+
+async function downloadRawAutoDataSyncRemoteFileContent(
   store: Store,
   provider: AutoDataSyncProvider,
   path: string
@@ -2963,7 +3112,7 @@ async function downloadAutoDataSyncRemoteFileContent(
       }
       const { s3Download } = await import('@/lib/sync/s3')
       const file = await s3Download(config, path)
-      return file?.content || null
+      return file?.content ?? null
     }
     case 'webdav': {
       const config = await store.get<WebDAVConfig>('webdavSyncConfig')
@@ -2972,13 +3121,13 @@ async function downloadAutoDataSyncRemoteFileContent(
       }
       const { webdavDownload } = await import('@/lib/sync/webdav')
       const file = await webdavDownload(config, path)
-      return file?.content || null
+      return file?.content ?? null
     }
     case 'cloudFolder': {
       const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
       if (!config) return null
       const { cloudFolderDownload } = await import('@/lib/sync/cloud-folder')
-      return (await cloudFolderDownload(config, path))?.content || null
+      return (await cloudFolderDownload(config, path))?.content ?? null
     }
   }
 }
@@ -3042,13 +3191,14 @@ async function downloadAutoDataSyncMeta(
     return pending
   }
 
+  const generation = remoteMetaGeneration
   const request = downloadAutoDataSyncMetaUncached(store, provider)
     .then((value) => {
-      remoteMetaCache.set(cacheKey, { value, cachedAt: Date.now() })
+      if (generation === remoteMetaGeneration) remoteMetaCache.set(cacheKey, { value, cachedAt: Date.now() })
       return value
     })
     .finally(() => {
-      remoteMetaRequests.delete(cacheKey)
+      if (remoteMetaRequests.get(cacheKey) === request) remoteMetaRequests.delete(cacheKey)
     })
   remoteMetaRequests.set(cacheKey, request)
   return request
@@ -3059,88 +3209,22 @@ async function downloadAutoDataSyncMetaUncached(
   provider: AutoDataSyncProvider
 ): Promise<AutoDataSyncRemoteMeta | null> {
   const startedAt = Date.now()
-  let content: string | null = null
-
-  switch (provider) {
-    case 'github': {
-      const { getFiles } = await import('@/lib/sync/github')
-      const repo = await getDataSyncRepoName(provider)
-      const file = await getFiles({ path: AUTO_DATA_SYNC_META_PATH, repo })
-      content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
-      break
-    }
-    case 'gitee': {
-      const { getFiles } = await import('@/lib/sync/gitee')
-      const repo = await getDataSyncRepoName(provider)
-      const file = await getFiles({ path: AUTO_DATA_SYNC_META_PATH, repo })
-      content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
-      break
-    }
-    case 'gitlab': {
-      const { getDefaultBranch, getFileContent } = await import('@/lib/sync/gitlab')
-      const repo = await getDataSyncRepoName(provider)
-      const file = await getFileContent({ path: AUTO_DATA_SYNC_META_PATH, ref: await getDefaultBranch(repo), repo })
-      content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
-      break
-    }
-    case 'gitea': {
-      const { getFiles } = await import('@/lib/sync/gitea')
-      const repo = await getDataSyncRepoName(provider)
-      const file = await getFiles({ path: AUTO_DATA_SYNC_META_PATH, repo })
-      content = decodeRemoteGitFileContent(file, AUTO_DATA_SYNC_META_PATH)
-      break
-    }
-    case 's3': {
-      const config = await store.get<S3Config>('s3SyncConfig')
-      if (!config) {
-        return null
-      }
-      const { s3Download } = await import('@/lib/sync/s3')
-      const file = await s3Download(config, AUTO_DATA_SYNC_META_PATH)
-      content = file?.content || null
-      break
-    }
-    case 'webdav': {
-      const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-      if (!config) {
-        return null
-      }
-      const { webdavDownload } = await import('@/lib/sync/webdav')
-      const file = await webdavDownload(config, AUTO_DATA_SYNC_META_PATH)
-      content = file?.content || null
-      break
-    }
-    case 'cloudFolder': {
-      const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-      if (!config) return null
-      const { cloudFolderDownload } = await import('@/lib/sync/cloud-folder')
-      content = (await cloudFolderDownload(config, AUTO_DATA_SYNC_META_PATH))?.content || null
-      break
-    }
-  }
-
+  const content = await downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_META_PATH)
   const metadata = parseAutoDataSyncMeta(content)
+  if (content !== null && !metadata) throw syncDataError('INVALID_SCHEMA', `${provider} / ${AUTO_DATA_SYNC_META_PATH}`)
   recordSyncTiming('metaDownload', startedAt, {
-    provider,
-    found: Boolean(metadata),
-    bytes: content ? new TextEncoder().encode(content).byteLength : 0,
+    provider, found: Boolean(metadata), bytes: content ? new TextEncoder().encode(content).byteLength : 0,
   })
   return metadata
 }
 
 function decodeRemoteGitFileContent(file: unknown, path: string): string | null {
-  if (!file) {
-    return null
-  }
-
-  try {
-    return decodeBase64ToString(getRemoteFileContent(file, path))
-  } catch {
-    return null
-  }
+  if (!file) return null
+  try { return decodeBase64ToString(getRemoteFileContent(file, path)) }
+  catch { throw syncDataError('INVALID_SCHEMA', path) }
 }
 
-function parseAutoDataSyncMeta(content: string | null): AutoDataSyncRemoteMeta | null {
+export function parseAutoDataSyncMeta(content: string | null): AutoDataSyncRemoteMeta | null {
   if (!content) {
     return null
   }
@@ -3542,13 +3626,13 @@ async function uploadWebDAVMetaFile(store: Store, content: string) {
   })
 }
 
-async function uploadCloudFolderMetaFile(store: Store, content: string) {
+async function uploadCloudFolderMetaFile(store: Store, content: string, condition?: RemoteWriteCondition) {
   const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
   if (!config) {
     throw new Error('Cloud folder sync config is not configured')
   }
   const { cloudFolderUpload } = await import('@/lib/sync/cloud-folder')
-  const result = await cloudFolderUpload(config, AUTO_DATA_SYNC_META_PATH, content)
+  const result = await cloudFolderUpload(config, AUTO_DATA_SYNC_META_PATH, content, condition)
   if (!result) throw new Error('Failed to write auto data sync metadata')
   debugAutoDataSync('meta upload completed', {
     provider: 'cloudFolder',
@@ -3560,6 +3644,7 @@ async function uploadMemorySyncData(
   store: Store,
   provider: AutoDataSyncProvider,
   data: MemorySyncData,
+  condition?: RemoteWriteCondition,
 ): Promise<boolean> {
   const content = JSON.stringify(data)
   switch (provider) {
@@ -3601,7 +3686,7 @@ async function uploadMemorySyncData(
       const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
       if (!config) return false
       const { cloudFolderUpload } = await import('@/lib/sync/cloud-folder')
-      return Boolean(await cloudFolderUpload(config, AUTO_DATA_SYNC_MEMORIES_PATH, content))
+      return Boolean(await cloudFolderUpload(config, AUTO_DATA_SYNC_MEMORIES_PATH, content, condition))
     }
   }
 }

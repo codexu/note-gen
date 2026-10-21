@@ -1,3 +1,4 @@
+import { parseSyncJson } from '@/lib/sync/remote-file'
 import { invoke } from '@tauri-apps/api/core'
 import { secureGet } from './profile'
 
@@ -30,7 +31,7 @@ export async function decryptJson<T>(
   const plaintext = await invoke<string>('self_hosted_decrypt', {
     key, nonce, ciphertext, associatedData,
   })
-  return JSON.parse(plaintext) as T
+  return parseSyncJson<T>(plaintext, `selfHosted / ${associatedData}`)
 }
 
 export function decryptText(
@@ -52,7 +53,7 @@ export async function decryptPackedJson<T>(
   const plaintext = await invoke<string>('self_hosted_decrypt_packed', {
     key, packedCiphertext, associatedData,
   })
-  return JSON.parse(plaintext) as T
+  return parseSyncJson<T>(plaintext, `selfHosted / ${associatedData}`)
 }
 
 export async function loadWorkspaceKey(workspaceId: string, keyVersion: number) {

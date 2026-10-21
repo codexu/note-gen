@@ -1,3 +1,4 @@
+import { conditionalHeaders, assertConditionalResponse, type RemoteWriteCondition } from './write-condition'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { WebDAVConfig } from '@/types/sync'
 import { buildRepoContentPath, debugSyncPath, debugSyncPerf } from './remote-file'
@@ -458,7 +459,8 @@ export async function webdavUpload(
   key: string,
   content: string | Uint8Array,
   proxy?: Proxy,
-  contentType = 'text/markdown; charset=utf-8'
+  contentType = 'text/markdown; charset=utf-8',
+  condition?: RemoteWriteCondition,
 ): Promise<{ etag: string } | null> {
   const uploadStartedAt = getPerfNow()
   let previousPerfAt = uploadStartedAt
@@ -495,6 +497,7 @@ export async function webdavUpload(
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
+        ...conditionalHeaders(condition),
         'Authorization': buildAuthHeader(config.username, config.password),
         'Content-Type': contentType,
         'Content-Length': contentBytes.byteLength.toString()
@@ -503,11 +506,12 @@ export async function webdavUpload(
       proxy
     })
     markTemporaryBlocked(config, response, 'upload')
+    assertConditionalResponse(response, condition)
     logPerf('putRequest', {
       status: response.status,
     })
 
-    if (response.status === 201 || response.status === 204) {
+    if (response.status === 200 || response.status === 201 || response.status === 204) {
       const etag = response.headers.get('ETag') || ''
       logPerf('completed', {
         success: true,
@@ -544,6 +548,7 @@ export async function webdavUpload(
       return null
     }
   } catch (error) {
+    if (condition) throw error
     logPerf('failed', {
       message: error instanceof Error ? error.message : String(error),
     })
@@ -563,7 +568,7 @@ async function webdavDownloadBytesInternal(
   const startedAt = getPerfNow()
   try {
     if (shouldSkipForTemporaryBlock(config, 'download', { key })) {
-      return null
+      throw new Error(`webdav / ${key}: requests temporarily rate limited`)
     }
 
     const url = buildWebDAVUrl(config, key)
@@ -615,7 +620,7 @@ async function webdavDownloadBytesInternal(
       if (!isTemporaryBlockStatus(response.status)) {
         console.error('WebDAV Download failed:', response.status, errorText)
       }
-      return null
+      throw new Error(`webdav / ${key}: HTTP ${response.status}`)
     }
   } catch (error) {
     debugSyncPerf('webdav.download.failed', {
@@ -624,7 +629,7 @@ async function webdavDownloadBytesInternal(
       totalMs: roundMs(getPerfNow() - startedAt),
     })
     console.error('WebDAV download error:', error)
-    return null
+    throw error
   }
 }
 
@@ -648,7 +653,7 @@ export async function webdavDownload(
 /**
  * 删除 WebDAV 文件
  */
-export async function webdavDelete(config: WebDAVConfig, key: string, proxy?: Proxy): Promise<boolean> {
+export async function webdavDelete(config: WebDAVConfig, key: string, proxy?: Proxy, condition?: RemoteWriteCondition): Promise<boolean> {
   try {
     if (shouldSkipForTemporaryBlock(config, 'delete', { key })) {
       return false
@@ -659,14 +664,17 @@ export async function webdavDelete(config: WebDAVConfig, key: string, proxy?: Pr
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
+        ...conditionalHeaders(condition),
         'Authorization': buildAuthHeader(config.username, config.password)
       },
       proxy
     })
+    assertConditionalResponse(response, condition)
     markTemporaryBlocked(config, response, 'delete')
 
     return response.status === 204 || response.status === 200 || response.status === 404
   } catch (error) {
+    if (condition) throw error
     console.error('WebDAV delete error:', error)
     return false
   }
@@ -683,7 +691,7 @@ export async function webdavHeadObject(
   const startedAt = getPerfNow()
   try {
     if (shouldSkipForTemporaryBlock(config, 'headObject', { key })) {
-      return null
+      throw new Error('WebDAV metadata request is temporarily blocked')
     }
 
     const url = buildWebDAVUrl(config, key)
@@ -707,7 +715,7 @@ export async function webdavHeadObject(
       const lastModified = response.headers.get('Last-Modified') || ''
 
       return { etag, lastModified }
-    } else if (response.status === 404 || response.status === 409) {
+    } else if (response.status === 404) {
       // 文件不存在，返回 null
       return null
     } else {
@@ -721,7 +729,7 @@ export async function webdavHeadObject(
       if (!isTemporaryBlockStatus(response.status)) {
         console.error('WebDAV HeadObject failed:', response.status, errorText)
       }
-      return null
+      throw new Error(`WebDAV metadata request failed: HTTP ${response.status}`)
     }
   } catch (error) {
     debugSyncPerf('webdav.headObject.failed', {
@@ -730,12 +738,13 @@ export async function webdavHeadObject(
       totalMs: roundMs(getPerfNow() - startedAt),
     })
     console.error('WebDAV head error:', error)
-    return null
+    throw error
   }
 }
 
 /**
  * 列出 WebDAV 文件
+ * key 相对于本次请求目录，直接子目录保留末尾的 /。
  */
 export async function webdavListObjects(
   config: WebDAVConfig,
@@ -789,7 +798,7 @@ export async function webdavListObjects(
         totalMs: roundMs(getPerfNow() - startedAt),
       })
       return results
-    } else if (response.status === 404 || response.status === 409) {
+    } else if (response.status === 404) {
       // 目录不存在是正常情况，不需要打印错误日志
       debugSyncPerf('webdav.listObjects.completed', {
         prefix,
@@ -810,7 +819,9 @@ export async function webdavListObjects(
       if (!isTemporaryBlockStatus(response.status)) {
         console.error('WebDAV ListObjects failed:', response.status, errorText)
       }
-      throw new Error(`WebDAV directory request failed: ${response.status}`)
+      const detail = errorText.trim()
+      const reason = detail && !detail.startsWith('<') ? `: ${detail.slice(0, 300)}` : ''
+      throw new Error(`WebDAV directory request failed: HTTP ${response.status}${reason}`)
     }
   } catch (error) {
     debugSyncPerf('webdav.listObjects.failed', {
@@ -819,7 +830,7 @@ export async function webdavListObjects(
       totalMs: roundMs(getPerfNow() - startedAt),
     })
     console.error('WebDAV list error:', error)
-    throw error
+    throw new Error(`WebDAV directory listing failed (${prefix || '/'}): ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -831,23 +842,36 @@ function parsePropfindResponse(
   directoryUrl: string
 ): Array<{ key: string; etag: string; lastModified: string; size: number }> {
   const document = new DOMParser().parseFromString(xml, 'application/xml')
-  if (document.getElementsByTagName('parsererror').length > 0
+  if (document.getElementsByTagNameNS('*', 'parsererror').length > 0
     || document.documentElement.localName !== 'multistatus'
     || document.documentElement.namespaceURI !== 'DAV:') {
     throw new Error('Invalid WebDAV directory response')
   }
 
   const results: Array<{ key: string; etag: string; lastModified: string; size: number }> = []
+  const children = (element: Element, name: string) => Array.from(element.children)
+    .filter(child => child.namespaceURI === 'DAV:' && child.localName === name)
+  const text = (element: Element, name: string) => children(element, name)[0]?.textContent?.trim() || ''
+  const statusCode = (status: string) => Number(/^HTTP\/\S+\s+(\d{3})\b/.exec(status)?.[1] || 0)
   // 按命名空间读取，兼容 d:、D: 和默认 DAV 命名空间。
-  for (const response of Array.from(document.getElementsByTagNameNS('DAV:', 'response'))) {
-    const readProperty = (name: string) => (
-      response.getElementsByTagNameNS('DAV:', name)[0]?.textContent?.trim() || ''
-    )
-    const statuses = Array.from(response.getElementsByTagNameNS('DAV:', 'status'))
-    if (statuses.length > 0 && !statuses.some(status => /\s2\d{2}(?:\s|$)/.test(status.textContent || ''))) {
-      throw new Error('WebDAV directory entry could not be read')
+  for (const response of children(document.documentElement, 'response')) {
+    const responseStatus = statusCode(text(response, 'status'))
+    if (responseStatus >= 400) {
+      throw new Error(`WebDAV PROPFIND resource failed: HTTP ${responseStatus}`)
     }
-    const href = readProperty('href')
+    const propstats = children(response, 'propstat')
+    const successfulProps = propstats
+      .filter(propstat => {
+        const status = statusCode(text(propstat, 'status'))
+        return status >= 200 && status < 300
+      })
+      .flatMap(propstat => children(propstat, 'prop'))
+    if (successfulProps.length === 0) {
+      const status = propstats.map(propstat => text(propstat, 'status')).find(Boolean)
+      throw new Error(`WebDAV PROPFIND properties unavailable${status ? `: ${status}` : ''}`)
+    }
+    const readProperty = (name: string) => successfulProps.map(prop => text(prop, name)).find(Boolean) || ''
+    const href = text(response, 'href')
     if (!href) throw new Error('WebDAV directory entry is missing its path')
 
     // 从实际请求目录还原相对路径，兼容绝对 URL 和不同服务端的根路径。
@@ -865,7 +889,8 @@ function parsePropfindResponse(
       throw new Error('Unexpected WebDAV directory entry depth')
     }
     const isDirectory = entryUrl.pathname.endsWith('/')
-      || response.getElementsByTagNameNS('DAV:', 'collection').length > 0
+      || successfulProps.some(prop => children(prop, 'resourcetype')
+        .some(type => children(type, 'collection').length > 0))
 
     results.push({
       key: isDirectory ? `${relativePath}/` : relativePath,

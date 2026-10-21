@@ -2632,7 +2632,15 @@ const useArticleStore = create<NoteState>((set, get) => ({
       } catch (error) {
         if (!await canApplyRemoteFileTreeRequest(requestContext)) return
         firstRemoteLoadError ??= error
+        emitter.emit('sync-directory-completed', {
+          path, workspacePath: syncContext.workspacePath, provider: syncContext.provider,
+          success: false, error: error instanceof Error ? error.message : String(error),
+        })
+        continue
       }
+      emitter.emit('sync-directory-completed', {
+        path, workspacePath: syncContext.workspacePath, provider: syncContext.provider, success: true,
+      })
     }
     if (firstRemoteLoadError) throw firstRemoteLoadError
   } catch (error) {
@@ -2896,11 +2904,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
       }
       if (isFileTreeRequestCurrent(requestContext)) {
         get().setEntrySyncError(fullpath, undefined)
+        emitter.emit('sync-directory-completed', {
+          path: fullpath, workspacePath: syncContext.workspacePath, provider: syncContext.provider, success: true,
+        })
       }
     } catch (error) {
       if (!await canApplyRemoteFileTreeRequest(requestContext)) return
       const message = error instanceof Error ? error.message : String(error)
       get().setEntrySyncError(fullpath, message)
+      emitter.emit('sync-directory-completed', {
+        path: fullpath, workspacePath: syncContext.workspacePath, provider: syncContext.provider,
+        success: false, error: message,
+      })
       throw error
     } finally {
       // 成功、空结果或请求失败都必须结束该节点的加载状态。

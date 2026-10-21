@@ -98,18 +98,35 @@ function FieldContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+const fieldLabelVariants = cva(
+  "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col",
+  {
+    variants: {
+      tone: {
+        default:
+          "has-data-checked:border-primary/30 has-data-checked:bg-primary/5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10",
+        warning:
+          "border-warning/50 bg-warning/10 text-warning-foreground [&_[data-slot=field-description]]:text-warning-foreground/80 [&_[data-slot=checkbox]]:border-warning",
+        success:
+          "border-success/50 bg-success/10 text-success-foreground [&_[data-slot=field-description]]:text-success-foreground/80 [&_[data-slot=checkbox][data-state=checked]]:border-success-foreground [&_[data-slot=checkbox][data-state=checked]]:bg-success-foreground [&_[data-slot=checkbox][data-state=checked]]:text-background",
+      },
+    },
+    defaultVariants: {
+      tone: "default",
+    },
+  }
+)
+
 function FieldLabel({
   className,
+  tone = "default",
   ...props
-}: React.ComponentProps<typeof Label>) {
+}: React.ComponentProps<typeof Label> & VariantProps<typeof fieldLabelVariants>) {
   return (
     <Label
       data-slot="field-label"
-      className={cn(
-        "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border *:data-[slot=field]:p-2.5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10",
-        "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col",
-        className
-      )}
+      data-tone={tone}
+      className={cn(fieldLabelVariants({ tone }), className)}
       {...props}
     />
   )

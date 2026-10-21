@@ -1,3 +1,4 @@
+import type { RemoteWriteCondition } from '@/lib/sync/write-condition'
 import { Tag, delTag, getTags } from '@/db/tags'
 import { tagSnapshotStatements } from '@/db/record-snapshot'
 import { executeRecordTransaction } from '@/db'
@@ -9,7 +10,7 @@ import { s3Upload, s3Delete, s3HeadObject, s3Download } from '@/lib/sync/s3'
 import { webdavUpload, webdavDelete, webdavHeadObject, webdavDownload } from '@/lib/sync/webdav'
 import { cloudFolderDownload, cloudFolderUpload } from '@/lib/sync/cloud-folder'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils'
-import { getRemoteFileContent, hasEmptyRemoteFileContent, isMissingRemoteFileError } from '@/lib/sync/remote-file'
+import { getRemoteFileContent, isMissingRemoteFileError, parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import { normalizeTagSnapshot } from '@/lib/tag-sync'
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
@@ -41,7 +42,7 @@ interface TagState {
   setSyncState: (syncState: boolean) => void
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
-  uploadTags: () => Promise<boolean>
+  uploadTags: (condition?: RemoteWriteCondition) => Promise<boolean>
   downloadTags: (options?: RecordDataDownloadOptions) => Promise<Tag[]>
 }
 
@@ -100,7 +101,7 @@ const useTagStore = create<TagState>((set, get) => ({
   setLastSyncTime: (lastSyncTime) => {
     set({ lastSyncTime })
   },
-  uploadTags: async () => {
+  uploadTags: async (condition) => {
     set({ syncState: true })
     const path = '.data'
     const filename = 'tags.json'
@@ -205,7 +206,7 @@ const useTagStore = create<TagState>((set, get) => ({
       }
       case 'cloudFolder': {
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-        if (config?.path) res = await cloudFolderUpload(config, fullPath, JSON.stringify(tags))
+        if (config?.path) res = await cloudFolderUpload(config, fullPath, JSON.stringify(tags), condition)
         break
       }
     }
@@ -234,11 +235,11 @@ const useTagStore = create<TagState>((set, get) => ({
         break;
       case 'gitlab':
         const gitlabRepo = await getDataSyncRepoName('gitlab')
-        files = await gitlabGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: gitlabRepo })
+        files = await gitlabGetFileContent({ path: `${path}/${filename}`, repo: gitlabRepo })
         break;
       case 'gitea':
         const giteaRepo2 = await getDataSyncRepoName('gitea')
-        files = await giteaGetFileContent({ path: `${path}/${filename}`, ref: 'main', repo: giteaRepo2 })
+        files = await giteaGetFileContent({ path: `${path}/${filename}`, repo: giteaRepo2 })
         break;
       case 's3': {
         const s3Config = await store.get<S3Config>('s3SyncConfig')
@@ -247,7 +248,7 @@ const useTagStore = create<TagState>((set, get) => ({
           const s3Result = await s3Download(s3Config, s3Key)
           if (s3Result) {
             // S3 返回的 content 是字符串，直接解析
-            result = JSON.parse(s3Result.content)
+            result = parseSyncJson<Tag[]>(s3Result.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
             hasRemoteData = true
           }
         }
@@ -259,7 +260,7 @@ const useTagStore = create<TagState>((set, get) => ({
           const webdavKey = `${path}/${filename}`
           const webdavResult = await webdavDownload(webdavConfig, webdavKey)
           if (webdavResult) {
-            result = JSON.parse(webdavResult.content)
+            result = parseSyncJson<Tag[]>(webdavResult.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
             hasRemoteData = true
           }
         }
@@ -269,7 +270,7 @@ const useTagStore = create<TagState>((set, get) => ({
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
         const cloudResult = config?.path ? await cloudFolderDownload(config, `${path}/${filename}`) : null
         if (cloudResult) {
-          result = JSON.parse(cloudResult.content)
+          result = parseSyncJson<Tag[]>(cloudResult.content, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
           hasRemoteData = true
         }
         break
@@ -278,11 +279,9 @@ const useTagStore = create<TagState>((set, get) => ({
     // S3 已经直接解析到 result 了，这里处理 Git 平台
     if (files) {
       try {
-        if (!options.allowMissingRemote || !hasEmptyRemoteFileContent(files)) {
-          const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
-          result = JSON.parse(configJson)
-          hasRemoteData = true
-        }
+        const configJson = decodeBase64ToString(getRemoteFileContent(files, `${path}/${filename}`))
+        result = parseSyncJson<Tag[]>(configJson, `${primaryBackupMethod} / ${path}/${filename}`, 'array')
+        hasRemoteData = true
       } catch (error) {
         const message = error instanceof Error ? error.message : 'unknown error'
         if (!options.allowMissingRemote || !isMissingRemoteFileError(message)) {
@@ -291,7 +290,8 @@ const useTagStore = create<TagState>((set, get) => ({
       }
     }
     if (hasRemoteData) {
-      result = normalizeTagSnapshot(result)
+      try { result = normalizeTagSnapshot(result) }
+      catch { throw syncDataError('INVALID_SCHEMA', `${primaryBackupMethod} / ${path}/${filename}`) }
       const statements = tagSnapshotStatements(result)
       if (options.fetchOnly) return result
       setAutoDataSyncApplyingRemote(true)

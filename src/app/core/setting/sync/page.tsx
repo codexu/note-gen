@@ -33,6 +33,8 @@ import { CloudFolderSync } from './cloud-folder-sync'
 import { SelfHostedSync } from './self-hosted-sync'
 import { SelfHostedPersonalDataOptions } from './self-hosted-personal-data-options'
 import { UsePlatformButton } from './components/use-platform-button'
+import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { PlatformSwitchProgress } from './components/platform-switch-progress'
 import { WorkspaceRepoMapping } from './components/workspace-repo-mapping'
 import { DataSyncOverview } from './components/data-sync-overview'
 import { SettingType } from '../components/setting-base'
@@ -97,7 +99,6 @@ export default function SyncPage() {
   const t = useTranslations()
   const {
     primaryBackupMethod,
-    setPrimaryBackupMethod,
     autoSync,
     setAutoSync,
     autoRecordSyncEnabled,
@@ -198,11 +199,11 @@ export default function SyncPage() {
   useEffect(() => {
     async function loadPrimaryBackupMethod() {
       try {
+        await restorePlatformSwitchRecovery()
         const store = await Store.load('store.json')
         const savedMethod = await store.get<SyncPlatform>('primaryBackupMethod')
         if (savedMethod) {
-          await setPrimaryBackupMethod(savedMethod)
-          setPlatform(savedMethod)
+          setPlatform(usePlatformSwitchStore.getState().platform || savedMethod)
         }
       } catch (error) {
         console.error('Failed to load primary backup method:', error)
@@ -212,7 +213,7 @@ export default function SyncPage() {
     }
 
     void loadPrimaryBackupMethod()
-  }, [setPrimaryBackupMethod])
+  }, [])
 
   const checkPlatformStatus = useCallback(async (targetPlatform: SyncPlatform) => {
     if (targetPlatform === 'local') return
@@ -351,6 +352,7 @@ export default function SyncPage() {
 
   return (
     <SettingType id="sync" icon={<FileUp />} title={t('settings.sync.title')} desc={t('settings.sync.desc')}>
+      <PlatformSwitchProgress />
       <div className="grid items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <Card size="sm" className="lg:sticky lg:top-2">
           <CardHeader>

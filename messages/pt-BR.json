@@ -2930,6 +2930,14 @@
             "title": "Menu Slash",
             "desc": "Abre o menu de comandos na posição do cursor."
           },
+          "collapseAllHeadings": {
+            "title": "Recolher todos os títulos",
+            "desc": "Recolher as seções de todos os títulos no modo visual de documento completo."
+          },
+          "expandAllHeadings": {
+            "title": "Expandir todos os títulos",
+            "desc": "Expandir as seções de todos os títulos no modo visual de documento completo."
+          },
           "toggleOutline": {
             "title": "Sumário",
             "desc": "Mostra ou oculta o sumário do documento."
@@ -5643,6 +5651,10 @@
     }
   },
   "editor": {
+    "headingFolding": {
+      "expand": "Expandir seção",
+      "collapse": "Recolher seção"
+    },
     "tableToolbar": {
       "row": "Linha",
       "column": "Coluna",

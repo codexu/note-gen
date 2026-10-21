@@ -3367,6 +3367,14 @@
             "title": "Slash 菜单",
             "desc": "在光标处打开编辑器命令菜单。"
           },
+          "collapseAllHeadings": {
+            "title": "折叠全部标题",
+            "desc": "在完整文档的可视编辑模式下折叠所有标题内容。"
+          },
+          "expandAllHeadings": {
+            "title": "展开全部标题",
+            "desc": "在完整文档的可视编辑模式下展开所有标题内容。"
+          },
           "toggleOutline": {
             "title": "大纲",
             "desc": "显示或隐藏当前文档大纲。"
@@ -5754,6 +5762,10 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "headingFolding": {
+      "expand": "展开此标题内容",
+      "collapse": "折叠此标题内容"
+    },
     "tableToolbar": {
       "row": "行",
       "column": "列",

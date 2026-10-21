@@ -2905,6 +2905,14 @@
             "title": "Slash メニュー",
             "desc": "カーソル位置でコマンドメニューを開きます。"
           },
+          "collapseAllHeadings": {
+            "title": "すべての見出しを折りたたむ",
+            "desc": "文書全体のビジュアル編集モードですべての見出しの内容を折りたたみます。"
+          },
+          "expandAllHeadings": {
+            "title": "すべての見出しを展開",
+            "desc": "文書全体のビジュアル編集モードですべての見出しの内容を展開します。"
+          },
           "toggleOutline": {
             "title": "アウトライン",
             "desc": "文書アウトラインの表示を切り替えます。"
@@ -5663,6 +5671,10 @@
     "description": "記録ツールを選択して、素早く記録を作成"
   },
   "editor": {
+    "headingFolding": {
+      "expand": "この見出しの内容を展開",
+      "collapse": "この見出しの内容を折りたたむ"
+    },
     "tableToolbar": {
       "row": "行",
       "column": "列",

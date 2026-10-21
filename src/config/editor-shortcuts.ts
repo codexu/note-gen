@@ -27,6 +27,8 @@ export const editorShortcutDefinitions = [
   { id: 'openSearch', group: 'basic', defaultShortcut: 'Mod+F' },
   { id: 'openSlashCommand', group: 'basic', defaultShortcut: 'Mod+/' },
   { id: 'toggleOutline', group: 'basic', defaultShortcut: 'Shift+Mod+O' },
+  { id: 'collapseAllHeadings', group: 'basic', defaultShortcut: 'Mod+Alt+ArrowUp' },
+  { id: 'expandAllHeadings', group: 'basic', defaultShortcut: 'Mod+Alt+ArrowDown' },
 
   { id: 'toggleBold', group: 'format', defaultShortcut: 'Mod+B' },
   { id: 'toggleItalic', group: 'format', defaultShortcut: 'Mod+I' },

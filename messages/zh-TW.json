@@ -2905,6 +2905,14 @@
             "title": "Slash 選單",
             "desc": "在游標處打開編輯器命令選單。"
           },
+          "collapseAllHeadings": {
+            "title": "摺疊全部標題",
+            "desc": "在完整文件的視覺編輯模式下摺疊所有標題內容。"
+          },
+          "expandAllHeadings": {
+            "title": "展開全部標題",
+            "desc": "在完整文件的視覺編輯模式下展開所有標題內容。"
+          },
           "toggleOutline": {
             "title": "大綱",
             "desc": "顯示或隱藏目前文件大綱。"
@@ -5653,6 +5661,10 @@
     }
   },
   "editor": {
+    "headingFolding": {
+      "expand": "展開此標題內容",
+      "collapse": "摺疊此標題內容"
+    },
     "tableToolbar": {
       "row": "列",
       "column": "欄",

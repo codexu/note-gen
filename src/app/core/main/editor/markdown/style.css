@@ -1,5 +1,72 @@
 /* Markdown Editor Styles */
 
+.tiptap-editor .heading-fold-control {
+  /* Keep the end-of-heading anchor in the text flow without a layout box.
+     Only the absolutely positioned button has dimensions. */
+  display: inline;
+  position: relative;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.tiptap-editor .heading-fold-toggle {
+  position: absolute;
+  inset-inline-start: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tiptap-editor .heading-foldable:hover .heading-fold-toggle,
+.tiptap-editor .heading-fold-toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tiptap-editor .heading-fold-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tiptap-editor .heading-fold-toggle:hover,
+.tiptap-editor .heading-fold-toggle[aria-expanded='false'] {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+}
+
+.tiptap-editor .heading-fold-toggle:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  border-radius: 3px;
+}
+
+.tiptap-editor .heading-fold-hidden {
+  display: none !important;
+}
+
+@media print {
+  .tiptap-editor .heading-fold-hidden {
+    display: revert !important;
+  }
+  .tiptap-editor .heading-fold-control {
+    display: none;
+  }
+}
+
 /* ========================
    Tiptap 编辑器核心样式
    ======================== */

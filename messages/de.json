@@ -3228,6 +3228,14 @@
             "title": "Slash-Menü",
             "desc": "Öffne das Editor-Befehlsmenü am Cursor."
           },
+          "collapseAllHeadings": {
+            "title": "Alle Überschriften einklappen",
+            "desc": "Alle Überschriftenabschnitte im visuellen Modus für vollständige Dokumente einklappen."
+          },
+          "expandAllHeadings": {
+            "title": "Alle Überschriften ausklappen",
+            "desc": "Alle Überschriftenabschnitte im visuellen Modus für vollständige Dokumente ausklappen."
+          },
           "toggleOutline": {
             "title": "Gliederung",
             "desc": "Zeige oder verberge die Gliederung des aktuellen Dokuments."
@@ -5614,6 +5622,10 @@
     "description": "Klicken, um ein Aufnahme-Tool auszuwählen und schnell Aufzeichnungen zu erstellen"
   },
   "editor": {
+    "headingFolding": {
+      "expand": "Abschnitt ausklappen",
+      "collapse": "Abschnitt einklappen"
+    },
     "tableToolbar": {
       "row": "Zeile",
       "column": "Spalte",

@@ -126,6 +126,7 @@ import {
   type OutlinePosition,
 } from '@/lib/outline-preferences'
 import { EditorShortcutsExtension } from './editor-shortcuts-extension'
+import { HeadingFolding, setHeadingsFolded } from './heading-folding'
 import useEditorShortcutStore from '@/stores/editor-shortcut'
 import type { EditorShortcutCommandId } from '@/config/editor-shortcuts'
 import { isAiSuggestionShortcutVisible } from '@/lib/ai-suggestion-shortcut-state'
@@ -2808,6 +2809,9 @@ export function TipTapEditor({
       EditorShortcutsExtension.configure({
         getShortcuts: () => editorShortcutsRef.current,
         runCommand: runEditorShortcutCommand,
+      }),
+      HeadingFolding.configure({
+        label: (collapsed) => t(collapsed ? 'headingFolding.expand' : 'headingFolding.collapse'),
       }),
       GitHubAlertBlockquoteEditor,
       StarterKit.configure({
@@ -5626,6 +5630,8 @@ export function TipTapEditor({
         }
         return true
       },
+      collapseAllHeadings: (targetEditor) => setHeadingsFolded(targetEditor, true),
+      expandAllHeadings: (targetEditor) => setHeadingsFolded(targetEditor, false),
       toggleBold: (targetEditor) => targetEditor.chain().focus().toggleBold().run(),
       toggleItalic: (targetEditor) => targetEditor.chain().focus().toggleItalic().run(),
       toggleStrike: (targetEditor) => targetEditor.chain().focus().toggleStrike().run(),

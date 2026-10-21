@@ -3367,6 +3367,14 @@
             "title": "Slash menu",
             "desc": "Open the editor command menu at the cursor."
           },
+          "collapseAllHeadings": {
+            "title": "Collapse all headings",
+            "desc": "Collapse all heading sections in full-document visual mode."
+          },
+          "expandAllHeadings": {
+            "title": "Expand all headings",
+            "desc": "Expand all heading sections in full-document visual mode."
+          },
           "toggleOutline": {
             "title": "Outline",
             "desc": "Show or hide the current document outline."
@@ -5754,6 +5762,10 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "headingFolding": {
+      "expand": "Expand section",
+      "collapse": "Collapse section"
+    },
     "tableToolbar": {
       "row": "Row",
       "column": "Column",

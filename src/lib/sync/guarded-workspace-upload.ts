@@ -3,6 +3,7 @@ import type { SyncPlatform } from '@/types/sync'
 import { downloadRemoteBytesWithVersion, uploadRemoteBytes, getRemoteContentType, getRemoteFileMetadata } from './remote-library'
 import { gitBlobVersion, normalizeRemoteVersion } from './remote-content-cache'
 import { getSyncMetadataKey } from './sync-context'
+import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
 
 export type WorkspaceRemotePlatform = Exclude<SyncPlatform, 'local' | 'selfHosted'>
 
@@ -15,8 +16,10 @@ export async function getWorkspaceOverwriteVersion(path: string, platform: Works
 }
 
 /** Bind the accepted version to the bytes actually read, never a later HEAD. */
-export async function readVersionedWorkspaceFile(path: string, platform: WorkspaceRemotePlatform) {
-  let file = await downloadRemoteBytesWithVersion(path, 'workspace', platform)
+export async function readVersionedWorkspaceFile(path: string, platform: WorkspaceRemotePlatform, stage: SyncStaleDetails['stage'] = 'scan') {
+  let file: Awaited<ReturnType<typeof downloadRemoteBytesWithVersion>>
+  try { file = await downloadRemoteBytesWithVersion(path, 'workspace', platform) }
+  catch (error) { throw withSyncStaleContext(error, { stage, path, source: 'remote' }, true) }
   // Apache can emit a weak ETag while the resource's mtime is within the
   // current second. Re-read the bytes with their version after that window;
   // never promote a weak validator into a strong If-Match condition.
@@ -26,7 +29,10 @@ export async function readVersionedWorkspaceFile(path: string, platform: Workspa
   }
   if (['github', 'gitee', 'gitlab', 'gitea'].includes(platform)) {
     const version = await gitBlobVersion(file.content, file.version?.length === 64 ? 64 : 40)
-    if (file.version && normalizeRemoteVersion(file.version) !== version) throw new Error('SYNC_SWITCH_STALE')
+    if (file.version && normalizeRemoteVersion(file.version) !== version) throw syncStaleError({
+      stage, path, source: 'remote', check: 'content',
+      expected: { sha: normalizeRemoteVersion(file.version) }, actual: { sha: version, size: file.content.length },
+    })
     return { content: file.content, version }
   }
   if (!normalizeRemoteVersion(file.version)) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
@@ -42,26 +48,32 @@ export async function uploadGuardedWorkspaceFile(
   const store = await Store.load('store.json')
   if (await store.get('primaryBackupMethod') !== platform || await store.get('platformSwitchRecovery')
     || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) {
-    throw new Error('SYNC_SWITCH_STALE')
+    throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
   }
-  if (expectedVersion === 'uploaded' || expectedVersion?.startsWith('uploaded:')) throw new Error('SYNC_SWITCH_STALE')
+  if (expectedVersion === 'uploaded' || expectedVersion?.startsWith('uploaded:')) throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion } })
   const bytes = new TextEncoder().encode(content)
-  const uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform)
+  let uploadedVersion: string
+  try { uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform) }
+  catch (error) { throw withSyncStaleContext(error, { stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion, exists: expectedVersion !== null } }) }
   // A version returned by the conditional write is already bound to our bytes.
   // Keep it even if another writer advances the remote immediately afterwards.
   if (normalizeRemoteVersion(uploadedVersion) && uploadedVersion !== 'uploaded'
     && uploadedVersion !== expectedVersion) {
     if (await store.get('primaryBackupMethod') !== platform
-      || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) throw new Error('SYNC_SWITCH_STALE')
+      || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
     return uploadedVersion
   }
   // Some WebDAV servers omit ETag on PUT. Verify the bytes and bind their GET
   // version instead of recording a placeholder or accepting another writer's HEAD.
-  const accepted = await readVersionedWorkspaceFile(path, platform)
+  const accepted = await readVersionedWorkspaceFile(path, platform, 'verify')
   if (accepted.content.length !== bytes.length || accepted.content.some((value, index) => value !== bytes[index])) {
-    throw new Error('SYNC_SWITCH_STALE')
+    throw syncStaleError({
+      stage: 'verify', path, source: 'remote', check: 'content',
+      expected: { sha: await gitBlobVersion(bytes), size: bytes.length },
+      actual: { sha: await gitBlobVersion(accepted.content), size: accepted.content.length },
+    })
   }
   if (await store.get('primaryBackupMethod') !== platform
-    || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) throw new Error('SYNC_SWITCH_STALE')
+    || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) throw syncStaleError({ stage: 'verify', path, check: 'configuration' })
   return accepted.version
 }

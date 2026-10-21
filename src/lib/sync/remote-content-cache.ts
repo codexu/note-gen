@@ -1,5 +1,6 @@
 import { BaseDirectory, mkdir, readFile, remove, writeFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
+import { syncStaleError, withSyncStaleContext } from './sync-stale-error'
 
 const CACHE_ROOT = 'sync-remote-content-cache/v1'
 const CACHE_BUDGET = 128 * 1024 * 1024
@@ -100,10 +101,15 @@ export async function openRemoteContentCache(identity: string) {
       }
       invalid.add(key)
       changed.delete(key)
-      const result = await download()
+      let result: Awaited<ReturnType<typeof download>>
+      try { result = await download() }
+      catch (error) { throw withSyncStaleContext(error, { stage: 'scan', path, source: 'remote', expected: { sha: expected, size } }) }
       const actualVersion = normalizeRemoteVersion(result.version)
       if ((expected && actualVersion && expected !== actualVersion)
-        || (size !== undefined && result.content.length !== size)) throw new Error('SYNC_SWITCH_STALE')
+        || (size !== undefined && result.content.length !== size)) throw syncStaleError({
+        stage: 'scan', path, source: 'remote', check: expected && actualVersion && expected !== actualVersion ? 'version' : 'size',
+        expected: { sha: expected, size }, actual: { sha: actualVersion, size: result.content.length },
+      })
       const hash = await contentHash(result.content)
       // A listing alone cannot bind newly downloaded bytes to a version. The
       // GET version (or verified Git blob ID) must agree before caching them.

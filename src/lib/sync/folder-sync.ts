@@ -11,6 +11,7 @@ import { webdavUpload } from './webdav'
 import { S3Config, WebDAVConfig } from '@/types/sync'
 import { buildGithubCreateTreePayload, buildGitlabCommitActions } from './folder-sync-payload'
 import { buildRepoContentPath, debugSyncPath } from './remote-file'
+import { fetchGiteeRead } from './gitee-request'
 
 export interface FolderSyncResult {
   success: boolean
@@ -306,8 +307,9 @@ export class FolderSync {
     headers.append('Authorization', `Bearer ${giteeAccessToken}`)
 
     // 使用 Gitee API 获取仓库内容
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents${path ? '/' + path : ''}?access_token=${giteeAccessToken}`
-    const response = await fetch(url, { method: 'GET', headers, proxy })
+    const encodedPath = buildRepoContentPath({ path })
+    const url = `https://gitee.com/api/v5/repos/${encodeURIComponent(giteeUsername)}/${encodeURIComponent(repo)}/contents${encodedPath ? '/' + encodedPath : ''}`
+    const response = await fetchGiteeRead(url, { headers, proxy })
 
     if (!response.ok) {
       console.error('[Gitee] 获取文件列表失败:', await response.text())
@@ -423,7 +425,7 @@ export class FolderSync {
     // Gitee API: 使用单个文件操作，每个文件一次请求
     // 使用并发上传提高速度
 
-    const uploadPromises = files.map(async (file) => {
+    const uploadPromises = files.filter(file => file.content.length > 0).map(async (file) => {
       const base64Content = Buffer.from(file.content).toString('base64')
       const encodedPath = buildRepoContentPath({ path: file.path })
       debugSyncPath('folderSync.gitee.uploadFile', {
@@ -460,6 +462,17 @@ export class FolderSync {
     })
 
     const results = await Promise.all(uploadPromises)
+    // Finish REST writes before Git pushes so this batch does not race its own
+    // branch CAS. Keep the file SHA captured before the batch for every write.
+    const emptyFiles = files.filter(file => file.content.length === 0)
+    if (emptyFiles.length) {
+      const { uploadFile } = await import('./gitee')
+      for (const file of emptyFiles) {
+        results.push(Boolean(await uploadFile({
+          file: file.content, path: file.path, repo, sha: file.sha, message, guarded: true,
+        })))
+      }
+    }
     const successCount = results.filter(r => r).length
 
     // 只要有一个文件成功就算成功

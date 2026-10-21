@@ -16,6 +16,8 @@ import { SYNC_PLATFORMS, type SyncPlatform, type CloudFolderConfig } from '@/typ
 import { restoreInterruptedPrimaryPlatform, type PlatformSwitchRecovery } from '@/lib/sync/platform-switch-recovery'
 import { acquireActiveSwitchBackup, prunePlatformSwitchBackups } from '@/lib/sync/platform-switch-backup-retention'
 import { settleSwitchBackupRecovery } from '@/lib/sync/platform-switch-journal'
+import { sanitizeSyncErrorMessage } from '@/lib/sync/remote-file'
+import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from '@/lib/sync/sync-stale-error'
 
 type SwitchStep = 'local' | 'currentRemote' | 'nextRemote' | 'review' | 'confirm' | 'preparing' | 'saving' | 'starting' | 'reconciling' | 'error' | 'cancelled' | 'completed'
 interface PlatformSwitchState {
@@ -81,6 +83,20 @@ async function finishBackupRetention(release: BackupLease | null, paths: string[
 function assertSwitchActive() {
   if (usePlatformSwitchStore.getState().cancelRequested) throw new Error('SYNC_SWITCH_CANCELLED')
 }
+function assertSwitchConfiguration(method: SyncPlatform, workspace: string, stage: SyncStaleDetails['stage']) {
+  const current = useSettingStore.getState()
+  if (method !== current.primaryBackupMethod || workspace !== current.workspacePath) {
+    throw syncStaleError({ stage, check: 'configuration', path: method !== current.primaryBackupMethod ? 'primaryBackupMethod' : 'workspacePath' })
+  }
+}
+
+function switchErrorContext(state: PlatformSwitchState, fallback: SyncStaleDetails['stage']): SyncStaleDetails {
+  const phase = state.progress?.phase
+  return {
+    stage: phase === 'list' || phase === 'scan' ? 'scan' : phase === 'compare' ? 'validate' : phase || fallback,
+    path: state.progress?.path, source: state.progress?.source,
+  }
+}
 async function targetFingerprint(platform: SyncPlatform) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(await targetIdentity(platform)))
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('')
@@ -114,7 +130,7 @@ export async function restorePlatformSwitchRecovery() {
     usePlatformSwitchStore.setState({ ...initialState, platform: saved.platform,
       step: saved.resolution === 'skipped' ? 'completed' : saved.resolution === 'cancelled' ? 'cancelled' : 'error',
       mutated: saved.mutated ?? (Boolean(saved.backupPath) || !saved.workspaceSetup), backupPath: saved.backupPath || null,
-      error: saved.error || 'SYNC_SWITCH_INTERRUPTED', skipped: saved.resolution === 'skipped',
+      error: sanitizeSyncErrorMessage(saved.error || 'SYNC_SWITCH_INTERRUPTED'), skipped: saved.resolution === 'skipped',
     })
   })()
   try { await restoringRecovery }
@@ -153,7 +169,7 @@ export async function dismissPlatformSwitch() {
           await store.save()
           await import('@/lib/self-hosted-sync/lifecycle').then(module => module.refreshSelfHostedSyncRuntime())
         } catch (error) {
-          usePlatformSwitchStore.setState({ step: 'error', error: error instanceof Error ? error.message : String(error) })
+          usePlatformSwitchStore.setState({ step: 'error', error: sanitizeSyncErrorMessage(error) })
           return
         } finally { running = false }
       }
@@ -256,7 +272,7 @@ export async function cancelPlatformSwitch() {
       await store.save()
     }
   } catch (error) {
-    usePlatformSwitchStore.setState({ step: 'error', error: error instanceof Error ? error.message : String(error) })
+    usePlatformSwitchStore.setState({ step: 'error', error: sanitizeSyncErrorMessage(error) })
   } finally {
     cancelling = false
     usePlatformSwitchStore.setState({ cancelRequested: false })
@@ -305,10 +321,20 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
   let attemptBackupPaths = recoveryBackupPaths({ backupPath: recoveryBackup || undefined })
   usePlatformSwitchStore.setState({ ...initialState, platform, backupPath: recoveryBackup })
   try {
-    const pendingRecovery = await (await Store.load('store.json')).get<PlatformSwitchRecovery>('platformSwitchRecovery')
+    const recoveryStore = await Store.load('store.json')
+    let pendingRecovery = await recoveryStore.get<PlatformSwitchRecovery>('platformSwitchRecovery')
     attemptBackupPaths = recoveryBackupPaths(pendingRecovery, { backupPaths: attemptBackupPaths })
     inheritedUnverified = Boolean(pendingRecovery?.resolution === 'skipped' || pendingRecovery?.skippedFromPlatform)
     if (pendingRecovery) usePlatformSwitchStore.setState({ mutated: inheritedUnverified || (pendingRecovery.mutated ?? true) })
+    if (retry && pendingRecovery?.platform === platform) {
+      // A new scan is a new attempt, even when it inherits unresolved writes
+      // and protected backups. Do not resurrect the previous failure on reload.
+      pendingRecovery = { ...pendingRecovery, startedAt: Date.now() }
+      delete pendingRecovery.error
+      delete pendingRecovery.failedAt
+      await recoveryStore.set('platformSwitchRecovery', pendingRecovery)
+      await recoveryStore.save()
+    }
     fingerprint = await targetFingerprint(platform)
     assertSwitchActive()
     if (pendingRecovery?.resolution === 'skipped') {
@@ -333,7 +359,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
     const setup = workspaceSetup || (pendingSetup?.platform === platform && pendingSetup.resolution !== 'skipped' ? pendingSetup.workspaceSetup : undefined)
     activeWorkspaceSetup = setup
     if (setup) {
-      if (platform !== 'cloudFolder' || setup.config.provider !== 'oneDrive' || !setup.path) throw new Error('SYNC_SWITCH_STALE')
+      if (platform !== 'cloudFolder' || setup.config.provider !== 'oneDrive' || !setup.path) throw syncStaleError({ stage: 'validate', path: 'cloudFolderSyncConfig', check: 'configuration' })
       if (setup.originalPath === undefined) {
         setup.originalPath = workspace
         setup.originalConfig = await setupStore.get<CloudFolderConfig>('cloudFolderSyncConfig')
@@ -364,7 +390,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
         usePlatformSwitchStore.setState({ step: 'review', review, selected: ['notes', 'assets', 'records', 'tags', 'canvases', 'conversations', 'settings', 'memories', 'dataAssets'] })
       })
       if (!decision) { assertSwitchActive(); return false }
-      if (current !== useSettingStore.getState().primaryBackupMethod || workspace !== useSettingStore.getState().workspacePath) throw new Error('SYNC_SWITCH_STALE')
+      assertSwitchConfiguration(current, workspace, 'validate')
       assertSwitchActive()
       usePlatformSwitchStore.setState({ mutated: true })
       pauseSyncEngine(current)
@@ -386,7 +412,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
         usePlatformSwitchStore.setState({ step: 'review' })
       })
       if (!decision) { assertSwitchActive(); return false }
-      if (current !== useSettingStore.getState().primaryBackupMethod || workspace !== useSettingStore.getState().workspacePath) throw new Error('SYNC_SWITCH_STALE')
+      assertSwitchConfiguration(current, workspace, 'validate')
       usePlatformSwitchStore.setState({ strategy: decision.strategy })
       const latestActivePath = (await import('./article')).default.getState().activeFilePath
       if (latestActivePath && !await prepareActiveEditorDeactivationDurably(latestActivePath)) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
@@ -407,7 +433,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
         backupPaths: attemptBackupPaths, startedAt: Date.now() })
       await store.save()
       await executePlatformSwitchPlan(plan, decision.strategy, decision.selected, decision.resolutions, progress)
-      if (current !== useSettingStore.getState().primaryBackupMethod || workspace !== useSettingStore.getState().workspacePath) throw new Error('SYNC_SWITCH_STALE')
+      assertSwitchConfiguration(current, workspace, 'verify')
       // Opted-out domains must not be reconciled by the periodic queue immediately after switching.
       const settings = useSettingStore.getState()
       const previousPreferences = { autoRecordSyncEnabled: settings.autoRecordSyncEnabled, autoSettingsSyncEnabled: settings.autoSettingsSyncEnabled, autoConversationSyncEnabled: settings.autoConversationSyncEnabled, autoSync: settings.autoSync }
@@ -432,7 +458,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
     if (platform === 'selfHosted') pauseSyncEngine('selfHosted')
     const state = usePlatformSwitchStore.getState()
     const cancelled = state.cancelRequested || (error instanceof Error && error.message === 'SYNC_SWITCH_CANCELLED')
-    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : error instanceof Error ? error.message : String(error)
+    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : sanitizeSyncErrorMessage(withSyncStaleContext(error, switchErrorContext(state, 'validate')))
     usePlatformSwitchStore.setState({ failedStep: state.step, step: cancelled ? 'cancelled' : 'error', error: message, cancelRequested: false })
     try {
       const store = await Store.load('store.json')
@@ -467,7 +493,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       } satisfies PlatformSwitchRecovery)
       await store.save()
     } catch (persistenceError) {
-      const details = persistenceError instanceof Error ? persistenceError.message : String(persistenceError)
+      const details = sanitizeSyncErrorMessage(persistenceError)
       usePlatformSwitchStore.setState({ step: 'error', error: `${message}\n${details}` })
     }
     return false
@@ -498,18 +524,18 @@ export async function skipPlatformSwitchError() {
       // Older interrupted attempts had no target guard. An explicit skip only
       // selects a provider and keeps sync paused, so bind it to the current local
       // configuration after checking the backup's workspace; never replay data.
-      if (recovery.platform !== platform || (recovery.workspace !== undefined && recovery.workspace !== workspace)) throw new Error('SYNC_SWITCH_STALE')
+      if (recovery.platform !== platform || (recovery.workspace !== undefined && recovery.workspace !== workspace)) throw syncStaleError({ stage: 'validate', path: 'platformSwitchRecovery', check: 'configuration' })
       if (recovery.backupPath) {
         const { assertSwitchBackupPath } = await import('@/lib/sync/platform-switch-journal')
         const { readFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
         assertSwitchBackupPath(recovery.backupPath)
         const manifest = JSON.parse(new TextDecoder().decode(await readFile(`${recovery.backupPath}/manifest.json`, { baseDir: BaseDirectory.AppData }))) as { version?: number; workspace?: string; platform?: SyncPlatform }
-        if (manifest.version !== 1 || manifest.workspace !== workspace || (manifest.platform && manifest.platform !== platform)) throw new Error('SYNC_SWITCH_STALE')
+        if (manifest.version !== 1 || manifest.workspace !== workspace || (manifest.platform && manifest.platform !== platform)) throw syncStaleError({ stage: 'validate', path: `${recovery.backupPath}/manifest.json`, check: 'configuration' })
       } else if (recovery.workspaceSetup && recovery.workspaceSetup.path !== workspace) {
-        throw new Error('SYNC_SWITCH_STALE')
+        throw syncStaleError({ stage: 'validate', path: 'workspacePath', check: 'configuration' })
       }
       const fingerprint = await targetFingerprint(platform)
-      if (recovery.targetFingerprint && recovery.targetFingerprint !== fingerprint) throw new Error('SYNC_SWITCH_STALE')
+      if (recovery.targetFingerprint && recovery.targetFingerprint !== fingerprint) throw syncStaleError({ stage: 'validate', path: 'syncTarget', check: 'configuration', expected: { sha: recovery.targetFingerprint }, actual: { sha: fingerprint } })
       assertSwitchActive()
       recovery = { ...recovery, workspace, targetFingerprint: fingerprint, error: recovery.error || state.error || 'SYNC_SWITCH_INTERRUPTED', failedAt: recovery.failedAt || Date.now() }
       await store.set('platformSwitchRecovery', recovery)
@@ -526,9 +552,9 @@ export async function skipPlatformSwitchError() {
       const current = useSettingStore.getState()
       if (!recovery || recovery.platform !== platform || !recovery.targetFingerprint
         || recovery.workspace !== workspace || current.workspacePath !== workspace || current.primaryBackupMethod !== previous
-        || await targetFingerprint(platform) !== recovery.targetFingerprint) throw new Error('SYNC_SWITCH_STALE')
+        || await targetFingerprint(platform) !== recovery.targetFingerprint) throw syncStaleError({ stage: 'validate', path: 'platformSwitchRecovery / syncTarget', check: 'configuration' })
       const latest = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
-      if (!latest || latest.platform !== platform || latest.startedAt !== recovery.startedAt || latest.failedAt !== recovery.failedAt) throw new Error('SYNC_SWITCH_STALE')
+      if (!latest || latest.platform !== platform || latest.startedAt !== recovery.startedAt || latest.failedAt !== recovery.failedAt) throw syncStaleError({ stage: 'validate', path: 'platformSwitchRecovery', check: 'configuration' })
       assertSwitchActive()
     }
     await assertTarget()
@@ -541,7 +567,7 @@ export async function skipPlatformSwitchError() {
     return true
   } catch (error) {
     const cancelled = usePlatformSwitchStore.getState().cancelRequested || (error instanceof Error && error.message === 'SYNC_SWITCH_CANCELLED')
-    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : error instanceof Error ? error.message : String(error)
+    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : sanitizeSyncErrorMessage(error)
     usePlatformSwitchStore.setState({ step: cancelled ? 'cancelled' : 'error', error: message, cancelRequested: false })
     return false
   } finally { running = false }
@@ -573,7 +599,7 @@ export async function recoverPlatformSwitchLocalBackup() {
     pauseSyncEngine(useSettingStore.getState().primaryBackupMethod)
     const store = await Store.load('store.json')
     const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
-    if (!recovery) throw new Error('SYNC_SWITCH_STALE')
+    if (!recovery) throw syncStaleError({ stage: 'restore', path: 'platformSwitchRecovery', check: 'configuration', expected: { exists: true }, actual: { exists: false } })
     attemptBackupPaths = recoveryBackupPaths(recovery, { backupPaths: attemptBackupPaths })
     await store.set('platformSwitchRecovery', { ...recovery, commitPlatform: 'local' })
     await store.save()
@@ -593,7 +619,7 @@ export async function recoverPlatformSwitchLocalBackup() {
     verified = true
   } catch (error) {
     const cancelled = usePlatformSwitchStore.getState().cancelRequested || (error instanceof Error && error.message === 'SYNC_SWITCH_CANCELLED')
-    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : error instanceof Error ? error.message : String(error)
+    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : sanitizeSyncErrorMessage(error)
     usePlatformSwitchStore.setState({ step: cancelled ? 'cancelled' : 'error', mutated: true, error: message, cancelRequested: false })
     try {
       const store = await Store.load('store.json')
@@ -603,7 +629,7 @@ export async function recoverPlatformSwitchLocalBackup() {
         await store.save()
       }
     } catch (persistenceError) {
-      const details = persistenceError instanceof Error ? persistenceError.message : String(persistenceError)
+      const details = sanitizeSyncErrorMessage(persistenceError)
       usePlatformSwitchStore.setState({ step: 'error', error: `${message}\n${details}` })
     }
   } finally {

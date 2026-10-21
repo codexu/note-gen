@@ -3,11 +3,19 @@ import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent, pickNestedFileEntry } from './remote-file'
+import { buildRemoteLogicalPath, buildRepoContentPath, buildRepoContentsEndpoint, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent, decodeBase64ToBytes, pickNestedFileEntry } from './remote-file'
 import { readGitTreeDirectory } from './directory-listing'
+import { fetchGiteeRead } from './gitee-request'
+import { gitBlobVersion } from './remote-content-cache'
+import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
 export { decodeBase64ToString } from './remote-file'
 
-async function assertGiteeConditionalResponse(response: Response, version: string | null) {
+async function assertGiteeConditionalResponse(response: Response, version: string | null, path: string) {
+  const context: SyncStaleDetails = {
+    stage: 'apply', path, source: 'remote', check: 'version',
+    expected: { sha: version, exists: version !== null },
+    ...(response.status === 404 ? { actual: { exists: false } } : {}),
+  }
   // Gitee reports version conflicts as 400, including duplicate creates. Keep
   // unrelated validation failures distinct; neither case may drop the guard.
   if (response.status === 400) {
@@ -16,12 +24,13 @@ async function assertGiteeConditionalResponse(response: Response, version: strin
       const body: unknown = await response.clone().json()
       if (body && typeof body === 'object' && 'message' in body && typeof body.message === 'string') message = body.message
     } catch { /* Preserve the generic conditional HTTP error below. */ }
-    if (/Blob SHA does not match/i.test(message)
-      || (version === null && /文件名已存在|(?:file|path).*already exists/i.test(message))) {
-      throw new Error('SYNC_SWITCH_STALE')
+    const duplicateCreate = version === null && /文件名已存在|(?:file|path).*already exists/i.test(message)
+    if (/Blob SHA does not match/i.test(message) || duplicateCreate) {
+      throw syncStaleError({ ...context, ...(duplicateCreate ? { actual: { exists: true } } : {}) })
     }
   }
-  assertConditionalResponse(response, { version })
+  try { assertConditionalResponse(response, { version }) }
+  catch (error) { throw withSyncStaleContext(error, context) }
 }
 // Remove unused imports - these types are not actually used in this file
 
@@ -137,7 +146,7 @@ interface Links {
 }
 
 type GiteeDirectoryFileEntry = Partial<GiteeFile> & {
-  content?: string
+  content?: string | null
   url?: string
   download_url?: string | null
 }
@@ -146,6 +155,8 @@ type GiteeGetFilesResult = GiteeDirectoryFileEntry | GiteeDirectoryListingResult
 
 const DEFAULT_BRANCH_CACHE_TTL = 5 * 60 * 1000
 const defaultBranchCache = new Map<string, { branch: string, cachedAt: number }>()
+// SHA-1 of the Git object header "blob 0\0", with no payload bytes.
+const EMPTY_GIT_BLOB_SHA = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'
 
 async function getDefaultBranch(repo: string, username?: string) {
   const cacheKey = `${username || ''}/${repo}`
@@ -169,54 +180,76 @@ function looksLikeFilePath(path?: string) {
   return lastSegment.includes('.')
 }
 
-function appendAccessToken(url: string, accessToken: string) {
-  try {
-    const parsedUrl = new URL(url)
-    if (!parsedUrl.searchParams.has('access_token')) {
-      parsedUrl.searchParams.set('access_token', accessToken)
-    }
-    return parsedUrl.toString()
-  } catch {
-    return url
+function knownGiteeFileState(entry: GiteeDirectoryFileEntry): NonNullable<SyncStaleDetails['actual']> {
+  return {
+    exists: true,
+    ...(typeof entry.sha === 'string' && /^[a-f0-9]{40}$/i.test(entry.sha) ? { sha: entry.sha.toLowerCase() } : {}),
+    ...(typeof entry.size === 'number' && Number.isFinite(entry.size) ? { size: entry.size } : {}),
   }
 }
 
-async function resolveDirectoryFileEntryContent(
+async function normalizeGiteeFileContent(entry: GiteeDirectoryFileEntry, path: string) {
+  if (typeof entry.sha === 'string' && entry.sha.toLowerCase() === EMPTY_GIT_BLOB_SHA) {
+    const expected = { sha: EMPTY_GIT_BLOB_SHA, size: 0, exists: true }
+    if (entry.size !== undefined && entry.size !== 0) {
+      throw syncStaleError({ stage: 'scan', path, source: 'remote', check: 'size', expected, actual: knownGiteeFileState(entry) })
+    }
+    if (entry.content != null && (typeof entry.content !== 'string' || entry.content.trim() !== '')) {
+      let actual: SyncStaleDetails['actual'] = { exists: true }
+      if (typeof entry.content === 'string') {
+        try {
+          const bytes = decodeBase64ToBytes(entry.content)
+          actual = { sha: await gitBlobVersion(bytes), size: bytes.length, exists: true }
+        } catch { /* Invalid content provides no reliable payload SHA or size. */ }
+      }
+      throw syncStaleError({ stage: 'scan', path, source: 'remote', check: 'content', expected, actual })
+    }
+    // Missing/null content is only an empty file when the blob ID proves it.
+    return { ...entry, content: '' }
+  }
+  if (typeof entry.content === 'string' && entry.content.trim() !== '') return { ...entry, content: entry.content }
+  return null
+}
+
+async function resolveGiteeFileContent(
   entry: GiteeDirectoryFileEntry,
+  path: string,
   accessToken: string,
+  username: string,
+  repo: string,
   proxy?: Proxy
 ) {
-  if (typeof entry.content === 'string') {
-    return entry
-  }
+  const normalized = await normalizeGiteeFileContent(entry, path)
+  if (normalized) return normalized
 
-  const requestOptions = {
-    method: 'GET',
-    proxy,
+  // Fetch the immutable blob from the trusted API rather than forwarding a
+  // credential to an arbitrary URL supplied by a directory response.
+  if (typeof entry.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(entry.sha)) throw new Error('Invalid Gitee file version')
+  const url = `https://gitee.com/api/v5/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}/git/blobs/${entry.sha}`
+  const response = await fetchGiteeRead(url, { headers: { Authorization: `Bearer ${accessToken}` }, proxy })
+  if (response.status === 404) throw syncStaleError({
+    stage: 'scan', path, source: 'remote', check: 'version',
+    expected: knownGiteeFileState(entry), actual: { exists: false },
+  })
+  if (!response.ok) throw new Error(`Gitee blob request failed: HTTP ${response.status}`)
+  const data = await readSyncResponseJson(response, `gitee / ${path}`) as GiteeDirectoryFileEntry
+  const blob = await normalizeGiteeFileContent(data, path)
+  if (!blob) throw new Error('Gitee blob response has no file content')
+  const bytes = decodeBase64ToBytes(blob.content)
+  const version = entry.sha.toLowerCase()
+  if (data.sha !== undefined && (typeof data.sha !== 'string' || data.sha.toLowerCase() !== version)) {
+    throw syncStaleError({ stage: 'scan', path, source: 'remote', check: 'version', expected: knownGiteeFileState(entry), actual: knownGiteeFileState(data) })
   }
-
-  if (entry.url) {
-    const response = await fetch(appendAccessToken(entry.url, accessToken), requestOptions)
-    if (response.status >= 200 && response.status < 300) {
-      const data = await readSyncResponseJson(response, `gitee / ${entry.path || entry.name || 'file'}`) as GiteeDirectoryFileEntry
-      if (typeof data.content === 'string') {
-        return data
-      }
+  const actual = { sha: await gitBlobVersion(bytes), size: bytes.length, exists: true }
+  if (actual.sha !== version) {
+    throw syncStaleError({ stage: 'scan', path, source: 'remote', check: 'content', expected: knownGiteeFileState(entry), actual })
+  }
+  for (const declared of [entry, data]) {
+    if (declared.size !== undefined && declared.size !== bytes.length) {
+      throw syncStaleError({ stage: 'scan', path, source: 'remote', check: 'size', expected: knownGiteeFileState(declared), actual })
     }
   }
-
-  if (entry.download_url) {
-    const response = await fetch(appendAccessToken(entry.download_url, accessToken), requestOptions)
-    if (response.status >= 200 && response.status < 300) {
-      const content = await response.text()
-      return {
-        ...entry,
-        content: Buffer.from(content, 'utf-8').toString('base64'),
-      }
-    }
-  }
-
-  return null
+  return { ...entry, content: blob.content }
 }
 
 export async function uploadFile(
@@ -224,10 +257,9 @@ export async function uploadFile(
   { file: string | Uint8Array, filename?: string, sha?: string, message?: string, repo: string, path?: string, guarded?: boolean })
 {
   const store = await Store.load('store.json');
-  const accessToken = await store.get('giteeAccessToken')
+  const accessToken = await store.get<string>('giteeAccessToken')
   const giteeUsername = await store.get<string>('giteeUsername')
   const id = uuid()
-  const branch = await getDefaultBranch(repo, giteeUsername)
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -247,11 +279,12 @@ export async function uploadFile(
       }
     }
 
-    const finalPath = resolvedExistingFile
-      ? buildRepoContentPath({ path: targetPath })
+    const logicalPath = (resolvedExistingFile
+      ? buildRemoteLogicalPath({ path: targetPath })
       : targetPath
-      ? buildRepoContentPath({ path: targetPath, filename })
-      : buildRepoContentPath({ filename: filename || id })
+      ? buildRemoteLogicalPath({ path: targetPath, filename })
+      : buildRemoteLogicalPath({ filename: filename || id })).split('/').filter(Boolean).join('/')
+    const finalPath = buildRepoContentPath({ path: logicalPath })
     debugSyncPath('gitee.uploadFile', {
       inputPath: path,
       filename,
@@ -260,6 +293,16 @@ export async function uploadFile(
       hasSha: Boolean(sha),
     })
 
+    if (file.length === 0) {
+      if (!accessToken || !giteeUsername) throw new Error('Gitee sync is not configured')
+      const { uploadEmptyGiteeFile } = await import('./gitee-empty-upload')
+      return await uploadEmptyGiteeFile({
+        username: giteeUsername, token: accessToken, repo, path: logicalPath,
+        message: message || `Upload ${filename || id}`, expectedVersion: sha || null, proxy,
+      })
+    }
+
+    const branch = await getDefaultBranch(repo, giteeUsername)
     // 将内容转换为 Base64（Gitee API 要求）
     const base64Content = encodeRemoteFileContent(file)
 
@@ -284,7 +327,7 @@ export async function uploadFile(
 
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(finalPath)}`;
     const response = await fetch(url, requestOptions);
-    if (guarded) await assertGiteeConditionalResponse(response, sha || null);
+    if (guarded) await assertGiteeConditionalResponse(response, sha || null, logicalPath);
 
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
@@ -343,9 +386,9 @@ export async function getDirectoryFiles({ path, repo, cache }: { path: string; r
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
   const baseUrl = `https://gitee.com/api/v5/repos/${encodeURIComponent(username)}/${encodeURIComponent(repo)}`
-  return readGitTreeDirectory(path, resource => fetch(
-    `${baseUrl}${resource}?access_token=${encodeURIComponent(token)}`,
-    { method: 'GET', proxy },
+  return readGitTreeDirectory(path, resource => fetchGiteeRead(
+    `${baseUrl}${resource}`,
+    { headers: { Authorization: `Bearer ${token}` }, proxy },
   ), cache)
 }
 
@@ -355,6 +398,7 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
   if (!accessToken) throw new Error('Gitee sync is not configured')
 
   const giteeUsername = await store.get<string>('giteeUsername')
+  if (!giteeUsername) throw new Error('Gitee sync is not configured')
   const normalizedPath = buildRepoContentPath({ path })
   debugSyncPath('gitee.getFiles', {
     inputPath: path,
@@ -369,20 +413,19 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
 
   try {
     // 构建 URL 参数
-    let urlParams = `access_token=${accessToken}`
-    if (ref) {
-      urlParams += `&ref=${ref}`
-    }
-
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(normalizedPath)}?${urlParams}`;
+    const params = new URLSearchParams()
+    if (ref) params.set('ref', ref)
+    const queryString = params.toString()
+    const query = queryString ? `?${queryString}` : ''
+    const url = `https://gitee.com/api/v5/repos/${encodeURIComponent(giteeUsername)}/${encodeURIComponent(repo)}${buildRepoContentsEndpoint(normalizedPath)}${query}`;
     
     const requestOptions = {
-      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
       proxy
     };
     
     try {
-      const response = await fetch(url, requestOptions);
+      const response = await fetchGiteeRead(url, requestOptions);
       if (response.status >= 200 && response.status < 300) {
         const data = await readSyncResponseJson(response, `gitee / ${path}`) as GiteeGetFilesResult;
         if (Array.isArray(data) && looksLikeFilePath(path)) {
@@ -395,9 +438,12 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
               }
             }
 
-            const resolvedEntry = await resolveDirectoryFileEntryContent(
+            const resolvedEntry = await resolveGiteeFileContent(
               nestedFile as GiteeDirectoryFileEntry,
+              path,
               accessToken,
+              giteeUsername,
+              repo,
               proxy
             )
             if (resolvedEntry) {
@@ -411,6 +457,9 @@ export async function getFiles({ path, repo, ref }: { path: string, repo: string
             listingCount: data.length,
           })
           return null
+        }
+        if (data && !Array.isArray(data) && data.type !== 'dir' && data.type !== 'tree') {
+          return resolveGiteeFileContent(data, path, accessToken, giteeUsername, repo, proxy)
         }
         return data;
       }
@@ -457,7 +506,7 @@ export async function deleteFile({ path, sha, repo, guarded = false }: { path: s
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}${buildRepoContentsEndpoint(normalizedPath)}`;
     
     const response = await fetch(url, requestOptions);
-    if (guarded) await assertGiteeConditionalResponse(response, sha || null);
+    if (guarded) await assertGiteeConditionalResponse(response, sha || null, path);
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return { data } as GiteeResponse<any>;
@@ -496,18 +545,17 @@ export async function getFileCommits({ path, repo }: { path: string, repo: strin
   try {
     // 设置请求参数
     const params = new URLSearchParams();
-    params.append('access_token', accessToken);
     params.append('path', path);
     params.append('per_page', '100');
     
     const requestOptions = {
-      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
       proxy
     };
     
     const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/commits?${params.toString()}`;
     
-    const response = await fetch(url, requestOptions);
+    const response = await fetchGiteeRead(url, requestOptions);
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json();
       return data
@@ -533,33 +581,26 @@ export async function getUserInfo() {
   } : undefined
   
   try {
-    // 设置请求参数
-    const params = new URLSearchParams();
-    params.append('access_token', accessToken);
-    
     const requestOptions = {
-      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
       proxy,
-      // 添加超时设置
-      timeout: 10000 // 10秒超时
     };
     
-    const url = `https://gitee.com/api/v5/user?${params.toString()}`;
+    const url = 'https://gitee.com/api/v5/user';
     
-    const response = await fetch(url, requestOptions);
+    const response = await fetchGiteeRead(url, requestOptions);
+    if (!response.ok) throw new Error(`Gitee user request failed: HTTP ${response.status}`)
     const data = await response.json();
+    if (typeof data?.login !== 'string' || !data.login) throw new Error('Invalid Gitee user response')
     
     // 保存用户名到存储
     await store.set('giteeUsername', data.login);
     await store.save();
     
     return data;
-  } catch {
+  } catch (error) {
     // 不显示 toast，避免在检测过程中干扰用户
-    throw {
-      status: 0,
-      message: '获取用户信息失败'
-    };
+    throw error;
   }
 }
 
@@ -572,6 +613,7 @@ export async function checkSyncRepoState(name: string): Promise<GiteeRepoInfo | 
   }
   
   const giteeUsername = await store.get<string>('giteeUsername')
+  if (!giteeUsername) throw new Error('Gitee sync is not configured')
   
   // 获取代理设置
   const proxyUrl = await store.get<string>('proxy')
@@ -580,20 +622,14 @@ export async function checkSyncRepoState(name: string): Promise<GiteeRepoInfo | 
   } : undefined
   
   try {
-    // 设置请求参数
-    const params = new URLSearchParams();
-    params.append('access_token', accessToken);
-    
     const requestOptions = {
-      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
       proxy,
-      // 添加超时设置
-      timeout: 10000 // 10秒超时
     };
     
-    const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${name}?${params.toString()}`;
+    const url = `https://gitee.com/api/v5/repos/${encodeURIComponent(giteeUsername)}/${encodeURIComponent(name)}`;
     
-    const response = await fetch(url, requestOptions);
+    const response = await fetchGiteeRead(url, requestOptions);
     if (response.status >= 200 && response.status < 300) {
       const data = await response.json() as GiteeRepoInfo;
       return data;
@@ -601,7 +637,7 @@ export async function checkSyncRepoState(name: string): Promise<GiteeRepoInfo | 
     
     throw {
       status: response.status,
-      message: '仓库不存在'
+      message: `Gitee repository request failed: HTTP ${response.status}`
     };
   } catch (error) {
     if ((error as GiteeError).status === 404) {
@@ -619,14 +655,13 @@ export async function listUserRepositories(): Promise<string[]> {
   const proxyUrl = await store.get<string>('proxy')
   const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
   const params = new URLSearchParams({
-    access_token: accessToken,
     type: 'owner',
     sort: 'updated',
     direction: 'desc',
     per_page: '100',
   })
-  const response = await fetch(`https://gitee.com/api/v5/user/repos?${params.toString()}`, {
-    method: 'GET',
+  const response = await fetchGiteeRead(`https://gitee.com/api/v5/user/repos?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
     proxy,
   })
   if (response.status < 200 || response.status >= 300) {

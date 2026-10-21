@@ -1,5 +1,6 @@
 import type { Store } from '@tauri-apps/plugin-store'
 import { SYNC_PLATFORMS, type SyncPlatform, type CloudFolderConfig } from '@/types/sync'
+import { sanitizeSyncErrorMessage } from './remote-file'
 
 export interface PlatformSwitchRecovery {
   platform: SyncPlatform
@@ -43,6 +44,18 @@ export async function restoreInterruptedPrimaryPlatform(store: Store) {
     } else {
       // Legacy markers without an original provider cannot safely infer one.
       recovery.originalPlatform = undefined
+    }
+    if (recovery.error) {
+      const sanitized = sanitizeSyncErrorMessage(recovery.error)
+      if (sanitized !== recovery.error) {
+        recovery.error = sanitized
+        // Redaction must not block startup repair or displaying the protected
+        // recovery state if this optional migration cannot be saved.
+        try {
+          await store.set('platformSwitchRecovery', recovery)
+          await store.save()
+        } catch { console.warn('Could not save the redacted sync recovery error') }
+      }
     }
     return recovery
   })

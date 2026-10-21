@@ -515,7 +515,7 @@ class SyncPushQueue {
         const isShaMismatch =
           errorStatus === 422 ||
           errorStatus === 409 ||
-          errorMessage === 'SYNC_SWITCH_STALE' ||
+          (errorMessage === 'SYNC_SWITCH_STALE' || errorMessage.startsWith('SYNC_SWITCH_STALE: ')) ||
           errorMessage.includes('does not match') ||
           errorMessage.includes('sha') ||
           errorMessage.includes('SHA') ||

@@ -1,3 +1,6 @@
+import { redactSensitiveText } from '@/lib/diagnostics/runtime-log-buffer'
+import { isSyncStaleError, readSyncStaleDetails, syncStaleError, type SyncStaleVersion } from './sync-stale-error'
+
 function encodePath(path: string) {
   return path
     .split('/')
@@ -174,14 +177,62 @@ export function parseSyncJson<T>(content: string, path: string, shape?: 'array' 
   return parsed as T
 }
 
+export function sanitizeSyncErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message
+    : error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' ? error.message
+      : String(error)
+  const details = readSyncStaleDetails(message)
+  if (details) return syncStaleError(details).message
+  if (message.includes('\n')) return message.split('\n').map(line => sanitizeSyncErrorMessage(line)).join('\n')
+  return redactSensitiveText(message)
+}
+
 export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string) {
+  message = sanitizeSyncErrorMessage(message)
+  if (message.includes('\n')) return message.split('\n').map(line => formatSyncDataError(line, translate)).join('\n')
+  const giteeRequest = /^SYNC_GITEE_(CONNECTION|REQUEST)_FAILED: ([^\n]+)$/.exec(message)
+  if (giteeRequest) return translate(giteeRequest[1] === 'CONNECTION' ? 'giteeConnectionFailed' : 'giteeRequestFailed', { path: giteeRequest[2] })
+  // Old recovery records may contain native errors with credentials in URLs.
+  if (/error sending request for url/i.test(message)) {
+    const giteeUrl = /https:\/\/gitee\.com\/[^\s)]*/i.exec(message)
+    if (giteeUrl) {
+      try {
+        const url = new URL(giteeUrl[0])
+        return translate('giteeConnectionFailed', { path: `${url.origin}${url.pathname}` })
+      } catch { /* Keep the sanitized original error if the URL is malformed. */ }
+    }
+  }
   if (message.includes('SYNC_ONEDRIVE_UPLOAD_CONNECTION')) return translate('oneDriveUploadConnection', { path: '' })
   if (message.includes('SYNC_ONEDRIVE_UPLOAD_PENDING')) return translate('oneDriveUploadPending', { path: '' })
-  if (message === 'SYNC_SWITCH_STALE') return translate('stale', { path: '' })
+  if (isSyncStaleError(message)) {
+    const details = readSyncStaleDetails(message)
+    const summary = details?.check === 'unindexed'
+      ? translate('unindexedItemConflict', { path: details.path || '' })
+      : translate('stale', { path: '' })
+    if (!details) return summary
+    const label = (key: string, path = '') => translate(`staleDetails.${key}`, { path })
+    const unknown = label('unknown')
+    const version = (value: SyncStaleVersion | undefined) => [
+      ...(typeof value?.exists === 'boolean' ? [label(value.exists ? 'present' : 'absent')] : []),
+      // Non-Git providers may use opaque ETags instead of object hashes.
+      label(value?.sha && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value.sha) ? 'version' : 'sha', value?.sha ?? unknown),
+      label('size', value?.size != null ? `${value.size} B` : unknown),
+    ].join(' · ')
+    return [
+      summary,
+      label('stage', [label(`stages.${details.stage}`), ...(details.source ? [label(`source.${details.source}`)] : [])].join(' / ')),
+      label('file', details.path || label('unspecifiedPath')),
+      ...(details.check ? [label('check', label(`checks.${details.check === 'unindexed' ? 'content' : details.check}`))] : []),
+      label('expected', version(details.expected)),
+      label('actual', version(details.actual)),
+    ].join('\n')
+  }
   if (message === 'SYNC_SWITCH_CONDITIONAL_UNSUPPORTED') return translate('conditionalUnsupported', { path: '' })
   if (message === 'SYNC_SWITCH_RECOVERY_CHANGED') return translate('recoveryChanged', { path: '' })
-  const emptyUpload = /^SYNC_SWITCH_EMPTY_UPLOAD_UNSUPPORTED: ([^\n]+)$/.exec(message)
-  if (emptyUpload) return translate('emptyUploadUnsupported', { path: emptyUpload[1] })
+  // This guard only exists in older bundles and saved recovery markers. Keep
+  // the error visible, with instructions that can reach the Git upload path.
+  const legacyEmptyUpload = /^SYNC_SWITCH_EMPTY_UPLOAD_UNSUPPORTED: ([^\n]+)$/.exec(message)
+  if (legacyEmptyUpload) return translate('emptyUploadUnsupported', { path: legacyEmptyUpload[1] })
   const localModule = /^SYNC_SWITCH_LOCAL_VERIFY: (records|tags|canvases|conversations|settings|memories)(?: \/ ([^\n]+))?$/.exec(message)
   if (localModule) {
     const moduleLabel = translate(`modules.${localModule[1]}`, { path: '' })

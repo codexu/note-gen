@@ -4,6 +4,7 @@ import { acquireActiveSwitchBackup } from './platform-switch-backup-retention'
 import type { RemoteWriteCondition } from './write-condition'
 import { openRemoteContentCache, normalizeRemoteVersion, gitBlobVersion } from './remote-content-cache'
 import { parseSyncJson, syncDataError } from './remote-file'
+import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
 import { BaseDirectory, exists, mkdir, readFile, writeFile, remove } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import emitter from '@/lib/emitter'
@@ -55,6 +56,7 @@ interface SnapshotEntry {
   deleted?: boolean
   side?: 'local' | 'remote'
   remoteVersion?: string
+  unindexedPath?: string
 }
 type Snapshot = Record<SwitchModule, SnapshotEntry[]>
 export interface SwitchModuleSummary {
@@ -120,6 +122,55 @@ export interface SwitchOperationProgress {
 }
 type OnProgress = (progress: SwitchOperationProgress) => void
 
+function scopedStalePath(path: string, scope?: RemoteRepositoryScope) {
+  return scope ? `${scope} / ${path}` : path
+}
+function diagnosticVersion(version: string | undefined) {
+  return normalizeRemoteVersion(version) ?? undefined
+}
+async function withSwitchStaleContext<T>(task: () => Promise<T>, context: SyncStaleDetails): Promise<T> {
+  try { return await task() }
+  catch (error) { throw withSyncStaleContext(error, context, true) }
+}
+function entryDifference(
+  expected: SnapshotEntry[], actual: SnapshotEntry[], context: Pick<SyncStaleDetails, 'stage' | 'source'>,
+  module?: SwitchModule,
+): SyncStaleDetails | undefined {
+  const before = new Map(expected.map(entry => [entry.id, entry]))
+  const after = new Map(actual.map(entry => [entry.id, entry]))
+  for (const id of [...new Set([...before.keys(), ...after.keys()])].sort()) {
+    const old = before.get(id), current = after.get(id)
+    if (old && current && old.hash === current.hash) continue
+    const entry = old || current!
+    return {
+      ...context, path: entry.file ? scopedStalePath(id, entry.file.scope) : module ? `${module} / ${id}` : id,
+      check: old && current ? 'content' : 'inventory',
+      expected: { sha: old?.hash, size: old?.size, exists: Boolean(old) },
+      actual: { sha: current?.hash, size: current?.size, exists: Boolean(current) },
+    }
+  }
+}
+function inventoryDifference(
+  expected: RemoteInventoryEntry[], actual: RemoteInventoryEntry[], stage: SyncStaleDetails['stage'],
+  pathsOnly = false,
+): SyncStaleDetails | undefined {
+  const key = (entry: RemoteInventoryEntry) => `${entry.scope}:${entry.path}`
+  const before = new Map(expected.map(entry => [key(entry), entry]))
+  const after = new Map(actual.map(entry => [key(entry), entry]))
+  for (const id of [...new Set([...before.keys(), ...after.keys()])].sort()) {
+    const old = before.get(id), current = after.get(id)
+    const versionChanged = old && current && (normalizeRemoteVersion(old.sha) || old.sha) !== (normalizeRemoteVersion(current.sha) || current.sha)
+    if (old && current && (pathsOnly || (!versionChanged && (old.size ?? null) === (current.size ?? null)))) continue
+    const entry = old || current!
+    return {
+      stage, source: 'remote', path: scopedStalePath(entry.path, entry.scope),
+      check: !old || !current ? 'inventory' : versionChanged ? 'version' : 'size',
+      expected: { sha: diagnosticVersion(old?.sha), size: old?.size, exists: Boolean(old) },
+      actual: { sha: diagnosticVersion(current?.sha), size: current?.size, exists: Boolean(current) },
+    }
+  }
+}
+
 // Limit read-only work to four workers. Drain every active request before an
 // error escapes, so cleanup cannot race with a worker still writing its cache.
 async function mapSwitchEntries<T, R>(
@@ -147,7 +198,13 @@ async function mapSwitchEntries<T, R>(
       active.set(index, context.path || '')
       const report = () => onProgress({ phase, kind: 'file', ...context, activeFiles: [...active.values()].filter(Boolean), current: completed, total: items.length, processedBytes, totalBytes })
       try { report(); results[index] = await task(items[index], index); completed++; processedBytes += context.fileSize || 0 }
-      catch (error) { if (!failed) failure = error; failed = true }
+      catch (error) {
+        if (!failed) failure = withSyncStaleContext(error, {
+          stage: phase === 'backup' || phase === 'apply' || phase === 'verify' || phase === 'validate' ? phase : 'scan',
+          path: context.path, source: context.source, expected: { size: context.fileSize },
+        }, true)
+        failed = true
+      }
       finally {
         active.delete(index)
         reservedBytes -= cost
@@ -193,27 +250,46 @@ async function hash(bytes: Uint8Array) {
   const digest = await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes).buffer)
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('')
 }
-async function downloadVersionedSnapshot(file: RemoteLibraryFile, scope: RemoteRepositoryScope, platform: SyncPlatform) {
-  const downloaded = await downloadRemoteBytesWithVersion(file.path, scope, platform)
+async function downloadVersionedSnapshot(file: RemoteLibraryFile, scope: RemoteRepositoryScope, platform: SyncPlatform, stage: SyncStaleDetails['stage'] = 'scan') {
+  const downloaded = await withSwitchStaleContext(() => downloadRemoteBytesWithVersion(file.path, scope, platform), {
+    stage, source: 'remote', path: scopedStalePath(file.path, scope),
+    expected: { sha: diagnosticVersion(file.sha), size: file.size, exists: true },
+  })
   if (['github', 'gitee', 'gitlab', 'gitea'].includes(platform)) {
     const version = await gitBlobVersion(downloaded.content, file.sha.length === 64 ? 64 : 40)
-    if (downloaded.version && normalizeRemoteVersion(downloaded.version) !== version) throw new Error('SYNC_SWITCH_STALE')
+    if (downloaded.version && normalizeRemoteVersion(downloaded.version) !== version) throw syncStaleError({
+      stage, source: 'remote', path: scopedStalePath(file.path, scope), check: 'version',
+      expected: { sha: diagnosticVersion(downloaded.version), size: file.size, exists: true },
+      actual: { sha: version, size: downloaded.content.length, exists: true },
+    })
     return { content: downloaded.content, version }
   }
   return downloaded
 }
 
 async function assertRemoteEntryUnchanged(entry: SnapshotEntry, platform: SyncPlatform) {
-  const metadata = await getRemoteFileMetadata(entry.id, entry.file!.scope, platform)
-  if (!metadata || (metadata.size !== undefined && metadata.size !== entry.size)) throw new Error('SYNC_SWITCH_STALE')
+  const context: SyncStaleDetails = {
+    stage: 'apply', source: 'remote', path: scopedStalePath(entry.id, entry.file!.scope),
+    expected: { sha: diagnosticVersion(entry.remoteVersion), size: entry.size, exists: true },
+  }
+  const metadata = await withSwitchStaleContext(() => getRemoteFileMetadata(entry.id, entry.file!.scope, platform), context)
+  if (!metadata || (metadata.size !== undefined && metadata.size !== entry.size)) throw syncStaleError({
+    ...context, check: metadata ? 'size' : 'inventory',
+    actual: { sha: diagnosticVersion(metadata?.version), size: metadata?.size, exists: Boolean(metadata) },
+  })
   const expected = normalizeRemoteVersion(entry.remoteVersion)
   const actual = normalizeRemoteVersion(metadata.version)
   if (expected && actual) {
-    if (expected !== actual) throw new Error('SYNC_SWITCH_STALE')
+    if (expected !== actual) throw syncStaleError({ ...context, check: 'version', actual: { sha: diagnosticVersion(metadata.version), size: metadata.size, exists: true } })
     return
   }
   // Weak/missing validators cannot prove byte identity.
-  if (await hash(await downloadRemoteBytes(entry.id, entry.file!.scope, platform)) !== entry.hash) throw new Error('SYNC_SWITCH_STALE')
+  const bytes = await withSwitchStaleContext(() => downloadRemoteBytes(entry.id, entry.file!.scope, platform), context)
+  const actualHash = await hash(bytes)
+  if (actualHash !== entry.hash) throw syncStaleError({
+    ...context, check: 'content', expected: { sha: entry.hash, size: entry.size, exists: true },
+    actual: { sha: actualHash, size: bytes.length, exists: true },
+  })
 }
 
 function safePath(path: string) {
@@ -346,10 +422,10 @@ async function collectLocal(onProgress: OnProgress, includeFiles = true, request
   return result
 }
 
-async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, scanCachePath: string, identity: string, reuse?: PlatformSwitchPlan) {
+async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, scanCachePath: string, identity: string, local: Snapshot, reuse?: PlatformSwitchPlan) {
   const result = blank()
-  const workspaceFiles = await listRemoteLibraryFiles({ platform, includeStaticAssets: true, onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) })
-  const dataFiles = await listRemoteLibraryFiles({ platform, scope: 'data', onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) })
+  const workspaceFiles = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform, includeStaticAssets: true, onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) }), { stage: 'scan', source: 'remote', path: 'workspace', check: 'inventory' })
+  const dataFiles = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform, scope: 'data', onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) }), { stage: 'scan', source: 'remote', path: 'data', check: 'inventory' })
   const contentCache = await openRemoteContentCache(identity)
   contentCache.reconcileInventory('workspace', workspaceFiles)
   contentCache.reconcileInventory('data', dataFiles)
@@ -360,8 +436,11 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
   let cachedFiles = 0, downloadedFiles = 0
   const report: OnProgress = value => onProgress({ ...value, cachedFiles, downloadedFiles })
   const readRemote = async (file: RemoteLibraryFile, scope: RemoteRepositoryScope) => {
-    const result = await contentCache.read(scope, safePath(file.path), file.sha, file.size,
-      () => downloadVersionedSnapshot(file, scope, platform))
+    const result = await withSwitchStaleContext(() => contentCache.read(scope, safePath(file.path), file.sha, file.size,
+      () => downloadVersionedSnapshot(file, scope, platform)), {
+      stage: 'scan', source: 'remote', path: scopedStalePath(file.path, scope),
+      expected: { sha: diagnosticVersion(file.sha), size: file.size, exists: true },
+    })
     if (result.reused) cachedFiles++; else downloadedFiles++
     return result
   }
@@ -429,6 +508,42 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
       jsonValues.set(path, value)
       return value
     }
+    const collectUnindexedItems = async (
+      module: 'canvases' | 'conversations', directory: string, deleted: Set<string>,
+      parse: (value: unknown, path: string, id: string) => Promise<SnapshotEntry>,
+    ) => {
+      // An interrupted publish can leave an item without its index entry.
+      // Capture every existing canonical destination before preview/backup,
+      // rather than treating an unreferenced file as a create-only write.
+      const candidates = new Map<string, string>([...local[module], ...result[module]].map(entry => [`${directory}/${safePath(entry.id)}.json`, entry.id]))
+      const files = dataFiles.filter(file => candidates.has(file.path))
+      const recovered = await mapSwitchEntries(files, file => ({ source: 'remote', module, path: file.path, fileSize: file.size }), async (file): Promise<SnapshotEntry | undefined> => {
+        const id = candidates.get(file.path)!
+        if (deleted.has(id)) {
+          // A failed deletion can also leave an item behind. Preserve its bytes
+          // for an explicitly chosen replacement, without undoing the deletion.
+          if (!rawFiles.has(file.path)) rawFiles.set(file.path, await remoteFile(file, 'data'))
+          return undefined
+        }
+        // Validate even an already-read path: a noncanonical index entry may
+        // reference this destination while naming a different logical object.
+        const entry = await parse(await json(file.path, false), file.path, id)
+        const indexed = result[module].find(item => item.id === id)
+        if (indexed && indexed.hash !== entry.hash) {
+          // There are two different remote versions in addition to the local
+          // version. The existing two-way conflict UI cannot choose safely.
+          throw syncStaleError({
+            stage: 'scan', source: 'remote', path: scopedStalePath(file.path, 'data'), check: 'unindexed',
+            expected: { sha: indexed.hash, size: indexed.size, exists: true },
+            actual: { sha: entry.hash, size: entry.size, exists: true },
+          })
+        }
+        return indexed ? undefined : { ...entry, unindexedPath: file.path }
+      }, report)
+      // Only potential destinations are considered. Unrelated unreferenced
+      // files remain untouched rather than becoming active data automatically.
+      result[module].push(...recovered.filter((entry): entry is SnapshotEntry => entry !== undefined))
+    }
     const workspaceEntries = await mapSwitchEntries(workspaceFiles, file => ({ source: 'remote', module: /\.md$/i.test(file.path) ? 'notes' : 'assets', path: file.path, fileSize: file.size }),
       file => remoteFile(file, 'workspace'), report)
     for (const entry of workspaceEntries) result[/\.md$/i.test(entry.id) ? 'notes' : 'assets'].push(entry)
@@ -468,6 +583,11 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
         projects.push(project)
       }
       result.canvases = await Promise.all(projects.map(project => valueEntry(project.id, project.title, projectToSyncValue(project))))
+      await collectUnindexedItems('canvases', '.data/canvases/items', new Set(index?.purged.map(entry => entry.id)), async (value, path, id) => {
+        const project = normalizeRemoteCanvasProject(value)
+        if (!project || project.id !== id) throw syncDataError('INVALID_SCHEMA', `${platform} / ${path}`)
+        return valueEntry(project.id, project.title, projectToSyncValue(project))
+      })
     }
     if (state.autoSettingsSyncEnabled) {
       result.settings = await settingsEntries(record(await json('.data/settings.json') || {}))
@@ -491,6 +611,11 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
         return item
       }, report) : byPath.has(LEGACY_CHATS_SYNC_PATH) ? legacyChatsToItems(JSON.stringify(await json(LEGACY_CHATS_SYNC_PATH))) : []
       result.conversations = await Promise.all(items.map(conversationEntry))
+      await collectUnindexedItems('conversations', '.data/conversations/items', new Set(index?.deleted.filter(entry => entry.entityType === 'conversation').map(entry => entry.syncId)), async (value, path, id) => {
+        const item = parseConversationSyncItem(JSON.stringify(value))
+        if (!item || item.syncId !== id) throw syncDataError('INVALID_SCHEMA', `${platform} / ${path}`)
+        return conversationEntry(item)
+      })
     }
     const assets = dataFiles.filter(file => (state.autoRecordSyncEnabled && file.path.startsWith('.data/assets/records/')) || (state.autoConversationSyncEnabled && file.path.startsWith('.data/assets/conversations/')))
     result.dataAssets = await mapSwitchEntries(assets, file => ({ source: 'remote', module: 'dataAssets', path: file.path, fileSize: file.size }), file => remoteFile(file, 'data'), report)
@@ -524,7 +649,7 @@ async function preview(entry: SnapshotEntry, platform: SyncPlatform) {
     if (/\.md$/i.test(entry.file.path)) return `${metadata}\n\n${decoder.decode(await readEntry(entry, platform))}`
     return metadata
   }
-  return JSON.stringify(entry.value, null, 2)
+  return `${entry.unindexedPath ? `${entry.unindexedPath}\n\n` : ''}${JSON.stringify(entry.value, null, 2)}`
 }
 export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgress: OnProgress, reuse?: PlatformSwitchPlan): Promise<PlatformSwitchPlan> {
   const chat = (await import('@/stores/chat')).default.getState()
@@ -537,7 +662,7 @@ export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgre
   await mkdir(scanCachePath, { baseDir: BaseDirectory.AppData, recursive: true })
   try {
     const local = await collectLocal(onProgress)
-    const remote = await collectRemote(platform, onProgress, scanCachePath, JSON.stringify([target, workspace]), reuse)
+    const remote = await collectRemote(platform, onProgress, scanCachePath, JSON.stringify([target, workspace]), local, reuse)
     const localConversationTombstones = await import('@/db/conversation-sync-state').then(module => module.getConversationSyncTombstones())
     // Deletions are compared explicitly, rather than resurrecting deleted objects as "unique" content.
     for (const tombstone of remote.tombstones.filter(item => item.entityType === 'conversation')) {
@@ -650,9 +775,28 @@ function inventoryFingerprint(files: RemoteInventoryEntry[]) {
 
 /** Recheck identities and bytes immediately before writing; stale previews never execute. */
 export async function revalidatePlatformSwitchPlan(plan: PlatformSwitchPlan, onProgress: OnProgress) {
-  const fresh = await inspectPlatformSwitchPlan(plan.platform, value => onProgress({ ...value, phase: 'validate' }), plan)
+  const fresh = await withSwitchStaleContext(() => inspectPlatformSwitchPlan(plan.platform, value => onProgress({ ...value, phase: 'validate' }), plan), { stage: 'validate' })
   const fingerprint = (snapshot: Snapshot) => stableSyncValue(moduleIds.map(id => [id, snapshot[id].map(entry => [entry.id, entry.hash]).sort()]))
-  if (fresh.target !== plan.target || fresh.workspace !== plan.workspace || fresh.available.join() !== plan.available.join() || inventoryFingerprint(fresh.remoteInventory) !== inventoryFingerprint(plan.remoteInventory) || fingerprint(fresh.local) !== fingerprint(plan.local) || fingerprint(fresh.remote) !== fingerprint(plan.remote) || stableSyncValue(fresh.remoteDataFiles.map(entry => [entry.id, entry.hash]).sort()) !== stableSyncValue(plan.remoteDataFiles.map(entry => [entry.id, entry.hash]).sort())) throw new Error('SYNC_SWITCH_STALE')
+  // Keep the same comparisons and order, but identify the first changed entry.
+  // Target identities can contain credentials; report only safe config names.
+  if (fresh.target !== plan.target) throw syncStaleError({ stage: 'validate', path: 'syncTarget', check: 'configuration' })
+  if (fresh.workspace !== plan.workspace) throw syncStaleError({ stage: 'validate', source: 'local', path: 'workspace', check: 'configuration' })
+  if (fresh.available.join() !== plan.available.join()) throw syncStaleError({ stage: 'validate', path: 'availableModules', check: 'configuration' })
+  if (inventoryFingerprint(fresh.remoteInventory) !== inventoryFingerprint(plan.remoteInventory)) {
+    throw syncStaleError(inventoryDifference(plan.remoteInventory, fresh.remoteInventory, 'validate') || { stage: 'validate', source: 'remote', check: 'inventory' })
+  }
+  for (const source of ['local', 'remote'] as const) {
+    if (fingerprint(fresh[source]) !== fingerprint(plan[source])) {
+      for (const moduleId of moduleIds) {
+        const difference = entryDifference(plan[source][moduleId], fresh[source][moduleId], { stage: 'validate', source }, moduleId)
+        if (difference) throw syncStaleError(difference)
+      }
+      throw syncStaleError({ stage: 'validate', source, check: 'content' })
+    }
+  }
+  if (stableSyncValue(fresh.remoteDataFiles.map(entry => [entry.id, entry.hash]).sort()) !== stableSyncValue(plan.remoteDataFiles.map(entry => [entry.id, entry.hash]).sort())) {
+    throw syncStaleError(entryDifference(plan.remoteDataFiles, fresh.remoteDataFiles, { stage: 'validate', source: 'remote' }) || { stage: 'validate', source: 'remote', path: 'data', check: 'content' })
+  }
 }
 
 export async function backupPlatformSwitchPlan(plan: PlatformSwitchPlan, onProgress: OnProgress) {
@@ -666,8 +810,14 @@ export async function backupPlatformSwitchPlan(plan: PlatformSwitchPlan, onProgr
     const groups = new Map<string, SnapshotEntry[]>()
     for (const entry of files) groups.set(entry.hash, [...(groups.get(entry.hash) || []), entry])
     await mapSwitchEntries([...groups.values()], entries => ({ path: entries[0].id, fileSize: entries[0].size, source: entries[0].file?.source === 'remote' ? 'remote' : 'local' }), async (entries, index) => {
-      const bytes = await readEntry(entries[0], plan.platform)
-      if (await hash(bytes) !== entries[0].hash) throw new Error('SYNC_SWITCH_STALE')
+      const entry = entries[0]
+      const context: SyncStaleDetails = { stage: 'backup', source: entry.file?.source === 'remote' ? 'remote' : 'local', path: scopedStalePath(entry.id, entry.file?.scope) }
+      const bytes = await withSwitchStaleContext(() => readEntry(entry, plan.platform), context)
+      const actualHash = await hash(bytes)
+      if (actualHash !== entry.hash) throw syncStaleError({
+        ...context, check: 'content', expected: { sha: entry.hash, size: entry.size, exists: true },
+        actual: { sha: actualHash, size: bytes.length, exists: true },
+      })
       const backup = `${path}/${index}.bin`
       await writeFile(backup, bytes, { baseDir: BaseDirectory.AppData })
       for (const entry of entries) { entry.backup = backup; delete entry.cachedContent }
@@ -829,15 +979,17 @@ export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, st
       for (const entry of resolved[moduleId].filter(entry => entry.file)) {
         const old = plan.remote[moduleId].find(old => old.id === entry.id)
         if (old?.hash === entry.hash) continue
-        if (plan.platform === 'gitee' && entry.size === 0) {
-          throw new Error(`SYNC_SWITCH_EMPTY_UPLOAD_UNSUPPORTED: gitee / ${entry.id}`)
-        }
         if (old) touched.push(old); else creates = true
       }
       if (strategy === 'local') touched.push(...plan.remote[moduleId].filter(entry => entry.file && !resolved[moduleId].some(item => item.id === entry.id)))
     }
     for (const [path, bytes] of await wireFiles(resolved, selected, { ...plan, conversationTombstones: switchConversationTombstones(plan, strategy, resolved) })) {
       const old = plan.remoteDataFiles.find(entry => entry.id === path)
+      const listed = plan.remoteInventory.find(file => file.scope === 'data' && file.path === path)
+      if (!old && listed) throw syncStaleError({
+        stage: 'validate', source: 'remote', path: scopedStalePath(path, 'data'), check: 'inventory',
+        expected: { exists: false }, actual: { sha: diagnosticVersion(listed.sha), size: listed.size, exists: true },
+      })
       if (old?.hash === await hash(bytes)) continue
       if (old) touched.push(old); else creates = true
     }
@@ -855,7 +1007,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   const targetPlatform = plan.platform
   if (targetPlatform === 'local' || targetPlatform === 'selfHosted') throw new Error('Unsupported platform switch plan')
   if (!plan.backupPath) throw new Error('A recoverable backup is required')
-  if (await targetIdentity(plan.platform) !== plan.target) throw new Error('SYNC_SWITCH_STALE')
+  if (await targetIdentity(plan.platform) !== plan.target) throw syncStaleError({ stage: 'apply', path: 'syncTarget', check: 'configuration' })
   const resolved = await preparePlatformSwitchDecision(plan, strategy, selected, resolutions)
   const allFiles = selected.flatMap(id => resolved[id].filter(entry => entry.file))
   const tombstones = switchConversationTombstones(plan, strategy, resolved)
@@ -864,7 +1016,9 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   const expectedInventory = new Map<string, RemoteInventoryEntry>(plan.remoteInventory.map(file => [`${file.scope}:${file.path}`, file]))
   const remoteWrites = new Set<string>()
   const assertRemoteAbsent = async (path: string, scope: RemoteRepositoryScope) => {
-    if (await getRemoteFileMetadata(path, scope, plan.platform)) throw new Error('SYNC_SWITCH_STALE')
+    const context: SyncStaleDetails = { stage: 'apply', source: 'remote', path: scopedStalePath(path, scope), check: 'inventory', expected: { exists: false } }
+    const metadata = await withSwitchStaleContext(() => getRemoteFileMetadata(path, scope, plan.platform), context)
+    if (metadata) throw syncStaleError({ ...context, actual: { sha: diagnosticVersion(metadata.version), size: metadata.size, exists: true } })
   }
   const recordRemoteWrite = (path: string, scope: RemoteRepositoryScope) => {
     const key = `${scope}:${path}`
@@ -877,7 +1031,10 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     // Cancellation stops between complete journaled units, never inside a
     // database transaction, file replacement or in-flight conditional request.
     report()
-    const result = await journal.run(operation, task)
+    const result = await withSwitchStaleContext(() => journal.run(operation, task), {
+      stage: 'apply', source: operation.side, path: scopedStalePath(operation.path, operation.scope),
+      expected: operation.action === 'module' ? undefined : { sha: operation.before, exists: operation.before !== undefined },
+    })
     report()
     return result
   }
@@ -890,7 +1047,10 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   const writeRemote = async (path: string, bytes: Uint8Array, scope: RemoteRepositoryScope, old?: SnapshotEntry) => {
     onProgress({ phase: 'apply', source: 'remote', kind: 'file', path, current, total })
     await applyMutation({ side: 'remote', action: 'write', path, scope, before: old?.hash, after: await hash(bytes) },
-      () => uploadRemoteBytes(path, bytes, `Switch sync platform: ${path}`, getRemoteContentType(path), scope, conditionFor(old), targetPlatform))
+      () => withSwitchStaleContext(() => uploadRemoteBytes(path, bytes, `Switch sync platform: ${path}`, getRemoteContentType(path), scope, conditionFor(old), targetPlatform), {
+        stage: 'apply', source: 'remote', path: scopedStalePath(path, scope), check: 'version',
+        expected: { sha: diagnosticVersion(old?.remoteVersion), size: old?.size, exists: Boolean(old) },
+      }))
     recordRemoteWrite(path, scope)
   }
   const total = allFiles.length + wires.size
@@ -903,7 +1063,9 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     const oldLocal = selected.flatMap(id => plan.local[id]).find(old => old.id === entry.id && old.file?.scope === scope)
     if (oldRemote?.hash === entry.hash && (strategy === 'local' || oldLocal?.hash === entry.hash)) continue
     if (oldRemote && (strategy === 'remote' || oldRemote.hash === entry.hash)) await assertRemoteEntryUnchanged(oldRemote, plan.platform)
-    const bytes = await readEntry(entry, plan.platform)
+    const bytes = await withSwitchStaleContext(() => readEntry(entry, plan.platform), {
+      stage: 'apply', source: entry.file!.source === 'remote' ? 'remote' : 'local', path: scopedStalePath(entry.id, scope),
+    })
     if (strategy !== 'remote' && oldRemote?.hash !== entry.hash) {
       if (!oldRemote) await assertRemoteAbsent(entry.id, scope)
       await writeRemote(entry.id, bytes, scope, oldRemote)
@@ -913,10 +1075,20 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
         const article = (await import('@/stores/article')).default.getState()
         if (!await prepareActiveEditorPathMutationDurably(article.activeFilePath, [entry.id])) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
         const original = plan.local.notes.concat(plan.local.assets).find(old => old.id === entry.id)
-        if (original && await hash(await readEntry({ ...original, backup: undefined })) !== original.hash) throw new Error('SYNC_SWITCH_STALE')
+        if (original) {
+          const currentBytes = await readEntry({ ...original, backup: undefined })
+          const currentHash = await hash(currentBytes)
+          if (currentHash !== original.hash) throw syncStaleError({
+            stage: 'apply', source: 'local', path: scopedStalePath(entry.id, scope), check: 'content',
+            expected: { sha: original.hash, size: original.size, exists: true },
+            actual: { sha: currentHash, size: currentBytes.length, exists: true },
+          })
+        }
         if (!original) {
           const options = await getFilePathOptions(entry.id)
-          if (options.baseDir ? await exists(options.path, { baseDir: options.baseDir }) : await exists(options.path)) throw new Error('SYNC_SWITCH_STALE')
+          if (options.baseDir ? await exists(options.path, { baseDir: options.baseDir }) : await exists(options.path)) throw syncStaleError({
+            stage: 'apply', source: 'local', path: scopedStalePath(entry.id, scope), check: 'inventory', expected: { exists: false }, actual: { exists: true },
+          })
         }
         markEditorPathMutation(entry.id)
         await applyMutation({ side: 'local', action: 'write', path: entry.id, scope, before: original?.hash, after: entry.hash }, () => saveLocalBytes(entry.id, bytes, { platform: targetPlatform }))
@@ -928,7 +1100,13 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
         safePath(path)
         if (await exists(path, { baseDir: BaseDirectory.AppData })) {
           const old = plan.local.dataAssets.find(item => item.id === entry.id)
-          if (await hash(await readFile(path, { baseDir: BaseDirectory.AppData })) !== (old?.hash || entry.hash)) throw new Error('SYNC_SWITCH_STALE')
+          const currentBytes = await readFile(path, { baseDir: BaseDirectory.AppData })
+          const currentHash = await hash(currentBytes)
+          if (currentHash !== (old?.hash || entry.hash)) throw syncStaleError({
+            stage: 'apply', source: 'local', path: scopedStalePath(path, scope), check: 'content',
+            expected: { sha: old?.hash || entry.hash, size: (old || entry).size, exists: true },
+            actual: { sha: currentHash, size: currentBytes.length, exists: true },
+          })
         }
         await mkdir(path.split('/').slice(0, -1).join('/'), { baseDir: BaseDirectory.AppData, recursive: true })
         const old = plan.local.dataAssets.find(item => item.id === entry.id)
@@ -945,7 +1123,10 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
       onProgress({ phase: 'apply', source: 'local', kind: 'module', module: moduleId, current: moduleIndex, total: localModules.length })
       // Recheck the local domain immediately before replacing it.
       const local = await collectLocal(() => {}, false, group)
-      if (snapshotHash(local) !== snapshotHash(plan.local)) throw new Error('SYNC_SWITCH_STALE')
+      if (snapshotHash(local) !== snapshotHash(plan.local)) {
+        const difference = group.map(id => entryDifference(plan.local[id].filter(entry => !entry.deleted), local[id].filter(entry => !entry.deleted), { stage: 'apply', source: 'local' }, id)).find(item => item !== undefined)
+        throw syncStaleError(difference || { stage: 'apply', source: 'local', path: moduleId, check: 'content' })
+      }
       await applyMutation({ side: 'local', action: 'module', path: moduleId, before: snapshotHash(plan.local), after: snapshotHash(resolved) },
         () => applyLocalData(resolved, group, tombstones))
     }
@@ -965,14 +1146,23 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
       if (!entry.file || resolved[moduleId].some(item => item.id === entry.id)) continue
       if (strategy === 'local') {
         await applyMutation({ side: 'remote', action: 'delete', path: entry.id, scope: entry.file.scope, before: entry.hash }, async () => {
-          if (!await deleteRemoteFile(entry.id, entry.file!.scope, conditionFor(entry), targetPlatform)) throw new Error(`Failed to remove remote file: ${entry.id}`)
+          if (!await withSwitchStaleContext(() => deleteRemoteFile(entry.id, entry.file!.scope, conditionFor(entry), targetPlatform), {
+            stage: 'apply', source: 'remote', path: scopedStalePath(entry.id, entry.file!.scope), check: 'version',
+            expected: { sha: diagnosticVersion(entry.remoteVersion), size: entry.size, exists: true },
+          })) throw new Error(`Failed to remove remote file: ${entry.id}`)
         })
         expectedInventory.delete(`${entry.file.scope}:${entry.id}`)
         remoteWrites.add(`${entry.file.scope}:${entry.id}`)
       } else if (entry.file.scope === 'workspace') {
         const article = (await import('@/stores/article')).default.getState()
         if (!await prepareActiveEditorPathMutationDurably(article.activeFilePath, [entry.id])) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
-        if (await hash(await readEntry({ ...entry, backup: undefined })) !== entry.hash) throw new Error('SYNC_SWITCH_STALE')
+        const currentBytes = await readEntry({ ...entry, backup: undefined })
+        const currentHash = await hash(currentBytes)
+        if (currentHash !== entry.hash) throw syncStaleError({
+          stage: 'apply', source: 'local', path: scopedStalePath(entry.id, entry.file.scope), check: 'content',
+          expected: { sha: entry.hash, size: entry.size, exists: true },
+          actual: { sha: currentHash, size: currentBytes.length, exists: true },
+        })
         const options = await getFilePathOptions(entry.id)
         markEditorPathMutation(entry.id)
         await applyMutation({ side: 'local', action: 'delete', path: entry.id, scope: 'workspace', before: entry.hash }, async () => {
@@ -1002,20 +1192,30 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   }, targetPlatform)
   const reportInventory = (path: string, files: number) => onProgress({ phase: 'verify', source: 'remote', kind: 'directory', path, current: files, total: 0 })
   onProgress({ phase: 'verify', source: 'remote', kind: 'directory', current: 0, total: 0 })
-  const workspaceInventory = await listRemoteLibraryFiles({ platform: plan.platform, includeStaticAssets: true, onListProgress: reportInventory })
-  const dataInventory = await listRemoteLibraryFiles({ platform: plan.platform, scope: 'data', onListProgress: reportInventory })
+  const workspaceInventory = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform: plan.platform, includeStaticAssets: true, onListProgress: reportInventory }), { stage: 'verify', source: 'remote', path: 'workspace', check: 'inventory' })
+  const dataInventory = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform: plan.platform, scope: 'data', onListProgress: reportInventory }), { stage: 'verify', source: 'remote', path: 'data', check: 'inventory' })
   const currentRemote = new Map<string, RemoteLibraryFile>([
     ...workspaceInventory.map(file => [`workspace:${file.path}`, file] as const),
     ...dataInventory.map(file => [`data:${file.path}`, file] as const),
   ])
   // Compare path sets, not counts: a concurrent addition plus deletion is still
   // a change. Account for our own writes/deletes before comparing versions.
-  if (currentRemote.size !== expectedInventory.size) throw new Error('SYNC_SWITCH_STALE')
+  if (currentRemote.size !== expectedInventory.size) throw syncStaleError(inventoryDifference([...expectedInventory.values()], [
+    ...workspaceInventory.map(file => ({ ...file, scope: 'workspace' as const })),
+    ...dataInventory.map(file => ({ ...file, scope: 'data' as const })),
+  ], 'verify', true) || { stage: 'verify', source: 'remote', check: 'inventory' })
   for (const [key, expected] of expectedInventory) {
     const actual = currentRemote.get(key)
-    if (!actual) throw new Error('SYNC_SWITCH_STALE')
+    const context: SyncStaleDetails = {
+      stage: 'verify', source: 'remote', path: scopedStalePath(expected.path, expected.scope),
+      expected: { sha: diagnosticVersion(expected.sha), size: expected.size, exists: true },
+      actual: { sha: diagnosticVersion(actual?.sha), size: actual?.size, exists: Boolean(actual) },
+    }
+    if (!actual) throw syncStaleError({ ...context, check: 'inventory' })
     if (!remoteWrites.has(key) && ((normalizeRemoteVersion(actual.sha) || actual.sha) !== (normalizeRemoteVersion(expected.sha) || expected.sha)
-      || actual.size !== expected.size)) throw new Error('SYNC_SWITCH_STALE')
+      || actual.size !== expected.size)) throw syncStaleError({
+      ...context, check: (normalizeRemoteVersion(actual.sha) || actual.sha) !== (normalizeRemoteVersion(expected.sha) || expected.sha) ? 'version' : 'size',
+    })
   }
   const originalRemote = new Map<string, SnapshotEntry>([
     ...selected.flatMap(id => plan.remote[id]).filter(entry => entry.file).map(entry => [`${entry.file!.scope}:${entry.id}`, entry] as const),
@@ -1026,9 +1226,12 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
   verifiedCache.reconcileInventory('data', dataInventory)
   let cachedFiles = 0, downloadedFiles = 0
   const verificationProgress: OnProgress = value => onProgress({ ...value, cachedFiles, downloadedFiles })
-  const verifyRemote = async (path: string, scope: RemoteRepositoryScope, expectedHash: string) => {
+  const verifyRemote = async (path: string, scope: RemoteRepositoryScope, expectedHash: string, expectedSize?: number) => {
     const metadata = currentRemote.get(`${scope}:${path}`)
-    if (!metadata) throw new Error(`Verification failed: ${path}`)
+    if (!metadata) throw syncStaleError({
+      stage: 'verify', source: 'remote', path: scopedStalePath(path, scope), check: 'inventory',
+      expected: { sha: expectedHash, size: expectedSize, exists: true }, actual: { exists: false },
+    })
     const previous = originalRemote.get(`${scope}:${path}`)
     const version = normalizeRemoteVersion(metadata.sha)
     if (previous?.hash === expectedHash && version && previous.remoteVersion === version
@@ -1036,27 +1239,46 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
       cachedFiles++
       return
     }
-    const loaded = await verifiedCache.read(scope, path, metadata.sha, metadata.size,
-      () => downloadVersionedSnapshot(metadata, scope, plan.platform))
+    const loaded = await withSwitchStaleContext(() => verifiedCache.read(scope, path, metadata.sha, metadata.size,
+      () => downloadVersionedSnapshot(metadata, scope, plan.platform, 'verify')), {
+      stage: 'verify', source: 'remote', path: scopedStalePath(path, scope),
+      expected: { sha: diagnosticVersion(metadata.sha), size: metadata.size, exists: true },
+    })
     if (loaded.reused) cachedFiles++; else downloadedFiles++
-    if (loaded.hash !== expectedHash) throw new Error(`Verification failed: ${path}`)
+    if (loaded.hash !== expectedHash) throw syncStaleError({
+      stage: 'verify', source: 'remote', path: scopedStalePath(path, scope), check: 'content',
+      expected: { sha: expectedHash, size: expectedSize, exists: true },
+      actual: { sha: loaded.hash, size: loaded.bytes.length, exists: true },
+    })
   }
   try {
     await mapSwitchEntries(allFiles, entry => ({ source: 'remote', path: entry.id, fileSize: entry.size }), async entry => {
-      await verifyRemote(entry.id, entry.file!.scope, entry.hash)
+      await verifyRemote(entry.id, entry.file!.scope, entry.hash, entry.size)
       if (strategy !== 'local') {
         const localFile = { ...entry, backup: undefined, file: { ...entry.file!, path: entry.id, source: entry.file!.scope === 'workspace' ? 'workspace' as const : 'appData' as const, localPath: entry.file!.scope === 'data' ? entry.file!.localPath || (entry.id.startsWith('.data/assets/records/') ? entry.id.slice('.data/assets/records/'.length) : `conversation-assets/${entry.id.split('/').pop()}`) : undefined } }
-        if (await hash(await readEntry(localFile)) !== entry.hash) throw new Error(`Local verification failed: ${entry.id}`)
+        const bytes = await readEntry(localFile)
+        const actualHash = await hash(bytes)
+        if (actualHash !== entry.hash) throw syncStaleError({
+          stage: 'verify', source: 'local', path: scopedStalePath(entry.id, entry.file!.scope), check: 'content',
+          expected: { sha: entry.hash, size: entry.size, exists: true },
+          actual: { sha: actualHash, size: bytes.length, exists: true },
+        })
       }
     }, verificationProgress, 'verify')
     if (strategy !== 'remote') await mapSwitchEntries([...wires], ([path, bytes]) => ({ source: 'remote', path, fileSize: bytes.length }), async ([path, bytes]) => {
-      await verifyRemote(path, 'data', await hash(bytes))
+      await verifyRemote(path, 'data', await hash(bytes), bytes.length)
     }, verificationProgress, 'verify')
   } finally { await verifiedCache.commit() }
   if (strategy !== 'merge') {
     const actual = strategy === 'local' ? workspaceInventory : await listLocalLibraryFiles({ includeStaticAssets: true })
     const expected = new Set(allFiles.filter(entry => entry.file!.scope === 'workspace').map(entry => entry.id))
-    if (actual.some(file => selected.includes(/\.md$/i.test(file.path) ? 'notes' : 'assets') && !expected.has(file.path))) throw new Error('SYNC_SWITCH_STALE')
+    if (actual.some(file => selected.includes(/\.md$/i.test(file.path) ? 'notes' : 'assets') && !expected.has(file.path))) {
+      const extra = actual.find(file => selected.includes(/\.md$/i.test(file.path) ? 'notes' : 'assets') && !expected.has(file.path))!
+      throw syncStaleError({
+        stage: 'verify', source: strategy === 'local' ? 'remote' : 'local', path: scopedStalePath(extra.path, 'workspace'), check: 'inventory',
+        expected: { exists: false }, actual: { exists: true },
+      })
+    }
   }
   // Verify persisted structured content as well as transferred bytes.
   const actualLocal = await collectLocal(value => onProgress({ ...value, phase: 'verify' }), false, selected)
@@ -1126,7 +1348,7 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
   if (chat.loading || chat.agentState.isRunning) throw new Error('SYNC_SWITCH_CHAT_BUSY')
   const journalData = await readSwitchJournal(path)
   const workspace = (await import('@/stores/setting')).default.getState().workspacePath
-  if (journalData.workspace !== workspace) throw new Error('SYNC_SWITCH_STALE')
+  if (journalData.workspace !== workspace) throw syncStaleError({ stage: 'restore', source: 'local', path: 'workspace', check: 'configuration' })
   const manifest = JSON.parse(decoder.decode(await readFile(`${path}/manifest.json`, { baseDir: BaseDirectory.AppData }))) as PlatformSwitchPlan & { version: number }
   if (manifest.version !== 1 || manifest.workspace !== workspace || !manifest.local
     || moduleIds.some(id => !Array.isArray(manifest.local[id]))) throw new Error('Invalid sync recovery manifest')
@@ -1193,24 +1415,28 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
     if (current !== op.before && current !== op.after) throw new Error('SYNC_SWITCH_RECOVERY_CHANGED')
     return current
   }
-  for (const op of operations) await check(op)
+  const recoveryContext = (op: typeof operations[number]): SyncStaleDetails => ({
+    stage: 'restore', source: 'local', path: scopedStalePath(op.path, op.scope),
+    expected: op.action === 'module' ? undefined : { sha: op.before, size: originalFile(op)?.size, exists: op.before !== undefined },
+  })
+  for (const op of operations) await withSwitchStaleContext(() => check(op), recoveryContext(op))
   const journal = await openSwitchJournal(path, workspace, journalData)
   await journal.status('restoring')
   const activePath = (await import('@/stores/article')).default.getState().activeFilePath
   if (!await prepareActiveEditorPathMutationDurably(activePath, operations.filter(op => op.scope === 'workspace').map(op => op.path))) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
   for (const [index, op] of [...operations].reverse().entries()) {
     onProgress({ phase: 'apply', source: 'local', path: op.path, current: index, total: operations.length })
-    if (await check(op) === comparableFingerprint(op, op.before)) continue // Also makes interrupted restoration resumable.
+    if (await withSwitchStaleContext(() => check(op), recoveryContext(op)) === comparableFingerprint(op, op.before)) continue // Also makes interrupted restoration resumable.
     if (op.action === 'module') {
       const moduleId = op.path as SwitchModule
-      await applyLocalData(manifest.local, moduleId === 'records' ? ['records', 'tags'] : [moduleId], manifest.localConversationTombstones)
+      await withSwitchStaleContext(() => applyLocalData(manifest.local, moduleId === 'records' ? ['records', 'tags'] : [moduleId], manifest.localConversationTombstones), recoveryContext(op))
     } else {
       const original = originalFile(op)
       if (original) {
         const bytes = await readEntry(original)
         if (op.scope === 'workspace') {
           markEditorPathMutation(op.path)
-          await saveLocalBytes(op.path, bytes)
+          await withSwitchStaleContext(() => saveLocalBytes(op.path, bytes), recoveryContext(op))
           if (/\.md$/i.test(op.path)) emitter.emit('sync-content-updated', { path: op.path, content: decoder.decode(bytes) })
         } else await writeFile(op.path, bytes, { baseDir: BaseDirectory.AppData })
       } else {
@@ -1220,7 +1446,11 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
         if (op.scope === 'workspace') await (await import('@/stores/article')).default.getState().cleanTabsByDeletedFile(op.path)
       }
     }
-    if (await check(op) !== comparableFingerprint(op, op.before)) throw new Error('Local recovery verification failed')
+    const actual = await withSwitchStaleContext(() => check(op), recoveryContext(op))
+    if (actual !== comparableFingerprint(op, op.before)) throw syncStaleError({
+      ...recoveryContext(op), check: 'content',
+      actual: op.action === 'module' ? undefined : { sha: actual, exists: actual !== undefined },
+    })
   }
   await journal.status('restored')
 }

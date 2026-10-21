@@ -26,6 +26,7 @@ import type { AgentPermissionMode } from '@/lib/agent/types'
 import type { SyncPlatform } from '@/types/sync'
 import { getWorkspaceSyncRepos, setWorkspaceSyncRepo } from '@/lib/sync/workspace-repos'
 import { restoreInterruptedPrimaryPlatform, withPrimaryPlatformLock, type PlatformSwitchRecovery } from '@/lib/sync/platform-switch-recovery'
+import { syncStaleError } from '@/lib/sync/sync-stale-error'
 import {
   DEFAULT_EDITOR_CONTENT_WIDTH,
   DEFAULT_EDITOR_LINE_HEIGHT,
@@ -1503,7 +1504,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
   commitVerifiedPrimaryBackupMethod: async (method: 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted', onProgress?: (step: 'preparing' | 'saving' | 'starting' | 'reconciling') => void, strategy: InitialDataSyncStrategy = 'auto', reconcile?: () => Promise<void>, assertActive?: () => void) => {
     assertActive?.()
     const pendingRecovery = await (await Store.load('store.json')).get<PlatformSwitchRecovery>('platformSwitchRecovery')
-    if (pendingRecovery && (pendingRecovery.commitPlatform ?? pendingRecovery.platform) !== method) throw new Error('SYNC_SWITCH_STALE')
+    if (pendingRecovery && (pendingRecovery.commitPlatform ?? pendingRecovery.platform) !== method) throw syncStaleError({ stage: 'verify', path: 'platformSwitchRecovery / commitPlatform', check: 'configuration' })
     if (method === get().primaryBackupMethod && !reconcile && (pendingRecovery?.commitPlatform ?? pendingRecovery?.platform) !== method) return
 
     const [{ getSyncPushQueue }, autoDataSyncQueue] = await Promise.all([
@@ -1530,11 +1531,11 @@ const useSettingStore = create<SettingState>((set, get) => ({
       onProgress?.('saving')
       await withPrimaryPlatformLock(async () => {
         assertActive?.()
-        if (get().primaryBackupMethod !== previous) throw new Error('SYNC_SWITCH_STALE')
+        if (get().primaryBackupMethod !== previous) throw syncStaleError({ stage: 'verify', path: 'primaryBackupMethod', check: 'configuration' })
         const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
-        if (await store.get('primaryBackupMethod') !== previous) throw new Error('SYNC_SWITCH_STALE')
-        if (recovery && (recovery.commitPlatform ?? recovery.platform) !== method) throw new Error('SYNC_SWITCH_STALE')
-        if (pendingRecovery && (!recovery || recovery.startedAt !== pendingRecovery.startedAt || recovery.platform !== pendingRecovery.platform)) throw new Error('SYNC_SWITCH_STALE')
+        if (await store.get('primaryBackupMethod') !== previous) throw syncStaleError({ stage: 'verify', path: 'primaryBackupMethod / store.json', check: 'configuration' })
+        if (recovery && (recovery.commitPlatform ?? recovery.platform) !== method) throw syncStaleError({ stage: 'verify', path: 'platformSwitchRecovery / commitPlatform', check: 'configuration' })
+        if (pendingRecovery && (!recovery || recovery.startedAt !== pendingRecovery.startedAt || recovery.platform !== pendingRecovery.platform)) throw syncStaleError({ stage: 'verify', path: 'platformSwitchRecovery', check: 'configuration' })
         assertActive?.()
         const completesSwitch = (recovery?.commitPlatform ?? recovery?.platform) === method
         let changed = false
@@ -1576,7 +1577,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
       await assertActive()
       const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
       if (!recovery || recovery.platform !== method || !recovery.error
-        || get().primaryBackupMethod !== previous || await store.get('primaryBackupMethod') !== previous) throw new Error('SYNC_SWITCH_STALE')
+        || get().primaryBackupMethod !== previous || await store.get('primaryBackupMethod') !== previous) throw syncStaleError({ stage: 'validate', path: 'platformSwitchRecovery / primaryBackupMethod', check: 'configuration' })
       const skipped: PlatformSwitchRecovery = {
         ...recovery, resolution: 'skipped', originalPlatform: method, commitPlatform: undefined,
         skippedFromPlatform: recovery.skippedFromPlatform ?? recovery.originalPlatform ?? previous,

@@ -19,11 +19,17 @@ const SENSITIVE_KEY_PATTERN = /authorization|cookie|token|password|passphrase|se
 const IDENTIFIER_KEY_PATTERN = /account.?id|device.?id|workspace.?id|object.?id|profile.?id|local.?identity|logical.?key|file.?name|(?:^|_)path$/i
 const CONTENT_KEY_PATTERN = /^(?:content|body|markdown|prompt|messages|note|document|selectedText)$/i
 
-export function redactDiagnosticText(value: string): string {
-  const redacted = value
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer <redacted>')
+/** Remove credentials without truncating user-facing paths or error details. */
+export function redactSensitiveText(value: string): string {
+  return value
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 <redacted>')
     .replace(/((?:access|refresh|api|auth)[_-]?token|password|passphrase|secret|cookie|authorization|(?:private|recovery)[_-]?key|credential|totp)(["']?\s*[=:]\s*["']?)[^\s,;"'}]+/gi, '$1$2<redacted>')
     .replace(/([?&](?:token|api[_-]?key|key|secret|password|code|authorization)=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/(https?:\/\/)[^/?#\s]+@/gi, '$1<redacted>@')
+}
+
+export function redactDiagnosticText(value: string): string {
+  const redacted = redactSensitiveText(value)
     .replace(/[A-Z]:\\(?:[^\\\s]+\\)+[^\s"']*/gi, '<path>')
     .replace(/\/(?:Users|home|var|private|tmp)\/[^\s"']+(?:\/[^\s"']*)?/g, '<path>')
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '<email>')

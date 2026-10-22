@@ -1,4 +1,5 @@
 'use client'
+import { resolveSpeechRequestTarget } from '@/lib/speech/request-target'
 import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
 import { NoteGenModelLabel } from '@/components/notegen-model-label'
 import { Button } from "@/components/ui/button"
@@ -120,7 +121,8 @@ export default function ModelCard({
 
   const checkModelStatus = async (model: ModelConfig, aiConfig: AiConfig, signal?: AbortSignal) => {
     try {
-      if (!model.model || !aiConfig.baseURL) return false
+      const hasSpeechEndpoint = (model.modelType === 'tts' || model.modelType === 'stt') && Boolean(model.audioEndpoint)
+      if (!model.model || (!aiConfig.baseURL && !hasSpeechEndpoint)) return false
 
       const fullAiConfig: AiConfig = {
         ...aiConfig,
@@ -172,8 +174,7 @@ export default function ModelCard({
         case 'tts':
           const testAudioText = '测试音频生成'
           const ttsBuffer = await invokeAiBinary({
-            config: requestConfig,
-            path: '/audio/speech',
+            ...resolveSpeechRequestTarget(requestConfig, model.audioEndpoint, '/audio/speech'),
             method: 'POST',
             body: {
               model: model.model,
@@ -187,11 +188,11 @@ export default function ModelCard({
           return true
 
         case 'stt':
+          const sttTarget = resolveSpeechRequestTarget(requestConfig, model.audioEndpoint, '/audio/transcriptions')
           const testAudioBlob = new Blob([new Uint8Array(100)], { type: 'audio/webm' })
           try {
             await invokeAiMultipart({
-              config: requestConfig,
-              path: '/audio/transcriptions',
+              ...sttTarget,
               fileFieldName: 'file',
               fields: {
                 model: model.model
@@ -518,6 +519,19 @@ export default function ModelCard({
                     </FieldGroup>
                   </CollapsibleContent>
                 </Collapsible>
+              )}
+
+              {(modelConfig.modelType === 'tts' || modelConfig.modelType === 'stt') && (
+                <Field>
+                  <FieldLabel htmlFor={`audio-endpoint-${modelConfig.id}`}>{t('audioEndpoint')}</FieldLabel>
+                  <Input
+                    id={`audio-endpoint-${modelConfig.id}`}
+                    value={modelConfig.audioEndpoint || ''}
+                    onChange={event => onUpdate(modelConfig.id, 'audioEndpoint', event.target.value)}
+                    placeholder={`https://example.com/v1/audio/${modelConfig.modelType === 'tts' ? 'speech' : 'transcriptions'}`}
+                  />
+                  <FieldDescription>{t('audioEndpointDesc')}</FieldDescription>
+                </Field>
               )}
 
               {modelConfig.modelType === 'tts' && (

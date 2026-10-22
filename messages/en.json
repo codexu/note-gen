@@ -3092,6 +3092,8 @@
       }
     },
     "ai": {
+      "audioEndpoint": "Speech endpoint (optional)",
+      "audioEndpointDesc": "Full URL for an OpenAI-compatible HTTP speech API. Leave blank to use the provider URL with the standard audio path. Realtime WebSocket APIs are not supported here.",
       "title": "Model Platforms",
       "menuTitle": "Model Services",
       "desc": "Manage AI model platforms, credentials, and models for chat, organization, knowledge base, and voice features in one place.",

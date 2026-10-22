@@ -2607,6 +2607,8 @@
       "actionFailed": "連線操作失敗"
     },
     "ai": {
+      "audioEndpoint": "語音端點網址（選填）",
+      "audioEndpointDesc": "填寫相容 OpenAI 的 HTTP 語音 API 完整網址。留空時，在服務商網址後加上標準音訊路徑。此處不支援即時 WebSocket API。",
       "title": "模型平台",
       "menuTitle": "模型服務",
       "desc": "集中管理 AI 模型平台、連線憑證和不同能力的模型，可用於對話、整理、知識庫和語音等功能。",

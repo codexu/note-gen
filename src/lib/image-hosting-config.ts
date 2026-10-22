@@ -1,5 +1,6 @@
 export type ImageHostingType =
   | 'github'
+  | 'gitea'
   | 'smms'
   | 'picgo'
   | 's3'
@@ -13,6 +14,7 @@ export type ImageHostingType =
 
 export const IMAGE_HOSTING_TYPES: ImageHostingType[] = [
   'github',
+  'gitea',
   'smms',
   'picgo',
   's3',

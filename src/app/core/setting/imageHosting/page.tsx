@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
+import { GiteaImageHosting } from './gitea'
 import { GithubImageHosting } from './github'
 import PicgoImageHosting from './picgo'
 import {
@@ -68,6 +69,7 @@ type ImageHostingSection = 'local' | ImageHostingType
 
 const IMAGE_HOSTING_ICONS: Record<ImageHostingType, LucideIcon> = {
   github: GitBranch,
+  gitea: GitBranch,
   smms: ImageIcon,
   picgo: UploadCloud,
   s3: Database,
@@ -179,6 +181,8 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
 
   function renderProviderSettings() {
     switch (provider) {
+      case 'gitea':
+        return <GiteaImageHosting />
       case 'github':
         return <GithubImageHosting />
       case 'smms':
@@ -420,6 +424,8 @@ function getProviderName(
   t: ReturnType<typeof useTranslations>,
 ) {
   switch (provider) {
+    case 'gitea':
+      return t('settings.imageHosting.gitea.title')
     case 'github':
       return t('settings.imageHosting.github.title')
     case 'smms':
@@ -450,6 +456,8 @@ function getProviderDescription(
   t: ReturnType<typeof useTranslations>,
 ) {
   switch (provider) {
+    case 'gitea':
+      return t('settings.imageHosting.gitea.description')
     case 'github':
       return t('settings.imageHosting.github.description')
     case 'smms':

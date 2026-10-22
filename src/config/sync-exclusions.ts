@@ -217,6 +217,7 @@ export const SENSITIVE_SYNC_EXCLUDED_FIELDS: string[] = [
   'smms',
   'picgo',
   'lskyImageConfig',
+  'giteaImageConfig',
   'webdavImageConfig',
   'customHttpImageConfig',
   'cloudinaryImageConfig',

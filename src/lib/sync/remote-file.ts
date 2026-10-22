@@ -187,7 +187,7 @@ export function sanitizeSyncErrorMessage(error: unknown): string {
   return redactSensitiveText(message)
 }
 
-export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string) {
+export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string): string {
   message = sanitizeSyncErrorMessage(message)
   if (message.includes('\n')) return message.split('\n').map(line => formatSyncDataError(line, translate)).join('\n')
   const giteeRequest = /^SYNC_GITEE_(CONNECTION|REQUEST)_FAILED: ([^\n]+)$/.exec(message)

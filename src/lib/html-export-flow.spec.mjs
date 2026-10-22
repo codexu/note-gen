@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 import { build } from 'esbuild'
 import { customizeHtmlExport } from './html-export-customization.js'
 
 const editorModule = new URL('../app/core/main/editor/markdown/markdown-export.ts', import.meta.url)
+const editorPath = fileURLToPath(editorModule)
 const fixture = '<!DOCTYPE html><html><head></head><body><p>Note</p></body></html>'
 let captured
 let config = { css: 'p { color: red }', javascript: 'window.custom = true' }
@@ -16,7 +19,7 @@ const source = await readFile(editorModule, 'utf8') + `
   notifyPdfRenderStart = async () => {};
 `
 const bundled = await build({
-  stdin: { contents: source, sourcefile: editorModule.pathname, resolveDir: new URL('.', editorModule).pathname, loader: 'ts' },
+  stdin: { contents: source, sourcefile: editorPath, resolveDir: dirname(editorPath), loader: 'ts' },
   bundle: true, platform: 'node', format: 'cjs', write: false,
   plugins: [{ name: 'export-boundaries', setup(build) {
     build.onResolve({ filter: /.*/ }, args => args.path === '@tauri-apps/plugin-os'

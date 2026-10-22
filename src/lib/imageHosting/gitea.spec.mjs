@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { File } from 'node:buffer'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
 const require = createRequire(import.meta.url)
 const config = { baseUrl: 'https://git.example.org/gitea/', repository: 'team/images', token: 'secret', pathPrefix: 'images/截图' }
 let saved, handler, requests
 const bundled = await build({
-  entryPoints: [new URL('./gitea.ts', import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL('./gitea.ts', import.meta.url))],
   bundle: true, packages: 'external', platform: 'node', format: 'cjs', write: false,
 })
 const compiledModule = { exports: {} }

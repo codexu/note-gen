@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { win32, posix } from 'node:path'
 import { test } from 'node:test'
 import { build } from 'esbuild'
@@ -7,7 +8,7 @@ import { build } from 'esbuild'
 const require = createRequire(import.meta.url)
 let workspace, appDir, paths, mobile, calls, failure
 const bundled = await build({
-  entryPoints: [new URL('./file-manager.ts', import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL('./file-manager.ts', import.meta.url))],
   bundle: true, packages: 'external', platform: 'node', format: 'cjs', write: false,
   plugins: [{ name: 'platform-check', setup(build) {
     build.onResolve({ filter: /^@\/lib\/check$/ }, args => ({ path: args.path, external: true }))

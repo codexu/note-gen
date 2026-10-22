@@ -1109,6 +1109,12 @@
       }
     },
     "editor": {
+      "htmlExport": {
+        "title": "HTML 导出",
+        "desc": "为导出的 HTML 文件添加 CSS 和 JavaScript。JavaScript 会在打开导出文件时运行。这些设置不影响编辑器或 PDF 导出。",
+        "css": "自定义 CSS",
+        "javascript": "自定义 JavaScript"
+      },
       "title": "编辑器设置",
       "desc": "在这里，你可以对编辑器进行自定义配置，打造更适合你的写作方式。",
       "layout": {

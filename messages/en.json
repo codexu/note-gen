@@ -1109,6 +1109,12 @@
       }
     },
     "editor": {
+      "htmlExport": {
+        "title": "HTML export",
+        "desc": "Add CSS and JavaScript to exported HTML files. JavaScript runs when the exported file is opened. These settings do not affect the editor or PDF export.",
+        "css": "Custom CSS",
+        "javascript": "Custom JavaScript"
+      },
       "title": "Editor Settings",
       "desc": "Here, you can customize the editor, creating a writing experience tailored to your needs.",
       "layout": {

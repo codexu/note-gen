@@ -10,6 +10,7 @@ import LayoutSettings from './layout-settings';
 import { ItemGroup } from '@/components/ui/item';
 import EditorMode from './editor-mode';
 import ShowSourceLineNumbers from './show-source-line-numbers';
+import HtmlExportSettings from './html-export';
 import SourceWrap from './source-wrap';
 import useSettingStore from '@/stores/setting';
 
@@ -39,6 +40,7 @@ export default function EditorSettingPage() {
           <ShowUndoRedo />
         </ItemGroup>
       </SettingSection>
+      <HtmlExportSettings />
     </div>
   </SettingType>
 }

@@ -15,12 +15,11 @@ import { Store } from '@tauri-apps/plugin-store';
 import { RepoNames } from "@/lib/sync/github.types";
 import { S3Config, WebDAVConfig } from "@/types/sync";
 import { cloneDeep } from "lodash-es";
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { showWorkspaceItemInFileManager } from '@/lib/file-manager'
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import useClipboardStore from "@/stores/clipboard";
-import { appDataDir, join } from '@tauri-apps/api/path';
 import { deleteFile } from "@/lib/sync/github";
 import { deleteFile as deleteGiteeFile } from "@/lib/sync/gitee";
 import { deleteFile as deleteGitlabFile } from "@/lib/sync/gitlab";
@@ -678,19 +677,8 @@ export function FileItem({
   }
 
   async function handleShowFileManager() {
-    const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-    const workspace = await getWorkspacePath()
-    const isMobile = isMobileDevice()
-    const targetPath = isMobile ? path.split('/').slice(0, -1).join('/') : path
-    const openInFileManager = isMobile ? openPath : revealItemInDir
-
-    if (workspace.isCustom) {
-      const pathOptions = await getFilePathOptions(targetPath)
-      await openInFileManager(pathOptions.path)
-    } else {
-      const appDir = await appDataDir()
-      await openInFileManager(await join(appDir, 'article', targetPath))
-    }
+    const targetPath = isMobileDevice() ? path.split('/').slice(0, -1).join('/') : path
+    await showWorkspaceItemInFileManager(targetPath)
   }
 
   function handleDragStart(ev: React.DragEvent<HTMLElement>) {

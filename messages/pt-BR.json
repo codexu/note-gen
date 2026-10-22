@@ -339,7 +339,9 @@
             "accent": "Cor de destaque",
             "accentForeground": "Cor do texto (destaque)",
             "border": "Cor da borda",
-            "shadow": "Cor da sombra"
+            "shadow": "Cor da sombra",
+            "inlineCodeForeground": "Texto do código em linha",
+            "inlineCodeBackground": "Fundo do código em linha"
           }
         },
         "themePackage": {

@@ -255,6 +255,11 @@
   font-size: 0.9em;
 }
 
+.tiptap-editor .ProseMirror :not(pre) > code {
+  background-color: hsl(var(--inline-code-background, var(--muted) / 0.5));
+  color: hsl(var(--inline-code-foreground, var(--foreground)));
+}
+
 /* 代码块 */
 .tiptap-editor .ProseMirror .code-block-wrapper {
   position: relative;
@@ -1201,6 +1206,10 @@
 /* 暗色模式适配 */
 .dark .tiptap-editor .ProseMirror code {
   background-color: hsl(var(--muted) / 0.3);
+}
+
+.dark .tiptap-editor .ProseMirror :not(pre) > code {
+  background-color: hsl(var(--inline-code-background, var(--muted) / 0.3));
 }
 
 .dark .tiptap-editor .ProseMirror pre {

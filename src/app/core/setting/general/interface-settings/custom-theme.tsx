@@ -43,6 +43,8 @@ interface ColorScheme {
     accentForeground: string
     border: string
     shadow: string
+    inlineCodeForeground?: string
+    inlineCodeBackground?: string
   }
 }
 
@@ -126,6 +128,8 @@ export function CustomThemeSettings() {
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
         shadow: hexToHsl(preset.colors.shadow),
+        inlineCodeForeground: preset.colors.inlineCodeForeground ? hexToHsl(preset.colors.inlineCodeForeground) : null,
+        inlineCodeBackground: preset.colors.inlineCodeBackground ? hexToHsl(preset.colors.inlineCodeBackground) : null,
       },
       dark: {
         background: hexToHsl(preset.colors.background),
@@ -144,6 +148,8 @@ export function CustomThemeSettings() {
         accentForeground: hexToHsl(preset.colors.accentForeground),
         border: hexToHsl(preset.colors.border),
         shadow: hexToHsl(preset.colors.shadow),
+        inlineCodeForeground: preset.colors.inlineCodeForeground ? hexToHsl(preset.colors.inlineCodeForeground) : null,
+        inlineCodeBackground: preset.colors.inlineCodeBackground ? hexToHsl(preset.colors.inlineCodeBackground) : null,
       },
     }
 
@@ -185,6 +191,8 @@ export function CustomThemeSettings() {
         accentForeground: hslToHex(customThemeColors.light.accentForeground || [0, 0, 0]),
         border: hslToHex(customThemeColors.light.border || [0, 0, 90]),
         shadow: hslToHex(customThemeColors.light.shadow || [0, 0, 0]),
+        ...(customThemeColors.light.inlineCodeForeground ? { inlineCodeForeground: hslToHex(customThemeColors.light.inlineCodeForeground) } : {}),
+        ...(customThemeColors.light.inlineCodeBackground ? { inlineCodeBackground: hslToHex(customThemeColors.light.inlineCodeBackground) } : {}),
       },
     }
     setExportCode(JSON.stringify(exportData, null, 2))

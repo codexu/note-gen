@@ -285,7 +285,9 @@
             "accent": "Accent",
             "accentForeground": "Accent Foreground",
             "border": "Border",
-            "shadow": "Shadow"
+            "shadow": "Shadow",
+            "inlineCodeForeground": "Inline code text",
+            "inlineCodeBackground": "Inline code background"
           },
           "presets": {
             "apply": "Apply",

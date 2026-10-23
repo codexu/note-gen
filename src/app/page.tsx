@@ -19,7 +19,11 @@ export default function Home() {
       }
     } else {
       // PC 端逻辑：将旧路径重定向到新的 /core/main
-      if (currentPage === '/core/article' || currentPage === '/core/record') {
+      if (
+        currentPage === '/core/article' ||
+        currentPage === '/core/record' ||
+        currentPage === '/core/search'
+      ) {
         currentPage = '/core/main'
         await store.set('currentPage', '/core/main')
         await store.save()

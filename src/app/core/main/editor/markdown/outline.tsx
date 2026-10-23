@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
 import { useTranslations } from 'next-intl'
+import useSettingStore from '@/stores/setting'
 import type { EditorEvents } from '@tiptap/core'
 import { OutlineHeadingIndex, type HeadingItem } from './outline-index'
 
@@ -128,7 +129,8 @@ function OutlineHeadingEditInput({
       value={value}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      className="h-7 min-w-0 flex-1 bg-background px-2 py-1 text-sm font-normal text-foreground shadow-none"
+      className="h-7 min-w-0 flex-1 bg-background px-2 py-1 font-normal text-foreground shadow-none"
+      style={{ fontSize: 'inherit' }}
       onChange={(event) => onChange(event.target.value)}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
@@ -242,7 +244,7 @@ function SortableOutlineItem({
     >
       <div
         className={cn(
-          'group flex min-w-0 items-start rounded text-sm transition-colors',
+          'group flex min-w-0 items-start rounded transition-colors',
           isActive
             ? 'bg-accent text-accent-foreground'
             : 'hover:bg-muted',
@@ -373,6 +375,7 @@ function OutlineItems({
   onDragEnd: (event: DragEndEvent) => void
 }) {
   const t = useTranslations('editor')
+  const textSize = useSettingStore(state => state.fileManagerTextSize)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -402,7 +405,7 @@ function OutlineItems({
         items={headings.map((heading) => heading.id)}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="flex flex-col gap-1 p-2">
+        <ul className={cn('flex flex-col gap-1 p-2', `text-${textSize}`)}>
           {headings.map((heading) => (
             <SortableOutlineItem
               key={heading.id}

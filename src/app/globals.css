@@ -474,6 +474,12 @@ html, body {
   }
 }
 
+/* The text settings use md for their 16px option. */
+.text-md {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
 .file-manager-item {
   position: relative;
   display: flex;

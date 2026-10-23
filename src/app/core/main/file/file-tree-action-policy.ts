@@ -108,7 +108,8 @@ export async function getSyncConfiguration(): Promise<{
   }
 
   if (platform === 'selfHosted') {
-    const { getDb } = await import('@/db')
+    const { getDb, initAllDatabases } = await import('@/db')
+    await initAllDatabases()
     const database = await getDb()
     const profiles = await database.select<Array<{
       id: string

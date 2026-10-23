@@ -107,6 +107,30 @@ export interface GenTemplate {
 
 export type CloseBehavior = 'minimize' | 'quit' | 'ask'
 
+interface SettingsHydrationState {
+  status: 'loading' | 'ready' | 'error'
+}
+
+export const useSettingsHydrationStore = create<SettingsHydrationState>(() => ({
+  status: 'loading',
+}))
+
+async function withSettingsHydration(load: () => Promise<void>): Promise<void> {
+  if (useSettingsHydrationStore.getState().status === 'error') {
+    useSettingsHydrationStore.setState({ status: 'loading' })
+  }
+
+  try {
+    await load()
+    useSettingsHydrationStore.setState({ status: 'ready' })
+  } catch (error) {
+    if (useSettingsHydrationStore.getState().status !== 'ready') {
+      useSettingsHydrationStore.setState({ status: 'error' })
+    }
+    throw error
+  }
+}
+
 interface SettingState {
   initSettingData: (options?: { hydrateOnly?: boolean }) => Promise<void>
 
@@ -557,7 +581,7 @@ async function persistChangedSettings(
 
 
 const useSettingStore = create<SettingState>((set, get) => ({
-  initSettingData: async (options) => {
+  initSettingData: (options) => withSettingsHydration(async () => {
     const store = await Store.load('store.json');
     await restoreInterruptedPrimaryPlatform(store)
     if (options?.hydrateOnly) {
@@ -969,7 +993,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
 
     initSettingAutoSyncSubscription()
     settingAutoSyncReady = true
-  },
+  }),
 
   version: '',
   setVersion: async () => {

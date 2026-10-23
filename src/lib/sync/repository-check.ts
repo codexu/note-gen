@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
+import type useSettingStore from '@/stores/setting'
 
 import { RepoNames, SyncStateEnum, type GithubRepoInfo, type UserInfo } from './github.types'
 import type { GiteeRepoInfo } from './gitee'
@@ -33,6 +34,12 @@ interface CheckEntry {
   inFlight?: Promise<RepositoryCheckSnapshot>
 }
 
+interface GitProviderTarget {
+  workspacePath: string
+  repo: string
+  context: CheckContext
+}
+
 const TOKEN_KEYS: Record<SyncRepoPlatform, string> = {
   github: 'accessToken',
   gitee: 'giteeAccessToken',
@@ -42,9 +49,37 @@ const TOKEN_KEYS: Record<SyncRepoPlatform, string> = {
 
 const repositoryChecks = new Map<string, CheckEntry>()
 const accountChecks = new Map<string, CheckEntry>()
+const activeProviderTargets = new Map<SyncRepoPlatform, string>()
 const listeners = new Set<() => void>()
 let warmupScheduled: Promise<void> | undefined
 let warmupPromise: Promise<void> | undefined
+
+function getSettingsProviderTarget(platform: SyncRepoPlatform, settings: ReturnType<typeof useSettingStore.getState>): GitProviderTarget {
+  const repos = {
+    github: settings.githubCustomSyncRepo,
+    gitee: settings.giteeCustomSyncRepo,
+    gitlab: settings.gitlabCustomSyncRepo,
+    gitea: settings.giteaCustomSyncRepo,
+  }
+  const tokens = {
+    github: settings.accessToken,
+    gitee: settings.giteeAccessToken,
+    gitlab: settings.gitlabAccessToken,
+    gitea: settings.giteaAccessToken,
+  }
+  const token = tokens[platform].trim()
+  const instanceType = platform === 'gitlab' ? settings.gitlabInstanceType : platform === 'gitea' ? settings.giteaInstanceType : ''
+  const customUrl = platform === 'gitlab' ? settings.gitlabCustomUrl : platform === 'gitea' ? settings.giteaCustomUrl : ''
+  return {
+    workspacePath: settings.workspacePath,
+    repo: repos[platform].trim() || (settings.workspacePath ? '' : RepoNames.sync),
+    context: { platform, token, key: JSON.stringify([platform, token, instanceType, customUrl.trim()]) },
+  }
+}
+
+function getProviderTargetKey(target: GitProviderTarget) {
+  return JSON.stringify([target.workspacePath, target.repo, target.context.key])
+}
 
 export function subscribeRepositoryChecks(listener: () => void): () => void {
   listeners.add(listener)
@@ -250,45 +285,30 @@ export async function checkRepository(
 async function applySnapshot(
   platform: SyncRepoPlatform,
   snapshot: RepositoryCheckSnapshot | undefined,
-  target: { workspacePath: string; repo: string; context: CheckContext },
+  target: GitProviderTarget,
 ) {
   const [{ default: useSyncStore }, { default: useSettingStore }] = await Promise.all([
     import('@/stores/sync'),
     import('@/stores/setting'),
   ])
-  const settings = useSettingStore.getState()
-  const currentRepos = {
-    github: settings.githubCustomSyncRepo,
-    gitee: settings.giteeCustomSyncRepo,
-    gitlab: settings.gitlabCustomSyncRepo,
-    gitea: settings.giteaCustomSyncRepo,
-  }
-  const currentTokens = {
-    github: settings.accessToken,
-    gitee: settings.giteeAccessToken,
-    gitlab: settings.gitlabAccessToken,
-    gitea: settings.giteaAccessToken,
-  }
-  const instanceType = platform === 'gitlab' ? settings.gitlabInstanceType : platform === 'gitea' ? settings.giteaInstanceType : ''
-  const customUrl = platform === 'gitlab' ? settings.gitlabCustomUrl : platform === 'gitea' ? settings.giteaCustomUrl : ''
-  const contextKey = JSON.stringify([platform, currentTokens[platform].trim(), instanceType, customUrl.trim()])
-  const currentRepo = currentRepos[platform].trim() || (settings.workspacePath ? '' : RepoNames.sync)
-  if (settings.workspacePath !== target.workspacePath || currentRepo !== target.repo || contextKey !== target.context.key) return
+  const currentTarget = getSettingsProviderTarget(platform, useSettingStore.getState())
+  if (getProviderTargetKey(currentTarget) !== getProviderTargetKey(target)) return
   const state = snapshot?.result === 'success' ? SyncStateEnum.success : SyncStateEnum.fail
+  const providerChecks = { ...useSyncStore.getState().providerChecks, [platform]: 'settled' as const }
   switch (platform) {
     case 'github':
-      useSyncStore.setState({ userInfo: snapshot?.github?.userInfo, syncRepoInfo: snapshot?.github?.repoInfo, syncRepoState: state })
+      useSyncStore.setState({ userInfo: snapshot?.github?.userInfo, syncRepoInfo: snapshot?.github?.repoInfo, syncRepoState: state, providerChecks })
       if (snapshot?.github?.userInfo) useSettingStore.setState({ githubUsername: snapshot.github.userInfo.login })
       break
     case 'gitee':
-      useSyncStore.setState({ giteeUserInfo: snapshot?.gitee?.userInfo, giteeSyncRepoInfo: snapshot?.gitee?.repoInfo, giteeSyncRepoState: state })
+      useSyncStore.setState({ giteeUserInfo: snapshot?.gitee?.userInfo, giteeSyncRepoInfo: snapshot?.gitee?.repoInfo, giteeSyncRepoState: state, providerChecks })
       break
     case 'gitlab':
-      useSyncStore.setState({ gitlabUserInfo: snapshot?.gitlab?.userInfo, gitlabSyncProjectInfo: snapshot?.gitlab?.repoInfo, gitlabSyncProjectState: state })
+      useSyncStore.setState({ gitlabUserInfo: snapshot?.gitlab?.userInfo, gitlabSyncProjectInfo: snapshot?.gitlab?.repoInfo, gitlabSyncProjectState: state, providerChecks })
       if (snapshot?.gitlab?.userInfo) useSettingStore.setState({ gitlabUsername: snapshot.gitlab.userInfo.username })
       break
     case 'gitea':
-      useSyncStore.setState({ giteaUserInfo: snapshot?.gitea?.userInfo, giteaSyncRepoInfo: snapshot?.gitea?.repoInfo, giteaSyncRepoState: state })
+      useSyncStore.setState({ giteaUserInfo: snapshot?.gitea?.userInfo, giteaSyncRepoInfo: snapshot?.gitea?.repoInfo, giteaSyncRepoState: state, providerChecks })
       if (snapshot?.gitea?.userInfo) useSettingStore.setState({ giteaUsername: snapshot.gitea.userInfo.login })
       break
   }
@@ -296,18 +316,34 @@ async function applySnapshot(
 
 /** Restore the active workspace from the session cache; force is reserved for an explicit check. */
 export async function restoreGitSyncProviderStatus(platform: SyncRepoPlatform, options: { force?: boolean; check?: boolean } = {}): Promise<void> {
-  const { default: useSettingStore } = await import('@/stores/setting')
-  const workspacePath = useSettingStore.getState().workspacePath
-  const [repo, context] = await Promise.all([getOptionalSyncRepoName(platform), getCheckContext(platform)])
-  const snapshot = repo
-    ? options.force || options.check
-      ? await requestRepositoryCheck(context, repo, options.force)
-      : await getCachedRepositoryCheckSnapshot(platform, repo)
-    : await checkAccount(context)
-  if (useSettingStore.getState().workspacePath !== workspacePath) return
-  const [currentRepo, currentContext] = await Promise.all([getOptionalSyncRepoName(platform), getCheckContext(platform)])
-  if (currentRepo !== repo || currentContext.key !== context.key) return
-  await applySnapshot(platform, repo ? snapshot : snapshot && { ...snapshot, result: 'not-found' }, { workspacePath, repo, context })
+  const [{ default: useSettingStore }, { default: useSyncStore }] = await Promise.all([
+    import('@/stores/setting'),
+    import('@/stores/sync'),
+  ])
+  const target = getSettingsProviderTarget(platform, useSettingStore.getState())
+  const targetKey = getProviderTargetKey(target)
+  if (activeProviderTargets.get(platform) !== targetKey || !useSyncStore.getState().providerChecks[platform] || options.force || options.check) {
+    activeProviderTargets.set(platform, targetKey)
+    useSyncStore.getState().setProviderChecking(platform)
+  }
+  const isCurrent = () => activeProviderTargets.get(platform) === targetKey
+    && getProviderTargetKey(getSettingsProviderTarget(platform, useSettingStore.getState())) === targetKey
+  try {
+    const [repo, context] = await Promise.all([getOptionalSyncRepoName(platform), getCheckContext(platform)])
+    if (!isCurrent() || repo !== target.repo || context.key !== target.context.key) return
+    const snapshot = repo
+      ? options.force || options.check
+        ? await requestRepositoryCheck(context, repo, options.force)
+        : await getCachedRepositoryCheckSnapshot(platform, repo)
+      : await checkAccount(context)
+    if (!isCurrent()) return
+    const [currentRepo, currentContext] = await Promise.all([getOptionalSyncRepoName(platform), getCheckContext(platform)])
+    if (!isCurrent() || currentRepo !== repo || currentContext.key !== context.key) return
+    await applySnapshot(platform, repo ? snapshot : snapshot && { ...snapshot, result: 'not-found' }, target)
+  } catch (error) {
+    if (isCurrent()) await applySnapshot(platform, { result: 'error' }, target)
+    throw error
+  }
 }
 
 export async function refreshGitSyncProviderStatus(platform: SyncRepoPlatform): Promise<void> {

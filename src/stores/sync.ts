@@ -2,9 +2,14 @@ import { GithubRepoInfo, UserInfo, SyncStateEnum } from '@/lib/sync/github.types
 import { GiteeRepoInfo } from '@/lib/sync/gitee'
 import { GitlabUserInfo, GitlabProjectInfo } from '@/lib/sync/gitlab.types'
 import { GiteaUserInfo, GiteaRepositoryInfo } from '@/lib/sync/gitea.types'
+import type { SyncPlatform } from '@/types/sync'
 import { create } from 'zustand'
 
 interface SyncState {
+  providerChecks: Partial<Record<SyncPlatform, 'checking' | 'settled'>>
+  setProviderChecking: (platform: SyncPlatform) => void
+  setProviderCheckSettled: (platform: SyncPlatform) => void
+
   // Github 相关状态
   userInfo?: UserInfo
   setUserInfo: (userInfo?: UserInfo) => void
@@ -69,6 +74,14 @@ interface SyncState {
 }
 
 const useSyncStore = create<SyncState>((set) => ({
+  providerChecks: {},
+  setProviderChecking: (platform) => {
+    set(state => ({ providerChecks: { ...state.providerChecks, [platform]: 'checking' } }))
+  },
+  setProviderCheckSettled: (platform) => {
+    set(state => ({ providerChecks: { ...state.providerChecks, [platform]: 'settled' } }))
+  },
+
   // Github 相关状态
   userInfo: undefined,
   setUserInfo: (userInfo) => {
@@ -77,7 +90,10 @@ const useSyncStore = create<SyncState>((set) => ({
 
   syncRepoState: SyncStateEnum.fail,
   setSyncRepoState: (syncRepoState) => {
-    set({ syncRepoState })
+    set(state => ({
+      syncRepoState,
+      providerChecks: { ...state.providerChecks, github: syncRepoState === SyncStateEnum.checking || syncRepoState === SyncStateEnum.creating ? 'checking' : 'settled' },
+    }))
   },
   syncRepoInfo: undefined,
   setSyncRepoInfo: (syncRepoInfo) => {
@@ -92,7 +108,10 @@ const useSyncStore = create<SyncState>((set) => ({
 
   giteeSyncRepoState: SyncStateEnum.fail,
   setGiteeSyncRepoState: (giteeSyncRepoState) => {
-    set({ giteeSyncRepoState })
+    set(state => ({
+      giteeSyncRepoState,
+      providerChecks: { ...state.providerChecks, gitee: giteeSyncRepoState === SyncStateEnum.checking || giteeSyncRepoState === SyncStateEnum.creating ? 'checking' : 'settled' },
+    }))
   },
   giteeSyncRepoInfo: undefined,
   setGiteeSyncRepoInfo: (giteeSyncRepoInfo) => {
@@ -107,7 +126,10 @@ const useSyncStore = create<SyncState>((set) => ({
 
   gitlabSyncProjectState: SyncStateEnum.fail,
   setGitlabSyncProjectState: (gitlabSyncProjectState) => {
-    set({ gitlabSyncProjectState })
+    set(state => ({
+      gitlabSyncProjectState,
+      providerChecks: { ...state.providerChecks, gitlab: gitlabSyncProjectState === SyncStateEnum.checking || gitlabSyncProjectState === SyncStateEnum.creating ? 'checking' : 'settled' },
+    }))
   },
   gitlabSyncProjectInfo: undefined,
   setGitlabSyncProjectInfo: (gitlabSyncProjectInfo) => {
@@ -122,7 +144,10 @@ const useSyncStore = create<SyncState>((set) => ({
 
   giteaSyncRepoState: SyncStateEnum.fail,
   setGiteaSyncRepoState: (giteaSyncRepoState) => {
-    set({ giteaSyncRepoState })
+    set(state => ({
+      giteaSyncRepoState,
+      providerChecks: { ...state.providerChecks, gitea: giteaSyncRepoState === SyncStateEnum.checking || giteaSyncRepoState === SyncStateEnum.creating ? 'checking' : 'settled' },
+    }))
   },
   giteaSyncRepoInfo: undefined,
   setGiteaSyncRepoInfo: (giteaSyncRepoInfo) => {
@@ -132,7 +157,7 @@ const useSyncStore = create<SyncState>((set) => ({
   // S3 相关状态
   s3Connected: false,
   setS3Connected: (connected) => {
-    set({ s3Connected: connected })
+    set(state => ({ s3Connected: connected, providerChecks: { ...state.providerChecks, s3: 'settled' } }))
   },
 
   s3FileEtags: {},
@@ -155,17 +180,17 @@ const useSyncStore = create<SyncState>((set) => ({
   // WebDAV 相关状态
   webdavConnected: false,
   setWebDAVConnected: (connected) => {
-    set({ webdavConnected: connected })
+    set(state => ({ webdavConnected: connected, providerChecks: { ...state.providerChecks, webdav: 'settled' } }))
   },
 
   cloudFolderConnected: false,
   setCloudFolderConnected: (connected) => {
-    set({ cloudFolderConnected: connected })
+    set(state => ({ cloudFolderConnected: connected, providerChecks: { ...state.providerChecks, cloudFolder: 'settled' } }))
   },
 
   selfHostedConnected: false,
   setSelfHostedConnected: (connected) => {
-    set({ selfHostedConnected: connected })
+    set(state => ({ selfHostedConnected: connected, providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
   },
   selfHostedRuntimeReady: false,
   setSelfHostedRuntimeReady: (ready) => {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 
-import useSettingStore from '@/stores/setting'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
 import { RepoNames } from '@/lib/sync/github.types'
 import {
   restoreGitSyncProviderStatus,
@@ -18,7 +19,7 @@ function warmupOtherSyncProviders(): Promise<void> {
   nonGitStartupCheck = (async () => {
     try {
       const store = await Store.load('store.json')
-      const [s3, webdav, cloudFolder, { getDb }, { checkSyncProviderStatus }] = await Promise.all([
+      const [s3, webdav, cloudFolder, { getDb, initAllDatabases }, { checkSyncProviderStatus }] = await Promise.all([
         store.get<S3Config>('s3SyncConfig'),
         store.get<WebDAVConfig>('webdavSyncConfig'),
         store.get<CloudFolderConfig>('cloudFolderSyncConfig'),
@@ -31,13 +32,24 @@ function warmupOtherSyncProviders(): Promise<void> {
       if (cloudFolder?.path) platforms.push('cloudFolder')
       const checks = platforms.map(checkSyncProviderStatus)
       checks.push((async () => {
+        await initAllDatabases()
         const database = await getDb()
         const profiles = await database.select<Array<{ total: number }>>('select count(*) as total from self_hosted_sync_profiles')
         if ((profiles[0]?.total ?? 0) > 0) await checkSyncProviderStatus('selfHosted')
-      })())
+      })().catch(error => {
+        console.error('Failed to initialize self-hosted sync status:', error)
+        if (!useSyncStore.getState().providerChecks.selfHosted) {
+          useSyncStore.getState().setProviderCheckSettled('selfHosted')
+        }
+      }))
       await Promise.allSettled(checks)
     } catch (error) {
       console.error('Failed to initialize sync provider status:', error)
+      for (const platform of ['s3', 'webdav', 'cloudFolder', 'selfHosted'] as const) {
+        if (!useSyncStore.getState().providerChecks[platform]) {
+          useSyncStore.getState().setProviderCheckSettled(platform)
+        }
+      }
     }
   })()
   return nonGitStartupCheck
@@ -50,6 +62,7 @@ interface PreviousTargets {
 }
 
 export default function AppStatus() {
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
   const {
     accessToken,
     giteeAccessToken,
@@ -73,13 +86,15 @@ export default function AppStatus() {
   const giteaCredential = JSON.stringify([giteaAccessToken, giteaInstanceType, giteaCustomUrl])
 
   useEffect(() => {
+    if (!settingsReady) return
     const unsubscribe = subscribeRepositoryChecks(() => setCacheRevision(revision => revision + 1))
     void warmupRepositoryChecks()
     void warmupOtherSyncProviders()
     return unsubscribe
-  }, [])
+  }, [settingsReady])
 
   useEffect(() => {
+    if (!settingsReady) return
     const previous = previousTargetsRef.current
     const repos: Record<SyncRepoPlatform, string> = {
       github: githubCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync),
@@ -103,6 +118,7 @@ export default function AppStatus() {
       console.error('Failed to restore cached repository status:', error)
     })
   }, [
+    settingsReady,
     cacheRevision,
     githubCredential,
     giteeCredential,

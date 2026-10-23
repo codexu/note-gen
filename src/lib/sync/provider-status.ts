@@ -7,19 +7,31 @@ import { testWebDAVConnection } from '@/lib/sync/webdav'
 import { testCloudFolderConnection } from '@/lib/sync/cloud-folder'
 import useSyncStore from '@/stores/sync'
 import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/types/sync'
-import { getDb } from '@/db'
+import { getDb, initAllDatabases } from '@/db'
 
 type GitSyncPlatform = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
 interface ProviderCheckTarget {
   workspacePath: string
   repo: string
+  credentials: string
 }
 
+const providerStatusChecks = new Map<string, Promise<void>>()
+const latestProviderRequests = new Map<SyncPlatform, number>()
+let providerRequestId = 0
+
 async function getProviderCheckTarget(store: Store, platform: GitSyncPlatform): Promise<ProviderCheckTarget> {
+  const tokenKey = platform === 'github' ? 'accessToken' : `${platform}AccessToken`
+  const credentials = await Promise.all([
+    store.get<string>(tokenKey),
+    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}InstanceType`) : undefined,
+    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}CustomUrl`) : undefined,
+  ])
   return {
     workspacePath: await store.get<string>('workspacePath') || '',
     repo: await getOptionalSyncRepoName(platform),
+    credentials: JSON.stringify(credentials),
   }
 }
 
@@ -28,9 +40,38 @@ async function isProviderCheckTargetCurrent(
   platform: GitSyncPlatform,
   target: ProviderCheckTarget,
 ) {
-  const currentWorkspacePath = await store.get<string>('workspacePath') || ''
-  if (currentWorkspacePath !== target.workspacePath) return false
-  return await getOptionalSyncRepoName(platform) === target.repo
+  const current = await getProviderCheckTarget(store, platform)
+  return current.workspacePath === target.workspacePath && current.repo === target.repo && current.credentials === target.credentials
+}
+
+async function getSelfHostedCheckTarget() {
+  await initAllDatabases()
+  const database = await getDb()
+  return database.select<Array<{ id: string; state: string }>>(
+    'select id, state from self_hosted_sync_profiles order by id'
+  )
+}
+
+async function getProviderStatusKey(store: Store, platform: SyncPlatform): Promise<string> {
+  if (platform === 'github' || platform === 'gitee' || platform === 'gitlab' || platform === 'gitea') {
+    return JSON.stringify([platform, await getProviderCheckTarget(store, platform)])
+  }
+  if (platform === 'selfHosted') return JSON.stringify([platform, await getSelfHostedCheckTarget()])
+  return JSON.stringify([platform, await store.get<unknown>(`${platform}SyncConfig`)])
+}
+
+function failProviderCheck(platform: SyncPlatform) {
+  const syncStore = useSyncStore.getState()
+  switch (platform) {
+    case 'github': syncStore.setSyncRepoState(SyncStateEnum.fail); break
+    case 'gitee': syncStore.setGiteeSyncRepoState(SyncStateEnum.fail); break
+    case 'gitlab': syncStore.setGitlabSyncProjectState(SyncStateEnum.fail); break
+    case 'gitea': syncStore.setGiteaSyncRepoState(SyncStateEnum.fail); break
+    case 's3': syncStore.setS3Connected(false); break
+    case 'webdav': syncStore.setWebDAVConnected(false); break
+    case 'cloudFolder': syncStore.setCloudFolderConnected(false); break
+    case 'selfHosted': syncStore.setSelfHostedConnected(false); break
+  }
 }
 
 async function checkGithubStatus(store: Store) {
@@ -208,16 +249,12 @@ async function checkCloudFolderStatus(store: Store) {
 }
 
 async function checkSelfHostedStatus() {
-  const database = await getDb()
-  const rows = await database.select<Array<{ total: number }>>(
-    "select count(*) as total from self_hosted_sync_profiles where state = 'connected'"
-  )
-  useSyncStore.getState().setSelfHostedConnected((rows[0]?.total ?? 0) > 0)
+  const target = await getSelfHostedCheckTarget()
+  if (JSON.stringify(await getSelfHostedCheckTarget()) !== JSON.stringify(target)) return
+  useSyncStore.getState().setSelfHostedConnected(target.some(profile => profile.state === 'connected'))
 }
 
-export async function checkSyncProviderStatus(platform: SyncPlatform) {
-  const store = await Store.load('store.json')
-
+async function runProviderStatusCheck(store: Store, platform: SyncPlatform) {
   switch (platform) {
     case 'local':
       return
@@ -237,5 +274,41 @@ export async function checkSyncProviderStatus(platform: SyncPlatform) {
       return checkCloudFolderStatus(store)
     case 'selfHosted':
       return checkSelfHostedStatus()
+  }
+}
+
+export async function checkSyncProviderStatus(platform: SyncPlatform): Promise<void> {
+  if (platform === 'local') return
+  const requestId = ++providerRequestId
+  latestProviderRequests.set(platform, requestId)
+  useSyncStore.getState().setProviderChecking(platform)
+  let store: Store | undefined
+  let targetKey: string | undefined
+  const isCurrent = async () => {
+    if (latestProviderRequests.get(platform) !== requestId) return false
+    if (!store || !targetKey) return true
+    try {
+      return await getProviderStatusKey(store, platform) === targetKey
+    } catch {
+      return latestProviderRequests.get(platform) === requestId
+    }
+  }
+  try {
+    store = await Store.load('store.json')
+    targetKey = await getProviderStatusKey(store, platform)
+    let check = providerStatusChecks.get(targetKey)
+    if (!check) {
+      check = runProviderStatusCheck(store, platform)
+      providerStatusChecks.set(targetKey, check)
+      const key = targetKey
+      void check.finally(() => {
+        if (providerStatusChecks.get(key) === check) providerStatusChecks.delete(key)
+      }).catch(() => undefined)
+    }
+    await check
+    if (await isCurrent()) useSyncStore.getState().setProviderCheckSettled(platform)
+  } catch (error) {
+    if (await isCurrent()) failProviderCheck(platform)
+    throw error
   }
 }

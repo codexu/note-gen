@@ -743,9 +743,23 @@
    ======================== */
 
 /* 表格容器 */
+.editor-table-scrollbar {
+  z-index: 30;
+  border-radius: 4px;
+  background-color: hsl(var(--background) / 0.95);
+  box-shadow: 0 0 0 1px hsl(var(--border)), 0 2px 6px hsl(var(--foreground) / 0.08);
+}
+
+.editor-table-scrollbar:focus-within {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
 .tiptap-editor .ProseMirror .tableWrapper {
   margin: 1em 0;
   overflow-x: auto;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 

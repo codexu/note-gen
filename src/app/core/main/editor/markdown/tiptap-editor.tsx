@@ -58,6 +58,7 @@ import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { TableContextToolbar } from './table-context-toolbar'
+import { TableScrollbar } from './table-scrollbar'
 import { PluginEditorInlineViews } from '@/components/plugins/plugin-embedded-views'
 import { FooterBar } from './footer-bar/index'
 import { Outline } from './outline'
@@ -2855,6 +2856,7 @@ export function TipTapEditor({
       Dropcursor,
       MarkdownTable.configure({
         resizable: true,
+        renderWrapper: true,
       }),
       TableRow,
       MarkdownTableHeader,
@@ -7893,6 +7895,9 @@ export function TipTapEditor({
             scrollContainerId={scrollContainerId}
             scrollContainerRef={scrollContainerRef}
           />
+        ) : null}
+        {isActive && effectiveViewMode === 'visual' ? (
+          <TableScrollbar editor={editor} scrollContainerRef={scrollContainerRef} />
         ) : null}
       </div>
 

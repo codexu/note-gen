@@ -5639,6 +5639,7 @@
       "expand": "Abschnitt ausklappen",
       "collapse": "Abschnitt einklappen"
     },
+    "tableHorizontalScrollbar": "Horizontale Bildlaufleiste der Tabelle",
     "tableToolbar": {
       "row": "Zeile",
       "column": "Spalte",

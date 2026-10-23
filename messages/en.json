@@ -5779,6 +5779,7 @@
       "expand": "Expand section",
       "collapse": "Collapse section"
     },
+    "tableHorizontalScrollbar": "Table horizontal scrollbar",
     "tableToolbar": {
       "row": "Row",
       "column": "Column",

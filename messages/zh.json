@@ -5779,6 +5779,7 @@
       "expand": "展开此标题内容",
       "collapse": "折叠此标题内容"
     },
+    "tableHorizontalScrollbar": "表格横向滚动条",
     "tableToolbar": {
       "row": "行",
       "column": "列",

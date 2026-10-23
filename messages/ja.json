@@ -5688,6 +5688,7 @@
       "expand": "この見出しの内容を展開",
       "collapse": "この見出しの内容を折りたたむ"
     },
+    "tableHorizontalScrollbar": "表の横スクロールバー",
     "tableToolbar": {
       "row": "行",
       "column": "列",

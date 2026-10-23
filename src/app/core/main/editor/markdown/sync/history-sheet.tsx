@@ -2,8 +2,10 @@
 
 import { History, ExternalLink, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import useArticleStore from '@/stores/article'
+import useSettingStore from '@/stores/setting'
 import { Editor } from '@tiptap/react'
 import { Store } from '@tauri-apps/plugin-store'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
@@ -36,7 +38,9 @@ interface HistorySheetProps {
 }
 
 export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }: HistorySheetProps) {
+  const t = useTranslations('syncOverview')
   const { activeFilePath, flushPendingArticleSave } = useArticleStore()
+  const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
   const [isOpen, setIsOpen] = useState(false)
   const [history, setHistory] = useState<CommitInfo[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -49,8 +53,11 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
   const getProvider = useCallback(async (): Promise<SyncProvider | null> => {
     try {
       const store = await Store.load('store.json')
-      const provider = await store.get<string>('primaryBackupMethod') || 'github'
-      return provider as SyncProvider
+      const provider = await store.get<string>('primaryBackupMethod')
+      if (provider === 'github' || provider === 'gitee' || provider === 'gitlab' || provider === 'gitea') {
+        return provider
+      }
+      return null
     } catch {
       return null
     }
@@ -274,7 +281,16 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
     }
   }, [isOpen, activeFilePath, loadHistory])
 
-  if (!activeFilePath) return null
+  useEffect(() => {
+    setIsOpen(false)
+  }, [primaryBackupMethod])
+
+  const supportsHistory = primaryBackupMethod === 'github'
+    || primaryBackupMethod === 'gitee'
+    || primaryBackupMethod === 'gitlab'
+    || primaryBackupMethod === 'gitea'
+
+  if (!activeFilePath || !supportsHistory) return null
 
   const trigger = (
     <button
@@ -282,17 +298,17 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         'flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-[hsl(var(--muted))]',
         isOpen && 'bg-[hsl(var(--muted))]'
       )}
-      title="历史记录"
+      title={t('historyVersions')}
     >
       <History size={14} />
-      <span className="text-xs">历史</span>
+      <span className="text-xs">{t('historyVersions')}</span>
     </button>
   )
 
   const content = (
     <>
       <div className="flex items-center justify-between mb-2">
-        <div className="font-semibold text-sm">提交历史</div>
+        <div className="font-semibold text-sm">{t('historyVersions')}</div>
         {activeFilePath && provider && repoInfo.repo && (
           <a
             href={(() => {
@@ -380,7 +396,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         </DrawerTrigger>
         <DrawerContent className="max-h-[80vh] rounded-t-[24px]">
           <DrawerHeader className="pb-2">
-            <DrawerTitle>提交历史</DrawerTitle>
+            <DrawerTitle>{t('historyVersions')}</DrawerTitle>
           </DrawerHeader>
           <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 overflow-hidden">
             {content}

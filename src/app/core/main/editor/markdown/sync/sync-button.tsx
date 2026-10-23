@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 import useArticleStore from '@/stores/article'
 import useSyncStore from '@/stores/sync'
+import useSettingStore from '@/stores/setting'
+import { useShallow } from 'zustand/react/shallow'
 import { Store } from '@tauri-apps/plugin-store'
 import { getOptionalSyncRepoName } from '@/lib/sync/repo-utils'
 import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
@@ -26,6 +28,7 @@ import type { S3Config, WebDAVConfig } from '@/types/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { captureWorkspaceRemoteWriteGuard } from '@/lib/sync/workspace-remote-write-guard'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
+import { getSyncMetadataKey } from '@/lib/sync/sync-context'
 
 type SyncProvider = 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
 
@@ -84,45 +87,117 @@ function roundMs(value: number) {
   return Math.round(value)
 }
 
-export function SyncButton({
-  getMarkdown,
-  prepareExternalAction,
-}: {
+interface PushSyncOptions {
   getMarkdown?: () => string
   prepareExternalAction?: () => boolean
-}) {
+}
+
+function getDocumentSyncContext(state: ReturnType<typeof useSettingStore.getState>) {
+  return {
+    workspacePath: state.workspacePath,
+    primaryBackupMethod: state.primaryBackupMethod,
+    githubCustomSyncRepo: state.githubCustomSyncRepo,
+    giteeCustomSyncRepo: state.giteeCustomSyncRepo,
+    gitlabCustomSyncRepo: state.gitlabCustomSyncRepo,
+    giteaCustomSyncRepo: state.giteaCustomSyncRepo,
+    accessToken: state.accessToken,
+    githubUsername: state.githubUsername,
+    giteeAccessToken: state.giteeAccessToken,
+    gitlabAccessToken: state.gitlabAccessToken,
+    gitlabUsername: state.gitlabUsername,
+    gitlabInstanceType: state.gitlabInstanceType,
+    gitlabCustomUrl: state.gitlabCustomUrl,
+    giteaAccessToken: state.giteaAccessToken,
+    giteaUsername: state.giteaUsername,
+    giteaInstanceType: state.giteaInstanceType,
+    giteaCustomUrl: state.giteaCustomUrl,
+  }
+}
+
+let documentSyncContextRevision = 0
+
+export function useDocumentSyncConfiguration() {
+  const context = useSettingStore(useShallow(getDocumentSyncContext))
+  const contextSnapshotRef = useRef<{ context: typeof context; key: string } | null>(null)
+  if (!contextSnapshotRef.current || contextSnapshotRef.current.context !== context) {
+    contextSnapshotRef.current = { context, key: `document-sync:${++documentSyncContextRevision}` }
+  }
+  const contextKey = contextSnapshotRef.current.key
+  const providerCheck = useSyncStore(state => state.providerChecks[context.primaryBackupMethod])
+  const settingsOpen = useSettingsDialogStore(state => state.open)
+  const [configuration, setConfiguration] = useState({ key: '', configured: false })
+
+  useEffect(() => {
+    let cancelled = false
+    if (context.primaryBackupMethod === 'local' || context.primaryBackupMethod === 'selfHosted') {
+      setConfiguration({ key: contextKey, configured: false })
+      return
+    }
+    isSyncConfigured().then(configured => {
+      if (!cancelled) setConfiguration({ key: contextKey, configured })
+    }).catch(() => {
+      if (!cancelled) setConfiguration({ key: contextKey, configured: false })
+    })
+    return () => { cancelled = true }
+  }, [contextKey, context.primaryBackupMethod, providerCheck, settingsOpen])
+
+  const isContextCurrent = useCallback(() => {
+    const current = getDocumentSyncContext(useSettingStore.getState())
+    return (Object.keys(context) as Array<keyof typeof context>).every(key => current[key] === context[key])
+  }, [context])
+
+  return { configured: configuration.key === contextKey && configuration.configured, contextKey, isContextCurrent }
+}
+
+export function usePushSync({ getMarkdown, prepareExternalAction }: PushSyncOptions = {}) {
   const t = useTranslations()
-  const { activeFilePath } = useArticleStore()
+  const activeFilePath = useArticleStore(state => state.activeFilePath)
   const [isLoading, setIsLoading] = useState(false)
-  const [isConfigured, setIsConfigured] = useState(false)
+  const { configured: isConfigured, contextKey, isContextCurrent } = useDocumentSyncConfiguration()
+  const activeContext = `${contextKey}:${activeFilePath ?? ''}`
+  const activeContextRef = useRef(activeContext)
+  activeContextRef.current = activeContext
+  const mountedRef = useRef(false)
+  const pushInFlightRef = useRef(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showError, setShowError] = useState(false)
   const [lastPushTime, setLastPushTime] = useState<Date | null>(null)
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Check if sync is configured
   useEffect(() => {
-    isSyncConfigured().then(setIsConfigured)
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
   }, [])
+
+  useEffect(() => {
+    setIsLoading(false)
+    setShowSuccess(false)
+    setShowError(false)
+    setLastPushTime(null)
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current)
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [activeContext])
 
   // 监听推送开始事件
   useEffect(() => {
     const handlePushStarted = (event: { path: string }) => {
-      if (activeFilePath && event.path === activeFilePath) {
+      if (activeFilePath && event.path === activeFilePath && activeContextRef.current === activeContext && isContextCurrent()) {
         setIsLoading(true)
       }
     }
-    emitter.on('sync-push-started', handlePushStarted as any)
+    emitter.on('sync-push-started', handlePushStarted)
     return () => {
-      emitter.off('sync-push-started', handlePushStarted as any)
+      emitter.off('sync-push-started', handlePushStarted)
     }
-  }, [activeFilePath])
+  }, [activeFilePath, activeContext, isContextCurrent])
 
   // 监听推送完成事件
   useEffect(() => {
     const handlePushCompleted = (event: { path: string; success: boolean }) => {
-      if (activeFilePath && event.path === activeFilePath) {
+      if (activeFilePath && event.path === activeFilePath && activeContextRef.current === activeContext && isContextCurrent()) {
         setIsLoading(false)
         if (event.success) {
           // 显示成功状态
@@ -150,9 +225,9 @@ export function SyncButton({
         }
       }
     }
-    emitter.on('sync-push-completed', handlePushCompleted as any)
+    emitter.on('sync-push-completed', handlePushCompleted)
     return () => {
-      emitter.off('sync-push-completed', handlePushCompleted as any)
+      emitter.off('sync-push-completed', handlePushCompleted)
       if (successTimerRef.current) {
         clearTimeout(successTimerRef.current)
       }
@@ -160,12 +235,20 @@ export function SyncButton({
         clearTimeout(errorTimerRef.current)
       }
     }
-  }, [activeFilePath])
+  }, [activeFilePath, activeContext, isContextCurrent])
 
   // Push to remote
   const handlePush = useCallback(async () => {
-    if (!activeFilePath || isLoading) return
+    if (!activeFilePath || !isConfigured || isLoading || pushInFlightRef.current) return
     if (prepareExternalAction && !prepareExternalAction()) return
+    const isCurrent = () => mountedRef.current
+      && isContextCurrent()
+      && activeContextRef.current === activeContext
+      && useArticleStore.getState().activeFilePath === activeFilePath
+    const assertCurrent = () => {
+      if (!isCurrent()) throw syncStaleError({ stage: 'apply', path: activeFilePath, check: 'configuration' })
+    }
+    pushInFlightRef.current = true
 
     const syncStartedAt = getPerfNow()
     let previousPerfAt = syncStartedAt
@@ -185,10 +268,13 @@ export function SyncButton({
     setIsLoading(true)
     try {
       logPerf('start')
+      await useArticleStore.getState().flushPendingArticleSave(activeFilePath)
+      assertCurrent()
       const store = await Store.load('store.json')
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as SyncProvider
       const { prepareWorkspacePathUpload } = await import('@/lib/sync/workspace-path-moves')
       await prepareWorkspacePathUpload(activeFilePath)
+      assertCurrent()
       providerForLog = provider
       const needsRepo = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
       const repo = needsRepo ? await getOptionalSyncRepoName(provider) : ''
@@ -203,6 +289,7 @@ export function SyncButton({
       })
 
       await flushPendingStaticAssetSync({ force: true })
+      assertCurrent()
 
       // The section editor may still have a debounced local save. Prefer its
       // flushed canonical snapshot so a manual push never uploads stale disk content.
@@ -210,6 +297,8 @@ export function SyncButton({
         setIsLoading(false)
         return
       }
+      await useArticleStore.getState().flushPendingArticleSave(activeFilePath)
+      assertCurrent()
       emitter.emit('sync-push-started', { path: activeFilePath })
       const editorMarkdown = getMarkdown?.()
       const workspace = await getWorkspacePath()
@@ -218,8 +307,11 @@ export function SyncButton({
         ? await readTextFile(pathOptions.path)
         : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir }))
       const localWriteGuard = await captureWorkspaceRemoteWriteGuard(activeFilePath, provider)
+      const metadataKey = await getSyncMetadataKey(activeFilePath, provider)
       const beforeWrite = async () => {
+        assertCurrent()
         await localWriteGuard?.()
+        assertCurrent()
         if (editorMarkdown !== undefined && useArticleStore.getState().activeFilePath === activeFilePath
           && getMarkdown?.() !== editorMarkdown) {
           throw syncStaleError({ stage: 'apply', path: activeFilePath, source: 'local', check: 'content' })
@@ -461,7 +553,8 @@ export function SyncButton({
       if (success) {
         await beforeWrite()
         if (uploadedSha) {
-          await setLocalRecordedSha(activeFilePath, uploadedSha)
+          await setLocalRecordedSha(activeFilePath, uploadedSha, metadataKey)
+          assertCurrent()
           logPerf('recordLocalSha', {
             hasSha: true,
           })
@@ -485,12 +578,37 @@ export function SyncButton({
         message: error instanceof Error ? error.message : String(error),
       })
       console.error('Push failed:', error)
-      setIsLoading(false)
-      emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
+      if (isCurrent()) emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
+    } finally {
+      pushInFlightRef.current = false
+      if (isCurrent()) setIsLoading(false)
     }
-  }, [activeFilePath, getMarkdown, isLoading, prepareExternalAction, t])
+  }, [activeFilePath, activeContext, getMarkdown, isConfigured, isContextCurrent, isLoading, prepareExternalAction, t])
 
-  // 如果没有配置同步，不显示按钮
+  return {
+    configured: isConfigured,
+    contextKey,
+    isContextCurrent,
+    path: activeFilePath,
+    busy: isLoading,
+    error: showError,
+    success: showSuccess,
+    lastPushTime,
+    push: handlePush,
+  }
+}
+
+export function SyncButton(props: PushSyncOptions) {
+  const {
+    configured: isConfigured,
+    path: activeFilePath,
+    busy: isLoading,
+    error: showError,
+    success: showSuccess,
+    lastPushTime,
+    push: handlePush,
+  } = usePushSync(props)
+
   if (!isConfigured || !activeFilePath) return null
 
   // 格式化时间

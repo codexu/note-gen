@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { Editor } from '@tiptap/react'
 import {
   ResponsiveDialog as Dialog,
@@ -11,7 +11,22 @@ import {
   ResponsiveDialogFooter as DialogFooter,
 } from '@/components/responsive-dialog'
 import { Button } from '@/components/ui/button'
-import { pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
+import { setLocalRecordedSha } from '@/lib/sync/auto-sync'
+import { readTextFile } from '@tauri-apps/plugin-fs'
+import { appDataDir, join } from '@tauri-apps/api/path'
+import { useTranslations } from 'next-intl'
+import { toast } from '@/hooks/use-toast'
+import useSettingStore from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
+import { getFilePathOptions } from '@/lib/workspace'
+import { getSyncMetadataKey } from '@/lib/sync/sync-context'
+import { readVersionedWorkspaceFile, uploadGuardedWorkspaceFile, type WorkspaceRemotePlatform } from '@/lib/sync/guarded-workspace-upload'
+import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
+import { syncStaleError } from '@/lib/sync/sync-stale-error'
+import { captureWorkspaceRemoteWriteGuard } from '@/lib/sync/workspace-remote-write-guard'
+import { generateGitSyncCommitMessage } from '@/lib/sync/commit-message'
+import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
+import { enqueueStaticAssetSync, flushPendingStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
 import { updateFileSyncTime } from '@/lib/sync/conflict-resolution'
 import emitter from '@/lib/emitter'
 import useArticleStore from '@/stores/article'
@@ -24,7 +39,8 @@ interface ConflictDialogProps {
   localMarkdown?: string
   getMarkdown?: () => string
   prepareExternalAction?: () => boolean
-  onMarkdownChange?: (markdown: string) => void
+  isScopeCurrent: () => boolean
+  onKeepRemote: (remote: { content: string; version: string }, localSnapshot: string) => Promise<boolean>
   onResolved: () => void
 }
 
@@ -79,101 +95,168 @@ export function ConflictDialog({
   localMarkdown,
   getMarkdown,
   prepareExternalAction,
-  onMarkdownChange,
+  isScopeCurrent,
+  onKeepRemote,
   onResolved,
 }: ConflictDialogProps) {
-  const flushPendingArticleSave = useArticleStore(state => state.flushPendingArticleSave)
-  const [localContent, setLocalContent] = useState('')
-  const [remoteContent, setRemoteContent] = useState('')
+  const t = useTranslations('syncOverview.document')
+  const [preview, setPreview] = useState<{
+    content: string
+    version: string
+    localContent: string
+    platform: WorkspaceRemotePlatform
+    workspacePath: string
+    metadataKey: string
+    absolutePath: string
+  } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [diff, setDiff] = useState<{ type: 'equal' | 'add' | 'remove', text: string }[]>([])
-  const getMarkdownRef = useRef(getMarkdown)
-  const localMarkdownRef = useRef(localMarkdown)
-  getMarkdownRef.current = getMarkdown
-  localMarkdownRef.current = localMarkdown
+  const mountedRef = useRef(false)
+  const operationRef = useRef(false)
+  const callbacksRef = useRef({ getMarkdown, localMarkdown, prepareExternalAction, isScopeCurrent, onKeepRemote })
+  callbacksRef.current = { getMarkdown, localMarkdown, prepareExternalAction, isScopeCurrent, onKeepRemote }
+  const openRef = useRef(open)
+  openRef.current = open
+  const readMarkdown = () => callbacksRef.current.getMarkdown?.()
+    ?? callbacksRef.current.localMarkdown
+    ?? editor.getMarkdown()
+  const isCurrent = useCallback(() => mountedRef.current && openRef.current
+    && useArticleStore.getState().activeFilePath === activeFilePath
+    && callbacksRef.current.isScopeCurrent(), [activeFilePath])
 
-  // 当对话框打开时，获取本地和远程内容
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
   useEffect(() => {
     if (!open || !activeFilePath) return
     let cancelled = false
-
+    setPreview(null)
+    setIsLoading(true)
+    const current = () => !cancelled && isCurrent()
     const fetchContents = async () => {
       try {
-        // 获取远程内容
-        const remote = await pullRemoteFile(activeFilePath)
-        if (cancelled) return
-        setRemoteContent(remote)
-
-        // 获取本地内容（从编辑器）
-        const local = getMarkdownRef.current?.()
-          ?? localMarkdownRef.current
+        const { primaryBackupMethod: platform, workspacePath } = useSettingStore.getState()
+        if (platform === 'local' || platform === 'selfHosted' || !current()) return
+        const pathOptions = await getFilePathOptions(activeFilePath)
+        const absolutePath = pathOptions.baseDir === undefined
+          ? pathOptions.path : await join(await appDataDir(), pathOptions.path)
+        if (!current()) return
+        const metadataKey = await getSyncMetadataKey(activeFilePath, platform)
+        if (!current()) return
+        const remote = await readVersionedWorkspaceFile(activeFilePath, platform)
+        if (!current()) return
+        const local = callbacksRef.current.getMarkdown?.()
+          ?? callbacksRef.current.localMarkdown
           ?? editor.getMarkdown()
-        if (cancelled) return
-        setLocalContent(local)
-
-        // 计算 diff
-        const diffResult = computeDiff(local, remote)
-        setDiff(diffResult)
+        setPreview({
+          content: new TextDecoder().decode(remote.content), version: remote.version,
+          localContent: local, platform, workspacePath, metadataKey, absolutePath,
+        })
       } catch (error) {
-        console.error('Failed to fetch contents for conflict:', error)
+        if (current()) toast({ title: t('failed'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      } finally {
+        if (current()) setIsLoading(false)
       }
     }
-
-    fetchContents()
-    return () => {
-      cancelled = true
-    }
-  }, [open, activeFilePath, editor])
+    void fetchContents()
+    return () => { cancelled = true }
+  }, [open, activeFilePath, editor, isCurrent, t])
 
   const handleKeepLocal = async () => {
-    if (!activeFilePath) return
-
+    if (!activeFilePath || !preview || operationRef.current || !isCurrent()) return
+    if (prepareExternalAction && !prepareExternalAction()) return
+    operationRef.current = true
     setIsLoading(true)
+    const assertCurrent = () => {
+      if (!isCurrent() || useSettingStore.getState().workspacePath !== preview.workspacePath) {
+        throw syncStaleError({ stage: 'apply', path: activeFilePath, check: 'configuration' })
+      }
+      if (readMarkdown() !== preview.localContent) {
+        throw syncStaleError({ stage: 'apply', path: activeFilePath, source: 'local', check: 'content' })
+      }
+    }
     try {
-      // 保留本地，更新同步时间
-      await updateFileSyncTime(activeFilePath)
-      // 触发事件
-      emitter.emit('sync-pulled', { path: activeFilePath })
+      assertCurrent()
+      if (!await prepareActiveEditorDeactivationDurably(activeFilePath)) return
+      assertCurrent()
+      await useArticleStore.getState().flushPendingArticleSave(activeFilePath)
+      assertCurrent()
+      const content = readMarkdown()
+      if (await readTextFile(preview.absolutePath) !== content) {
+        throw syncStaleError({ stage: 'apply', path: activeFilePath, source: 'local', check: 'content' })
+      }
+      assertCurrent()
+      const localWriteGuard = await captureWorkspaceRemoteWriteGuard(activeFilePath, preview.platform, true, content)
+      const beforeWrite = async () => {
+        assertCurrent()
+        await localWriteGuard?.()
+        assertCurrent()
+      }
+      await beforeWrite()
+      for (const path of collectLocalMarkdownImagePaths(content, activeFilePath)) enqueueStaticAssetSync(path)
+      await flushPendingStaticAssetSync({ force: true })
+      assertCurrent()
+      const needsCommit = ['github', 'gitee', 'gitlab', 'gitea'].includes(preview.platform)
+      const message = needsCommit ? await generateGitSyncCommitMessage(activeFilePath, content) : ''
+      assertCurrent()
+      emitter.emit('sync-push-started', { path: activeFilePath })
+      // The user's choice authorizes this preview's remote version only. A
+      // newer remote version must fail the existing conditional-write guard.
+      const uploadedVersion = await uploadGuardedWorkspaceFile(
+        activeFilePath, content, preview.platform, preview.version, message, preview.metadataKey, beforeWrite,
+      )
+      assertCurrent()
+      await setLocalRecordedSha(activeFilePath, uploadedVersion, preview.metadataKey)
+      assertCurrent()
+      await updateFileSyncTime(activeFilePath, preview.metadataKey)
+      assertCurrent()
+      if (preview.platform === 's3') useSyncStore.getState().updateS3FileEtag(activeFilePath, uploadedVersion)
+      if (preview.platform === 'webdav') useSyncStore.getState().updateWebDAVFileEtag(activeFilePath, uploadedVersion)
+      emitter.emit('sync-push-completed', { path: activeFilePath, success: true, sha: uploadedVersion })
       onResolved()
       onOpenChange(false)
     } catch (error) {
-      console.error('Failed to keep local:', error)
+      if (isCurrent()) {
+        emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
+        toast({ title: t('failed'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+      }
     } finally {
-      setIsLoading(false)
+      operationRef.current = false
+      if (mountedRef.current) setIsLoading(false)
     }
   }
 
   const handleKeepRemote = async () => {
-    if (!activeFilePath) return
+    if (!activeFilePath || !preview || operationRef.current || !isCurrent()) return
     if (prepareExternalAction && !prepareExternalAction()) return
-
+    operationRef.current = true
     setIsLoading(true)
     try {
-      await flushPendingArticleSave(activeFilePath)
-      // 使用远程内容覆盖本地
-      await saveLocalFile(activeFilePath, remoteContent)
-      if (onMarkdownChange) {
-        onMarkdownChange(remoteContent)
-      } else {
-        editor.commands.setContent(remoteContent, { contentType: 'markdown' })
-      }
-      await updateFileSyncTime(activeFilePath)
-      emitter.emit('sync-pulled', { path: activeFilePath })
+      const didSave = await callbacksRef.current.onKeepRemote(
+        { content: preview.content, version: preview.version }, preview.localContent,
+      )
+      if (!didSave || !isCurrent()) return
       onResolved()
       onOpenChange(false)
     } catch (error) {
-      console.error('Failed to keep remote:', error)
+      if (isCurrent()) toast({ title: t('failed'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
     } finally {
-      setIsLoading(false)
+      operationRef.current = false
+      if (mountedRef.current) setIsLoading(false)
     }
   }
+
+  const localContent = preview?.localContent ?? ''
+  const remoteContent = preview?.content ?? ''
+  const diff = preview ? computeDiff(localContent, remoteContent) : []
 
   // 统计变化
   const addCount = diff.filter(d => d.type === 'add').length
   const removeCount = diff.filter(d => d.type === 'remove').length
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={nextOpen => { if (!operationRef.current) onOpenChange(nextOpen) }}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>文件冲突</DialogTitle>
@@ -189,7 +272,7 @@ export function ConflictDialog({
               本地版本
             </div>
             <div className="flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
-              {localContent || '加载中...'}
+              {preview ? localContent : '加载中...'}
             </div>
           </div>
 
@@ -199,7 +282,7 @@ export function ConflictDialog({
               远程版本
             </div>
             <div className="flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
-              {remoteContent || '加载中...'}
+              {preview ? remoteContent : '加载中...'}
             </div>
           </div>
         </div>
@@ -215,13 +298,13 @@ export function ConflictDialog({
           <Button
             variant="outline"
             onClick={handleKeepLocal}
-            disabled={isLoading}
+            disabled={isLoading || !preview}
           >
             保留本地
           </Button>
           <Button
             onClick={handleKeepRemote}
-            disabled={isLoading}
+            disabled={isLoading || !preview}
           >
             保留远程
           </Button>

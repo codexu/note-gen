@@ -9,6 +9,7 @@ import { getPluginManifestFingerprint } from '@/lib/plugins/internal-types'
 import { usePluginStore } from '@/stores/plugins'
 import { UnsupportedFile } from '@/app/core/main/editor/unsupported-file'
 import { MainStatusBarPortal } from '@/app/core/main/main-status-bar'
+import { StatusBarItem } from '@/app/core/main/status-bar-order'
 import { getLoadedPluginMessages, usePluginLocalization } from '@/lib/plugins/localization'
 import { resolveManifestText } from '@/lib/plugins/manifest'
 
@@ -125,7 +126,9 @@ export function PluginDocumentPreview({ path, isActive = true }: { path: string;
   return <>
     <iframe key={`${path}:${identity}:${locale}`} ref={frame} title={resolveManifestText(selected.preview.name, getLoadedPluginMessages(selected.plugin.manifest.id, locale))} sandbox="allow-scripts" referrerPolicy="no-referrer" className="block size-full min-h-0 min-w-0 flex-1 border-0" srcDoc={source || undefined} />
     <MainStatusBarPortal active={isActive && Boolean(statusText)}>
-      <span role="status" className="min-w-0 truncate px-2 text-xs tabular-nums" title={statusText}>{statusText}</span>
+      <StatusBarItem id="editor:document-status" rank={20}>
+        <span role="status" className="min-w-0 truncate px-2 text-xs tabular-nums" title={statusText}>{statusText}</span>
+      </StatusBarItem>
     </MainStatusBarPortal>
   </>
 }

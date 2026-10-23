@@ -853,8 +853,9 @@ export async function uploadRemoteBytes(
   scope: RemoteRepositoryScope = 'workspace',
   condition?: RemoteWriteCondition,
   target?: SyncPlatform,
+  beforeWrite?: () => Promise<void>,
 ): Promise<string> {
-  return await uploadRemoteContent(path, content, message, contentType, scope, condition, target)
+  return await uploadRemoteContent(path, content, message, contentType, scope, condition, target, beforeWrite)
 }
 
 export async function downloadRemoteText(path: string): Promise<string> {

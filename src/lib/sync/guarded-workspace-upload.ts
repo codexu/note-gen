@@ -45,7 +45,9 @@ export async function readVersionedWorkspaceFile(path: string, platform: Workspa
 export async function uploadGuardedWorkspaceFile(
   path: string, content: string, platform: WorkspaceRemotePlatform,
   expectedVersion: string | null, message: string, expectedMetadataKey?: string,
+  beforeWrite?: () => Promise<void>,
 ): Promise<string> {
+  await beforeWrite?.()
   await prepareWorkspacePathUpload(path)
   const store = await Store.load('store.json')
   if (await store.get('primaryBackupMethod') !== platform || await store.get('platformSwitchRecovery')
@@ -53,9 +55,18 @@ export async function uploadGuardedWorkspaceFile(
     throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
   }
   if (expectedVersion === 'uploaded' || expectedVersion?.startsWith('uploaded:')) throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion } })
+  const assertBeforeWrite = async () => {
+    await beforeWrite?.()
+    if (await store.get('primaryBackupMethod') !== platform || await store.get('platformSwitchRecovery')
+      || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) {
+      throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
+    }
+    await beforeWrite?.()
+  }
+  await assertBeforeWrite()
   const bytes = new TextEncoder().encode(content)
   let uploadedVersion: string
-  try { uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform) }
+  try { uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform, beforeWrite ? assertBeforeWrite : undefined) }
   catch (error) { throw withSyncStaleContext(error, { stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion, exists: expectedVersion !== null } }) }
   // A version returned by the conditional write is already bound to our bytes.
   // Keep it even if another writer advances the remote immediately afterwards.

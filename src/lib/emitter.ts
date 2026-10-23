@@ -84,6 +84,7 @@ interface Events {
   'sync-content-updated': { path: string; content: string; workspaceRoot?: string };
   'sync-push-started': { path: string };
   'sync-push-completed': { path: string; success: boolean; sha?: string };
+  'sync-pulled': { path: string };
   'sync-directory-completed': { path: string; workspacePath: string; provider: string; success: boolean; error?: string };
   'sync-engine-completed': { provider: 'selfHosted'; errors: string[] };
   'sync-sha-mismatch': {

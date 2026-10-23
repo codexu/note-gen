@@ -283,7 +283,7 @@ export function PlatformSwitchProgress() {
   useEffect(() => {
     if (!window.location.pathname.startsWith('/mobile')) return
     if (step === 'error' && !open) {
-      const options = { title: p('failed'), description: errorMessage, variant: 'destructive' as const, duration: Infinity, closeButton: true,
+      const options = { title: p('failed'), description: errorMessage, variant: 'destructive' as const, duration: 5000, closeButton: true,
         action: { label: p('resumeReview'), onClick: () => setOpen(true) } }
       if (failureToast.current) failureToast.current.update(options)
       else failureToast.current = toast(options)

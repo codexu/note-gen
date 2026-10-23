@@ -88,7 +88,7 @@ export function UnifiedSyncStatus() {
         </ol>
       ),
       variant: 'destructive' as const,
-      duration: Infinity,
+      duration: 5000,
       closeButton: true,
       classNames: { content: 'min-w-0 flex-1', description: 'w-full' },
       action: { label: t('retry'), onClick: () => void retryAction.current() },

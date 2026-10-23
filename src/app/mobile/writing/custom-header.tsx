@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BaseDirectory, copyFile, exists, mkdir, readDir, remove, rename as fsRename, stat, writeTextFile } from '@tauri-apps/plugin-fs'
-import { confirm } from '@tauri-apps/plugin-dialog'
+import { BaseDirectory, copyFile, exists, mkdir, readDir, rename as fsRename, stat, writeTextFile } from '@tauri-apps/plugin-fs'
 import { platform as getRuntimePlatform } from '@tauri-apps/plugin-os'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { cloneDeep } from 'lodash-es'
-import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2, Unplug } from 'lucide-react'
+import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2 } from 'lucide-react'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
 import { WorkspaceSwitcher } from '@/app/core/setting/file/setting-workspace'
 import { Button } from '@/components/ui/button'
@@ -18,23 +17,17 @@ import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import { getFilePathOptions } from '@/lib/workspace'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
-import { isFileTreeEntryVisible } from '@/app/core/main/file/file-tree-model'
+import { filterFileTreeByVisibility } from '@/app/core/main/file/file-tree-model'
 import { EntryListItem } from './entry-list-item'
 import { NameInputDialog } from './name-input-dialog'
 import { BrowserEntry } from './types'
 import { getChildrenByPath, getNodeByPath, isMarkdownFile, normalizePath, parentPath } from './browser-utils'
-import { deleteFile } from '@/lib/sync/github'
-import { deleteFile as deleteGiteeFile } from '@/lib/sync/gitee'
-import { deleteFile as deleteGitlabFile } from '@/lib/sync/gitlab'
-import { deleteFile as deleteGiteaFile } from '@/lib/sync/gitea'
-import { s3Delete } from '@/lib/sync/s3'
-import { webdavDelete } from '@/lib/sync/webdav'
-import { androidCloudFolderWorkspaceDelete } from '@/lib/sync/cloud-folder'
-import { getSyncRepoName } from '@/lib/sync/repo-utils'
-import { RepoNames } from '@/lib/sync/github.types'
 import { Store } from '@tauri-apps/plugin-store'
-import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
+import { CloudFolderConfig } from '@/types/sync'
 import { buildMoveTargetPath, isInvalidFolderMoveTarget, moveFileManagerEntry, moveFileManagerPaths } from '@/app/core/main/file/file-dnd'
+import { getFileSelectionEntries } from '@/app/core/main/file/file-selection'
+import { useFileDeletion } from '@/app/core/main/file/use-file-deletion'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { cn } from '@/lib/utils'
@@ -43,12 +36,10 @@ import { pullRemoteLibraryFolder, uploadLocalLibraryFile, uploadLocalLibraryFold
 import useClipboardStore from '@/stores/clipboard'
 import { generateCopyFilename, generateCopyFoldername } from '@/lib/default-filename'
 import { getFileTreeSyncStatus, getSyncConfiguration } from '@/app/core/main/file/file-tree-action-policy'
-import { clearFolderLocalState, deleteRemoteFolder, hasRemoteFolderData } from '@/app/core/main/file/folder-item/delete-folder-utils'
 import {
   prepareActiveEditorDeactivationDurably,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
-import { deleteSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 
 function shouldLoadRemoteOnTreeRefresh(options?: { isCreateFlow?: boolean }) {
   return options?.isCreateFlow !== true
@@ -101,8 +92,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     loadCollapsibleFiles,
     loadFolderRemoteFiles,
     setFileTree,
-    reconcileLocalFile,
-    clearFileRemoteState,
     setCollapsibleList,
     moveLocalEntry,
     syncOpenTabsForPathChange,
@@ -111,14 +100,15 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     setEntryLoading,
     showCloudFiles,
     showAssetsFolders,
-    cleanTabsByDeletedFile,
-    cleanTabsByDeletedFolder,
     sortDirection,
     sortType,
     setSortDirection,
     setSortType,
   } = useArticleStore()
   const assetsPath = useSettingStore(state => state.assetsPath)
+  const workspacePath = useSettingStore(state => state.workspacePath)
+  const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
+  const deleteEntries = useFileDeletion()
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
 
   const ensureSyncConfigured = useCallback(async () => {
@@ -166,16 +156,25 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     return currentDir.split('/').pop() || currentDir
   }, [currentDir, tMobile])
 
-  const currentFolderNode = useMemo(() => getNodeByPath(fileTree, currentDir), [fileTree, currentDir])
+  const displayTree = useMemo(() => filterFileTreeByVisibility(fileTree, {
+    showCloudFiles,
+    showAssetsFolders,
+    assetsFolderName,
+    isPathHidden: pendingDeletionPaths.length > 0
+      ? path => isFileDeletionPending(path, workspacePath) : undefined,
+  }), [fileTree, showCloudFiles, showAssetsFolders, assetsFolderName, pendingDeletionPaths, workspacePath])
+  const currentFolderNode = useMemo(() => getNodeByPath(displayTree, currentDir), [displayTree, currentDir])
+
+  useEffect(() => {
+    if (!currentDir || !isFileDeletionPending(currentDir, workspacePath)) return
+    let nextDir = parentPath(currentDir)
+    while (nextDir && !getNodeByPath(displayTree, nextDir)) nextDir = parentPath(nextDir)
+    setCurrentDir(nextDir)
+  }, [currentDir, displayTree, pendingDeletionPaths, workspacePath])
 
   const rawEntries = useMemo(() => {
-    const children = getChildrenByPath(fileTree, currentDir)
+    const children = getChildrenByPath(displayTree, currentDir)
     return children
-      .filter(node => isFileTreeEntryVisible(node, {
-        showCloudFiles,
-        showAssetsFolders,
-        assetsFolderName,
-      }))
       .filter((node) => node.isDirectory || syncStaticAssets || isMarkdownFile(node))
       .sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1
@@ -193,7 +192,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
           : aTimestamp - bTimestamp
         return sortDirection === 'asc' ? result : -result
       })
-  }, [assetsFolderName, fileTree, currentDir, showAssetsFolders, showCloudFiles, sortDirection, sortType, syncStaticAssets])
+  }, [displayTree, currentDir, sortDirection, sortType, syncStaticAssets])
 
   const visibleEntries = useMemo(() => {
     const mapped: BrowserEntry[] = rawEntries.map((node) => {
@@ -435,6 +434,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   }, [loadRemoteSyncFiles])
 
   const handleDragStart = useCallback((entry: BrowserEntry, point: DragPoint) => {
+    if (entry.isLoading || isFileDeletionPending(entry.relativePath)) return
     if (!entry.isLocale) {
       toast({ title: tFile('clipboard.notSupported') })
       return
@@ -469,7 +469,8 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
 
     resetDragState()
 
-    if (!entry || targetDirectoryPath === null) return
+    if (!entry || targetDirectoryPath === null || isFileDeletionPending(entry.relativePath)
+      || isFileDeletionPending(targetDirectoryPath)) return
 
     const { targetPath } = buildMoveTargetPath(entry.relativePath, targetDirectoryPath)
     const targetPathOptions = await getFilePathOptions(targetPath)
@@ -605,6 +606,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   }
 
   const openEntry = async (entry: BrowserEntry) => {
+    if (entry.isLoading || isFileDeletionPending(entry.relativePath, workspacePath)) return
     if (entry.type === 'folder') {
       await enterFolder(entry.relativePath)
       return
@@ -920,6 +922,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   }
 
   const startRename = (entry: BrowserEntry) => {
+    if (entry.isLoading || isFileDeletionPending(entry.relativePath, workspacePath)) return
     if (!entry.isLocale) {
       toast({ title: tFile('clipboard.notSupported') })
       return
@@ -989,181 +992,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   }
 
   const handleDelete = async (entry: BrowserEntry) => {
-    if (!entry.isLocale) {
-      toast({ title: tFile('clipboard.notSupported') })
-      return
-    }
-
-    const ok = await confirm(
-      entry.type === 'folder'
-        ? tContext('confirmDelete', { name: entry.name })
-        : `${tContext('deleteLocalFile')}?`,
-      {
-      title: entry.name,
-      kind: 'warning',
-      }
-    )
-    if (!ok) return
-
-    if (!await prepareActiveEditorPathMutationDurably(normalizedActivePath, [entry.relativePath])) return
-
-    const pathOptions = await getFilePathOptions(entry.relativePath)
-    const deletedBySelfHosted = await deleteSelfHostedWorkspacePath(
-      entry.relativePath,
-      entry.type === 'folder' ? 'folder' : 'file',
-    )
-    if (entry.type === 'folder') {
-      if (!deletedBySelfHosted) {
-        if (pathOptions.baseDir) {
-          await remove(pathOptions.path, { baseDir: pathOptions.baseDir, recursive: true })
-        } else {
-          await remove(pathOptions.path, { recursive: true })
-        }
-      }
-      await cleanTabsByDeletedFolder(entry.relativePath)
-      const nextTree = cloneDeep(fileTree)
-      clearFolderLocalState(nextTree, entry.relativePath)
-      setFileTree(nextTree)
-      void import('@/db/vector').then(({ deleteVectorDocumentsByPrefix }) => (
-        deleteVectorDocumentsByPrefix(entry.relativePath)
-      )).catch(error => {
-        console.error('Failed to clear deleted folder vectors:', error)
-      })
-    } else {
-      if (!deletedBySelfHosted) {
-        if (pathOptions.baseDir) {
-          await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
-        } else {
-          await remove(pathOptions.path)
-        }
-      }
-      await cleanTabsByDeletedFile(entry.relativePath)
-      reconcileLocalFile(entry.relativePath, false)
-      void import('@/db/vector').then(({ deleteVectorDocumentsByFilename }) => (
-        deleteVectorDocumentsByFilename(entry.relativePath)
-      )).catch(error => {
-        console.error('Failed to clear deleted file vectors:', error)
-      })
-    }
-  }
-
-  const canDeleteRemoteEntry = (entry: BrowserEntry) => {
-    if (entry.type === 'file') return Boolean(entry.sha)
-    const node = getNodeByPath(fileTree, entry.relativePath)
-    return Boolean(node && hasRemoteFolderData(node))
-  }
-
-  const handleDeleteRemoteEntry = async (entry: BrowserEntry) => {
-    if (!canDeleteRemoteEntry(entry)) return
-    if (!await ensureSyncConfigured()) return
-
-    const ok = await confirm(
-      entry.type === 'folder'
-        ? tContext('confirmDeleteRemoteFolder', { name: entry.name })
-        : `${tContext('deleteSyncFile')}?`, {
-      title: entry.name,
-      kind: 'warning',
-      }
-    )
-    if (!ok) return
-
-    const store = await Store.load('store.json')
-    const backupMethod = await store.get<'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>('primaryBackupMethod') || 'github'
-
-    if (backupMethod === 'selfHosted' || backupMethod === 'local') return
-
-    if (entry.type === 'folder') {
-      const node = getNodeByPath(fileTree, entry.relativePath)
-      if (!node) return
-      try {
-        const result = await deleteRemoteFolder(node, false)
-        if (!result.attempted || result.failedPaths.length > 0) {
-          throw new Error(result.failedPaths.join(', ') || 'Remote folder was not deleted')
-        }
-        await refreshTree(currentDir)
-        toast({ title: tContext('deleteRemoteSuccess') })
-      } catch (error) {
-        console.error('Delete remote folder failed:', error)
-        toast({ title: tContext('deleteFailed'), variant: 'destructive' })
-      }
-      return
-    }
-    if (!entry.sha) return
-
-    const repoName = backupMethod === 's3' || backupMethod === 'webdav'
-      ? RepoNames.sync
-      : backupMethod === 'cloudFolder'
-        ? ''
-        : await getSyncRepoName(backupMethod)
-
-    let success = false
-    try {
-      switch (backupMethod) {
-        case 'github': {
-          const result = await deleteFile({ path: entry.relativePath, sha: entry.sha, repo: repoName })
-          success = !!result
-          break
-        }
-        case 'gitee': {
-          const result = await deleteGiteeFile({ path: entry.relativePath, sha: entry.sha, repo: repoName })
-          success = result !== false
-          break
-        }
-        case 'gitlab': {
-          const result = await deleteGitlabFile({ path: entry.relativePath, sha: entry.sha, repo: repoName })
-          success = !!result
-          break
-        }
-        case 'gitea': {
-          const result = await deleteGiteaFile({ path: entry.relativePath, sha: entry.sha, repo: repoName })
-          success = !!result
-          break
-        }
-        case 's3': {
-          const s3Config = await store.get<S3Config>('s3SyncConfig')
-          if (s3Config) {
-            success = await s3Delete(s3Config, entry.relativePath)
-          }
-          break
-        }
-        case 'webdav': {
-          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-          if (webdavConfig) {
-            success = await webdavDelete(webdavConfig, entry.relativePath)
-          }
-          break
-        }
-        case 'cloudFolder': {
-          const cloudFolderConfig = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-          if (cloudFolderConfig?.provider === 'oneDrive' && cloudFolderConfig.path) {
-            success = await androidCloudFolderWorkspaceDelete(cloudFolderConfig, entry.relativePath)
-          }
-          break
-        }
-      }
-    } catch (error) {
-      console.error('Delete remote file failed:', error)
-    }
-
-    if (!success) {
-      toast({
-        title: tContext('delete'),
-        description: tContext('deleteSyncFileError'),
-        variant: 'destructive',
-      })
-      return
-    }
-
-    clearFileRemoteState(entry.relativePath)
-    toast({
-      title: tContext('delete'),
-      description: tContext('deleteSyncFileSuccess'),
-    })
-    try {
-      await refreshTree(currentDir)
-    } catch (error) {
-      console.error('Refresh after deleting remote file failed:', error)
-    }
+    if (!entry.name || entry.isLoading || renaming || isFileDeletionPending(entry.relativePath, workspacePath)) return
+    const [selection] = getFileSelectionEntries(useArticleStore.getState().fileTree, [entry.relativePath])
+    if (!selection || selection.item.isEditing) return
+    await deleteEntries([selection])
   }
 
   return (
@@ -1282,7 +1114,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
                         onOpen={openEntry}
                         syncStatusLabel={tSyncStatus(entry.syncStatus)}
                         subtitle={getEntrySubtitle(entry)}
-                        dragDisabled={!entry.isLocale}
+                        dragDisabled={!entry.isLocale || entry.isLoading}
                         isDragging={dragEntry?.relativePath === entry.relativePath}
                         dragOffset={
                           dragEntry?.relativePath === entry.relativePath && dragStartPoint && dragPoint
@@ -1384,30 +1216,22 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
                             icon: <Pencil className="size-4" />,
                             onClick: () => startRename(entry),
                             disabled: !entry.isLocale,
-                            variant: 'outline',
+                            variant: 'outline' as const,
                             separatorBefore: true,
                           },
-                          ...(canDeleteRemoteEntry(entry) ? [{
-                            key: 'delete-sync',
-                            label: entry.type === 'folder'
-                              ? tContext('deleteRemoteFolder')
-                              : tContext('deleteSyncFile'),
-                            icon: <Unplug className="size-4" />,
-                            onClick: () => handleDeleteRemoteEntry(entry),
-                            variant: 'destructive' as const,
-                          }] : []),
                           {
                             key: 'delete',
-                            label: entry.type === 'file'
-                              ? tContext('deleteLocalFile')
-                              : tContext('deleteLocalFolder'),
+                            label: tContext('delete'),
                             icon: <Trash2 className="size-4" />,
                             onClick: () => handleDelete(entry),
-                            disabled: !entry.isLocale,
-                            variant: 'destructive',
+                            disabled: !entry.name || entry.isLoading || renaming,
+                            variant: 'destructive' as const,
                             separatorBefore: true,
                           },
-                        ]}
+                        ].map(action => ({
+                          ...action,
+                          disabled: action.disabled || entry.isLoading || isFileDeletionPending(entry.relativePath, workspacePath),
+                        }))}
                       />
                     ))}
                   </div>

@@ -211,7 +211,9 @@ function buildS3Url(config: S3Config, key: string): string {
   // 处理 pathPrefix，移除末尾的斜杠以防止双斜杠问题
   const prefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
   const fullKey = prefix ? `${prefix}/${key}` : key
-  const encodedFullKey = buildRepoContentPath({ path: fullKey })
+  // A directory marker ("folder/") and the object "folder" are different keys.
+  const encodedFullKey = buildRepoContentPath({ path: fullKey, preserveWhitespace: true })
+    + (fullKey.endsWith('/') ? '/' : '')
   debugSyncPath('s3.buildUrl', {
     key,
     pathPrefix: prefix,

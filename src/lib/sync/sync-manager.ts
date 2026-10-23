@@ -15,6 +15,7 @@ import {
 } from './cloud-folder'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import useSyncStore from '@/stores/sync'
+import { isFileDeletionPending } from '@/stores/file-deletion'
 import { toast } from '@/hooks/use-toast'
 import { exists, mkdir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import { dirname } from '@tauri-apps/api/path'
@@ -187,6 +188,9 @@ export class SyncManager {
    * 推送文件到远程
    */
   async pushFile(path: string, content: string, overwrite = false): Promise<SyncResult> {
+    if (isFileDeletionPending(path)) {
+      return { success: true, action: 'none', message: '文件正在删除' }
+    }
     // 检查是否应该排除
     if (shouldExclude(path)) {
       return { success: true, action: 'none', message: '文件被排除在同步之外' }
@@ -199,6 +203,7 @@ export class SyncManager {
           import('@/lib/self-hosted-sync/outbox'),
           import('@/lib/self-hosted-sync/runtime'),
         ])
+        if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
         await enqueueFileSnapshot(path)
         void getSelfHostedSyncRuntime().wake('local-change')
         return { success: true, action: 'push', message: '已加入自托管同步队列', content }
@@ -252,6 +257,7 @@ export class SyncManager {
     // checks first pass the revision captured before those awaits.
     initialEditorMutationRevision = getEditorPathMutationRevision(path),
   ): Promise<SyncResult> {
+    if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
     try {
       const store = await Store.load('store.json')
       if (await store.get('platformSwitchRecovery')) throw new Error('SYNC_SWITCH_STALE')
@@ -270,6 +276,7 @@ export class SyncManager {
         ? config ? await androidCloudFolderWorkspaceDownloadBytes(config, path) : null
         : await readVersionedWorkspaceFile(path, platform)
       if (remoteFile) {
+        if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
         const decodedContent = new TextDecoder().decode(remoteFile.content)
         const acceptedVersion = 'version' in remoteFile ? remoteFile.version : remoteFile.etag
 
@@ -286,6 +293,7 @@ export class SyncManager {
           await writeTextFile(localPathOptions.path, content, options)
         }
         const pullAccepted = await runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
+          if (isFileDeletionPending(path)) return false
           const stableFileExists = localPathOptions.baseDir
             ? await exists(localPathOptions.path, { baseDir: localPathOptions.baseDir })
             : await exists(localPathOptions.path)
@@ -311,7 +319,8 @@ export class SyncManager {
             }
           }
 
-          if (!await targetIsCurrent() || getEditorPathMutationRevision(path) !== initialEditorMutationRevision) {
+          if (!await targetIsCurrent() || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
+            || isFileDeletionPending(path)) {
             return false
           }
 
@@ -332,6 +341,7 @@ export class SyncManager {
             || !editorIsStable
             || hasQueuedSave()
             || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
+            || isFileDeletionPending(path)
           ) {
             await restoreStableContent()
             return false
@@ -458,11 +468,13 @@ export class SyncManager {
   async syncFile(path: string, options: {
     onConflict?: (local: string, remote: string) => Promise<'local' | 'remote' | 'cancel'>
   } = {}): Promise<SyncResult> {
+    if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
     if (await this.getCurrentPlatform() === 'selfHosted') {
       const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
         import('@/lib/self-hosted-sync/outbox'),
         import('@/lib/self-hosted-sync/runtime'),
       ])
+      if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
       await enqueueFileSnapshot(path)
       void getSelfHostedSyncRuntime().wake('local-change')
       return { success: true, action: 'push', message: '已加入自托管同步队列' }
@@ -543,6 +555,7 @@ export class SyncManager {
    * 保存时触发推送（带节流）
    */
   async onSave(path: string): Promise<void> {
+    if (isFileDeletionPending(path)) return
     if (!this.config.autoSync || !this.config.autoPushOnSave) {
       return
     }
@@ -558,6 +571,7 @@ export class SyncManager {
         import('@/lib/self-hosted-sync/outbox'),
         import('@/lib/self-hosted-sync/runtime'),
       ])
+      if (isFileDeletionPending(path)) return
       await enqueueFileSnapshot(path)
       void getSelfHostedSyncRuntime().wake('local-change')
       return
@@ -635,6 +649,10 @@ export class SyncManager {
 
     try {
       for (const [path] of this.syncQueue) {
+        if (isFileDeletionPending(path)) {
+          this.syncQueue.delete(path)
+          continue
+        }
         // 始终从磁盘读取最新内容，确保上传的是本地最新内容
         const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
         const { readTextFile } = await import('@tauri-apps/plugin-fs')

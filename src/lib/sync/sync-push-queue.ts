@@ -8,6 +8,7 @@ import { setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { isSyncConfigured } from './sync-manager'
 import useSettingStore from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 import { CloudFolderConfig } from '@/types/sync'
 import { debugSyncPerf } from './remote-file'
 import { generateGitSyncCommitMessage } from './commit-message'
@@ -81,6 +82,7 @@ class SyncPushQueue {
   private workspaceSwitchPauseDepth = 0
   private pausedPaths = new Set<string>()
   private activePath: string | null = null
+  private fileDeletionUnsubscribe: (() => void) | null = null
   private readonly WORKSPACE_SWITCH_WAIT_TIMEOUT = 3_000
 
   constructor(previousQueue: Promise<PushTask[]> = Promise.resolve([])) {
@@ -124,6 +126,13 @@ class SyncPushQueue {
   private initListeners() {
     // 移除旧的监听器（如果有）
     this.removeListeners()
+    this.fileDeletionUnsubscribe = useFileDeletionStore.subscribe(state => {
+      if (!state.progress) return
+      this.queue = this.queue.filter(task => !isFileDeletionPending(task.path, task.workspacePath))
+      for (const path of this.pausedPaths) {
+        if (isFileDeletionPending(path)) this.pausedPaths.delete(path)
+      }
+    })
 
     // 监听文章保存事件
     articleSavedListener = ((event: { path: string; content: string }) => {
@@ -151,6 +160,8 @@ class SyncPushQueue {
   }
 
   private removeListeners() {
+    this.fileDeletionUnsubscribe?.()
+    this.fileDeletionUnsubscribe = null
     if (articleSavedListener) {
       emitter.off('article-saved', articleSavedListener)
     }
@@ -175,6 +186,7 @@ class SyncPushQueue {
    */
   addTask(path: string) {
     if (this.retired) return
+    if (isFileDeletionPending(path)) return
     if (this.workspaceSwitchPauseDepth > 0) { this.pausedPaths.add(path); return }
     if (useSettingStore.getState().primaryBackupMethod === 'local') return
 
@@ -213,6 +225,7 @@ class SyncPushQueue {
     if (useSettingStore.getState().primaryBackupMethod === 'local') return
     const workspacePath = useSettingStore.getState().workspacePath
     for (const path of new Set(paths)) {
+      if (isFileDeletionPending(path, workspacePath)) continue
       this.queue.push({ path, timestamp: Date.now(), workspacePath, generation: this.generation })
     }
     if (this.flushPromise) {
@@ -312,6 +325,7 @@ class SyncPushQueue {
     for (const task of tasksToProcess) {
       if (task.generation !== this.generation) continue
       if (task.workspacePath !== useSettingStore.getState().workspacePath) continue
+      if (isFileDeletionPending(task.path, task.workspacePath)) continue
       this.isProcessing = true
       this.activePath = task.path
 
@@ -326,6 +340,7 @@ class SyncPushQueue {
         if (this.isTaskCurrent(task)) emitter.emit('sync-push-completed', { path: task.path, success: false })
       } finally {
         this.isProcessing = false
+        this.activePath = null
       }
     }
 
@@ -342,6 +357,7 @@ class SyncPushQueue {
     return task.generation === this.generation
       && task.workspacePath === useSettingStore.getState().workspacePath
       && this.workspaceSwitchPauseDepth === 0
+      && !isFileDeletionPending(task.path, task.workspacePath)
   }
 
   private async pushToRemote(path: string, task: PushTask): Promise<{ success: boolean; sha?: string }> {
@@ -601,6 +617,7 @@ class SyncPushQueue {
         this.retired
         || this.workspaceSwitchPauseDepth > 0
         || expectedWorkspacePath !== useSettingStore.getState().workspacePath
+        || isFileDeletionPending(path, expectedWorkspacePath)
       ) {
         return { success: false }
       }

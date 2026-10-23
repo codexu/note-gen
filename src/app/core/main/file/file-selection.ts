@@ -11,6 +11,18 @@ export interface FileSelectionEntry {
   sha?: string
 }
 
+export function toFileSelectionEntry(item: DirTree): FileSelectionEntry {
+  return {
+    item,
+    path: computedParentPath(item),
+    name: item.name,
+    isDirectory: item.isDirectory,
+    isFile: item.isFile,
+    isLocale: item.isLocale,
+    sha: item.sha,
+  }
+}
+
 export interface SelectionBox {
   left: number
   top: number
@@ -30,15 +42,7 @@ export function flattenFileTree(tree: DirTree[]): FileSelectionEntry[] {
 
   function walk(items: DirTree[]) {
     for (const item of items) {
-      entries.push({
-        item,
-        path: computedParentPath(item),
-        name: item.name,
-        isDirectory: item.isDirectory,
-        isFile: item.isFile,
-        isLocale: item.isLocale,
-        sha: item.sha,
-      })
+      entries.push(toFileSelectionEntry(item))
 
       if (item.children) {
         walk(item.children)
@@ -81,6 +85,14 @@ export function getTopLevelSelectionEntries(entries: FileSelectionEntry[]) {
       folderPath !== entry.path && isDescendantPath(entry.path, folderPath)
     ))
   })
+}
+
+export function getDeletionEntries(entries: FileSelectionEntry[]) {
+  const uniqueEntries = new Map(entries
+    .filter(entry => entry.name !== '' && entry.path !== ''
+      && !entry.path.split('/').some(segment => segment === '.' || segment === '..' || segment === ''))
+    .map(entry => [entry.path, entry]))
+  return getTopLevelSelectionEntries([...uniqueEntries.values()])
 }
 
 function hasRemoteData(entry: FileSelectionEntry) {

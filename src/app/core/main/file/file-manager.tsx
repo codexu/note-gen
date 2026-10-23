@@ -24,16 +24,12 @@ import useClipboardStore from "@/stores/clipboard"
 import { cloneDeep } from "lodash-es"
 import { Files, FilePlus, FileSymlink, FolderPlus, Search, Upload, X } from "lucide-react"
 import { pasteIntoFolder } from "./folder-item/paste-into-folder"
-import { moveEntriesToSystemTrash } from './system-trash'
 import {
   flattenFileTree,
   getFileSelectionEntries,
-  getLocalDeletionEntries,
-  getRemoteDeletionEntries,
   getSiblingSelectionPaths,
   isInteractiveSelectionTarget,
   rectsIntersect,
-  type FileSelectionEntry,
   type SelectionBox,
 } from "./file-selection"
 import {
@@ -44,7 +40,6 @@ import {
   moveFileManagerEntries,
 } from "./file-dnd"
 import {
-  activeEditorPathIsAffected,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
 import {
@@ -80,12 +75,9 @@ import useSettingStore from '@/stores/setting'
 import { buildFileTreeSyncStatusMap } from './file-tree-action-policy'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 import { PluginFileActions } from '@/components/plugins/plugin-file-actions'
-import { deleteRemoteFile } from '@/lib/sync/remote-library'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
-import {
-  clearFolderRemoteState,
-  deleteRemoteFolder,
-} from './folder-item/delete-folder-utils'
+import { useFileDeletion } from './use-file-deletion'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 
 type SearchPhase = 'idle' | 'local' | 'remote' | 'complete'
 
@@ -147,6 +139,11 @@ export function FileManager({
   const remoteSearchLoadedPathsRef = useRef(new Set<string>())
   const scrollSaveTimerRef = useRef<number | null>(null)
   const workspacePath = useSettingStore(state => state.workspacePath)
+  const deleteEntries = useFileDeletion()
+  const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
+  const deletionProgress = useFileDeletionStore(state => (
+    state.workspacePath === workspacePath ? state.progress : null
+  ))
   const assetsPath = useSettingStore(state => state.assetsPath)
   const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
@@ -420,127 +417,12 @@ export function FileManager({
     }
   }
 
-  async function cleanDeletedLocalEntryTabs(entry: FileSelectionEntry) {
-    if (entry.isDirectory) {
-      await cleanTabsByDeletedFolder(entry.path)
-      return
-    }
-    await cleanTabsByDeletedFile(entry.path)
-  }
-
   async function handleDeleteSelectedEntries() {
-    const entries = getLocalDeletionEntries(selectedEntries)
-    if (entries.length === 0) {
-      return
-    }
-
-    const { ask } = await import('@tauri-apps/plugin-dialog')
-    const confirmed = await ask(tRecordToolbar('deleteSelected', { count: entries.length }), {
-      title: t('context.delete'),
-      kind: 'warning',
-    })
-
-    if (!confirmed) {
-      return
-    }
-
-    if (!await prepareActiveEditorPathMutationDurably(
-      activeFilePath,
-      entries.map(entry => entry.path),
-    )) return
-
-    try {
-      const trashedCount = await moveEntriesToSystemTrash(entries.map(entry => entry.path))
-      const cleanupEntries = [...entries].sort((left, right) => (
-        Number(activeEditorPathIsAffected(activeFilePath, left.path))
-        - Number(activeEditorPathIsAffected(activeFilePath, right.path))
-      ))
-      for (const entry of cleanupEntries) {
-        await cleanDeletedLocalEntryTabs(entry)
-      }
-
-      const nextVectorIndexedFiles = new Map(useArticleStore.getState().vectorIndexedFiles)
-      for (const path of nextVectorIndexedFiles.keys()) {
-        if (entries.some(entry => path === entry.path || path.startsWith(`${entry.path}/`))) {
-          nextVectorIndexedFiles.delete(path)
-        }
-      }
-      useArticleStore.setState({ vectorIndexedFiles: nextVectorIndexedFiles })
-
-      await loadFileTree({ skipRemoteSync: true })
-      clearSelectedFilePaths()
-      toast({
-        title: t('context.movedToTrash', { count: trashedCount }),
-      })
-    } catch (error) {
-      console.error('Delete selected entries failed:', error)
-      toast({
-        title: t('context.deleteFailed'),
-        variant: 'destructive',
-      })
-      await loadFileTree()
-    }
-  }
-
-  async function handleDeleteSelectedRemoteEntries() {
-    const entries = getRemoteDeletionEntries(selectedEntries)
-    if (entries.length === 0) {
-      return
-    }
-
-    const { ask } = await import('@tauri-apps/plugin-dialog')
-    const confirmed = await ask(t('context.confirmDeleteSelectedRemote', { count: entries.length }), {
-      title: t('context.delete'),
-      kind: 'warning',
-    })
-
-    if (!confirmed) {
-      return
-    }
-
-    const deletedEntries: FileSelectionEntry[] = []
-    let failedCount = 0
-
-    for (const entry of entries) {
-      try {
-        if (entry.isDirectory) {
-          const result = await deleteRemoteFolder(entry.item, false)
-          if (!result.attempted || result.failedPaths.length > 0) {
-            throw new Error(result.failedPaths.join(', ') || entry.path)
-          }
-        } else {
-          const deleted = await deleteRemoteFile(entry.path)
-          if (!deleted) {
-            throw new Error(entry.path)
-          }
-        }
-        deletedEntries.push(entry)
-      } catch (error) {
-        failedCount += 1
-        console.error(`Delete remote entry failed: ${entry.path}`, error)
-      }
-    }
-
-    if (deletedEntries.length > 0) {
-      const nextTree = cloneDeep(useArticleStore.getState().fileTree)
-      deletedEntries.forEach(entry => clearFolderRemoteState(nextTree, entry.path))
-      setFileTree(nextTree)
-      const remainingPaths = new Set(flattenFileTree(nextTree).map(entry => entry.path))
-      setSelectedFilePaths(selectedFilePaths.filter(path => remainingPaths.has(path)))
-    }
-
-    toast({
-      title: failedCount === 0
-        ? t('context.deleteSelectedRemoteSuccess', { count: deletedEntries.length })
-        : t('context.deleteSelectedRemoteResult', {
-            deleted: deletedEntries.length,
-            failed: failedCount,
-          }),
-      variant: failedCount > 0 ? 'destructive' : undefined,
-    })
+    await deleteEntries(selectedEntries)
   }
 
   async function moveEntriesToRoot(sourcePaths: string[]) {
+    if (sourcePaths.some(path => isFileDeletionPending(path, workspacePath))) return
     if (!await prepareActiveEditorPathMutationDurably(activeFilePath, sourcePaths)) return
 
     const batchResult = await moveFileManagerEntries(sourcePaths, '')
@@ -824,7 +706,8 @@ export function FileManager({
       // 因此用户无需等待远程请求即可看到本地匹配结果。
       while (generation === searchLoadGenerationRef.current) {
         const folderPaths = flattenFileTree(useArticleStore.getState().fileTree)
-          .filter(entry => entry.isDirectory && !locallyLoadedPaths.has(entry.path))
+          .filter(entry => entry.isDirectory && !locallyLoadedPaths.has(entry.path)
+            && !isFileDeletionPending(entry.path, workspacePath))
           .map(entry => entry.path)
 
         if (folderPaths.length === 0) {
@@ -852,6 +735,7 @@ export function FileManager({
         showCloudFiles: false,
         showAssetsFolders,
         assetsFolderName,
+        isPathHidden: path => isFileDeletionPending(path, workspacePath),
       })
       const localIndex = buildFileTreeSearchIndex(localTree)
       const localMatchCount = getFileTreeSearchMatches(localIndex, query).size
@@ -886,7 +770,8 @@ export function FileManager({
         const remotelyLoadedPaths = remoteSearchLoadedPathsRef.current
         while (generation === searchLoadGenerationRef.current) {
           const folderPaths = flattenFileTree(useArticleStore.getState().fileTree)
-            .filter(entry => entry.isDirectory && !remotelyLoadedPaths.has(entry.path))
+            .filter(entry => entry.isDirectory && !remotelyLoadedPaths.has(entry.path)
+              && !isFileDeletionPending(entry.path, workspacePath))
             .map(entry => entry.path)
 
           if (folderPaths.length === 0) {
@@ -924,7 +809,7 @@ export function FileManager({
         searchLoadGenerationRef.current += 1
       }
     }
-  }, [assetsFolderName, filterQuery, loadFolderRemoteFiles, refreshSyncAvailability, searchRetryNonce, showAssetsFolders, showCloudFiles])
+  }, [assetsFolderName, filterQuery, loadFolderRemoteFiles, refreshSyncAvailability, searchRetryNonce, showAssetsFolders, showCloudFiles, pendingDeletionPaths, workspacePath])
 
   useEffect(() => {
     function handleDeleteSelection() {
@@ -937,25 +822,16 @@ export function FileManager({
     }
   }, [handleDeleteSelectedEntries])
 
-  useEffect(() => {
-    function handleDeleteRemoteSelection() {
-      void handleDeleteSelectedRemoteEntries()
-    }
-
-    window.addEventListener('filemanager-delete-remote-selection', handleDeleteRemoteSelection)
-    return () => {
-      window.removeEventListener('filemanager-delete-remote-selection', handleDeleteRemoteSelection)
-    }
-  }, [handleDeleteSelectedRemoteEntries])
-
   // 根据开关状态过滤文件树 - 使用 useMemo 缓存结果
   const filteredFileTree = useMemo(
     () => filterFileTreeByVisibility(fileTree, {
       showCloudFiles,
       showAssetsFolders,
       assetsFolderName,
+      isPathHidden: pendingDeletionPaths.length > 0
+        ? path => isFileDeletionPending(path, workspacePath) : undefined,
     }),
-    [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles]
+    [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles, pendingDeletionPaths, workspacePath]
   )
   const syncStatusByPath = useMemo(
     () => buildFileTreeSyncStatusMap(fileTree),
@@ -1068,6 +944,13 @@ export function FileManager({
     >
       <div className="flex h-full min-h-full min-w-0 flex-col p-0">
         <PluginEmbeddedViews location="file-panel" />
+        {deletionProgress?.hasRemote ? (
+          <div role="status" aria-live="polite" className="flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+            <Spinner aria-hidden="true" className="size-3.5 shrink-0 motion-reduce:animate-none" />
+            <span>{t('context.deleting')}</span>
+            <span className="ml-auto tabular-nums">{deletionProgress.completed}/{deletionProgress.total}</span>
+          </div>
+        ) : null}
         <PluginEmbeddedViews location="file-selection-panel" active={selectedEntries.length > 0} contextKey={selectedFilePaths.join('\u0000')} target={pluginSelectionTarget} />
         {isDragging && dragItemCount > 0 ? (
           <Badge variant="outline" className="pointer-events-none absolute right-2 top-12">

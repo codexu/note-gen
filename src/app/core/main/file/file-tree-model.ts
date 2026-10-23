@@ -28,6 +28,7 @@ export type FileTreeVisibilityOptions = {
   showCloudFiles: boolean
   showAssetsFolders: boolean
   assetsFolderName: string
+  isPathHidden?: (path: string) => boolean
 }
 
 export function isFileTreeEntryVisible(
@@ -49,18 +50,21 @@ export function filterFileTreeByVisibility(
   tree: DirTree[],
   options: FileTreeVisibilityOptions,
 ): DirTree[] {
-  if (options.showCloudFiles && options.showAssetsFolders) return tree
+  if (options.showCloudFiles && options.showAssetsFolders && !options.isPathHidden) return tree
 
-  return tree.flatMap((item) => {
-    if (!isFileTreeEntryVisible(item, options)) return []
+  function filter(items: DirTree[], parentPath = ''): DirTree[] {
+    return items.flatMap((item) => {
+      const path = parentPath ? `${parentPath}/${item.name}` : item.name
+      if (!isFileTreeEntryVisible(item, options) || options.isPathHidden?.(path)) return []
 
-    return [{
-      ...item,
-      children: item.children
-        ? filterFileTreeByVisibility(item.children, options)
-        : undefined,
-    }]
-  })
+      return [{
+        ...item,
+        children: item.children ? filter(item.children, path) : undefined,
+      }]
+    })
+  }
+
+  return filter(tree)
 }
 
 function createNodeId(path: string, isFolder: boolean) {

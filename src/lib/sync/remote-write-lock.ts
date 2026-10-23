@@ -2,6 +2,7 @@ interface PendingWrite {
   paths: string[]
   started: boolean
   start: () => void
+  finished: Promise<void>
 }
 
 const pendingWrites = new Map<string, PendingWrite[]>()
@@ -39,12 +40,15 @@ export function withRemotePathWriteLock<T>(
   const writes = pendingWrites.get(identity) || []
   pendingWrites.set(identity, writes)
   return new Promise<T>((resolve, reject) => {
+    let finish!: () => void
     const write: PendingWrite = {
       paths: normalized,
       started: false,
+      finished: new Promise<void>(resolveFinished => { finish = resolveFinished }),
       start: () => {
         void Promise.resolve().then(operation).then(resolve, reject).finally(() => {
           writes.splice(writes.indexOf(write), 1)
+          finish()
           drain(identity, writes)
         })
       },
@@ -52,4 +56,10 @@ export function withRemotePathWriteLock<T>(
     writes.push(write)
     drain(identity, writes)
   })
+}
+
+/** Drain the current snapshot. Providers use different physical path namespaces. */
+export async function waitForRemoteWrites(): Promise<void> {
+  const writes = [...pendingWrites.values()].flat()
+  await Promise.all(writes.map(write => write.finished))
 }

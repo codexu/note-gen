@@ -13,6 +13,8 @@ import { useWorkspaceFileWatcher } from './use-workspace-file-watcher'
 import useSettingStore from '@/stores/setting'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
 import { filterFileTreeByVisibility } from './file-tree-model'
+import { useFileDeletion } from './use-file-deletion'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -21,6 +23,7 @@ type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
  * 只有当文件管理器区域获得焦点时才响应快捷键
  */
 function useFileManagerShortcuts() {
+  const deleteEntries = useFileDeletion()
   const { activeFilePath, fileTree, selectedFilePaths, showCloudFiles, showAssetsFolders } = useArticleStore(useShallow((state) => ({
     activeFilePath: state.activeFilePath,
     fileTree: state.fileTree,
@@ -29,12 +32,16 @@ function useFileManagerShortcuts() {
     showAssetsFolders: state.showAssetsFolders,
   })))
   const assetsPath = useSettingStore(state => state.assetsPath)
+  const workspacePath = useSettingStore(state => state.workspacePath)
+  const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const visibleFileTree = useMemo(() => filterFileTreeByVisibility(fileTree, {
     showCloudFiles,
     showAssetsFolders,
     assetsFolderName,
-  }), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles])
+    isPathHidden: pendingDeletionPaths.length > 0
+      ? path => isFileDeletionPending(path, workspacePath) : undefined,
+  }), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles, pendingDeletionPaths, workspacePath])
   const { setClipboardItem, setClipboardItems } = useClipboardStore()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isFocused, setIsFocused] = useState(false)
@@ -121,6 +128,17 @@ function useFileManagerShortcuts() {
       return
     }
 
+    // Run deletion directly: virtualized rows may not be mounted to receive events.
+    const isDeleteKey = currentPlatform === 'macos' ? e.key === 'Backspace' : e.key === 'Delete'
+    if (isDeleteKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      const entries = selectedEntries.length > 0 ? selectedEntries
+        : getFileSelectionEntries(visibleFileTree, activeItem ? [activeItem.path] : [])
+      void deleteEntries(entries)
+      return
+    }
+
     if (selectedEntries.length === 0 && (!activeItem || !activeItem.isLocale)) {
       return
     }
@@ -178,23 +196,6 @@ function useFileManagerShortcuts() {
       return
     }
 
-    // 删除: macOS 使用 Backspace，Windows/Linux 使用 Delete
-    const isDeleteKey = currentPlatform === 'macos'
-      ? e.key === 'Backspace'
-      : e.key === 'Delete'
-
-    if (isDeleteKey) {
-      e.preventDefault()
-      e.stopPropagation()
-      if (selectedEntries.length > 0) {
-        window.dispatchEvent(new CustomEvent('filemanager-delete-selection'))
-      } else if (activeItem) {
-        const event = new CustomEvent('filemanager-delete', { detail: { item: activeItem } })
-        window.dispatchEvent(event)
-      }
-      return
-    }
-
     // 重命名: macOS 使用 Enter 键，Windows/Linux 使用 F2 键
     const isRenameKey = currentPlatform === 'macos'
       ? e.key === 'Enter'
@@ -210,7 +211,7 @@ function useFileManagerShortcuts() {
       }
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, selectedFilePaths, setClipboardItem, setClipboardItems, visibleFileTree])
+  }, [isFocused, getActiveItem, isModKey, currentPlatform, selectedFilePaths, setClipboardItem, setClipboardItems, visibleFileTree, deleteEntries])
 
   // 注册全局快捷键
   useEffect(() => {

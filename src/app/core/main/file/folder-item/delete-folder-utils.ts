@@ -2,16 +2,19 @@ import { exists, remove } from "@tauri-apps/plugin-fs";
 import { Store } from "@tauri-apps/plugin-store";
 import type { DirTree } from "@/stores/article";
 import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from "@/types/sync";
-import { computedParentPath, getCurrentFolder, joinRelativePath } from "@/lib/path";
+import { computedParentPath, getCurrentFolder } from "@/lib/path";
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace";
 import { getSyncRepoName } from "@/lib/sync/repo-utils";
-import { deleteFile as deleteGithubFile, getFiles as getGithubFiles } from "@/lib/sync/github";
-import { deleteFile as deleteGiteeFile, getFiles as getGiteeFiles } from "@/lib/sync/gitee";
-import { deleteFile as deleteGitlabFile, getFiles as getGitlabFiles } from "@/lib/sync/gitlab";
-import { deleteFile as deleteGiteaFile, getFiles as getGiteaFiles } from "@/lib/sync/gitea";
-import { s3Delete, s3ListObjects } from "@/lib/sync/s3";
+import { getDirectoryFiles as getGithubDirectoryFiles } from "@/lib/sync/github";
+import { getDirectoryFiles as getGiteeDirectoryFiles } from "@/lib/sync/gitee";
+import { getDirectoryFiles as getGitlabDirectoryFiles } from "@/lib/sync/gitlab";
+import { getDirectoryFiles as getGiteaDirectoryFiles } from "@/lib/sync/gitea";
+import { s3ListObjects } from "@/lib/sync/s3";
 import { webdavDelete } from "@/lib/sync/webdav";
-import { androidCloudFolderWorkspaceDelete } from "@/lib/sync/cloud-folder";
+import { androidCloudFolderWorkspaceDelete, supportsCloudFolderWorkspace } from "@/lib/sync/cloud-folder";
+import { deleteRemoteFile } from "@/lib/sync/remote-library";
+import { captureWorkspaceRemoteWriteGuard } from "@/lib/sync/workspace-remote-write-guard";
+import type { RemoteDirectoryEntry } from "@/lib/sync/directory-listing";
 
 type GitSyncPlatform = Extract<SyncPlatform, "github" | "gitee" | "gitlab" | "gitea">;
 
@@ -28,22 +31,8 @@ export interface DeleteRemoteFolderResult {
   failedPaths: string[];
 }
 
-function isRemoteContentEntry(value: unknown): value is RemoteContentEntry {
-  return typeof value === "object" && value !== null;
-}
-
 function isGitPlatform(platform: SyncPlatform): platform is GitSyncPlatform {
   return platform === "github" || platform === "gitee" || platform === "gitlab" || platform === "gitea";
-}
-
-function isDirectoryEntry(entry: RemoteContentEntry) {
-  const type = entry.type?.toLowerCase();
-  return type === "dir" || type === "tree";
-}
-
-function isFileEntry(entry: RemoteContentEntry) {
-  const type = entry.type?.toLowerCase();
-  return type === "file" || type === "blob" || (!type && Boolean(entry.path));
 }
 
 function uniquePaths(paths: string[]) {
@@ -55,22 +44,7 @@ function isStringPath(path: string | undefined): path is string {
 }
 
 function normalizeFolderPath(folderPath: string) {
-  return folderPath.trim().replace(/^\/+|\/+$/g, "");
-}
-
-function joinListedObjectPath(folderPath: string, key: string) {
-  const normalizedFolderPath = normalizeFolderPath(folderPath);
-  const normalizedKey = key.replace(/^\/+|\/+$/g, "");
-
-  if (!normalizedFolderPath) {
-    return normalizedKey;
-  }
-
-  if (!normalizedKey || normalizedKey === normalizedFolderPath || normalizedKey.startsWith(`${normalizedFolderPath}/`)) {
-    return normalizedKey;
-  }
-
-  return joinRelativePath(normalizedFolderPath, normalizedKey);
+  return folderPath.replace(/^\/+|\/+$/g, "");
 }
 
 function isMarkdownPath(path: string) {
@@ -258,48 +232,32 @@ export function clearFolderLocalState(tree: DirTree[], folderPath: string) {
   }
 }
 
-async function getGitRemoteEntries(platform: GitSyncPlatform, path: string, repo: string): Promise<unknown> {
+async function getGitRemoteEntries(
+  platform: GitSyncPlatform, path: string, repo: string, cache: Map<string, Promise<unknown>>,
+): Promise<RemoteDirectoryEntry[]> {
   switch (platform) {
-    case "github":
-      return getGithubFiles({ path, repo });
-    case "gitee":
-      return getGiteeFiles({ path, repo });
-    case "gitlab":
-      return getGitlabFiles({ path, repo });
-    case "gitea":
-      return getGiteaFiles({ path, repo });
+    case "github": return getGithubDirectoryFiles({ path, repo, cache });
+    case "gitee": return getGiteeDirectoryFiles({ path, repo, cache });
+    case "gitlab": return getGitlabDirectoryFiles({ path, repo });
+    case "gitea": return getGiteaDirectoryFiles({ path, repo });
   }
 }
 
 async function collectGitRemoteFileEntries(platform: GitSyncPlatform, folderPath: string, repo: string) {
-  const entries: RemoteContentEntry[] = [];
+  const entries: RemoteDirectoryEntry[] = [];
   const visitedPaths = new Set<string>();
+  const cache = new Map<string, Promise<unknown>>();
 
   async function walk(path: string) {
-    if (visitedPaths.has(path)) {
-      return;
-    }
-
+    if (visitedPaths.has(path)) throw new Error("Repeated remote directory");
     visitedPaths.add(path);
-    const response = await getGitRemoteEntries(platform, path, repo);
-
-    if (Array.isArray(response)) {
-      for (const entry of response.filter(isRemoteContentEntry)) {
-        if (!entry.path) {
-          continue;
-        }
-
-        if (isDirectoryEntry(entry)) {
-          await walk(entry.path);
-        } else if (isFileEntry(entry)) {
-          entries.push(entry);
-        }
+    const children = await getGitRemoteEntries(platform, path, repo, cache);
+    for (const entry of children) {
+      if (!entry.path.startsWith(`${path}/`) || entry.path.split("/").some(part => part === ".." || part === ".")) {
+        throw new Error("Remote directory contains an invalid path");
       }
-      return;
-    }
-
-    if (isRemoteContentEntry(response) && isFileEntry(response)) {
-      entries.push(response);
+      if (entry.type === "dir") await walk(entry.path);
+      else entries.push(entry);
     }
   }
 
@@ -307,158 +265,86 @@ async function collectGitRemoteFileEntries(platform: GitSyncPlatform, folderPath
   return entries;
 }
 
-async function deleteGitRemoteFile(platform: GitSyncPlatform, entry: RemoteContentEntry, repo: string) {
-  const path = entry.path;
-  if (!path) {
-    return false;
-  }
-
-  const sha = entry.sha || "";
-
-  switch (platform) {
-    case "github": {
-      const result = await deleteGithubFile({ path, sha, repo });
-      return Boolean(result);
-    }
-    case "gitee": {
-      const result = await deleteGiteeFile({ path, sha, repo });
-      return result !== false && result !== undefined;
-    }
-    case "gitlab": {
-      const result = await deleteGitlabFile({ path, sha, repo });
-      return Boolean(result);
-    }
-    case "gitea": {
-      const result = await deleteGiteaFile({ path, sha, repo });
-      return Boolean(result);
-    }
-  }
-}
-
-async function deleteGitRemoteFolder(
-  platform: GitSyncPlatform,
-  folderPath: string,
-  loadedFileEntries: RemoteContentEntry[]
-) {
-  const repo = await getSyncRepoName(platform);
-  const remoteEntries = await collectGitRemoteFileEntries(platform, folderPath, repo);
-  const entries = remoteEntries.length > 0
-    ? remoteEntries
-    : loadedFileEntries;
-
-  const result: DeleteRemoteFolderResult = {
-    attempted: entries.length > 0,
-    deletedPaths: [],
-    failedPaths: [],
-  };
-
+async function deleteListedRemoteFiles(
+  platform: SyncPlatform,
+  entries: Array<{ path: string; version: string }>,
+  beforeDelete?: () => Promise<void>,
+): Promise<DeleteRemoteFolderResult> {
+  const result: DeleteRemoteFolderResult = { attempted: true, deletedPaths: [], failedPaths: [] };
   for (const entry of entries) {
-    const path = entry.path;
-    if (!path) {
-      continue;
-    }
-
-    const deleted = await deleteGitRemoteFile(platform, entry, repo);
-    if (deleted) {
-      result.deletedPaths.push(path);
-    } else {
-      result.failedPaths.push(path);
+    try {
+      await beforeDelete?.();
+      if (!await deleteRemoteFile(entry.path, "workspace", { version: entry.version }, platform, beforeDelete)) {
+        throw new Error("Remote deletion failed");
+      }
+      result.deletedPaths.push(entry.path);
+    } catch (error) {
+      console.error(`Delete remote folder entry failed: ${entry.path}`, error);
+      result.failedPaths.push(entry.path);
     }
   }
-
   return result;
 }
 
-async function deleteS3RemoteFolder(config: S3Config, folderPath: string, loadedFilePaths: string[]) {
-  const listedObjects = await s3ListObjects(config, folderPath);
-  const objectKeys = listedObjects.map(object => joinListedObjectPath(folderPath, object.key));
-  const keys = uniquePaths(objectKeys.length > 0 ? objectKeys : loadedFilePaths);
-
-  const result: DeleteRemoteFolderResult = {
-    attempted: keys.length > 0,
-    deletedPaths: [],
-    failedPaths: [],
-  };
-
-  for (const key of keys) {
-    const deleted = await s3Delete(config, key);
-    if (deleted) {
-      result.deletedPaths.push(key);
-    } else {
-      result.failedPaths.push(key);
-    }
-  }
-
-  return result;
-}
-
-async function deleteWebDAVRemoteFolder(config: WebDAVConfig, folderPath: string) {
-  const deleted = await webdavDelete(config, folderPath);
-  return {
-    attempted: true,
-    deletedPaths: deleted ? [folderPath] : [],
-    failedPaths: deleted ? [] : [folderPath],
-  } satisfies DeleteRemoteFolderResult;
-}
-
-export async function deleteRemoteFolder(item: DirTree, localDeleted: boolean) {
+export async function deleteRemoteFolder(
+  item: DirTree,
+  localDeleted: boolean,
+  target?: SyncPlatform,
+  beforeDelete?: () => Promise<void>,
+): Promise<DeleteRemoteFolderResult> {
   const store = await Store.load("store.json");
-  const platform = await store.get<SyncPlatform>("primaryBackupMethod") || "github";
-  const folderPath = computedParentPath(item);
-  const loadedFileEntries = collectFolderFileEntries(item);
-  const loadedFilePaths = loadedFileEntries.map(entry => entry.path).filter(isStringPath);
-
-  if (localDeleted && !hasRemoteFolderData(item)) {
-    return {
-      attempted: false,
-      deletedPaths: [],
-      failedPaths: [],
-    } satisfies DeleteRemoteFolderResult;
+  const platform = target ?? await store.get<SyncPlatform>("primaryBackupMethod") ?? "github";
+  const folderPath = normalizeFolderPath(computedParentPath(item));
+  if (!folderPath || folderPath.split("/").some(part => part === ".." || part === ".")) {
+    throw new Error("Invalid folder deletion path");
   }
+  if (localDeleted && !hasRemoteFolderData(item)) {
+    return { attempted: false, deletedPaths: [], failedPaths: [] };
+  }
+  await beforeDelete?.();
 
   if (isGitPlatform(platform)) {
-    return deleteGitRemoteFolder(platform, folderPath, loadedFileEntries);
+    const repo = await getSyncRepoName(platform);
+    const entries = await collectGitRemoteFileEntries(platform, folderPath, repo);
+    const result = await deleteListedRemoteFiles(platform,
+      entries.map(entry => ({ path: entry.path, version: entry.sha })), beforeDelete);
+    if (result.failedPaths.length === 0) {
+      await beforeDelete?.();
+      // Re-read rather than reusing the inventory: another client may have added a file.
+      const remaining = await collectGitRemoteFileEntries(platform, folderPath, repo);
+      result.failedPaths.push(...remaining.map(entry => entry.path));
+    }
+    return result;
   }
 
   if (platform === "s3") {
     const config = await store.get<S3Config>("s3SyncConfig");
-    if (!config) {
-      return {
-        attempted: false,
-        deletedPaths: [],
-        failedPaths: [],
-      } satisfies DeleteRemoteFolderResult;
+    if (!config) throw new Error("S3 is not configured");
+    const entries = (await s3ListObjects(config, folderPath))
+      .filter(entry => entry.key.startsWith(`${folderPath}/`));
+    const result = await deleteListedRemoteFiles(platform,
+      entries.map(entry => ({ path: entry.key, version: entry.etag })), beforeDelete);
+    if (result.failedPaths.length === 0) {
+      await beforeDelete?.();
+      const remaining = await s3ListObjects(config, folderPath);
+      result.failedPaths.push(...remaining.filter(entry => entry.key.startsWith(`${folderPath}/`)).map(entry => entry.key));
     }
-
-    return deleteS3RemoteFolder(config, folderPath, loadedFilePaths);
+    return result;
   }
 
+  const beforeWrite = await captureWorkspaceRemoteWriteGuard(folderPath, platform, false);
+  const guard = async () => { await beforeDelete?.(); await beforeWrite?.(); };
   if (platform === "cloudFolder") {
     const config = await store.get<CloudFolderConfig>("cloudFolderSyncConfig");
-    if (config?.provider !== "oneDrive" || !config.path) {
-      return {
-        attempted: false,
-        deletedPaths: [],
-        failedPaths: [],
-      } satisfies DeleteRemoteFolderResult;
+    if (!config?.path || !supportsCloudFolderWorkspace(config)) {
+      throw new Error("Cloud folder does not support remote workspace deletion");
     }
-
-    const deleted = await androidCloudFolderWorkspaceDelete(config, folderPath);
-    return {
-      attempted: true,
-      deletedPaths: deleted ? [folderPath] : [],
-      failedPaths: deleted ? [] : [folderPath],
-    } satisfies DeleteRemoteFolderResult;
+    const deleted = await androidCloudFolderWorkspaceDelete(config, folderPath, undefined, guard);
+    return { attempted: true, deletedPaths: deleted ? [folderPath] : [], failedPaths: deleted ? [] : [folderPath] };
   }
-
+  if (platform !== "webdav") throw new Error("Remote folder deletion is unavailable");
   const config = await store.get<WebDAVConfig>("webdavSyncConfig");
-  if (!config) {
-    return {
-      attempted: false,
-      deletedPaths: [],
-      failedPaths: [],
-    } satisfies DeleteRemoteFolderResult;
-  }
-
-  return deleteWebDAVRemoteFolder(config, folderPath);
+  if (!config) throw new Error("WebDAV is not configured");
+  const deleted = await webdavDelete(config, folderPath, undefined, undefined, guard);
+  return { attempted: true, deletedPaths: deleted ? [folderPath] : [], failedPaths: deleted ? [] : [folderPath] };
 }

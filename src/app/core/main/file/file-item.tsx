@@ -8,13 +8,9 @@ import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
-import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, RefreshCwOff, Trash2 } from "lucide-react"
+import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ask } from '@tauri-apps/plugin-dialog';
 import { platform } from '@tauri-apps/plugin-os';
-import { Store } from '@tauri-apps/plugin-store';
-import { RepoNames } from "@/lib/sync/github.types";
-import { S3Config, WebDAVConfig } from "@/types/sync";
 import { cloneDeep } from "lodash-es";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { computedParentPath, getCurrentFolder } from "@/lib/path";
@@ -22,13 +18,6 @@ import { toast } from "@/hooks/use-toast";
 import { useTranslations } from "next-intl";
 import useClipboardStore from "@/stores/clipboard";
 import { appDataDir, join } from '@tauri-apps/api/path';
-import { deleteFile } from "@/lib/sync/github";
-import { deleteFile as deleteGiteeFile } from "@/lib/sync/gitee";
-import { deleteFile as deleteGitlabFile } from "@/lib/sync/gitlab";
-import { deleteFile as deleteGiteaFile } from "@/lib/sync/gitea";
-import { s3Delete } from "@/lib/sync/s3";
-import { webdavDelete } from "@/lib/sync/webdav";
-import { getSyncRepoName } from "@/lib/sync/repo-utils";
 import { generateUniqueFilename } from "@/lib/default-filename";
 import { MobileActionMenu, MobileMenuItem, MobileSeparator } from "./mobile-action-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -39,7 +28,7 @@ import { exportMarkdownFile, type MarkdownExportFormat } from "../editor/markdow
 import { setFileManagerDragData } from "./file-dnd";
 import { debugSyncPath } from "@/lib/sync/remote-file";
 import { BatchSelectionContextMenu } from "./batch-selection-context-menu";
-import { getTopLevelSelectionEntries, type FileSelectionEntry } from "./file-selection";
+import { getTopLevelSelectionEntries, toFileSelectionEntry, type FileSelectionEntry } from "./file-selection";
 import { pasteIntoFolder } from "./folder-item/paste-into-folder";
 import { downloadRemoteLibraryFile, uploadLocalLibraryFile } from "@/lib/sync/remote-library";
 import { useShallow } from 'zustand/react/shallow';
@@ -48,13 +37,14 @@ import { Badge } from '@/components/ui/badge'
 import { getFileTreeSyncStatus, getSyncConfiguration, validateFileTreeName, type FileTreeSyncStatus } from "./file-tree-action-policy";
 import { useSettingsDialogStore } from "@/stores/settings-dialog";
 import { FileTreeDecorations } from "./file-tree-decorations";
-import { moveEntryToSystemTrash } from './system-trash'
 import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
 import {
   prepareActiveEditorDeactivationDurably,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
 import { canOpenInEditorWindow, openEditorWindow } from '@/lib/editor-windows'
+import { useFileDeletion } from './use-file-deletion'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
@@ -132,8 +122,6 @@ export function FileItem({
     setEntryLoading,
     setEntrySyncError,
     markFileLocal,
-    reconcileLocalFile,
-    clearFileRemoteState,
     pendingFileTreeRenames,
   } = useArticleStore(useShallow((state) => ({
     activeFilePath: state.activeFilePath,
@@ -151,12 +139,12 @@ export function FileItem({
     setEntryLoading: state.setEntryLoading,
     setEntrySyncError: state.setEntrySyncError,
     markFileLocal: state.markFileLocal,
-    reconcileLocalFile: state.reconcileLocalFile,
-    clearFileRemoteState: state.clearFileRemoteState,
     pendingFileTreeRenames: state.pendingFileTreeRenames,
   })))
   const { setClipboardItem, clipboardItem, clipboardItems, clipboardOperation } = useClipboardStore()
-  const { fileManagerTextSize, primaryBackupMethod } = useSettingStore()
+  const { fileManagerTextSize, workspacePath } = useSettingStore()
+  const deleteEntries = useFileDeletion()
+  const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const t = useTranslations('article.file')
   const tCommon = useTranslations('common')
   const tTabs = useTranslations('tabContext')
@@ -174,6 +162,8 @@ export function FileItem({
   const pendingRenameTarget = Object.entries(pendingFileTreeRenames)
     .find(([source, target]) => source === path || target === path)?.[1]
   const renamePending = isRenaming || Boolean(pendingRenameTarget)
+  const deletionPending = pendingDeletionPaths.length > 0 && isFileDeletionPending(path, workspacePath)
+  const operationPending = renamePending || deletionPending
 
   const readingWorkspacePath = useSettingStore(state => state.workspacePath)
   const tReading = useTranslations('editor.readingMode')
@@ -284,6 +274,7 @@ export function FileItem({
   }, [])
 
   async function handleSelectFile(readOnly = false) {
+    if (operationPending || item.loading) return
     // 让文件管理器获得焦点，以便响应快捷键
     focusSidebar?.()
     const currentPath = computedParentPath(item)
@@ -340,6 +331,7 @@ export function FileItem({
   }
 
   async function handleOpenInNewWindow() {
+    if (operationPending) return
     const opened = await openEditorWindow({
       ...standaloneTab,
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -348,128 +340,12 @@ export function FileItem({
   }
 
   async function handleDeleteFile() {
-    if (renamePending) return
-    // 添加确认弹窗
-    const answer = await ask(t('deleteConfirm'), {
-      title: item.name,
-      kind: 'warning',
-    });
-    // 如果用户确认删除，则继续执行
-    if (answer) {
-      try {
-        // 使用当前路径，而不是重新计算的路径
-        const currentPath = computedParentPath(item)
-        if (!await prepareActiveEditorPathMutationDurably(activeFilePath, [currentPath])) return
-        const trashed = await moveEntryToSystemTrash(currentPath)
-
-        reconcileLocalFile(currentPath, false)
-        await cleanTabsByDeletedFile(currentPath)
-        if (vectorIndexedFiles.has(currentPath)) {
-          const nextVectorIndexedFiles = new Map(useArticleStore.getState().vectorIndexedFiles)
-          nextVectorIndexedFiles.delete(currentPath)
-          useArticleStore.setState({ vectorIndexedFiles: nextVectorIndexedFiles })
-        }
-        toast({
-          title: t('context.movedToTrash', { count: trashed ? 1 : 0 }),
-        })
-      } catch (error) {
-        console.error('Delete file failed:', error)
-        toast({
-          title: t('context.deleteLocalFile'),
-          description: '删除文件失败: ' + error,
-          variant: 'destructive'
-        })
-      }
-    }
-  }
-
-  async function handleDeleteSyncFile() {
-    const answer = await ask(t('context.deleteSyncFile') + '?', {
-      title: item.name,
-      kind: 'warning',
-    });
-    if (answer) {
-      const currentPath = computedParentPath(item)
-
-      setEntryLoading(currentPath, true)
-
-      try {
-        // 获取当前主要备份方式
-        const store = await Store.load('store.json');
-        const backupMethod = await store.get<'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>('primaryBackupMethod') || 'github';
-        if (backupMethod === 'local' || backupMethod === 'cloudFolder' || backupMethod === 'selfHosted') {
-          setEntryLoading(currentPath, false)
-          return
-        }
-        const repoName = backupMethod === 's3' || backupMethod === 'webdav'
-          ? RepoNames.sync
-          : await getSyncRepoName(backupMethod)
-
-        let success = false
-        switch (backupMethod) {
-          case 'github': {
-            const result = await deleteFile({ path: currentPath, sha: item.sha as string, repo: repoName });
-            success = !!result
-            break;
-          }
-          case 'gitee': {
-            const result = await deleteGiteeFile({ path: currentPath, sha: item.sha as string, repo: repoName });
-            success = result !== false
-            break;
-          }
-          case 'gitlab': {
-            const result = await deleteGitlabFile({ path: currentPath, sha: item.sha as string, repo: repoName });
-            success = !!result
-            break;
-          }
-          case 'gitea': {
-            const result = await deleteGiteaFile({ path: currentPath, sha: item.sha as string, repo: repoName });
-            success = !!result
-            break;
-          }
-          case 's3': {
-            const s3Config = await store.get<S3Config>('s3SyncConfig')
-            if (s3Config) {
-              const result = await s3Delete(s3Config, currentPath)
-              success = result
-            }
-            break;
-          }
-          case 'webdav': {
-            const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-            if (webdavConfig) {
-              const result = await webdavDelete(webdavConfig, currentPath)
-              success = result
-            }
-            break;
-          }
-        }
-
-        if (success) {
-          clearFileRemoteState(currentPath)
-
-          toast({
-            title: t('context.delete'),
-            description: t('context.deleteSyncFileSuccess'),
-          });
-        } else {
-          setEntryLoading(currentPath, false)
-          throw new Error('删除操作返回失败')
-        }
-      } catch (error) {
-        setEntryLoading(currentPath, false)
-        console.error('[handleDeleteSyncFile] 删除远程文件失败:', error);
-        toast({
-          title: t('context.delete'),
-          description: t('context.deleteSyncFileError'),
-          variant: 'destructive',
-        });
-      }
-    }
+    if (operationPending || item.loading || item.name === '') return
+    await deleteEntries([toFileSelectionEntry(item)])
   }
 
   async function handleStartRename() {
-    if (renamePending) return
+    if (operationPending) return
     // 延迟执行，确保上下文菜单完全关闭
     setTimeout(() => {
       renameCancelledRef.current = false
@@ -734,6 +610,10 @@ export function FileItem({
   }
 
   function handleDragStart(ev: React.DragEvent<HTMLElement>) {
+    if (operationPending) {
+      ev.preventDefault()
+      return
+    }
     const selectedPaths = selectedPathSet.has(path)
       ? getTopLevelSelectionEntries(selectionEntries).map(entry => entry.path)
       : [path]
@@ -741,6 +621,7 @@ export function FileItem({
   }
 
   async function handleCopyFile() {
+    if (isFileDeletionPending(path, workspacePath)) return
     setClipboardItem({
       path,
       name: item.name,
@@ -752,6 +633,7 @@ export function FileItem({
   }
 
   async function handleCutFile() {
+    if (isFileDeletionPending(path, workspacePath)) return
     setClipboardItem({
       path,
       name: item.name,
@@ -763,6 +645,7 @@ export function FileItem({
   }
 
   async function handlePasteFile() {
+    if (isFileDeletionPending(path, workspacePath)) return
     const targetDir = path.includes('/') ? path.split('/').slice(0, -1).join('/') : ''
     await pasteIntoFolder({
       clipboardItem,
@@ -780,6 +663,7 @@ export function FileItem({
   }
 
   async function handleExportFile(format: MarkdownExportFormat) {
+    if (isFileDeletionPending(path, workspacePath)) return
     try {
       setExportingFormat(format)
       const exported = await exportMarkdownFile(
@@ -804,7 +688,7 @@ export function FileItem({
   }
 
   async function handleUploadFile() {
-    if (isUploading || !item.isLocale || item.name === '') return
+    if (operationPending || item.loading || isUploading || !item.isLocale || item.name === '') return
     const sync = await getSyncConfiguration()
     if (!sync.configured) {
       toast({
@@ -944,16 +828,16 @@ export function FileItem({
             level={level}
             active={path === activeFilePath}
             selected={isSelected}
-            aria-busy={renamePending}
+            aria-busy={operationPending}
             className={renamePending ? 'pointer-events-none' : undefined}
             treeItemProps={treeItemProps}
-            onActivate={renamePending ? undefined : handleFileClick}
+            onActivate={operationPending ? undefined : handleFileClick}
             onContextMenu={event => {
-              if (renamePending) event.preventDefault()
+              if (operationPending) event.preventDefault()
               else handleFileContextMenu(event)
             }}
             onKeyDownCapture={event => {
-              if (!renamePending) return
+              if (!operationPending) return
               event.preventDefault()
               event.stopPropagation()
             }}
@@ -1050,13 +934,8 @@ export function FileItem({
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
-                    {primaryBackupMethod !== 'cloudFolder' ? (
-                      <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
-                        {t('context.deleteSyncFile')}
-                      </MobileMenuItem>
-                    ) : null}
-                    <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
-                      {t('context.deleteLocalFile')}
+                    <MobileMenuItem disabled={operationPending || item.loading || item.name === ''} className="text-destructive" onClick={handleDeleteFile}>
+                      {t('context.delete')}
                     </MobileMenuItem>
                   </MobileActionMenu>
                 )}
@@ -1108,13 +987,8 @@ export function FileItem({
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
-                    {primaryBackupMethod !== 'cloudFolder' ? (
-                      <MobileMenuItem disabled={!item.sha} className="text-red-600" onClick={handleDeleteSyncFile}>
-                        {t('context.deleteSyncFile')}
-                      </MobileMenuItem>
-                    ) : null}
-                    <MobileMenuItem disabled={!item.isLocale || item.name === ''} className="text-red-600" onClick={handleDeleteFile}>
-                      {t('context.deleteLocalFile')}
+                    <MobileMenuItem disabled={operationPending || item.loading || item.name === ''} className="text-destructive" onClick={handleDeleteFile}>
+                      {t('context.delete')}
                     </MobileMenuItem>
                   </MobileActionMenu>
                 )}
@@ -1122,7 +996,18 @@ export function FileItem({
             }
           </FileTreeRow>
         </ContextMenuTrigger>
-        <ContextMenuContent>
+        <ContextMenuContent
+          onClickCapture={event => {
+            if (!operationPending) return
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onKeyDownCapture={event => {
+            if (!operationPending) return
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+        >
           {useSelectionMenu ? (
             <BatchSelectionContextMenu entries={selectionEntries} modKey={modKey} deleteKey={deleteKey} />
           ) : (
@@ -1243,15 +1128,9 @@ export function FileItem({
                   <Kbd>{renameKey}</Kbd>
                 </ContextMenuShortcut>
               </ContextMenuItem>
-              {primaryBackupMethod !== 'cloudFolder' ? (
-                <ContextMenuItem disabled={!item.sha} inset className="text-red-900" onClick={handleDeleteSyncFile} menuType="file">
-                  <RefreshCwOff className="mr-2 h-4 w-4" />
-                  {t('context.deleteSyncFile')}
-                </ContextMenuItem>
-              ) : null}
-              <ContextMenuItem disabled={!item.isLocale || item.name === ''} inset className="text-red-900" onClick={handleDeleteFile} menuType="file">
+              <ContextMenuItem disabled={operationPending || item.loading || item.name === ''} inset className="text-destructive" onClick={handleDeleteFile} menuType="file">
                 <Trash2 className="mr-2 h-4 w-4" />
-                {t('context.deleteLocalFile')}
+                {t('context.delete')}
                 <ContextMenuShortcut menuType="file">
                   <Kbd>{deleteKey}</Kbd>
                 </ContextMenuShortcut>

@@ -9,11 +9,20 @@ import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { prepareActiveEditorDeactivation } from '@/lib/editor-deactivation'
 import useChatStore from '@/stores/chat'
+import useSettingStore from '@/stores/setting'
+import useFileDeletionStore from '@/stores/file-deletion'
+import { Spinner } from '@/components/ui/spinner'
+import { useTranslations } from 'next-intl'
 
 type WritingView = 'files' | 'editor'
 
 export function WritingScreen({ isActive }: { isActive: boolean }) {
   const pathname = usePathname()
+  const t = useTranslations('article.file.context')
+  const workspacePath = useSettingStore(state => state.workspacePath)
+  const deletionProgress = useFileDeletionStore(state => (
+    state.workspacePath === workspacePath ? state.progress : null
+  ))
   const activeFilePath = useArticleStore(state => state.activeFilePath)
   const initCollapsibleList = useArticleStore(state => state.initCollapsibleList)
   const initSortSettings = useArticleStore(state => state.initSortSettings)
@@ -109,6 +118,13 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
 
   return (
     <div id="mobile-writing" className='w-full h-full min-h-0 flex flex-col overflow-clip'>
+      {deletionProgress?.hasRemote ? (
+        <div role="status" aria-live="polite" className="flex shrink-0 items-center gap-2 border-b bg-background px-4 py-2 text-xs text-muted-foreground">
+          <Spinner aria-hidden="true" className="size-3.5 shrink-0 motion-reduce:animate-none" />
+          <span>{t('deleting')}</span>
+          <span className="ml-auto tabular-nums">{deletionProgress.completed}/{deletionProgress.total}</span>
+        </div>
+      ) : null}
       <div
         className={cn('min-h-0 flex-1', view !== 'files' && 'hidden')}
         aria-hidden={view !== 'files'}

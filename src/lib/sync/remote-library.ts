@@ -30,6 +30,9 @@ import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/
 import { recordSyncTiming } from './sync-timing'
 import { prepareWorkspacePathUpload, retryWorkspacePathMoves } from './workspace-path-moves'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
+import { getCurrentEditorWorkspaceRoot, runEditorPathWriteTransaction } from '@/lib/editor-deactivation'
+import { getFileDeletionRevision, isFileDeletionPending } from '@/stores/file-deletion'
+import useSettingStore from '@/stores/setting'
 import {
   createStaticAssetSyncMarker,
   rememberStaticAssetSyncMarker,
@@ -376,6 +379,8 @@ async function pullRemoteLibraryFiles(
   let started = 0
 
   await runWithConcurrency(files, concurrency, async file => {
+    const workspacePath = useSettingStore.getState().workspacePath || ''
+    const deletionRevision = getFileDeletionRevision(file.path, workspacePath)
     started += 1
     onProgress?.({ phase: 'downloading', current: started, total: files.length, path: file.path })
 
@@ -387,7 +392,15 @@ async function pullRemoteLibraryFiles(
         }
 
         const content = await downloadRemoteBytes(file.path)
-        await saveLocalBytes(file.path, content, { operationKey })
+        await saveLocalBytes(file.path, content, {
+          operationKey,
+          beforeWrite: () => {
+            if (isFileDeletionPending(file.path, workspacePath)
+              || getFileDeletionRevision(file.path, workspacePath) !== deletionRevision) {
+              throw new Error('The file was deleted during download')
+            }
+          },
+        })
         result.downloaded += 1
       })
     } catch (error) {
@@ -403,6 +416,9 @@ async function pullRemoteLibraryFiles(
 }
 
 export async function downloadRemoteLibraryFile(path: string): Promise<void> {
+  const workspacePath = useSettingStore.getState().workspacePath || ''
+  const deletionRevision = getFileDeletionRevision(path, workspacePath)
+  if (isFileDeletionPending(path, workspacePath)) throw new Error('The file is being deleted')
   await retryWorkspacePathMoves()
   await withStaticAssetSyncLock(path, async operationKey => {
     const pathOptions = await getFilePathOptions(path)
@@ -410,6 +426,12 @@ export async function downloadRemoteLibraryFile(path: string): Promise<void> {
     await saveLocalBytes(path, content, {
       operationKey,
       resolvedPathOptions: pathOptions,
+      beforeWrite: () => {
+        if (isFileDeletionPending(path, workspacePath)
+          || getFileDeletionRevision(path, workspacePath) !== deletionRevision) {
+          throw new Error('The file was deleted during download')
+        }
+      },
     })
   })
 }
@@ -533,28 +555,37 @@ export async function saveLocalBytes(
     operationKey?: string
     platform?: SyncPlatform
     resolvedPathOptions?: Awaited<ReturnType<typeof getFilePathOptions>>
+    beforeWrite?: () => void
   } = {},
 ): Promise<void> {
-  const { operationKey, resolvedPathOptions } = options
-  if (!resolvedPathOptions) {
-    await ensureDirectoryExists(path)
-  }
-  const pathOptions = resolvedPathOptions ?? await getFilePathOptions(path)
-  const marker = await createStaticAssetSyncMarker(path, content, operationKey, options.platform)
-  if (resolvedPathOptions) {
-    const parentPath = await dirname(pathOptions.path)
-    if (pathOptions.baseDir) {
-      await mkdir(parentPath, { baseDir: pathOptions.baseDir, recursive: true })
-    } else {
-      await mkdir(parentPath, { recursive: true })
+  const workspaceRoot = await getCurrentEditorWorkspaceRoot()
+  await runEditorPathWriteTransaction(path, async () => {
+    options.beforeWrite?.()
+    if (isFileDeletionPending(path)) throw new Error('The file is being deleted')
+    const { operationKey, resolvedPathOptions } = options
+    if (!resolvedPathOptions) {
+      await ensureDirectoryExists(path)
     }
-  }
-  if (pathOptions.baseDir) {
-    await writeFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
-  } else {
-    await writeFile(pathOptions.path, content)
-  }
-  rememberStaticAssetSyncMarker(marker)
+    const pathOptions = resolvedPathOptions ?? await getFilePathOptions(path)
+    const marker = await createStaticAssetSyncMarker(path, content, operationKey, options.platform)
+    if (resolvedPathOptions) {
+      const parentPath = await dirname(pathOptions.path)
+      if (pathOptions.baseDir) {
+        await mkdir(parentPath, { baseDir: pathOptions.baseDir, recursive: true })
+      } else {
+        await mkdir(parentPath, { recursive: true })
+      }
+    }
+    options.beforeWrite?.()
+    if (isFileDeletionPending(path)) throw new Error('The file is being deleted')
+    if (pathOptions.baseDir) {
+      await writeFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+    } else {
+      await writeFile(pathOptions.path, content)
+    }
+    rememberStaticAssetSyncMarker(marker)
+    return true
+  }, workspaceRoot)
 }
 
 async function downloadRemoteBytesRaw(
@@ -913,12 +944,17 @@ export async function deleteRemoteFile(
   scope: RemoteRepositoryScope = 'workspace',
   condition?: RemoteWriteCondition,
   target?: SyncPlatform,
+  beforeDelete?: () => Promise<void>,
 ): Promise<boolean> {
+  await beforeDelete?.()
   const store = await Store.load('store.json')
   const platform = target ?? await getPlatform(store)
   const switchingTarget = target !== undefined && Boolean(await store.get('platformSwitchRecovery'))
-  const beforeWrite = scope === 'workspace' && !switchingTarget
+  const capturedGuard = scope === 'workspace' && !switchingTarget
     ? await captureWorkspaceRemoteWriteGuard(path, platform, false) : undefined
+  const beforeWrite = beforeDelete || capturedGuard
+    ? async () => { await beforeDelete?.(); await capturedGuard?.() }
+    : undefined
 
   if (platform === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')

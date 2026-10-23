@@ -42,19 +42,20 @@ import { debugSyncPath } from "@/lib/sync/remote-file";
 import { appDataDir } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { BatchSelectionContextMenu } from "../batch-selection-context-menu";
-import { getTopLevelSelectionEntries, type FileSelectionEntry } from "../file-selection";
+import { getTopLevelSelectionEntries, toFileSelectionEntry, type FileSelectionEntry } from "../file-selection";
 import { useShallow } from 'zustand/react/shallow';
 import { FileTreeRenameProgress, FileTreeRow, type FileTreeItemProps } from "../file-tree-row";
 import { Badge } from '@/components/ui/badge'
 import { getFileTreeSyncStatus, validateFileTreeName, type FileTreeSyncStatus } from "../file-tree-action-policy";
 import { FileTreeDecorations } from "../file-tree-decorations";
-import { moveEntryToSystemTrash } from '../system-trash'
 import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
 import {
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 import { FileTreeExpansionMenu } from '../file-tree-expansion-menu'
+import { useFileDeletion } from '../use-file-deletion'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 
 export function FolderItem({
   item,
@@ -91,7 +92,9 @@ export function FolderItem({
   const inputRef = useRef<HTMLInputElement>(null)
   const dragExpandTimeoutRef = useRef<number | null>(null)
 
-  const { assetsPath, fileManagerTextSize } = useSettingStore()
+  const { assetsPath, fileManagerTextSize, workspacePath } = useSettingStore()
+  const deleteEntries = useFileDeletion()
+  const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
@@ -160,6 +163,8 @@ export function FolderItem({
   const pendingRenameTarget = Object.entries(pendingFileTreeRenames)
     .find(([source, target]) => source === path || target === path)?.[1]
   const renamePending = isRenaming || Boolean(pendingRenameTarget)
+  const deletionPending = pendingDeletionPaths.length > 0 && isFileDeletionPending(path, workspacePath)
+  const operationPending = renamePending || deletionPending
   const cacheTree = cloneDeep(fileTree)
   const currentFolder = getCurrentFolder(path, cacheTree)
   const parentFolder = currentFolder?.parent
@@ -242,6 +247,7 @@ export function FolderItem({
 
   // 移动端处理函数
   function handleNewFile() {
+    if (isFileDeletionPending(path, workspacePath)) return
     // 创建临时文件节点，并将其设为编辑状态
     const cacheTree = cloneDeep(fileTree);
     const currentFolder = getCurrentFolder(path, cacheTree);
@@ -275,6 +281,7 @@ export function FolderItem({
   }
 
   function handleNewFolder() {
+    if (isFileDeletionPending(path, workspacePath)) return
     // 创建临时文件夹节点
     const cacheTree = cloneDeep(fileTree);
     const currentFolder = getCurrentFolder(path, cacheTree);
@@ -307,7 +314,7 @@ export function FolderItem({
   }
 
   function handleStartRename() {
-    if (renamePending) return
+    if (operationPending) return
     // 延迟执行，确保上下文菜单完全关闭
     setTimeout(() => {
       renameCancelledRef.current = false
@@ -331,6 +338,7 @@ export function FolderItem({
 
   // 粘贴到文件夹
   async function handlePasteInFolder() {
+    if (isFileDeletionPending(path, workspacePath)) return
     await pasteIntoFolder({
       clipboardItem,
       clipboardItems,
@@ -358,6 +366,7 @@ export function FolderItem({
   }
 
   function handleCutFolder() {
+    if (isFileDeletionPending(path, workspacePath)) return
     setClipboardItem({
       path,
       name: item.name,
@@ -368,6 +377,7 @@ export function FolderItem({
   }
 
   function handleCopyFolder() {
+    if (isFileDeletionPending(path, workspacePath)) return
     setClipboardItem({
       path,
       name: item.name,
@@ -377,48 +387,9 @@ export function FolderItem({
     toast({ title: t('clipboard.copied') })
   }
 
-  // 删除文件夹
   async function handleDeleteFolder() {
-    if (renamePending) return
-    if (!item.isLocale) return
-
-    try {
-      const { ask } = await import('@tauri-apps/plugin-dialog')
-
-      // 确认删除操作
-      const confirmed = await ask(t('context.confirmDelete', { name: item.name }), {
-        title: item.name,
-        kind: 'warning',
-      })
-
-      if (!confirmed) return
-
-      if (!await prepareActiveEditorPathMutationDurably(activeFilePath, [path])) return
-
-      const trashed = await moveEntryToSystemTrash(path)
-      const removedVectorEntries = new Map(
-        Array.from(vectorIndexedFiles.entries())
-          .filter(([vectorPath]) => vectorPath === path || vectorPath.startsWith(`${path}/`))
-      )
-
-      await cleanTabsByDeletedFolder(path)
-      if (removedVectorEntries.size > 0) {
-        const nextVectorIndexedFiles = new Map(useArticleStore.getState().vectorIndexedFiles)
-        removedVectorEntries.forEach((_, vectorPath) => nextVectorIndexedFiles.delete(vectorPath))
-        useArticleStore.setState({ vectorIndexedFiles: nextVectorIndexedFiles })
-      }
-      await loadFileTree({ skipRemoteSync: true })
-
-      toast({
-        title: t('context.movedToTrash', { count: trashed ? 1 : 0 }),
-      })
-    } catch (error) {
-      console.error('Delete folder failed:', error)
-      toast({
-        title: t('context.deleteFailed'),
-        variant: 'destructive'
-      })
-    }
+    if (operationPending || item.loading || item.name === '') return
+    await deleteEntries([toFileSelectionEntry(item)])
   }
 
   // 优化的输入处理，支持输入法
@@ -638,6 +609,12 @@ export function FolderItem({
     e.stopPropagation()
     clearDragExpandTimer()
     const renamePaths = getFileManagerDragPaths(e.dataTransfer)
+    if (isFileDeletionPending(path, workspacePath)
+      || renamePaths.some(sourcePath => isFileDeletionPending(sourcePath, workspacePath))) {
+      setIsDragging(false)
+      setDragItemCount(0)
+      return
+    }
     if (!await prepareActiveEditorPathMutationDurably(activeFilePath, renamePaths)) {
       setIsDragging(false)
       setDragItemCount(0)
@@ -694,6 +671,12 @@ export function FolderItem({
   }
 
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    if (deletionPending) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'none'
+      return
+    }
     if (!hasFileManagerDragData(e.dataTransfer)) {
       return
     }
@@ -732,7 +715,7 @@ export function FolderItem({
   }
 
   function handleDragStart(ev: React.DragEvent<HTMLDivElement>) {
-    if (!item.isLocale || isEditing) {
+    if (operationPending || !item.isLocale || isEditing) {
       ev.preventDefault()
       return
     }
@@ -751,6 +734,7 @@ export function FolderItem({
   }
 
   async function handleSelectFolder() {
+    if (isFileDeletionPending(path, workspacePath)) return
     // 检查是否真的是目录（防止误将文件当作目录处理）
     if (!item.isDirectory) {
       return
@@ -954,7 +938,7 @@ export function FolderItem({
           level={level}
           active={path === activeFilePath}
           selected={isSelected}
-          aria-busy={renamePending}
+          aria-busy={operationPending}
           className={renamePending ? 'pointer-events-none' : undefined}
           dropTarget={isDragging}
           dropLabel={isDragging
@@ -962,7 +946,7 @@ export function FolderItem({
             : undefined}
           expanded={isExpanded}
           expandable={expandable}
-          expansionLocked={expansionLocked || renamePending}
+          expansionLocked={expansionLocked || operationPending}
           expandLabel={t('expandFolder')}
           collapseLabel={t('collapseFolder')}
           treeItemProps={treeItemProps}
@@ -970,19 +954,19 @@ export function FolderItem({
           onDrop={(e) => handleDrop(e)}
           onDragOver={e => handleDragOver(e)}
           onDragLeave={(e) => handleDragleave(e)}
-          onActivate={renamePending ? undefined : handleFolderClick}
+          onActivate={operationPending ? undefined : handleFolderClick}
           onContextMenu={event => {
-            if (renamePending) event.preventDefault()
+            if (operationPending) event.preventDefault()
             else handleFolderContextMenu(event)
           }}
           onKeyDownCapture={event => {
-            if (!renamePending) return
+            if (!operationPending) return
             event.preventDefault()
             event.stopPropagation()
           }}
           onToggle={async (event) => {
             event.stopPropagation()
-            if (expansionLocked) return
+            if (expansionLocked || operationPending) return
             const nextExpanded = !isExpanded
             await setCollapsibleList(path, nextExpanded)
             if (nextExpanded) {
@@ -1098,8 +1082,8 @@ export function FolderItem({
                         {t('context.rename')}
                       </MobileMenuItem>
                       <MobileMenuItem
-                        disabled={!item.isLocale}
-                        className="text-red-600"
+                        disabled={operationPending || item.loading || item.name === ''}
+                        className="text-destructive"
                         onClick={() => void handleDeleteFolder()}
                       >
                         {t('context.delete')}
@@ -1110,7 +1094,18 @@ export function FolderItem({
             }
         </FileTreeRow>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        onClickCapture={event => {
+          if (!operationPending) return
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onKeyDownCapture={event => {
+          if (!operationPending) return
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+      >
         {useSelectionMenu ? (
           <BatchSelectionContextMenu entries={selectionEntries} modKey={modKey} deleteKey={deleteKey} />
         ) : (

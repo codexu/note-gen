@@ -55,6 +55,7 @@ import {
   type EditorPathWriteTransactionContext,
 } from '@/lib/editor-deactivation'
 import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
+import { isFileDeletionPending } from './file-deletion'
 import type { EditorWorkspaceLayout } from '@/app/core/main/editor/editor-group-layout'
 
 type SyncPushCompletedEvent = Events['sync-push-completed']
@@ -1336,7 +1337,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     fileActivationIntentSequence += 1
     if (editorWorkspaceTransitionInProgress && !options?.workspaceTransitionReset) return
     const nextPath = isVirtualOpenTabPath(path) ? '' : path
-    if (isEditorPathMutationLocked(nextPath)) return
+    if (isEditorPathMutationLocked(nextPath) || isFileDeletionPending(nextPath)) return
     if (
       nextPath !== get().activeFilePath
       && !options?.deactivationAlreadyPrepared
@@ -1473,7 +1474,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
   addTab: async (tab, options) => {
     const normalizedTab = normalizeOpenTabInfo(tab)
-    if (isEditorPathMutationLocked(tab.path)) return
+    if (isEditorPathMutationLocked(tab.path) || isFileDeletionPending(tab.path)) return
     const currentTabs = get().openTabs
     // Check if tab already exists
     const existingTab = currentTabs.find(t => t.path === normalizedTab.path)
@@ -3412,6 +3413,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
   },
 
   readArticle: (path, sha, autoSync = true, options) => {
+    if (isFileDeletionPending(path)) return Promise.resolve()
     // 处理文件名兼容性问题
     let actualPath = path
     if (!isAbsoluteFsPath(path) && hasInvalidFileNameChars(path)) {
@@ -3444,6 +3446,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const isCurrentArticleRead = () => (
       articleReadGeneration === requestGeneration
       && get().activeFilePath === actualPath
+      && !isFileDeletionPending(actualPath)
       )
 
     warmMarkdownLexerWorker()
@@ -3491,7 +3494,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
       try {
         const remoteContent = await pullRemoteFile(actualPath)
         if (!isCurrentArticleRead()) return
-        await saveLocalFile(actualPath, remoteContent)
+        const saved = await get().runPathWriteTransaction(actualPath, async () => {
+          if (!isCurrentArticleRead()) return false
+          await saveLocalFile(actualPath, remoteContent)
+          return true
+        })
+        if (!saved || !isCurrentArticleRead()) return
 
         if (isCurrentArticleRead()) {
           prefetchMarkdownTokens(actualPath, remoteContent)
@@ -3570,6 +3578,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         // 本地文件，创建空白文件
         await ensureDirectoryExists(actualPath)
         const pathOptions = await getFilePathOptions(actualPath)
+        if (!isCurrentArticleRead()) return
 
         try {
           if (await writeSelfHostedWorkspaceText(actualPath, '')) {
@@ -3710,6 +3719,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   saveCurrentArticle: async (content: string, pathOverride?: string) => {
     const path = pathOverride ?? get().activeFilePath
+    if (isFileDeletionPending(path)) return
     const justPulled = get().justPulledFile
 
     if (path && content !== undefined && content !== null) {
@@ -3724,6 +3734,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const previousSave = inFlightArticleSaves.get(path)
         const savePromise = (async () => {
           if (previousSave) await previousSave
+          if (isFileDeletionPending(path)) return
           // 只保存本地文件，不触发同步推送
           const pathOptions = await getFilePathOptions(path)
           if (await writeSelfHostedWorkspaceText(path, content)) {
@@ -3774,6 +3785,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const previousSave = inFlightArticleSaves.get(path)
         const commitPromise = (async () => {
           if (previousSave) await previousSave
+          if (isFileDeletionPending(path)) return
 
           // 执行实际保存操作
           const savePath = path

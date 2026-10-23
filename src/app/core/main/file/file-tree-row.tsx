@@ -4,6 +4,8 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import useSettingStore from '@/stores/setting'
+import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 
 export function FileTreeRenameProgress({
   name,
@@ -77,6 +79,9 @@ export const FileTreeRow = React.forwardRef<HTMLDivElement, FileTreeRowProps>(fu
   treeItemProps,
   ...props
 }, forwardedRef) {
+  const workspacePath = useSettingStore(state => state.workspacePath)
+  const pendingPaths = useFileDeletionStore(state => state.pendingPaths)
+  const deletionPending = pendingPaths.length > 0 && isFileDeletionPending(path, workspacePath)
   const {
     className: treeClassName,
     onClick: onTreeClick,
@@ -109,7 +114,8 @@ export const FileTreeRow = React.forwardRef<HTMLDivElement, FileTreeRowProps>(fu
         'group file-manager-item min-w-0 select-none overflow-hidden',
         active && 'active',
         selected && 'file-selected',
-        dropTarget && 'file-on-drop',
+        dropTarget && !deletionPending && 'file-on-drop',
+        deletionPending && 'cursor-wait',
         treeClassName,
         className
       )}
@@ -118,11 +124,66 @@ export const FileTreeRow = React.forwardRef<HTMLDivElement, FileTreeRowProps>(fu
         ...style,
         paddingInlineStart: `${4 + level * 16}px`,
       }}
+      aria-busy={deletionPending || props['aria-busy']}
+      aria-disabled={deletionPending || props['aria-disabled']}
+      onPointerDownCapture={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        treeProps.onPointerDownCapture?.(event)
+        if (!event.defaultPrevented) props.onPointerDownCapture?.(event)
+      }}
+      onKeyDownCapture={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        treeProps.onKeyDownCapture?.(event)
+        if (!event.defaultPrevented) props.onKeyDownCapture?.(event)
+      }}
+      onDragStartCapture={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        treeProps.onDragStartCapture?.(event)
+        if (!event.defaultPrevented) props.onDragStartCapture?.(event)
+      }}
+      onDropCapture={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        treeProps.onDropCapture?.(event)
+        if (!event.defaultPrevented) props.onDropCapture?.(event)
+      }}
+      onClickCapture={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        treeProps.onClickCapture?.(event)
+        if (!event.defaultPrevented) props.onClickCapture?.(event)
+      }}
       onClick={(event) => {
+        if (deletionPending) return
         onTreeClick?.(event)
         onActivate?.(event)
       }}
-      onContextMenu={onContextMenu}
+      onContextMenu={event => {
+        if (deletionPending) {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+        onContextMenu?.(event)
+      }}
     >
       {expandable ? (
         <button
@@ -131,8 +192,8 @@ export const FileTreeRow = React.forwardRef<HTMLDivElement, FileTreeRowProps>(fu
           className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm bg-transparent text-muted-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           aria-label={expanded ? collapseLabel : expandLabel}
           aria-expanded={expanded}
-          aria-disabled={expansionLocked}
-          disabled={expansionLocked}
+          aria-disabled={expansionLocked || deletionPending}
+          disabled={expansionLocked || deletionPending}
           title={expansionLocked ? collapseLabel : undefined}
           onClick={onToggle}
         >
@@ -147,7 +208,7 @@ export const FileTreeRow = React.forwardRef<HTMLDivElement, FileTreeRowProps>(fu
         <span className="size-4 shrink-0" aria-hidden="true" />
       )}
       {children}
-      {dropTarget && dropLabel ? (
+      {dropTarget && !deletionPending && dropLabel ? (
         <Badge variant="outline" className="pointer-events-none ml-auto max-w-36 shrink-0 truncate">
           {dropLabel}
         </Badge>

@@ -33,6 +33,7 @@ import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import useSyncStore from '@/stores/sync'
 import emitter from '@/lib/emitter'
 import useArticleStore from '@/stores/article'
+import { isFileDeletionPending } from '@/stores/file-deletion'
 import {
   markEditorPathMutation,
   prepareActiveEditorDeactivation,
@@ -586,6 +587,7 @@ export async function ensureDirectoryExists(filePath: string): Promise<void> {
  * 保存文件到本地（增强版，处理文件名兼容性和目录创建）
  */
 export async function saveLocalFile(path: string, content: string): Promise<void> {
+  if (isFileDeletionPending(path)) throw new Error('The file is being deleted')
   const workspace = await getWorkspacePath()
   
   // 检查并清理文件名
@@ -597,7 +599,8 @@ export async function saveLocalFile(path: string, content: string): Promise<void
   await ensureDirectoryExists(path)
   
   const pathOptions = await getFilePathOptions(path)
-  
+  if (isFileDeletionPending(path)) throw new Error('The file is being deleted')
+
   try {
     if (workspace.isCustom) {
       await writeTextFile(pathOptions.path, content)

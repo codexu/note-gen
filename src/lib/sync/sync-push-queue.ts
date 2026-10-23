@@ -13,7 +13,9 @@ import { CloudFolderConfig } from '@/types/sync'
 import { debugSyncPerf } from './remote-file'
 import { generateGitSyncCommitMessage } from './commit-message'
 import { getSyncMetadataKey } from './sync-context'
+import { prepareWorkspacePathUpload, resumeWorkspacePathMoves } from './workspace-path-moves'
 import { supportsCloudFolderWorkspace } from './cloud-folder'
+import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import { readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
 import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import {
@@ -100,6 +102,7 @@ class SyncPushQueue {
     if (initialized) return
     initialized = true
     this.initListeners()
+    if (typeof window !== 'undefined') window.addEventListener('online', resumeWorkspacePathMoves)
   }
 
   private initListeners() {
@@ -342,6 +345,7 @@ class SyncPushQueue {
       logPerf('skipped', { reason: 'sync-not-configured' })
       return { success: false }
     }
+    await prepareWorkspacePathUpload(path)
     const taskSyncMetadataKey = await getSyncMetadataKey(path)
     const acceptedVersion = await getLocalRecordedSha(path)
     if (!this.isTaskCurrent(task)) return { success: false }
@@ -385,7 +389,8 @@ class SyncPushQueue {
           referencedImages: referencedImagePaths.length,
         })
 
-        // 检查本地内容是否与远程相同，如果相同则跳过推送
+        // Version-recording failures must not fall through to another upload.
+        let matchingVersion: string | undefined
         try {
           const remoteFile = await readVersionedWorkspaceFile(path, provider)
           const remoteContent = new TextDecoder().decode(remoteFile.content)
@@ -394,39 +399,19 @@ class SyncPushQueue {
             remoteLength: remoteContent?.length || 0,
             isSameContent: remoteContent === content,
           })
-          if (remoteContent === content) {
-            if (!this.isTaskCurrent(task)) return { success: false }
-            // 获取远程 SHA 用于更新文件树
-            const remoteSha = remoteFile.version
-            if (!this.isTaskCurrent(task)) return { success: false }
-            logPerf('getRemoteShaWhenSame', {
-              attempt,
-              hasSha: Boolean(remoteSha),
-            })
-            // 更新本地记录的 SHA，这样下次推送时就会检测到 SHA 匹配而跳过
-            if (remoteSha) {
-              await setLocalRecordedSha(path, remoteSha, taskSyncMetadataKey)
-              logPerf('recordLocalSha', {
-                attempt,
-                hasSha: true,
-              })
-            }
-            // 发送完成事件
-            emitter.emit('sync-push-completed', { path, success: true, sha: remoteSha })
-            logPerf('completed', {
-              attempt,
-              skippedUpload: true,
-              success: true,
-              hasSha: Boolean(remoteSha),
-            })
-            return { success: true, sha: remoteSha }
-          }
+          if (remoteContent === content) matchingVersion = remoteFile.version
         } catch (remoteError) {
-          // 远程文件不存在或获取失败，继续推送
           logPerf('pullRemoteFileFailed', {
             attempt,
             message: remoteError instanceof Error ? remoteError.message : String(remoteError),
           })
+        }
+        if (matchingVersion) {
+          if (!this.isTaskCurrent(task)) return { success: false }
+          await setLocalRecordedSha(path, matchingVersion, taskSyncMetadataKey)
+          emitter.emit('sync-push-completed', { path, success: true, sha: matchingVersion })
+          logPerf('completed', { attempt, skippedUpload: true, success: true, hasSha: true })
+          return { success: true, sha: matchingVersion }
         }
 
         const needsCommitMessage = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
@@ -455,7 +440,8 @@ class SyncPushQueue {
         if (provider === 'cloudFolder' && cloudConfig?.provider !== 'oneDrive') {
           if (!cloudConfig) throw new Error('Cloud folder is not configured')
           const { androidCloudFolderWorkspaceUpload } = await import('./cloud-folder')
-          const result = await androidCloudFolderWorkspaceUpload(cloudConfig, path, content)
+          const beforeWrite = await captureWorkspaceRemoteWriteGuard(path, provider, true, content)
+          const result = await androidCloudFolderWorkspaceUpload(cloudConfig, path, content, undefined, beforeWrite)
           success = true
           uploadedSha = result.etag
         } else {
@@ -610,6 +596,7 @@ class SyncPushQueue {
         await enqueueSelfHostedFile(path)
         return { success: true }
       }
+      await prepareWorkspacePathUpload(path)
       const forceMetadataKey = await getSyncMetadataKey(path, provider)
       const { getWorkspaceOverwriteVersion } = await import('./guarded-workspace-upload')
       const overwriteVersion = await getWorkspaceOverwriteVersion(path, provider)
@@ -633,7 +620,8 @@ class SyncPushQueue {
       if (provider === 'cloudFolder' && cloudConfig?.provider !== 'oneDrive') {
         if (!cloudConfig) throw new Error('Cloud folder is not configured')
         const { androidCloudFolderWorkspaceUpload } = await import('./cloud-folder')
-        const result = await androidCloudFolderWorkspaceUpload(cloudConfig, path, content)
+        const beforeWrite = await captureWorkspaceRemoteWriteGuard(path, provider, true, content)
+        const result = await androidCloudFolderWorkspaceUpload(cloudConfig, path, content, undefined, beforeWrite)
         uploadedSha = result.etag
       } else {
         uploadedSha = await uploadGuardedWorkspaceFile(path, content, provider, overwriteVersion, commitMessage, forceMetadataKey)
@@ -699,6 +687,7 @@ class SyncPushQueue {
         this.queue.push(...[...this.pausedPaths].map(path => ({ path, workspacePath, generation: this.generation, timestamp: Date.now() })))
         if (this.queue.length) this.scheduleFlush()
       }
+      resumeWorkspacePathMoves()
       this.pausedPaths.clear()
       this.activePath = null
     }

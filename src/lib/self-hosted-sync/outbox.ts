@@ -8,6 +8,7 @@ import { encryptJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import type { SyncObjectKind, WorkspaceType } from './protocol'
 import { base64UrlByteLength, uploadAsset } from './blob'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
+import { withSelfHostedPrepareLock } from './prepare-lock'
 
 interface PendingChange {
   id: number
@@ -252,6 +253,21 @@ export async function materializeOutbox(
   keyVersion = 1,
   maxObjectBytes = Number.MAX_SAFE_INTEGER,
 ) {
+  return withSelfHostedPrepareLock(workspaceId, () => materializeOutboxRaw(
+    workspaceId, workspaceType, localRoot, maxCommands, profileId, syncEpoch, keyVersion, maxObjectBytes,
+  ))
+}
+
+async function materializeOutboxRaw(
+  workspaceId: string,
+  workspaceType: WorkspaceType,
+  localRoot: string | null,
+  maxCommands: number,
+  profileId?: string,
+  syncEpoch?: string,
+  keyVersion = 1,
+  maxObjectBytes = Number.MAX_SAFE_INTEGER,
+) {
   const database = await getDb()
   await recoverSupersededMappingCommands(database, workspaceId)
   await recoverRejectedLibraryChanges(database, workspaceId)
@@ -299,10 +315,22 @@ export async function materializeOutbox(
     [workspaceId, workspaceType, maxCommands, JSON.stringify(allowedDomains)]
   )
   const workspaceKey = await loadWorkspaceKey(workspaceId, keyVersion)
+  const pendingPathMoves = workspaceType === 'library'
+    && (await (await Store.load('store.json')).get<string>('primaryBackupMethod')) === 'selfHosted'
+    && workspaceId === await activeLibraryWorkspaceId()
+    ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
+    : []
   for (const change of pending) {
     if (workspaceType === 'library' && !['file', 'asset', 'folder'].includes(change.domain)) continue
     if (workspaceType === 'account-data' && ['file', 'asset', 'folder'].includes(change.domain)) continue
     if (workspaceType === 'account-data' && !isDomainEnabled(change.domain, domainToggles)) continue
+    // A path move copies an accepted remote snapshot. Uploading a local edit
+    // first would create the destination or change the frozen base revision.
+    // The dedicated encrypted path-move commands bypass this materializer.
+    if (pendingPathMoves.some(move => [move.source, move.target].some(root => (
+      change.localKey === root || change.localKey.startsWith(`${root}/`)
+      || (change.domain === 'folder' && root.startsWith(`${change.localKey}/`))
+    )))) continue
     if ((change.domain === 'file' || change.domain === 'asset') && !localRoot) continue
     const sourceIds = await database.select<Array<{ id: number }>>(
       `select id from self_hosted_local_changes

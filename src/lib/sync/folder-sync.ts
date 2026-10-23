@@ -8,10 +8,19 @@ import { getSyncRepoName } from './repo-utils'
 import { getGiteaApiBaseUrl } from './gitea'
 import { s3Upload } from './s3'
 import { webdavUpload } from './webdav'
-import { S3Config, WebDAVConfig } from '@/types/sync'
-import { buildGithubCreateTreePayload, buildGitlabCommitActions } from './folder-sync-payload'
+import { S3Config, WebDAVConfig, type SyncPlatform } from '@/types/sync'
+import { buildGithubCreateTreePayload } from './folder-sync-payload'
 import { buildRepoContentPath, debugSyncPath } from './remote-file'
 import { fetchGiteeRead } from './gitee-request'
+import { withGithubRepoWriteLock } from './github-repo-write-lock'
+import { withGitRepoWriteLock } from './git-repo-write-lock'
+import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
+import { fetchRemoteRead, recoverRemoteRead, recoverRemoteMutation } from './remote-mutation-recovery'
+import { readDirectoryResponse, remoteRecord } from './directory-listing'
+import { fetch as encodeFetch } from './encode-fetch'
+import { getGitlabApiBaseUrl } from './gitlab'
+import { gitBlobVersion } from './remote-content-cache'
+import { syncStaleError } from './sync-stale-error'
 
 export interface FolderSyncResult {
   success: boolean
@@ -23,6 +32,12 @@ export interface FolderSyncResult {
 }
 
 type GitProvider = 'github' | 'gitee' | 'gitlab' | 'gitea'
+interface FolderUploadFile {
+  path: string
+  content: string
+  sha?: string
+  beforeWrite?: () => Promise<void>
+}
 
 export class FolderSync {
   private platform: string = 'github'
@@ -44,6 +59,8 @@ export class FolderSync {
     await this.init()
 
     try {
+      const { retryWorkspacePathMoves } = await import('./workspace-path-moves')
+      await retryWorkspacePathMoves()
       // 1. 获取本地文件夹下所有 Markdown 文件
       const markdownFiles = await collectMarkdownFiles(localFolderPath)
 
@@ -59,7 +76,7 @@ export class FolderSync {
 
       // 2. 读取每个文件的内容
       const workspace = await getWorkspacePath()
-      const filesToUpload: Array<{ path: string; content: string; sha?: string }> = []
+      const filesToUpload: FolderUploadFile[] = []
 
       for (const file of markdownFiles) {
         const pathOptions = await getFilePathOptions(file.path)
@@ -71,6 +88,8 @@ export class FolderSync {
           content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         }
 
+        const beforeWrite = await captureWorkspaceRemoteWriteGuard(file.path, this.platform as SyncPlatform, true, content)
+
         // 相对路径作为远程路径
         const remotePath = file.path
         debugSyncPath('folderSync.collectFile', {
@@ -81,7 +100,8 @@ export class FolderSync {
 
         filesToUpload.push({
           path: remotePath,
-          content
+          content,
+          beforeWrite
         })
       }
 
@@ -204,7 +224,7 @@ export class FolderSync {
    */
   async _githubBatchCommit(
     repo: string,
-    files: Array<{ path: string; content: string; sha?: string }>,
+    files: FolderUploadFile[],
     message: string
   ): Promise<boolean> {
     const store = await Store.load('store.json')
@@ -212,80 +232,66 @@ export class FolderSync {
     const githubUsername = await store.get<string>('githubUsername')
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
+    if (!githubUsername) return false
 
     const headers = new Headers()
     headers.append('Authorization', `Bearer ${accessToken}`)
     headers.append('Accept', 'application/vnd.github+json')
     headers.append('X-GitHub-Api-Version', '2022-11-28')
     headers.append('Content-Type', 'application/json')
+    const capturedFiles = files.map(file => ({ ...file }))
 
-    // 1. 获取当前 commit 和对应的 tree，后续提交必须基于它，避免覆盖仓库其他目录
-    const refUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/ref/heads/main`
-    const refResponse = await fetch(refUrl, { method: 'GET', headers, proxy })
-    if (!refResponse.ok) return false
-    const refData = await refResponse.json()
-    const parentCommitSha = refData.object.sha
-
-    const parentCommitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits/${parentCommitSha}`
-    const parentCommitResponse = await fetch(parentCommitUrl, { method: 'GET', headers, proxy })
-    if (!parentCommitResponse.ok) return false
-    const parentCommitData = await parentCommitResponse.json()
-    const baseTreeSha = parentCommitData.tree?.sha
-
-    if (!baseTreeSha) {
-      console.error('获取 GitHub base tree 失败')
-      return false
-    }
-
-    // 2. 基于当前 tree 创建新 tree，只覆盖本次同步的文件
-    const createTreeUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/trees`
-    const treeResponse = await fetch(createTreeUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(buildGithubCreateTreePayload(files, baseTreeSha)),
-      proxy,
+    return await withGithubRepoWriteLock(githubUsername, repo, async () => {
+      const baseUrl = `https://api.github.com/repos/${encodeURIComponent(githubUsername)}/${encodeURIComponent(repo)}`
+      const read = async (resource: string) => remoteRecord(await readDirectoryResponse(await fetchRemoteRead(
+        `${baseUrl}${resource}`, { headers: new Headers(headers), proxy })))
+      const oid = (value: unknown): string => {
+        if (typeof value !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value)) throw new Error('Invalid GitHub batch object version')
+        return value.toLowerCase()
+      }
+      const repository = await read('')
+      if (typeof repository.default_branch !== 'string' || !repository.default_branch.trim()) return false
+      const branch = repository.default_branch.trim()
+      const reference = `refs/heads/${branch}`
+      const readHead = async () => {
+        const value = await read(`/git/ref/heads/${encodeURIComponent(branch)}`)
+        const object = remoteRecord(value.object)
+        if (value.ref !== reference || object.type !== 'commit') throw new Error('Invalid GitHub batch reference')
+        return oid(object.sha)
+      }
+      const parentCommitSha = await readHead()
+      const parent = await read(`/git/commits/${parentCommitSha}`)
+      if (oid(parent.sha) !== parentCommitSha) throw new Error('Invalid GitHub batch parent commit')
+      const baseTreeSha = oid(remoteRecord(parent.tree).sha)
+      const beforeWrite = async () => { for (const file of capturedFiles) await file.beforeWrite?.() }
+      const postObject = async (resource: string, body: string) => {
+        const response = await recoverRemoteMutation({ beforeWrite,
+          send: () => fetch(`${baseUrl}${resource}`, { method: 'POST', headers: new Headers(headers), body, proxy }),
+          // Tree and commit objects remain unreachable until the separate ref CAS.
+          reconcile: async () => ({ state: 'unchanged' }),
+        })
+        return remoteRecord(await readDirectoryResponse(response))
+      }
+      const tree = await postObject('/git/trees', JSON.stringify(buildGithubCreateTreePayload(capturedFiles, baseTreeSha)))
+      const commit = await postObject('/git/commits', JSON.stringify({
+        message, tree: oid(tree.sha), parents: [parentCommitSha],
+      }))
+      const candidate = oid(commit.sha)
+      const body = JSON.stringify({ sha: candidate, force: false })
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(`${baseUrl}/git/refs/heads/${encodeURIComponent(branch)}`, {
+          method: 'PATCH', headers: new Headers(headers), body, proxy,
+        }),
+        reconcile: async () => {
+          const current = await readHead()
+          if (current === candidate) return { state: 'applied', value: new Response(null, { status: 200 }) }
+          if (current === parentCommitSha) return { state: 'unchanged' }
+          throw syncStaleError({ stage: 'apply', path: reference, source: 'remote', check: 'gitRef',
+            expected: { sha: parentCommitSha, exists: true }, actual: { sha: current, exists: true } })
+        },
+      })
+      return response.ok
     })
-
-    if (!treeResponse.ok) {
-      console.error('创建 tree 失败:', await treeResponse.text())
-      return false
-    }
-
-    const treeData = await treeResponse.json()
-
-    // 3. 创建 commit
-    const commitUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/commits`
-    const commitResponse = await fetch(commitUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message,
-        tree: treeData.sha,
-        parents: [parentCommitSha],
-      }),
-      proxy,
-    })
-
-    if (!commitResponse.ok) {
-      console.error('创建 commit 失败:', await commitResponse.text())
-      return false
-    }
-
-    const commitData = await commitResponse.json()
-
-    // 4. 更新 ref
-    const updateRefUrl = `https://api.github.com/repos/${githubUsername}/${repo}/git/refs/heads/main`
-    const updateResponse = await fetch(updateRefUrl, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        sha: commitData.sha,
-        force: false,
-      }),
-      proxy,
-    })
-
-    return updateResponse.ok
   }
 
   /**
@@ -400,82 +406,27 @@ export class FolderSync {
 
   /**
    * Gitee 批量提交
-   * 注意：Gitee API 不支持真正的批量操作，这里使用并发上传
+   * 逐个调用共享仓库写锁，空文件同样走受保护的 Git 传输。
    */
   async _giteeBatchCommit(
     repo: string,
-    files: Array<{ path: string; content: string; sha?: string }>,
+    files: FolderUploadFile[],
     message: string
   ): Promise<boolean> {
-    const store = await Store.load('store.json')
-    const giteeAccessToken = await store.get<string>('giteeAccessToken')
-    const giteeUsername = await store.get<string>('giteeUsername')
-    const proxyUrl = await store.get<string>('proxy')
-    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
-
-    if (!giteeAccessToken || !giteeUsername) {
-      console.error('[Gitee] 缺少 accessToken 或 username')
-      return false
-    }
-
-    const headers = new Headers()
-    headers.append('Authorization', `Bearer ${giteeAccessToken}`)
-    headers.append('Content-Type', 'application/json')
-
-    // Gitee API: 使用单个文件操作，每个文件一次请求
-    // 使用并发上传提高速度
-
-    const uploadPromises = files.filter(file => file.content.length > 0).map(async (file) => {
-      const base64Content = Buffer.from(file.content).toString('base64')
-      const encodedPath = buildRepoContentPath({ path: file.path })
-      debugSyncPath('folderSync.gitee.uploadFile', {
-        inputPath: file.path,
-        encodedPath,
-        hasSha: Boolean(file.sha),
-      })
-      const url = `https://gitee.com/api/v5/repos/${giteeUsername}/${repo}/contents/${encodedPath}`
-
-      const body: Record<string, unknown> = {
-        access_token: giteeAccessToken,
-        content: base64Content,
-        message: message
-      }
-
-      // 如果有 SHA（文件已存在），使用 PUT 方法覆盖
-      if (file.sha) {
-        body.sha = file.sha
-      }
-
-      const response = await fetch(url, {
-        method: file.sha ? 'PUT' : 'POST',
-        headers,
-        body: JSON.stringify(body),
-        proxy
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`[Gitee] 上传文件 ${file.path} 失败:`, errorText)
-      }
-
-      return response.ok
-    })
-
-    const results = await Promise.all(uploadPromises)
-    // Finish REST writes before Git pushes so this batch does not race its own
-    // branch CAS. Keep the file SHA captured before the batch for every write.
-    const emptyFiles = files.filter(file => file.content.length === 0)
-    if (emptyFiles.length) {
-      const { uploadFile } = await import('./gitee')
-      for (const file of emptyFiles) {
-        results.push(Boolean(await uploadFile({
-          file: file.content, path: file.path, repo, sha: file.sha, message, guarded: true,
-        })))
+    const { uploadFile } = await import('./gitee')
+    let successCount = 0
+    // The public uploader owns the shared repository lock, including its
+    // empty-file Git transport. Never hold a second outer repository lock.
+    for (const file of files) {
+      try {
+        if (await uploadFile({
+          file: file.content, path: file.path, repo, sha: file.sha, message,
+          guarded: true, beforeWrite: file.beforeWrite,
+        })) successCount += 1
+      } catch {
+        console.error(`[Gitee] 上传文件 ${file.path} 失败`)
       }
     }
-    const successCount = results.filter(r => r).length
-
-    // 只要有一个文件成功就算成功
     return successCount > 0
   }
 
@@ -484,159 +435,128 @@ export class FolderSync {
    */
   async _gitlabBatchCommit(
     repo: string,
-    files: Array<{ path: string; content: string; sha?: string }>,
+    files: FolderUploadFile[],
     message: string
   ): Promise<boolean> {
     const store = await Store.load('store.json')
     const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
-    const gitlabUrl = await store.get<string>('gitlabUrl') || 'https://gitlab.com'
-    const gitlabBranch = await store.get<string>('gitlabBranch') || 'main'
+    const configuredBranch = (await store.get<string>('gitlabBranch') || '').trim()
     const gitlabProjectId = await store.get<string>(`gitlab_${repo}_project_id`)
     const proxyUrl = await store.get<string>('proxy')
     const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
-
-    if (!gitlabAccessToken) {
-      console.error('[GitLab] 缺少 accessToken')
-      return false
+    if (!gitlabAccessToken || !gitlabProjectId) return false
+    const apiBaseUrl = await getGitlabApiBaseUrl()
+    const baseUrl = `${apiBaseUrl}/projects/${encodeURIComponent(gitlabProjectId)}`
+    const headers = new Headers({ 'PRIVATE-TOKEN': gitlabAccessToken, 'Content-Type': 'application/json;charset=iso-8859-1' })
+    const capturedFiles = files.map(file => ({ ...file }))
+    type Version = { sha: string; lastCommitId: string } | null
+    const oid = (value: unknown): string => {
+      if (typeof value !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value)) throw new Error('Invalid GitLab batch object version')
+      return value.toLowerCase()
     }
-
-    if (!gitlabProjectId) {
-      console.error('[GitLab] 缺少 projectId')
-      return false
-    }
-
-    const headers = new Headers()
-    headers.append('PRIVATE-TOKEN', gitlabAccessToken)
-    headers.append('Content-Type', 'application/json;charset=iso-8859-1')
-
-    // 构建 actions 数组
-    const actions = buildGitlabCommitActions(files)
-
-    const url = `${gitlabUrl}/api/v4/projects/${encodeURIComponent(gitlabProjectId)}/repository/commits`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        branch: gitlabBranch,
-        commit_message: message,
-        actions
-      }),
-      proxy
+    return await withGitRepoWriteLock(apiBaseUrl, gitlabProjectId, async () => {
+      const read = (resource: string) => fetchRemoteRead(`${baseUrl}${resource}`, { headers: new Headers(headers), proxy })
+      const project = remoteRecord(await readDirectoryResponse(await read('')))
+      const branch = configuredBranch || (typeof project.default_branch === 'string' ? project.default_branch.trim() : '') || 'main'
+      const reference = `/repository/branches/${encodeURIComponent(branch)}`
+      const readHead = async (allowEmpty: boolean): Promise<string | null> => {
+        const response = await read(reference)
+        if (response.status === 404 && allowEmpty) {
+          // A readable project and an empty branch list can establish the first
+          // create, never the disappearance of a previously observed branch.
+          await readDirectoryResponse(await read(''))
+          const branches = await readDirectoryResponse(await read('/repository/branches?per_page=1'))
+          if (Array.isArray(branches) && !branches.length) return null
+        }
+        const value = remoteRecord(await readDirectoryResponse(response))
+        return oid(remoteRecord(value.commit).id)
+      }
+      const initialHead = await readHead(true)
+      const initiallyEmpty = initialHead === null
+      const readVersions = async (head: string | null): Promise<Version[]> => {
+        if (head === null) return capturedFiles.map(() => null)
+        const versions: Version[] = []
+        for (const file of capturedFiles) {
+          // Keep non-ASCII metadata headers compatible with Tauri while every
+          // HEAD in one observation reads the same immutable commit.
+          const metadata = await recoverRemoteRead(() => encodeFetch(
+            `${baseUrl}/repository/files/${encodeURIComponent(file.path)}?ref=${encodeURIComponent(head)}`,
+            { method: 'HEAD', headers: new Headers(headers), proxy, connectTimeout: 10_000, maxRedirections: 0 }))
+          if (metadata.status === 404) { versions.push(null); continue }
+          if (!metadata.ok) throw new Error(`GitLab batch metadata request failed: HTTP ${metadata.status}`)
+          versions.push({ sha: oid(metadata.headers.get('x-gitlab-blob-id')),
+            lastCommitId: oid(metadata.headers.get('x-gitlab-last-commit-id')) })
+        }
+        return versions
+      }
+      const original = await readVersions(initialHead)
+      const desired: string[] = []
+      for (let index = 0; index < capturedFiles.length; index++) {
+        const file = capturedFiles[index]
+        if (file.sha && original[index]?.sha !== file.sha.toLowerCase()) throw new Error('SYNC_SWITCH_STALE')
+        desired.push(await gitBlobVersion(new TextEncoder().encode(file.content), original[index]?.sha.length))
+      }
+      const body = JSON.stringify({ branch, commit_message: message,
+        actions: capturedFiles.map((file, index) => {
+          const expected = original[index]
+          return { action: expected ? 'update' : 'create', file_path: file.path, content: file.content,
+            ...(expected ? { last_commit_id: expected.lastCommitId } : {}) }
+        }) })
+      const beforeWrite = async () => { for (const file of capturedFiles) await file.beforeWrite?.() }
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(`${baseUrl}/repository/commits`, { method: 'POST', headers: new Headers(headers), body, proxy }),
+        reconcile: async () => {
+          const current = await readVersions(await readHead(initiallyEmpty))
+          if (current.every((version, index) => version?.sha === desired[index])) {
+            return { state: 'applied', value: new Response(null, { status: 200 }) }
+          }
+          if (current.every((version, index) => {
+            const expected = original[index]
+            return expected === null ? version === null
+              : version?.sha === expected.sha && version.lastCommitId === expected.lastCommitId
+          })) {
+            return { state: 'unchanged' }
+          }
+          throw new Error('SYNC_SWITCH_STALE')
+        },
+      })
+      return response.ok
     })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[GitLab] 批量提交失败:', errorText)
-      return false
-    }
-
-    return true
   }
 
-  /**
-   * Gitea 批量提交（使用单个文件上传 + 并发）
-   * Gitea API 不支持批量 commit，需要逐个上传文件
-   */
+  /** Upload files through the public Gitea writer's repository lock. */
   async _giteaBatchCommit(
     repo: string,
-    files: Array<{ path: string; content: string; sha?: string }>
+    files: FolderUploadFile[]
   ): Promise<boolean> {
-    const store = await Store.load('store.json')
-    const giteaAccessToken = await store.get<string>('giteaAccessToken')
-    const giteaUsername = await store.get<string>('giteaUsername')
-    const proxyUrl = await store.get<string>('proxy')
-    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
-
-    let giteaUrl: string
-    try {
-      giteaUrl = await getGiteaApiBaseUrl()
-    } catch (error) {
-      console.error('[Gitea] 获取 API URL 失败:', error)
-      return false
-    }
-
-    if (!giteaAccessToken || !giteaUsername) {
-      console.error('[Gitea] 缺少配置: accessToken 或 username')
-      return false
-    }
-
-    const headers = new Headers()
-    headers.append('Authorization', `Bearer ${giteaAccessToken}`)
-    headers.append('Content-Type', 'application/json')
-
-    const apiBaseUrl = giteaUrl.endsWith('/') ? giteaUrl.slice(0, -1) : giteaUrl
-
-    // 先获取远程文件 SHA（用于覆盖）
+    const { uploadFile } = await import('./gitea')
     const remoteFiles = await this._getGiteaFiles(repo)
-
-    // 为每个文件设置 SHA
-    for (const file of files) {
-      if (remoteFiles[file.path]) {
-        file.sha = remoteFiles[file.path].sha
-      }
-    }
-
-    // 使用顺序上传（避免并发导致分支锁定冲突）
+    for (const file of files) if (remoteFiles[file.path]) file.sha = remoteFiles[file.path].sha
     let successCount = 0
     const uploadedPaths = new Set<string>()
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const base64Content = Buffer.from(file.content).toString('base64')
-
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
       const fileName = file.path.split('/').pop() || file.path
-      const normalizedPath = buildRepoContentPath({ path: file.path })
-      debugSyncPath('folderSync.gitea.uploadFile', {
-        inputPath: file.path,
-        filename: fileName,
-        normalizedPath,
-        hasSha: Boolean(file.sha),
-      })
-
-      const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents/${normalizedPath}`
-
-      const requestBody: Record<string, unknown> = {
-        branch: 'main',
-        content: base64Content,
-        message: file.sha ? `Update ${fileName}` : `Create ${fileName}`
-      }
-
-      // 如果有 SHA，使用 PUT 覆盖
-      if (file.sha) {
-        requestBody.sha = file.sha
-      }
-
-      const response = await fetch(url, {
-        method: file.sha ? 'PUT' : 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-        proxy
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`[Gitea] 上传文件 ${file.path} 失败:`, response.status, errorText)
-        // 继续上传下一个文件
+      try {
+        const uploaded = await uploadFile({
+          file: file.content, path: file.path, repo, sha: file.sha,
+          message: file.sha ? `Update ${fileName}` : `Create ${fileName}`,
+          guarded: true, beforeWrite: file.beforeWrite,
+        })
+        if (!uploaded) continue
+      } catch {
+        console.error(`[Gitea] 上传文件 ${file.path} 失败`)
         continue
       }
-
-      successCount++
+      successCount += 1
       uploadedPaths.add(file.path)
-
-      // 重新获取剩余文件的 SHA（因为分支已更新）
-      if (i < files.length - 1) {
-        const newRemoteFiles = await this._getGiteaFiles(repo)
-        // 更新后续文件中尚未上传的文件的 SHA
-        for (let j = i + 1; j < files.length; j++) {
-          const otherFile = files[j]
-          if (!uploadedPaths.has(otherFile.path) && newRemoteFiles[otherFile.path]) {
-            otherFile.sha = newRemoteFiles[otherFile.path].sha
-          }
+      if (index < files.length - 1) {
+        const remaining = await this._getGiteaFiles(repo)
+        for (const other of files.slice(index + 1)) {
+          if (!uploadedPaths.has(other.path) && remaining[other.path]) other.sha = remaining[other.path].sha
         }
       }
     }
-
     return successCount > 0
   }
 

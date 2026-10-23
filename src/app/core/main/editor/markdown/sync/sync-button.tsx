@@ -24,6 +24,8 @@ import {
 import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import type { S3Config, WebDAVConfig } from '@/types/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import { captureWorkspaceRemoteWriteGuard } from '@/lib/sync/workspace-remote-write-guard'
+import { syncStaleError } from '@/lib/sync/sync-stale-error'
 
 type SyncProvider = 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
 
@@ -185,6 +187,8 @@ export function SyncButton({
       logPerf('start')
       const store = await Store.load('store.json')
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as SyncProvider
+      const { prepareWorkspacePathUpload } = await import('@/lib/sync/workspace-path-moves')
+      await prepareWorkspacePathUpload(activeFilePath)
       providerForLog = provider
       const needsRepo = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
       const repo = needsRepo ? await getOptionalSyncRepoName(provider) : ''
@@ -213,6 +217,14 @@ export function SyncButton({
       const content = editorMarkdown ?? (workspace.isCustom
         ? await readTextFile(pathOptions.path)
         : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir }))
+      const localWriteGuard = await captureWorkspaceRemoteWriteGuard(activeFilePath, provider)
+      const beforeWrite = async () => {
+        await localWriteGuard?.()
+        if (editorMarkdown !== undefined && useArticleStore.getState().activeFilePath === activeFilePath
+          && getMarkdown?.() !== editorMarkdown) {
+          throw syncStaleError({ stage: 'apply', path: activeFilePath, source: 'local', check: 'content' })
+        }
+      }
       logPerf('readLocalFile', {
         workspaceCustom: workspace.isCustom,
         contentLength: content.length,
@@ -251,6 +263,7 @@ export function SyncButton({
             activeFilePath,
             content,
             `Upload file: ${activeFilePath}`,
+            beforeWrite,
           )
           logPerf('uploadFile', {
             hasResult: Boolean(uploadedSha),
@@ -266,7 +279,7 @@ export function SyncButton({
             throw new Error('S3 配置未找到')
           }
           // S3 上传文件
-          const result = await s3Module.s3Upload(s3Config, activeFilePath, content)
+          const result = await s3Module.s3Upload(s3Config, activeFilePath, content, undefined, undefined, undefined, beforeWrite)
           logPerf('uploadFile', {
             hasResult: Boolean(result),
             hasEtag: Boolean(result?.etag),
@@ -296,7 +309,8 @@ export function SyncButton({
             sha: getRemoteFileSha(fileInfo),
             message: commitMessage,
             repo,
-            path: activeFilePath
+            path: activeFilePath,
+            beforeWrite,
           })
           logPerf('uploadFile', {
             hasData: hasUploadData(result),
@@ -332,7 +346,8 @@ export function SyncButton({
             sha: getRemoteFileSha(fileInfo),
             message: commitMessage,
             repo,
-            path: activeFilePath
+            path: activeFilePath,
+            beforeWrite,
           })
           logPerf('uploadFile', {
             hasData: hasUploadData(result),
@@ -368,7 +383,8 @@ export function SyncButton({
             sha: getRemoteFileSha(fileInfo),
             message: commitMessage,
             repo,
-            path: activeFilePath
+            path: activeFilePath,
+            beforeWrite,
           })
           logPerf('uploadFile', {
             hasData: hasUploadData(result),
@@ -400,7 +416,8 @@ export function SyncButton({
             sha: getRemoteFileSha(fileInfo),
             message: commitMessage,
             repo,
-            path: activeFilePath
+            path: activeFilePath,
+            beforeWrite,
           })
           logPerf('uploadFile', {
             hasData: hasUploadData(result),
@@ -426,7 +443,7 @@ export function SyncButton({
           if (!webdavConfig) {
             throw new Error('WebDAV 配置未找到')
           }
-          const result = await webdavModule.webdavUpload(webdavConfig, activeFilePath, content)
+          const result = await webdavModule.webdavUpload(webdavConfig, activeFilePath, content, undefined, undefined, undefined, beforeWrite)
           logPerf('uploadFile', {
             hasResult: Boolean(result),
             hasEtag: Boolean(result?.etag),
@@ -442,6 +459,7 @@ export function SyncButton({
       }
 
       if (success) {
+        await beforeWrite()
         if (uploadedSha) {
           await setLocalRecordedSha(activeFilePath, uploadedSha)
           logPerf('recordLocalSha', {

@@ -39,7 +39,6 @@ import {
 import {
   clearFileManagerDragData,
   getFileManagerDragPaths,
-  getPathAfterMove,
   hasExternalFilesDragData,
   hasFileManagerDragData,
   moveFileManagerEntries,
@@ -182,7 +181,6 @@ export function FileManager({
     showCloudFiles,
     showAssetsFolders,
     moveLocalEntry,
-    syncOpenTabsForPathChange,
     selectedFilePaths,
     setSelectedFilePaths,
     clearSelectedFilePaths,
@@ -207,7 +205,6 @@ export function FileManager({
     showCloudFiles: state.showCloudFiles,
     showAssetsFolders: state.showAssetsFolders,
     moveLocalEntry: state.moveLocalEntry,
-    syncOpenTabsForPathChange: state.syncOpenTabsForPathChange,
     selectedFilePaths: state.selectedFilePaths,
     setSelectedFilePaths: state.setSelectedFilePaths,
     clearSelectedFilePaths: state.clearSelectedFilePaths,
@@ -544,9 +541,6 @@ export function FileManager({
   }
 
   async function moveEntriesToRoot(sourcePaths: string[]) {
-    const movesActiveFile = sourcePaths.some(sourcePath => (
-      activeEditorPathIsAffected(activeFilePath, sourcePath)
-    ))
     if (!await prepareActiveEditorPathMutationDurably(activeFilePath, sourcePaths)) return
 
     const batchResult = await moveFileManagerEntries(sourcePaths, '')
@@ -564,21 +558,11 @@ export function FileManager({
       return
     }
 
-    let nextActiveFilePath = activeFilePath
     let requiresReload = false
     for (const result of batchResult.moved) {
       requiresReload = !moveLocalEntry(result.sourcePath, result.targetPath) || requiresReload
-      nextActiveFilePath = getPathAfterMove(nextActiveFilePath, result.sourcePath, result.targetPath)
-      await syncOpenTabsForPathChange(result.sourcePath, result.targetPath)
     }
     if (requiresReload) await loadFileTree({ skipRemoteSync: true })
-    if (nextActiveFilePath !== activeFilePath) {
-      setActiveFilePath(
-        nextActiveFilePath,
-        true,
-        movesActiveFile ? { deactivationAlreadyPrepared: true } : undefined,
-      )
-    }
     setSelectedFilePaths(batchResult.moved.map(result => result.targetPath))
     if (batchResult.moved.length > 1) {
       toast({

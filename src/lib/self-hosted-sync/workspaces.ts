@@ -10,6 +10,7 @@ import { enqueueAssetSnapshot, enqueueFileSnapshot, enqueueFolderSnapshot } from
 import { bytesToBase64Url } from './blob'
 import type { WorkspaceSummary } from './protocol'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
+import { withSelfHostedPrepareLock } from './prepare-lock'
 
 interface EncryptedName {
   nonce: string
@@ -295,7 +296,17 @@ export async function markLibraryRemoteDeleted(workspaceId: string) {
 }
 
 export async function reconcileLibraryFiles(workspaceId: string, localRoot: string, writable = true) {
+  return withSelfHostedPrepareLock(workspaceId, () => reconcileLibraryFilesRaw(workspaceId, localRoot, writable))
+}
+
+async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, writable: boolean) {
   const database = await getDb()
+  const location = await getWorkspacePath()
+  const currentRoot = location.isCustom ? location.path : await getDefaultArticleAbsolutePath('')
+  const pendingMoves = normalizeLocalRoot(localRoot) === normalizeLocalRoot(currentRoot)
+    && await (await Store.load('store.json')).get<string>('primaryBackupMethod') === 'selfHosted'
+    ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
+    : []
   const entries = await scanPortableEntries(localRoot, workspaceId)
   const mapped = await database.select<Array<{ relativePath: string; contentHash: string | null; kind: string }>>(
     `select relative_path as relativePath, content_hash as contentHash, kind
@@ -306,6 +317,12 @@ export async function reconcileLibraryFiles(workspaceId: string, localRoot: stri
   const mappedByPath = new Map(mapped.map(item => [item.relativePath, item]))
   const localPaths = new Set(entries.map(entry => entry.relativePath))
   for (const entry of entries) {
+    // A pending remote rename already owns these identities. In particular,
+    // do not infer A→C by hash while an offline A→B→C journal is replaying.
+    if (pendingMoves.some(move => [move.source, move.target].some(root => (
+      entry.relativePath === root || entry.relativePath.startsWith(`${root}/`)
+      || (entry.kind === 'folder' && root.startsWith(`${entry.relativePath}/`))
+    )))) continue
     const absolutePath = await join(localRoot, entry.relativePath)
     let content: string | null
     let hash: string | null

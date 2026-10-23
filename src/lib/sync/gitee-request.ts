@@ -1,4 +1,5 @@
 import { fetch, type ClientOptions } from '@tauri-apps/plugin-http'
+import { isRemoteConnectionError } from './remote-mutation-recovery'
 
 export type GiteeReadOptions = Omit<RequestInit, 'method' | 'body'> & ClientOptions
 
@@ -17,15 +18,12 @@ function errorText(error: unknown) {
 function isAborted(error: unknown, signal?: AbortSignal | null) {
   if (signal?.aborted) return true
   if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') return true
-  return /\baborterror\b|\brequest (?:was )?(?:cancel(?:led|ed)|aborted)\b|\boperation (?:was )?cancel(?:led|ed)\b/i.test(errorText(error))
+  const message = errorText(error).replace(/https?:\/\/[^\s)"'<>]+/gi, '[url]')
+  return /\baborterror\b|\brequest (?:was )?(?:cancel(?:led|ed)|aborted)\b|\boperation (?:was )?cancel(?:led|ed)\b/i.test(message)
 }
 
-function isConnectionError(error: unknown) {
-  // URLs can contain arbitrary path/query text. Do not classify their contents
-  // as either a transient network failure or a permission error.
-  const message = errorText(error).replace(/https?:\/\/[^\s)"'<>]+/gi, '[url]')
-  if (/capabilit|permission|not allowed|denied|forbidden|scope|invalid (?:url|uri|header)|(?:url|uri) (?:is )?invalid|unsupported (?:scheme|protocol)|certificate|\btls\b|\bssl\b|builder error|failed to parse|relative url|empty host/i.test(message)) return false
-  return /error sending request\b|failed to (?:fetch|connect)\b|network(?:error| error| request failed)\b|connection (?:refused|reset|closed|aborted)\b|error (?:trying to )?connect(?:ing)?\b|\btimed? out\b|\btimeout\b|\bdns error\b/i.test(message)
+export function isGiteeConnectionError(error: unknown) {
+  return isRemoteConnectionError(error)
 }
 
 /** Retry only read requests rejected by the native network transport. */
@@ -63,7 +61,7 @@ export async function fetchGiteeRead(url: string, options: GiteeReadOptions = {}
       })
     } catch (error) {
       if (isAborted(error, readOptions.signal)) throw requestError(path, false, true)
-      if (!isConnectionError(error)) throw requestError(path)
+      if (!isGiteeConnectionError(error)) throw requestError(path)
       if (attempt === 2) throw requestError(path, true)
       await new Promise<void>(resolve => setTimeout(resolve, 500 * (attempt + 1)))
     }

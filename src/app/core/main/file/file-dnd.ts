@@ -2,6 +2,7 @@ import { exists, rename } from "@tauri-apps/plugin-fs"
 
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
+import { withWorkspacePathMove, withWorkspacePathMoves } from '@/lib/sync/workspace-path-moves'
 import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
 import useArticleStore from '@/stores/article'
 
@@ -112,8 +113,13 @@ export function hasExternalFilesDragData(dataTransfer: DataTransfer) {
   return Array.from(dataTransfer.types).includes("Files")
 }
 
-export async function moveFileManagerEntry(sourcePath: string, targetDirectoryPath: string): Promise<MoveFileManagerEntryResult> {
-  const { targetName, targetPath } = buildMoveTargetPath(sourcePath, targetDirectoryPath)
+export async function moveFileManagerEntry(sourcePath: string, targetDirectoryPath: string, journalMove = true): Promise<MoveFileManagerEntryResult> {
+  return moveFileManagerPath(sourcePath, buildMoveTargetPath(sourcePath, targetDirectoryPath).targetPath, journalMove)
+}
+
+async function moveFileManagerPath(sourcePath: string, targetPath: string, journalMove = true): Promise<MoveFileManagerEntryResult> {
+  const targetName = getPathName(targetPath)
+  const targetDirectoryPath = targetPath.split('/').slice(0, -1).join('/')
 
   if (targetPath === sourcePath) {
     return {
@@ -139,20 +145,24 @@ export async function moveFileManagerEntry(sourcePath: string, targetDirectoryPa
   const oldPathOptions = await getFilePathOptions(sourcePath)
   const newPathOptions = await getFilePathOptions(targetPath)
 
-  if (await moveSelfHostedWorkspacePath(sourcePath, targetPath)) {
-    // Rust journal already completed the atomic move.
-  } else if (workspace.isCustom) {
-    await rename(oldPathOptions.path, newPathOptions.path)
-  } else {
-    await rename(oldPathOptions.path, newPathOptions.path, {
-      newPathBaseDir: newPathOptions.baseDir,
-      oldPathBaseDir: oldPathOptions.baseDir,
-    })
-  }
-  await useArticleStore.getState().syncOpenTabsForPathChange(sourcePath, targetPath)
+  const move = async () => {
+    if (await moveSelfHostedWorkspacePath(sourcePath, targetPath)) {
+      // Rust journal already completed the atomic move.
+    } else if (workspace.isCustom) {
+      await rename(oldPathOptions.path, newPathOptions.path)
+    } else {
+      await rename(oldPathOptions.path, newPathOptions.path, {
+        newPathBaseDir: newPathOptions.baseDir,
+        oldPathBaseDir: oldPathOptions.baseDir,
+      })
+    }
+    await useArticleStore.getState().syncOpenTabsForPathChange(sourcePath, targetPath, false)
 
-  const { renameVectorDocumentsByPrefix } = await import('@/db/vector')
-  await renameVectorDocumentsByPrefix(sourcePath, targetPath)
+    const { renameVectorDocumentsByPrefix } = await import('@/db/vector')
+    await renameVectorDocumentsByPrefix(sourcePath, targetPath)
+  }
+  if (journalMove) await withWorkspacePathMove(sourcePath, targetPath, move)
+  else await move()
 
   return {
     moved: true,
@@ -160,6 +170,46 @@ export async function moveFileManagerEntry(sourcePath: string, targetDirectoryPa
     targetPath,
     targetName,
   }
+}
+
+/** Clipboard cuts can also change a basename. Complete the whole local batch
+ * before any provider is allowed to rename remote objects. */
+export async function moveFileManagerPaths(plans: Array<{ sourcePath: string; targetPath: string }>): Promise<void> {
+  const moves = plans.filter(plan => plan.sourcePath !== plan.targetPath)
+  const targets = new Set<string>()
+  for (const plan of moves) {
+    if (targets.has(plan.targetPath) || moves.some(other => other !== plan
+      && (plan.sourcePath.startsWith(`${other.sourcePath}/`) || other.sourcePath.startsWith(`${plan.sourcePath}/`)))) {
+      throw new Error('移动的文件路径重复或互相包含')
+    }
+    targets.add(plan.targetPath)
+    const options = await getFilePathOptions(plan.targetPath)
+    if (await exists(options.path, { baseDir: options.baseDir })) throw new Error(`目标路径已存在：${plan.targetPath}`)
+  }
+  await withWorkspacePathMoves(moves.map(plan => ({ source: plan.sourcePath, target: plan.targetPath })), async () => {
+    const moved: typeof moves = []
+    try {
+      for (const plan of moves) {
+        try {
+          const result = await moveFileManagerPath(plan.sourcePath, plan.targetPath, false)
+          if (!result.moved) throw new Error('无效的移动目标')
+          moved.push(plan)
+        } catch (error) {
+          const source = await getFilePathOptions(plan.sourcePath)
+          const target = await getFilePathOptions(plan.targetPath)
+          if (!await exists(source.path, { baseDir: source.baseDir })
+            && await exists(target.path, { baseDir: target.baseDir }) && !moved.includes(plan)) moved.push(plan)
+          throw error
+        }
+      }
+      await rewriteWorkspaceMarkdownMediaPaths(moves)
+    } catch (error) {
+      for (const plan of [...moved].reverse()) {
+        await moveFileManagerPath(plan.targetPath, plan.sourcePath, false)
+      }
+      throw error
+    }
+  })
 }
 
 export async function moveFileManagerEntries(
@@ -196,36 +246,38 @@ export async function moveFileManagerEntries(
     return { moved: [], failed, rolledBack: false }
   }
 
-  const moved: Array<Extract<MoveFileManagerEntryResult, { moved: true }>> = []
-  try {
-    for (const plan of plans) {
-      const result = await moveFileManagerEntry(plan.sourcePath, targetDirectoryPath)
-      if (result.moved) moved.push(result)
-    }
-    await rewriteWorkspaceMarkdownMediaPaths(moved.map(result => ({
-      sourcePath: result.sourcePath,
-      targetPath: result.targetPath,
-    })))
-    return { moved, failed: [], rolledBack: false }
-  } catch {
-    let rollbackFailed = false
-    for (const result of [...moved].reverse()) {
-      const originalParent = result.sourcePath.split('/').slice(0, -1).join('/')
-      try {
-        await moveFileManagerEntry(result.targetPath, originalParent)
-      } catch {
-        rollbackFailed = true
+  return withWorkspacePathMoves(plans.map(plan => ({ source: plan.sourcePath, target: plan.targetPath })), async () => {
+    const moved: Array<Extract<MoveFileManagerEntryResult, { moved: true }>> = []
+    try {
+      for (const plan of plans) {
+        const result = await moveFileManagerEntry(plan.sourcePath, targetDirectoryPath, false)
+        if (result.moved) moved.push(result)
+      }
+      await rewriteWorkspaceMarkdownMediaPaths(moved.map(result => ({
+        sourcePath: result.sourcePath,
+        targetPath: result.targetPath,
+      })))
+      return { moved, failed: [], rolledBack: false }
+    } catch {
+      let rollbackFailed = false
+      for (const result of [...moved].reverse()) {
+        const originalParent = result.sourcePath.split('/').slice(0, -1).join('/')
+        try {
+          await moveFileManagerEntry(result.targetPath, originalParent, false)
+        } catch {
+          rollbackFailed = true
+        }
+      }
+      return {
+        moved: [],
+        failed: [{
+          path: plans[moved.length]?.sourcePath ?? plans[0]?.sourcePath ?? '',
+          reason: rollbackFailed ? 'rollback-failed' : 'move-failed',
+        }],
+        rolledBack: moved.length > 0 && !rollbackFailed,
       }
     }
-    return {
-      moved: [],
-      failed: [{
-        path: plans[moved.length]?.sourcePath ?? plans[0]?.sourcePath ?? '',
-        reason: rollbackFailed ? 'rollback-failed' : 'move-failed',
-      }],
-      rolledBack: moved.length > 0 && !rollbackFailed,
-    }
-  }
+  })
 }
 
 export function getPathAfterMove(path: string, sourcePath: string, targetPath: string) {

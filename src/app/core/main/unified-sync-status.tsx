@@ -207,6 +207,9 @@ export function UnifiedSyncStatus() {
         if (isCurrent()) await getSelfHostedSyncRuntime().wake('manual-retry')
         return
       }
+      const { retryWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')
+      await retryWorkspacePathMoves()
+      if (!isCurrent()) return
       const directories = [...failedDirectories.current.keys()]
       const files = [...failedFiles.current]
       const domains = getAutoDataSyncState()

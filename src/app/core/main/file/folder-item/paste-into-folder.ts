@@ -1,20 +1,18 @@
-import { copyFile, mkdir, readDir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
+import { copyFile, mkdir, readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 import { toast } from '@/hooks/use-toast'
 import { generateCopyFilename, generateCopyFoldername } from '@/lib/default-filename'
 import {
   rewriteMarkdownMediaPaths,
-  rewriteWorkspaceMarkdownMediaPaths,
   type WorkspacePathMove,
 } from '@/lib/markdown-media-path'
-import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
+import { getFilePathOptions } from '@/lib/workspace'
 import type { ClipboardItem } from '@/stores/clipboard'
 import useArticleStore from '@/stores/article'
 import {
-  activeEditorPathIsAffected,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
-import { getPathAfterMove } from '../file-dnd'
+import { moveFileManagerPaths } from '../file-dnd'
 
 import { getPasteTargetDirectory } from './paste-target'
 
@@ -126,9 +124,7 @@ export async function pasteIntoFolder({
   }
 
   const initialActiveFilePath = useArticleStore.getState().activeFilePath
-  const movesActiveFile = clipboardOperation === 'cut' && itemsToPaste.some(
-    item => activeEditorPathIsAffected(initialActiveFilePath, item.path)
-  )
+
   if (
     clipboardOperation === 'cut'
     && !await prepareActiveEditorPathMutationDurably(
@@ -140,9 +136,24 @@ export async function pasteIntoFolder({
   }
 
   try {
-    const workspace = await getWorkspacePath()
     const targetDir = getPasteTargetDirectory(folderPath)
     const pathMoves: WorkspacePathMove[] = []
+
+    if (clipboardOperation === 'cut') {
+      for (const item of itemsToPaste) {
+        if (item.isDirectory && (targetDir === item.path || targetDir.startsWith(`${item.path}/`))) {
+          throw new Error('不能将目录移动到自身内部')
+        }
+        const name = item.isDirectory ? await generateCopyFoldername(targetDir, item.name)
+          : await generateCopyFilename(targetDir, item.name)
+        pathMoves.push({ sourcePath: item.path, targetPath: targetDir ? `${targetDir}/${name}` : name })
+      }
+      await moveFileManagerPaths(pathMoves)
+      setClipboardItem(null, 'none')
+      await loadFileTree()
+      toast({ title: pastedToastTitle })
+      return true
+    }
 
     for (const item of itemsToPaste) {
       if (item.isDirectory && targetDir.startsWith(`${item.path}/`)) {
@@ -174,37 +185,6 @@ export async function pasteIntoFolder({
       } else {
         await copyWorkspaceFile(item.path, targetPath, [pathMove])
       }
-    }
-
-    if (clipboardOperation === 'cut') {
-      await rewriteWorkspaceMarkdownMediaPaths(pathMoves)
-
-      const articleStore = useArticleStore.getState()
-      let nextActiveFilePath = initialActiveFilePath
-      for (const [index, item] of itemsToPaste.entries()) {
-        const sourcePathOptions = await getFilePathOptions(item.path)
-        if (workspace.isCustom) {
-          await remove(sourcePathOptions.path, { recursive: true })
-        } else {
-          await remove(sourcePathOptions.path, { baseDir: sourcePathOptions.baseDir, recursive: true })
-        }
-        const pathMove = pathMoves[index]
-        await articleStore.syncOpenTabsForPathChange(pathMove.sourcePath, pathMove.targetPath)
-        const movedActiveFilePath = getPathAfterMove(
-          nextActiveFilePath,
-          pathMove.sourcePath,
-          pathMove.targetPath,
-        )
-        if (movedActiveFilePath !== nextActiveFilePath) {
-          await articleStore.setActiveFilePath(
-            movedActiveFilePath,
-            true,
-            movesActiveFile ? { deactivationAlreadyPrepared: true } : undefined,
-          )
-        }
-        nextActiveFilePath = movedActiveFilePath
-      }
-      setClipboardItem(null, 'none')
     }
 
     await loadFileTree()

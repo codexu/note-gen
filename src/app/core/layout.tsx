@@ -354,6 +354,8 @@ export default function RootLayout({
         // 先完成数据库和默认工作区初始化，避免首次启动时其他逻辑抢先读取空目录或未建表数据库。
         await initAllDatabases()
         if (cancelled) return
+        const { resumeWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')
+        resumeWorkspacePathMoves()
         setPluginsReady(true)
         const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
         await refreshSelfHostedSyncRuntime()

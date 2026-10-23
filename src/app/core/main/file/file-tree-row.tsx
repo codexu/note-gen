@@ -3,6 +3,33 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
+
+export function FileTreeRenameProgress({
+  name,
+  label,
+  icon,
+  className,
+}: {
+  name: string
+  label: string
+  icon: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      role="status"
+      aria-label={`${label}: ${name}`}
+      className="flex min-w-0 flex-1 items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-1 motion-safe:duration-150"
+    >
+      {icon}
+      <span className={cn('min-w-0 flex-1 truncate text-muted-foreground', className)} title={name}>
+        {name}
+      </span>
+      <Spinner aria-hidden="true" className="mr-1 shrink-0 text-muted-foreground motion-reduce:animate-none" />
+    </div>
+  )
+}
 
 export type FileTreeItemProps =
   React.HTMLAttributes<HTMLDivElement> &

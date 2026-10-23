@@ -349,6 +349,26 @@ export interface DirTree extends DirEntry {
   vectorCalcStatus?: 'idle' | 'calculating' | 'completed'  // 向量计算状态
 }
 
+type PendingFileTreeRename = {
+  operationId: string
+  target: string
+  completed: boolean
+  entry: DirTree
+  workspaceKey: string | null
+}
+
+// UI-only snapshots bridge the local filesystem operation and its remote wait.
+// They never change which remote version is accepted for writing.
+const pendingFileTreeRenameSnapshots = new Map<string, PendingFileTreeRename>()
+
+function isPendingFileTreeRenamePath(path: string): boolean {
+  for (const [source, { target }] of pendingFileTreeRenameSnapshots) {
+    if (path === source || path.startsWith(`${source}/`)
+      || path === target || path.startsWith(`${target}/`)) return true
+  }
+  return false
+}
+
 // 只有完整、成功的远程快照才能清理缓存；本地文件始终保留。
 function mergeRemoteDirectoryEntries(
   remoteEntries: RemoteDirectoryEntry[],
@@ -540,6 +560,67 @@ function copyCachedEntry(entry: DirTree, parent?: DirTree): DirTree {
     copy.children = (entry.children ?? []).map(child => copyCachedEntry(child, copy))
   }
   return copy
+}
+
+/** Keep source sync/child metadata when the watcher has already inserted the
+ * destination, while retaining any newly discovered destination children. */
+function mergeRenameTreeEntry(source: DirTree, target?: DirTree): DirTree {
+  const entry: DirTree = {
+    ...target,
+    ...source,
+    parent: undefined,
+    isLocale: source.isLocale || target?.isLocale || false,
+    sha: source.sha ?? target?.sha,
+    syncDirty: source.syncDirty || target?.syncDirty,
+    syncError: source.syncError ?? target?.syncError,
+    childrenLoaded: source.childrenLoaded || target?.childrenLoaded,
+  }
+  if (entry.isDirectory) {
+    const children = new Map((target?.children ?? []).map(child => [child.name, copyCachedEntry(child, entry)]))
+    for (const child of source.children ?? []) {
+      const mergedChild = mergeRenameTreeEntry(child, children.get(child.name))
+      mergedChild.parent = entry
+      children.set(child.name, mergedChild)
+    }
+    entry.children = [...children.values()]
+  }
+  return entry
+}
+
+/** A refresh may observe the new local path and the old remote path together.
+ * Show one canonical row throughout the transaction, including cached listings. */
+function preservePendingFileTreeRenameRows(tree: DirTree[]): DirTree[] {
+  if (!pendingFileTreeRenameSnapshots.size) return tree
+  const currentTree = useArticleStore.getState().fileTree
+  const workspaceKey = useArticleStore.getState().fileTreeWorkspaceKey
+  const projected = cloneDeep(tree)
+  for (const [source, pending] of pendingFileTreeRenameSnapshots) {
+    if (pending.workspaceKey !== workspaceKey) continue
+    const path = pending.completed ? pending.target : source
+    const existing = getCurrentFolder(path, projected)
+    const current = getCurrentFolder(path, currentTree)
+    const snapshot = mergeRenameTreeEntry(current ?? pending.entry, existing ?? undefined)
+    // A stale remote response can clear metadata before this projection runs.
+    const entry = mergeRenameTreeEntry(pending.entry, snapshot)
+    entry.isEditing = pending.completed ? false : pending.entry.isEditing
+    while (removeNodeFromTree(projected, source)) { /* Remove stale duplicates. */ }
+    while (removeNodeFromTree(projected, pending.target)) { /* Remove watcher duplicates. */ }
+    const parentPath = path.split('/').slice(0, -1).join('/')
+    if (parentPath && !getCurrentFolder(parentPath, projected)) {
+      const segments = parentPath.split('/')
+      for (let index = 0; index < segments.length; index += 1) {
+        const ancestorPath = segments.slice(0, index + 1).join('/')
+        if (getCurrentFolder(ancestorPath, projected)) continue
+        const ancestor = getCurrentFolder(ancestorPath, currentTree)
+        if (ancestor?.isDirectory) attachNodeToTree(projected, ancestorPath, copyCachedEntry(ancestor))
+      }
+      // Restoring an unloaded parent may also restore its cached old children.
+      while (removeNodeFromTree(projected, source)) { /* Remove restored old row. */ }
+      while (removeNodeFromTree(projected, pending.target)) { /* Keep one target. */ }
+    }
+    attachNodeToTree(projected, path, entry)
+  }
+  return projected
 }
 
 function mergeRefreshedLocalEntries(
@@ -1012,6 +1093,10 @@ interface NoteState {
   fileTreeLoading: boolean
   fileTreeInitialized: boolean
   fileTreeWorkspaceKey: string | null
+  pendingFileTreeRenames: Record<string, string>
+  beginFileTreeRename: (source: string, target: string) => string | null
+  completeFileTreeRename: (source: string, target: string, operationId: string) => void
+  finishFileTreeRename: (source: string, target: string, operationId: string) => void
   setFileTree: (tree: DirTree[]) => void
   setEntryLoading: (relativePath: string, loading: boolean) => boolean
   setEntrySyncError: (relativePath: string, error?: string) => boolean
@@ -1025,7 +1110,7 @@ interface NoteState {
   insertLocalEntry: (relativePath: string, isDirectory: boolean) => boolean
   removeLocalEntry: (relativePath: string) => boolean
   moveLocalEntry: (oldPath: string, newPath: string) => boolean
-  syncOpenTabsForPathChange: (oldPath: string, newPath: string) => Promise<void>
+  syncOpenTabsForPathChange: (oldPath: string, newPath: string, autoSync?: boolean) => Promise<void>
   loadFileTree: (options?: { skipRemoteSync?: boolean }) => Promise<void>
   loadRemoteSyncFiles: (context?: FileTreeRequestContext) => Promise<void>
   loadCollapsibleFiles: (folderName: string, options?: { force?: boolean; skipRemoteSync?: boolean }) => Promise<void>
@@ -1949,8 +2034,51 @@ const useArticleStore = create<NoteState>((set, get) => ({
   fileTree: [],
   fileTreeInitialized: false,
   fileTreeWorkspaceKey: null,
+  pendingFileTreeRenames: {},
+  beginFileTreeRename: (source, target) => {
+    if (source === target || isPendingFileTreeRenamePath(source) || isPendingFileTreeRenamePath(target)
+      || [...pendingFileTreeRenameSnapshots].some(([oldPath, move]) => [oldPath, move.target]
+        .some(path => path.startsWith(`${source}/`) || path.startsWith(`${target}/`)))) return null
+    const entry = getCurrentFolder(source, get().fileTree)
+    if (!entry) return null
+    const operationId = crypto.randomUUID()
+    pendingFileTreeRenameSnapshots.set(source, {
+      operationId, target, completed: false, entry: copyCachedEntry(entry), workspaceKey: get().fileTreeWorkspaceKey,
+    })
+    // Invalidate listings started before the rename began.
+    fileTreeLoadGeneration += 1
+    set({ pendingFileTreeRenames: { ...get().pendingFileTreeRenames, [source]: target }, fileTreeLoading: false })
+    return operationId
+  },
+  completeFileTreeRename: (source, target, operationId) => {
+    const pending = pendingFileTreeRenameSnapshots.get(source)
+    if (!pending || pending.operationId !== operationId || pending.target !== target
+      || pending.workspaceKey !== get().fileTreeWorkspaceKey) return
+    const sourceEntry = getCurrentFolder(source, get().fileTree) ?? pending.entry
+    const targetEntry = getCurrentFolder(target, get().fileTree)
+    pending.entry = mergeRenameTreeEntry(sourceEntry, targetEntry ?? undefined)
+    pending.entry.isEditing = false
+    pending.completed = true
+    const mapPath = (path: string) => path === source || path.startsWith(`${source}/`)
+      ? `${target}${path.slice(source.length)}` : path
+    set({
+      fileTree: get().sortFileTree(preservePendingFileTreeRenameRows(get().fileTree)),
+      collapsibleList: [...new Set(get().collapsibleList.map(mapPath))],
+    })
+  },
+  finishFileTreeRename: (source, target, operationId) => {
+    const pending = pendingFileTreeRenameSnapshots.get(source)
+    if (!pending || pending.operationId !== operationId || pending.target !== target
+      || pending.workspaceKey !== get().fileTreeWorkspaceKey) return
+    if (!pendingFileTreeRenameSnapshots.delete(source)) return
+    const pendingFileTreeRenames = { ...get().pendingFileTreeRenames }
+    delete pendingFileTreeRenames[source]
+    // Do not let an in-flight pre-completion remote listing restore the old row.
+    fileTreeLoadGeneration += 1
+    set({ pendingFileTreeRenames, fileTreeLoading: false })
+  },
   setFileTree: (tree: DirTree[]) => {
-    const sortedTree = get().sortFileTree(tree)
+    const sortedTree = get().sortFileTree(preservePendingFileTreeRenameRows(tree))
     set({ fileTree: sortedTree, fileTreeInitialized: true })
   },
   setEntryLoading: (relativePath: string, loading: boolean) => {
@@ -2010,6 +2138,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     return true
   },
   reconcileLocalFile: (relativePath: string, isPresent: boolean) => {
+    if (isPendingFileTreeRenamePath(relativePath)) return true
     const currentTree = get().fileTree
     const current = getCurrentFolder(relativePath, currentTree)
 
@@ -2107,12 +2236,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
 
     get().setFileTree(cacheTree)
-    void import('@/lib/self-hosted-sync/outbox').then(({ enqueuePathMove }) => (
-      enqueuePathMove(oldPath, newPath)
-    ))
     return true
   },
-  syncOpenTabsForPathChange: async (oldPath: string, newPath: string) => {
+  syncOpenTabsForPathChange: async (oldPath: string, newPath: string, autoSync = true) => {
     const mapMovedPath = (path: string) => {
       if (path === oldPath) {
         return newPath
@@ -2213,7 +2339,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (nextActiveFilePath !== currentActiveFilePath) {
       await get().setActiveFilePath(
         nextActiveFilePath,
-        true,
+        autoSync,
         { deactivationAlreadyPrepared: true, createIfMissing: false },
       )
     }
@@ -2276,7 +2402,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // 使用正确的基础路径
     const basePath = workspace.isCustom ? workspace.path : await join(await appDataDir(), 'article')
     await get().updateFileStats(basePath, fileTree)
-    set({ fileTree: [...fileTree] }) // 触发重新渲染
+    set({ fileTree: preservePendingFileTreeRenameRows(fileTree) }) // 触发重新渲染
   },
   
   loadFileTree: async (options) => {
@@ -2300,11 +2426,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
     const cachedTree = workspaceChanged ? [] : get().fileTree
     if (workspaceChanged) {
+      pendingFileTreeRenameSnapshots.clear()
       // 切换工作区时立即移除旧的本地树和仅远端节点。
       set({
         fileTree: [],
         fileTreeInitialized: false,
         fileTreeWorkspaceKey: workspaceKey,
+        pendingFileTreeRenames: {},
       })
     } else {
       set({ fileTreeWorkspaceKey: workspaceKey })
@@ -2469,7 +2597,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (!await canApplyFileTreeRequest(requestContext)) return
 
     set({
-      fileTree: sortedDirs,
+      fileTree: get().sortFileTree(preservePendingFileTreeRenameRows(sortedDirs)),
       fileTreeInitialized: true,
       fileTreeLoading: false,
     })
@@ -2626,7 +2754,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
             }
           }
           if (isFileTreeRequestCurrent(requestContext)) {
-            set({ fileTree: [...dirs] })
+            set({ fileTree: get().sortFileTree(preservePendingFileTreeRenameRows(dirs)) })
           }
         }
       } catch (error) {
@@ -2742,7 +2870,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       mergeRefreshedLocalEntries(children, currentFolder.children ?? [], currentFolder)
     )
     currentFolder.childrenLoaded = true
-    set({ fileTree: [...cacheTree] })
+    set({ fileTree: get().sortFileTree(preservePendingFileTreeRenameRows(cacheTree)) })
     
     // 异步加载远程同步文件状态（不阻塞界面）
     // 这将会填充仅存在于云端的文件
@@ -2898,7 +3026,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
           }
 
           if (isFileTreeRequestCurrent(requestContext)) {
-            set({ fileTree: [...cacheTree] })
+            set({ fileTree: get().sortFileTree(preservePendingFileTreeRenameRows(cacheTree)) })
           }
         }
       }

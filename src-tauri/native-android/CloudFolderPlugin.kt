@@ -3,6 +3,8 @@ package com.codexu.NoteGen
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.DocumentsContract
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -15,6 +17,8 @@ import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import org.json.JSONArray
+import org.json.JSONObject
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.util.UUID
@@ -52,6 +56,15 @@ class AndroidCloudFolderListArgs {
 }
 
 @InvokeArg
+class AndroidCloudFolderMoveArgs {
+    lateinit var rootUri: String
+    lateinit var source: String
+    lateinit var target: String
+    var expectedIdentity: String? = null
+    var expectedSnapshotJson: String? = null
+}
+
+@InvokeArg
 class AndroidSecureKeyArgs {
     lateinit var key: String
 }
@@ -65,6 +78,7 @@ class AndroidSecureValueArgs {
 @TauriPlugin
 class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
     private val resolver get() = activity.contentResolver
+    private val folderOperationLocks = mutableMapOf<String, Any>()
     private val securePreferences by lazy {
         activity.getSharedPreferences("notegen_secure_storage", Activity.MODE_PRIVATE)
     }
@@ -73,6 +87,13 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
         private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val KEYSTORE_ALIAS = "NoteGenSecureStorageKey"
         private const val GCM_TAG_LENGTH = 128
+    }
+
+    private fun folderOperationLock(rootUri: String, scope: String): Any {
+        if (scope != "workspace" && scope != "sync") throw IllegalArgumentException("Unsupported cloud folder scope")
+        return synchronized(folderOperationLocks) {
+            folderOperationLocks.getOrPut("${rootUri.trim()}\u0000$scope") { Any() }
+        }
     }
 
     @Command
@@ -217,14 +238,16 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
     fun writeFile(invoke: Invoke) {
         runAsync(invoke) {
             val args = invoke.parseArgs(AndroidCloudFolderWriteArgs::class.java)
-            val segments = normalizedSegments(args.key)
-            val base = resolveBase(args.rootUri, args.scope, true)
-                ?: throw IllegalStateException("Unable to create the NoteGen sync directory")
-            val parent = resolveDirectory(base, segments.dropLast(1), true)
-                ?: throw IllegalStateException("Unable to create the cloud folder path")
-            val bytes = Base64.decode(args.contentBase64, Base64.DEFAULT)
-            val file = writeBytes(parent, segments.last(), bytes)
-            fileMetadata(args.key, file, sha256(bytes))
+            synchronized(folderOperationLock(args.rootUri, args.scope)) {
+                val segments = normalizedSegments(args.key)
+                val base = resolveBase(args.rootUri, args.scope, true)
+                    ?: throw IllegalStateException("Unable to create the NoteGen sync directory")
+                val parent = resolveDirectory(base, segments.dropLast(1), true)
+                    ?: throw IllegalStateException("Unable to create the cloud folder path")
+                val bytes = Base64.decode(args.contentBase64, Base64.DEFAULT)
+                val file = writeBytes(parent, segments.last(), bytes)
+                fileMetadata(args.key, file, sha256(bytes))
+            }
         }
     }
 
@@ -247,10 +270,12 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
     fun deleteFile(invoke: Invoke) {
         runAsync(invoke) {
             val args = invoke.parseArgs(AndroidCloudFolderFileArgs::class.java)
-            val file = resolveFile(args.rootUri, args.scope, args.key) ?: return@runAsync true
-            if (!file.isFile) throw IllegalStateException("Cloud sync target is not a file")
-            if (!file.delete()) throw IllegalStateException("Failed to delete the cloud sync file")
-            true
+            synchronized(folderOperationLock(args.rootUri, args.scope)) {
+                val file = resolveFile(args.rootUri, args.scope, args.key) ?: return@synchronized true
+                if (!file.isFile) throw IllegalStateException("Cloud sync target is not a file")
+                if (!file.delete()) throw IllegalStateException("Failed to delete the cloud sync file")
+                true
+            }
         }
     }
 
@@ -272,6 +297,149 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
             }
             files.sortedBy { it["key"] as String }
         }
+    }
+
+    @Command
+    fun snapshotPath(invoke: Invoke) {
+        runAsync(invoke) {
+            val args = invoke.parseArgs(AndroidCloudFolderMoveArgs::class.java)
+            synchronized(folderOperationLock(args.rootUri, "workspace")) {
+                val base = resolveBase(args.rootUri, "workspace", false) ?: return@synchronized null
+                val source = resolveEntry(base, workspaceSegments(args.source)) ?: return@synchronized null
+                pathSnapshot(source, args.source)
+            }
+        }
+    }
+
+    @Command
+    fun movePath(invoke: Invoke) {
+        runAsync(invoke) {
+            val args = invoke.parseArgs(AndroidCloudFolderMoveArgs::class.java)
+            synchronized(folderOperationLock(args.rootUri, "workspace")) {
+                val from = workspaceSegments(args.source)
+                val to = workspaceSegments(args.target)
+                if (from == to || from.take(to.size) == to || to.take(from.size) == from) {
+                    throw IllegalArgumentException("Invalid cloud folder move paths")
+                }
+                val expected = args.expectedIdentity?.takeIf { it.isNotBlank() }
+                    ?: throw IllegalArgumentException("Cloud folder move requires a source identity")
+                val base = resolveBase(args.rootUri, "workspace", false)
+                    ?: throw IllegalStateException("The cloud workspace is unavailable")
+                val source = resolveEntry(base, from)
+                val target = resolveEntry(base, to)
+                if (source == null) {
+                    // Providers may change document IDs on rename. In that case
+                    // an interrupted response stays pending rather than guessing.
+                    if (target != null && target.uri.toString() == expected) {
+                        return@synchronized pathSnapshot(target, args.target)
+                    }
+                    throw IllegalStateException("Cloud folder move source disappeared")
+                }
+                if (source.uri.toString() != expected) throw IllegalStateException("Cloud folder move source was replaced")
+                if (target != null) throw IllegalStateException("Cloud folder move destination already exists")
+                val recorded = args.expectedSnapshotJson?.let { JSONObject(it) }
+                    ?: throw IllegalArgumentException("Cloud folder move requires its persisted snapshot")
+                if (recorded.getString("identity") != expected) throw IllegalArgumentException("Invalid cloud folder source identity")
+                val snapshot = pathSnapshot(source, args.source)
+                val fingerprint = recorded.optString("fingerprint", "")
+                if (fingerprint.isNotEmpty()) {
+                    if (!fingerprint.matches(Regex("[a-f0-9]{64}")) || fingerprint != snapshot["fingerprint"]) {
+                        throw IllegalStateException("Cloud folder move source changed; the original snapshot is preserved")
+                    }
+                } else {
+                    // Older journals recorded the complete visible file list.
+                    // Verify those original hashes instead of accepting a fresh baseline.
+                    val current = JSONObject(snapshot).getJSONArray("files")
+                    if (snapshotFileHashes(recorded.getJSONArray("files")) != snapshotFileHashes(current)) {
+                        throw IllegalStateException("Cloud folder move source changed; the original snapshot is preserved")
+                    }
+                }
+                val sameParent = from.dropLast(1) == to.dropLast(1)
+                if (!sameParent && from.last() != to.last()) {
+                    throw IllegalStateException("This provider cannot atomically move and rename an item together")
+                }
+                val flags = documentFlags(source.uri)
+                if (sameParent) {
+                    if (flags and DocumentsContract.Document.FLAG_SUPPORTS_RENAME == 0) {
+                        throw IllegalStateException("The cloud folder provider does not support native rename")
+                    }
+                    if (DocumentsContract.renameDocument(resolver, source.uri, to.last()) == null) {
+                        throw IllegalStateException("The cloud folder provider did not complete rename")
+                    }
+                } else {
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N ||
+                        flags and DocumentsContract.Document.FLAG_SUPPORTS_MOVE == 0) {
+                        throw IllegalStateException("The cloud folder provider does not support native move")
+                    }
+                    val oldParent = resolveDirectory(base, from.dropLast(1), false)
+                        ?: throw IllegalStateException("Cloud folder source parent disappeared")
+                    val newParent = resolveDirectory(base, to.dropLast(1), true)
+                        ?: throw IllegalStateException("Cloud folder target parent could not be created")
+                    if (DocumentsContract.moveDocument(resolver, source.uri, oldParent.uri, newParent.uri) == null) {
+                        throw IllegalStateException("The cloud folder provider did not complete move")
+                    }
+                }
+                val moved = resolveEntry(base, to)
+                    ?: throw IllegalStateException("Cloud folder move destination could not be verified")
+                if (resolveEntry(base, from) != null) throw IllegalStateException("Cloud folder move source still exists")
+                pathSnapshot(moved, args.target)
+            }
+        }
+    }
+
+    private fun workspaceSegments(path: String): List<String> {
+        val segments = normalizedSegments(path)
+        if (segments.any { it.startsWith('.') }) throw IllegalArgumentException("Invalid cloud workspace path")
+        return segments
+    }
+
+    private fun documentFlags(uri: Uri): Int {
+        resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null).use { cursor ->
+            if (cursor == null || !cursor.moveToFirst()) throw IllegalStateException("Cloud folder source is unavailable")
+            return cursor.getInt(0)
+        }
+    }
+
+    private fun pathSnapshot(entry: DocumentFile, key: String): Map<String, Any> {
+        val files = mutableListOf<Map<String, Any>>()
+        val entries = mutableListOf<List<String>>()
+        fun visit(current: DocumentFile, path: String, visible: Boolean) {
+            if (current.isDirectory) {
+                entries.add(listOf("directory", path, current.uri.toString()))
+                val children = current.listFiles().sortedBy { it.name.orEmpty() }
+                val names = mutableSetOf<String>()
+                for (child in children) {
+                    val name = child.name ?: throw IllegalStateException("Cloud folder child has no name")
+                    if (!names.add(name)) throw IllegalStateException("Cloud folder contains ambiguous child names")
+                    visit(child, if (path.isEmpty()) name else "$path/$name", visible && !name.startsWith('.'))
+                }
+            } else if (current.isFile) {
+                val hash = sha256(readBytes(current))
+                entries.add(listOf("file", path, current.uri.toString(), hash))
+                if (visible) files.add(mapOf("path" to if (path.isEmpty()) key else "$key/$path", "hash" to hash))
+            } else {
+                throw IllegalStateException("Cloud folder source must contain ordinary files and directories")
+            }
+        }
+        visit(entry, "", true)
+        return mapOf(
+            "identity" to entry.uri.toString(),
+            "fingerprint" to sha256(JSONArray(entries).toString().toByteArray(Charsets.UTF_8)),
+            "files" to files
+        )
+    }
+
+    private fun snapshotFileHashes(files: JSONArray): List<Pair<String, String>> {
+        val paths = mutableSetOf<String>()
+        return (0 until files.length()).map { index ->
+            val entry = files.getJSONObject(index)
+            val path = entry.getString("path")
+            val hash = entry.getString("hash")
+            if (!paths.add(path) || !hash.matches(Regex("[a-f0-9]{64}"))) {
+                throw IllegalArgumentException("Invalid cloud folder snapshot")
+            }
+            path to hash
+        }.sortedBy { it.first }
     }
 
     private fun runAsync(invoke: Invoke, operation: () -> Any?) {

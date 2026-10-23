@@ -1,3 +1,5 @@
+import { retryWorkspacePathMoves } from './workspace-path-moves'
+import { normalizeRemoteVersion } from './remote-content-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
@@ -315,6 +317,7 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
   // 检查当前平台是否是 S3
   const store = await getStore()
   const platform = await store.get<string>('primaryBackupMethod')
+  await retryWorkspacePathMoves()
 
   if (platform === 's3') {
     return compareS3FileVersions(path)
@@ -1128,9 +1131,8 @@ export async function compareS3FileVersions(path: string): Promise<SyncResult> {
   // 获取本地文件的元数据
   const localMeta = await getLocalFileMetadata(path)
 
-  // 从 sync store 获取本地记录的云端 ETag
-  const syncStoreState = useSyncStore.getState()
-  const localRecordedEtag = syncStoreState.s3FileEtags[path]
+  // Keep the accepted version across app restarts and remote path changes.
+  const localRecordedEtag = normalizeRemoteVersion(await getLocalRecordedSha(path) || undefined)
 
   // 获取远程文件的 ETag
   const remoteInfo = await s3HeadObject(config, path, proxy)
@@ -1156,8 +1158,9 @@ export async function compareS3FileVersions(path: string): Promise<SyncResult> {
     }
   }
 
+  const remoteEtag = normalizeRemoteVersion(remoteInfo.etag)
   // 比较 ETag
-  if (localRecordedEtag && localRecordedEtag !== remoteInfo.etag) {
+  if (localRecordedEtag && remoteEtag && localRecordedEtag !== remoteEtag) {
     return {
       shouldUpdate: true,
       action: 'pull',
@@ -1166,7 +1169,7 @@ export async function compareS3FileVersions(path: string): Promise<SyncResult> {
   }
 
   // ETag 匹配
-  if (localRecordedEtag === remoteInfo.etag) {
+  if (localRecordedEtag && localRecordedEtag === remoteEtag) {
     return {
       shouldUpdate: false,
       action: 'none',
@@ -1213,9 +1216,8 @@ export async function compareWebDAVFileVersions(path: string): Promise<SyncResul
   // 获取本地文件的元数据
   const localMeta = await getLocalFileMetadata(path)
 
-  // 从 sync store 获取本地记录的云端 ETag
-  const syncStoreState = useSyncStore.getState()
-  const localRecordedEtag = syncStoreState.webdavFileEtags[path]
+  // Use the durable baseline so a restart or rename does not forget it.
+  const localRecordedEtag = normalizeRemoteVersion(await getLocalRecordedSha(path) || undefined)
 
   // 获取远程文件的 ETag
   const remoteInfo = await webdavHeadObject(config, path, proxy)
@@ -1241,8 +1243,9 @@ export async function compareWebDAVFileVersions(path: string): Promise<SyncResul
     }
   }
 
+  const remoteEtag = normalizeRemoteVersion(remoteInfo.etag)
   // 比较 ETag
-  if (localRecordedEtag && localRecordedEtag !== remoteInfo.etag) {
+  if (localRecordedEtag && remoteEtag && localRecordedEtag !== remoteEtag) {
     return {
       shouldUpdate: true,
       action: 'pull',
@@ -1251,7 +1254,7 @@ export async function compareWebDAVFileVersions(path: string): Promise<SyncResul
   }
 
   // ETag 匹配
-  if (localRecordedEtag === remoteInfo.etag) {
+  if (localRecordedEtag && localRecordedEtag === remoteEtag) {
     return {
       shouldUpdate: false,
       action: 'none',

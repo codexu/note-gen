@@ -68,6 +68,32 @@ struct ListPayload {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MovePayload {
+    root_uri: String,
+    source: String,
+    target: String,
+    expected_identity: Option<String>,
+    expected_snapshot_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AndroidPathMoveSnapshot {
+    identity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fingerprint: Option<String>,
+    files: Vec<AndroidPathMoveFile>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AndroidPathMoveFile {
+    path: String,
+    hash: String,
+}
+
+#[derive(Serialize)]
 struct SecureKeyPayload {
     key: String,
 }
@@ -181,6 +207,37 @@ pub async fn release_android_sync_folder(
     })
     .await
     .map_err(|error| format!("Android folder release task failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn snapshot_android_cloud_folder_path(
+    app_handle: AppHandle,
+    root_uri: String,
+    source: String,
+    target: String,
+) -> Result<Option<AndroidPathMoveSnapshot>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        plugin(&app_handle)?.0.run_mobile_plugin("snapshotPath", MovePayload {
+            root_uri, source, target, expected_identity: None, expected_snapshot_json: None,
+        }).map_err(|error| format!("Failed to inspect the Android cloud path: {error}"))
+    }).await.map_err(|error| format!("Android cloud path inspection task failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn move_android_cloud_folder_path(
+    app_handle: AppHandle,
+    root_uri: String,
+    source: String,
+    target: String,
+    expected_identity: String,
+    expected_snapshot_json: String,
+) -> Result<AndroidPathMoveSnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        plugin(&app_handle)?.0.run_mobile_plugin("movePath", MovePayload {
+            root_uri, source, target, expected_identity: Some(expected_identity),
+            expected_snapshot_json: Some(expected_snapshot_json),
+        }).map_err(|error| format!("Failed to move the Android cloud path: {error}"))
+    }).await.map_err(|error| format!("Android cloud path move task failed: {error}"))?
 }
 
 #[tauri::command]

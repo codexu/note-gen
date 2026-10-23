@@ -105,18 +105,41 @@ export function useWorkspaceFileWatcher() {
           for (const path of notePaths) emitNoteChange({ type: 'changed', path })
         }
 
+        if (typeof event.type !== 'string') {
+          if ('create' in event.type && event.type.create.kind === 'file') {
+            for (const path of notePaths) emitNoteChange({ type: 'created', path })
+          } else if ('remove' in event.type && event.type.remove.kind === 'file') {
+            for (const path of notePaths) emitNoteChange({ type: 'deleted', path })
+          } else if ('modify' in event.type && event.type.modify.kind === 'rename') {
+            const mode = event.type.modify.mode
+            if ((mode === 'both' || mode === 'any') && relativePaths.length >= 2) {
+              const oldPath = relativePaths[0]
+              const newPath = relativePaths[relativePaths.length - 1]
+              if (oldPath.toLowerCase().endsWith('.md') && newPath.toLowerCase().endsWith('.md')) {
+                emitNoteChange({ type: 'moved', path: newPath, previousPath: oldPath })
+              }
+            }
+          }
+        }
+
         const state = useArticleStore.getState()
+        const pendingRenames = Object.entries(state.pendingFileTreeRenames)
+        const treePaths = relativePaths.filter(path => !pendingRenames.some(([source, target]) => (
+          path === source || path.startsWith(`${source}/`)
+          || path === target || path.startsWith(`${target}/`)
+        )))
+        // The rename transaction owns these rows until it commits locally.
+        // Keep unrelated structural changes from the same watcher batch visible.
+        if (relativePaths.length > 0 && treePaths.length === 0) return
         if (typeof event.type !== 'string' && 'create' in event.type && event.type.create.kind === 'file') {
-          for (const path of notePaths) emitNoteChange({ type: 'created', path })
-          const updated = relativePaths.length > 0 && relativePaths
+          const updated = treePaths.length > 0 && treePaths
             .map(path => state.reconcileLocalFile(path, true))
             .every(Boolean)
           if (updated) return
         }
 
         if (typeof event.type !== 'string' && 'remove' in event.type && event.type.remove.kind === 'file') {
-          for (const path of notePaths) emitNoteChange({ type: 'deleted', path })
-          const updated = relativePaths.length > 0 && relativePaths
+          const updated = treePaths.length > 0 && treePaths
             .map(path => state.reconcileLocalFile(path, false))
             .every(Boolean)
           if (updated) return
@@ -128,12 +151,9 @@ export function useWorkspaceFileWatcher() {
           && event.type.modify.kind === 'rename'
         ) {
           const mode = event.type.modify.mode
-          if ((mode === 'both' || mode === 'any') && relativePaths.length >= 2) {
-            const oldPath = relativePaths[0]
-            const newPath = relativePaths[relativePaths.length - 1]
-            if (oldPath.toLowerCase().endsWith('.md') && newPath.toLowerCase().endsWith('.md')) {
-              emitNoteChange({ type: 'moved', path: newPath, previousPath: oldPath })
-            }
+          if ((mode === 'both' || mode === 'any') && treePaths.length >= 2) {
+            const oldPath = treePaths[0]
+            const newPath = treePaths[treePaths.length - 1]
             state.reconcileLocalFile(oldPath, false)
             state.reconcileLocalFile(newPath, true)
           }
@@ -145,7 +165,7 @@ export function useWorkspaceFileWatcher() {
           // the directory scan below make the file tree match the filesystem.
         }
 
-        const parentPaths = new Set(relativePaths.map(path => {
+        const parentPaths = new Set(treePaths.map(path => {
           const parts = path.split('/')
           parts.pop()
           return parts.join('/')

@@ -180,6 +180,8 @@ export default function RootLayout({
         initMainHosting()
         await initAllDatabases()
         if (cancelled) return
+        const { resumeWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')
+        resumeWorkspacePathMoves()
         setPluginsReady(true)
         const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
         await refreshSelfHostedSyncRuntime()

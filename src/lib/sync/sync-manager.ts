@@ -1,6 +1,8 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { getSyncMetadataKey } from './sync-context'
 import { getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
+import { prepareWorkspacePathUpload, retryWorkspacePathMoves } from './workspace-path-moves'
+import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { hasInvalidFileNameChars, sanitizeFilePath } from './filename-utils'
 import { updateFileSyncTime } from './conflict-resolution'
@@ -202,6 +204,7 @@ export class SyncManager {
         return { success: true, action: 'push', message: '已加入自托管同步队列', content }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
+      await prepareWorkspacePathUpload(path)
       const metadataKey = await getSyncMetadataKey(path, platform)
       const acceptedVersion = overwrite
         ? await getWorkspaceOverwriteVersion(path, platform)
@@ -211,7 +214,8 @@ export class SyncManager {
       const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
       if (platform === 'cloudFolder' && config?.provider !== 'oneDrive') {
         if (!config) return { success: false, action: 'push', error: '网盘文件夹未配置' }
-        const result = await androidCloudFolderWorkspaceUpload(config, path, content)
+        const beforeWrite = await captureWorkspaceRemoteWriteGuard(path, platform, true, content)
+        const result = await androidCloudFolderWorkspaceUpload(config, path, content, undefined, beforeWrite)
         version = result.etag
       } else {
         // An idempotent manual retry must also accept the version attached to
@@ -257,6 +261,7 @@ export class SyncManager {
         return { success: true, action: 'none', message: '已检查自托管同步事件' }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
+      await retryWorkspacePathMoves()
       const pullMetadataKey = await getSyncMetadataKey(path, platform)
       const targetIsCurrent = async () => !await store.get('platformSwitchRecovery')
         && await this.getCurrentPlatform() === platform && await getSyncMetadataKey(path, platform) === pullMetadataKey
@@ -381,7 +386,8 @@ export class SyncManager {
       let success: boolean
       if (platform === 'cloudFolder' && config?.provider !== 'oneDrive') {
         if (!config) return { success: false, action: 'delete', error: '网盘文件夹未配置' }
-        success = await androidCloudFolderWorkspaceDelete(config, path)
+        const beforeWrite = await captureWorkspaceRemoteWriteGuard(path, platform, false)
+        success = await androidCloudFolderWorkspaceDelete(config, path, undefined, beforeWrite)
       } else {
         const remote = await import('./remote-library')
         if (!await remote.getRemoteFileMetadata(path, 'workspace', platform)) {

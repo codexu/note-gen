@@ -4,6 +4,7 @@ import { downloadRemoteBytesWithVersion, uploadRemoteBytes, getRemoteContentType
 import { gitBlobVersion, normalizeRemoteVersion } from './remote-content-cache'
 import { getSyncMetadataKey } from './sync-context'
 import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
+import { prepareWorkspacePathUpload } from './workspace-path-moves'
 
 export type WorkspaceRemotePlatform = Exclude<SyncPlatform, 'local' | 'selfHosted'>
 
@@ -45,6 +46,7 @@ export async function uploadGuardedWorkspaceFile(
   path: string, content: string, platform: WorkspaceRemotePlatform,
   expectedVersion: string | null, message: string, expectedMetadataKey?: string,
 ): Promise<string> {
+  await prepareWorkspacePathUpload(path)
   const store = await Store.load('store.json')
   if (await store.get('primaryBackupMethod') !== platform || await store.get('platformSwitchRecovery')
     || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) {

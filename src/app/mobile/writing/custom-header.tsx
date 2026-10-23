@@ -34,7 +34,9 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { RepoNames } from '@/lib/sync/github.types'
 import { Store } from '@tauri-apps/plugin-store'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
-import { buildMoveTargetPath, getPathAfterMove, isInvalidFolderMoveTarget, moveFileManagerEntry } from '@/app/core/main/file/file-dnd'
+import { buildMoveTargetPath, isInvalidFolderMoveTarget, moveFileManagerEntry, moveFileManagerPaths } from '@/app/core/main/file/file-dnd'
+import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
+import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { cn } from '@/lib/utils'
 import { CloudLibraryMenu } from '@/app/core/main/file/cloud-library-menu'
 import { pullRemoteLibraryFolder, uploadLocalLibraryFile, uploadLocalLibraryFolder } from '@/lib/sync/remote-library'
@@ -43,7 +45,6 @@ import { generateCopyFilename, generateCopyFoldername } from '@/lib/default-file
 import { getFileTreeSyncStatus, getSyncConfiguration } from '@/app/core/main/file/file-tree-action-policy'
 import { clearFolderLocalState, deleteRemoteFolder, hasRemoteFolderData } from '@/app/core/main/file/folder-item/delete-folder-utils'
 import {
-  activeEditorPathIsAffected,
   prepareActiveEditorDeactivationDurably,
   prepareActiveEditorPathMutationDurably,
 } from '@/lib/editor-deactivation'
@@ -481,10 +482,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       return
     }
 
-    const movesActiveFile = activeEditorPathIsAffected(
-      normalizedActivePath,
-      entry.relativePath,
-    )
     if (!await prepareActiveEditorPathMutationDurably(normalizedActivePath, [entry.relativePath])) return
 
     try {
@@ -497,17 +494,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       }
 
       moveLocalEntry(result.sourcePath, result.targetPath)
-      await syncOpenTabsForPathChange(result.sourcePath, result.targetPath)
-
-      const nextActivePath = getPathAfterMove(normalizedActivePath, result.sourcePath, result.targetPath)
-      if (nextActivePath !== normalizedActivePath) {
-        await setActiveFilePath(
-          nextActivePath,
-          true,
-          movesActiveFile ? { deactivationAlreadyPrepared: true } : undefined,
-        )
-      }
-
       await refreshTree(currentDir, { includeRemote: false })
     } catch (error) {
       console.error('Mobile file move failed:', error)
@@ -525,7 +511,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     refreshTree,
     resetDragState,
     setActiveFilePath,
-    syncOpenTabsForPathChange,
     tFile,
     tMobile,
   ])
@@ -805,10 +790,23 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
 
     const targetDir = entry.type === 'folder' ? entry.relativePath : parentPath(entry.relativePath)
     const pathMoves: Array<{ sourcePath: string; targetPath: string }> = []
-    const movesActiveFile = clipboardOperation === 'cut' && sourceItems.some(
-      sourceItem => activeEditorPathIsAffected(normalizedActivePath, sourceItem.path)
-    )
     try {
+      if (clipboardOperation === 'cut') {
+        for (const sourceItem of sourceItems) {
+          if (sourceItem.isDirectory && (targetDir === sourceItem.path || targetDir.startsWith(`${sourceItem.path}/`))) {
+            throw new Error(tFile('clipboard.notSupported'))
+          }
+          const name = sourceItem.isDirectory ? await generateCopyFoldername(targetDir, sourceItem.name)
+            : await generateCopyFilename(targetDir, sourceItem.name)
+          pathMoves.push({ sourcePath: sourceItem.path, targetPath: targetDir ? `${targetDir}/${name}` : name })
+        }
+        await moveFileManagerPaths(pathMoves)
+        setClipboardItem(null, 'none')
+        await refreshTree(currentDir, { includeRemote: false })
+        toast({ title: tFile('clipboard.pasted') })
+        return
+      }
+
       for (const sourceItem of sourceItems) {
         if (
           sourceItem.isDirectory &&
@@ -822,34 +820,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
         const targetPath = targetDir ? `${targetDir}/${targetName}` : targetName
         pathMoves.push({ sourcePath: sourceItem.path, targetPath })
         await copyLocalEntry(sourceItem.path, targetPath, sourceItem.isDirectory)
-      }
-
-      if (clipboardOperation === 'cut') {
-        let nextActivePath = normalizedActivePath
-        for (const [index, sourceItem] of sourceItems.entries()) {
-          const source = await getFilePathOptions(sourceItem.path)
-          if (source.baseDir) {
-            await remove(source.path, { baseDir: source.baseDir, recursive: sourceItem.isDirectory })
-          } else {
-            await remove(source.path, { recursive: sourceItem.isDirectory })
-          }
-          const pathMove = pathMoves[index]
-          await syncOpenTabsForPathChange(pathMove.sourcePath, pathMove.targetPath)
-          const movedActivePath = getPathAfterMove(
-            nextActivePath,
-            pathMove.sourcePath,
-            pathMove.targetPath,
-          )
-          if (movedActivePath !== nextActivePath) {
-            await setActiveFilePath(
-              movedActivePath,
-              true,
-              movesActiveFile ? { deactivationAlreadyPrepared: true } : undefined,
-            )
-          }
-          nextActivePath = movedActivePath
-        }
-        setClipboardItem(null, 'none')
       }
 
       await refreshTree(currentDir, { includeRemote: false })
@@ -989,39 +959,27 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
         return
       }
 
-      const movesActiveFile = activeEditorPathIsAffected(
-        normalizedActivePath,
-        renameTarget.relativePath,
-      )
       if (!await prepareActiveEditorPathMutationDurably(
         normalizedActivePath,
         [renameTarget.relativePath],
       )) return
 
-      if (oldPathOptions.baseDir || newPathOptions.baseDir) {
-        await fsRename(oldPathOptions.path, newPathOptions.path, {
-          oldPathBaseDir: oldPathOptions.baseDir || BaseDirectory.AppData,
-          newPathBaseDir: newPathOptions.baseDir || BaseDirectory.AppData,
-        })
-      } else {
-        await fsRename(oldPathOptions.path, newPathOptions.path)
-      }
-      await syncOpenTabsForPathChange(renameTarget.relativePath, newRelativePath)
-      const { renameVectorDocumentsByPrefix } = await import('@/db/vector')
-      await renameVectorDocumentsByPrefix(renameTarget.relativePath, newRelativePath)
+      await withWorkspacePathMove(renameTarget.relativePath, newRelativePath, async () => {
+        if (await moveSelfHostedWorkspacePath(renameTarget.relativePath, newRelativePath)) {
+          // The native journal completed the local move.
+        } else if (oldPathOptions.baseDir || newPathOptions.baseDir) {
+          await fsRename(oldPathOptions.path, newPathOptions.path, {
+            oldPathBaseDir: oldPathOptions.baseDir || BaseDirectory.AppData,
+            newPathBaseDir: newPathOptions.baseDir || BaseDirectory.AppData,
+          })
+        } else {
+          await fsRename(oldPathOptions.path, newPathOptions.path)
+        }
+        await syncOpenTabsForPathChange(renameTarget.relativePath, newRelativePath, false)
+        const { renameVectorDocumentsByPrefix } = await import('@/db/vector')
+        await renameVectorDocumentsByPrefix(renameTarget.relativePath, newRelativePath)
+      })
 
-      const nextActivePath = getPathAfterMove(
-        normalizedActivePath,
-        renameTarget.relativePath,
-        newRelativePath,
-      )
-      if (nextActivePath !== normalizedActivePath) {
-        await setActiveFilePath(
-          nextActivePath,
-          true,
-          movesActiveFile ? { deactivationAlreadyPrepared: true } : undefined,
-        )
-      }
       await refreshTree(currentDir)
       setRenameTarget(null)
       setRenameName('')

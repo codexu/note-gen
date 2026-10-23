@@ -267,6 +267,10 @@ pub fn run() {
             android_cloud_folder::delete_android_cloud_folder_file,
             #[cfg(target_os = "android")]
             android_cloud_folder::list_android_cloud_folder_files,
+            #[cfg(target_os = "android")]
+            android_cloud_folder::snapshot_android_cloud_folder_path,
+            #[cfg(target_os = "android")]
+            android_cloud_folder::move_android_cloud_folder_path,
             storefront::get_app_storefront_country_code,
             printing::print_webview,
             mobile_system_bars::set_mobile_system_bars,

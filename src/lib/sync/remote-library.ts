@@ -28,6 +28,8 @@ import { getFilePathOptions } from '@/lib/workspace'
 import { decodeBase64ToBytes, getRemoteFileContent } from './remote-file'
 import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/types/sync'
 import { recordSyncTiming } from './sync-timing'
+import { prepareWorkspacePathUpload, retryWorkspacePathMoves } from './workspace-path-moves'
+import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import {
   createStaticAssetSyncMarker,
   rememberStaticAssetSyncMarker,
@@ -336,6 +338,7 @@ export async function pullAllRemoteLibraryFiles(
   options: RemoteLibraryOptions = {},
   onProgress?: (progress: PullAllProgress) => void
 ): Promise<PullAllResult> {
+  await retryWorkspacePathMoves()
   const startedAt = Date.now()
   onProgress?.({ phase: 'listing', current: 0, total: 0 })
   const files = await listRemoteLibraryFiles(options)
@@ -353,6 +356,7 @@ export async function pullRemoteLibraryFolder(
   folderPath: string,
   onProgress?: (progress: PullAllProgress) => void
 ): Promise<PullAllResult> {
+  await retryWorkspacePathMoves()
   onProgress?.({ phase: 'listing', current: 0, total: 0 })
   const normalizedFolderPath = folderPath.replace(/^\/+|\/+$/g, '')
   const files = (await listRemoteLibraryFiles({ includeStaticAssets: true }))
@@ -399,6 +403,7 @@ async function pullRemoteLibraryFiles(
 }
 
 export async function downloadRemoteLibraryFile(path: string): Promise<void> {
+  await retryWorkspacePathMoves()
   await withStaticAssetSyncLock(path, async operationKey => {
     const pathOptions = await getFilePathOptions(path)
     const content = await downloadRemoteBytes(path)
@@ -436,6 +441,7 @@ export async function uploadLocalLibraryFolder(
 
 export async function uploadLocalLibraryFile(path: string): Promise<string> {
   return await withStaticAssetSyncLock(path, async operationKey => {
+    await prepareWorkspacePathUpload(path)
     const pathOptions = await getFilePathOptions(path)
     const content = pathOptions.baseDir
       ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
@@ -698,20 +704,31 @@ async function uploadRemoteContentRaw(
   scope: RemoteRepositoryScope = 'workspace',
   condition?: RemoteWriteCondition,
   target?: SyncPlatform,
+  suppliedBeforeWrite?: () => Promise<void>,
 ): Promise<string> {
   const store = await Store.load('store.json')
   const platform = target ?? await getPlatform(store)
+  // Platform-switch recovery owns its explicit target and version checks.
+  const switchingTarget = target !== undefined && Boolean(await store.get('platformSwitchRecovery'))
+  // A manual editor push supplies its own canonical-content guard; that
+  // snapshot may legitimately precede the debounced disk save.
+  const capturedGuard = scope === 'workspace' && !switchingTarget
+    ? await captureWorkspaceRemoteWriteGuard(path, platform, true, suppliedBeforeWrite ? undefined : content) : undefined
+  const beforeWrite = capturedGuard || suppliedBeforeWrite ? async () => {
+    await capturedGuard?.()
+    await suppliedBeforeWrite?.()
+  } : undefined
 
   if (platform === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')
-    const result = config ? await s3Upload(config, path, content, undefined, contentType, condition) : null
+    const result = config ? await s3Upload(config, path, content, undefined, contentType, condition, beforeWrite) : null
     if (!result) throw new Error('S3 上传失败')
     return result.etag || `uploaded:${path}`
   }
 
   if (platform === 'webdav') {
     const config = await store.get<WebDAVConfig>('webdavSyncConfig')
-    const result = config ? await webdavUpload(config, path, content, undefined, contentType, condition) : null
+    const result = config ? await webdavUpload(config, path, content, undefined, contentType, condition, beforeWrite) : null
     if (!result) throw new Error('WebDAV 上传失败')
     return result.etag || `uploaded:${path}`
   }
@@ -721,7 +738,7 @@ async function uploadRemoteContentRaw(
     if (condition && config?.provider !== 'oneDrive') throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
     const result = config?.path
       ? scope === 'workspace' && supportsCloudFolderWorkspace(config)
-        ? await androidCloudFolderWorkspaceUpload(config, path, content, condition)
+        ? await androidCloudFolderWorkspaceUpload(config, path, content, condition, beforeWrite)
         : scope === 'data'
           ? await cloudFolderUpload(config, path, content, condition)
           : null
@@ -741,20 +758,20 @@ async function uploadRemoteContentRaw(
 
   switch (platform) {
     case 'github':
-      response = await uploadGithubFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition) })
+      response = await uploadGithubFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition), beforeWrite })
       break
     case 'gitee':
-      response = await uploadGiteeFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition) })
+      response = await uploadGiteeFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition), beforeWrite })
       break
     case 'gitlab':
       if (condition) {
-        await mutateGitlabFileConditionally(path, repo, condition, typeof content === 'string' ? new TextEncoder().encode(content) : content)
+        await mutateGitlabFileConditionally(path, repo, condition, typeof content === 'string' ? new TextEncoder().encode(content) : content, beforeWrite)
         return '' // The final listing supplies the new blob version.
       }
-      response = await uploadGitlabFile({ file: content, filename, path, repo, sha, message })
+      response = await uploadGitlabFile({ file: content, filename, path, repo, sha, message, beforeWrite })
       break
     case 'gitea':
-      response = await uploadGiteaFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition) })
+      response = await uploadGiteaFile({ file: content, filename, path, repo, sha, message, guarded: Boolean(condition), beforeWrite })
       break
   }
 
@@ -770,13 +787,14 @@ async function uploadRemoteContent(
   scope: RemoteRepositoryScope = 'workspace',
   condition?: RemoteWriteCondition,
   target?: SyncPlatform,
+  beforeWrite?: () => Promise<void>,
 ): Promise<string> {
   const startedAt = Date.now()
   const bytes = typeof content === 'string'
     ? new TextEncoder().encode(content).byteLength
     : content.byteLength
   try {
-    const version = await uploadRemoteContentRaw(path, content, message, contentType, scope, condition, target)
+    const version = await uploadRemoteContentRaw(path, content, message, contentType, scope, condition, target, beforeWrite)
     recordSyncTiming('fileUpload', startedAt, { path, scope, bytes, success: true })
     return version
   } catch (error) {
@@ -785,8 +803,8 @@ async function uploadRemoteContent(
   }
 }
 
-export async function uploadRemoteText(path: string, content: string, message: string): Promise<string> {
-  return await uploadRemoteContent(path, content, message)
+export async function uploadRemoteText(path: string, content: string, message: string, beforeWrite?: () => Promise<void>): Promise<string> {
+  return await uploadRemoteContent(path, content, message, undefined, 'workspace', undefined, undefined, beforeWrite)
 }
 
 /** Keep attachment existence checks create-only when backed by OneDrive. */
@@ -898,19 +916,22 @@ export async function deleteRemoteFile(
 ): Promise<boolean> {
   const store = await Store.load('store.json')
   const platform = target ?? await getPlatform(store)
+  const switchingTarget = target !== undefined && Boolean(await store.get('platformSwitchRecovery'))
+  const beforeWrite = scope === 'workspace' && !switchingTarget
+    ? await captureWorkspaceRemoteWriteGuard(path, platform, false) : undefined
 
   if (platform === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')
     if (!config) return false
     if (!condition && !await s3HeadObject(config, path)) return true
-    return s3Delete(config, path, undefined, condition)
+    return s3Delete(config, path, undefined, condition, beforeWrite)
   }
 
   if (platform === 'webdav') {
     const config = await store.get<WebDAVConfig>('webdavSyncConfig')
     if (!config) return false
     if (!condition && !await webdavHeadObject(config, path)) return true
-    return webdavDelete(config, path, undefined, condition)
+    return webdavDelete(config, path, undefined, condition, beforeWrite)
   }
 
   if (platform === 'cloudFolder') {
@@ -918,7 +939,7 @@ export async function deleteRemoteFile(
     if (condition && config?.provider !== 'oneDrive') throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
     if (!config?.path) return false
     if (scope === 'workspace' && supportsCloudFolderWorkspace(config)) {
-      return androidCloudFolderWorkspaceDelete(config, path, condition)
+      return androidCloudFolderWorkspaceDelete(config, path, condition, beforeWrite)
     }
     if (scope === 'data') return cloudFolderDelete(config, path, condition)
     return false
@@ -932,13 +953,13 @@ export async function deleteRemoteFile(
 
   switch (platform) {
     case 'github':
-      return Boolean(await deleteGithubFile({ path, sha, repo, guarded: Boolean(condition) }))
+      return Boolean(await deleteGithubFile({ path, sha, repo, guarded: Boolean(condition), beforeWrite }))
     case 'gitee':
-      return Boolean(await deleteGiteeFile({ path, sha, repo, guarded: Boolean(condition) }))
+      return Boolean(await deleteGiteeFile({ path, sha, repo, guarded: Boolean(condition), beforeWrite }))
     case 'gitlab':
-      if (condition) return mutateGitlabFileConditionally(path, repo, condition)
-      return Boolean(await deleteGitlabFile({ path, repo }))
+      if (condition) return mutateGitlabFileConditionally(path, repo, condition, undefined, beforeWrite)
+      return Boolean(await deleteGitlabFile({ path, repo, beforeWrite }))
     case 'gitea':
-      return Boolean(await deleteGiteaFile({ path, sha, repo, guarded: Boolean(condition) }))
+      return Boolean(await deleteGiteaFile({ path, sha, repo, guarded: Boolean(condition), beforeWrite }))
   }
 }

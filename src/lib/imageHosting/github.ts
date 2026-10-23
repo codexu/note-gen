@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast';
 import { v4 as uuid } from 'uuid';
 import { fileToBase64 } from "../sync/github";
 import { getImageRepoName } from "../sync/repo-utils";
+import { withGithubRepoWriteLock } from '../sync/github-repo-write-lock';
 
 // 创建 Github 图床仓库
 export async function createImageRepo(name: string, isPrivate?: boolean) {
@@ -130,26 +131,25 @@ export async function uploadImageByGithub(file: File) {
     };
     
     const url = `https://api.github.com/repos/${username}/${repoName}/contents/${filename}`;
-    const response = await fetch(url, requestOptions);
-    
-    if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
+    const data = await withGithubRepoWriteLock(String(username), repoName, async () => {
+      const response = await fetch(url, requestOptions);
+      if (response.status >= 200 && response.status < 300) return await response.json();
 
-      const store = await Store.load('store.json');
-      const jsdelivr = await store.get('jsdelivr')
-      let url = data.content.download_url
-      if (jsdelivr) {
-        await fetch(`https://purge.jsdelivr.net/gh/${username}/${repoName}@main/${data.content.name}`)
-        url = `https://cdn.jsdelivr.net/gh/${username}/${repoName}@main/${data.content.name}`
-      }
-      return url
+      const errorData = await response.json();
+      throw {
+        status: response.status,
+        message: errorData.message || 'Upload image failed'
+      };
+    });
+
+    const store = await Store.load('store.json');
+    const jsdelivr = await store.get('jsdelivr')
+    let imageUrl = data.content.download_url
+    if (jsdelivr) {
+      await fetch(`https://purge.jsdelivr.net/gh/${username}/${repoName}@main/${data.content.name}`)
+      imageUrl = `https://cdn.jsdelivr.net/gh/${username}/${repoName}@main/${data.content.name}`
     }
-    
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || 'Upload image failed'
-    };
+    return imageUrl
   } catch (error) {
     toast({
       title: 'Upload image failed',

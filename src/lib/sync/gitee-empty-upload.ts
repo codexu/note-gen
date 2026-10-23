@@ -1,6 +1,8 @@
+import { withGitRepoWriteLock } from './git-repo-write-lock'
 import { fetch, type Proxy } from '@tauri-apps/plugin-http'
 import { remoteRecord } from './directory-listing'
 import { fetchGiteeRead } from './gitee-request'
+import { fetchRemoteRead, isRemoteConnectionError, RemoteMutationTransportError } from './remote-mutation-recovery'
 import { isSyncStaleError, syncStaleError, withSyncStaleContext } from './sync-stale-error'
 import {
   assertReceivePackStatus, createGitObject, encodeGitPack, encodeGitTree,
@@ -10,7 +12,6 @@ import {
 const encoder = new TextEncoder()
 const zeroOid = '0'.repeat(40)
 const oidPattern = /^[a-f0-9]{40}$/
-const uploads = new Map<string, Promise<void>>()
 
 interface EmptyUploadOptions {
   username: string
@@ -20,6 +21,7 @@ interface EmptyUploadOptions {
   message: string
   expectedVersion: string | null
   proxy?: Proxy
+  beforeWrite?: () => Promise<void>
 }
 interface TreeEntry { name: string; mode: string; oid: string; size?: number }
 interface UploadResult { data: { content: { sha: string }; commit?: { sha: string } } }
@@ -71,6 +73,7 @@ function defaultBranch(repository: Record<string, unknown>): string | null {
 
 async function performEmptyUpload(
   options: EmptyUploadOptions, attempt = 0, originalRef?: { name: string; existed: boolean; oid?: string },
+  recovering = false, verifyOnly = false,
 ): Promise<UploadResult> {
   const { username, token, repo, path, message, expectedVersion, proxy } = options
   const segments = pathSegments(path)
@@ -93,27 +96,38 @@ async function performEmptyUpload(
   const gitRequest = async (resource: string, body?: Uint8Array) => {
     let response: Response
     try {
-      response = await fetch(`${gitBase}${resource}`, {
-        method: body ? 'POST' : 'GET', proxy, maxRedirections: 0,
-        headers: {
-          Authorization: authorization,
-          Accept: body ? 'application/x-git-receive-pack-result' : 'application/x-git-receive-pack-advertisement',
-          ...(body ? { 'Content-Type': 'application/x-git-receive-pack-request' } : {}),
-        },
+      const requestHeaders: Record<string, string> = {
+        Authorization: authorization,
+        Accept: body ? 'application/x-git-receive-pack-result' : 'application/x-git-receive-pack-advertisement',
+      }
+      if (body) requestHeaders['Content-Type'] = 'application/x-git-receive-pack-request'
+      const requestOptions = {
+        proxy, maxRedirections: 0, connectTimeout: 10_000,
+        headers: requestHeaders,
         // Use an owned ArrayBuffer for the native HTTP bridge on every platform.
-        ...(body ? { body: Uint8Array.from(body).buffer } : {}),
-      })
-    } catch {
-      throw new Error(body
+      }
+      response = body
+        ? await fetch(`${gitBase}${resource}`, { ...requestOptions, method: 'POST', body: Uint8Array.from(body).buffer })
+        : await fetchRemoteRead(`${gitBase}${resource}`, requestOptions)
+    } catch (error) {
+      const message = body
         ? 'Gitee Git upload result could not be confirmed. Rescan before retrying.'
-        : 'Gitee Git connection failed')
+        : 'Gitee Git connection failed'
+      if (body && isRemoteConnectionError(error)) throw new RemoteMutationTransportError(message)
+      throw new Error(message)
     }
     if (!response.ok) throw new Error(`Gitee Git request failed: HTTP ${response.status}`)
     const expectedType = body ? 'application/x-git-receive-pack-result' : 'application/x-git-receive-pack-advertisement'
     if (response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== expectedType) {
       throw new Error('Gitee did not return a Git smart HTTP response')
     }
-    return responseBytes(response, 16 * 1024 * 1024)
+    try { return await responseBytes(response, 16 * 1024 * 1024) }
+    catch (error) {
+      if (body && isRemoteConnectionError(error)) {
+        throw new RemoteMutationTransportError('Gitee Git upload result could not be confirmed. Rescan before retrying.')
+      }
+      throw error
+    }
   }
 
   // Do not use the provider's cached/fallback branch name for a ref mutation.
@@ -210,6 +224,12 @@ async function performEmptyUpload(
   }
   const filename = segments[segments.length - 1]
   const existing = entries.find(entry => entry.name === filename)
+  const blob = await createGitObject('blob', new Uint8Array())
+  // Only a previous ambiguous send may relax the original version check to
+  // recognize its already-committed result, including subsequent unrelated commits.
+  if (recovering && existing?.oid === blob.oid && ['100644', '100755'].includes(existing.mode)) {
+    return { data: { content: { sha: blob.oid } } }
+  }
   // Match the caller's original create-only/blob condition at the captured
   // branch tip. A retry must never replace this with a freshly accepted SHA.
   if (expectedVersion === null ? Boolean(existing) : existing?.oid !== expectedVersion) throw syncStaleError({
@@ -221,8 +241,8 @@ async function performEmptyUpload(
     stage: 'apply', path, source: 'remote', check: 'fileType',
     expected: { sha: expectedVersion, exists: true }, actual: fileState(existing),
   })
-  const blob = await createGitObject('blob', new Uint8Array())
   if (existing?.oid === blob.oid) return { data: { content: { sha: blob.oid } } }
+  if (verifyOnly) throw new Error('Gitee Git upload result could not be confirmed. Rescan before retrying.')
 
   const objects = new Map<string, GitObject>([[blob.oid, blob]])
   const replaceEntry = async (siblings: TreeEntry[], entry: TreeEntry) => {
@@ -259,7 +279,17 @@ async function performEmptyUpload(
   })
   // HTTP success alone never confirms a push. A rejected ref can be rebuilt
   // against a newer tip only while retaining the original file condition.
-  const report = await gitRequest('/git-receive-pack', request)
+  await options.beforeWrite?.()
+  let report: Uint8Array
+  try { report = await gitRequest('/git-receive-pack', request) }
+  catch (error) {
+    if (!(error instanceof RemoteMutationTransportError)) throw error
+    await options.beforeWrite?.()
+    // A final failed send still gets a read-only pass. The captured ref and
+    // original file condition stay fixed throughout all recovery attempts.
+    return performEmptyUpload(options, attempt + 1,
+      originalRef || { name: ref, existed: Boolean(head), oid: head }, true, attempt >= 2)
+  }
   try { assertReceivePackStatus(report, ref, head || zeroOid, refPath) }
   catch (error) {
     const reason = error instanceof Error ? error.message : ''
@@ -280,9 +310,17 @@ async function performEmptyUpload(
       } catch { /* Keep the original server rejection if discovery fails. */ }
     }
     if (stale) {
+      // A server-side policy rejection or an unchanged ref must not cause a
+      // blind retry. The old file condition remains fixed when rebuilding.
+      let headChanged = false
+      try {
+        const latest = parseReceivePackAdvertisement(await gitRequest('/info/refs?service=git-receive-pack'))
+        const latestHead = latest.refs.get(ref)
+        headChanged = latestHead !== head && (latestHead !== undefined || head === undefined)
+      } catch { /* Keep the original rejection when discovery fails. */ }
       // Our other uploads may advance the branch while leaving this file
       // untouched. Recheck every tree and the original SHA/create-only guard.
-      if (attempt < 2) return performEmptyUpload(options, attempt + 1, originalRef || { name: ref, existed: Boolean(head), oid: head })
+      if (headChanged && attempt < 2) return performEmptyUpload(options, attempt + 1, originalRef || { name: ref, existed: Boolean(head), oid: head }, recovering)
       throw withSyncStaleContext(staleError, {
         stage: 'apply', path: refPath, source: 'remote', check: 'gitRef', expected: refState(head),
       })
@@ -292,13 +330,8 @@ async function performEmptyUpload(
   return { data: { content: { sha: blob.oid }, commit: { sha: commit.oid } } }
 }
 
-/** Serialize our own empty-file pushes; other writers remain protected by CAS. */
+/** Empty-file Git pushes share the ordinary REST writer's repository lock. */
 export async function uploadEmptyGiteeFile(options: EmptyUploadOptions): Promise<UploadResult> {
-  const key = JSON.stringify([options.username, options.repo])
-  const previous = uploads.get(key) || Promise.resolve()
-  const result = previous.then(() => performEmptyUpload(options))
-  const settled = result.then(() => {}, () => {})
-  uploads.set(key, settled)
-  try { return await result }
-  finally { if (uploads.get(key) === settled) uploads.delete(key) }
+  return withGitRepoWriteLock('https://gitee.com/api/v5', `${options.username}/${options.repo}`,
+    () => performEmptyUpload(options))
 }

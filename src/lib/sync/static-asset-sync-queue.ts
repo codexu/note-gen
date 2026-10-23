@@ -8,6 +8,7 @@ import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 
 import { isSyncConfigured } from './sync-manager'
+import { prepareWorkspacePathUpload } from './workspace-path-moves'
 import {
   downloadRemoteBytes,
   getRemoteContentType,
@@ -198,6 +199,7 @@ async function uploadChangedStaticAsset(task: StaticAssetTask): Promise<void> {
   }
 
   await withStaticAssetSyncLock(task.path, async operationKey => {
+    await prepareWorkspacePathUpload(task.path)
     const localBytes = await readLocalBytes(task.path)
     if (!localBytes || !isTaskCurrent()) return
     if (await matchesRememberedStaticAssetContent(task.path, localBytes, operationKey)) {
@@ -209,15 +211,15 @@ async function uploadChangedStaticAsset(task: StaticAssetTask): Promise<void> {
     try {
       remoteBytes = await downloadRemoteBytes(task.path)
       if (!isTaskCurrent()) return
-      if (bytesEqual(localBytes, remoteBytes)) {
-        rememberStaticAssetSyncMarker(
-          await createStaticAssetSyncMarker(task.path, localBytes, operationKey),
-        )
-        markTaskRemote(task.path)
-        return
-      }
     } catch {
       // A missing or temporarily unreadable remote file still needs an upload attempt.
+    }
+    if (remoteBytes && bytesEqual(localBytes, remoteBytes)) {
+      rememberStaticAssetSyncMarker(
+        await createStaticAssetSyncMarker(task.path, localBytes, operationKey),
+      )
+      markTaskRemote(task.path)
+      return
     }
 
     if (!isTaskCurrent()) return

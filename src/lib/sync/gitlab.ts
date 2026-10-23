@@ -1,10 +1,14 @@
+import { withGitRepoWriteLock } from './git-repo-write-lock'
 import { assertConditionalResponse, type RemoteWriteCondition } from './write-condition'
+import { fetchRemoteRead, recoverRemoteRead, recoverRemoteMutation } from './remote-mutation-recovery'
+import { gitBlobVersion } from './remote-content-cache'
+import { syncStaleError } from './sync-stale-error'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http';
 import { fetch as encodeFetch } from './encode-fetch'
-import { buildRemoteLogicalPath, debugSyncPath, encodeRemoteFileContent } from './remote-file'
+import { buildRemoteLogicalPath, debugSyncPath, encodeRemoteFileContent, decodeBase64ToBytes } from './remote-file'
 import { 
   GitlabInstanceType, 
   GitlabProjectInfo, 
@@ -15,7 +19,7 @@ import {
   GitlabResponse,
   GitlabRepositoryFile
 } from './gitlab.types';
-import { parseDirectoryEntries, readDirectoryResponse, type RemoteDirectoryEntry } from './directory-listing'
+import { parseDirectoryEntries, readDirectoryResponse, remoteRecord, type RemoteDirectoryEntry } from './directory-listing'
 
 // 获取 Gitlab 实例的 API 基础 URL 
 
@@ -96,6 +100,69 @@ async function getProxyConfig(): Promise<Proxy | undefined> {
   return proxyUrl ? { all: proxyUrl } : undefined;
 }
 
+interface GitlabMutationFile { sha: string; lastCommitId: string }
+
+async function gitlabMutationBranch(baseUrl: string, projectId: string, headers: HeadersInit, proxy?: Proxy) {
+  const project = remoteRecord(await readDirectoryResponse(await fetchRemoteRead(`${baseUrl}/projects/${encodeURIComponent(projectId)}`,
+    { headers: new Headers(headers), proxy })))
+  if (typeof project.default_branch !== 'string' || !project.default_branch.trim()) {
+    const branches = await readDirectoryResponse(await fetchRemoteRead(`${baseUrl}/projects/${encodeURIComponent(projectId)}/repository/branches`,
+      { headers: new Headers(headers), proxy }))
+    if (Array.isArray(branches) && !branches.length) return 'main'
+    throw new Error('Remote project has no default branch')
+  }
+  return project.default_branch.trim()
+}
+
+async function readGitlabMutationFile(
+  baseUrl: string, projectId: string, path: string, branch: string, headers: HeadersInit, proxy?: Proxy, allowEmptyProject = false,
+): Promise<GitlabMutationFile | null> {
+  const projectUrl = `${baseUrl}/projects/${encodeURIComponent(projectId)}`
+  // GitLab includes UTF-8 file names in metadata headers; keep the header-safe
+  // transport while recreating its mutable native options on every read retry.
+  const metadata = await recoverRemoteRead(() => encodeFetch(
+    `${projectUrl}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+    { method: 'HEAD', headers: new Headers(headers), proxy, connectTimeout: 10_000, maxRedirections: 0 }))
+  if (metadata.status === 404) {
+    // A missing file is trustworthy only while the captured branch remains readable.
+    const branchResponse = await fetchRemoteRead(`${projectUrl}/repository/branches/${encodeURIComponent(branch)}`,
+      { headers: new Headers(headers), proxy })
+    if (branchResponse.status === 404 && allowEmptyProject) {
+      const project = remoteRecord(await readDirectoryResponse(await fetchRemoteRead(projectUrl, { headers: new Headers(headers), proxy })))
+      const branches = await readDirectoryResponse(await fetchRemoteRead(`${projectUrl}/repository/branches`, { headers: new Headers(headers), proxy }))
+      // An empty project can create its first branch; an existing branch that
+      // disappears is never evidence of a completed deletion.
+      if (!project.default_branch && Array.isArray(branches) && !branches.length) return null
+    }
+    const head = remoteRecord(remoteRecord(await readDirectoryResponse(branchResponse)).commit)
+    if (typeof head.id !== 'string' || !/^[a-f0-9]{40,64}$/i.test(head.id)) throw new Error('Invalid GitLab branch version')
+    return null
+  }
+  if (!metadata.ok) throw new Error(`GitLab metadata request failed: HTTP ${metadata.status}`)
+  const sha = metadata.headers.get('x-gitlab-blob-id')
+  const lastCommitId = metadata.headers.get('x-gitlab-last-commit-id')
+  if (!sha || !lastCommitId || !/^[a-f0-9]{40,64}$/i.test(sha) || !/^[a-f0-9]{40,64}$/i.test(lastCommitId)) {
+    throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
+  }
+  return { sha: sha.toLowerCase(), lastCommitId }
+}
+
+async function reconcileGitlabMutation(
+  baseUrl: string, projectId: string, path: string, branch: string, headers: HeadersInit, proxy: Proxy | undefined,
+  expected: GitlabMutationFile | null, desiredVersion?: string,
+) {
+  const current = await readGitlabMutationFile(baseUrl, projectId, path, branch, headers, proxy, expected === null && desiredVersion !== undefined)
+  if (desiredVersion ? current?.sha === desiredVersion : !current) {
+    return { state: 'applied' as const, value: new Response(JSON.stringify({ id: current?.lastCommitId || '' }), { status: 200 }) }
+  }
+  if (expected === null ? !current : current?.sha === expected.sha && current.lastCommitId === expected.lastCommitId) {
+    return { state: 'unchanged' as const }
+  }
+  throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version',
+    expected: { sha: expected?.sha || null, exists: expected !== null },
+    actual: current ? { sha: current.sha, exists: true } : { exists: false } })
+}
+
 /**
  * 上传文件到 Gitlab 项目
  * @param params 上传参数
@@ -106,7 +173,8 @@ export async function uploadFile({
   sha,
   message,
   repo,
-  path
+  path,
+  beforeWrite
 }: {
   file: string | Uint8Array;
   filename?: string;
@@ -114,6 +182,7 @@ export async function uploadFile({
   message?: string;
   repo: string;
   path?: string;
+  beforeWrite?: () => Promise<void>;
 }) {
   try {
     const store = await Store.load('store.json');
@@ -124,7 +193,6 @@ export async function uploadFile({
       throw new Error('Gitlab 用户名或项目 ID 未配置');
     }
 
-    const branch = await getDefaultBranch(repo)
     const id = uuid();
     const targetPath = resolveUploadPath(path, filename, id);
     const encodedTargetPath = encodeURIComponent(targetPath);
@@ -148,78 +216,26 @@ export async function uploadFile({
       encodedTargetPath,
     })
 
-    // 首先尝试使用 Commits API 创建文件（会自动创建目录）
-    // GitLab Commits API 可以通过一次 commit 创建多个文件，包括父目录
-    const commitsApiUrl = `${baseUrl}/projects/${projectId}/repository/commits`;
-
-    const commitActions = [{
-      action: sha ? 'update' : 'create',
-      file_path: targetPath,
-      content: base64Content,
-      encoding: 'base64'
-    }];
-
-    const commitBody = {
-      branch,
-      commit_message: message || `Upload ${filename || id}`,
-      actions: commitActions
-    };
-
-    const commitResponse = await fetch(commitsApiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(commitBody),
-      proxy
-    });
-
-    if (commitResponse.status >= 200 && commitResponse.status < 300) {
-      const data = await commitResponse.json();
-      return { data } as GitlabResponse<GitlabCommit>;
-    }
-
-    // 如果创建失败且文件已存在，改用 Commits API 更新。
-    if (commitResponse.status === 400) {
-      const commitErrorData = await commitResponse.json();
-
-      // 检查是否是文件已存在的错误
-      const commitErrorMessage = commitErrorData.message || commitErrorData.error;
-      if (!sha && typeof commitErrorMessage === 'string' && commitErrorMessage.includes('already exists')) {
-        // 文件路径保留在 JSON 中，避免再次依赖 URL 中编码的目录分隔符。
-        const updateResponse = await fetch(commitsApiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            ...commitBody,
-            actions: commitActions.map(action => ({ ...action, action: 'update' })),
-          }),
-          proxy
-        });
-
-        if (updateResponse.ok) {
-          const data = await updateResponse.json();
-          return { data } as GitlabResponse<GitlabCommit>;
-        }
-
-        const updateErrorData = await updateResponse.json();
-        throw {
-          status: updateResponse.status,
-          message: updateErrorData.message || updateErrorData.error || '更新文件失败'
-        } as GitlabError;
-      }
-
-      throw {
-        status: commitResponse.status,
-        message: commitErrorMessage || '同步失败'
-      } as GitlabError;
-    }
-
-    // 其他错误
-    const commitErrorData = await commitResponse.json();
-    throw {
-      status: commitResponse.status,
-      message: commitErrorData.error || commitErrorData.message || '同步失败'
-    } as GitlabError;
-
+    const commitsApiUrl = `${baseUrl}/projects/${encodeURIComponent(projectId)}/repository/commits`;
+    return await withGitRepoWriteLock(baseUrl, projectId, async () => {
+      const branch = await gitlabMutationBranch(baseUrl, projectId, headers, proxy)
+      const expected = await readGitlabMutationFile(baseUrl, projectId, targetPath, branch, headers, proxy, !sha)
+      if (sha && expected?.sha !== sha.toLowerCase()) throw new Error('SYNC_SWITCH_STALE')
+      const desiredVersion = await gitBlobVersion(decodeBase64ToBytes(base64Content), expected?.sha.length)
+      // Keep the first observed file commit for every attempt, including an
+      // existing target discovered by a create request.
+      const body = JSON.stringify({ branch, commit_message: message || `Upload ${filename || id}`,
+        actions: [{ action: expected ? 'update' : 'create', file_path: targetPath,
+          content: base64Content, encoding: 'base64',
+          ...(expected ? { last_commit_id: expected.lastCommitId } : {}) }] })
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(commitsApiUrl, { method: 'POST', headers: new Headers(headers), body, proxy }),
+        reconcile: () => reconcileGitlabMutation(baseUrl, projectId, targetPath, branch, headers, proxy, expected, desiredVersion),
+      })
+      if (response.ok) return { data: await response.json() } as GitlabResponse<GitlabCommit>
+      const errorData = await response.json()
+      throw { status: response.status, message: errorData.error || errorData.message || '同步失败' } as GitlabError
+    })
   } catch (error) {
     toast({
       title: '同步失败',
@@ -369,67 +385,32 @@ export async function getFiles({ path, repo }: { path: string; repo: string }) {
  * 删除 Gitlab 项目文件
  * @param params 删除参数
  */
-export async function deleteFile({ path, repo }: { path: string; sha?: string; repo: string }) {
+export async function deleteFile({ path, sha, repo, beforeWrite }: { path: string; sha?: string; repo: string; beforeWrite?: () => Promise<void> }) {
   try {
     const store = await Store.load('store.json');
     const projectId = await store.get<string>(`gitlab_${repo}_project_id`);
-    
-    if (!projectId) {
-      throw new Error('项目 ID 未配置');
-    }
-
-    const branch = await getDefaultBranch(repo)
+    if (!projectId) throw new Error('项目 ID 未配置');
     const baseUrl = await getGitlabApiBaseUrl();
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
-
-    // 获取文件的最新提交 ID，对 path 进行编码
-    const encodedPath = encodeURIComponent(path);
-    const commitsUrl = `${baseUrl}/projects/${projectId}/repository/commits?path=${encodedPath}&per_page=1`;
-    const commitsResponse = await fetch(commitsUrl, {
-      method: 'GET',
-      headers,
-      proxy
-    });
-
-    let lastCommitId = '';
-    if (commitsResponse.ok) {
-      const commits = await commitsResponse.json() as GitlabCommit[];
-      if (commits.length > 0) {
-        lastCommitId = commits[0].id;
-      }
-    }
-
-    const url = `${baseUrl}/projects/${projectId}/repository/files/${encodeURIComponent(path)}`;
-    
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers,
-      body: JSON.stringify({
-        branch,
-        commit_message: `Delete ${path}`,
-        last_commit_id: lastCommitId
-      }),
-      proxy
-    });
-
-    if (response.status >= 200 && response.status < 300) {
-      return true
-    }
-
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '删除文件失败'
-    } as GitlabError;
-
+    return await withGitRepoWriteLock(baseUrl, projectId, async () => {
+      const branch = await gitlabMutationBranch(baseUrl, projectId, headers, proxy)
+      const expected = await readGitlabMutationFile(baseUrl, projectId, path, branch, headers, proxy)
+      if (!expected) return true
+      if (sha && expected.sha !== sha.toLowerCase()) throw new Error('SYNC_SWITCH_STALE')
+      const url = `${baseUrl}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(path)}`
+      const body = JSON.stringify({ branch, commit_message: `Delete ${path}`, last_commit_id: expected.lastCommitId })
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(url, { method: 'DELETE', headers: new Headers(headers), body, proxy }),
+        reconcile: () => reconcileGitlabMutation(baseUrl, projectId, path, branch, headers, proxy, expected),
+      })
+      if (response.ok) return true
+      const errorData = await response.json()
+      throw { status: response.status, message: errorData.message || '删除文件失败' } as GitlabError
+    })
   } catch (error) {
-    toast({
-      title: '删除文件失败',
-      description: (error as GitlabError).message || '删除文件时发生错误',
-      variant: 'destructive',
-    });
-    return null; // 确保在错误情况下也有返回值
+    toast({ title: '删除文件失败', description: (error as GitlabError).message || '删除文件时发生错误', variant: 'destructive' });
+    return null;
   }
 }
 
@@ -702,34 +683,35 @@ export async function createSyncProject(name: string, isPrivate: boolean = true)
 
 /** Bind a blob version to its last commit in one response, then let GitLab
  * atomically reject a mutation if that commit is no longer current. */
-export async function mutateFileConditionally(path: string, repo: string, condition: RemoteWriteCondition, content?: Uint8Array) {
+export async function mutateFileConditionally(path: string, repo: string, condition: RemoteWriteCondition, content?: Uint8Array, beforeWrite?: () => Promise<void>) {
+  if (content) content = Uint8Array.from(content)
+  condition = { ...condition }
   const store = await Store.load('store.json')
   const projectId = await store.get<string>(`gitlab_${repo}_project_id`)
   if (!projectId) throw new Error('GitLab sync is not configured')
-  const branch = await getDefaultBranch(repo)
   const base = await getGitlabApiBaseUrl()
   const headers = await getCommonHeaders()
   const proxy = await getProxyConfig()
-  const url = `${base}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(path)}`
-  let lastCommitId: string | undefined
-  if (condition.version !== null) {
-    // GitLab includes UTF-8 file names in metadata headers. The standard Tauri
-    // fetch wrapper cannot construct JS Headers from those Unicode values;
-    // retain the HEAD-only version check using our header-safe transport.
-    const metadata = await encodeFetch(`${url}?ref=${encodeURIComponent(branch)}`, { method: 'HEAD', headers, proxy })
-    assertConditionalResponse(metadata, condition)
-    if (metadata.headers.get('x-gitlab-blob-id') !== condition.version) throw new Error('SYNC_SWITCH_STALE')
-    lastCommitId = metadata.headers.get('x-gitlab-last-commit-id') || undefined
-    if (!lastCommitId) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
-  } else if (!content) throw new Error('SYNC_SWITCH_STALE')
-  const response = await fetch(url, {
-    method: content ? condition.version === null ? 'POST' : 'PUT' : 'DELETE',
-    headers, proxy,
-    body: JSON.stringify({ branch, commit_message: `Sync: ${path}`, last_commit_id: lastCommitId,
-      ...(content ? { content: encodeRemoteFileContent(content), encoding: 'base64' } : {}) }),
+  return await withGitRepoWriteLock(base, projectId, async () => {
+    const branch = await gitlabMutationBranch(base, projectId, headers, proxy)
+    const url = `${base}/projects/${encodeURIComponent(projectId)}/repository/files/${encodeURIComponent(path)}`
+    const expected = await readGitlabMutationFile(base, projectId, path, branch, headers, proxy, condition.version === null)
+    if (condition.version === null ? Boolean(expected) || !content : expected?.sha !== condition.version.toLowerCase()) {
+      throw new Error('SYNC_SWITCH_STALE')
+    }
+    const desiredVersion = content ? await gitBlobVersion(content, expected?.sha.length) : undefined
+    const body = JSON.stringify({ branch, commit_message: `Sync: ${path}`, last_commit_id: expected?.lastCommitId,
+      ...(content ? { content: encodeRemoteFileContent(content), encoding: 'base64' } : {}) })
+    const response = await recoverRemoteMutation({ beforeWrite,
+      send: () => fetch(url, {
+        method: content ? condition.version === null ? 'POST' : 'PUT' : 'DELETE',
+        headers: new Headers(headers), proxy, body,
+      }),
+      reconcile: () => reconcileGitlabMutation(base, projectId, path, branch, headers, proxy, expected, desiredVersion),
+    })
+    // GitLab uses 400 for an existing create target or a changed last_commit_id.
+    if (response.status === 400) throw new Error('SYNC_SWITCH_STALE')
+    assertConditionalResponse(response, condition)
+    return true
   })
-  // GitLab uses 400 for an existing create target or a changed last_commit_id.
-  if (response.status === 400) throw new Error('SYNC_SWITCH_STALE')
-  assertConditionalResponse(response, condition)
-  return true
 }

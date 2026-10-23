@@ -1,10 +1,14 @@
+import { withGitRepoWriteLock } from './git-repo-write-lock'
 import { assertConditionalResponse } from './write-condition'
+import { fetchRemoteRead, recoverRemoteMutation } from './remote-mutation-recovery'
+import { gitBlobVersion } from './remote-content-cache'
+import { syncStaleError } from './sync-stale-error'
 import { toast } from '@/hooks/use-toast';
 import { Store } from '@tauri-apps/plugin-store';
 import { v4 as uuid } from 'uuid';
 import { fetch, Proxy } from '@tauri-apps/plugin-http';
 import { fetch as encodeFetch } from './encode-fetch'
-import { buildRemoteLogicalPath, buildRepoContentPath, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent } from './remote-file'
+import { buildRemoteLogicalPath, buildRepoContentPath, debugSyncPath, readSyncResponseJson, encodeRemoteFileContent, decodeBase64ToBytes } from './remote-file'
 import { 
   GiteaInstanceType, 
   GiteaRepositoryInfo, 
@@ -16,7 +20,7 @@ import {
   GiteaDirectoryItem,
   GiteaFileContent
 } from './gitea.types';
-import { parseDirectoryEntries, readDirectoryResponse, type RemoteDirectoryEntry } from './directory-listing'
+import { parseDirectoryEntries, readDirectoryResponse, readGitTreeDirectory, remoteRecord, type RemoteDirectoryEntry } from './directory-listing'
 
 // 获取 Gitea 实例的 API 基础 URL
 
@@ -78,6 +82,69 @@ async function getProxyConfig(): Promise<Proxy | undefined> {
   return proxyUrl ? { all: proxyUrl } : undefined;
 }
 
+async function giteaMutationBranch(baseUrl: string, headers: HeadersInit, proxy?: Proxy, allowEmpty = false) {
+  const repository = remoteRecord(await readDirectoryResponse(await fetchRemoteRead(baseUrl, { headers: new Headers(headers), proxy })))
+  if (typeof repository.default_branch !== 'string' || !repository.default_branch.trim()) {
+    if (allowEmpty && (repository.default_branch == null || typeof repository.default_branch === 'string')) {
+      const branches = await readDirectoryResponse(await fetchRemoteRead(`${baseUrl}/branches?limit=1`, { headers: new Headers(headers), proxy }))
+      if (Array.isArray(branches) && !branches.length) return ''
+    }
+    throw new Error('Remote repository has no default branch')
+  }
+  return repository.default_branch.trim()
+}
+
+async function readGiteaMutationFile(baseUrl: string, path: string, branch: string, headers: HeadersInit, proxy?: Proxy) {
+  const read = async (resource: string) => remoteRecord(await readDirectoryResponse(
+    await fetchRemoteRead(`${baseUrl}${resource}`, { headers: new Headers(headers), proxy })))
+  const branchCommit = remoteRecord((await read(`/branches/${encodeURIComponent(branch)}`)).commit)
+  const head = branchCommit.id ?? branchCommit.sha
+  if (typeof head !== 'string' || !/^[a-f0-9]{40}$/i.test(head)) throw new Error('Invalid Gitea branch version')
+  const commit = await read(`/git/commits/${head}`)
+  const root = remoteRecord(commit.tree).sha
+  if (commit.sha !== head || typeof root !== 'string' || !/^[a-f0-9]{40}$/i.test(root)) throw new Error('Invalid Gitea commit tree')
+  const parent = path.split('/').slice(0, -1).join('/')
+  const files = await readGitTreeDirectory(parent,
+    async resource => {
+      const tree: unknown[] = []
+      let total: number | undefined
+      for (let page = 1; ; page++) {
+        const data = await read(`${resource}?per_page=100&page=${page}`)
+        if (data.truncated === true || !Array.isArray(data.tree) || typeof data.total_count !== 'number'
+          || !Number.isSafeInteger(data.total_count) || data.total_count < tree.length + data.tree.length
+          || (total !== undefined && total !== data.total_count)) {
+          throw new Error('Incomplete Gitea tree')
+        }
+        total = data.total_count
+        tree.push(...data.tree)
+        if (tree.length === data.total_count) break
+        if (!data.tree.length) throw new Error('Incomplete Gitea tree')
+      }
+      return new Response(JSON.stringify({ tree, truncated: false }), { status: 200 })
+    }, undefined, root)
+  return files.find(file => file.path === path)
+}
+
+async function reconcileGiteaMutation(
+  baseUrl: string, path: string, branch: string, headers: HeadersInit, proxy: Proxy | undefined,
+  expectedVersion: string | null, desiredVersion?: string,
+) {
+  const resolvedBranch = branch || await giteaMutationBranch(baseUrl, headers, proxy)
+  const current = await readGiteaMutationFile(baseUrl, path, resolvedBranch, headers, proxy)
+  if (desiredVersion ? current?.type === 'file' && current.sha.toLowerCase() === desiredVersion : !current) {
+    return { state: 'applied' as const, value: new Response(JSON.stringify({ content: current || null }), { status: 200 }) }
+  }
+  // A first create may leave branch selection to the empty repository. Without
+  // a captured branch, recovery can confirm its bytes but must never resend it.
+  if (!branch) throw new Error('Remote creation result could not be confirmed')
+  if (expectedVersion === null ? !current : current?.type === 'file' && current.sha.toLowerCase() === expectedVersion.toLowerCase()) {
+    return { state: 'unchanged' as const }
+  }
+  throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version',
+    expected: { sha: expectedVersion, exists: expectedVersion !== null },
+    actual: current ? { sha: current.sha, exists: true } : { exists: false } })
+}
+
 /**
  * 上传文件到 Gitea 仓库
  * @param params 上传参数
@@ -89,7 +156,8 @@ export async function uploadFile({
   message,
   repo,
   path,
-  guarded = false
+  guarded = false,
+  beforeWrite
 }: {
   file: string | Uint8Array;
   filename?: string;
@@ -98,6 +166,7 @@ export async function uploadFile({
   repo: string;
   path?: string;
   guarded?: boolean;
+  beforeWrite?: () => Promise<void>;
 }) {
   try {
     const store = await Store.load('store.json');
@@ -140,63 +209,65 @@ export async function uploadFile({
       requestBody.sha = sha;
     }
 
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${normalizedPath}`;
+    const repoUrl = `${baseUrl}/repos/${encodeURIComponent(giteaUsername)}/${encodeURIComponent(repo)}`
+    const url = `${repoUrl}/contents/${normalizedPath}`;
     // Gitea API: POST 创建新文件，PUT 更新现有文件
     const method = sha ? 'PUT' : 'POST';
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: JSON.stringify(requestBody),
-      proxy
-    });
-
-    if (guarded) assertConditionalResponse(response, { version: sha || null });
-    if (response.status >= 200 && response.status < 300) {
-      const data = await response.json();
-      return { data } as GiteaResponse<any>;
-    }
-
-    if (response.status === 400) {
-      return null;
-    }
-
-    // 422 表示文件已存在（需要 SHA 才能更新），返回 null 以便触发重试
-    if (response.status === 422) {
-      return null;
-    }
-
-    // 404 表示文件不存在，尝试用 POST 创建新文件
-    if (response.status === 404) {
-      const postMethod = 'POST';
-      const postBody = { ...requestBody };
-      delete postBody.sha; // POST 不需要 sha
-
-      const postResponse = await fetch(url, {
-        method: postMethod,
-        headers,
-        body: JSON.stringify(postBody),
-        proxy
+    return await withGitRepoWriteLock(baseUrl, `${giteaUsername}/${repo}`, async () => {
+      const branch = await giteaMutationBranch(repoUrl, headers, proxy, !sha)
+      const desiredVersion = await gitBlobVersion(decodeBase64ToBytes(base64Content), sha?.length)
+      const body = JSON.stringify({ ...requestBody, branch: branch || undefined })
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(url, { method, headers: new Headers(headers), body, proxy }),
+        reconcile: () => reconcileGiteaMutation(repoUrl, targetPath, branch, headers, proxy, sha || null, desiredVersion),
       });
 
-      if (postResponse.status >= 200 && postResponse.status < 300) {
-        const data = await postResponse.json();
+      if (guarded) assertConditionalResponse(response, { version: sha || null });
+      if (response.status >= 200 && response.status < 300) {
+        const data = await response.json();
         return { data } as GiteaResponse<any>;
       }
 
-      const postErrorData = await postResponse.json();
+      if (response.status === 400) {
+        return null;
+      }
+
+      // 422 表示文件已存在（需要 SHA 才能更新），返回 null 以便触发重试
+      if (response.status === 422) {
+        return null;
+      }
+
+      // 404 表示文件不存在，尝试用 POST 创建新文件
+      if (response.status === 404) {
+        const postMethod = 'POST';
+        const postBody = { ...requestBody, branch: branch || undefined };
+        delete postBody.sha; // POST 不需要 sha
+        if (await readGiteaMutationFile(repoUrl, targetPath, branch, headers, proxy)) throw new Error('SYNC_SWITCH_STALE')
+        const postResponse = await recoverRemoteMutation({ beforeWrite,
+          send: () => fetch(url, { method: postMethod, headers: new Headers(headers), body: JSON.stringify(postBody), proxy }),
+          reconcile: () => reconcileGiteaMutation(repoUrl, targetPath, branch, headers, proxy, null, desiredVersion),
+        });
+
+        if (postResponse.status >= 200 && postResponse.status < 300) {
+          const data = await postResponse.json();
+          return { data } as GiteaResponse<any>;
+        }
+
+        const postErrorData = await postResponse.json();
+        throw {
+          status: postResponse.status,
+          message: postErrorData.message || '同步失败'
+        } as GiteaError;
+      }
+
+      const errorData = await response.json();
       throw {
-        status: postResponse.status,
-        message: postErrorData.message || '同步失败'
+        status: response.status,
+        message: errorData.message || '同步失败'
       } as GiteaError;
-    }
 
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '同步失败'
-    } as GiteaError;
-
+    })
   } catch (error) {
     if (guarded) throw error
     toast({
@@ -343,7 +414,7 @@ export async function getFiles({ path, repo, sha }: { path: string; repo: string
  * 删除 Gitea 仓库文件
  * @param params 删除参数
  */
-export async function deleteFile({ path, sha, repo, guarded = false }: { path: string; sha?: string; repo: string; guarded?: boolean }) {
+export async function deleteFile({ path, sha, repo, guarded = false, beforeWrite }: { path: string; sha?: string; repo: string; guarded?: boolean; beforeWrite?: () => Promise<void> }) {
   try {
     const store = await Store.load('store.json');
     const giteaUsername = await store.get<string>('giteaUsername');
@@ -359,44 +430,37 @@ export async function deleteFile({ path, sha, repo, guarded = false }: { path: s
     const encodedPath = buildRepoContentPath({ path, preserveWhitespace: true })
 
     // 如果没有 sha，先获取文件信息
-    let fileSha = sha;
-    if (!fileSha) {
-      const fileUrl = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}`;
-      const fileResponse = await fetch(fileUrl, {
-        method: 'GET',
-        headers,
-        proxy
-      });
-      
-      if (fileResponse.ok) {
-        const fileData = await fileResponse.json() as GiteaFileContent;
-        fileSha = fileData.sha;
+    return await withGitRepoWriteLock(baseUrl, `${giteaUsername}/${repo}`, async () => {
+      const repoUrl = `${baseUrl}/repos/${encodeURIComponent(giteaUsername)}/${encodeURIComponent(repo)}`
+      const branch = await giteaMutationBranch(repoUrl, headers, proxy)
+      const logicalPath = buildRemoteLogicalPath({ path, preserveWhitespace: true }).split('/').filter(Boolean).join('/')
+      let fileSha = sha;
+      if (!fileSha) {
+        const current = await readGiteaMutationFile(repoUrl, logicalPath, branch, headers, proxy)
+        if (!current) return true
+        if (current.type !== 'file') throw new Error('SYNC_SWITCH_STALE')
+        fileSha = current.sha
       }
-    }
+      const expectedVersion = fileSha
+      const url = `${repoUrl}/contents/${encodedPath}`;
+      const body = JSON.stringify({ message: `Delete ${path}`, sha: expectedVersion, branch })
+      const response = await recoverRemoteMutation({ beforeWrite,
+        send: () => fetch(url, { method: 'DELETE', headers: new Headers(headers), body, proxy }),
+        reconcile: () => reconcileGiteaMutation(repoUrl, logicalPath, branch, headers, proxy, expectedVersion),
+      });
 
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}`;
-    
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers,
-      body: JSON.stringify({
-        message: `Delete ${path}`,
-        sha: fileSha
-      }),
-      proxy
-    });
+      if (guarded) assertConditionalResponse(response, { version: sha || null });
+      if (response.status >= 200 && response.status < 300) {
+        return true
+      }
 
-    if (guarded) assertConditionalResponse(response, { version: sha || null });
-    if (response.status >= 200 && response.status < 300) {
-      return true
-    }
+      const errorData = await response.json();
+      throw {
+        status: response.status,
+        message: errorData.message || '删除文件失败'
+      } as GiteaError;
 
-    const errorData = await response.json();
-    throw {
-      status: response.status,
-      message: errorData.message || '删除文件失败'
-    } as GiteaError;
-
+    })
   } catch (error) {
     if (guarded) throw error
     toast({

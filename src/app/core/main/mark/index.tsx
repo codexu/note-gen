@@ -27,7 +27,7 @@ export function NoteSidebar() {
   }
 
   return (
-    <div id="record-sidebar" className="w-full h-full hidden md:flex flex-col">
+    <div id="record-sidebar" className="flex h-full min-h-0 w-full flex-col">
       {trashState ? (
         <>
           <div className="flex p-2 border-b items-center justify-between">

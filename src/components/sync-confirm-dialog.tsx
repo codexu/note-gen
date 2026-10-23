@@ -29,10 +29,12 @@ import 'dayjs/locale/pt-br'
 import 'dayjs/locale/de'
 import { useI18n } from '@/hooks/useI18n'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
+import useSettingStore from '@/stores/setting'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
 import emitter from '@/lib/emitter'
 import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
+import { normalizeRemoteVersion } from '@/lib/sync/remote-content-cache'
 import { useEffect } from 'react'
 
 // 初始化 dayjs 插件
@@ -65,10 +67,11 @@ export function SyncConfirmDialog() {
       localSha?: string
       remoteSha?: string
     }) => {
+      if (data.workspacePath !== useSettingStore.getState().workspacePath) return
       const fileName = data.path.split('/').pop() || data.path
       const syncPushQueue = getSyncPushQueue()
 
-      showShaMismatchDialog({
+      const shown = showShaMismatchDialog({
         fileName,
         localSha: data.localSha,
         remoteSha: data.remoteSha,
@@ -80,6 +83,13 @@ export function SyncConfirmDialog() {
           // 用户取消，不做任何操作
         }
       })
+      if (!shown && normalizeRemoteVersion(data.localSha)) {
+        try {
+          await syncPushQueue.retry([data.path])
+        } catch (error) {
+          console.error('[SyncConfirmDialog] 同步重试失败:', error)
+        }
+      }
     }
 
     emitter.on('sync-sha-mismatch', handleShaMismatch)
@@ -306,16 +316,16 @@ export function SyncConfirmDialog() {
                   </Alert>
 
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">本地记录 SHA：</span>
-                      <code className="bg-muted px-2 py-1 rounded text-xs">
-                        {localSha ? localSha.slice(0, 7) : '无'}
+                    <div className="flex items-start justify-between gap-3 text-sm">
+                      <span className="shrink-0 text-muted-foreground">本地记录 SHA：</span>
+                      <code className="min-w-0 break-all bg-muted px-2 py-1 rounded text-right text-xs">
+                        {localSha || '无'}
                       </code>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">远程文件 SHA：</span>
-                      <code className="bg-muted px-2 py-1 rounded text-xs">
-                        {remoteSha ? remoteSha.slice(0, 7) : '无'}
+                    <div className="flex items-start justify-between gap-3 text-sm">
+                      <span className="shrink-0 text-muted-foreground">远程文件 SHA：</span>
+                      <code className="min-w-0 break-all bg-muted px-2 py-1 rounded text-right text-xs">
+                        {remoteSha || '无'}
                       </code>
                     </div>
                   </div>
@@ -504,16 +514,16 @@ export function SyncConfirmDialog() {
                   </Alert>
 
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">本地记录 SHA：</span>
-                      <code className="bg-muted px-2 py-1 rounded text-xs">
-                        {localSha ? localSha.slice(0, 7) : '无'}
+                    <div className="flex items-start justify-between gap-3 text-sm">
+                      <span className="shrink-0 text-muted-foreground">本地记录 SHA：</span>
+                      <code className="min-w-0 break-all bg-muted px-2 py-1 rounded text-right text-xs">
+                        {localSha || '无'}
                       </code>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">远程文件 SHA：</span>
-                      <code className="bg-muted px-2 py-1 rounded text-xs">
-                        {remoteSha ? remoteSha.slice(0, 7) : '无'}
+                    <div className="flex items-start justify-between gap-3 text-sm">
+                      <span className="shrink-0 text-muted-foreground">远程文件 SHA：</span>
+                      <code className="min-w-0 break-all bg-muted px-2 py-1 rounded text-right text-xs">
+                        {remoteSha || '无'}
                       </code>
                     </div>
                   </div>

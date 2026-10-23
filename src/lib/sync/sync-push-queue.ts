@@ -5,7 +5,6 @@ import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
 import { setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
-import { getRemoteFileInfo } from './auto-sync'
 import { isSyncConfigured } from './sync-manager'
 import useSettingStore from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
@@ -17,6 +16,9 @@ import { prepareWorkspacePathUpload, resumeWorkspacePathMoves } from './workspac
 import { supportsCloudFolderWorkspace } from './cloud-folder'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import { readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
+import { getRemoteFileMetadata } from './remote-library'
+import { normalizeRemoteVersion } from './remote-content-cache'
+import { isSyncStaleError, readSyncStaleDetails } from './sync-stale-error'
 import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import {
   enqueueStaticAssetSync,
@@ -55,7 +57,7 @@ function roundMs(value: number) {
   return Math.round(value)
 }
 
-// 使用模块级变量来跟踪初始化状态，避免 HMR 重复注册
+// 当前模块实例的监听器；跨热更新的清理由下方全局 dispose 回调负责。
 let initialized = false
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let articleSavedListener: any = null
@@ -68,6 +70,8 @@ let articleOpenedListener: any = null
 
 class SyncPushQueue {
   private queue: PushTask[] = []
+  private retired = false
+  private readonly ready: Promise<void>
   private isProcessing = false
   private manualRetryPending = false
   private flushPromise: Promise<void> | null = null
@@ -78,6 +82,18 @@ class SyncPushQueue {
   private pausedPaths = new Set<string>()
   private activePath: string | null = null
   private readonly WORKSPACE_SWITCH_WAIT_TIMEOUT = 3_000
+
+  constructor(previousQueue: Promise<PushTask[]> = Promise.resolve([])) {
+    const generation = this.generation
+    this.ready = previousQueue.then(tasks => {
+      if (generation !== this.generation || this.workspaceSwitchPauseDepth > 0) return
+      const workspacePath = useSettingStore.getState().workspacePath
+      this.queue.push(...tasks
+        .filter(task => task.workspacePath === workspacePath)
+        .map(task => ({ ...task, generation })))
+      if (this.queue.length) this.scheduleFlush()
+    })
+  }
 
   private get IDLE_THRESHOLD(): number {
     // 动态读取 autoSync 设置
@@ -99,7 +115,7 @@ class SyncPushQueue {
    * 初始化监听器 - 只执行一次
    */
   init() {
-    if (initialized) return
+    if (initialized || this.retired) return
     initialized = true
     this.initListeners()
     if (typeof window !== 'undefined') window.addEventListener('online', resumeWorkspacePathMoves)
@@ -158,6 +174,7 @@ class SyncPushQueue {
    * 每次调用都会重新开始 10 秒计时
    */
   addTask(path: string) {
+    if (this.retired) return
     if (this.workspaceSwitchPauseDepth > 0) { this.pausedPaths.add(path); return }
     if (useSettingStore.getState().primaryBackupMethod === 'local') return
 
@@ -191,6 +208,7 @@ class SyncPushQueue {
    * 手动重试仍走正常推送和冲突检查，即使关闭自动同步也可执行。
    */
   async retry(paths: string[]): Promise<void> {
+    if (this.retired) return
     if (this.workspaceSwitchPauseDepth > 0) return
     if (useSettingStore.getState().primaryBackupMethod === 'local') return
     const workspacePath = useSettingStore.getState().workspacePath
@@ -211,6 +229,7 @@ class SyncPushQueue {
 
   /** 防抖调度 - 用户停止输入后执行推送 */
   private scheduleFlush() {
+    if (this.retired) return
     // 如果自动同步被禁用，直接返回
     if (!this.IDLE_THRESHOLD) {
       return
@@ -258,7 +277,8 @@ class SyncPushQueue {
   }
 
   private async flushBatch(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
+    await this.ready
+    if (this.retired || this.isProcessing || this.queue.length === 0) {
       return
     }
 
@@ -347,12 +367,12 @@ class SyncPushQueue {
     }
     await prepareWorkspacePathUpload(path)
     const taskSyncMetadataKey = await getSyncMetadataKey(path)
-    const acceptedVersion = await getLocalRecordedSha(path)
+    let acceptedVersion = await getLocalRecordedSha(path)
     if (!this.isTaskCurrent(task)) return { success: false }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        if (!this.isTaskCurrent(task)) return { success: false }
+        if (!this.isTaskCurrent(task) || await getSyncMetadataKey(path) !== taskSyncMetadataKey) return { success: false }
         logPerf('startAttempt', {
           attempt,
           maxRetries,
@@ -483,66 +503,66 @@ class SyncPushQueue {
           })
           return { success: false }
         }
-      } catch (error: any) {
+      } catch (error) {
         if (!this.isTaskCurrent(task)) return { success: false }
+        const errorRecord = error && typeof error === 'object' ? error as Record<string, unknown> : undefined
+        const errorMessage = typeof errorRecord?.message === 'string' ? errorRecord.message : String(error)
+        const errorStatus = typeof errorRecord?.status === 'number' ? errorRecord.status : 0
         logPerf('failedAttempt', {
           attempt,
-          message: error instanceof Error ? error.message : String(error),
-          status: error?.status,
+          message: errorMessage,
+          status: errorStatus,
         })
-        // 检查是否是 SHA 不匹配错误
-        const errorMessage = error?.message || ''
-        const errorStatus = error?.status || 0
+        const stale = isSyncStaleError(error)
+        const staleDetails = readSyncStaleDetails(error)
+        const concernsFile = !staleDetails?.path || staleDetails.path === path
+        // 本地继续保存只会使本次内容快照失效，重新读取后重试。
+        let shouldRetry = concernsFile && staleDetails?.source === 'local' && staleDetails.check === 'content'
+        const possibleRemoteConflict = stale
+          ? concernsFile && staleDetails?.source === 'remote' && staleDetails.check !== 'configuration'
+          : errorStatus === 409 || errorStatus === 412 || errorStatus === 422
+            || /does not match|sha|blob|conflict|out of date|已过时|冲突/i.test(errorMessage)
 
-        // SHA 不匹配错误的特征：
-        // 1. HTTP 状态码 422 (Unprocessable Entity) - GitHub/GitLab 常用
-        // 2. HTTP 状态码 409 (Conflict) - 文件冲突
-        // 3. 错误消息包含相关关键词
-        const isShaMismatch =
-          errorStatus === 422 ||
-          errorStatus === 409 ||
-          (errorMessage === 'SYNC_SWITCH_STALE' || errorMessage.startsWith('SYNC_SWITCH_STALE: ')) ||
-          errorMessage.includes('does not match') ||
-          errorMessage.includes('sha') ||
-          errorMessage.includes('SHA') ||
-          errorMessage.includes('blob') ||
-          errorMessage.includes('conflict') ||
-          errorMessage.includes('out of date') ||
-          errorMessage.includes('已过时') ||
-          errorMessage.includes('冲突')
+        if (possibleRemoteConflict && providerForLog !== 'unknown' && providerForLog !== 'selfHosted') {
+          try {
+            if (await getSyncMetadataKey(path) !== taskSyncMetadataKey || !this.isTaskCurrent(task)) return { success: false }
+            // 使用文件版本，避免把 GitLab/Gitea 的提交 SHA 与 blob SHA 比较。
+            const remoteFile = await getRemoteFileMetadata(path, 'workspace', providerForLog)
+            const latestAcceptedVersion = await getLocalRecordedSha(path)
+            if (await getSyncMetadataKey(path) !== taskSyncMetadataKey || !this.isTaskCurrent(task)) return { success: false }
+            const remoteVersion = normalizeRemoteVersion(remoteFile?.version)
+            const expectedVersion = normalizeRemoteVersion(acceptedVersion || undefined)
 
-        // 如果是 SHA 不匹配错误且是首次尝试，显示确认对话框让用户选择
-        if (isShaMismatch && attempt === 1) {
-          // 获取本地记录的 SHA 和远程 SHA
-          const localRecordedSha = await getLocalRecordedSha(path)
-          const remoteFileInfo = await getRemoteFileInfo(path)
-          const remoteFileSha = remoteFileInfo.sha
-          logPerf('shaMismatchInfo', {
-            attempt,
-            hasLocalSha: Boolean(localRecordedSha),
-            hasRemoteSha: Boolean(remoteFileSha),
-          })
-
-          // 发射事件让 UI 显示确认对话框
-          emitter.emit('sync-sha-mismatch', {
-            path,
-            workspacePath: useSettingStore.getState().workspacePath,
-            localSha: localRecordedSha || undefined,
-            remoteSha: remoteFileSha || undefined,
-            force: false
-          })
-
-          // 不再自动重试，等待用户确认
-          emitter.emit('sync-push-completed', { path, success: false })
-          logPerf('completed', {
-            attempt,
-            success: false,
-            reason: 'sha-mismatch',
-          })
-          return { success: false }
+            // 查询失败或远端缺少可用版本都不能作为文件冲突的证据。
+            if (!remoteFile || remoteVersion) {
+              if (remoteVersion === expectedVersion) {
+                shouldRetry = true
+              } else if (remoteVersion && remoteVersion === normalizeRemoteVersion(latestAcceptedVersion || undefined)) {
+                // 使用本客户端并发同步已接受的新基准，下一次重新读取本地内容。
+                acceptedVersion = latestAcceptedVersion
+                shouldRetry = true
+              } else {
+                emitter.emit('sync-sha-mismatch', {
+                  path,
+                  workspacePath: task.workspacePath,
+                  localSha: acceptedVersion || undefined,
+                  remoteSha: remoteFile?.version || undefined,
+                  force: false,
+                })
+                emitter.emit('sync-push-completed', { path, success: false })
+                logPerf('completed', { attempt, success: false, reason: 'sha-mismatch' })
+                return { success: false }
+              }
+            }
+          } catch (metadataError) {
+            logPerf('shaMismatchInfoFailed', {
+              attempt,
+              message: metadataError instanceof Error ? metadataError.message : String(metadataError),
+            })
+          }
         }
 
-        if (isShaMismatch && attempt < maxRetries) {
+        if (shouldRetry && attempt < maxRetries) {
           // 等待一段时间后重试（指数退避）
           const waitTime = Math.pow(2, attempt - 1) * 500
           logPerf('retryWait', {
@@ -553,17 +573,14 @@ class SyncPushQueue {
           continue
         }
 
-        // 如果是最后一次尝试或不是 SHA 错误，打印错误日志
-        if (attempt === maxRetries || !isShaMismatch) {
-          console.error('[SyncPushQueue] 推送失败:', error)
-          emitter.emit('sync-push-completed', { path, success: false })
-          logPerf('completed', {
-            attempt,
-            success: false,
-            reason: 'error',
-          })
-          return { success: false }
-        }
+        console.error('[SyncPushQueue] 推送失败:', error)
+        emitter.emit('sync-push-completed', { path, success: false })
+        logPerf('completed', {
+          attempt,
+          success: false,
+          reason: 'error',
+        })
+        return { success: false }
       }
     }
 
@@ -579,8 +596,10 @@ class SyncPushQueue {
     expectedWorkspacePath = useSettingStore.getState().workspacePath,
   ): Promise<{ success: boolean; sha?: string }> {
     try {
+      await this.ready
       if (
-        this.workspaceSwitchPauseDepth > 0
+        this.retired
+        || this.workspaceSwitchPauseDepth > 0
         || expectedWorkspacePath !== useSettingStore.getState().workspacePath
       ) {
         return { success: false }
@@ -661,6 +680,28 @@ class SyncPushQueue {
     }
   }
 
+  async dispose(): Promise<PushTask[]> {
+    this.retired = true
+    this.manualRetryPending = false
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = null
+    }
+    this.removeListeners()
+    if (typeof window !== 'undefined') window.removeEventListener('online', resumeWorkspacePathMoves)
+    initialized = false
+    // 已进入传输层的写入先正常完成并记录版本，再移交尚未执行的任务。
+    try {
+      await this.ready
+      await this.flushPromise
+    } catch (error) {
+      console.error('[SyncPushQueue] 清理旧同步队列失败:', error)
+    }
+    const tasks = this.queue.filter(task => this.isTaskCurrent(task))
+    this.clear()
+    return tasks
+  }
+
   async prepareForWorkspaceSwitch() {
     this.workspaceSwitchPauseDepth += 1
     for (const task of this.queue) this.pausedPaths.add(task.path)
@@ -694,13 +735,24 @@ class SyncPushQueue {
   }
 }
 
-// 单例实例
+type SyncPushQueueGlobal = typeof globalThis & {
+  __noteGenSyncPushQueueDispose?: () => Promise<PushTask[]>
+}
+
+const syncPushQueueGlobal = globalThis as SyncPushQueueGlobal
+const previousQueueHandoff = syncPushQueueGlobal.__noteGenSyncPushQueueDispose?.() || Promise.resolve([])
+
+// 单例实例；新模块接管时先等待旧模块的在途写入结束。
 let syncPushQueue: SyncPushQueue | null = null
+syncPushQueueGlobal.__noteGenSyncPushQueueDispose = () => syncPushQueue
+  ? syncPushQueue.dispose()
+  : previousQueueHandoff
 
 export function getSyncPushQueue(): SyncPushQueue {
   if (!syncPushQueue) {
-    syncPushQueue = new SyncPushQueue()
-    syncPushQueue.init() // 确保只初始化一次事件监听器
+    const queue = new SyncPushQueue(previousQueueHandoff)
+    syncPushQueue = queue
+    queue.init()
   }
   return syncPushQueue
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { normalizeRemoteVersion } from '@/lib/sync/remote-content-cache'
 
 interface SyncConfirmState {
   isOpen: boolean
@@ -61,7 +62,7 @@ interface SyncConfirmState {
     remoteSha?: string
     onForceUpload: () => void  // 强制上传（不带 SHA）
     onCancel: () => void        // 取消
-  }) => void
+  }) => boolean
 
   hideConfirmDialog: () => void
 }
@@ -102,15 +103,22 @@ export const useSyncConfirmStore = create<SyncConfirmState>((set) => ({
     onCancel: data.onCancel
   }),
 
-  showShaMismatchDialog: (data) => set({
-    isOpen: true,
-    dialogType: 'shaMismatch',
-    fileName: data.fileName,
-    localSha: data.localSha,
-    remoteSha: data.remoteSha,
-    onConfirm: data.onForceUpload,  // onConfirm 用于强制上传
-    onCancel: data.onCancel
-  }),
+  showShaMismatchDialog: (data) => {
+    const localSha = normalizeRemoteVersion(data.localSha)
+    const remoteSha = normalizeRemoteVersion(data.remoteSha)
+    // 最终入口也核实版本，旧队列或其他调用方不能为相同 SHA 打开覆盖提示。
+    if (localSha === remoteSha) return false
+    set({
+      isOpen: true,
+      dialogType: 'shaMismatch',
+      fileName: data.fileName,
+      localSha: localSha || undefined,
+      remoteSha: remoteSha || undefined,
+      onConfirm: data.onForceUpload,  // onConfirm 用于强制上传
+      onCancel: data.onCancel
+    })
+    return true
+  },
 
   hideConfirmDialog: () => set({
     isOpen: false,

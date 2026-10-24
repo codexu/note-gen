@@ -43,6 +43,8 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 
+const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const
+
 const EDITOR_SELECTION_TARGET = { kind: 'editor-selection' } as const
 
 const POPULAR_LANGUAGES = [
@@ -854,6 +856,28 @@ export function BubbleMenu({
 
         {/* 块级元素 */}
         <div className="flex gap-0.5">
+          <select
+            aria-label={t('blockHandle.turnInto')}
+            className="h-8 max-w-32 rounded-md bg-transparent px-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            value={isActive('heading') ? String(editor.getAttributes('heading').level) : isActive('paragraph') ? 'paragraph' : ''}
+            onChange={(event) => {
+              const value = event.target.value
+              if (value === 'paragraph') {
+                editor.chain().focus().setParagraph().run()
+              } else {
+                const level = HEADING_LEVELS.find(level => String(level) === value)
+                if (level) editor.chain().focus().setHeading({ level }).run()
+              }
+            }}
+          >
+            <option value="" disabled>{t('blockHandle.turnInto')}</option>
+            <option value="paragraph" disabled={!editor.can().setParagraph()}>{t('blockHandle.paragraph')}</option>
+            {HEADING_LEVELS.map(level => (
+              <option key={level} value={String(level)} disabled={!editor.can().setHeading({ level })}>
+                {t(`slashCommand.items.heading${level}`)}
+              </option>
+            ))}
+          </select>
           <ToolbarButton active={isActive('blockquote')} onClick={toggleBlockquote} title={t('bubbleMenu.blockquote')}><Quote /></ToolbarButton>
           <ToolbarButton active={isActive('bulletList')} onClick={toggleBulletList} title={t('bubbleMenu.bulletList')}><List /></ToolbarButton>
           <ToolbarButton active={isActive('orderedList')} onClick={toggleOrderedList} title={t('bubbleMenu.orderedList')}><ListOrdered /></ToolbarButton>

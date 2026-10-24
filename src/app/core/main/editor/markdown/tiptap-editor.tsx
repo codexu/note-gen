@@ -1611,7 +1611,16 @@ const MarkdownTable = Table.extend({
   },
   renderMarkdown: (node, helpers) => {
     const promotedNode = promoteFirstTableRowInMarkdown(node)
-    const markdown = renderTableToMarkdown(promotedNode, helpers)
+    // Preserve cell breaks before the table renderer collapses whitespace.
+    const markdown = renderTableToMarkdown(promotedNode, {
+      ...helpers,
+      renderChildren: (children, separator) => {
+        if (!Array.isArray(children) && children.type === 'paragraph' && !children.content?.length) {
+          return ''
+        }
+        return helpers.renderChildren(children, separator).replace(/ {2}\n|\n/g, '<br>')
+      },
+    }, { cellLineSeparator: '<br>' })
     const columnCount = Math.max(0, ...(promotedNode.content ?? []).map(row => row.content?.length ?? 0))
     if (columnCount === 0) return markdown
 

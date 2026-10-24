@@ -185,6 +185,14 @@
       "enabled": true
     },
     {
+      "key": "atlascloud",
+      "title": "Atlas Cloud",
+      "baseURL": "https://api.atlascloud.ai/v1",
+      "apiKeyUrl": "https://console.atlascloud.ai/api-keys",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/atlascloud.svg",
+      "enabled": true
+    },
+    {
       "key": "qiniu",
       "title": "七牛云",
       "baseURL": "https://openai.qiniu.com/v1",

@@ -1,5 +1,8 @@
 'use client'
 
+import { customizeHtmlExport } from '@/lib/html-export-customization'
+import useSettingStore from '@/stores/setting'
+
 import { save } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import type { JSONContent } from '@tiptap/core'
@@ -691,7 +694,7 @@ export async function exportMarkdownSource(
 
   if (format === 'html') {
     return await saveTextExport(
-      await buildMarkdownExportDocument(source),
+      customizeHtmlExport(await buildMarkdownExportDocument(source), useSettingStore.getState().htmlExportConfig),
       `${fileName}.html`,
       'html',
       'text/html',

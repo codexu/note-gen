@@ -679,6 +679,12 @@
       "enableDesc": "启用后，AI 可以调用配置的 MCP 服务器提供的工具。"
     },
     "editor": {
+      "htmlExport": {
+        "title": "HTML 匯出",
+        "desc": "為匯出的 HTML 檔案加入 CSS 和 JavaScript。JavaScript 會在開啟匯出檔案時執行。這些設定不影響編輯器或 PDF 匯出。",
+        "css": "自訂 CSS",
+        "javascript": "自訂 JavaScript"
+      },
       "title": "編輯器設置",
       "desc": "在這裡，你可以對編輯器進行自定義配置，打造更適合你的寫作方式。",
       "layout": {

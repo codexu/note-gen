@@ -1,3 +1,4 @@
+import type { HtmlExportConfig } from '@/lib/html-export-customization'
 import { Store } from '@tauri-apps/plugin-store'
 import { emit } from '@tauri-apps/api/event'
 import { create } from 'zustand'
@@ -393,6 +394,9 @@ interface SettingState {
   showEditorUndoRedo: boolean
   setShowEditorUndoRedo: (show: boolean) => Promise<void>
 
+  htmlExportConfig: HtmlExportConfig
+  setHtmlExportConfig: (config: HtmlExportConfig) => Promise<void>
+
   showSourceLineNumbers: boolean
   setShowSourceLineNumbers: (show: boolean) => Promise<void>
 
@@ -463,6 +467,7 @@ let pendingSettingPersistState: SettingState | null = null
 const pendingSettingPersistKeys = new Set<string>()
 const pendingSettingSyncKeys = new Set<string>()
 let settingPersistQueue = Promise.resolve()
+let htmlExportPersistQueue = Promise.resolve()
 
 function getChangedSettingKeys(current: SettingState, previous: SettingState): string[] {
   const currentRecord = current as unknown as Record<string, unknown>
@@ -1912,6 +1917,17 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const store = await Store.load('store.json');
     await store.set('showEditorUndoRedo', show)
     await store.save()
+  },
+
+  htmlExportConfig: { css: '', javascript: '' },
+  setHtmlExportConfig: async (htmlExportConfig) => {
+    set({ htmlExportConfig })
+    htmlExportPersistQueue = htmlExportPersistQueue.catch(() => undefined).then(async () => {
+      const store = await Store.load('store.json')
+      await store.set('htmlExportConfig', get().htmlExportConfig)
+      await store.save()
+    })
+    await htmlExportPersistQueue
   },
 
   showSourceLineNumbers: true,

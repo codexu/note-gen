@@ -4,11 +4,58 @@ use tauri_plugin_store::StoreExt;
 pub const AUTOSTART_ARG: &str = "--autostart";
 
 #[cfg(target_os = "macos")]
+fn forward_editor_history(window: &tauri::Window, redo: bool) {
+    let command = if redo { "redo" } else { "undo" };
+    // With multiwebview enabled, Wry sends these Command shortcuts to the
+    // native menu instead of JavaScript. Re-enter the focused view's keymap so
+    // editor history, custom bindings and disabled defaults keep their meaning.
+    let script = format!(
+        r#"(() => {{
+            if (!document.hasFocus()) return;
+            const target = document.activeElement || document.body;
+            if (!target) return;
+            const event = new KeyboardEvent('keydown', {{
+                key: {redo} ? 'Z' : 'z', code: 'KeyZ', keyCode: 90, which: 90,
+                metaKey: true, shiftKey: {redo},
+                bubbles: true, cancelable: true, composed: true
+            }});
+            if (!target.dispatchEvent(event)) return;
+            // An empty or disabled editor history must not fall through to
+            // WebKit's separate DOM history. Inputs inside node views still
+            // need their own native history.
+            if (!target.matches('input, textarea')
+                && target.closest('.ProseMirror, .cm-content')) return;
+            document.execCommand({command:?});
+        }})();"#
+    );
+
+    for webview in window.webviews() {
+        let _ = webview.eval(script.clone());
+    }
+}
+
+#[cfg(target_os = "macos")]
 pub fn setup_editor_menu(app: &AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 
     let menu = Menu::default(app)?;
     let native_close_text = PredefinedMenuItem::close_window(app, None)?.text()?;
+    let native_undo_text = PredefinedMenuItem::undo(app, None)?.text()?;
+    let native_redo_text = PredefinedMenuItem::redo(app, None)?.text()?;
+    let undo = MenuItem::with_id(
+        app,
+        "editor-undo",
+        &native_undo_text,
+        true,
+        Some("CommandOrControl+Z"),
+    )?;
+    let redo = MenuItem::with_id(
+        app,
+        "editor-redo",
+        &native_redo_text,
+        true,
+        Some("CommandOrControl+Shift+Z"),
+    )?;
     let close_tab = MenuItem::with_id(
         app,
         "close-editor-tab",
@@ -28,7 +75,18 @@ pub fn setup_editor_menu(app: &AppHandle) -> tauri::Result<()> {
             let Some(predefined) = child.as_predefined_menuitem() else {
                 continue;
             };
-            if predefined.text()? != native_close_text {
+            let text = predefined.text()?;
+            if text == native_undo_text {
+                submenu.remove(predefined)?;
+                submenu.insert(&undo, index)?;
+                continue;
+            }
+            if text == native_redo_text {
+                submenu.remove(predefined)?;
+                submenu.insert(&redo, index)?;
+                continue;
+            }
+            if text != native_close_text {
                 continue;
             }
             submenu.remove(predefined)?;
@@ -41,10 +99,15 @@ pub fn setup_editor_menu(app: &AppHandle) -> tauri::Result<()> {
 
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| {
-        if event.id().as_ref() != "close-editor-tab" {
+        let id = event.id().as_ref();
+        if !matches!(id, "close-editor-tab" | "editor-undo" | "editor-redo") {
             return;
         }
         if let Some(window) = app.windows().values().find(|window| window.is_focused().unwrap_or(false)) {
+            if id == "editor-undo" || id == "editor-redo" {
+                forward_editor_history(window, id == "editor-redo");
+                return;
+            }
             if window.label() == "main" {
                 let _ = window.emit_to("main", "editor-close-tab-requested", ());
             } else {

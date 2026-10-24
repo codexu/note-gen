@@ -162,10 +162,30 @@ export function keyboardEventMatchesShortcut(event: KeyboardEvent, shortcut: str
 }
 
 export function findMatchingEditorShortcut(event: KeyboardEvent, shortcuts: EditorShortcut[]) {
-  return shortcuts.find((shortcut) => (
+  const matchedShortcut = shortcuts.find((shortcut) => (
     Boolean(shortcut.value) &&
     keyboardEventMatchesShortcut(event, shortcut.value)
   ))
+
+  if (matchedShortcut) {
+    return matchedShortcut
+  }
+
+  return shortcuts.find((shortcut) => {
+    const definition = editorShortcutDefinitions.find((definition) => definition.id === shortcut.id)
+    if (
+      !shortcut.value
+      || !definition
+      || normalizeShortcut(shortcut.value) !== normalizeShortcut(definition.defaultShortcut)
+      || !('alternateDefaultShortcuts' in definition)
+    ) {
+      return false
+    }
+
+    return definition.alternateDefaultShortcuts.some((alternateShortcut) => (
+      keyboardEventMatchesShortcut(event, alternateShortcut)
+    ))
+  })
 }
 
 export function shouldBlockEditorDefaultShortcut(event: KeyboardEvent, shortcuts: EditorShortcut[]) {
@@ -175,6 +195,10 @@ export function shouldBlockEditorDefaultShortcut(event: KeyboardEvent, shortcuts
     }
 
     const currentShortcut = shortcuts.find((shortcut) => shortcut.id === definition.id)?.value ?? ''
+    if (normalizeShortcut(currentShortcut) === normalizeShortcut(definition.defaultShortcut)) {
+      return false
+    }
+
     const defaults = [
       definition.defaultShortcut,
       ...('alternateDefaultShortcuts' in definition ? definition.alternateDefaultShortcuts : []),

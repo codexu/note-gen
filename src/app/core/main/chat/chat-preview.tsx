@@ -1,5 +1,8 @@
 'use client'
 
+import useArticleStore from '@/stores/article'
+import { resolveChatNoteLink } from '@/lib/chat-note-link'
+import { toast } from '@/hooks/use-toast'
 import useSettingStore from '@/stores/setting'
 import {
   type DragEvent,
@@ -31,6 +34,7 @@ function isMacOS() {
 
 export default function ChatPreview({ text, streaming = false, containerClassName }: ChatPreviewProps) {
   const t = useTranslations('record.chat.messageControl')
+  const tSearch = useTranslations('search')
   const { contentTextScale } = useSettingStore()
   const streamdownTranslations = useMemo(() => ({
     copied: t('copied'),
@@ -197,6 +201,16 @@ export default function ChatPreview({ text, streaming = false, containerClassNam
       <div
         className="w-full select-text"
         onDragStart={handleDragStart}
+        onClickCapture={(event) => {
+          const link = event.target instanceof Element ? event.target.closest('a[href]') : null
+          const path = resolveChatNoteLink(link?.getAttribute('href') || '')
+          if (!path) return
+          event.preventDefault()
+          event.stopPropagation()
+          void useArticleStore.getState().setActiveFilePath(path, true, { tabOpenMode: 'preview' }).catch(() => {
+            toast({ title: tSearch('openFailed'), variant: 'destructive' })
+          })
+        }}
         style={{ fontSize: `${(16 * contentTextScale) / 100}px` }}
       >
         <StreamdownRenderer

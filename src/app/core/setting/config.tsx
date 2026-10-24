@@ -22,6 +22,7 @@ import {
   Blocks,
 } from "lucide-react"
 import type { ReactNode } from 'react'
+import { withMiniMaxModels } from '@/lib/ai/minimax'
 import type { BuiltinSettingSection } from '@/stores/settings-dialog'
 
 export type SettingNavigationGroup =
@@ -147,6 +148,9 @@ export type WebSearchProvider = 'auto' | 'zhipu' | 'tavily' | 'brave' | 'exa';
 export type WebSearchApiProvider = Exclude<WebSearchProvider, 'auto'>;
 export type WebSearchApiKeys = Partial<Record<WebSearchApiProvider, string>>;
 
+export type ModelInputModality = 'text' | 'image' | 'video'
+export type ModelThinkingMode = 'adaptive' | 'disabled' | 'always_on'
+
 export interface ModelConfig {
   id: string
   model: string
@@ -155,6 +159,9 @@ export interface ModelConfig {
   topP?: number
   voice?: string
   enableStream?: boolean
+  inputModalities?: ModelInputModality[]
+  thinking?: ModelThinkingMode[]
+  maxOutputTokens?: number
   maxTokens?: number
   contextWindow?: number
   tokenLimitParam?: 'max_completion_tokens' | 'max_tokens'
@@ -241,6 +248,21 @@ const builtinProviderTemplates: AiConfig[] = [
     baseURL: 'http://localhost:1234/v1',
     icon: 'https://s2.loli.net/2025/06/25/IifFV4HTQ9dpGZE.png',
   },
+
+  withMiniMaxModels({
+    key: 'minimax-global',
+    title: 'MiniMax (Global)',
+    baseURL: 'https://api.minimax.io/v1',
+    icon: 'https://filecdn.minimax.chat/public/c5b4442f-ab8b-4d97-9119-8504670b0097.png',
+    apiKeyUrl: 'https://platform.minimax.io/',
+  }),
+  withMiniMaxModels({
+    key: 'minimax',
+    title: 'MiniMax (China)',
+    baseURL: 'https://api.minimax.cn/v1',
+    icon: 'https://filecdn.minimax.chat/public/c5b4442f-ab8b-4d97-9119-8504670b0097.png',
+    apiKeyUrl: 'https://platform.minimaxi.com/',
+  }),
 ]
 
 const baseAiConfig = builtinProviderTemplates

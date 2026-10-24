@@ -291,7 +291,9 @@
             "accent": "强调色",
             "accentForeground": "强调色前景色",
             "border": "边框色",
-            "shadow": "阴影色"
+            "shadow": "阴影色",
+            "inlineCodeForeground": "インラインコードの文字色",
+            "inlineCodeBackground": "インラインコードの背景色"
           },
           "presets": {
             "apply": "应用",

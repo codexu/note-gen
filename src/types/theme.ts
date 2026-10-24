@@ -22,6 +22,8 @@ export interface CustomThemeColors {
     accentForeground: HSLValue | null
     border: HSLValue | null
     shadow: HSLValue | null
+    inlineCodeForeground?: HSLValue | null
+    inlineCodeBackground?: HSLValue | null
   }
   // 暗色主题颜色
   dark: {
@@ -41,6 +43,8 @@ export interface CustomThemeColors {
     accentForeground: HSLValue | null
     border: HSLValue | null
     shadow: HSLValue | null
+    inlineCodeForeground?: HSLValue | null
+    inlineCodeBackground?: HSLValue | null
   }
 }
 
@@ -70,6 +74,8 @@ export const THEME_VARIABLE_MAP = {
     accentForeground: '--accent-foreground',
     border: '--border',
     shadow: '--shadow',
+    inlineCodeForeground: '--inline-code-foreground',
+    inlineCodeBackground: '--inline-code-background',
   },
   dark: {
     background: '--background',
@@ -88,5 +94,7 @@ export const THEME_VARIABLE_MAP = {
     accentForeground: '--accent-foreground',
     border: '--border',
     shadow: '--shadow',
+    inlineCodeForeground: '--inline-code-foreground',
+    inlineCodeBackground: '--inline-code-background',
   },
 } as const

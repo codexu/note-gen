@@ -2,29 +2,12 @@
 
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { HSLValue } from '@/types/theme'
+import { CustomThemeColors, HSLValue } from '@/types/theme'
 import { hexToHsl, hslToHex } from '@/lib/theme-utils'
 import { RotateCcw } from 'lucide-react'
 
 interface ThemeColorPickerProps {
-  colors: {
-    background: HSLValue | null
-    foreground: HSLValue | null
-    card: HSLValue | null
-    cardForeground: HSLValue | null
-    primary: HSLValue | null
-    primaryForeground: HSLValue | null
-    secondary: HSLValue | null
-    secondaryForeground: HSLValue | null
-    third: HSLValue | null
-    thirdForeground: HSLValue | null
-    muted: HSLValue | null
-    mutedForeground: HSLValue | null
-    accent: HSLValue | null
-    accentForeground: HSLValue | null
-    border: HSLValue | null
-    shadow: HSLValue | null
-  }
+  colors: CustomThemeColors['light']
   onColorChange: (colorKey: string, value: HSLValue | null) => void
   t: (key: string) => string
 }
@@ -46,6 +29,8 @@ export function ThemeColorPicker({ colors, onColorChange, t }: ThemeColorPickerP
     { key: 'accent', label: t('colors.accent'), defaultColor: '#f5f5f5' },
     { key: 'accentForeground', label: t('colors.accentForeground'), defaultColor: '#171717' },
     { key: 'border', label: t('colors.border'), defaultColor: '#e5e5e5' },
+    { key: 'inlineCodeForeground', label: t('colors.inlineCodeForeground'), defaultColor: '#e11d48' },
+    { key: 'inlineCodeBackground', label: t('colors.inlineCodeBackground'), defaultColor: '#f5f5f5' },
     { key: 'shadow', label: t('colors.shadow'), defaultColor: '#000000' },
   ]
 
@@ -61,7 +46,7 @@ export function ThemeColorPicker({ colors, onColorChange, t }: ThemeColorPickerP
           <ColorInput
             key={config.key}
             label={config.label}
-            value={colors[config.key as keyof typeof colors]}
+            value={colors[config.key as keyof typeof colors] ?? null}
             defaultColor={config.defaultColor}
             onChange={(value) => onColorChange(config.key, value)}
           />
@@ -72,7 +57,7 @@ export function ThemeColorPicker({ colors, onColorChange, t }: ThemeColorPickerP
           <ColorInput
             key={config.key}
             label={config.label}
-            value={colors[config.key as keyof typeof colors]}
+            value={colors[config.key as keyof typeof colors] ?? null}
             defaultColor={config.defaultColor}
             onChange={(value) => onColorChange(config.key, value)}
           />

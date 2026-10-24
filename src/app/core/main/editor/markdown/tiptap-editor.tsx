@@ -3826,12 +3826,23 @@ export function TipTapEditor({
       }
       const controls = editorDragHandleElementRef.current
       if (!controls || editorBlockMenuOpenRef.current || editorBlockPointerDragStateRef.current) return
-      if (event.target instanceof Node && controls.contains(event.target)) return
 
+      const viewport = scrollContainerRef.current
+      const viewportBounds = viewport?.getBoundingClientRect()
       const editorBounds = editor.view.dom.getBoundingClientRect()
-      if (editorBounds.width <= 0 || editorBounds.height <= 0
-        || event.clientX < editorBounds.left - 64 || event.clientX > editorBounds.right
-        || event.clientY < editorBounds.top || event.clientY > editorBounds.bottom) {
+      // The document can extend behind the footer; only its visible viewport
+      // may activate the fixed-position block controls.
+      if (!viewport || !viewportBounds || viewportBounds.width <= 0 || viewportBounds.height <= 0
+        || editorBounds.width <= 0 || editorBounds.height <= 0
+        || event.clientX < Math.max(editorBounds.left - 64, viewportBounds.left)
+        || event.clientX >= Math.min(editorBounds.right, viewportBounds.right)
+        || event.clientY < Math.max(editorBounds.top, viewportBounds.top)
+        || event.clientY >= Math.min(editorBounds.bottom, viewportBounds.bottom)) {
+        hideControls()
+        return
+      }
+      if (event.target instanceof Node && controls.contains(event.target)) return
+      if (!(event.target instanceof Node) || !viewport.contains(event.target)) {
         hideControls()
         return
       }
@@ -3853,6 +3864,11 @@ export function TipTapEditor({
         return
       }
       const bounds = getEditorBlockHandleGeometry(editor, target.from, dom)
+      if (bounds.handleTop < viewportBounds.top
+        || bounds.handleTop + controls.offsetHeight > viewportBounds.bottom) {
+        hideControls()
+        return
+      }
       editorDragHandleTargetRef.current = target
       controls.dataset.gutterHover = 'true'
       Object.assign(controls.style, {

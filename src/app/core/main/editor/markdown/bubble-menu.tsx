@@ -26,6 +26,13 @@ import {
   BrainCircuit,
   Timer,
   ListTodo,
+  Type,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
 } from 'lucide-react'
 import { useState, useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
@@ -35,6 +42,14 @@ import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   InputGroup,
@@ -43,7 +58,14 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group'
 
-const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const
+const HEADING_OPTIONS = [
+  { level: 1, icon: Heading1 },
+  { level: 2, icon: Heading2 },
+  { level: 3, icon: Heading3 },
+  { level: 4, icon: Heading4 },
+  { level: 5, icon: Heading5 },
+  { level: 6, icon: Heading6 },
+] as const
 
 const EDITOR_SELECTION_TARGET = { kind: 'editor-selection' } as const
 
@@ -123,6 +145,23 @@ function hasTextSelection(editor: Editor): boolean {
   return getSelectedText(editor).trim().length > 0
 }
 
+function canConvertTextSelection(editor: Editor): boolean {
+  const { doc, selection } = editor.state
+  if (!(selection instanceof TextSelection) || selection.empty) return false
+
+  let hasTextBlock = false
+  let allowed = true
+  doc.nodesBetween(selection.from, selection.to, (node) => {
+    hasTextBlock = true
+    if (node.type.name !== 'paragraph' && node.type.name !== 'heading') {
+      allowed = false
+    }
+    // Inspect top-level blocks so paragraphs inside other containers stay excluded.
+    return false
+  })
+  return hasTextBlock && allowed
+}
+
 function isKeyboardSelectionIntent(event: KeyboardEvent): boolean {
   if (event.isComposing) {
     return false
@@ -175,6 +214,7 @@ export function BubbleMenu({
   const isPointerSelectingRef = useRef(false)
   const isComposingRef = useRef(false)
   const positionFrameRef = useRef<number | null>(null)
+  const focusEditorOnBlockMenuCloseRef = useRef(false)
 
   const hideMenu = useCallback(() => {
     setShow(false)
@@ -558,6 +598,7 @@ export function BubbleMenu({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('[data-editor-bubble-menu-owner]')?.getAttribute('data-editor-bubble-menu-owner') === pluginMenuOwner) return
       if (event.target instanceof Element && !editor.isDestroyed
         && event.target.closest('[data-editor-table-menu]')?.getAttribute('data-editor-table-menu') === editor.view.dom.dataset.tableMenuOwner) return
       if (event.target instanceof Element && event.target.closest('[data-plugin-menu-owner]')?.getAttribute('data-plugin-menu-owner') === pluginMenuOwner) return
@@ -667,6 +708,11 @@ export function BubbleMenu({
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs)
 
   if (!show) return null
+
+  const showBlockTypeConversion = canConvertTextSelection(editor)
+  const activeHeading = HEADING_OPTIONS.find(({ level }) => isActive('heading', { level }))
+  const activeBlockType = activeHeading ? String(activeHeading.level) : isActive('paragraph') ? 'paragraph' : undefined
+  const BlockTypeIcon = activeHeading?.icon ?? Type
 
   return (
     <div
@@ -840,6 +886,72 @@ export function BubbleMenu({
         {pluginsEnabled ? <PluginEmbeddedViews location="editor/selection-panel" contextKey={String(selectionRevision)} target={EDITOR_SELECTION_TARGET} compact /> : null}
         {/* 文本格式化 */}
         <div className="flex gap-0.5">
+          {showBlockTypeConversion && (
+            <DropdownMenu
+              modal={false}
+              onOpenChange={(open) => {
+                if (!open) return
+                focusEditorOnBlockMenuCloseRef.current = false
+                setShowAISubmenu(false)
+                setShowTranslateSubmenu(false)
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <ToolbarButton
+                  aria-label={t('blockHandle.turnInto')}
+                  title={t('blockHandle.turnInto')}
+                >
+                  <BlockTypeIcon />
+                </ToolbarButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                data-editor-bubble-menu-owner={pluginMenuOwner}
+                align="start"
+                collisionPadding={8}
+                className="min-w-40"
+                onEscapeKeyDown={() => { focusEditorOnBlockMenuCloseRef.current = true }}
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault()
+                  if (focusEditorOnBlockMenuCloseRef.current && !editor.isDestroyed) {
+                    focusEditorOnBlockMenuCloseRef.current = false
+                    editor.view.focus()
+                  }
+                }}
+              >
+                <DropdownMenuGroup>
+                  <DropdownMenuRadioGroup value={activeBlockType}>
+                    <DropdownMenuRadioItem
+                      value="paragraph"
+                      disabled={!editor.can().setParagraph()}
+                      onSelect={() => {
+                        if (!canConvertTextSelection(editor)) return
+                        focusEditorOnBlockMenuCloseRef.current = true
+                        editor.chain().focus().setParagraph().run()
+                      }}
+                    >
+                      <Type />
+                      {t('blockHandle.paragraph')}
+                    </DropdownMenuRadioItem>
+                    {HEADING_OPTIONS.map(({ level, icon: Icon }) => (
+                      <DropdownMenuRadioItem
+                        key={level}
+                        value={String(level)}
+                        disabled={!editor.can().setHeading({ level })}
+                        onSelect={() => {
+                          if (!canConvertTextSelection(editor)) return
+                          focusEditorOnBlockMenuCloseRef.current = true
+                          editor.chain().focus().setHeading({ level }).run()
+                        }}
+                      >
+                        <Icon />
+                        {t(`slashCommand.items.heading${level}`)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <ToolbarButton active={isActive('bold')} onClick={toggleBold} title={t('bubbleMenu.bold')}><Bold /></ToolbarButton>
           <ToolbarButton active={isActive('italic')} onClick={toggleItalic} title={t('bubbleMenu.italic')}><Italic /></ToolbarButton>
           <ToolbarButton active={isActive('strike')} onClick={toggleStrike} title={t('bubbleMenu.strike')}><Strikethrough /></ToolbarButton>
@@ -856,28 +968,6 @@ export function BubbleMenu({
 
         {/* 块级元素 */}
         <div className="flex gap-0.5">
-          <select
-            aria-label={t('blockHandle.turnInto')}
-            className="h-8 max-w-32 rounded-md bg-transparent px-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={isActive('heading') ? String(editor.getAttributes('heading').level) : isActive('paragraph') ? 'paragraph' : ''}
-            onChange={(event) => {
-              const value = event.target.value
-              if (value === 'paragraph') {
-                editor.chain().focus().setParagraph().run()
-              } else {
-                const level = HEADING_LEVELS.find(level => String(level) === value)
-                if (level) editor.chain().focus().setHeading({ level }).run()
-              }
-            }}
-          >
-            <option value="" disabled>{t('blockHandle.turnInto')}</option>
-            <option value="paragraph" disabled={!editor.can().setParagraph()}>{t('blockHandle.paragraph')}</option>
-            {HEADING_LEVELS.map(level => (
-              <option key={level} value={String(level)} disabled={!editor.can().setHeading({ level })}>
-                {t(`slashCommand.items.heading${level}`)}
-              </option>
-            ))}
-          </select>
           <ToolbarButton active={isActive('blockquote')} onClick={toggleBlockquote} title={t('bubbleMenu.blockquote')}><Quote /></ToolbarButton>
           <ToolbarButton active={isActive('bulletList')} onClick={toggleBulletList} title={t('bubbleMenu.bulletList')}><List /></ToolbarButton>
           <ToolbarButton active={isActive('orderedList')} onClick={toggleOrderedList} title={t('bubbleMenu.orderedList')}><ListOrdered /></ToolbarButton>

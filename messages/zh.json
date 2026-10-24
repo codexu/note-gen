@@ -3069,6 +3069,8 @@
       }
     },
     "ai": {
+      "audioEndpoint": "语音接口地址（可选）",
+      "audioEndpointDesc": "填写兼容 OpenAI 的 HTTP 语音接口完整地址。留空时，在服务商地址后添加标准音频路径。此处不支持实时 WebSocket 接口。",
       "title": "模型平台",
       "menuTitle": "模型服务",
       "desc": "集中管理 AI 模型平台、连接凭据和不同能力的模型，可用于对话、整理、知识库和语音等功能。",

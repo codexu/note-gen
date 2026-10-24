@@ -2139,6 +2139,15 @@
         "ok": "檢測到服務正在運行，請確保 PicGo 圖床已配置。",
         "error": "服務未運行，請確保 PicGo（需要 v2.2.0+） 應用正在運行，否則無法上傳圖片。"
       },
+      "gitea": {
+        "title": "Gitea 圖床",
+        "description": "使用 Gitea 伺服器上的公開儲存庫，權杖需要寫入權限。不填寫分支時使用預設分支。",
+        "baseUrl": "伺服器網址",
+        "repository": "儲存庫（擁有者/名稱）",
+        "branch": "分支（選填）",
+        "pathPrefix": "資料夾（選填）",
+        "token": "存取權杖"
+      },
       "github": {
         "title": "GitHub 圖床",
         "description": "使用 GitHub 倉庫作為圖片儲存服務",

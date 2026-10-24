@@ -122,3 +122,19 @@ export const DEFAULT_UPYUN_CONFIG: UpyunConfig = {
   publicUrl: '',
   pathPrefix: 'images',
 }
+
+export interface GiteaImageConfig {
+  baseUrl: string
+  repository: string
+  token: string
+  branch?: string
+  pathPrefix?: string
+}
+
+export const DEFAULT_GITEA_IMAGE_CONFIG: GiteaImageConfig = {
+  baseUrl: '',
+  repository: '',
+  token: '',
+  branch: '',
+  pathPrefix: 'images',
+}

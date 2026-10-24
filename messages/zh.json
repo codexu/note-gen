@@ -2601,6 +2601,15 @@
         "ok": "检测到服务正在运行，请确保 PicGo 图床已配置。",
         "error": "服务未运行，请确保 PicGo（需要 v2.2.0+） 应用正在运行，否则无法上传图片。"
       },
+      "gitea": {
+        "title": "Gitea 图床",
+        "description": "使用 Gitea 服务器上的公开仓库，令牌需要写入权限。不填写分支时使用仓库默认分支。",
+        "baseUrl": "服务器地址",
+        "repository": "仓库（所有者/仓库名）",
+        "branch": "分支（可选）",
+        "pathPrefix": "文件夹（可选）",
+        "token": "访问令牌"
+      },
       "github": {
         "title": "GitHub 图床",
         "description": "使用 GitHub 仓库作为图片存储服务",

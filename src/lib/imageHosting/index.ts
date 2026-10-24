@@ -1,3 +1,4 @@
+import { isGiteaImageConfigComplete, uploadImageByGitea } from './gitea'
 import { uploadImageByGithub } from "./github";
 import { uploadImageBySmms } from "./smms";
 import { uploadImageByPicgo } from "./picgo";
@@ -24,6 +25,7 @@ import {
 } from './china-object-services';
 import type {
   CloudinaryConfig,
+  GiteaImageConfig,
   CustomHttpImageConfig,
   ImageKitConfig,
   LskyConfig,
@@ -45,6 +47,10 @@ async function hasCompleteImageHostingConfig(
         await store.get<string>('githubImageAccessToken')
         && await store.get<string>('githubImageUsername')
       )
+    case 'gitea': {
+      const config = await store.get<GiteaImageConfig>('giteaImageConfig')
+      return Boolean(config && isGiteaImageConfigComplete(config))
+    }
     case 'smms':
       return Boolean((await store.get<SMMSImageHostingSetting>('smms'))?.token.trim())
     case 'picgo':
@@ -127,6 +133,8 @@ export async function uploadImage(file: File) {
   switch (mainImageHosting) {
     case 'github':
       return uploadImageByGithub(file)
+    case 'gitea':
+      return uploadImageByGitea(file)
     case 'smms':
       return uploadImageBySmms(file)
     case 'picgo':

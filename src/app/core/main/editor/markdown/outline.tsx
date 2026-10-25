@@ -458,6 +458,9 @@ export function Outline({
   const headingIndexRef = useRef<OutlineHeadingIndex | null>(null)
   if (!headingIndexRef.current) headingIndexRef.current = new OutlineHeadingIndex()
   const outlineScrollContainerRef = useRef<HTMLDivElement>(null)
+  const activeHeadingSourceRef = useRef<'cursor' | 'viewport'>('viewport')
+  const headingScrollTargetRef = useRef<number | null>(null)
+  const headingScrollFrameRef = useRef<number | null>(null)
   const lastAutoExpandedActiveHeadingIdRef = useRef<string | null>(null)
   // Track if editor is ready - use both ref and state
   const isEditorReadyRef = useRef(false)
@@ -467,15 +470,27 @@ export function Outline({
   const getEditorScrollContainer = useCallback((): HTMLElement | null => {
     if (!editor || editor.isDestroyed) return null
 
-    const root = editor.view.dom.closest('.tiptap-editor')
-    const scrollContainer = root?.querySelector('.overflow-y-auto')
+    const scrollContainer = editor.view.dom.closest('[data-editor-viewport-root="true"]')
 
     if (scrollContainer instanceof HTMLElement) {
       return scrollContainer
     }
 
-    return editor.view.dom instanceof HTMLElement ? editor.view.dom : null
+    return null
   }, [editor])
+
+  useEffect(() => {
+    activeHeadingSourceRef.current = 'viewport'
+    headingScrollTargetRef.current = null
+
+    return () => {
+      if (headingScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(headingScrollFrameRef.current)
+        headingScrollFrameRef.current = null
+      }
+      headingScrollTargetRef.current = null
+    }
+  }, [editor, documentKey])
 
   // Check if editor is ready - wait for view to be available
   useEffect(() => {
@@ -903,7 +918,12 @@ export function Outline({
 
     const viewport = scrollContainer.getBoundingClientRect()
     const editorBounds = editor.view.dom.getBoundingClientRect()
-    const viewportTop = Math.min(viewport.top + 100, viewport.bottom - 1, editorBounds.bottom - 1)
+    // Match the reading anchor used by centered outline navigation.
+    const viewportTop = Math.min(
+      viewport.top + scrollContainer.clientTop + scrollContainer.clientHeight / 2,
+      viewport.bottom - 1,
+      editorBounds.bottom - 1,
+    )
     const hit = editor.view.posAtCoords({
       left: Math.max(viewport.left, editorBounds.left) + 8,
       top: Math.max(viewportTop, editorBounds.top + 1),
@@ -930,13 +950,19 @@ export function Outline({
   // Update active heading when selection or scroll changes
   useEffect(() => {
     // Check if editor is fully initialized
-    if (!isOpen || !editor || editor.isDestroyed) return
+    if (!isOpen || !isReady || !editor || editor.isDestroyed) return
 
     let scrollFrame: number | null = null
+    headingScrollTargetRef.current = null
 
     const updateActiveHeading = () => {
       if (editor.isDestroyed) return
-      // First try to get heading from cursor position
+      activeHeadingSourceRef.current = 'cursor'
+      headingScrollTargetRef.current = null
+      if (scrollFrame !== null) {
+        window.cancelAnimationFrame(scrollFrame)
+        scrollFrame = null
+      }
       const { from } = editor.state.selection
       const activeId = findActiveHeading(from)
       setActiveHeadingId(activeId)
@@ -948,23 +974,56 @@ export function Outline({
       scrollFrame = window.requestAnimationFrame(() => {
         scrollFrame = null
         if (editor.isDestroyed) return
+        const target = headingScrollTargetRef.current
+        if (target !== null) {
+          // Keep the clicked heading highlighted throughout smooth navigation.
+          if (scrollContainer && Math.abs(scrollContainer.scrollTop - target) <= 1) {
+            headingScrollTargetRef.current = null
+          }
+          return
+        }
+        activeHeadingSourceRef.current = 'viewport'
         const scrollActiveId = findActiveHeadingByScroll()
         if (scrollActiveId) setActiveHeadingId(scrollActiveId)
       })
     }
 
-    updateActiveHeading()
+    setActiveHeadingId(activeHeadingSourceRef.current === 'cursor'
+      ? findActiveHeading(editor.state.selection.from)
+      : findActiveHeadingByScroll())
     editor.on('selectionUpdate', updateActiveHeading)
-    editor.on('transaction', updateActiveHeading)
+
+    // Keep silent content changes in sync without returning to an old cursor
+    // position during reading. The heading index updates earlier in this event.
+    const handleTransaction = ({ transaction, appendedTransactions }: EditorEvents['transaction']) => {
+      if (editor.isDestroyed || ![transaction, ...appendedTransactions].some(item => item.docChanged)) return
+      if (activeHeadingSourceRef.current === 'cursor') {
+        setActiveHeadingId(findActiveHeading(editor.state.selection.from))
+      } else {
+        handleScroll()
+      }
+    }
+    editor.on('transaction', handleTransaction)
 
     const scrollContainer = getEditorScrollContainer()
+    const interruptHeadingScroll = () => {
+      headingScrollTargetRef.current = null
+    }
     scrollContainer?.addEventListener('scroll', handleScroll, { passive: true })
+    scrollContainer?.addEventListener('wheel', interruptHeadingScroll, { passive: true })
+    scrollContainer?.addEventListener('touchstart', interruptHeadingScroll, { passive: true })
+    scrollContainer?.addEventListener('pointerdown', interruptHeadingScroll, { passive: true })
+    scrollContainer?.addEventListener('keydown', interruptHeadingScroll)
 
     return () => {
       if (scrollFrame !== null) window.cancelAnimationFrame(scrollFrame)
       editor.off('selectionUpdate', updateActiveHeading)
-      editor.off('transaction', updateActiveHeading)
+      editor.off('transaction', handleTransaction)
       scrollContainer?.removeEventListener('scroll', handleScroll)
+      scrollContainer?.removeEventListener('wheel', interruptHeadingScroll)
+      scrollContainer?.removeEventListener('touchstart', interruptHeadingScroll)
+      scrollContainer?.removeEventListener('pointerdown', interruptHeadingScroll)
+      scrollContainer?.removeEventListener('keydown', interruptHeadingScroll)
     }
   }, [documentKey, editor, findActiveHeading, findActiveHeadingByScroll, getEditorScrollContainer, isOpen, isReady])
 
@@ -977,29 +1036,40 @@ export function Outline({
       // Use stored position directly - it's calculated from current document
       const targetPos = heading.pos
 
-      // First, focus the editor to ensure it can receive commands
-      editor.commands.focus()
-
-      // Then set the selection to the heading position
-      editor.commands.setTextSelection(Math.min(targetPos + 1, editor.state.doc.content.size))
+      // Do not let focus schedule a competing scroll to the previous selection.
+      editor.chain()
+        .setTextSelection(Math.min(targetPos + 1, editor.state.doc.content.size))
+        .focus(undefined, { scrollIntoView: false })
+        .run()
+      activeHeadingSourceRef.current = 'cursor'
       setActiveHeadingId(id)
 
-      // Then scroll into view
-      // Use setTimeout to ensure the selection is applied first
+      if (headingScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(headingScrollFrameRef.current)
+      }
       const documentSnapshot = editor.state.doc
-      setTimeout(() => {
-        if (editor.isDestroyed || editor.state.doc !== documentSnapshot || targetPos > documentSnapshot.content.size) return
+      headingScrollFrameRef.current = window.requestAnimationFrame(() => {
+        headingScrollFrameRef.current = null
+        if (editor.isDestroyed || !editor.view.dom.isConnected || editor.state.doc !== documentSnapshot) return
+        if (targetPos >= documentSnapshot.content.size
+          || documentSnapshot.nodeAt(targetPos)?.type.name !== 'heading') return
         const domNode = editor.view.nodeDOM(targetPos)
-        if (domNode instanceof HTMLElement) {
-          domNode.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        } else {
-          editor.commands.scrollIntoView()
-        }
-      }, 0)
+        const scrollContainer = getEditorScrollContainer()
+        if (!(domNode instanceof HTMLElement) || !scrollContainer) return
+
+        const headingRect = domNode.getBoundingClientRect()
+        const viewportRect = scrollContainer.getBoundingClientRect()
+        const centeredTop = scrollContainer.scrollTop + headingRect.top + headingRect.height / 2
+          - viewportRect.top - scrollContainer.clientTop - scrollContainer.clientHeight / 2
+        const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight)
+        const top = Math.max(0, Math.min(maxScrollTop, centeredTop))
+        headingScrollTargetRef.current = Math.abs(scrollContainer.scrollTop - top) > 1 ? top : null
+        scrollContainer.scrollTo({ top, behavior: 'smooth' })
+      })
 
       onHeadingSelect?.()
     }
-  }, [editor, onHeadingSelect])
+  }, [editor, getEditorScrollContainer, onHeadingSelect])
 
   // Auto-scroll to keep active heading visible
   useEffect(() => {

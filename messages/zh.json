@@ -1179,6 +1179,12 @@
       },
       "outlineEnable": "默认启用大纲",
       "outlineEnableDesc": "启用后，编辑器将默认显示大纲。",
+      "outlinePlacement": "大纲显示区域",
+      "outlinePlacementDesc": "在编辑器内显示大纲，或通过左侧栏的大纲标签页查看当前笔记的标题结构。",
+      "outlinePlacementOptions": {
+        "editor": "编辑器内",
+        "sidebar": "左侧栏"
+      },
       "outlinePosition": "大纲位置",
       "outlinePositionDesc": "设置大纲位置。",
       "outlinePositionOptions": {
@@ -5842,6 +5848,7 @@
       "searching": "正在搜索相关文件..."
     },
     "outline": {
+      "sidebarEmpty": "打开 Markdown 笔记并切换到可视化模式，即可查看大纲。",
       "title": "大纲",
       "open": "打开大纲",
       "close": "关闭大纲",

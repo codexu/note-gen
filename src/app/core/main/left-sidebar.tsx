@@ -5,7 +5,7 @@ import { isPluginDisplayVisible } from '@/lib/plugins/display-preferences'
 import { usePluginLocalization } from '@/lib/plugins/localization'
 import { useEffect } from 'react'
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { Files, Highlighter, Palette } from "lucide-react"
+import { Files, Highlighter, ListTree, Palette } from "lucide-react"
 import { FileSidebar } from "./file"
 import { NoteSidebar } from "./mark"
 import { FileActions } from "./file/file-actions"
@@ -22,6 +22,10 @@ import { PluginViewSurface, PluginViewToolbar } from '@/components/plugins/plugi
 import { isPluginEnabledInWorkspace } from '@/lib/plugins/internal-types'
 import { usePluginStore } from '@/stores/plugins'
 import { resolvePluginViewTitle } from '@/app/core/setting/plugins/plugin-display'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import { useEditorOutlineStore } from '@/stores/editor-outline'
+import { Outline } from './editor/markdown/outline'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 
 const SIDEBAR_TABS = [
   { title: "files", icon: Files },
@@ -31,6 +35,9 @@ const SIDEBAR_TABS = [
 
 export function LeftSidebar() {
   const { leftSidebarTab, setLeftSidebarTab } = useSidebarStore()
+  const outlinePlacement = useSettingStore(state => state.outlinePlacement)
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const outlineEditor = useEditorOutlineStore(state => state.active)
   const t = useTranslations()
   const locale = useLocale()
   const pluginsInitialized = usePluginStore((state) => state.initialized)
@@ -48,14 +55,15 @@ export function LeftSidebar() {
   })
   const allTabs = [
     ...SIDEBAR_TABS.map((tab) => ({ ...tab, id: tab.title, title: t(`navigation.${tab.title === 'notes' ? 'record' : tab.title}`) })),
+    ...(outlinePlacement === 'sidebar' ? [{ id: 'outline', title: t('navigation.outline'), icon: ListTree }] : []),
     ...pluginTabs,
   ]
   const activeTabAvailable = allTabs.some((tab) => tab.id === leftSidebarTab)
 
   useEffect(() => {
-    if (!pluginsInitialized || activeTabAvailable) return
+    if (!settingsReady || !pluginsInitialized || activeTabAvailable) return
     void setLeftSidebarTab('files')
-  }, [activeTabAvailable, pluginsInitialized, setLeftSidebarTab])
+  }, [activeTabAvailable, pluginsInitialized, setLeftSidebarTab, settingsReady])
 
   const handleTabChange = (index: number | null) => {
     if (index !== null) {
@@ -71,6 +79,7 @@ export function LeftSidebar() {
   // Prepare tabs with translated titles
   const tabs = allTabs
   const activePluginTab = pluginTabs.find((tab) => tab.id === leftSidebarTab)
+  const showOutline = leftSidebarTab === 'outline' && outlinePlacement === 'sidebar'
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -89,7 +98,7 @@ export function LeftSidebar() {
               <PluginViewToolbar viewKey={activePluginTab.id} />
             </div>
           ) : null}
-          <div className={cn("grid shrink-0", activePluginTab && "hidden")}>
+          <div className={cn("grid shrink-0", (activePluginTab || leftSidebarTab === 'outline') && "hidden")}>
             <motion.div
               initial={false}
               animate={leftSidebarTab === "files"
@@ -135,7 +144,29 @@ export function LeftSidebar() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             <PluginViewSurface key={activePluginTab.id} viewKey={activePluginTab.id} toolbarInHeader />
           </div>
-        ) : <SidebarSearch activeTab={isBuiltInLeftSidebarTab(leftSidebarTab) ? leftSidebarTab : 'files'}>
+        ) : <>
+        {showOutline ? (
+          <TabsContent value="outline" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+            {outlineEditor && !outlineEditor.editor.isDestroyed ? (
+              <Outline
+                key={outlineEditor.documentKey}
+                editor={outlineEditor.editor}
+                documentKey={outlineEditor.documentKey}
+                isOpen
+                variant="sidebar"
+              />
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>{t('navigation.outline')}</EmptyTitle>
+                  <EmptyDescription>{t('editor.outline.sidebarEmpty')}</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </TabsContent>
+        ) : null}
+        <div className={cn('flex min-h-0 flex-1 flex-col', showOutline && 'hidden')}>
+        <SidebarSearch activeTab={isBuiltInLeftSidebarTab(leftSidebarTab) && leftSidebarTab !== 'outline' ? leftSidebarTab : 'files'}>
           <div className="relative min-h-0 flex-1">
             <TabsContent
               forceMount
@@ -159,7 +190,9 @@ export function LeftSidebar() {
               <CanvasSidebar />
             </TabsContent>
           </div>
-        </SidebarSearch>}
+        </SidebarSearch>
+        </div>
+        </>}
       </Tabs>
     </div>
   )

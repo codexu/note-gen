@@ -749,6 +749,12 @@
       },
       "outlineEnable": "Sumário habilitado por padrão",
       "outlineEnableDesc": "Habilitar esta opção tornará o sumário visível por padrão.",
+      "outlinePlacement": "Área de exibição da estrutura",
+      "outlinePlacementDesc": "Exiba a estrutura no editor ou em uma aba da barra lateral esquerda que acompanha a nota ativa.",
+      "outlinePlacementOptions": {
+        "editor": "No editor",
+        "sidebar": "Barra lateral esquerda"
+      },
       "outlinePosition": "Posição do Sumário",
       "outlinePositionDesc": "Defina a posição do sumário.",
       "outlinePositionOptions": {
@@ -5730,6 +5736,7 @@
       "searching": "Buscando arquivos relacionados..."
     },
     "outline": {
+      "sidebarEmpty": "Abra uma nota Markdown no modo visual para ver sua estrutura.",
       "title": "Sumário",
       "open": "Abrir sumário",
       "close": "Fechar sumário",

@@ -22,12 +22,40 @@ export default function Outline({ showPosition = true }: { showPosition?: boolea
   const {
     enableOutline,
     outlinePosition,
+    outlinePlacement,
     setEnableOutline,
     setOutlinePosition,
+    setOutlinePlacement,
   } = useSettingStore()
 
   return <>
-    <Item variant="outline">
+    {showPosition ? <Item variant="outline">
+      <ItemMedia variant="icon"><ListTree /></ItemMedia>
+      <ItemContent>
+        <ItemTitle>{t('outlinePlacement')}</ItemTitle>
+        <ItemDescription>{t('outlinePlacementDesc')}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="basis-full sm:ml-auto sm:basis-auto">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={outlinePlacement}
+          className="w-full sm:w-auto"
+          aria-label={t('outlinePlacement')}
+          onValueChange={(value) => {
+            if (value === 'editor' || value === 'sidebar') void setOutlinePlacement(value)
+          }}
+        >
+          <ToggleGroupItem value="editor" className="flex-1 sm:flex-none">
+            {t('outlinePlacementOptions.editor')}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="sidebar" className="flex-1 sm:flex-none">
+            {t('outlinePlacementOptions.sidebar')}
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </ItemActions>
+    </Item> : null}
+    {!showPosition || outlinePlacement === 'editor' ? <Item variant="outline">
       <ItemMedia variant="icon">
         <ListTree />
       </ItemMedia>
@@ -42,8 +70,8 @@ export default function Outline({ showPosition = true }: { showPosition?: boolea
           onCheckedChange={(enabled) => void setEnableOutline(enabled)}
         />
       </ItemActions>
-    </Item>
-    {showPosition ? <Item
+    </Item> : null}
+    {showPosition && outlinePlacement === 'editor' ? <Item
       variant="outline"
       aria-disabled={!enableOutline}
       className={cn(!enableOutline && 'opacity-60')}

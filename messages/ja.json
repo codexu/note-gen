@@ -749,6 +749,12 @@
       },
       "outlineEnable": "アウトラインを有効にする",
       "outlineEnableDesc": "アウトラインを有効にすると、アウトラインが表示されます。",
+      "outlinePlacement": "アウトラインの表示場所",
+      "outlinePlacementDesc": "エディター内、または現在のノートに連動する左サイドバーのタブに表示します。",
+      "outlinePlacementOptions": {
+        "editor": "エディター内",
+        "sidebar": "左サイドバー"
+      },
       "outlinePosition": "アウトライン位置",
       "outlinePositionDesc": "アウトライン位置を設定します。",
       "outlinePositionOptions": {
@@ -5751,6 +5757,7 @@
       "searching": "関連ファイルを検索中..."
     },
     "outline": {
+      "sidebarEmpty": "Markdown ノートを開き、ビジュアルモードに切り替えるとアウトラインが表示されます。",
       "title": "アウトライン",
       "open": "アウトラインを開く",
       "close": "アウトラインを閉じる",

@@ -65,7 +65,7 @@ interface OutlineProps {
   isOpen: boolean
   position?: 'left' | 'right'
   floating?: boolean
-  variant?: 'panel' | 'drawer'
+  variant?: 'panel' | 'drawer' | 'sidebar'
   documentKey?: string
   width?: number
   onWidthChange?: (width: number) => void
@@ -1191,6 +1191,10 @@ export function Outline({
       onKeyDown={handleResizeKeyDown}
     />
   )
+
+  if (variant === 'sidebar') {
+    return <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">{outlineContent}</div>
+  }
 
   if (variant === 'drawer') {
     return (

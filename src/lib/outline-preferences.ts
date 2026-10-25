@@ -1,4 +1,11 @@
 export type OutlinePosition = 'left' | 'right'
+export type OutlinePlacement = 'editor' | 'sidebar'
+
+export const DEFAULT_OUTLINE_PLACEMENT: OutlinePlacement = 'editor'
+
+export function normalizeOutlinePlacement(value: unknown): OutlinePlacement {
+  return value === 'sidebar' ? 'sidebar' : DEFAULT_OUTLINE_PLACEMENT
+}
 
 export const DEFAULT_OUTLINE_POSITION: OutlinePosition = 'right'
 export const OUTLINE_WIDTH_STORE_KEY = 'outlineWidth'

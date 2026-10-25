@@ -40,6 +40,9 @@ import {
 } from '@/lib/editor-layout-styles'
 import {
   DEFAULT_OUTLINE_POSITION,
+  DEFAULT_OUTLINE_PLACEMENT,
+  normalizeOutlinePlacement,
+  type OutlinePlacement,
   normalizeOutlinePosition,
   type OutlinePosition,
 } from '@/lib/outline-preferences'
@@ -415,6 +418,8 @@ interface SettingState {
   setEnableOutline: (enable: boolean) => Promise<void>
 
   outlinePosition: OutlinePosition
+  outlinePlacement: OutlinePlacement
+  setOutlinePlacement: (placement: OutlinePlacement) => Promise<void>
   setOutlinePosition: (position: OutlinePosition) => Promise<void>
 
   canvasGridVisible: boolean
@@ -654,6 +659,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
     const normalizedOutlinePosition = normalizeOutlinePosition(storedOutlinePosition)
     if (normalizedOutlinePosition !== storedOutlinePosition) {
       await store.set('outlinePosition', normalizedOutlinePosition)
+      preferencesChanged = true
+    }
+
+    const storedOutlinePlacement = await store.get('outlinePlacement')
+    const normalizedOutlinePlacement = normalizeOutlinePlacement(storedOutlinePlacement)
+    if (normalizedOutlinePlacement !== storedOutlinePlacement) {
+      await store.set('outlinePlacement', normalizedOutlinePlacement)
       preferencesChanged = true
     }
 
@@ -1975,6 +1987,13 @@ const useSettingStore = create<SettingState>((set, get) => ({
   },
 
   outlinePosition: DEFAULT_OUTLINE_POSITION,
+  outlinePlacement: DEFAULT_OUTLINE_PLACEMENT,
+  setOutlinePlacement: async (outlinePlacement) => {
+    set({ outlinePlacement })
+    const store = await Store.load('store.json')
+    await store.set('outlinePlacement', outlinePlacement)
+    await store.save()
+  },
   setOutlinePosition: async (outlinePosition) => {
     set({ outlinePosition })
     const store = await Store.load('store.json')

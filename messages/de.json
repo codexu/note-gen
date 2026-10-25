@@ -1179,6 +1179,12 @@
       },
       "outlineEnable": "Gliederung standardmäßig aktiviert",
       "outlineEnableDesc": "Durch Aktivierung wird die Gliederung standardmäßig sichtbar.",
+      "outlinePlacement": "Anzeigebereich der Gliederung",
+      "outlinePlacementDesc": "Die Gliederung im Editor oder als Tab in der linken Seitenleiste für die aktive Notiz anzeigen.",
+      "outlinePlacementOptions": {
+        "editor": "Im Editor",
+        "sidebar": "Linke Seitenleiste"
+      },
       "outlinePosition": "Gliederungs-Position",
       "outlinePositionDesc": "Lege die Gliederungs-Position fest.",
       "outlinePositionOptions": {
@@ -5702,6 +5708,7 @@
       "searching": "Suche nach verwandten Dateien..."
     },
     "outline": {
+      "sidebarEmpty": "Öffne eine Markdown-Notiz im visuellen Modus, um ihre Gliederung anzuzeigen.",
       "title": "Gliederung",
       "open": "Gliederung öffnen",
       "close": "Gliederung schließen",

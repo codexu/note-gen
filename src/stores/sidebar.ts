@@ -23,7 +23,7 @@ export interface SidebarState {
   initSidebarState: () => Promise<void>
 }
 
-export const BUILT_IN_LEFT_SIDEBAR_TABS = ['files', 'notes', 'canvases'] as const
+export const BUILT_IN_LEFT_SIDEBAR_TABS = ['files', 'notes', 'canvases', 'outline'] as const
 export type BuiltInLeftSidebarTab = typeof BUILT_IN_LEFT_SIDEBAR_TABS[number]
 
 const builtInLeftSidebarTabs = new Set<string>(BUILT_IN_LEFT_SIDEBAR_TABS)
@@ -101,13 +101,18 @@ export const useSidebarStore = create<SidebarState>((set, get) => ({
   leftSidebarVisible: initialState.left,
   sidebarSearchFocusRequest: 0,
   requestSidebarSearchFocus: async () => {
+    // The outline has its own heading search; global search belongs to files.
+    const leftSidebarTab = get().leftSidebarTab === 'outline' ? 'files' : get().leftSidebarTab
     set((state) => ({
       leftSidebarVisible: true,
+      leftSidebarTab,
       sidebarSearchFocusRequest: state.sidebarSearchFocusRequest + 1,
     }))
     localStorage.setItem('leftSidebarVisible', 'true')
+    localStorage.setItem('leftSidebarTab', leftSidebarTab)
     const store = await Store.load('store.json')
     await store.set('leftSidebarVisible', true)
+    await store.set('leftSidebarTab', leftSidebarTab)
     await store.save()
   },
   toggleLeftSidebar: async () => {

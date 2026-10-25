@@ -749,6 +749,12 @@
       },
       "outlineEnable": "預設啟用大綱",
       "outlineEnableDesc": "啟用後，編輯器將默認顯示大綱。",
+      "outlinePlacement": "大綱顯示區域",
+      "outlinePlacementDesc": "在編輯器內顯示，或作為左側欄分頁跟隨目前筆記。",
+      "outlinePlacementOptions": {
+        "editor": "編輯器內",
+        "sidebar": "左側欄"
+      },
       "outlinePosition": "大綱位置",
       "outlinePositionDesc": "設置大綱位置。",
       "outlinePositionOptions": {
@@ -5741,6 +5747,7 @@
       "searching": "正在搜尋相關檔案..."
     },
     "outline": {
+      "sidebarEmpty": "開啟 Markdown 筆記並切換至視覺化模式，即可查看大綱。",
       "title": "大綱",
       "open": "打開大綱",
       "close": "關閉大綱",

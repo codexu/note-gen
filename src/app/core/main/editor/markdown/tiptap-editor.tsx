@@ -96,6 +96,7 @@ import { GitHubAlertBlockquoteEditor } from './github-alert-blockquote-view'
 import { StableCodeBlockLowlight } from './code-block-extension'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import useSettingStore from '@/stores/setting'
+import { useEditorOutlineStore } from '@/stores/editor-outline'
 import useSyncStore from '@/stores/sync'
 import useChatStore, { type PendingQuote } from '@/stores/chat'
 import { ArrowUp, Eye, Loader2, X } from 'lucide-react'
@@ -2571,6 +2572,7 @@ export function TipTapEditor({
     showEditorUndoRedo,
     showMobileEditorToolbar,
     enableOutline,
+    outlinePlacement,
     primaryBackupMethod,
     workspacePath,
     setEditorViewMode,
@@ -5865,6 +5867,24 @@ export function TipTapEditor({
     trySetMarkdownContent,
     viewMode,
   ])
+
+  // Only the active desktop Markdown pane supplies the shared sidebar outline.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !isActive || isMobile || isSourceView
+      || !onToggleOutline || !activeFilePath || outlinePlacement !== 'sidebar') return
+
+    const unregister = useEditorOutlineStore.getState().register({
+      editor,
+      documentKey: `${workspacePath}:${activeFilePath}`,
+    })
+    editor.on('destroy', unregister)
+    editor.on('unmount', unregister)
+    return () => {
+      editor.off('destroy', unregister)
+      editor.off('unmount', unregister)
+      unregister()
+    }
+  }, [activeFilePath, editor, isActive, isMobile, isSourceView, onToggleOutline, outlinePlacement, workspacePath])
 
   // Listen to editor transactions and notify header/tab bar about undo/redo state
   useEffect(() => {

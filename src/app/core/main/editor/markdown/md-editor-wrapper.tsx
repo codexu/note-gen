@@ -16,6 +16,7 @@ import {
 import { Store } from '@tauri-apps/plugin-store'
 import { useShallow } from 'zustand/react/shallow'
 import useSettingStore from '@/stores/setting'
+import { useSidebarStore } from '@/stores/sidebar'
 import {
   editorPathsReferToSameFile,
   getCurrentEditorWorkspaceRoot,
@@ -52,10 +53,12 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
   const {
     enableOutline,
     outlinePosition,
+    outlinePlacement,
     workspacePath,
   } = useSettingStore(useShallow((state) => ({
     enableOutline: state.enableOutline,
     outlinePosition: state.outlinePosition,
+    outlinePlacement: state.outlinePlacement,
     workspacePath: state.workspacePath,
   })))
 
@@ -231,7 +234,14 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     return () => { disposed = true }
   }, [enableOutline, filePath, workspacePath])
 
+  const sidebarOutlineOpen = useSidebarStore(state => state.leftSidebarVisible && state.leftSidebarTab === 'outline')
   const handleToggleOutline = useCallback(() => {
+    if (outlinePlacement === 'sidebar') {
+      const sidebar = useSidebarStore.getState()
+      void sidebar.setLeftSidebarTab(sidebarOutlineOpen ? 'files' : 'outline')
+      if (!sidebar.leftSidebarVisible) void sidebar.toggleLeftSidebar()
+      return
+    }
     setOutlineOpen(current => {
       const next = !current
       void Store.load('store.json').then(async store => {
@@ -240,7 +250,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
       })
       return next
     })
-  }, [filePath, workspacePath])
+  }, [filePath, workspacePath, outlinePlacement, sidebarOutlineOpen])
 
   const handleOutlineWidthChange = useCallback((width: number) => {
     setOutlineWidth(normalizeOutlineWidth(width))
@@ -475,7 +485,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     )
   }
 
-  const showOutline = outlineOpen && !isThisEditorPulling && editorReady && editorInstance
+  const showOutline = outlinePlacement === 'editor' && outlineOpen && !isThisEditorPulling && editorReady && editorInstance
   const renderOutline = () => editorInstance ? (
     <Outline
       editor={editorInstance}
@@ -516,7 +526,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
         placeholder={tEditor('placeholder')}
         activeFilePath={filePath}
         onEditorReady={handleEditorReady}
-          outlineOpen={outlineOpen}
+        outlineOpen={outlinePlacement === 'sidebar' ? sidebarOutlineOpen : outlineOpen}
         outlinePosition={outlinePosition}
         outlineWidth={outlineWidth}
         outlineInLayout

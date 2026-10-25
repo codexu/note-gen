@@ -1179,6 +1179,12 @@
       },
       "outlineEnable": "Default outline enabled",
       "outlineEnableDesc": "Enabling it will make the outline visible by default.",
+      "outlinePlacement": "Outline display area",
+      "outlinePlacementDesc": "Show the outline inside the editor or in a left sidebar tab that follows the active note.",
+      "outlinePlacementOptions": {
+        "editor": "Inside editor",
+        "sidebar": "Left sidebar"
+      },
       "outlinePosition": "Outline position",
       "outlinePositionDesc": "Set outline position.",
       "outlinePositionOptions": {
@@ -5842,6 +5848,7 @@
       "searching": "Searching related files..."
     },
     "outline": {
+      "sidebarEmpty": "Open a Markdown note in visual mode to view its outline.",
       "title": "Outline",
       "open": "Open Outline",
       "close": "Close Outline",

@@ -8,6 +8,9 @@ import { isMobileDevice } from "@/lib/check"
 import { platform } from "@tauri-apps/plugin-os"
 import { isEditableKeyboardTarget } from "@/lib/is-editable-keyboard-target"
 import { flattenFileTree, getFileSelectionEntries, toClipboardItems } from "./file-selection"
+import { useTranslations } from 'next-intl'
+import { toast } from '@/hooks/use-toast'
+import { pasteIntoFolder } from './folder-item/paste-into-folder'
 import { useShallow } from 'zustand/react/shallow'
 import { useWorkspaceFileWatcher } from './use-workspace-file-watcher'
 import useSettingStore from '@/stores/setting'
@@ -44,7 +47,8 @@ function useFileManagerShortcuts() {
   }), [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles, pendingDeletionPaths, workspacePath])
   const { setClipboardItem, setClipboardItems } = useClipboardStore()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
-  const [isFocused, setIsFocused] = useState(false)
+  const t = useTranslations('article.file')
+  const pastingRef = useRef(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
 
   // 检测当前平台
@@ -92,25 +96,71 @@ function useFileManagerShortcuts() {
     return findInTree(visibleFileTree, activeFilePath)
   }, [activeFilePath, visibleFileTree])
 
-  // 处理快捷键
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // 移动端不处理快捷键
-    if (isMobileDevice()) {
-      return
-    }
+  // 直接检查实际焦点，避免焦点状态与文件树 DOM 不同步。
+  const canHandleEvent = useCallback((event: Event) => {
+    const sidebar = sidebarRef.current
+    return !isMobileDevice()
+      && !event.defaultPrevented
+      && !!sidebar
+      && sidebar.contains(document.activeElement)
+      && !isEditableKeyboardTarget(event.target)
+  }, [])
 
-    const editableTarget = isEditableKeyboardTarget(e.target)
-    if (editableTarget) {
-      return
-    }
-
-    // 只有文件管理器有焦点时才处理
-    if (!isFocused) {
-      return
-    }
+  const handleClipboard = useCallback((event: Event, operation: 'copy' | 'cut' | 'paste') => {
+    if (!canHandleEvent(event)) return
 
     const selectedEntries = getFileSelectionEntries(visibleFileTree, selectedFilePaths)
-    const allSelectedEntriesAreLocal = selectedEntries.every(entry => entry.isLocale)
+    const activeItem = getActiveItem()
+
+    if (operation === 'paste') {
+      const target = selectedEntries.length === 1 ? selectedEntries[0] : activeItem
+      if (target && !target.isLocale) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      if (pastingRef.current) return
+      const folderPath = !target ? '' : target.isDirectory
+        ? target.path : target.path.split('/').slice(0, -1).join('/')
+      pastingRef.current = true
+      const clipboard = useClipboardStore.getState()
+      void pasteIntoFolder({
+        clipboardItem: clipboard.clipboardItem,
+        clipboardItems: clipboard.clipboardItems,
+        clipboardOperation: clipboard.clipboardOperation,
+        folderPath,
+        emptyToastTitle: t('clipboard.empty'),
+        pastedToastTitle: t('clipboard.pasted'),
+        pasteFailedToastTitle: t('clipboard.pasteFailed'),
+        loadFileTree: useArticleStore.getState().loadFileTree,
+        setClipboardItem,
+      }).catch(error => {
+        console.error('File manager paste failed:', error)
+        toast({ title: t('clipboard.pasteFailed'), variant: 'destructive' })
+      }).finally(() => {
+        pastingRef.current = false
+      })
+      return
+    }
+
+    if (selectedEntries.length > 0) {
+      if (!selectedEntries.every(entry => entry.isLocale)) return
+      setClipboardItems(toClipboardItems(selectedEntries), operation)
+    } else if (activeItem?.isLocale) {
+      setClipboardItem(activeItem, operation)
+    } else {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    toast({ title: t(operation === 'copy' ? 'clipboard.copied' : 'clipboard.cut') })
+  }, [canHandleEvent, getActiveItem, selectedFilePaths, setClipboardItem, setClipboardItems, t, visibleFileTree])
+
+  // 处理快捷键
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!canHandleEvent(e) || e.isComposing) return
+
+    const selectedEntries = getFileSelectionEntries(visibleFileTree, selectedFilePaths)
     const activeItem = getActiveItem()
 
     const modPressed = isModKey(e)
@@ -139,60 +189,13 @@ function useFileManagerShortcuts() {
       return
     }
 
+    const key = e.key.toLowerCase()
+    if (modPressed && !e.altKey && !e.shiftKey && (key === 'c' || key === 'x' || key === 'v')) {
+      handleClipboard(e, key === 'c' ? 'copy' : key === 'x' ? 'cut' : 'paste')
+      return
+    }
+
     if (selectedEntries.length === 0 && (!activeItem || !activeItem.isLocale)) {
-      return
-    }
-
-    // 复制: Cmd+C / Ctrl+C
-    if (modPressed && e.key === 'c') {
-      e.preventDefault()
-      e.stopPropagation()
-      if (selectedEntries.length > 0) {
-        if (allSelectedEntriesAreLocal) {
-          setClipboardItems(toClipboardItems(selectedEntries), 'copy')
-        }
-      } else if (activeItem) {
-        setClipboardItem({
-          path: activeItem.path,
-          name: activeItem.name,
-          isDirectory: activeItem.isDirectory,
-          sha: activeItem.sha,
-          isLocale: activeItem.isLocale
-        }, 'copy')
-      }
-      return
-    }
-
-    // 剪切: Cmd+X / Ctrl+X
-    if (modPressed && e.key === 'x') {
-      e.preventDefault()
-      e.stopPropagation()
-      if (selectedEntries.length > 0) {
-        if (allSelectedEntriesAreLocal) {
-          setClipboardItems(toClipboardItems(selectedEntries), 'cut')
-        }
-      } else if (activeItem) {
-        setClipboardItem({
-          path: activeItem.path,
-          name: activeItem.name,
-          isDirectory: activeItem.isDirectory,
-          sha: activeItem.sha,
-          isLocale: activeItem.isLocale
-        }, 'cut')
-      }
-      return
-    }
-
-    // 粘贴: Cmd+V / Ctrl+V
-    if (modPressed && e.key === 'v') {
-      e.preventDefault()
-      e.stopPropagation()
-      // 触发粘贴操作（通过事件或直接调用）
-      const pasteTargetPath = selectedEntries.length === 1 ? selectedEntries[0].path : activeItem?.path
-      if (pasteTargetPath) {
-        const event = new CustomEvent('filemanager-paste', { detail: { targetPath: pasteTargetPath } })
-        window.dispatchEvent(event)
-      }
       return
     }
 
@@ -211,7 +214,7 @@ function useFileManagerShortcuts() {
       }
       return
     }
-  }, [isFocused, getActiveItem, isModKey, currentPlatform, selectedFilePaths, setClipboardItem, setClipboardItems, visibleFileTree, deleteEntries])
+  }, [canHandleEvent, getActiveItem, isModKey, currentPlatform, selectedFilePaths, visibleFileTree, deleteEntries, handleClipboard])
 
   // 注册全局快捷键
   useEffect(() => {
@@ -219,60 +222,35 @@ function useFileManagerShortcuts() {
       return
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keydown', handleKeyDown, true)
     }
   }, [handleKeyDown, currentPlatform])
 
-  // 焦点处理
-  const handleFocusIn = useCallback((e: FocusEvent) => {
-    // 检查焦点是否在文件管理器区域内
-    if (sidebarRef.current && sidebarRef.current.contains(e.target as Node)) {
-      setIsFocused(true)
-    }
-  }, [])
-
-  const handleFocusOut = useCallback((e: FocusEvent) => {
-    // 检查焦点是否移到了 sidebar 外部
-    // relatedTarget 是即将获得焦点的元素
-    const newFocusedElement = e.relatedTarget as Node
-
-    if (sidebarRef.current && newFocusedElement) {
-      // 如果新焦点元素不在 sidebar 内，才设置 isFocused = false
-      if (!sidebarRef.current.contains(newFocusedElement)) {
-        setIsFocused(false)
-      }
-    } else if (!newFocusedElement) {
-      // 如果 relatedTarget 为 null（焦点移到了文档外），设置 isFocused = false
-      setIsFocused(false)
-    }
-    // 否则，焦点还在 sidebar 内，保持 isFocused = true
-  }, [])
-
+  // 原生菜单可能直接触发剪贴板事件；已处理的 keydown 会取消默认行为，避免重复执行。
   useEffect(() => {
-    if (sidebarRef.current) {
-      sidebarRef.current.addEventListener('focusin', handleFocusIn)
-      sidebarRef.current.addEventListener('focusout', handleFocusOut)
-
-      return () => {
-        sidebarRef.current?.removeEventListener('focusin', handleFocusIn)
-        sidebarRef.current?.removeEventListener('focusout', handleFocusOut)
-      }
+    if (isMobileDevice()) return
+    const onCopy = (event: ClipboardEvent) => handleClipboard(event, 'copy')
+    const onCut = (event: ClipboardEvent) => handleClipboard(event, 'cut')
+    const onPaste = (event: ClipboardEvent) => handleClipboard(event, 'paste')
+    window.addEventListener('copy', onCopy, true)
+    window.addEventListener('cut', onCut, true)
+    window.addEventListener('paste', onPaste, true)
+    return () => {
+      window.removeEventListener('copy', onCopy, true)
+      window.removeEventListener('cut', onCut, true)
+      window.removeEventListener('paste', onPaste, true)
     }
-  }, [handleFocusIn, handleFocusOut])
+  }, [handleClipboard])
 
   // 主动设置焦点到文件管理器
   const focusSidebar = useCallback(() => {
-    setIsFocused(true)
-    // 使用 requestAnimationFrame 确保 DOM 更新后再设置焦点
-    requestAnimationFrame(() => {
-      sidebarRef.current?.focus()
-    })
+    sidebarRef.current?.focus({ preventScroll: true })
   }, [])
 
-  return { sidebarRef, isFocused, focusSidebar }
+  return { sidebarRef, focusSidebar }
 }
 
 export function FileSidebar() {

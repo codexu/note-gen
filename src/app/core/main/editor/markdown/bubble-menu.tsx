@@ -3,6 +3,7 @@
 import { PluginEditorToolbar } from '@/components/plugins/plugin-editor-toolbar'
 import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import { Editor } from '@tiptap/react'
+import { ColorMenu } from './color-menu'
 import {
   Bold,
   Italic,
@@ -12,7 +13,6 @@ import {
   Link,
   Unlink,
   ExternalLink,
-  Highlighter,
   Quote,
   List,
   ListOrdered,
@@ -698,7 +698,6 @@ export function BubbleMenu({
   const toggleStrike = () => editor.chain().focus().toggleStrike().run()
   const toggleUnderline = () => editor.chain().focus().toggleUnderline().run()
   const toggleCode = () => editor.chain().focus().toggleCode().run()
-  const toggleHighlight = () => editor.chain().focus().toggleHighlight().run()
   const toggleBlockquote = () => editor.chain().focus().toggleBlockquote().run()
   const toggleBulletList = () => editor.chain().focus().toggleBulletList().run()
   const toggleOrderedList = () => editor.chain().focus().toggleOrderedList().run()
@@ -957,7 +956,8 @@ export function BubbleMenu({
           <ToolbarButton active={isActive('strike')} onClick={toggleStrike} title={t('bubbleMenu.strike')}><Strikethrough /></ToolbarButton>
           <ToolbarButton active={isActive('underline')} onClick={toggleUnderline} title={t('bubbleMenu.underline')}><Underline /></ToolbarButton>
           <ToolbarButton active={isActive('code')} onClick={toggleCode} title={t('bubbleMenu.inlineCode')}><Code /></ToolbarButton>
-          <ToolbarButton active={isActive('highlight')} onClick={toggleHighlight} title={t('bubbleMenu.highlight')}><Highlighter /></ToolbarButton>
+          <ColorMenu editor={editor} owner={pluginMenuOwner} />
+          <ColorMenu editor={editor} owner={pluginMenuOwner} highlight />
         </div>
 
         <ToolbarSeparator />

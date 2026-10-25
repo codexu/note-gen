@@ -5897,6 +5897,17 @@
       "normalQuote": "Regular quote"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "Text color",
+        "highlight": "Highlight color",
+        "clear": "Clear color",
+        "red": "Red",
+        "orange": "Orange",
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "purple": "Purple"
+      },
       "ai": "AI",
       "polish": "Polish",
       "concise": "Concise",

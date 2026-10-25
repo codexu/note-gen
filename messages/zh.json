@@ -5897,6 +5897,17 @@
       "normalQuote": "普通引用"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "字体颜色",
+        "highlight": "高亮颜色",
+        "clear": "清除颜色",
+        "red": "红色",
+        "orange": "橙色",
+        "yellow": "黄色",
+        "green": "绿色",
+        "blue": "蓝色",
+        "purple": "紫色"
+      },
       "ai": "AI",
       "polish": "润色",
       "concise": "精简",

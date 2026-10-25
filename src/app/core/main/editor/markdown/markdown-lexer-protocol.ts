@@ -1,7 +1,7 @@
 import type { TokensList } from 'marked'
 
 // Bump when changing the parser contract so an old generated asset is rejected.
-export const MARKDOWN_LEXER_VERSION = 1
+export const MARKDOWN_LEXER_VERSION = 2
 
 export interface MarkdownLexerRequest {
   type: 'tokenize'

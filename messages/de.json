@@ -5757,6 +5757,17 @@
       "normalQuote": "Normales Zitat"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "Textfarbe",
+        "highlight": "Hervorhebungsfarbe",
+        "clear": "Farbe entfernen",
+        "red": "Rot",
+        "orange": "Orange",
+        "yellow": "Gelb",
+        "green": "Grün",
+        "blue": "Blau",
+        "purple": "Violett"
+      },
       "ai": "KI",
       "polish": "Überarbeiten",
       "concise": "Prägnant",

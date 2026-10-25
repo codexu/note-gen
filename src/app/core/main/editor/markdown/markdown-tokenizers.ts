@@ -1,5 +1,5 @@
 import { getExtensionField, type AnyExtension, type MarkdownTokenizer } from '@tiptap/core'
-import Highlight from '@tiptap/extension-highlight'
+import { ColorHighlight, TextColor } from './color-marks'
 import { OrderedList, TaskList } from '@tiptap/extension-list'
 import Underline from '@tiptap/extension-underline'
 import { Lexer, Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
@@ -106,7 +106,8 @@ function requireTokenizer(extension: AnyExtension): MarkdownTokenizer {
 const markdownTokenizers: readonly MarkdownTokenizer[] = [
   requireTokenizer(OrderedList),
   requireTokenizer(TaskList),
-  requireTokenizer(Highlight),
+  requireTokenizer(ColorHighlight),
+  requireTokenizer(TextColor),
   requireTokenizer(Underline),
   inlineMathTokenizer,
   blockMathTokenizer,

@@ -5796,6 +5796,17 @@
       "normalQuote": "一般引用"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "字體顏色",
+        "highlight": "螢光標記顏色",
+        "clear": "清除顏色",
+        "red": "紅色",
+        "orange": "橙色",
+        "yellow": "黃色",
+        "green": "綠色",
+        "blue": "藍色",
+        "purple": "紫色"
+      },
       "ai": "AI",
       "polish": "潤色",
       "concise": "精簡",

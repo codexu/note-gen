@@ -1,11 +1,14 @@
 'use client'
 
 import type { Editor } from '@tiptap/core'
+import { useTranslations } from 'next-intl'
+import { TEXT_COLORS, HIGHLIGHT_COLORS } from './color-marks'
 import { PluginIcon } from '@/components/plugins/plugin-icon'
 import { usePluginEditorCommands } from '@/components/plugins/use-plugin-editor-commands'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { FieldSet, FieldLegend } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import {
   executePluginUserCommand,
@@ -89,6 +92,7 @@ export function MobileEditorMoreSheet({
   onSubmitCustomAiInstruction,
   onAction,
 }: MobileEditorMoreSheetProps) {
+  const colorLabel = useTranslations('editor.bubbleMenu.colors')
   const contributions = usePluginEditorCommands('mobile/writing/overflow', editor)
   const pluginCommands = pluginsEnabled ? contributions : []
 
@@ -147,6 +151,20 @@ export function MobileEditorMoreSheet({
               <ActionButton label="粗体" onClick={() => onAction('format-bold')} />
               <ActionButton label="斜体" onClick={() => onAction('format-italic')} />
               <ActionButton label="高亮" onClick={() => onAction('format-highlight')} />
+              {(['text-color', 'highlight-color'] as const).map(kind => (
+                <FieldSet key={kind} className="gap-2">
+                  <FieldLegend>{colorLabel(kind === 'text-color' ? 'text' : 'highlight')}</FieldLegend>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => onAction(`${kind}:clear`)}>{colorLabel('clear')}</Button>
+                    {(kind === 'text-color' ? TEXT_COLORS : HIGHLIGHT_COLORS).map((color, index) => (
+                      <Button key={color} variant="outline" size="sm" onClick={() => onAction(`${kind}:${color}`)}>
+                        <span aria-hidden="true" className="size-4 rounded-sm border" style={{ backgroundColor: color }} />
+                        {colorLabel(['red', 'orange', 'yellow', 'green', 'blue', 'purple'][index])}
+                      </Button>
+                    ))}
+                  </div>
+                </FieldSet>
+              ))}
             </>
           )}
 

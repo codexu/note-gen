@@ -5806,6 +5806,17 @@
       "normalQuote": "通常の引用"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "文字色",
+        "highlight": "ハイライト色",
+        "clear": "色を解除",
+        "red": "赤",
+        "orange": "オレンジ",
+        "yellow": "黄",
+        "green": "緑",
+        "blue": "青",
+        "purple": "紫"
+      },
       "ai": "AI",
       "polish": "添削",
       "concise": "簡潔に",

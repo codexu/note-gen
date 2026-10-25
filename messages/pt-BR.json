@@ -5770,6 +5770,17 @@
       "normalQuote": "Citação comum"
     },
     "bubbleMenu": {
+      "colors": {
+        "text": "Cor do texto",
+        "highlight": "Cor de destaque",
+        "clear": "Remover cor",
+        "red": "Vermelho",
+        "orange": "Laranja",
+        "yellow": "Amarelo",
+        "green": "Verde",
+        "blue": "Azul",
+        "purple": "Roxo"
+      },
       "ai": "IA",
       "polish": "Polir",
       "concise": "Conciso",

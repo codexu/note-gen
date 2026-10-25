@@ -39,7 +39,7 @@ import {
   setFileManagerDragData,
 } from '../file-dnd'
 import { debugSyncPath } from "@/lib/sync/remote-file";
-import { appDataDir } from '@tauri-apps/api/path'
+import { appDataDir, join } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { BatchSelectionContextMenu } from "../batch-selection-context-menu";
 import { getTopLevelSelectionEntries, toFileSelectionEntry, type FileSelectionEntry } from "../file-selection";
@@ -362,7 +362,7 @@ export function FolderItem({
       await openPath(pathOptions.path)
       return
     }
-    await openPath(`${await appDataDir()}/article/${path}`)
+    await openPath(await join(await appDataDir(), 'article', path))
   }
 
   function handleCutFolder() {

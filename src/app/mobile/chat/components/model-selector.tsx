@@ -4,9 +4,9 @@ import * as React from "react"
 import { useEffect, useState } from "react"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
-import { Check, ChevronRight } from "lucide-react"
+import { BotMessageSquare, BotOff, Check } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { Label } from "@/components/ui/label"
+import { ChatToolItem } from "@/app/core/main/chat/chat-tool-item"
 import {
   Drawer,
   DrawerContent,
@@ -14,10 +14,9 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
-import { NoteGenModelLabel, noteGenModelDisplayName } from '@/components/notegen-model-label'
+import { noteGenModelDisplayName } from '@/components/notegen-model-label'
 import {
   changePrimaryChatModel,
   collectGroupedChatModels,
@@ -28,12 +27,10 @@ function ModelListContent({
   groupedByConfig,
   primaryModel,
   onSelect,
-  limitedDetail,
   limitedName,
 }: {
   groupedByConfig: Record<string, GroupedChatModel[]>
   primaryModel?: string
-  limitedDetail: string
   limitedName: string
   onSelect: (modelId: string) => void
 }) {
@@ -57,7 +54,7 @@ function ModelListContent({
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm truncate"><NoteGenModelLabel model={item.model.model} builtin={item.configKey === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} /></div>
+                  <div className="font-medium text-sm truncate">{noteGenModelDisplayName(item.model.model, item.configKey === 'note-gen-free', limitedName)}</div>
                 </div>
                 <div
                   className={cn(
@@ -79,12 +76,13 @@ function ModelListContent({
 }
 
 export function ModelSelector() {
-  const { detail: limitedDetail, activeModelName: limitedName } = useNoteGenLimitedUsage()
+  const { activeModelName: limitedName } = useNoteGenLimitedUsage()
   const [groupedModels, setGroupedModels] = useState<GroupedChatModel[]>([])
   const [open, setOpen] = useState(false)
   const { primaryModel, aiModelList, initSettingData } = useSettingStore()
   const { loading, agentState } = useChatStore()
   const t = useTranslations('record.chat.input.modelSelect')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
 
   async function modelSelectChangeHandler(modelId: string) {
     const nextModel = groupedModels.find(item => item.model.id === modelId)
@@ -141,32 +139,27 @@ export function ModelSelector() {
 
   return (
     <>
-      <button
+      <ChatToolItem
+        icon={selectedModel ? BotMessageSquare : BotOff}
+        title={tTools('model.title')}
+        description={appliesNextTurn ? t('nextTurn', { model: selectedDisplayName }) : tTools('model.description')}
         onClick={() => setOpen(true)}
-        className="h-16 flex items-center justify-between w-full px-0"
-      >
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium">{t('tooltip')}</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground truncate max-w-72" title={displayedModelLabel}>
+        value={
+          <span title={displayedModelLabel}>
             {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
-            <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedName} limitedDetail={limitedDetail} />
+            {selectedDisplayName}
           </span>
-          {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
-          <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-        </div>
-      </button>
+        }
+      />
 
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent className="max-h-[70vh]">
           <DrawerHeader>
             <DrawerTitle>{t('tooltip')}</DrawerTitle>
           </DrawerHeader>
-          <div className="p-4">
+          <div className="min-w-0 overflow-x-hidden p-4">
             <ModelListContent
               limitedName={limitedName}
-              limitedDetail={limitedDetail}
               groupedByConfig={groupedByConfig}
               primaryModel={primaryModel}
               onSelect={async (modelId) => {

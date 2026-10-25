@@ -4198,23 +4198,63 @@
           "agentDescription": "Assistente inteligente, pode executar ações"
         },
         "attachImage": "Anexar imagens",
+        "toolsMenu": {
+          "groups": {
+            "conversation": "Configurações da conversa",
+            "extensions": "Extensões"
+          },
+          "model": {
+            "title": "Modelo",
+            "description": "Escolher o modelo para as respostas"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "description": "Definir o papel e o estilo das respostas"
+          },
+          "reasoning": {
+            "description": "Ajustar o esforço de raciocínio do modelo"
+          },
+          "mcp": {
+            "title": "Servidores MCP",
+            "description": "Conectar serviços e ferramentas externas"
+          },
+          "clipboard": {
+            "title": "Monitorar área de transferência",
+            "description": "Ler o conteúdo da área de transferência automaticamente"
+          }
+        },
         "addAttachment": {
           "title": "Adicionar",
           "image": {
-            "title": "Imagem"
+            "title": "Imagem",
+            "description": "Adicionar imagens do dispositivo"
           },
           "file": {
-            "title": "Arquivo"
+            "title": "Arquivo",
+            "description": "Anexar documentos locais e outros arquivos"
           },
           "folder": {
-            "title": "Pasta"
+            "title": "Pasta",
+            "description": "Anexar uma pasta e seus arquivos"
           },
           "entryCount": "{count} itens",
           "remove": "Remover {name}",
           "metadataOnly": "somente metadados",
           "readFailed": "Falha ao ler {count} anexos",
           "selectFailed": "Falha ao selecionar anexos. Tente novamente",
-          "attachmentOnlyPrompt": "Revise e analise os anexos que adicionei."
+          "attachmentOnlyPrompt": "Revise e analise os anexos que adicionei.",
+          "groups": {
+            "attachments": "Anexos locais",
+            "context": "Espaço de trabalho e Skills"
+          },
+          "resource": {
+            "title": "Referenciar notas e registros",
+            "description": "Buscar notas, registros e telas no espaço de trabalho"
+          },
+          "skill": {
+            "title": "Usar Skill",
+            "description": "Escolher uma Skill para esta mensagem"
+          }
         },
         "imageAttachment": {
           "selectSuccess": "{count, plural, one {# imagem anexada} other {# imagens anexadas}}",
@@ -4387,6 +4427,7 @@
           "loading": "Carregando..."
         },
         "composerMenu": {
+          "allAdded": "Todos os itens disponíveis já foram adicionados",
           "loading": "Carregando...",
           "empty": "Nenhum resultado correspondente",
           "commands": {
@@ -4428,7 +4469,11 @@
             "scope": {
               "global": "Global",
               "project": "Workspace"
-            }
+            },
+            "unavailable": "Nenhuma Skill disponível",
+            "emptyDescription": "Instale ou ative Skills para selecioná-las aqui.",
+            "disabledDescription": "Skills estão desativadas. Ative-as nas configurações de Skills.",
+            "manage": "Gerenciar Skills"
           },
           "resources": {
             "title": "Vincular contexto",

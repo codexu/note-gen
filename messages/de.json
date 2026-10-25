@@ -4112,23 +4112,63 @@
           "agentDescription": "Smarter Assistent, kann Aktionen ausführen"
         },
         "attachImage": "Bilder anhängen",
+        "toolsMenu": {
+          "groups": {
+            "conversation": "Gesprächseinstellungen",
+            "extensions": "Erweiterungen"
+          },
+          "model": {
+            "title": "Modell",
+            "description": "Modell für Antworten auswählen"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "description": "Rolle und Antwortstil festlegen"
+          },
+          "reasoning": {
+            "description": "Den Denkaufwand des Modells anpassen"
+          },
+          "mcp": {
+            "title": "MCP-Server",
+            "description": "Externe Dienste und Tools verbinden"
+          },
+          "clipboard": {
+            "title": "Zwischenablage überwachen",
+            "description": "Inhalte der Zwischenablage automatisch lesen"
+          }
+        },
         "addAttachment": {
           "title": "Hinzufügen",
           "image": {
-            "title": "Bild"
+            "title": "Bild",
+            "description": "Bilder von deinem Gerät hinzufügen"
           },
           "file": {
-            "title": "Datei"
+            "title": "Datei",
+            "description": "Lokale Dokumente und andere Dateien anhängen"
           },
           "folder": {
-            "title": "Ordner"
+            "title": "Ordner",
+            "description": "Einen Ordner und seine Dateien anhängen"
           },
           "entryCount": "{count} Elemente",
           "remove": "Entferne {name}",
           "metadataOnly": "nur Metadaten",
           "readFailed": "Fehler beim Lesen von {count} Anhängen",
           "selectFailed": "Fehler bei der Auswahl von Anhängen. Bitte versuche es erneut",
-          "attachmentOnlyPrompt": "Bitte überprüfe und analysiere die Anhänge, die ich hinzugefügt habe."
+          "attachmentOnlyPrompt": "Bitte überprüfe und analysiere die Anhänge, die ich hinzugefügt habe.",
+          "groups": {
+            "attachments": "Lokale Anhänge",
+            "context": "Arbeitsbereich & Skills"
+          },
+          "resource": {
+            "title": "Notizen & Aufzeichnungen zitieren",
+            "description": "Notizen, Aufzeichnungen und Canvases suchen"
+          },
+          "skill": {
+            "title": "Skill verwenden",
+            "description": "Einen Skill für diese Nachricht auswählen"
+          }
         },
         "imageAttachment": {
           "selectSuccess": "{count, plural, one {# Bild angehängt} other {# Bilder angehängt}}",
@@ -4357,6 +4397,7 @@
           "loading": "Lädt..."
         },
         "composerMenu": {
+          "allAdded": "Alle verfügbaren Einträge wurden hinzugefügt",
           "loading": "Lädt...",
           "empty": "Keine passenden Ergebnisse",
           "commands": {
@@ -4398,7 +4439,11 @@
             "scope": {
               "global": "Global",
               "project": "Arbeitsbereich"
-            }
+            },
+            "unavailable": "Keine Skills verfügbar",
+            "emptyDescription": "Installiere oder aktiviere Skills, um sie hier auszuwählen.",
+            "disabledDescription": "Skills sind deaktiviert. Aktiviere sie in den Skill-Einstellungen.",
+            "manage": "Skills verwalten"
           },
           "resources": {
             "title": "Linkkontext",

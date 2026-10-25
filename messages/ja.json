@@ -4123,23 +4123,63 @@
           "agentDescription": "スマートアシスタント、アクション実行可能"
         },
         "attachImage": "画像を添付",
+        "toolsMenu": {
+          "groups": {
+            "conversation": "会話設定",
+            "extensions": "拡張ツール"
+          },
+          "model": {
+            "title": "モデル",
+            "description": "回答に使うモデルを選択"
+          },
+          "prompt": {
+            "title": "プロンプト",
+            "description": "役割と回答スタイルを設定"
+          },
+          "reasoning": {
+            "description": "モデルの思考の強さを調整"
+          },
+          "mcp": {
+            "title": "MCP サーバー",
+            "description": "外部サービスやツールに接続"
+          },
+          "clipboard": {
+            "title": "クリップボード監視",
+            "description": "クリップボードの内容を自動取得"
+          }
+        },
         "addAttachment": {
           "title": "追加",
           "image": {
-            "title": "画像"
+            "title": "画像",
+            "description": "端末から画像を追加"
           },
           "file": {
-            "title": "ファイル"
+            "title": "ファイル",
+            "description": "ローカルの文書やファイルを添付"
           },
           "folder": {
-            "title": "フォルダ"
+            "title": "フォルダ",
+            "description": "フォルダーとその中のファイルを添付"
           },
           "entryCount": "{count} 件",
           "remove": "{name} を削除",
           "metadataOnly": "メタデータのみ",
           "readFailed": "{count} 件の添付ファイルを読み取れませんでした",
           "selectFailed": "添付ファイルを選択できませんでした。もう一度お試しください",
-          "attachmentOnlyPrompt": "追加した添付ファイルを確認して分析してください。"
+          "attachmentOnlyPrompt": "追加した添付ファイルを確認して分析してください。",
+          "groups": {
+            "attachments": "ローカル添付",
+            "context": "ワークスペースとスキル"
+          },
+          "resource": {
+            "title": "ノート・記録を参照",
+            "description": "ワークスペースのノート・記録・キャンバスを検索"
+          },
+          "skill": {
+            "title": "スキルを使用",
+            "description": "このメッセージで使う Skill を選択"
+          }
         },
         "imageAttachment": {
           "selectSuccess": "{count} 枚の画像を添付しました",
@@ -4312,6 +4352,7 @@
           "loading": "読み込み中..."
         },
         "composerMenu": {
+          "allAdded": "すべての項目が追加済みです",
           "loading": "読み込み中...",
           "empty": "一致する結果がありません",
           "commands": {
@@ -4353,7 +4394,11 @@
             "scope": {
               "global": "グローバル",
               "project": "ワークスペース"
-            }
+            },
+            "unavailable": "利用できるスキルがありません",
+            "emptyDescription": "スキルをインストールまたは有効にすると、ここで選択できます。",
+            "disabledDescription": "Skills は無効です。スキル設定で有効にしてください。",
+            "manage": "スキルを管理"
           },
           "resources": {
             "title": "コンテキストをリンク",

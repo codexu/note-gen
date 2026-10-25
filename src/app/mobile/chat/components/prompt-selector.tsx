@@ -3,9 +3,9 @@
 import * as React from "react"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Check, ChevronRight } from "lucide-react"
+import { Check, Drama } from "lucide-react"
 import usePromptStore from "@/stores/prompt"
-import { Label } from "@/components/ui/label"
+import { ChatToolItem } from "@/app/core/main/chat/chat-tool-item"
 import {
   Drawer,
   DrawerContent,
@@ -61,6 +61,7 @@ export function PromptSelector() {
   const { promptList, currentPrompt, initPromptData, setCurrentPrompt } = usePromptStore()
   const [open, setOpen] = useState(false)
   const t = useTranslations('record.chat.input.promptSelect')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
 
   useEffect(() => {
     initPromptData()
@@ -74,20 +75,13 @@ export function PromptSelector() {
 
   return (
     <>
-      <button
+      <ChatToolItem
+        icon={Drama}
+        title={tTools('prompt.title')}
+        description={tTools('prompt.description')}
+        value={<span title={currentPrompt?.title}>{currentPrompt?.title || '-'}</span>}
         onClick={() => setOpen(true)}
-        className="h-16 flex items-center justify-between w-full px-0"
-      >
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium">{t('tooltip')}</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground truncate max-w-40">
-            {currentPrompt?.title || t('tooltip')}
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-        </div>
-      </button>
+      />
 
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent className="max-h-[70vh]">

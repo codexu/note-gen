@@ -2,7 +2,7 @@ import * as React from "react"
 import { useEffect, useState } from "react"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
-import { BotMessageSquare, BotOff, ChevronRight } from "lucide-react"
+import { BotMessageSquare, BotOff } from "lucide-react"
 import {
   Popover,
   PopoverContent,
@@ -19,11 +19,11 @@ import {
 import { useTranslations } from "next-intl"
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item"
+import { ChatToolItem } from "./chat-tool-item"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { useNoteGenLimitedUsage } from '@/hooks/use-notegen-limited-usage'
-import { NoteGenModelLabel, noteGenModelDisplayName } from '@/components/notegen-model-label'
+import { noteGenModelDisplayName } from '@/components/notegen-model-label'
 import {
   changePrimaryChatModel,
   collectGroupedChatModels,
@@ -41,6 +41,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
   const { loading, agentState } = useChatStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.modelSelect')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
   const limitedUsage = useNoteGenLimitedUsage()
 
   async function modelSelectChangeHandler(modelId: string) {
@@ -113,26 +114,23 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
             {selectedModel ? <BotMessageSquare data-icon="inline-start" /> : <BotOff data-icon="inline-start" />}
             <span className="truncate">
               {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
-              <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} />
+              {selectedDisplayName}
             </span>
             {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
           </Button>
         ) : display === 'panel' ? (
-          <Item asChild size="sm" className="min-h-10 flex-nowrap py-2 cursor-pointer hover:bg-muted">
-            <button type="button" disabled={disabled}>
-              <ItemContent className="min-w-0">
-                <ItemTitle className="min-w-0 truncate">{t('tooltip')}</ItemTitle>
-              </ItemContent>
-              <ItemActions className="shrink-0">
-                <span className="max-w-64 truncate text-xs text-muted-foreground" title={displayedModelLabel}>
-                  {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
-                  <NoteGenModelLabel model={selectedModelLabel} builtin={selectedModel?.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} />
-                </span>
-                {appliesNextTurn && <Badge variant="secondary">{t('nextTurnBadge')}</Badge>}
-                <ChevronRight />
-              </ItemActions>
-            </button>
-          </Item>
+          <ChatToolItem
+            icon={selectedModel ? BotMessageSquare : BotOff}
+            title={tTools('model.title')}
+            description={appliesNextTurn ? t('nextTurn', { model: selectedDisplayName }) : tTools('model.description')}
+            disabled={disabled}
+            value={
+              <span title={displayedModelLabel}>
+                {appliesNextTurn && `${agentState.activeModelName || agentState.activeModelId} → `}
+                {selectedDisplayName}
+              </span>
+            }
+          />
         ) : (
           <div className="hidden md:block">
             <TooltipButton
@@ -150,12 +148,13 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
       >
         <Command>
           <CommandInput placeholder={t('placeholder')} className="h-9" />
-          <CommandList>
+          <CommandList className="min-w-0 overflow-x-hidden">
             <CommandEmpty>{t('noModel')}</CommandEmpty>
             {Object.entries(groupedByConfig).map(([configTitle, models]) => (
               <CommandGroup key={configTitle} heading={configTitle}>
                 {models.map((item) => (
                   <CommandItem
+                    className="min-w-0"
                     key={item.model.id}
                     value={item.model.id}
                     data-checked={primaryModel === item.model.id}
@@ -164,8 +163,8 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
                       setOpen(false)
                     }}
                   >
-                    <div className="flex flex-col">
-                      <span className="font-medium"><NoteGenModelLabel model={item.model.model} builtin={item.configKey === 'note-gen-free'} limitedName={limitedUsage.activeModelName} limitedDetail={limitedUsage.detail} /></span>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium">{noteGenModelDisplayName(item.model.model, item.configKey === 'note-gen-free', limitedUsage.activeModelName)}</span>
                     </div>
                   </CommandItem>
                 ))}

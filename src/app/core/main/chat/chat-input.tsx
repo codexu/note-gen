@@ -286,6 +286,33 @@ export const ChatInput = React.memo(function ChatInput() {
       visibleActiveTabContexts,
     ]
   )
+  const associatedComposerItemKeys = React.useMemo(() => {
+    const keys = new Set<string>()
+    if (linkedResource) {
+      const kind = isLinkedFolder(linkedResource) ? 'folder' : 'file'
+      keys.add(`${kind}:${linkedResource.path}`)
+      keys.add(`${kind}:${linkedResource.relativePath}`)
+    }
+    for (const context of [...visibleActiveTabContexts, ...visibleMentionedContexts]) {
+      if (context.kind === 'file') {
+        keys.add(`file:${context.file.path}`)
+        keys.add(`file:${context.file.relativePath}`)
+      } else if (context.kind === 'record') {
+        keys.add(context.record.articlePath)
+      } else {
+        keys.add(`canvas:${context.canvas.canvasId}`)
+      }
+    }
+    if (activeQuote) {
+      keys.add(activeQuote.articlePath.startsWith('record:')
+        ? activeQuote.articlePath : `file:${activeQuote.articlePath}`)
+    }
+    if (canvasSelectionContext) keys.add(`canvas:${canvasSelectionContext.canvasId}`)
+    for (const skill of selectedSkills) keys.add(`skill:${skill.id}`)
+    for (const attachment of fileAttachments) keys.add(`${attachment.kind}:${attachment.path}`)
+    return keys
+  }, [activeQuote, canvasSelectionContext, fileAttachments, linkedResource, selectedSkills, visibleActiveTabContexts, visibleMentionedContexts])
+
   const contextUsageLinkedResourceIsActiveFile = Boolean(
     linkedResource
     && !isLinkedFolder(linkedResource)
@@ -427,7 +454,7 @@ export const ChatInput = React.memo(function ChatInput() {
     }
 
     if (composerMenu) {
-      const menuTrigger = composerMenu.mode === 'command' ? '/' : '@'
+      const menuTrigger = composerMenu.mode === 'resource' ? '@' : '/'
       const triggerStillExists = nextText[composerMenu.start] === menuTrigger
       if (!triggerStillExists || cursor <= composerMenu.start) {
         setComposerMenu(null)
@@ -444,6 +471,21 @@ export const ChatInput = React.memo(function ChatInput() {
     textarea.style.height = 'auto'
     const newHeight = Math.min(textarea.scrollHeight, 240)
     textarea.style.height = `${newHeight}px`
+  }
+
+  function openComposerMenu(mode: 'resource' | 'skill') {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionEnd ?? text.length
+    const prefix = start > 0 && !/\s/.test(text[start - 1]) ? ' ' : ''
+    const trigger = mode === 'resource' ? '@' : '/'
+    const nextText = `${text.slice(0, start)}${prefix}${trigger}${text.slice(start)}`
+    const triggerStart = start + prefix.length
+    applyTypedText(nextText)
+    setComposerMenu({ mode, start: triggerStart, query: '' })
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(triggerStart + 1, triggerStart + 1)
+    })
   }
 
   function closeComposerMenu() {
@@ -634,6 +676,24 @@ export const ChatInput = React.memo(function ChatInput() {
     }
   }
 
+  function removeBrowserPage(key: string) {
+    setLockedKeys(current => current.filter(item => item !== key))
+    setLockedBrowserPages(current => current.filter(page => getBrowserContextKey(page.id, page.url) !== key))
+    if (key === activeBrowserContextKey) {
+      setDismissedBrowserPageKey(browserPageKey)
+    }
+  }
+
+  function removeSkill(skillId: string) {
+    setLockedKeys(current => current.filter(key => key !== getSkillContextKey(skillId)))
+    setSelectedSkills(current => current.filter(skill => skill.id !== skillId))
+  }
+
+  function removeMentionedContext(key: string) {
+    setLockedKeys(current => current.filter(item => item !== key))
+    setMentionedContexts(current => current.filter(context => getMentionedContextKey(context) !== key))
+  }
+
   function removeCanvasContext() {
     if (canvasSelectionContext) {
       const key = getCanvasSelectionContextKey(canvasSelectionContext)
@@ -684,6 +744,53 @@ export const ChatInput = React.memo(function ChatInput() {
     setLockedQuote(null)
     clearPendingQuote()
     clearEditorSelectionQuote()
+  }
+
+  // 按界面展示顺序，从最靠近输入框的最后一项开始逐个移除。
+  function removeLastComposerContext(): boolean {
+    const lastFile = fileAttachments.at(-1)
+    if (lastFile) {
+      removeFileAttachment(lastFile.id)
+      return true
+    }
+    const lastImage = attachedImages.at(-1)
+    if (lastImage) {
+      removeImage(lastImage.id)
+      return true
+    }
+    const lastSkill = selectedSkills.at(-1)
+    if (lastSkill) {
+      removeSkill(lastSkill.id)
+      return true
+    }
+    const lastMentionedContext = visibleMentionedContexts.at(-1)
+    if (lastMentionedContext) {
+      removeMentionedContext(getMentionedContextKey(lastMentionedContext))
+      return true
+    }
+    if (canvasSelectionContext) {
+      removeCanvasContext()
+      return true
+    }
+    if (activeQuote) {
+      removeQuote()
+      return true
+    }
+    const lastBrowserPage = visibleBrowserPages.at(-1)
+    if (lastBrowserPage) {
+      removeBrowserPage(getBrowserContextKey(lastBrowserPage.tabId, lastBrowserPage.url))
+      return true
+    }
+    const lastActiveContext = visibleActiveTabContexts.at(-1)
+    if (lastActiveContext) {
+      removeActiveTabContext(getMentionedContextKey(lastActiveContext))
+      return true
+    }
+    if (linkedResource) {
+      removeLinkedFile()
+      return true
+    }
+    return false
   }
 
   function showImageSuccessToast(count: number, key: 'selectSuccess' | 'pasteSuccess' | 'dropSuccess') {
@@ -1475,25 +1582,11 @@ ${previewLines.join('\n')}
           onToggleLock={toggleContextLock}
           onRemoveLinkedResource={removeLinkedFile}
           onRemoveActiveTabContext={removeActiveTabContext}
-          onRemoveBrowserPage={key => {
-            setLockedKeys(current => current.filter(item => item !== key))
-            setLockedBrowserPages(current => current.filter(page => getBrowserContextKey(page.id, page.url) !== key))
-            if (key === activeBrowserContextKey) {
-              setDismissedBrowserPageKey(browserPageKey)
-            }
-          }}
+          onRemoveBrowserPage={removeBrowserPage}
           onRemoveQuote={removeQuote}
           onRemoveCanvas={removeCanvasContext}
-          onRemoveSkill={skillId => {
-            setLockedKeys(current => current.filter(key => key !== getSkillContextKey(skillId)))
-            setSelectedSkills(current => current.filter(skill => skill.id !== skillId))
-          }}
-          onRemoveMentionedContext={key => {
-            setLockedKeys(current => current.filter(item => item !== key))
-            setMentionedContexts(current =>
-              current.filter(context => getMentionedContextKey(context) !== key)
-            )
-          }}
+          onRemoveSkill={removeSkill}
+          onRemoveMentionedContext={removeMentionedContext}
         />
         <ImageAttachments images={attachedImages} onRemove={removeImage} />
         <PendingFileAttachments attachments={fileAttachments} onRemove={removeFileAttachment} />
@@ -1518,6 +1611,24 @@ ${previewLines.join('\n')}
               const cursorPosition = textarea.selectionStart
               const isAtStart = cursorPosition === 0
               const isAtEnd = cursorPosition === text.length
+
+              if (
+                e.key === 'Backspace'
+                && isAtStart
+                && textarea.selectionEnd === 0
+                && !isComposing
+                && !e.nativeEvent.isComposing
+                && e.keyCode !== 229
+                && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey
+              ) {
+                // 长按只移除一项，避免连续清空引用或附件。
+                if (e.repeat) return
+                if (removeLastComposerContext()) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  return
+                }
+              }
 
               if (composerMenu && !isComposing) {
                 if (e.key === "ArrowDown") {
@@ -1590,6 +1701,8 @@ ${previewLines.join('\n')}
               onSelectImages={isMobile ? handleSelectFromGallery : handleSelectLocalImages}
               onSelectFiles={handleSelectLocalFiles}
               onSelectFolders={handleSelectLocalFolders}
+              onSelectResources={() => openComposerMenu('resource')}
+              onSelectSkills={() => openComposerMenu('skill')}
             />
             {!isMobile ? (
               <ChatToolsPopover />
@@ -1648,6 +1761,7 @@ ${previewLines.join('\n')}
         ref={composerMenuRef}
         mode={composerMenu?.mode ?? null}
         query={composerMenu?.query ?? ''}
+        excludedItemKeys={associatedComposerItemKeys}
         onClose={closeComposerMenu}
         onCommandSelect={prompt => replaceComposerMenuToken(prompt)}
         onFolderSelect={relativePath => { void handleMentionFolder(relativePath) }}

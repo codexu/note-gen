@@ -1,10 +1,12 @@
 "use client"
 
 import { ToolCase } from "lucide-react"
-import { TooltipButton } from "@/components/tooltip-button"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import {
   Drawer,
   DrawerContent,
+  DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
@@ -16,33 +18,27 @@ import { useTranslations } from "next-intl"
 
 export function ChatToolsDrawer() {
   const t = useTranslations('mobile.chat.drawer')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
 
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <TooltipButton
-          variant="ghost"
-          size="icon"
-          icon={<ToolCase className="size-4" />}
-          tooltipText={t('tools.title')}
-          side="bottom"
-        />
+        <Button type="button" variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={t('tools.title')} title={t('tools.title')}>
+          <ToolCase data-icon="inline-start" />
+        </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[85vh]">
-        <DrawerTitle className="sr-only">{t('tools.title')}</DrawerTitle>
-        <div className="overflow-y-auto px-4 pb-6">
-          <div className="divide-y">
-            <div className="h-16 flex items-center w-full">
-              <ModelSelector />
-            </div>
-            <ReasoningSelect />
-            <div className="h-16 flex items-center w-full">
-              <PromptSelector />
-            </div>
-            <div className="py-2">
-              <McpSelector />
-            </div>
-          </div>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>{t('tools.title')}</DrawerTitle>
+        </DrawerHeader>
+        <div className="flex min-w-0 flex-col gap-1 overflow-x-hidden px-3 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <p className="px-2 py-2 text-xs font-medium text-muted-foreground">{tTools('groups.conversation')}</p>
+          <ModelSelector />
+          <PromptSelector />
+          <ReasoningSelect />
+          <Separator className="my-2" />
+          <p className="px-2 py-2 text-xs font-medium text-muted-foreground">{tTools('groups.extensions')}</p>
+          <McpSelector />
         </div>
       </DrawerContent>
     </Drawer>

@@ -4120,23 +4120,63 @@
           "agentDescription": "智能助手，可執行操作"
         },
         "attachImage": "附加圖片",
+        "toolsMenu": {
+          "groups": {
+            "conversation": "對話設定",
+            "extensions": "擴充工具"
+          },
+          "model": {
+            "title": "模型",
+            "description": "選擇回答所用的模型"
+          },
+          "prompt": {
+            "title": "提示詞",
+            "description": "設定角色與回答方式"
+          },
+          "reasoning": {
+            "description": "調整目前模型的思考強度"
+          },
+          "mcp": {
+            "title": "MCP 服務",
+            "description": "連接外部服務與工具"
+          },
+          "clipboard": {
+            "title": "剪貼簿監聽",
+            "description": "自動取得剪貼簿中的內容"
+          }
+        },
         "addAttachment": {
           "title": "新增",
           "image": {
-            "title": "圖片"
+            "title": "圖片",
+            "description": "從相簿或本機加入圖片"
           },
           "file": {
-            "title": "檔案"
+            "title": "檔案",
+            "description": "加入本機文件與其他檔案"
           },
           "folder": {
-            "title": "資料夾"
+            "title": "資料夾",
+            "description": "加入資料夾及其中的檔案"
           },
           "entryCount": "{count} 項",
           "remove": "移除 {name}",
           "metadataOnly": "僅中繼資料",
           "readFailed": "{count} 個附件讀取失敗",
           "selectFailed": "選擇附件失敗，請重試",
-          "attachmentOnlyPrompt": "請查看並分析我新增的附件。"
+          "attachmentOnlyPrompt": "請查看並分析我新增的附件。",
+          "groups": {
+            "attachments": "本機附件",
+            "context": "工作區與技能"
+          },
+          "resource": {
+            "title": "引用筆記與記錄",
+            "description": "搜尋工作區中的筆記、記錄和畫布"
+          },
+          "skill": {
+            "title": "使用技能",
+            "description": "為這次訊息選擇一個 Skill"
+          }
         },
         "imageAttachment": {
           "selectSuccess": "已附加 {count} 張圖片",
@@ -4309,6 +4349,7 @@
           "loading": "載入中..."
         },
         "composerMenu": {
+          "allAdded": "已新增所有可用項目",
           "loading": "正在載入...",
           "empty": "沒有符合結果",
           "commands": {
@@ -4350,7 +4391,11 @@
             "scope": {
               "global": "全域",
               "project": "工作區"
-            }
+            },
+            "unavailable": "暫無可用技能",
+            "emptyDescription": "安裝或啟用技能後，即可在這裡選擇使用。",
+            "disabledDescription": "Skills 已關閉，可在技能設定中啟用。",
+            "manage": "管理技能"
           },
           "resources": {
             "title": "關聯上下文",

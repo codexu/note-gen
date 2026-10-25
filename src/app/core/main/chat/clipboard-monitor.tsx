@@ -2,10 +2,10 @@
 import { useTranslations } from 'next-intl'
 import { Clipboard, ClipboardX } from 'lucide-react'
 import { TooltipButton } from '@/components/tooltip-button'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { Switch } from '@/components/ui/switch'
-import { Item, ItemActions, ItemContent, ItemTitle } from '@/components/ui/item'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 
 interface ClipboardMonitorProps {
   display?: 'icon' | 'panel'
@@ -13,6 +13,8 @@ interface ClipboardMonitorProps {
 
 export function ClipboardMonitor({ display = 'icon' }: ClipboardMonitorProps) {
   const t = useTranslations('record.chat.input.clipboardMonitor')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
+  const id = useId()
   const [isEnabled, setIsEnabled] = useState(true)
 
   // Sync with store.json on mount
@@ -43,14 +45,17 @@ export function ClipboardMonitor({ display = 'icon' }: ClipboardMonitorProps) {
 
   if (display === 'panel') {
     return (
-      <Item size="sm" className="min-h-10 flex-nowrap py-2">
-        <ItemContent className="min-w-0">
-          <ItemTitle>{isEnabled ? t('enable') : t('disable')}</ItemTitle>
+      <Item size="xs" className="min-h-14 flex-nowrap gap-3 px-2 py-2.5">
+        <ItemMedia variant="icon"><Clipboard /></ItemMedia>
+        <ItemContent className="min-w-0 gap-0.5">
+          <ItemTitle><label htmlFor={id}>{tTools('clipboard.title')}</label></ItemTitle>
+          <ItemDescription id={`${id}-description`}>{tTools('clipboard.description')}</ItemDescription>
         </ItemContent>
         <ItemActions className="shrink-0">
           <Switch
+            id={id}
             checked={isEnabled}
-            aria-label={isEnabled ? t('enable') : t('disable')}
+            aria-describedby={`${id}-description`}
             onCheckedChange={() => void toggleClipboardMonitor()}
           />
         </ItemActions>

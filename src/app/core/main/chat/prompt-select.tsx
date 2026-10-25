@@ -1,13 +1,13 @@
 import * as React from "react"
 import { useEffect } from "react"
 import { useTranslations } from "next-intl"
-import { ChevronRight, Drama } from "lucide-react"
+import { Drama } from "lucide-react"
 import usePromptStore from "@/stores/prompt"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item"
+import { ChatToolItem } from "./chat-tool-item"
 
 interface PromptSelectProps {
   display?: 'icon' | 'status' | 'panel'
@@ -18,6 +18,7 @@ export function PromptSelect({ display = 'icon', disabled = false }: PromptSelec
   const { promptList, currentPrompt, initPromptData, setCurrentPrompt } = usePromptStore()
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('record.chat.input.promptSelect')
+  const tTools = useTranslations('record.chat.input.toolsMenu')
 
   // 初始化prompt列表
   useEffect(() => {
@@ -46,19 +47,13 @@ export function PromptSelect({ display = 'icon', disabled = false }: PromptSelec
             <span className="truncate">{currentPrompt?.title || '-'}</span>
           </Button>
         ) : display === 'panel' ? (
-          <Item asChild size="sm" className="min-h-10 flex-nowrap py-2 cursor-pointer hover:bg-muted">
-            <button type="button" disabled={disabled}>
-              <ItemContent className="min-w-0">
-                <ItemTitle className="min-w-0 truncate">{t('tooltip')}</ItemTitle>
-              </ItemContent>
-              <ItemActions className="shrink-0">
-                <span className="max-w-28 truncate text-xs text-muted-foreground" title={currentPrompt?.title}>
-                  {currentPrompt?.title || '-'}
-                </span>
-                <ChevronRight />
-              </ItemActions>
-            </button>
-          </Item>
+          <ChatToolItem
+            icon={Drama}
+            title={tTools('prompt.title')}
+            description={tTools('prompt.description')}
+            disabled={disabled}
+            value={<span title={currentPrompt?.title}>{currentPrompt?.title || '-'}</span>}
+          />
         ) : (
           <div className="hidden md:block">
             <TooltipButton

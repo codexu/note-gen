@@ -2,10 +2,10 @@
 
 import * as React from 'react'
 import { useEffect, useState } from 'react'
-import { PlugZap, Plug, ChevronRight } from 'lucide-react'
+import { PlugZap, Plug } from 'lucide-react'
 import { useMcpStore } from '@/stores/mcp'
 import { useTranslations } from 'next-intl'
-import { Label } from '@/components/ui/label'
+import { ChatToolItem } from '@/app/core/main/chat/chat-tool-item'
 import { Badge } from '@/components/ui/badge'
 import {
   Drawer,
@@ -93,40 +93,23 @@ function McpListContent() {
 
 export function McpSelector() {
   const t = useTranslations('mcp')
-  const { servers, selectedServerIds, initMcpData } = useMcpStore()
+  const tTools = useTranslations('record.chat.input.toolsMenu')
+  const { selectedServerIds, initMcpData } = useMcpStore()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     initMcpData()
   }, [])
 
-  const enabledServers = servers.filter(s => s.enabled)
-  const selectedServers = enabledServers.filter(s => selectedServerIds.includes(s.id))
-
   return (
     <>
-      <button
+      <ChatToolItem
+        icon={Plug}
+        title={tTools('mcp.title')}
+        description={tTools('mcp.description')}
+        value={selectedServerIds.length > 0 ? <Badge variant="secondary">{selectedServerIds.length}</Badge> : undefined}
         onClick={() => setOpen(true)}
-        className="h-16 flex items-center justify-between w-full px-0"
-      >
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium">{t('selectServers')}</Label>
-          {selectedServerIds.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {selectedServerIds.length}
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground truncate max-w-40">
-            {selectedServers.length > 0
-              ? selectedServers.map(s => s.name).join(', ')
-              : t('searchServers')
-            }
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-        </div>
-      </button>
+      />
 
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent className="max-h-[70vh]">

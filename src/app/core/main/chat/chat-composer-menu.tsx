@@ -28,15 +28,26 @@ import {
   MARK_TYPE_ICONS,
 } from "@/app/core/main/mark/mark-type-meta"
 import { Button } from "@/components/ui/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { Spinner } from "@/components/ui/spinner"
+import { useSettingsDialogStore } from "@/stores/settings-dialog"
 import { getAllMarks, type Mark } from "@/db/marks"
 import { getAllMarkdownFiles, type MarkdownFile } from "@/lib/files"
 import { cn } from "@/lib/utils"
+import { getDefaultArticleAbsolutePath, getWorkspacePath } from "@/lib/workspace"
 import useCanvasStore from "@/stores/canvas"
 import { useSkillsStore } from "@/stores/skills"
 import type { CanvasProject } from "@/types/canvas"
 import type { SkillMetadata } from "@/lib/skills/types"
 
-export type ComposerMenuMode = "command" | "resource"
+export type ComposerMenuMode = "command" | "resource" | "skill"
 
 export interface ChatComposerMenuHandle {
   moveSelection: (direction: -1 | 1) => void
@@ -46,6 +57,7 @@ export interface ChatComposerMenuHandle {
 interface ChatComposerMenuProps {
   mode: ComposerMenuMode | null
   query: string
+  excludedItemKeys: ReadonlySet<string>
   onClose: () => void
   onCommandSelect: (prompt: string) => void
   onFileSelect: (file: MarkdownFile) => void
@@ -89,6 +101,7 @@ export const ChatComposerMenu = forwardRef<
 >(function ChatComposerMenu({
   mode,
   query,
+  excludedItemKeys,
   onClose,
   onCommandSelect,
   onFileSelect,
@@ -105,6 +118,7 @@ export const ChatComposerMenu = forwardRef<
   const skillsInitialized = useSkillsStore(state => state.initialized)
   const initSkills = useSkillsStore(state => state.initSkills)
   const refreshSkills = useSkillsStore(state => state.refreshSkills)
+  const [workspaceRoot, setWorkspaceRoot] = useState("")
   const [files, setFiles] = useState<MarkdownFile[]>([])
   const [records, setRecords] = useState<Mark[]>([])
   const [loading, setLoading] = useState(false)
@@ -130,8 +144,13 @@ export const ChatComposerMenu = forwardRef<
     let active = true
     setLoading(true)
 
-    const fileTask = getAllMarkdownFiles().then(nextFiles => {
+    const fileTask = Promise.all([
+      getAllMarkdownFiles(),
+      getWorkspacePath().then(workspace => workspace.isCustom
+        ? workspace.path : getDefaultArticleAbsolutePath('')),
+    ]).then(([nextFiles, root]) => {
       if (!active) return
+      setWorkspaceRoot(root)
       setFiles([...nextFiles].sort((left, right) =>
         left.relativePath.localeCompare(right.relativePath, undefined, { numeric: true })
       ))
@@ -152,15 +171,24 @@ export const ChatComposerMenu = forwardRef<
   }, [loadProjects, mode, projects.length])
 
   useEffect(() => {
-    if (mode !== "command") return
+    if (mode !== "command" && mode !== "skill") return
 
-    void (skillsInitialized ? refreshSkills() : initSkills())
+    let active = true
+    setLoading(true)
+    void (skillsInitialized ? refreshSkills() : initSkills()).catch(error => {
+      console.error('Failed to load composer skills:', error)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => {
+      active = false
+    }
   }, [initSkills, mode, refreshSkills, skillsInitialized])
 
   const items = useMemo<ComposerMenuItem[]>(() => {
-    if (mode === "command") {
+    if (mode === "command" || mode === "skill") {
       return [
-        ...COMMANDS.map(({ key, icon }) => ({
+        ...(mode === "command" ? COMMANDS : []).map(({ key, icon }) => ({
           key: `command:${key}`,
           group: t("commands.title"),
           label: t(`commands.${key}.label`),
@@ -244,17 +272,33 @@ export const ChatComposerMenu = forwardRef<
     t,
   ])
 
+  // 工作区引用可能是相对路径，本地附件则是绝对路径，统一后再去重。
+  const availableItems = useMemo(() => {
+    function normalizeItemKey(key: string) {
+      if (!key.startsWith('file:') && !key.startsWith('folder:')) return key
+      const separator = key.indexOf(':')
+      const kind = key.slice(0, separator)
+      let path = key.slice(separator + 1).replace(/\\/g, '/').replace(/\/+$/, '')
+      if (workspaceRoot && !path.startsWith('/') && !/^[a-z]:\//i.test(path)) {
+        path = `${workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '')}/${path}`
+      }
+      return `${kind}:${path}`
+    }
+    const excluded = new Set([...excludedItemKeys].map(normalizeItemKey))
+    return items.filter(item => !excluded.has(normalizeItemKey(item.key)))
+  }, [excludedItemKeys, items, workspaceRoot])
+
   const filteredItems = useMemo(() => {
     const queryTerms = normalizeSearchText(query).split(/\s+/).filter(Boolean)
-    if (queryTerms.length === 0) return items
+    if (queryTerms.length === 0) return availableItems
 
-    return items.filter(item => {
+    return availableItems.filter(item => {
       const searchableText = normalizeSearchText(
         `${item.label} ${item.description} ${item.searchText || ""}`
       )
       return queryTerms.every(term => searchableText.includes(term))
     })
-  }, [items, query])
+  }, [availableItems, query])
 
   const groups = useMemo(
     () => Array.from(new Set(filteredItems.map(item => item.group))),
@@ -263,7 +307,7 @@ export const ChatComposerMenu = forwardRef<
 
   useEffect(() => {
     setSelectedIndex(0)
-  }, [mode, query])
+  }, [mode, query, excludedItemKeys])
 
   useEffect(() => {
     selectedItemRef.current?.scrollIntoView({ block: "nearest" })
@@ -293,16 +337,41 @@ export const ChatComposerMenu = forwardRef<
     <div
       className="absolute inset-x-1 bottom-[calc(100%+0.375rem)] z-30 max-h-[min(22rem,46vh)] overflow-y-auto rounded-xl border bg-popover p-1.5 text-popover-foreground shadow-lg"
       role="listbox"
-      aria-label={mode === "command" ? t("commands.title") : t("resources.title")}
+      aria-label={mode === "resource" ? t("resources.title") : mode === "skill" ? t("skills.title") : t("commands.title")}
     >
       {loading && filteredItems.length === 0 ? (
-        <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+        <div role="status" className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-muted-foreground">
+          <Spinner className="size-4" />
           {t("loading")}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="px-2 py-4 text-center text-xs text-muted-foreground">
-          {t("empty")}
-        </div>
+        <Empty className="gap-3 py-6">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">{mode === "skill" ? <Package /> : <Search />}</EmptyMedia>
+            <EmptyTitle>{availableItems.length === 0 && items.length > 0
+              ? t("allAdded")
+              : mode === "skill" && items.length === 0 ? t("skills.unavailable") : t("empty")}</EmptyTitle>
+            {mode === "skill" && items.length === 0 && (
+              <EmptyDescription>{t(skillsEnabled ? "skills.emptyDescription" : "skills.disabledDescription")}</EmptyDescription>
+            )}
+          </EmptyHeader>
+          {mode === "skill" && items.length === 0 && (
+            <EmptyContent>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onMouseDown={event => event.preventDefault()}
+                onClick={() => {
+                  onClose()
+                  requestAnimationFrame(() => useSettingsDialogStore.getState().openSettings('skills'))
+                }}
+              >
+                {t("skills.manage")}
+              </Button>
+            </EmptyContent>
+          )}
+        </Empty>
       ) : (
         <div className="flex flex-col gap-0.5">
           {groups.map(group => (
@@ -323,7 +392,7 @@ export const ChatComposerMenu = forwardRef<
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "w-full justify-start rounded-lg",
+                      "h-auto min-h-10 w-full justify-start gap-3 rounded-lg px-2 py-2",
                       selected && "bg-muted"
                     )}
                     role="option"
@@ -336,12 +405,12 @@ export const ChatComposerMenu = forwardRef<
                       data-icon="inline-start"
                       className={item.iconClassName}
                     />
-                    <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                      <span className="shrink-0 truncate text-xs font-medium">
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
+                      <span className="w-full truncate text-xs font-medium">
                         {item.label}
                       </span>
                       {item.description ? (
-                        <span className="ml-auto truncate text-right text-[11px] font-normal text-muted-foreground">
+                        <span className="line-clamp-2 w-full whitespace-normal text-xs font-normal text-muted-foreground">
                           {item.description}
                         </span>
                       ) : null}

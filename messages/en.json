@@ -4251,23 +4251,63 @@
           "agentDescription": "Smart assistant, can execute actions"
         },
         "attachImage": "Attach images",
+        "toolsMenu": {
+          "groups": {
+            "conversation": "Conversation settings",
+            "extensions": "Extensions"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Choose the model for responses"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "description": "Set the role and response style"
+          },
+          "reasoning": {
+            "description": "Adjust how much the model reasons"
+          },
+          "mcp": {
+            "title": "MCP servers",
+            "description": "Connect external services and tools"
+          },
+          "clipboard": {
+            "title": "Clipboard monitoring",
+            "description": "Automatically read clipboard content"
+          }
+        },
         "addAttachment": {
           "title": "Add",
           "image": {
-            "title": "Image"
+            "title": "Image",
+            "description": "Add images from your device"
           },
           "file": {
-            "title": "File"
+            "title": "File",
+            "description": "Attach local documents and other files"
           },
           "folder": {
-            "title": "Folder"
+            "title": "Folder",
+            "description": "Attach a folder and its files"
           },
           "entryCount": "{count} items",
           "remove": "Remove {name}",
           "metadataOnly": "metadata only",
           "readFailed": "Failed to read {count} attachments",
           "selectFailed": "Failed to select attachments. Please try again",
-          "attachmentOnlyPrompt": "Please review and analyze the attachments I added."
+          "attachmentOnlyPrompt": "Please review and analyze the attachments I added.",
+          "groups": {
+            "attachments": "Local attachments",
+            "context": "Workspace & skills"
+          },
+          "resource": {
+            "title": "Reference notes & records",
+            "description": "Find notes, records, and canvases in your workspace"
+          },
+          "skill": {
+            "title": "Use a skill",
+            "description": "Choose a Skill for this message"
+          }
         },
         "imageAttachment": {
           "selectSuccess": "{count, plural, one {Attached # image} other {Attached # images}}",
@@ -4496,6 +4536,7 @@
           "loading": "Loading..."
         },
         "composerMenu": {
+          "allAdded": "All available items have been added",
           "loading": "Loading...",
           "empty": "No matching results",
           "commands": {
@@ -4537,7 +4578,11 @@
             "scope": {
               "global": "Global",
               "project": "Workspace"
-            }
+            },
+            "unavailable": "No skills available",
+            "emptyDescription": "Install or enable skills to choose them here.",
+            "disabledDescription": "Skills are turned off. Enable them in skill settings.",
+            "manage": "Manage skills"
           },
           "resources": {
             "title": "Link context",

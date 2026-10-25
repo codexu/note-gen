@@ -65,7 +65,8 @@ export async function fetchRemoteRead(url: string, options: Omit<RequestInit, 'm
  */
 export async function recoverRemoteMutation<T>({ send, reconcile, beforeWrite, maxAttempts = 3 }: {
   send: () => Promise<T>
-  reconcile: () => Promise<RemoteMutationObservation<T>>
+  // Infer the result from send; an unchanged observation carries no result value.
+  reconcile: () => Promise<RemoteMutationObservation<NoInfer<T>>>
   beforeWrite?: () => Promise<void>
   maxAttempts?: number
 }): Promise<T> {

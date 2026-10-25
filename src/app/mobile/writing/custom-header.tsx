@@ -5,7 +5,6 @@ import { BaseDirectory, copyFile, exists, mkdir, readDir, rename as fsRename, st
 import { platform as getRuntimePlatform } from '@tauri-apps/plugin-os'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
-import { cloneDeep } from 'lodash-es'
 import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2 } from 'lucide-react'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
 import { WorkspaceSwitcher } from '@/app/core/setting/file/setting-workspace'
@@ -91,7 +90,6 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     loadRemoteSyncFiles,
     loadCollapsibleFiles,
     loadFolderRemoteFiles,
-    setFileTree,
     setCollapsibleList,
     moveLocalEntry,
     syncOpenTabsForPathChange,

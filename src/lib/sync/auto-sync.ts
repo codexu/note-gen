@@ -30,7 +30,6 @@ import {
 } from './conflict-resolution'
 import { sanitizeFilePath, hasInvalidFileNameChars } from './filename-utils'
 import { useSyncConfirmStore } from '@/stores/sync-confirm'
-import useSyncStore from '@/stores/sync'
 import emitter from '@/lib/emitter'
 import useArticleStore from '@/stores/article'
 import { isFileDeletionPending } from '@/stores/file-deletion'

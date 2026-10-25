@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-24T00:00:00Z",
+  "updatedAt": "2026-10-25T00:00:00Z",
   "configs": {
     "providerTemplates": {
       "versionCode": 107,
@@ -13,8 +13,8 @@
       "url": "https://download.notegen.top/config/v1/provider-templates-cn.json"
     },
     "noteGenModelPolicy": {
-      "versionCode": 100,
-      "versionName": "1.0.0",
+      "versionCode": 101,
+      "versionName": "1.0.1",
       "url": "https://download.notegen.top/config/v1/notegen-model-policy.json"
     },
     "noteGenDefaultModels": {

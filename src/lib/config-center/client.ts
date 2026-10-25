@@ -9,6 +9,7 @@ import type {
 
 const CONFIG_CENTER_SCHEMA_VERSION = 1
 const CONFIG_CENTER_MANIFEST_URL = 'https://download.notegen.top/config/v1/config-manifest.json'
+const CONFIG_CENTER_MODEL_POLICY_URL = 'https://download.notegen.top/config/v1/notegen-model-policy.json'
 const CONFIG_CENTER_MANIFEST_TIMEOUT_MS = 3000
 const CONFIG_CENTER_CONFIG_TIMEOUT_MS = 5000
 
@@ -98,11 +99,12 @@ export async function fetchWithTimeout(
   }
 }
 
-async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
+async function fetchJson(url: string, timeoutMs: number, refresh = false): Promise<unknown> {
   const response = await fetchWithTimeout(url, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
+      ...(refresh ? { 'Cache-Control': 'no-cache' } : {}),
     },
   } as HttpFetchOptions, timeoutMs)
 
@@ -116,6 +118,11 @@ async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
   }
 
   return payload
+}
+
+/** Shared with the NewAPI policy synchronizer; quota refresh does not depend on a manifest version. */
+export function fetchNoteGenModelPolicy(): Promise<unknown> {
+  return fetchJson(CONFIG_CENTER_MODEL_POLICY_URL, CONFIG_CENTER_CONFIG_TIMEOUT_MS, true)
 }
 
 export async function fetchConfigCenterManifest(): Promise<ConfigCenterManifest> {

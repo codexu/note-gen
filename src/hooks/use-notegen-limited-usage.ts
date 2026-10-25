@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
-import { getNoteGenLimitedUsage, NOTEGEN_LIMITED_STORE } from '@/lib/ai/sponsored-model-limits'
-import { getNoteGenModelPolicy, NOTEGEN_POLICY_CHANGED } from '@/lib/ai/notegen-model-policy'
+import { getNoteGenLimitedUsage, NOTEGEN_LIMITED_STORE, NOTEGEN_LIMITED_USAGE_KEY } from '@/lib/ai/sponsored-model-limits'
+import { getNoteGenModelPolicy, loadNoteGenModelPolicy, NOTEGEN_POLICY_CHANGED } from '@/lib/ai/notegen-model-policy'
 import { useTranslations } from 'next-intl'
 
 export function useNoteGenLimitedUsage() {
@@ -15,9 +15,10 @@ export function useNoteGenLimitedUsage() {
     let unlisten: (() => void) | undefined
     const refresh = async () => {
       try {
-        const count = await getNoteGenLimitedUsage()
+        await loadNoteGenModelPolicy()
+        const tokens = await getNoteGenLimitedUsage()
         if (!disposed) {
-          setUsed(count)
+          setUsed(tokens)
           setPolicy(getNoteGenModelPolicy())
         }
       } catch (error) {
@@ -25,7 +26,7 @@ export function useNoteGenLimitedUsage() {
       }
     }
     void Store.load(NOTEGEN_LIMITED_STORE, { autoSave: false }).then(async store => {
-      const stop = await store.onKeyChange('usage', () => void refresh())
+      const stop = await store.onKeyChange(NOTEGEN_LIMITED_USAGE_KEY, () => void refresh())
       if (disposed) stop()
       else unlisten = stop
       await refresh()
@@ -42,8 +43,9 @@ export function useNoteGenLimitedUsage() {
       window.removeEventListener(NOTEGEN_POLICY_CHANGED, refresh)
     }
   }, [])
-  const limit = policy.limited.dailyRequestLimit
+  const limit = policy.limited.dailyTokenLimit
   const activeModelName = (used ?? 0) >= limit ? policy.free.displayName : policy.limited.displayName
-  const detail = t('usage', { used: used ?? '…', limit })
-  return { used, detail, limit, activeModelName, modelName: policy.limited.displayName, freeName: policy.free.displayName }
+  const percent = used === undefined ? undefined : limit === 0 ? 0 : Math.max(0, Math.floor((limit - used) / limit * 100))
+  const detail = t('usage', { percent: percent ?? '…' })
+  return { used, percent, detail, limit, activeModelName, modelName: policy.limited.displayName, freeName: policy.free.displayName }
 }

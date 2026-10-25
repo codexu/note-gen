@@ -4,7 +4,8 @@
   "limited": {
     "model": "gpt-6-luna",
     "displayName": "GPT6 Luna",
-    "dailyRequestLimit": 200
+    "dailyRequestLimit": 200,
+    "dailyTokenLimit": 1000000
   },
   "free": {
     "model": "Qwen/Qwen3-8B",

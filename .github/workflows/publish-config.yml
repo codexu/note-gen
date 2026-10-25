@@ -59,6 +59,7 @@ jobs:
             if (typeof policy[key]?.displayName !== 'string' || !policy[key].displayName.trim()) throw new Error(`Invalid ${key} displayName`)
           }
           if (!Number.isSafeInteger(policy.limited.dailyRequestLimit) || policy.limited.dailyRequestLimit < 0) throw new Error('Invalid dailyRequestLimit')
+          if (!Number.isSafeInteger(policy.limited.dailyTokenLimit) || policy.limited.dailyTokenLimit < 0) throw new Error('Invalid dailyTokenLimit')
           NODE
 
       - name: Install ossutil

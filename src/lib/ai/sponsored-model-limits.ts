@@ -1,12 +1,37 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { noteGenDefaultModels } from '@/app/model-config'
 import type { AiRequestConfig } from './tauri-client'
-import { getNoteGenModelPolicy, loadNoteGenModelPolicy } from './notegen-model-policy'
+import { loadNoteGenModelPolicy } from './notegen-model-policy'
 
 export const NOTEGEN_LIMITED_MODEL = 'Limited'
 export const NOTEGEN_FREE_MODEL = 'free'
 export const NOTEGEN_LIMITED_STORE = 'sponsored-model-usage.json'
+export const NOTEGEN_LIMITED_USAGE_KEY = 'tokenUsage'
 let reservationQueue: Promise<void> = Promise.resolve()
+
+interface TokenUsage {
+  date: string
+  tokens: number
+}
+
+function isSponsoredConfig(config: AiRequestConfig): boolean {
+  try {
+    return new URL(config.baseUrl).hostname === 'api.notegen.top'
+      && !!config.apiKey && config.apiKey === noteGenDefaultModels[0].apiKey
+  } catch {
+    return false
+  }
+}
+
+function isLimitedModel(model: string): boolean {
+  const normalized = model.split('/').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || ''
+  return model === NOTEGEN_LIMITED_MODEL || model === 'NoteGen Limited'
+    || normalized.startsWith('gpt6luna') || normalized.startsWith('deepseekv4flash')
+}
+
+function tokensForDate(usage: TokenUsage | undefined, date: string): number {
+  return usage?.date === date && Number.isSafeInteger(usage.tokens) && usage.tokens >= 0 ? usage.tokens : 0
+}
 
 function applyResolvedModel(body: Record<string, unknown>, model: string): Record<string, unknown> {
   const resolved: Record<string, unknown> = { ...body, model }
@@ -27,41 +52,62 @@ export function noteGenUsageDate(): string {
 
 export async function getNoteGenLimitedUsage(): Promise<number> {
   const store = await Store.load(NOTEGEN_LIMITED_STORE, { autoSave: false })
-  const usage = await store.get<{ date: string; count: number }>('usage')
-  return usage?.date === noteGenUsageDate() && Number.isInteger(usage.count) && usage.count >= 0
-    ? Math.min(usage.count, getNoteGenModelPolicy().limited.dailyRequestLimit)
-    : 0
+  const usage = await store.get<TokenUsage>(NOTEGEN_LIMITED_USAGE_KEY)
+  return tokensForDate(usage, noteGenUsageDate())
 }
 
-/** Reserve each outgoing attempt atomically within this window, including agent rounds. */
+/** Resolve the paid/free model using this device's observed token usage. */
 export async function reserveSponsoredRequest(config: AiRequestConfig, body: unknown, signal?: AbortSignal): Promise<unknown> {
-  try {
-    if (new URL(config.baseUrl).hostname !== 'api.notegen.top') return body
-  } catch {
-    return body
-  }
-  if (!config.apiKey || config.apiKey !== noteGenDefaultModels[0].apiKey) return body
+  if (!isSponsoredConfig(config)) return body
   if (!body || typeof body !== 'object' || !('model' in body) || typeof body.model !== 'string') return body
   const policy = await loadNoteGenModelPolicy()
   if (body.model === NOTEGEN_FREE_MODEL) return applyResolvedModel(body as Record<string, unknown>, policy.free.model)
-  const model = body.model.split('/').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || ''
-  if (body.model !== NOTEGEN_LIMITED_MODEL && body.model !== 'NoteGen Limited' && !model.startsWith('gpt6luna') && !model.startsWith('deepseekv4flash')) return body
-  const requestBody = body
-  const reservation = reservationQueue.then(async () => {
-    signal?.throwIfAborted()
-    const store = await Store.load(NOTEGEN_LIMITED_STORE, { autoSave: false })
-    const date = noteGenUsageDate()
-    const usage = await store.get<{ date: string; count: number }>('usage')
-    const count = usage?.date === date && Number.isInteger(usage.count) && usage.count >= 0 ? usage.count : 0
-    signal?.throwIfAborted()
-    if (count >= policy.limited.dailyRequestLimit) {
-      // Free requests do not consume the Limited allowance.
-      return applyResolvedModel(requestBody as Record<string, unknown>, policy.free.model)
+  if (!isLimitedModel(body.model)) return body
+  await reservationQueue
+  signal?.throwIfAborted()
+  const used = await getNoteGenLimitedUsage()
+  signal?.throwIfAborted()
+  const resolved = applyResolvedModel(body as Record<string, unknown>, used >= policy.limited.dailyTokenLimit ? policy.free.model : policy.limited.model)
+  if (resolved.stream === true && isLimitedModel(String(resolved.model))) {
+    resolved.stream_options = {
+      ...(typeof resolved.stream_options === 'object' && resolved.stream_options !== null ? resolved.stream_options : {}),
+      include_usage: true,
     }
-    await store.set('usage', { date, count: count + 1 })
-    await store.save()
-    return applyResolvedModel(requestBody as Record<string, unknown>, policy.limited.model)
-  })
-  reservationQueue = reservation.then(() => {}, () => {})
-  return reservation
+  }
+  return resolved
+}
+
+/** Count actual usage once per request, including cumulative streaming usage. */
+export function createSponsoredUsageRecorder(config: AiRequestConfig, body: unknown): (response: unknown) => Promise<void> {
+  if (!isSponsoredConfig(config) || !body || typeof body !== 'object'
+    || !('model' in body) || typeof body.model !== 'string' || !isLimitedModel(body.model)) {
+    return async () => {}
+  }
+  const date = noteGenUsageDate()
+  let recorded = 0
+  return response => {
+    if (!response || typeof response !== 'object') return Promise.resolve()
+    const payload = 'response' in response && response.response && typeof response.response === 'object'
+      ? response.response : response
+    if (!('usage' in payload) || !payload.usage || typeof payload.usage !== 'object') return Promise.resolve()
+    const usage = payload.usage as Record<string, unknown>
+    const input = usage.prompt_tokens ?? usage.input_tokens
+    const output = usage.completion_tokens ?? usage.output_tokens
+    const total = typeof usage.total_tokens === 'number' ? usage.total_tokens
+      : typeof input === 'number' && typeof output === 'number' ? input + output : undefined
+    // Cached/reasoning tokens are already included in the provider's total.
+    if (typeof total !== 'number' || !Number.isSafeInteger(total) || total <= recorded) return Promise.resolve()
+    const delta = total - recorded
+    recorded = total
+    const settlement = reservationQueue.then(async () => {
+      // A request spanning midnight must not charge the following day's allowance.
+      if (date !== noteGenUsageDate()) return
+      const store = await Store.load(NOTEGEN_LIMITED_STORE, { autoSave: false })
+      const current = await store.get<TokenUsage>(NOTEGEN_LIMITED_USAGE_KEY)
+      await store.set(NOTEGEN_LIMITED_USAGE_KEY, { date, tokens: tokensForDate(current, date) + delta })
+      await store.save()
+    })
+    reservationQueue = settlement.catch(error => console.error('Failed to save sponsored token usage:', error))
+    return reservationQueue
+  }
 }

@@ -2,7 +2,6 @@
 
 import { NOTEGEN_FREE_MODEL, NOTEGEN_LIMITED_MODEL } from '@/lib/ai/sponsored-model-limits'
 import { getNoteGenModelPolicy } from '@/lib/ai/notegen-model-policy'
-import { useTranslations } from 'next-intl'
 
 export function noteGenModelDisplayName(model: string, builtin: boolean, limitedName?: string): string {
   if (!builtin) return model
@@ -13,10 +12,7 @@ export function noteGenModelDisplayName(model: string, builtin: boolean, limited
 }
 
 export function NoteGenModelLabel({ model, limitedDetail, limitedName, builtin = false }: { model: string; limitedDetail: string; limitedName?: string; builtin?: boolean }) {
-  const t = useTranslations('common.noteGenLimited')
-  const detail = !builtin ? undefined : model === NOTEGEN_LIMITED_MODEL
-    ? limitedDetail
-    : model === NOTEGEN_FREE_MODEL ? t('unlimited') : undefined
+  const detail = builtin && model === NOTEGEN_LIMITED_MODEL ? limitedDetail : undefined
 
   return (
     <>

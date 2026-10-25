@@ -6,9 +6,9 @@
     "description": "Oferece créditos de modelos ou serviços gratuitos aos usuários do NoteGen."
   },
   "noteGenLimited": {
-    "usage": "{used}/{limit} usadas",
-    "unlimited": "Solicitações ilimitadas",
-    "description": "Usa {model} por padrão, até {limit} solicitações por dia; depois muda automaticamente para {freeModel}. Cada solicitação conta, incluindo rodadas do agente. Reinicia à meia-noite no horário da China."
+    "usage": "{percent}% restante",
+    "unlimited": "Tokens ilimitados",
+    "description": "Usa {model} por padrão. Os modelos pagos patrocinados compartilham {limit} tokens por dia e depois passam a usar {freeModel}. A porcentagem conta o uso de entrada e saída recebido neste dispositivo, incluindo rodadas do agente, e reinicia à meia-noite no horário da China. O servidor também contabiliza outros dispositivos no mesmo IP e o uso não recebido após interrupções. Qwen e embeddings não consomem essa cota."
   },
   "requestErrors": {
     "aiRequestFailed": "Falha na solicitação de IA",

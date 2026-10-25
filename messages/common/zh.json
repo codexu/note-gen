@@ -6,9 +6,9 @@
     "description": "为 NoteGen 用户提供免费模型额度或服务。"
   },
   "noteGenLimited": {
-    "usage": "已用 {used}/{limit}",
-    "unlimited": "不限次数",
-    "description": "默认使用 {model}，每天最多请求 {limit} 次；额度用完后自动使用 {freeModel}。次数按实际模型请求计算（包括 Agent 多轮调用），北京时间零点重置。"
+    "usage": "剩余 {percent}%",
+    "unlimited": "不限 Token",
+    "description": "默认使用 {model}，付费赞助模型每天共用 {limit} Token；额度用完后自动使用 {freeModel}。百分比仅统计本机收到的实际输入与输出用量（含 Agent 多轮调用），北京时间零点重置；同 IP 其他设备及中断后未返回的用量以服务端为准。Qwen 和嵌入模型不计入额度。"
   },
   "requestErrors": {
     "aiRequestFailed": "AI 请求失败",

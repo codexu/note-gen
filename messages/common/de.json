@@ -6,9 +6,9 @@
     "description": "Stellt NoteGen-Nutzern kostenlose Modellkontingente oder Dienste bereit."
   },
   "noteGenLimited": {
-    "usage": "{used}/{limit} genutzt",
-    "unlimited": "Unbegrenzte Anfragen",
-    "description": "Standardmäßig {model} mit bis zu {limit} Anfragen pro Tag, danach automatisch {freeModel}. Jede Modellanfrage zählt, einschließlich Agent-Runden. Zurücksetzung um Mitternacht chinesischer Zeit."
+    "usage": "{percent}% verbleibend",
+    "unlimited": "Unbegrenzte Token",
+    "description": "Standardmäßig wird {model} verwendet. Kostenpflichtige gesponserte Modelle teilen sich {limit} Token pro Tag; danach wird {freeModel} verwendet. Der Prozentsatz zählt die auf diesem Gerät empfangene Ein- und Ausgabenutzung einschließlich Agent-Runden und wird um Mitternacht chinesischer Zeit zurückgesetzt. Andere Geräte mit derselben IP und nach Abbrüchen nicht empfangene Nutzung werden serverseitig erfasst. Qwen und Embeddings verbrauchen dieses Kontingent nicht."
   },
   "requestErrors": {
     "aiRequestFailed": "KI-Anfrage fehlgeschlagen",

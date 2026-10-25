@@ -6,9 +6,9 @@
     "description": "NoteGen ユーザーに無料のモデル利用枠やサービスを提供しています。"
   },
   "noteGenLimited": {
-    "usage": "{used}/{limit} 回使用済み",
-    "unlimited": "回数制限なし",
-    "description": "標準では {model} を1日最大{limit}回使用し、上限に達すると自動的に {freeModel} に切り替わります。Agentの複数回の呼び出しもそれぞれ数えます。中国時間の午前0時にリセットされます。"
+    "usage": "残り {percent}%",
+    "unlimited": "トークン制限なし",
+    "description": "標準では {model} を使用します。有料の提供モデルは1日合計 {limit} トークンを共有し、使い切ると {freeModel} に切り替わります。割合はこの端末で受信した入出力の実使用量（Agentの複数呼び出しを含む）を集計し、中国時間の午前0時にリセットします。同じIPの他の端末や中断後に受信できなかった使用量はサーバー側の集計に従います。Qwenと埋め込みモデルは対象外です。"
   },
   "requestErrors": {
     "aiRequestFailed": "AI リクエストに失敗しました",

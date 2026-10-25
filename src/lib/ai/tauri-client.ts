@@ -3,7 +3,7 @@ import type OpenAI from 'openai'
 import type { ModelsPage } from 'openai/resources/models'
 import { Store } from '@tauri-apps/plugin-store'
 import type { AiConfig, ReasoningEffort } from '@/app/core/setting/config'
-import { reserveSponsoredRequest } from './sponsored-model-limits'
+import { createSponsoredUsageRecorder, reserveSponsoredRequest } from './sponsored-model-limits'
 
 type JsonValue = Record<string, unknown>
 
@@ -363,15 +363,18 @@ export async function invokeAiJson<T = JsonValue>(
   if ((payload.method || 'POST') === 'POST' && ['/chat/completions', '/completions', '/responses', '/messages'].includes(payload.path)) {
     payload = { ...payload, body: await reserveSponsoredRequest(payload.config, payload.body, signal) }
   }
+  const recordUsage = createSponsoredUsageRecorder(payload.config, payload.body)
   const requestId = signal ? createRequestId() : undefined
   const detachAbort = requestId ? attachAbort(signal, requestId) : () => {}
   try {
-    return await invoke<T>('ai_json_request', {
+    const response = await invoke<T>('ai_json_request', {
       request: {
         ...payload,
         requestId,
       },
     })
+    await recordUsage(response)
+    return response
   } catch (error) {
     throw toAbortError(error)
   } finally {
@@ -429,10 +432,12 @@ async function createStreamingIterable<T>(
   signal?: AbortSignal
 ) {
   request = { ...request, body: await reserveSponsoredRequest(request.config, request.body, signal) }
+  const recordUsage = createSponsoredUsageRecorder(request.config, request.body)
   const queue = new AsyncQueue<T>()
   const detachAbort = attachAbort(signal, request.requestId)
   const channel = new Channel<StreamEvent<T>>((event) => {
     if (event.type === 'chunk') {
+      void recordUsage(event.data)
       queue.push(event.data)
       return
     }

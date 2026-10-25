@@ -67,10 +67,18 @@
       "enabled": true
     },
     {
+      "key": "minimax-global",
+      "title": "MiniMax (Global)",
+      "baseURL": "https://api.minimax.io/v1",
+      "apiKeyUrl": "https://platform.minimax.io/",
+      "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/minimax-color.svg",
+      "enabled": true
+    },
+    {
       "key": "minimax",
-      "title": "MiniMax",
-      "baseURL": "https://api.minimaxi.com/v1",
-      "apiKeyUrl": "https://platform.minimaxi.com/subscribe/token-plan?code=1CnznNlJHf&source=link",
+      "title": "MiniMax (China)",
+      "baseURL": "https://api.minimax.cn/v1",
+      "apiKeyUrl": "https://platform.minimaxi.com/",
       "icon": "https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@1.94.0/icons/minimax-color.svg",
       "enabled": true
     },

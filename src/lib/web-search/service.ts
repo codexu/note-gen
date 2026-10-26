@@ -5,11 +5,16 @@ import { invokeAiJson, resolveAiRequestConfig } from '@/lib/ai/tauri-client'
 import { capturePublicWebPage } from '@/lib/web-capture/service'
 import type { WebPageResponse, WebSearchResponse, WebSearchSource } from './types'
 import { normalizeWebSearchProviderOrder } from './settings'
+import { normalizeWebSearchSourceUrl } from './source-url'
+import { aggregateBasicSearchResults, MAX_BASIC_SEARCH_RESULTS } from './result-aggregation'
 
 const SEARCH_TIMEOUT_MS = 7_000
 const TOTAL_SEARCH_TIMEOUT_MS = 20_000
 const MAX_PAGE_CHARACTERS = 18_000
 const MAX_SEARCH_RESULTS = 8
+const MAX_BASIC_ENGINE_RESULTS = 10
+const BASIC_SEARCH_CONCURRENCY = 3
+const BASIC_SEARCH_TIMEOUT_MS = 8_000
 const unsupportedNativeSearch = new Set<string>()
 
 type UnknownRecord = Record<string, unknown>
@@ -37,22 +42,6 @@ function firstString(record: UnknownRecord | undefined, keys: string[]): string 
   return ''
 }
 
-function normalizeUrl(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-
-  try {
-    const url = new URL(trimmed, 'https://www.bing.com')
-    if (url.hostname.endsWith('duckduckgo.com')) {
-      const redirected = url.searchParams.get('uddg')
-      if (redirected) return redirected
-    }
-    return url.href
-  } catch {
-    return ''
-  }
-}
-
 function getHostname(value: string): string {
   try {
     return new URL(value).hostname
@@ -66,8 +55,8 @@ function normalizeSources(sources: WebSearchSource[], limit = MAX_SEARCH_RESULTS
   const normalized: WebSearchSource[] = []
 
   for (const source of sources) {
-    const url = normalizeUrl(source.url)
-    if (!url || !/^https?:\/\//i.test(url) || seen.has(url)) continue
+    const url = normalizeWebSearchSourceUrl(source.url)
+    if (!url || seen.has(url)) continue
     seen.add(url)
     normalized.push({
       title: source.title.trim() || new URL(url).hostname,
@@ -85,10 +74,12 @@ function createTimeoutSignal(parent: AbortSignal | undefined, timeoutMs: number)
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   const abort = () => controller.abort()
-  parent?.addEventListener('abort', abort, { once: true })
+  if (parent?.aborted) abort()
+  else parent?.addEventListener('abort', abort, { once: true })
 
   return {
     signal: controller.signal,
+    abort,
     dispose: () => {
       window.clearTimeout(timer)
       parent?.removeEventListener('abort', abort)
@@ -443,7 +434,8 @@ async function searchHtmlEngine(
           url,
           snippet: element.querySelector(engine.selectors.snippet)?.textContent?.trim(),
         }]
-      })
+      }),
+      MAX_BASIC_ENGINE_RESULTS
     )
 
     if (sources.length === 0) throw new Error('Search result page could not be parsed')
@@ -453,23 +445,101 @@ async function searchHtmlEngine(
   }
 }
 
-async function searchBasicWeb(query: string, signal?: AbortSignal): Promise<WebSearchResponse> {
-  const errors: string[] = []
+async function searchBasicWeb(
+  query: string,
+  signal: AbortSignal | undefined,
+  excludedProviders: ReadonlySet<WebSearchResponse['provider']>
+): Promise<WebSearchResponse> {
+  const groups = new Map<WebSearchResponse['provider'], HtmlSearchEngine[]>()
   for (const engine of HTML_SEARCH_ENGINES) {
-    try {
-      return await searchHtmlEngine(engine, query, signal)
-    } catch (error) {
-      if (signal?.aborted) throw error
-      errors.push(`${engine.provider}: ${error instanceof Error ? error.message : String(error)}`)
+    if (excludedProviders.has(engine.provider)) continue
+    const group = groups.get(engine.provider) || []
+    group.push(engine)
+    groups.set(engine.provider, group)
+  }
+  const preferredOrder: WebSearchResponse['provider'][] = ['bing', 'sogou', 'so', 'baidu', 'duckduckgo']
+  const engines = [...groups.values()].sort((left, right) =>
+    preferredOrder.indexOf(left[0].provider) - preferredOrder.indexOf(right[0].provider)
+  )
+  if (engines.length === 0) {
+    throw new Error('All basic web search providers have been excluded')
+  }
+
+  const timeout = createTimeoutSignal(signal, BASIC_SEARCH_TIMEOUT_MS)
+  const results = new Map<number, WebSearchResponse>()
+  const sourceUrls = new Set<string>()
+  const errors: string[] = []
+  let nextEngine = 0
+  let acceptingResults = true
+  let onAbort: () => void = () => undefined
+  const aborted = new Promise<void>(resolve => {
+    onAbort = () => resolve()
+    timeout.signal.addEventListener('abort', onAbort, { once: true })
+    if (timeout.signal.aborted) resolve()
+  })
+
+  const searchNextEngine = async () => {
+    while (acceptingResults && !timeout.signal.aborted) {
+      const index = nextEngine++
+      const group = engines[index]
+      if (!group) return
+
+      // Alternate endpoints of the same engine are fallbacks, not separate providers.
+      for (const engine of group) {
+        if (!acceptingResults || timeout.signal.aborted) return
+        try {
+          const result = await searchHtmlEngine(engine, query, timeout.signal)
+          if (!acceptingResults || timeout.signal.aborted) return
+          results.set(index, result)
+          result.sources.forEach(source => sourceUrls.add(source.url))
+          if (sourceUrls.size >= MAX_BASIC_SEARCH_RESULTS) timeout.abort()
+          break
+        } catch (error) {
+          if (timeout.signal.aborted) return
+          errors.push(`${engine.provider}: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
     }
   }
-  throw new Error(`Basic web search failed. ${errors.join('; ')}`)
+
+  const workers = Array.from(
+    { length: Math.min(BASIC_SEARCH_CONCURRENCY, engines.length) },
+    () => searchNextEngine()
+  )
+  try {
+    // Stop waiting at the deadline even if an HTTP implementation is slow to cancel.
+    await Promise.race([Promise.allSettled(workers), aborted])
+    if (signal?.aborted) {
+      throw signal.reason || new DOMException('Web search aborted', 'AbortError')
+    }
+    const successful = [...results.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, result]) => result)
+    if (successful.length === 0) {
+      throw new Error(`Basic web search failed. ${timeout.signal.aborted ? 'Search deadline reached. ' : ''}${errors.join('; ')}`)
+    }
+    return aggregateBasicSearchResults(query, successful)
+  } finally {
+    acceptingResults = false
+    timeout.signal.removeEventListener('abort', onAbort)
+    timeout.abort()
+    timeout.dispose()
+  }
 }
 
-export async function searchWeb(query: string, signal?: AbortSignal): Promise<WebSearchResponse> {
+export interface WebSearchOptions {
+  excludeProviders?: WebSearchResponse['provider'][]
+}
+
+export async function searchWeb(
+  query: string,
+  signal?: AbortSignal,
+  options: WebSearchOptions = {}
+): Promise<WebSearchResponse> {
   const normalizedQuery = query.replace(/\s+/g, ' ').trim()
   if (!normalizedQuery) throw new Error('Search query is required')
   if (normalizedQuery.length > 500) throw new Error('Search query is too long')
+  const excludedProviders = new Set(options.excludeProviders)
 
   const totalTimeout = createTimeoutSignal(signal, TOTAL_SEARCH_TIMEOUT_MS)
   try {
@@ -478,7 +548,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
       throw new Error('Web search is not enabled for the current model')
     }
 
-    if (config.enableNativeWebSearch !== false) {
+    if (config.enableNativeWebSearch !== false && !excludedProviders.has('native')) {
       try {
         const nativeResult = await searchWithNativeModel(config, normalizedQuery, totalTimeout.signal)
         if (nativeResult) return nativeResult
@@ -491,6 +561,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     if (config.enableThirdPartyWebSearch !== false) {
       const providerOrder = normalizeWebSearchProviderOrder(config.webSearchProviderOrder)
       const configuredProviders = providerOrder.flatMap((provider) => {
+        if (excludedProviders.has(provider)) return []
         const apiKey = config.webSearchApiKeys?.[provider]?.trim()
           || (provider === config.webSearchProvider ? config.webSearchApiKey?.trim() : '')
         return apiKey ? [{ provider, apiKey }] : []
@@ -506,7 +577,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     }
 
     if (config.enableBasicWebSearch !== false) {
-      return searchBasicWeb(normalizedQuery, totalTimeout.signal)
+      return await searchBasicWeb(normalizedQuery, totalTimeout.signal, excludedProviders)
     }
 
     throw new Error('All enabled web search layers are unavailable')

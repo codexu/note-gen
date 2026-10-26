@@ -14,6 +14,7 @@ import { skillManager } from '@/lib/skills'
 import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
 import { agentDebugLog, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
+import { WebSearchBudget } from './web-search-budget'
 import type {
   AgentChange,
   AgentContextSnapshot,
@@ -878,6 +879,7 @@ export class AgentRuntime {
     }>()
     const successfulMutationCalls = new Set<string>()
     const toolResultEvidence = new Set<string>()
+    const webSearchBudget = new WebSearchBudget()
     let knowledgeSearchCount = 0
     const readKnowledgeSourceKeys = new Set<string>()
     const knowledgeReadLimit = ragAgentPolicy.strategy === 'fast'
@@ -889,6 +891,10 @@ export class AgentRuntime {
       tool: AgentTool,
       args: Record<string, unknown>
     ): Promise<AgentToolResult> => {
+      if (tool.name === 'web_search') {
+        const blockedResult = webSearchBudget.startSearch()
+        if (blockedResult) return blockedResult
+      }
       if (tool.name === 'knowledge_search') {
         if (knowledgeSearchCount >= ragAgentPolicy.maxSearchRounds) {
           return {
@@ -917,7 +923,7 @@ export class AgentRuntime {
         requestedKeys.forEach(sourceKey => readKnowledgeSourceKeys.add(sourceKey))
       }
 
-      return executeAgentTool(
+      const result = await executeAgentTool(
         tool,
         args,
         runId,
@@ -925,6 +931,8 @@ export class AgentRuntime {
         context,
         callbacks.requestUserQuestion
       )
+      if (tool.name === 'web_search') webSearchBudget.recordResult(result)
+      return result
     }
     const appendToolResult = (
       toolCallId: string,
@@ -937,6 +945,11 @@ export class AgentRuntime {
         tool_call_id: toolCallId,
         content: stringifyToolResult(result),
       })
+      if (toolName === 'web_search') {
+        // Query/provider changes are not new evidence, and budget errors add none.
+        for (const key of webSearchBudget.evidenceKeys) toolResultEvidence.add(key)
+        return
+      }
       toolResultEvidence.add([
         toolName,
         JSON.stringify(args),
@@ -1223,6 +1236,9 @@ export class AgentRuntime {
         callbacks.onTrace?.(modelTrace)
 
         const offeredTools = forceFinalResponseReason ? [] : tools.filter((tool) => {
+          if (tool.name === 'web_search' && !webSearchBudget.canSearch) {
+            return false
+          }
           if (editorStateReadLocked && tool.name === 'editor_get_state') {
             return false
           }
@@ -1233,7 +1249,15 @@ export class AgentRuntime {
         })
         const offeredToolNames = new Set(offeredTools.map((tool) => tool.name))
         const openAITools = agentToolRegistry.toOpenAITools(offeredTools, loadedSkillIds)
-        const requestMessages = this.contextManager.prepareMessages(messages)
+        const requestMessages = this.contextManager.prepareMessages([
+          {
+            role: 'system',
+            content: toolMap.has('web_search')
+              ? `${systemPrompt}\n\n${webSearchBudget.formatInstructions()}`
+              : systemPrompt,
+          },
+          ...messages.slice(1),
+        ])
         const messageTextTokens = requestMessages.reduce(
           (sum, message) => sum + estimateMessageTextTokens(message),
           0

@@ -88,7 +88,8 @@ use remote_skills::{
 };
 use screenshot::cleanup_temp_screenshot_dir;
 use skill_runtime::{
-    cancel_skill_script, inspect_skill_python, install_skill_python_dependencies, run_skill_script,
+    cancel_skill_script, inspect_skill_environment, inspect_skill_python,
+    install_skill_node_dependencies, install_skill_python_dependencies, run_skill_code, run_skill_script,
     SkillProcessManager,
 };
 use skills::{
@@ -260,9 +261,12 @@ fn main() {
             install_remote_skill,
             cancel_remote_skill_download,
             run_skill_script,
+            run_skill_code,
             cancel_skill_script,
             inspect_skill_python,
+            inspect_skill_environment,
             install_skill_python_dependencies,
+            install_skill_node_dependencies,
             start_mcp_stdio_server,
             stop_mcp_server,
             send_mcp_message,

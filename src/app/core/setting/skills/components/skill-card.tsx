@@ -8,8 +8,11 @@ import { Sparkles, Trash } from 'lucide-react'
 import { useSkillsStore } from '@/stores/skills'
 import { Badge } from '@/components/ui/badge'
 import { inspectSkillPython, type SkillPythonStatus } from '@/lib/skills/runtime'
+import { skillManager } from '@/lib/skills'
 import { SkillMetadata } from '@/lib/skills/types'
 import { Spinner } from '@/components/ui/spinner'
+import { SkillEnvironmentDialog } from './skill-environment-dialog'
+import { isMobileDevice } from '@/lib/check'
 import {
   Item,
   ItemActions,
@@ -38,17 +41,19 @@ interface SkillCardProps {
 export function SkillCard({ skill, onRefresh }: SkillCardProps) {
   const t = useTranslations('settings.skills')
   const tc = useTranslations('common')
-  const { getSkill, toggleSkill, deleteSkill } = useSkillsStore()
+  const { toggleSkill, deleteSkill } = useSkillsStore()
 
   const [pythonStatus, setPythonStatus] = useState<SkillPythonStatus | null>(null)
+  const [environmentVersion, setEnvironmentVersion] = useState(0)
+  const mobile = isMobileDevice()
 
-  const skillContent = getSkill(skill.id)
+  const skillContent = skillManager.getSkill(skill.id, skill.scope)
   const hasPythonScripts = skillContent?.scripts.some(script => script.type === 'python') ?? false
 
   useEffect(() => {
-    if (!hasPythonScripts) return
+    if (!hasPythonScripts || mobile) return
     let active = true
-    void inspectSkillPython(skill.id)
+    void inspectSkillPython(skill.id, skill.scope)
       .then(status => {
         if (active) setPythonStatus(status)
       })
@@ -56,7 +61,7 @@ export function SkillCard({ skill, onRefresh }: SkillCardProps) {
     return () => {
       active = false
     }
-  }, [hasPythonScripts, skill.id])
+  }, [hasPythonScripts, skill.id, skill.scope, mobile, environmentVersion])
 
   const handleDelete = async () => {
     try {
@@ -76,7 +81,7 @@ export function SkillCard({ skill, onRefresh }: SkillCardProps) {
         <ItemContent className="w-0">
           <ItemTitle className="w-full min-w-0">{skill.name}</ItemTitle>
           {skill.description ? <ItemDescription>{skill.description}</ItemDescription> : null}
-          {hasPythonScripts && (
+          {hasPythonScripts && !mobile && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{t('pythonRuntime')}:</span>
               {!pythonStatus ? (
@@ -93,6 +98,12 @@ export function SkillCard({ skill, onRefresh }: SkillCardProps) {
         </ItemContent>
       </div>
       <ItemActions className="mobile-setting-skill-controls">
+        {(skillContent?.scripts.length ?? 0) > 0 && (
+          <SkillEnvironmentDialog skillId={skill.id} scope={skill.scope} onChanged={() => {
+            setPythonStatus(null)
+            setEnvironmentVersion(value => value + 1)
+          }} />
+        )}
         <Switch
           checked={skill.enabled !== false}
           onCheckedChange={() => toggleSkill(skill.id)}

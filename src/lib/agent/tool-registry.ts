@@ -43,6 +43,10 @@ import { listTagsTool, createTagTool, updateTagTool, deleteTagTool, searchTagsTo
 import { readMarksTool, createMarkTool, updateMarkTool, deleteMarkTool } from './tools/mark-tools'
 import { saveMemoryTool, listMemoriesTool, deleteMemoryTool, clearMemoriesTool } from './tools/memory-tools'
 import { attachmentTools } from './tools/attachment-tools'
+import { skillRuntimeTools } from './tools/skill-runtime-tools'
+import { skillArtifactTools } from './tools/skill-artifact-tools'
+import { getSkillRuntimeContext } from '@/lib/skills/runtime'
+import { isMobileDevice } from '@/lib/check'
 import { imageTools } from './tools/image-tools'
 import { canvasTools } from './tools/canvas-tools'
 import { webTools } from './tools/web-tools'
@@ -76,6 +80,18 @@ const EMPTY_SCHEMA: JsonSchema = {
   required: [],
   additionalProperties: false,
 }
+
+export const LOADED_SKILL_TOOL_NAMES = new Set([
+  'skill_read_resource',
+  'skill_execute_script',
+  'skill_install_python_dependencies',
+  'skill_run_code',
+  'skill_install_node_dependencies',
+  'skill_inspect_environment',
+  'skill_prepare_inputs',
+  'skill_inspect_artifact',
+  'skill_read_artifact',
+])
 
 function asObject(input: unknown): Record<string, unknown> {
   return input && typeof input === 'object' && !Array.isArray(input)
@@ -124,7 +140,7 @@ function rejectGeneratedSkillRuntimeFile(input: Record<string, unknown>): AgentT
     ok: false,
     message: [
       `已阻止在笔记工作区创建或修改 Skill 运行时代码：${filePath}。`,
-      '已安装的 Skill 资源是只读的；请使用 skill_read_resource 读取，并通过 skill_execute_script 执行已注册脚本。',
+      '已安装的 Skill 资源是只读的；请使用 skill_read_resource 读取，通过 skill_execute_script 执行已注册脚本，或通过 skill_run_code 审批并运行任务代码。',
     ].join('\n'),
     error: 'RESERVED_SKILL_RUNTIME_PATH',
   }
@@ -1117,7 +1133,7 @@ function buildSkillLoadTool(): AgentTool {
       required: ['skill_id'],
       additionalProperties: false,
     },
-    execute: async (input) => {
+    execute: async (input, executionContext) => {
       const skillId = asString(input.skill_id)
       if (skillId === BUILTIN_SKILL_CREATOR.id) {
         return {
@@ -1175,20 +1191,41 @@ function buildSkillLoadTool(): AgentTool {
           const path = stored.startsWith(`${directory}/`)
             ? stored.slice(directory.length + 1)
             : stored
-          return { path, uri: `skill://${skillId}/${path}`, type: 'asset', readable: true, executable: false }
+          return { path, uri: `skill://${skillId}/${path}`, type: 'asset', readable: asset.encoding !== 'binary', executable: false }
         }),
       ]
+
+      const runtime = await getSkillRuntimeContext(skillId, undefined, false, executionContext.workspaceIdentity)
+      const hostInstructions = [
+        'NoteGen host execution environment (the original Skill instructions below are unchanged):',
+        isMobileDevice()
+          ? 'This mobile host supports Skill instructions and text resources, but cannot run local Python/Node/Bash or install local dependencies. Do not call runtime or environment tools here.'
+          : 'This desktop host can run approved local Skill code with installed runtimes.',
+        'Use skill_inspect_environment to check available Python, Node.js, npm, and document commands.',
+        'Run package scripts with skill_execute_script and an exact registered script ID. Its registered-script restriction applies only to that tool.',
+        'Run official inline Python/JavaScript/Bash examples or task-specific editing/conversion/rendering code with skill_run_code; every exact source and argument list requires separate approval.',
+        'Install required Python/npm dependencies with skill_install_python_dependencies or skill_install_node_dependencies; every installation requires approval.',
+        'Use skill_prepare_inputs for original attachments or workspace files. It copies original bytes into isolated runtime inputs without editing the source files.',
+        'Package resources are read-only. Read binary assets directly from SKILL_ROOT_DIR in approved code; skill_read_resource returns text only.',
+        'Use SKILL_ROOT_DIR for installed resources, SKILL_RUNTIME_DIR for scratch data, and SKILL_OUTPUT_DIR for user-visible final artifacts. Inline code runs from a unique output runs directory.',
+        'Generate, convert, and render in separate calls, passing exact earlier artifact paths as inputs. On a code error, repair the failing step instead of rebuilding every artifact; partial files do not mean execution succeeded.',
+        'A Word preview must be converted from the actual DOCX with an available converter. Do not independently redraw its text in a PDF and call that a conversion or Word layout check. If conversion tools are missing, report that limitation and the existing file instead of substituting a different document.',
+        'Visual layout inspection is optional for ordinary export. If the user requests layout review or this Skill requires it, render the actual PDF/DOCX pages to images and use skill_inspect_artifact; report unavailable visual checks accurately without discarding a successfully generated file. Use skill_read_artifact for generated UTF-8 text or unpacked XML.',
+        `Skill root: ${runtime.skillDir}`,
+        `Runtime root: ${runtime.runtimeDir}`,
+        `Current workspace: ${runtime.appArticleDir}`,
+        `Output root: ${runtime.outputDir} (workspace-relative: ${runtime.outputRelativeDir}/).`,
+      ].join('\n')
 
       return {
         ok: true,
         message: [
           `Loaded Skill "${skillId}" with complete instructions and ${skill.scripts.length} registered script(s).`,
-          'The returned skill:// resources are installed and read-only. Never recreate or copy them into the note workspace.',
+          'The returned skill:// resources are installed and read-only. Keep task-specific generated code in the isolated runtime using skill_run_code.',
           skill.scripts.length > 0
             ? `Available script IDs: ${skill.scripts.map(script => script.name).join(', ')}`
             : 'This Skill has no registered scripts.',
-          `For a user-visible output argument, always use a relative path beginning with article/outputs/${skillId}/. The runtime also redirects new recognized artifact files into that directory.`,
-          `Registered scripts run with article/outputs/${skillId}/ as their working directory, so bare relative output names remain inside the user-visible output area.`,
+          hostInstructions,
           'Do not call skill_load or skill_list again for this Skill in the current task.',
         ].join('\n'),
         data: {
@@ -1196,7 +1233,13 @@ function buildSkillLoadTool(): AgentTool {
           name: skill.metadata.name,
           description: skill.metadata.description,
           base_uri: `skill://${skillId}/`,
-          output_directory: `article/outputs/${skillId}/`,
+          output_directory: runtime.outputDir,
+          output_relative_directory: `${runtime.outputRelativeDir}/`,
+          skill_root_directory: runtime.skillDir,
+          runtime_directory: runtime.runtimeDir,
+          workspace_directory: runtime.appArticleDir,
+          local_runtime_supported: !isMobileDevice(),
+          host_instructions: hostInstructions,
           instructions: skill.instructions,
           resources,
           scripts: skill.scripts.map(script => ({
@@ -2218,12 +2261,12 @@ function buildTools(): AgentTool[] {
     adaptLegacyTool({
       name: 'skill_execute_script',
       title: '执行 Skill 脚本',
-      description: 'Execute one registered, integrity-checked script from a loaded Skill. Arbitrary commands and generated runtime scripts are not supported.',
+      description: 'Execute one registered, integrity-checked package script from a loaded Skill. For official inline examples and task-specific Python/JavaScript/Bash, use skill_run_code instead. This tool accepts registered script IDs only.',
       category: 'skill',
       risk: 'script',
       legacy: executeSkillScriptTool,
       execute: async (input, context) => resultFromLegacy(
-        await executeRegisteredSkillScript(input, context.signal)
+        await executeRegisteredSkillScript(input, context.signal, context.workspaceIdentity)
       ),
     }),
     adaptLegacyTool({
@@ -2234,9 +2277,11 @@ function buildTools(): AgentTool[] {
       risk: 'script',
       legacy: installSkillPythonDependenciesTool,
       execute: async (input, context) => resultFromLegacy(
-        await installSkillDependencies(input, context.signal)
+        await installSkillDependencies(input, context.signal, context.workspaceIdentity)
       ),
     }),
+    ...skillRuntimeTools,
+    ...skillArtifactTools,
     buildMcpListToolsTool(),
     buildMcpListResourcesTool(),
     buildMcpListResourceTemplatesTool(),
@@ -2298,7 +2343,20 @@ export class AgentToolRegistry {
                   },
                 },
               }
-            : tool.inputSchema
+            : LOADED_SKILL_TOOL_NAMES.has(tool.name) && loadedSkillIds.size > 0
+              ? {
+                  ...tool.inputSchema,
+                  properties: {
+                    ...tool.inputSchema.properties,
+                    skill_id: {
+                      ...tool.inputSchema.properties?.skill_id,
+                      type: 'string',
+                      enum: [...loadedSkillIds],
+                      description: 'Exact loaded Skill ID.',
+                    },
+                  },
+                }
+              : tool.inputSchema
         ) as Record<string, unknown>,
       },
     }))

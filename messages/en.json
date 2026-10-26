@@ -768,7 +768,19 @@
       "pythonRuntime": "Python runtime",
       "isolatedRuntime": "isolated",
       "systemRuntime": "system",
-      "runtimeUnavailable": "unavailable"
+      "runtimeUnavailable": "unavailable",
+      "environment": {
+        "title": "Runtime environment",
+        "description": "Inspect the runtimes and document tools used by this Skill.",
+        "available": "Available",
+        "missing": "Not installed",
+        "systemToolsHelp": "Word conversion and layout previews require local tools such as LibreOffice and Poppler. Scanned-document OCR also requires Tesseract. Refresh after installing them.",
+        "dependencyHelp": "These buttons download the listed packages from PyPI or npm into this Skill’s own environment. Other packages can be installed as needed during a task.",
+        "installPython": "Install Python packages",
+        "installNode": "Install Node.js packages",
+        "installed": "Packages installed",
+        "desktopOnly": "Local scripts and document runtimes are currently available on desktop. Instruction-only Skills can be installed and used on mobile."
+      }
     },
     "plugins": {
       "ui": {
@@ -4480,7 +4492,13 @@
               "scope": "Install location",
               "has_scripts": "Contains scripts",
               "skipped_symlinks": "Skipped symbolic links",
-              "replaceExisting": "Replace existing Skill"
+              "replaceExisting": "Replace existing Skill",
+              "language": "Language",
+              "code": "Complete code",
+              "args": "Arguments",
+              "packages": "Packages",
+              "timeout": "Timeout (ms)",
+              "script_id": "Registered script"
             },
             "tools": {
               "create_memory": {
@@ -4552,6 +4570,14 @@
                   "executable-scripts": "The Skill contains executable scripts. Running them will still require separate confirmation.",
                   "symbolic-links": "The Skill contains {count} symbolic link(s). They will be skipped if installation continues."
                 }
+              },
+              "run_skill_code": {
+                "title": "Run Skill code",
+                "description": "The complete code and arguments below will run on this computer with access to local files and programs. This approval applies only to this code and these arguments."
+              },
+              "install_skill_node_dependencies": {
+                "title": "Install Skill Node.js packages",
+                "description": "Download the listed npm packages into this Skill’s own environment without running package installation scripts."
               }
             }
           }

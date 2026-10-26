@@ -255,20 +255,55 @@ pub async fn uninstall_skill(
             false
         }
     };
-    let runtime_dir = app_data_dir.join("skill-runtimes").join(&request.skill_id);
-    let removed_runtime = if runtime_dir.exists() {
-        match fs::remove_dir_all(&runtime_dir) {
-            Ok(()) => true,
-            Err(error) => {
-                warnings.push(format!(
-                    "Skill was removed, but its runtime could not be removed: {error}"
-                ));
-                false
-            }
+    let runtime_root = app_data_dir.join("skill-runtimes");
+    let runtime_scope = match request.scope {
+        SkillImportScope::Global => "global".to_string(),
+        SkillImportScope::Project => {
+            let workspace = request.workspace_root.as_deref()
+                .filter(|root| !root.trim().is_empty())
+                .map(str::to_owned)
+                .unwrap_or_else(|| app_data_dir.join("article").to_string_lossy().into_owned());
+            let normalized = workspace.replace('\\', "/");
+            let hash = format!("{:x}", Sha256::digest(normalized.trim_end_matches('/').as_bytes()));
+            format!("project-{}", &hash[..16])
         }
-    } else {
-        false
     };
+    let mut runtime_dirs = vec![runtime_root.join(runtime_scope).join(&request.skill_id)];
+    let collides_with_scope = request.skill_id == "global"
+        || request.skill_id.strip_prefix("project-").is_some_and(|suffix| {
+            suffix.len() == 16 && suffix.bytes().all(|byte| byte.is_ascii_hexdigit())
+        });
+    if matches!(request.scope, SkillImportScope::Global) && !collides_with_scope {
+        // The previous global runtime layout had no scope component.
+        runtime_dirs.push(runtime_root.join(&request.skill_id));
+    }
+    let mut removed_runtime = false;
+    for runtime_dir in runtime_dirs {
+        if !runtime_dir.exists() {
+            continue;
+        }
+        let removal = (|| -> Result<(), String> {
+            let relative = runtime_dir.strip_prefix(&runtime_root)
+                .map_err(|error| error.to_string())?;
+            let mut component_path = runtime_root.clone();
+            for component in std::iter::once(None).chain(relative.components().map(Some)) {
+                if let Some(component) = component {
+                    component_path.push(component.as_os_str());
+                }
+                let metadata = fs::symlink_metadata(&component_path).map_err(|error| error.to_string())?;
+                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                    return Err("Runtime path must be a regular directory without symbolic links".to_string());
+                }
+            }
+            fs::remove_dir_all(&runtime_dir).map_err(|error| error.to_string())
+        })();
+        match removal {
+            Ok(()) => removed_runtime = true,
+            Err(error) => warnings.push(format!(
+                "Skill was removed, but its runtime could not be removed: {error}"
+            )),
+        }
+    }
 
     Ok(UninstallSkillResult {
         skill_id: request.skill_id,

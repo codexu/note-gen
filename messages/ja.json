@@ -3178,7 +3178,19 @@
       "userInvocableHelp": "用户可以通过 /skill-name 手动触发",
       "deleteSkillTitle": "删除 Skill",
       "deleteSkillDesc": "确定要删除这个 Skill 吗？此操作无法撤销。",
-      "skillDeleted": "Skill 删除成功"
+      "skillDeleted": "Skill 删除成功",
+      "environment": {
+        "title": "実行環境",
+        "description": "この Skill が使用するランタイムと文書ツールを確認します。",
+        "available": "利用可能",
+        "missing": "未インストール",
+        "systemToolsHelp": "Word の変換とレイアウトプレビューには LibreOffice や Poppler などのローカルツールが必要です。スキャン文書の OCR には Tesseract も必要です。インストール後に更新してください。",
+        "dependencyHelp": "以下のボタンは、一覧のパッケージを PyPI または npm からダウンロードし、この Skill 専用の環境にインストールします。ほかのパッケージはタスク中に必要に応じて追加できます。",
+        "installPython": "Python パッケージをインストール",
+        "installNode": "Node.js パッケージをインストール",
+        "installed": "パッケージをインストールしました",
+        "desktopOnly": "ローカルスクリプトと文書の実行環境は現在デスクトップ版で利用できます。モバイル版では指示のみの Skill をインストールして使用できます。"
+      }
     },
     "plugins": {
       "ui": {
@@ -4331,7 +4343,13 @@
               "scope": "インストール先",
               "has_scripts": "スクリプトを含む",
               "skipped_symlinks": "スキップするシンボリックリンク",
-              "replaceExisting": "既存の Skill を置換"
+              "replaceExisting": "既存の Skill を置換",
+              "language": "言語",
+              "code": "コード全体",
+              "args": "引数",
+              "packages": "パッケージ",
+              "timeout": "タイムアウト（ミリ秒）",
+              "script_id": "登録済みスクリプト"
             },
             "tools": {
               "create_memory": {
@@ -4359,6 +4377,14 @@
                   "executable-scripts": "実行可能なスクリプトが含まれます。実行時には別途確認が必要です。",
                   "symbolic-links": "{count} 個のシンボリックリンクが含まれます。続行するとスキップされます。"
                 }
+              },
+              "run_skill_code": {
+                "title": "Skill コードを実行",
+                "description": "以下のコードと引数をこのコンピューターで実行します。ローカルのファイルやプログラムにアクセスできます。この承認は現在のコードと引数にのみ適用されます。"
+              },
+              "install_skill_node_dependencies": {
+                "title": "Skill の Node.js パッケージをインストール",
+                "description": "一覧の npm パッケージをこの Skill 専用の環境にダウンロードします。パッケージのインストールスクリプトは実行しません。"
               }
             }
           }

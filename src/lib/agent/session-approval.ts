@@ -15,7 +15,7 @@ export function getSessionApprovalScope(
     return null
   }
 
-  if (tool.risk === 'script' || toolName === 'skill_execute_script') {
+  if (toolName === 'skill_execute_script' && tool.name === 'skill_execute_script') {
     const skillId = typeof params.skill_id === 'string' ? params.skill_id : ''
     const scriptId = typeof params.script_id === 'string' ? params.script_id : ''
     const args = Array.isArray(params.args)

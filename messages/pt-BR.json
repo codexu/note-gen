@@ -3203,7 +3203,19 @@
       "content": "Conteúdo das instruções",
       "deleteSkillTitle": "Excluir Skill",
       "deleteSkillDesc": "Tem certeza de que deseja excluir esta Skill? Esta ação não pode ser desfeita.",
-      "skillDeleted": "Skill excluída com sucesso"
+      "skillDeleted": "Skill excluída com sucesso",
+      "environment": {
+        "title": "Ambiente de execução",
+        "description": "Verifique os runtimes e as ferramentas de documentos deste Skill.",
+        "available": "Disponível",
+        "missing": "Não instalado",
+        "systemToolsHelp": "A conversão de Word e a prévia de layout exigem ferramentas locais como LibreOffice e Poppler. O OCR de documentos digitalizados também exige Tesseract. Atualize após a instalação.",
+        "dependencyHelp": "Estes botões baixam os pacotes listados do PyPI ou npm para o ambiente próprio deste Skill. Outros pacotes podem ser instalados conforme necessário durante uma tarefa.",
+        "installPython": "Instalar pacotes Python",
+        "installNode": "Instalar pacotes Node.js",
+        "installed": "Pacotes instalados",
+        "desktopOnly": "Scripts locais e runtimes de documentos estão disponíveis no desktop. Skills compostos apenas por instruções podem ser instalados e usados no celular."
+      }
     },
     "plugins": {
       "ui": {
@@ -4406,7 +4418,13 @@
               "scope": "Local de instalação",
               "has_scripts": "Contém scripts",
               "skipped_symlinks": "Links simbólicos ignorados",
-              "replaceExisting": "Substituir Skill existente"
+              "replaceExisting": "Substituir Skill existente",
+              "language": "Linguagem",
+              "code": "Código completo",
+              "args": "Argumentos",
+              "packages": "Pacotes",
+              "timeout": "Tempo limite (ms)",
+              "script_id": "Script registrado"
             },
             "tools": {
               "create_memory": {
@@ -4434,6 +4452,14 @@
                   "executable-scripts": "O Skill contém scripts executáveis. A execução ainda exigirá confirmação separada.",
                   "symbolic-links": "O Skill contém {count} link(s) simbólico(s). Eles serão ignorados se a instalação continuar."
                 }
+              },
+              "run_skill_code": {
+                "title": "Executar código do Skill",
+                "description": "O código completo e os argumentos abaixo serão executados neste computador, com acesso a arquivos e programas locais. Esta aprovação vale apenas para este código e estes argumentos."
+              },
+              "install_skill_node_dependencies": {
+                "title": "Instalar pacotes Node.js do Skill",
+                "description": "Baixar os pacotes npm listados para o ambiente próprio deste Skill, sem executar scripts de instalação dos pacotes."
               }
             }
           }

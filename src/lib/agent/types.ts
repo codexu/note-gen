@@ -127,6 +127,7 @@ export interface AgentToolExecutionContext {
   requestUserQuestion?: (questions: AgentUserQuestion[], signal?: AbortSignal) => Promise<AgentUserAnswer[] | null>
   signal?: AbortSignal
   runId: string
+  workspaceIdentity?: string
   context: AgentContextSnapshot
 }
 

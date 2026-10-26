@@ -6,6 +6,7 @@ import {
   saveImageAnalysisCache,
 } from '@/db/image-analysis-cache'
 import { recognizeImageBlob } from '@/lib/ocr'
+import { redactSensitiveText } from '@/lib/diagnostics/runtime-log-buffer'
 
 export type ChatImageAnalysisStatus = 'pending' | 'normalizing' | 'recognizing' | 'completed' | 'failed' | 'cancelled'
 export type ChatImageRecognitionMethod = 'vlm' | 'ocr' | 'hybrid' | 'none'
@@ -16,6 +17,8 @@ export type ChatImageAnalysisErrorCode =
   | 'unsupported'
   | 'network'
   | 'decode'
+  | 'not_configured'
+  | 'empty_response'
   | 'recognition_failed'
   | 'unknown'
 
@@ -269,26 +272,56 @@ function classifyImageAnalysisError(error: unknown): {
   code: ChatImageAnalysisErrorCode
   message: string
 } {
-  const message = error instanceof Error ? error.message : String(error)
+  const details = error && typeof error === 'object' ? error as Record<string, unknown> : undefined
+  const providerError = details?.error && typeof details.error === 'object'
+    ? details.error as Record<string, unknown>
+    : undefined
+  const rawMessage = typeof providerError?.message === 'string' ? providerError.message
+    : error instanceof Error ? error.message
+      : typeof error === 'string' ? error
+        : typeof details?.message === 'string' ? details.message : 'Image analysis failed.'
+  const status = typeof details?.status === 'number' && Number.isInteger(details.status)
+    && details.status >= 100 && details.status <= 599 ? details.status : undefined
+  const message = safeImageAnalysisErrorMessage(status ? `HTTP ${status}: ${rawMessage}` : rawMessage)
   if (error instanceof DOMException && error.name === 'AbortError') {
     return { code: 'aborted', message }
   }
-  if (/401|403|unauthorized|forbidden|api.?key|authentication/i.test(message)) {
+  if (/VISION_MODEL_NOT_CONFIGURED/.test(rawMessage)) {
+    return { code: 'not_configured', message: '尚未配置图片识别模型。' }
+  }
+  if (status === 401 || status === 403 || /401|403|unauthorized|forbidden|api.?key|authentication/i.test(rawMessage)) {
     return { code: 'auth', message }
   }
-  if (/429|rate.?limit|too many requests|quota/i.test(message)) {
+  if (status === 429 || /429|rate.?limit|too many requests|quota/i.test(rawMessage)) {
     return { code: 'rate_limit', message }
   }
-  if (/unsupported|image_url|multimodal|vision|content type/i.test(message)) {
-    return { code: 'unsupported', message }
-  }
-  if (/network|fetch|timeout|timed out|connection/i.test(message)) {
+  if (/network|fetch|timeout|timed out|connection/i.test(rawMessage)) {
     return { code: 'network', message }
   }
-  if (/decode|dimensions|canvas|normalization/i.test(message)) {
+  if (/decode|dimensions|canvas|normalization/i.test(rawMessage)) {
     return { code: 'decode', message }
   }
+  if (/unsupported|not support|image_url|multimodal|content type|vision.{0,40}(?:not available|not enabled)/i.test(rawMessage)) {
+    return { code: 'unsupported', message }
+  }
   return { code: 'unknown', message }
+}
+
+function safeImageAnalysisErrorMessage(value: string): string {
+  // Do not serialize API error objects: they may carry request headers/tokens.
+  // Providers may also echo those details inside an otherwise useful message.
+  const message = redactSensitiveText(value)
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '<redacted>')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '<redacted>')
+    .replace(/((?:api[_ -]?key|x-api-key|token)(?:\s+provided)?["']?\s*[:=]\s*["']?)[^\s,;"'}]+/gi, '$1<redacted>')
+    .replace(/data:image\/[^;,\s]+;base64,[A-Za-z0-9+/=]+/gi, '<image data omitted>')
+    .replace(/https?:\/\/[^\s<>"']+/gi, value => {
+      try { return new URL(value).origin } catch { return '<endpoint omitted>' }
+    })
+  const requestDetails = message.search(/["'](?:request|requestOptions)["']\s*:\s*[\[{]|\b(?:request[\s_-]*headers|headers)["']?\s*[:=]\s*[\[{]|(?:^|\n)\s*(?:request headers|headers)\s*[:=]/i)
+  const reason = (requestDetails >= 0 ? message.slice(0, requestDetails) : message)
+    .split(/\r?\n/, 1)[0].trim()
+  return reason.slice(0, 800) || 'Image analysis failed; request details were omitted.'
 }
 
 function buildImageAnalysisPrompt(userRequest: string, imageIndex: number, imageCount: number) {
@@ -370,7 +403,7 @@ async function analyzeImage(
       : raceWithAbort(recognizeImageBlob(normalized.blob), signal).catch((error) => {
           if (signal?.aborted) throw error
           ocrFailed = true
-          console.warn('Chat image OCR failed:', error)
+          console.warn('Chat image OCR failed:', classifyImageAnalysisError(error))
           return ''
         })
     const visualPromise = cachedVisual?.visualAnalysis !== undefined
@@ -383,7 +416,7 @@ async function analyzeImage(
         ).catch((error) => {
           if (signal?.aborted) throw error
           visualFailure = classifyImageAnalysisError(error)
-          console.warn('Chat image VLM analysis failed:', error)
+          console.warn('Chat image VLM analysis failed:', visualFailure)
           return ''
         })
 
@@ -605,7 +638,7 @@ export async function buildChatImageContext(
         }
       }
     } catch (error) {
-      console.warn('Joint image analysis failed:', error)
+      console.warn('Joint image analysis failed:', classifyImageAnalysisError(error))
     }
   }
 
@@ -704,18 +737,27 @@ export async function inspectChatImage(
   crop?: ImageInspectionCrop
 ) {
   const normalized = await normalizeImage(attachment, signal, crop)
+  let visualFailure: ReturnType<typeof classifyImageAnalysisError> | undefined
   const [ocrText, visualAnalysis] = await Promise.all([
-    raceWithAbort(recognizeImageBlob(normalized.blob), signal).catch(() => ''),
+    raceWithAbort(recognizeImageBlob(normalized.blob), signal).catch((error) => {
+      if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
+      return ''
+    }),
     analyzeImagesWithVlm(
       [normalized.dataUrl],
       buildImageAnalysisPrompt(prompt, 0, 1),
       CHAT_IMAGE_ANALYSIS_MAX_TOKENS,
       signal
     ).catch((error) => {
-      if (signal?.aborted) throw error
+      if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
+      visualFailure = classifyImageAnalysisError(error)
       return ''
     }),
   ])
+  throwIfAborted(signal)
+  if (!visualAnalysis.trim() && !visualFailure) {
+    visualFailure = { code: 'empty_response', message: '图片识别模型返回了空分析内容。' }
+  }
   const method = recognitionMethod(ocrText.trim(), visualAnalysis.trim())
   return {
     imageId: attachment.id,
@@ -730,7 +772,8 @@ export async function inspectChatImage(
     ocrText: ocrText.trim() || undefined,
     visualAnalysis: visualAnalysis.trim() || undefined,
     query: prompt,
-    errorCode: method === 'none' ? 'recognition_failed' : undefined,
+    errorCode: visualFailure?.code,
+    errorMessage: visualFailure?.message,
     updatedAt: Date.now(),
   } satisfies PersistedChatImageAnalysis
 }

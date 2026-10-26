@@ -3178,7 +3178,19 @@
       "userInvocableHelp": "用户可以通过 /skill-name 手动触发",
       "deleteSkillTitle": "删除 Skill",
       "deleteSkillDesc": "确定要删除这个 Skill 吗？此操作无法撤销。",
-      "skillDeleted": "Skill 删除成功"
+      "skillDeleted": "Skill 删除成功",
+      "environment": {
+        "title": "執行環境",
+        "description": "查看此 Skill 使用的執行階段與文件工具。",
+        "available": "可用",
+        "missing": "未安裝",
+        "systemToolsHelp": "Word 轉換與版面預覽需要 LibreOffice、Poppler 等本機工具；掃描檔 OCR 還需要 Tesseract。安裝後請重新整理狀態。",
+        "dependencyHelp": "下方按鈕會從 PyPI 或 npm 下載所列相依套件，安裝到此 Skill 的獨立環境。其他相依套件可在任務中按需安裝。",
+        "installPython": "安裝 Python 相依套件",
+        "installNode": "安裝 Node.js 相依套件",
+        "installed": "相依套件安裝完成",
+        "desktopOnly": "本機指令碼與文件執行環境目前用於桌面版。行動版可安裝並使用純指令技能。"
+      }
     },
     "plugins": {
       "ui": {
@@ -4337,7 +4349,13 @@
               "scope": "安裝位置",
               "has_scripts": "包含腳本",
               "skipped_symlinks": "略過的符號連結",
-              "replaceExisting": "取代現有 Skill"
+              "replaceExisting": "取代現有 Skill",
+              "language": "執行語言",
+              "code": "完整程式碼",
+              "args": "參數",
+              "packages": "相依套件",
+              "timeout": "逾時（毫秒）",
+              "script_id": "已登錄指令碼"
             },
             "tools": {
               "create_memory": {
@@ -4365,6 +4383,14 @@
                   "executable-scripts": "包含可執行指令碼；安裝後執行時仍會另外要求確認。",
                   "symbolic-links": "包含 {count} 個符號連結；繼續安裝時會略過這些連結。"
                 }
+              },
+              "run_skill_code": {
+                "title": "執行 Skill 程式碼",
+                "description": "將在本機執行下方完整程式碼與參數，可存取本機檔案及程式。此次確認僅適用於目前的程式碼與參數。"
+              },
+              "install_skill_node_dependencies": {
+                "title": "安裝 Skill Node.js 相依套件",
+                "description": "將從 npm 下載所列相依套件並安裝到此 Skill 的獨立環境，不執行套件的安裝指令碼。"
               }
             }
           }

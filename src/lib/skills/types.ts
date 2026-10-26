@@ -46,6 +46,7 @@ export interface SkillAsset {
   name: string                  // 资源文件名
   path: string                  // 相对路径 (assets/template.json)
   type: 'template' | 'image' | 'data' | 'other'
+  encoding?: 'utf-8' | 'binary' // 二进制资源只登记，不通过文本资源接口解码
   description?: string          // 资源描述
 }
 

@@ -104,6 +104,11 @@ export class AgentPermissionEngine {
     }
 
     if (tool.risk === 'script') {
+      // Only immutable, registered scripts may receive session approval.
+      // Generated source and dependency installs always require their own approval.
+      if (tool.name !== 'skill_execute_script') {
+        return { allowed: true, requiresApproval: true, canApproveForSession: false }
+      }
       const skillId = typeof input.skill_id === 'string' ? input.skill_id : ''
       const scriptId = typeof input.script_id === 'string' ? input.script_id : ''
       const args = Array.isArray(input.args)

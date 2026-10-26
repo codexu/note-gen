@@ -9,8 +9,10 @@ import { memoryContextService } from '@/lib/context/loader'
 import { AgentRecoveryManager } from './recovery-manager'
 import { PendingMessageQueue } from './pending-message-queue'
 import { createAgentId, AgentTraceRecorder } from './trace-recorder'
-import { agentToolRegistry, buildEditorApprovalPreview } from './tool-registry'
+import { agentToolRegistry, buildEditorApprovalPreview, LOADED_SKILL_TOOL_NAMES } from './tool-registry'
 import { skillManager } from '@/lib/skills'
+import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
+import { getWorkspacePath } from '@/lib/workspace'
 import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
 import { agentDebugLog, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
@@ -58,10 +60,11 @@ async function executeAgentTool(
   runId: string,
   signal: AbortSignal | undefined,
   context: AgentContextSnapshot,
-  requestUserQuestion?: AgentToolExecutionContext['requestUserQuestion']
+  requestUserQuestion?: AgentToolExecutionContext['requestUserQuestion'],
+  workspaceIdentity?: string,
 ): Promise<AgentToolResult> {
   try {
-    return await tool.execute(args, { runId, signal, context, requestUserQuestion })
+    return await tool.execute(args, { runId, signal, context, requestUserQuestion, workspaceIdentity })
   } catch (error) {
     if (isRequestAbortError(error)) {
       throw error
@@ -690,6 +693,10 @@ function isMutatingTool(tool: AgentTool) {
   return MUTATING_TOOL_RISKS.has(tool.risk)
 }
 
+function guardsFailedToolCall(tool: AgentTool) {
+  return isMutatingTool(tool) || tool.risk === 'script' || tool.risk === 'skill-install'
+}
+
 function getReadToolCallSignature(tool: AgentTool, args: Record<string, unknown>) {
   if (tool.risk !== 'read') {
     return undefined
@@ -753,6 +760,12 @@ export class AgentRuntime {
     const steps: AgentStep[] = []
     const toolCalls: ToolCall[] = []
     const changes: AgentChange[] = []
+    const runWorkspaceIdentity = getSkillWorkspaceIdentity(await getWorkspacePath())
+    const assertRunWorkspace = async () => {
+      if (getSkillWorkspaceIdentity(await getWorkspacePath()) !== runWorkspaceIdentity) {
+        throw new Error('WORKSPACE_CHANGED: 工作区已切换，本次任务已停止。请在目标工作区重新发起请求。')
+      }
+    }
 
     const context: AgentContextSnapshot = {
       activeChatId: input.activeChatId,
@@ -891,6 +904,7 @@ export class AgentRuntime {
       tool: AgentTool,
       args: Record<string, unknown>
     ): Promise<AgentToolResult> => {
+      await assertRunWorkspace()
       if (tool.name === 'web_search') {
         const blockedResult = webSearchBudget.startSearch()
         if (blockedResult) return blockedResult
@@ -929,7 +943,8 @@ export class AgentRuntime {
         runId,
         this.abortController?.signal,
         context,
-        callbacks.requestUserQuestion
+        callbacks.requestUserQuestion,
+        runWorkspaceIdentity,
       )
       if (tool.name === 'web_search') webSearchBudget.recordResult(result)
       return result
@@ -945,6 +960,9 @@ export class AgentRuntime {
         tool_call_id: toolCallId,
         content: stringifyToolResult(result),
       })
+      // Failed attempts may have fresh execution IDs, paths, or timings, but
+      // those do not establish progress. Keep the error in model context.
+      if (!result.ok) return
       if (toolName === 'web_search') {
         // Query/provider changes are not new evidence, and budget errors add none.
         for (const key of webSearchBudget.evidenceKeys) toolResultEvidence.add(key)
@@ -1590,6 +1608,7 @@ export class AgentRuntime {
           if (this.stopped) {
             throw new Error('USER_STOPPED')
           }
+          await assertRunWorkspace()
           const toolName = toolUse.function.name
           const tool = toolMap.get(toolName)
           let args: Record<string, unknown>
@@ -1707,7 +1726,7 @@ export class AgentRuntime {
           }
 
           if (
-            (toolName === 'skill_execute_script' || toolName === 'skill_read_resource')
+            LOADED_SKILL_TOOL_NAMES.has(toolName)
             && (
               typeof args.skill_id !== 'string'
               || !loadedSkillIds.has(args.skill_id)
@@ -1740,7 +1759,7 @@ export class AgentRuntime {
                 message: [
                   `Invalid script_id for loaded Skill "${args.skill_id}": ${String(args.script_id || '')}.`,
                   `Choose one exact registered ID: ${availableScripts.join(', ') || '(none)'}.`,
-                  'Do not invent, abbreviate, or recreate a script.',
+                  'Do not invent or abbreviate a registered script ID. Use skill_run_code for approved inline or task-specific source.',
                 ].join('\n'),
                 error: 'INVALID_REGISTERED_SCRIPT_ID',
               }
@@ -1955,6 +1974,9 @@ export class AgentRuntime {
             if (updatedApprovalTrace) callbacks.onTrace?.(updatedApprovalTrace)
           }
 
+          // Approval can remain open while the user switches workspaces.
+          // Recheck its original workspace immediately before any tool executes.
+          await assertRunWorkspace()
           callbacks.onStatus?.(
             ['editor-write', 'file-create', 'file-update', 'delete', 'medium'].includes(tool.risk)
               ? 'applying_change'
@@ -1980,8 +2002,11 @@ export class AgentRuntime {
           const mutationCallSignature = isMutatingTool(tool)
             ? `${tool.name}:${JSON.stringify(args)}`
             : undefined
+          const failedCallSignature = guardsFailedToolCall(tool)
+            ? `${tool.name}:${JSON.stringify(args)}`
+            : undefined
           const repeatedFailedMutation = Boolean(
-            mutationCallSignature && failedToolResultHistory.has(mutationCallSignature)
+            failedCallSignature && failedToolResultHistory.has(failedCallSignature)
           )
           const repeatedSuccessfulMutation = Boolean(
             mutationCallSignature && successfulMutationCalls.has(mutationCallSignature)
@@ -2004,7 +2029,7 @@ export class AgentRuntime {
             : repeatedFailedMutation
             ? {
                 ok: false,
-                message: '相同的写入操作此前已经失败，本次重复执行已被阻止。请调整参数、改用其他工具，或向用户说明失败原因。',
+                message: '相同的操作此前已经失败，本次重复执行已被阻止。请调整参数、改用其他工具，或向用户说明失败原因。',
                 error: 'REPEATED_FAILED_MUTATION_BLOCKED',
               }
             : reusableEditorStateResult
@@ -2125,7 +2150,7 @@ export class AgentRuntime {
               ...result,
               message: [
                 result.message || result.error || '工具未返回可确认的成功结果。',
-                isMutatingTool(tool)
+                guardsFailedToolCall(tool)
                   ? '该操作未确认成功。不要用相同参数重复执行；请调整方案、改用其他工具，或向用户说明情况。'
                   : '请根据该结果调整参数、改用其他工具，或直接向用户说明情况；不要无视错误结束对话。',
               ].join('\n\n'),
@@ -2158,13 +2183,32 @@ export class AgentRuntime {
             successfulMutationCalls.add(mutationCallSignature)
           }
 
+          if (result.ok && typeof args.skill_id === 'string'
+            && (tool.name === 'skill_install_node_dependencies' || tool.name === 'skill_install_python_dependencies')) {
+            // Installing a missing dependency changes this Skill's execution
+            // environment, so its exact previously failed source may be retried.
+            for (const signature of failedToolResultHistory.keys()) {
+              const separator = signature.indexOf(':')
+              const failedToolName = signature.slice(0, separator)
+              if (failedToolName !== 'skill_run_code' && failedToolName !== 'skill_execute_script') continue
+              try {
+                const failedArgs: unknown = JSON.parse(signature.slice(separator + 1))
+                if (failedArgs && typeof failedArgs === 'object' && !Array.isArray(failedArgs)
+                  && (failedArgs as Record<string, unknown>).skill_id === args.skill_id) {
+                  failedToolResultHistory.delete(signature)
+                }
+              } catch {
+                // An unrecognized signature must not reset unrelated failures.
+                continue
+              }
+            }
+          }
+
           if (!result.ok) {
             const failedCallSignature = `${tool.name}:${JSON.stringify(args)}`
             const serializedResult = stringifyToolResult(result)
             const previousFailure = failedToolResultHistory.get(failedCallSignature)
-            const repeatCount = previousFailure?.result === serializedResult
-              ? previousFailure.repeatCount + 1
-              : 0
+            const repeatCount = previousFailure ? previousFailure.repeatCount + 1 : 0
             failedToolResultHistory.set(failedCallSignature, {
               result: serializedResult,
               repeatCount,
@@ -2259,6 +2303,16 @@ export class AgentRuntime {
         trace: recorder.all(),
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('WORKSPACE_CHANGED:')) {
+        this.abortController?.abort()
+        finalContent = '工作区已切换，本次任务已停止。请在目标工作区重新发起请求。'
+        finalizeInterruptedModelTrace('error', '工作区已切换')
+        const trace = recorder.add({ type: 'error', title: '工作区已切换', status: 'error', message: finalContent, output: { error: 'WORKSPACE_CHANGED' } })
+        callbacks.onTrace?.(trace)
+        callbacks.onStatus?.('stopped')
+        callbacks.onFinalAnswerRender?.(finalContent)
+        return { runId, content: finalContent, stopped: true, steps, toolCalls, changes, trace: recorder.all() }
+      }
       if (
         this.stopped
         || (error instanceof Error && error.message === 'USER_STOPPED')

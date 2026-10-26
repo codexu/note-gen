@@ -105,6 +105,17 @@ const TOOL_CONFIRMATION_DISPLAY: Record<string, ToolConfirmationDisplayConfig> =
     descriptionKey: 'record.chat.input.agent.confirmation.tools.install_skill_python_dependencies.description',
     summaryFields: ['skill_id', 'packages'],
   },
+  skill_run_code: {
+    titleKey: 'record.chat.input.agent.confirmation.tools.run_skill_code.title',
+    descriptionKey: 'record.chat.input.agent.confirmation.tools.run_skill_code.description',
+    summaryFields: ['skill_id', 'language', 'code', 'args', 'timeout'],
+    contentFields: ['code'],
+  },
+  skill_install_node_dependencies: {
+    titleKey: 'record.chat.input.agent.confirmation.tools.install_skill_node_dependencies.title',
+    descriptionKey: 'record.chat.input.agent.confirmation.tools.install_skill_node_dependencies.description',
+    summaryFields: ['skill_id', 'packages'],
+  },
   skill_install_package: {
     titleKey: 'record.chat.input.agent.confirmation.fallback.title',
     descriptionKey: 'record.chat.input.agent.confirmation.fallback.description',

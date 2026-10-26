@@ -76,7 +76,8 @@ use remote_skills::{
 };
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use skill_runtime::{
-    cancel_skill_script, inspect_skill_python, install_skill_python_dependencies, run_skill_script,
+    cancel_skill_script, inspect_skill_environment, inspect_skill_python,
+    install_skill_node_dependencies, install_skill_python_dependencies, run_skill_code, run_skill_script,
     SkillProcessManager,
 };
 use skills::{
@@ -221,11 +222,17 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             run_skill_script,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            run_skill_code,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             cancel_skill_script,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             inspect_skill_python,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            inspect_skill_environment,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
             install_skill_python_dependencies,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            install_skill_node_dependencies,
             ai_json_request,
             ai_binary_request,
             ai_multipart_request,

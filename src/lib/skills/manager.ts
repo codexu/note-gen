@@ -26,10 +26,37 @@ import {
 } from './types'
 import { parseSkillFile, generateSkillId, detectScriptType } from './parser'
 import { validateSkillYamlMetadata } from './validator'
-import { readFile, readTextFile, readDir, BaseDirectory, DirEntry } from '@tauri-apps/plugin-fs'
+import { readFile, readDir, lstat, open, BaseDirectory, DirEntry } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
 import { exists } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
+
+const MAX_SKILL_RESOURCE_DEPTH = 10
+const MAX_SKILL_RESOURCES = 1000
+const MAX_SKILL_SCAN_ENTRIES = 4000
+const MAX_SKILL_RESOURCE_BYTES = 512 * 1024
+const SKIPPED_SKILL_DIRECTORIES = new Set([
+  'runtime', 'skill-runtimes', 'node_modules', 'venv', '__pycache__', 'outputs',
+])
+const TEXT_RESOURCE_EXTENSIONS = new Set([
+  'md', 'mdx', 'txt', 'rst', 'adoc', 'json', 'jsonl', 'yaml', 'yml', 'toml',
+  'xml', 'xsd', 'xsl', 'xslt', 'rels', 'dtd', 'ent', 'html', 'htm', 'css', 'scss', 'svg', 'csv', 'tsv',
+  'ini', 'cfg', 'conf', 'properties', 'tex', 'bib', 'template', 'j2', 'jinja',
+  'jinja2', 'liquid', 'mustache', 'hbs', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx',
+  'py', 'sh', 'bash', 'zsh', 'ps1', 'sql',
+])
+
+function isTextResourcePath(path: string): boolean {
+  const name = path.split('/').pop()?.toLowerCase() || ''
+  return ['license', 'licence', 'notice', 'readme', 'makefile'].includes(name)
+    || TEXT_RESOURCE_EXTENSIONS.has(name.split('.').pop() || '')
+}
+
+function isSafeSkillEntry(entry: DirEntry): boolean {
+  return !!entry.name && !entry.isSymlink && !entry.name.startsWith('.')
+    && !/[\\/\0]/.test(entry.name)
+    && !(entry.isDirectory && SKIPPED_SKILL_DIRECTORIES.has(entry.name.toLowerCase()))
+}
 
 // ============================================================================
 // SkillManager 类
@@ -49,6 +76,7 @@ class SkillManager {
   private skills: Map<string, SkillContent> = new Map()
   private installedSkills: Map<string, SkillContent> = new Map()
   private skillFiles: Map<string, SkillFileInfo> = new Map()
+  private installedSkillFiles: Map<string, SkillFileInfo> = new Map()
   private enabledOverrides: Record<string, boolean> = {}
   private initialized = false
 
@@ -88,11 +116,22 @@ class SkillManager {
    * 重新加载所有 Skills
    */
   async reload(): Promise<void> {
+    this.reset()
+    await this.initialize()
+  }
+
+  reset(): void {
     this.skills.clear()
     this.installedSkills.clear()
     this.skillFiles.clear()
+    this.installedSkillFiles.clear()
     this.initialized = false
-    await this.initialize()
+  }
+
+  private registerSkillFileInfo(id: string, scope: SkillScope, info: SkillFileInfo): void {
+    this.installedSkillFiles.set(`${scope}:${id}`, info)
+    const activeSkill = this.skills.get(id)
+    if (!activeSkill || activeSkill.metadata.scope === scope) this.skillFiles.set(id, info)
   }
 
   // ========================================================================
@@ -173,7 +212,7 @@ class SkillManager {
     // 检查 SKILL.md 是否存在
     const fileExists = await this.fileExists(skillFilePath, scope)
     if (!fileExists) {
-      this.skillFiles.set(skillId, {
+      this.registerSkillFileInfo(skillId, scope, {
         id: skillId,
         directory: skillDirPath,
         mainFile: skillFilePath,
@@ -195,7 +234,7 @@ class SkillManager {
     // 验证元数据
     const validation = validateSkillYamlMetadata(parsed.metadata)
     if (!validation.valid) {
-      this.skillFiles.set(skillId, {
+      this.registerSkillFileInfo(skillId, scope, {
         id: skillId,
         directory: skillDirPath,
         mainFile: skillFilePath,
@@ -246,15 +285,9 @@ class SkillManager {
       scripts.push(...scriptFiles)
     }
 
-    // 加载参考文档 (references/)
-    const references: SkillReference[] = []
-    if (hasReferencesDir) {
-      const referenceFiles = await this.loadReferencesFromDirectory(
-        `${skillDirPath}/${REFERENCES_DIR_NAME}`,
-        scope
-      )
-      references.push(...referenceFiles)
-    }
+    // Resources may also live in examples/, themes/, agents/, or nested
+    // directories. Index them without executing or rewriting the package.
+    const { references, assets } = await this.loadPackageResources(skillDirPath, scope, scripts)
 
     // 向后兼容：加载根目录的 REFERENCE.md
     if (hasReferenceFile && !hasReferencesDir) {
@@ -262,23 +295,8 @@ class SkillManager {
         `${skillDirPath}/${REFERENCE_FILE_NAME}`,
         scope
       )
-      references.push({
-        name: REFERENCE_FILE_NAME,
-        path: REFERENCE_FILE_NAME,
-        description: 'Legacy reference file (consider moving to references/)',
-      })
       // 将旧格式内容附加到指令中
       parsed.content += '\n\n---\n\n## 参考文档 (Legacy)\n\n' + refContent
-    }
-
-    // 加载资源文件 (assets/)
-    const assets: SkillAsset[] = []
-    if (hasAssetsDir) {
-      const assetFiles = await this.loadAssetsFromDirectory(
-        `${skillDirPath}/${ASSETS_DIR_NAME}`,
-        scope
-      )
-      assets.push(...assetFiles)
     }
 
     // 向后兼容：加载 KEYWORDS.md
@@ -289,10 +307,6 @@ class SkillManager {
       )
       parsed.content += '\n\n---\n\n## 关键词 (Legacy)\n\n' + keywordsContent
     }
-
-    // 加载根目录下的所有 .md 文件（排除 SKILL.md 自身）
-    const rootMdFiles = await this.loadRootMdFiles(skillDirPath, scope)
-    references.push(...rootMdFiles)
 
     // 构建 Skill 内容
     const now = Date.now()
@@ -328,7 +342,7 @@ class SkillManager {
     this.registerSkill(skill)
 
     // 记录文件信息
-    this.skillFiles.set(skillId, {
+    this.registerSkillFileInfo(skillId, scope, {
       id: skillId,
       directory: skillDirPath,
       mainFile: skillFilePath,
@@ -352,7 +366,8 @@ class SkillManager {
     scriptsDir: string,
     scope: SkillScope,
     basePath: string = '',
-    depth: number = 0
+    depth: number = 0,
+    budget: { count: number; visited: number } = { count: 0, visited: 0 }
   ): Promise<SkillScript[]> {
     const scripts: SkillScript[] = []
 
@@ -360,22 +375,11 @@ class SkillManager {
     const maxDepth = 10
 
     try {
-      let entries: DirEntry[]
-
-      if (scope === 'global') {
-        entries = await readDir(scriptsDir, { baseDir: BaseDirectory.AppData })
-      } else {
-        const options = await getFilePathOptions(scriptsDir)
-        if (options.baseDir) {
-          entries = await readDir(options.path, { baseDir: options.baseDir })
-        } else {
-          entries = await readDir(options.path)
-        }
-      }
+      const entries = await this.readDirectoryEntries(scriptsDir, scope)
 
       for (const entry of entries) {
-        // 跳过隐藏文件和目录
-        if (entry.name.startsWith('.')) {
+        if (++budget.visited > MAX_SKILL_SCAN_ENTRIES || budget.count >= MAX_SKILL_RESOURCES) break
+        if (!isSafeSkillEntry(entry)) {
           continue
         }
 
@@ -400,13 +404,15 @@ class SkillManager {
             type: scriptType,
             sha256: await this.hashFile(scriptPath, scope),
           })
+          budget.count += 1
         } else if (entry.isDirectory && depth < maxDepth) {
           // 递归加载子目录中的脚本（受 maxDepth 限制）
           const subScripts = await this.loadScriptsFromDirectory(
             `${scriptsDir}/${entry.name}`,
             scope,
             relativePath,
-            depth + 1
+            depth + 1,
+            budget
           )
           scripts.push(...subScripts)
         }
@@ -418,155 +424,121 @@ class SkillManager {
     return scripts
   }
 
-  /**
-   * 从 references/ 目录加载参考文档
-   */
-  private async loadReferencesFromDirectory(
-    referencesDir: string,
-    scope: SkillScope
-  ): Promise<SkillReference[]> {
-    const references: SkillReference[] = []
-
-    try {
-      let entries: DirEntry[]
-
-      if (scope === 'global') {
-        entries = await readDir(referencesDir, { baseDir: BaseDirectory.AppData })
-      } else {
-        const options = await getFilePathOptions(referencesDir)
-        if (options.baseDir) {
-          entries = await readDir(options.path, { baseDir: options.baseDir })
-        } else {
-          entries = await readDir(options.path)
-        }
-      }
-
-      for (const entry of entries) {
-        // 跳过隐藏文件和目录
-        if (entry.name.startsWith('.')) {
-          continue
-        }
-
-        // 只处理 markdown 文件
-        if (entry.isFile && entry.name.endsWith('.md')) {
-          references.push({
-            name: entry.name,
-            path: `${referencesDir}/${entry.name}`,
-          })
-        }
-      }
-    } catch (error) {
-      console.error(`读取参考文档目录失败: ${referencesDir}`, error)
-    }
-
-    return references
+  private async readDirectoryEntries(path: string, scope: SkillScope): Promise<DirEntry[]> {
+    const options = await this.ensureRegularResourcePath(path, scope, true)
+    return readDir(options.path, options.baseDir ? { baseDir: options.baseDir } : undefined)
   }
 
-  /**
-   * 从 assets/ 目录加载资源文件
-   */
-  private async loadAssetsFromDirectory(
-    assetsDir: string,
-    scope: SkillScope
-  ): Promise<SkillAsset[]> {
-    const assets: SkillAsset[] = []
-
-    try {
-      let entries: DirEntry[]
-
-      if (scope === 'global') {
-        entries = await readDir(assetsDir, { baseDir: BaseDirectory.AppData })
-      } else {
-        const options = await getFilePathOptions(assetsDir)
-        if (options.baseDir) {
-          entries = await readDir(options.path, { baseDir: options.baseDir })
-        } else {
-          entries = await readDir(options.path)
-        }
-      }
-
-      for (const entry of entries) {
-        // 跳过隐藏文件和目录
-        if (entry.name.startsWith('.')) {
-          continue
-        }
-
-        if (entry.isFile) {
-          const ext = entry.name.substring(entry.name.lastIndexOf('.')).toLowerCase()
-          const assetPath = `${assetsDir}/${entry.name}`
-
-          // 根据扩展名确定资源类型
-          let type: SkillAsset['type'] = 'other'
-          if (['.json', '.yaml', '.yml', '.toml'].includes(ext)) {
-            type = 'data'
-          } else if (
-            ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'].includes(ext)
-          ) {
-            type = 'image'
-          } else if (
-            ['.md', '.txt', '.template'].includes(ext) ||
-            entry.name.includes('template')
-          ) {
-            type = 'template'
-          }
-
-          assets.push({
-            name: entry.name,
-            path: assetPath,
-            type,
-          })
-        }
-      }
-    } catch (error) {
-      console.error(`读取资源目录失败: ${assetsDir}`, error)
-    }
-
-    return assets
-  }
-
-  /**
-   * 从 skill 根目录加载额外的 .md 文件（如 editing.md, pptxgenjs.md）
-   * 支持加载 skill 根目录下的所有 .md 文件（排除 SKILL.md 自身）
-   */
-  private async loadRootMdFiles(
+  /** Index package resources, keeping only scripts/ entries executable. */
+  private async loadPackageResources(
     skillDirPath: string,
-    scope: SkillScope
-  ): Promise<SkillReference[]> {
+    scope: SkillScope,
+    scripts: SkillScript[]
+  ): Promise<{ references: SkillReference[]; assets: SkillAsset[] }> {
     const references: SkillReference[] = []
+    const assets: SkillAsset[] = []
+    const executablePaths = new Set(scripts.map(script => `scripts/${script.name}`))
+    let visited = 0
 
-    try {
-      let entries: DirEntry[]
-
-      if (scope === 'global') {
-        entries = await readDir(skillDirPath, { baseDir: BaseDirectory.AppData })
-      } else {
-        const options = await getFilePathOptions(skillDirPath)
-        if (options.baseDir) {
-          entries = await readDir(options.path, { baseDir: options.baseDir })
-        } else {
-          entries = await readDir(options.path)
-        }
-      }
-
-      for (const entry of entries) {
-        // 只处理 .md 文件，排除 SKILL.md
-        if (
-          entry.isFile &&
-          entry.name.endsWith('.md') &&
-          entry.name !== SKILL_FILE_NAME
-        ) {
-          references.push({
-            name: entry.name, // 如 "pptxgenjs.md", "editing.md"
-            path: entry.name,
-            description: `Additional reference file: ${entry.name}`,
+    const visit = async (directory: string, relative: string, depth: number): Promise<void> => {
+      if (depth > MAX_SKILL_RESOURCE_DEPTH || visited >= MAX_SKILL_SCAN_ENTRIES
+        || references.length + assets.length >= MAX_SKILL_RESOURCES) return
+      try {
+        const entries = (await this.readDirectoryEntries(directory, scope))
+          .filter(isSafeSkillEntry)
+          .sort((left, right) => {
+            // Discover root documents and canonical references before optional
+            // examples or large support trees consume the bounded index.
+            const priority = (entry: DirEntry) => entry.isFile ? 0 : entry.name === REFERENCES_DIR_NAME ? 1 : 2
+            return priority(left) - priority(right) || left.name.localeCompare(right.name)
           })
+        for (const entry of entries) {
+          if (++visited > MAX_SKILL_SCAN_ENTRIES
+            || references.length + assets.length >= MAX_SKILL_RESOURCES) break
+          const logicalPath = relative ? `${relative}/${entry.name}` : entry.name
+          const storedPath = `${directory}/${entry.name}`
+          if (entry.isDirectory) {
+            await visit(storedPath, logicalPath, depth + 1)
+          } else if (entry.isFile && logicalPath !== SKILL_FILE_NAME && !executablePaths.has(logicalPath)) {
+            if (isTextResourcePath(logicalPath)) {
+              references.push({ name: logicalPath, path: storedPath })
+            } else {
+              const extension = entry.name.split('.').pop()?.toLowerCase() || ''
+              assets.push({
+                name: logicalPath,
+                path: storedPath,
+                type: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico'].includes(extension) ? 'image' : 'other',
+                encoding: 'binary',
+              })
+            }
+          }
         }
+      } catch (error) {
+        console.error(`[SkillManager] Failed to index resources: ${directory}`, error)
       }
-    } catch (error) {
-      console.error(`[SkillManager] 读取根目录 .md 文件失败: ${skillDirPath}`, error)
     }
 
-    return references
+    await visit(skillDirPath, '', 0)
+    return { references, assets }
+  }
+
+  /** Reject symbolic links in every component before opening package resources. */
+  private async ensureRegularResourcePath(
+    path: string,
+    scope: SkillScope,
+    directory = false
+  ): Promise<{ path: string; baseDir?: BaseDirectory }> {
+    const options = scope === 'global'
+      ? { path, baseDir: BaseDirectory.AppData }
+      : await getFilePathOptions(path)
+    const normalized = options.path.replace(/\\/g, '/')
+    // Preserve filesystem roots. In particular, C: is drive-relative while
+    // C:/ is absolute; a UNC share must also remain one complete root.
+    const root = normalized.match(/^(?:[A-Za-z]:\/|\/\/[^/]+\/[^/]+(?:\/|$)|\/)/)?.[0] || ''
+    const segments = normalized.slice(root.length).split('/').filter(Boolean)
+    if (segments.some(segment => segment === '.' || segment === '..')) {
+      throw new Error('Invalid Skill resource path')
+    }
+    const paths = root ? [root] : []
+    let currentPath = root.replace(/\/$/, '')
+    for (const segment of segments) {
+      currentPath = currentPath ? `${currentPath}/${segment}` : root ? `${root}${segment}` : segment
+      paths.push(currentPath)
+    }
+    for (let index = 0; index < paths.length; index += 1) {
+      const info = await lstat(paths[index], options.baseDir ? { baseDir: options.baseDir } : undefined)
+      const expectsDirectory = directory || index < paths.length - 1
+      if (info.isSymlink || (expectsDirectory ? !info.isDirectory : !info.isFile)) {
+        throw new Error('Skill resources must be regular files without symbolic links')
+      }
+    }
+    return { ...options, path: normalized }
+  }
+
+  private async readResourceText(path: string, scope: SkillScope): Promise<string> {
+    const options = await this.ensureRegularResourcePath(path, scope)
+    const handle = await open(options.path, { read: true, baseDir: options.baseDir })
+    try {
+      const info = await handle.stat()
+      if (!info.isFile || info.size > MAX_SKILL_RESOURCE_BYTES) {
+        throw new Error(`Skill resource exceeds the ${MAX_SKILL_RESOURCE_BYTES} byte text limit`)
+      }
+      const buffer = new Uint8Array(MAX_SKILL_RESOURCE_BYTES + 1)
+      let size = 0
+      while (size < buffer.length) {
+        const read = await handle.read(buffer.subarray(size))
+        if (!read) break
+        size += read
+      }
+      if (size > MAX_SKILL_RESOURCE_BYTES) {
+        throw new Error(`Skill resource exceeds the ${MAX_SKILL_RESOURCE_BYTES} byte text limit`)
+      }
+      const content = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, size))
+      if (content.includes('\0')) throw new Error('Binary Skill resources cannot be read as text')
+      return content
+    } finally {
+      await handle.close()
+    }
   }
 
   // ========================================================================
@@ -595,6 +567,9 @@ class SkillManager {
       }
     }
     this.skillFiles.delete(skillId)
+    for (const key of this.installedSkillFiles.keys()) {
+      if (key.endsWith(`:${skillId}`)) this.installedSkillFiles.delete(key)
+    }
   }
 
   // ========================================================================
@@ -645,8 +620,8 @@ class SkillManager {
   /**
    * 根据 ID 获取 Skill
    */
-  getSkill(id: string): SkillContent | undefined {
-    return this.skills.get(id)
+  getSkill(id: string, scope?: SkillScope): SkillContent | undefined {
+    return scope ? this.installedSkills.get(`${scope}:${id}`) : this.skills.get(id)
   }
 
   /**
@@ -896,7 +871,7 @@ class SkillManager {
       }
 
       for (const entry of entries) {
-        if (entry.isDirectory && !entry.name.startsWith('.')) {
+        if (entry.isDirectory && isSafeSkillEntry(entry)) {
           dirs.push(entry.name)
         }
       }
@@ -914,22 +889,14 @@ class SkillManager {
     path: string,
     scope: SkillScope
   ): Promise<string> {
-    if (scope === 'global') {
-      return await readTextFile(path, { baseDir: BaseDirectory.AppData })
-    } else {
-      const options = await getFilePathOptions(path)
-      if (options.baseDir) {
-        return await readTextFile(options.path, { baseDir: options.baseDir })
-      }
-      return await readTextFile(options.path)
-    }
+    return this.readResourceText(path, scope)
   }
 
   /**
    * 获取 Skill 文件信息
    */
-  getSkillFileInfo(id: string): SkillFileInfo | undefined {
-    return this.skillFiles.get(id)
+  getSkillFileInfo(id: string, scope?: SkillScope): SkillFileInfo | undefined {
+    return scope ? this.installedSkillFiles.get(`${scope}:${id}`) : this.skillFiles.get(id)
   }
 
   /**
@@ -977,23 +944,28 @@ class SkillManager {
     }
 
     const resources = [
-      ...skill.scripts.map(script => ({ logicalPath: `scripts/${script.name}`, storedPath: script.path })),
+      ...skill.scripts.map(script => ({ logicalPath: `scripts/${script.name}`, storedPath: script.path, binary: false })),
       ...skill.references.map(reference => ({
         logicalPath: relativeToSkill(reference.path),
         storedPath: reference.path.includes('/')
           ? reference.path
           : `${fileInfo.directory}/${reference.path}`,
+        binary: false,
       })),
       ...skill.assets.map(asset => ({
         logicalPath: relativeToSkill(asset.path),
         storedPath: asset.path.includes('/')
           ? asset.path
           : `${fileInfo.directory}/${asset.path}`,
+        binary: asset.encoding === 'binary' || (asset.encoding !== 'utf-8' && !isTextResourcePath(asset.path)),
       })),
     ]
     const resource = resources.find(candidate => candidate.logicalPath === normalized)
     if (!resource) {
       throw new Error(`Skill resource is not registered: ${normalized}`)
+    }
+    if (resource.binary) {
+      throw new Error(`Skill resource is binary and cannot be read as UTF-8 text: ${normalized}`)
     }
 
     const content = await this.readFileContent(resource.storedPath, skill.metadata.scope)
@@ -1012,8 +984,5 @@ export const skillManager = new SkillManager()
 
 // 重置管理器（主要用于测试）
 export function resetSkillManager(): void {
-  ;(skillManager as any).skills.clear()
-  ;(skillManager as any).installedSkills.clear()
-  ;(skillManager as any).skillFiles.clear()
-  ;(skillManager as any).initialized = false
+  skillManager.reset()
 }

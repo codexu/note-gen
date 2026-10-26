@@ -1,6 +1,7 @@
 import { Tool, ToolResult } from '../types'
 import { skillManager } from '@/lib/skills'
-import { executeSkillRuntime, installSkillPythonDependencies } from '@/lib/skills/runtime'
+import { executeSkillRuntime, getSkillWorkspaceIdentity, installSkillPythonDependencies } from '@/lib/skills/runtime'
+import { getWorkspacePath } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 
 /**
@@ -325,7 +326,8 @@ export const installSkillPythonDependenciesTool: Tool = {
 
 export async function installSkillDependencies(
   params: Record<string, any>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  expectedWorkspaceIdentity?: string,
 ): Promise<ToolResult> {
   const skillId = typeof params.skill_id === 'string' ? params.skill_id : ''
   const packages = Array.isArray(params.packages) ? params.packages.map(String) : []
@@ -336,7 +338,7 @@ export async function installSkillDependencies(
     return { success: false, error: 'packages must contain between 1 and 20 PyPI package specs' }
   }
   try {
-    const result = await installSkillPythonDependencies(skillId, packages, signal)
+    const result = await installSkillPythonDependencies(skillId, packages, signal, undefined, expectedWorkspaceIdentity)
     return {
       success: true,
       message: `Prepared isolated Python ${result.version} environment for Skill "${skillId}". Installed: ${result.packages.join(', ')}.`,
@@ -352,9 +354,11 @@ export async function installSkillDependencies(
 
 export async function executeRegisteredSkillScript(
   params: Record<string, any>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  expectedWorkspaceIdentity?: string,
 ): Promise<ToolResult> {
     try {
+      const workspaceIdentity = expectedWorkspaceIdentity ?? getSkillWorkspaceIdentity(await getWorkspacePath())
       const { skill_id, script_id, timeout } = params
       const rawArgs = Array.isArray(params.args)
         ? params.args
@@ -383,21 +387,29 @@ export async function executeRegisteredSkillScript(
         args,
         timeout,
         signal,
+        expectedWorkspaceIdentity: workspaceIdentity,
       })
 
-      if (outcome.success && Array.isArray(outcome.data?.output_files) && outcome.data.output_files.length > 0) {
-        const articleStore = useArticleStore.getState()
-        let insertedAny = false
+      const outputFiles = [...(outcome.data.output_files || []), ...(outcome.data.partial_output_files || [])]
+      try {
+        if (outputFiles.length > 0 && getSkillWorkspaceIdentity(await getWorkspacePath()) === workspaceIdentity) {
+          const articleStore = useArticleStore.getState()
+          let insertedAny = false
 
-        for (const outputFile of outcome.data.output_files) {
-          const inserted = articleStore.insertLocalEntry(outputFile, false)
-          insertedAny = insertedAny || inserted
-          await articleStore.ensurePathExpanded(outputFile)
-        }
+          for (const outputFile of outputFiles) {
+            if (getSkillWorkspaceIdentity(await getWorkspacePath()) !== workspaceIdentity) break
+            const inserted = articleStore.insertLocalEntry(outputFile, false)
+            insertedAny = insertedAny || inserted
+            await articleStore.ensurePathExpanded(outputFile)
+          }
 
-        if (!insertedAny) {
-          await articleStore.loadFileTree()
+          if (!insertedAny && getSkillWorkspaceIdentity(await getWorkspacePath()) === workspaceIdentity) {
+            await articleStore.loadFileTree()
+          }
         }
+      } catch (error) {
+        // File-tree refresh must not replace the actual process result and logs.
+        console.error('[execute_skill_script] Failed to refresh output files', error)
       }
 
       return outcome

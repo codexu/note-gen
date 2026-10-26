@@ -768,7 +768,19 @@
       "pythonRuntime": "Python-Laufzeit",
       "isolatedRuntime": "isoliert",
       "systemRuntime": "system",
-      "runtimeUnavailable": "nicht verfügbar"
+      "runtimeUnavailable": "nicht verfügbar",
+      "environment": {
+        "title": "Laufzeitumgebung",
+        "description": "Laufzeiten und Dokumentwerkzeuge für diesen Skill prüfen.",
+        "available": "Verfügbar",
+        "missing": "Nicht installiert",
+        "systemToolsHelp": "Word-Konvertierung und Layoutvorschau benötigen lokale Werkzeuge wie LibreOffice und Poppler. Für OCR gescannter Dokumente ist auch Tesseract erforderlich. Nach der Installation aktualisieren.",
+        "dependencyHelp": "Diese Schaltflächen laden die aufgeführten Pakete von PyPI oder npm in die eigene Umgebung dieses Skills. Weitere Pakete können während einer Aufgabe installiert werden.",
+        "installPython": "Python-Pakete installieren",
+        "installNode": "Node.js-Pakete installieren",
+        "installed": "Pakete installiert",
+        "desktopOnly": "Lokale Skripte und Dokumentlaufzeiten sind derzeit auf dem Desktop verfügbar. Skills ohne ausführbare Skripte können auch mobil installiert und genutzt werden."
+      }
     },
     "plugins": {
       "ui": {
@@ -4341,7 +4353,13 @@
               "scope": "Installationsort",
               "has_scripts": "Enthält Skripte",
               "skipped_symlinks": "Übersprungene symbolische Links",
-              "replaceExisting": "Vorhandenen Skill ersetzen"
+              "replaceExisting": "Vorhandenen Skill ersetzen",
+              "language": "Sprache",
+              "code": "Vollständiger Code",
+              "args": "Argumente",
+              "packages": "Pakete",
+              "timeout": "Zeitlimit (ms)",
+              "script_id": "Registriertes Skript"
             },
             "tools": {
               "create_memory": {
@@ -4413,6 +4431,14 @@
                   "executable-scripts": "Der Skill enthält ausführbare Skripte. Deren Ausführung erfordert weiterhin eine separate Bestätigung.",
                   "symbolic-links": "Der Skill enthält {count} symbolische Link(s). Diese werden übersprungen, wenn die Installation fortgesetzt wird."
                 }
+              },
+              "run_skill_code": {
+                "title": "Skill-Code ausführen",
+                "description": "Der vollständige Code und die Argumente unten werden auf diesem Computer mit Zugriff auf lokale Dateien und Programme ausgeführt. Diese Freigabe gilt nur für diesen Code und diese Argumente."
+              },
+              "install_skill_node_dependencies": {
+                "title": "Node.js-Pakete für den Skill installieren",
+                "description": "Die aufgeführten npm-Pakete in die eigene Umgebung dieses Skills laden, ohne Installationsskripte der Pakete auszuführen."
               }
             }
           }

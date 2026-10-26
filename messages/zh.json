@@ -768,7 +768,19 @@
       "pythonRuntime": "Python 运行环境",
       "isolatedRuntime": "隔离环境",
       "systemRuntime": "系统环境",
-      "runtimeUnavailable": "不可用"
+      "runtimeUnavailable": "不可用",
+      "environment": {
+        "title": "运行环境",
+        "description": "查看此 Skill 使用的运行时和文档工具。",
+        "available": "可用",
+        "missing": "未安装",
+        "systemToolsHelp": "Word 转换与版式预览需要 LibreOffice、Poppler 等本机工具；扫描件 OCR 还需要 Tesseract。安装后刷新状态。",
+        "dependencyHelp": "以下按钮会从 PyPI 或 npm 下载所列依赖，安装到此 Skill 的独立环境。其他依赖可在任务中按需安装。",
+        "installPython": "安装 Python 依赖",
+        "installNode": "安装 Node.js 依赖",
+        "installed": "依赖安装完成",
+        "desktopOnly": "本机脚本和文档运行环境目前用于桌面端。移动端可安装并使用纯指令技能。"
+      }
     },
     "plugins": {
       "ui": {
@@ -4393,7 +4405,13 @@
               "scope": "安装位置",
               "has_scripts": "包含脚本",
               "skipped_symlinks": "跳过的符号链接",
-              "replaceExisting": "替换已有 Skill"
+              "replaceExisting": "替换已有 Skill",
+              "language": "运行语言",
+              "code": "完整代码",
+              "args": "参数",
+              "packages": "依赖包",
+              "timeout": "超时（毫秒）",
+              "script_id": "已登记脚本"
             },
             "tools": {
               "create_memory": {
@@ -4465,6 +4483,14 @@
                   "executable-scripts": "包含可执行脚本；安装后运行脚本仍会单独请求确认。",
                   "symbolic-links": "包含 {count} 个符号链接；继续安装时会跳过这些链接。"
                 }
+              },
+              "run_skill_code": {
+                "title": "运行 Skill 代码",
+                "description": "将在本机执行下方完整代码和参数，可访问本机文件及程序。本次确认仅适用于当前代码和参数。"
+              },
+              "install_skill_node_dependencies": {
+                "title": "安装 Skill Node.js 依赖",
+                "description": "将从 npm 下载所列依赖并安装到此 Skill 的独立环境，不运行包的安装脚本。"
               }
             }
           }

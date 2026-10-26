@@ -4578,6 +4578,26 @@
         "cancel": "Abbrechen",
         "delete": "Löschen",
         "deleteConfirm": "Bist du sicher, dass du diese Nachricht löschen möchtest?"
+      },
+      "artifacts": {
+        "open": "{name} öffnen",
+        "saveAs": "{name} speichern unter...",
+        "saved": "Datei gespeichert",
+        "openFailed": "Datei kann nicht geöffnet werden",
+        "saveFailed": "Datei kann nicht gespeichert werden",
+        "actionFailed": "Der Vorgang ist fehlgeschlagen. Prüfe, ob die Datei noch vorhanden ist, und versuche es erneut.",
+        "desktopOnly": "Öffne oder speichere erzeugte Dateien in der Desktop-App.",
+        "partialHint": "Diese Datei wurde während einer unvollständigen Ausführung erstellt. Ihr Inhalt wurde nicht geprüft.",
+        "errors": {
+          "INVALID_PATH": "Der Dateipfad ist ungültig.",
+          "NOT_ALLOWED": "Dieser Link gehört nicht zu einer in dieser Antwort erzeugten Datei.",
+          "WORKSPACE_CHANGED": "Der Arbeitsbereich wurde gewechselt. Kehre zum Arbeitsbereich der Datei zurück und versuche es erneut.",
+          "MISSING_FILE": "Die Datei wurde verschoben oder gelöscht.",
+          "SYMLINK_BLOCKED": "Dateien hinter symbolischen Links können nicht geöffnet werden.",
+          "UNSUPPORTED_PLATFORM": "Öffne oder speichere erzeugte Dateien in der Desktop-App.",
+          "OPEN_FAILED": "Das System konnte die Datei nicht öffnen. Prüfe, ob eine passende App installiert ist.",
+          "SAVE_FAILED": "Die Datei konnte nicht an den gewählten Ort kopiert werden. Versuche es erneut."
+        }
       }
     },
     "tag": {

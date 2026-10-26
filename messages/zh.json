@@ -4717,6 +4717,26 @@
       "mark": {
         "recorded": "已记录",
         "record": "记录"
+      },
+      "artifacts": {
+        "open": "打开 {name}",
+        "saveAs": "另存为 {name}",
+        "saved": "文件已另存",
+        "openFailed": "无法打开文件",
+        "saveFailed": "另存文件失败",
+        "actionFailed": "操作失败，请确认文件仍存在后重试。",
+        "desktopOnly": "请在桌面端打开或另存生成的文件。",
+        "partialHint": "这是执行未完成时生成的文件，内容尚未验证。",
+        "errors": {
+          "INVALID_PATH": "文件路径无效。",
+          "NOT_ALLOWED": "此链接不属于当前回复生成的文件。",
+          "WORKSPACE_CHANGED": "工作区已切换，请回到文件所属的工作区后重试。",
+          "MISSING_FILE": "文件已被移动或删除。",
+          "SYMLINK_BLOCKED": "无法访问通过符号链接指向的文件。",
+          "UNSUPPORTED_PLATFORM": "请在桌面端打开或另存生成的文件。",
+          "OPEN_FAILED": "系统未能打开该文件，请确认已安装对应应用。",
+          "SAVE_FAILED": "无法复制到所选位置，请重试。"
+        }
       }
     },
     "tag": {

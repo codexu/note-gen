@@ -14,11 +14,13 @@ import './chat.css'
 import { advanceStreamingSmoother } from './streaming-smoother'
 import { cn } from '@/lib/utils'
 import { StreamdownRenderer } from '@/components/markdown/streamdown-renderer'
+import type { AgentArtifactPaths } from '@/lib/agent/artifacts'
 
 type ChatPreviewProps = {
   text: string
   streaming?: boolean
   containerClassName?: string
+  artifacts?: AgentArtifactPaths
 }
 
 const MIN_RENDER_INTERVAL_MS = 33
@@ -29,7 +31,7 @@ function isMacOS() {
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
 }
 
-export default function ChatPreview({ text, streaming = false, containerClassName }: ChatPreviewProps) {
+export default function ChatPreview({ text, streaming = false, containerClassName, artifacts }: ChatPreviewProps) {
   const t = useTranslations('record.chat.messageControl')
   const { contentTextScale } = useSettingStore()
   const streamdownTranslations = useMemo(() => ({
@@ -203,6 +205,7 @@ export default function ChatPreview({ text, streaming = false, containerClassNam
           markdown={displayedText}
           streaming={streaming || (hasStreamedRef.current && displayedText.length < text.length)}
           translations={streamdownTranslations}
+          artifacts={artifacts}
         />
       </div>
     </div>

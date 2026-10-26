@@ -2,9 +2,10 @@
 
 import { createMathPlugin } from '@streamdown/math'
 import { cjk } from '@streamdown/cjk'
-import type { ComponentProps } from 'react'
+import { useMemo, type ComponentProps } from 'react'
 import {
   Streamdown,
+  defaultRemarkPlugins,
   type AnimateOptions,
   type Components,
   type ControlsConfig,
@@ -15,6 +16,9 @@ import { normalizeLatexForKatex } from '@/lib/latex'
 import { cn } from '@/lib/utils'
 import { normalizeTextColor } from '@/lib/text-colors'
 import { codeHighlighter } from '@/lib/code-highlighter'
+import type { AgentArtifactPaths } from '@/lib/agent/artifacts'
+import { ArtifactLink, ArtifactLinksContext, EMPTY_ARTIFACT_LINKS, artifactLinkIndex } from './artifact-link'
+import { remarkArtifacts } from './remark-artifacts'
 import 'katex/dist/katex.min.css'
 import 'streamdown/styles.css'
 import './streamdown-renderer.css'
@@ -25,6 +29,7 @@ interface StreamdownRendererProps {
   className?: string
   interactiveCodeBlocks?: boolean
   translations?: Partial<StreamdownTranslations>
+  artifacts?: AgentArtifactPaths
 }
 
 const math = createMathPlugin({
@@ -50,7 +55,10 @@ const streamingAnimation: AnimateOptions = {
   stagger: 8,
 }
 
-function StreamdownLink({ children, ...props }: ComponentProps<'a'>) {
+function StreamdownLink({ children, node, ...props }: ComponentProps<'a'> & { node?: unknown }) {
+  void node
+  const index = artifactLinkIndex(props.href)
+  if (index !== null) return <ArtifactLink index={index} href={props.href!}>{children}</ArtifactLink>
   return (
     <a {...props} target="_blank" rel="noopener noreferrer">
       {children}
@@ -84,23 +92,35 @@ export function StreamdownRenderer({
   className,
   interactiveCodeBlocks = true,
   translations,
+  artifacts = EMPTY_ARTIFACT_LINKS,
 }: StreamdownRendererProps) {
+  const remarkPlugins = useMemo<NonNullable<ComponentProps<typeof Streamdown>['remarkPlugins']>>(() => [
+    ...Object.values(defaultRemarkPlugins),
+    [remarkArtifacts, { targets: artifacts.artifacts, paths: artifacts.paths }],
+  ], [artifacts])
+  // Streamdown's memo comparison ignores remarkPlugins; new output metadata
+  // must also update an otherwise unchanged final reply.
+  const artifactKey = JSON.stringify({ paths: artifacts.paths, targets: artifacts.allowedPaths })
   return (
     <div className={cn('streamdown-document w-full text-foreground', className)}>
-      <Streamdown
-        animated={streaming ? streamingAnimation : false}
-        components={components}
-        allowedTags={colorTags}
-        controls={interactiveCodeBlocks ? interactiveControls : false}
-        isAnimating={streaming}
-        linkSafety={linkSafety}
-        lineNumbers={interactiveCodeBlocks}
-        mode={streaming ? 'streaming' : 'static'}
-        plugins={plugins}
-        translations={translations}
-      >
-        {normalizeLatexForKatex(markdown)}
-      </Streamdown>
+      <ArtifactLinksContext.Provider value={artifacts}>
+        <Streamdown
+          key={artifactKey}
+          animated={streaming ? streamingAnimation : false}
+          components={components}
+          allowedTags={colorTags}
+          controls={interactiveCodeBlocks ? interactiveControls : false}
+          isAnimating={streaming}
+          linkSafety={linkSafety}
+          lineNumbers={interactiveCodeBlocks}
+          mode={streaming ? 'streaming' : 'static'}
+          plugins={plugins}
+          remarkPlugins={remarkPlugins}
+          translations={translations}
+        >
+          {normalizeLatexForKatex(markdown)}
+        </Streamdown>
+      </ArtifactLinksContext.Provider>
     </div>
   )
 }

@@ -43,6 +43,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseModelChangeMarker } from './model-selection'
 import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-views'
+import { getAgentArtifactPaths } from '@/lib/agent/artifacts'
 
 interface DisplayedConversationCompaction {
   revision: number
@@ -342,6 +343,10 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
     agentState.pendingConfirmation
   )
   const isLiveAgentVisible = isActiveAgentMessage && (agentState.isRunning || agentState.isFinalAnswerMode || hasLiveAgentTrace)
+  const artifacts = useMemo(() => getAgentArtifactPaths(
+    chat.agentHistory,
+    isActiveAgentMessage ? agentState.toolCalls : undefined,
+  ), [chat.agentHistory, isActiveAgentMessage, agentState.toolCalls])
 
   const handleRemoveClearContext = useCallback(() => {
     deleteChat(chat.id)
@@ -534,7 +539,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             <ChatThinking chat={chat} />
             {
               <div className={`${content ? 'note-wrapper border w-full overflow-y-auto overflow-x-hidden my-2 p-4 rounded-lg' : ''}`}>
-                <ChatPreview text={content || ''} streaming={loading && chat.role === 'system'} />
+                <ChatPreview text={content || ''} streaming={loading && chat.role === 'system'} artifacts={artifacts} />
               </div>
             }
             {!isGeneratingMessage && (
@@ -598,6 +603,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             <ChatPreview
               text={liveAgentContent ?? content ?? ''}
               streaming={isGeneratingMessage}
+              artifacts={artifacts}
             />
             {!isGeneratingMessage && (
               <MessageControl chat={chat}>

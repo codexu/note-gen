@@ -4617,6 +4617,26 @@
         "lineSingle": "引用自 {fileName} 第 {line} 行",
         "lineRange": "引用自 {fileName} 第 {startLine}-{endLine} 行",
         "noLine": "引用自 {fileName}"
+      },
+      "artifacts": {
+        "open": "Abrir {name}",
+        "saveAs": "Salvar {name} como...",
+        "saved": "Arquivo salvo",
+        "openFailed": "Não foi possível abrir o arquivo",
+        "saveFailed": "Não foi possível salvar o arquivo",
+        "actionFailed": "A operação falhou. Confirme que o arquivo ainda existe e tente novamente.",
+        "desktopOnly": "Abra ou salve os arquivos gerados no aplicativo para desktop.",
+        "partialHint": "Este arquivo foi criado durante uma execução incompleta. Seu conteúdo ainda não foi verificado.",
+        "errors": {
+          "INVALID_PATH": "O caminho do arquivo é inválido.",
+          "NOT_ALLOWED": "Este link não pertence a um arquivo gerado nesta resposta.",
+          "WORKSPACE_CHANGED": "O espaço de trabalho mudou. Retorne ao espaço do arquivo e tente novamente.",
+          "MISSING_FILE": "O arquivo foi movido ou excluído.",
+          "SYMLINK_BLOCKED": "Não é possível acessar arquivos por links simbólicos.",
+          "UNSUPPORTED_PLATFORM": "Abra ou salve os arquivos gerados no aplicativo para desktop.",
+          "OPEN_FAILED": "O sistema não conseguiu abrir o arquivo. Verifique se há um aplicativo compatível instalado.",
+          "SAVE_FAILED": "Não foi possível copiar o arquivo para o local selecionado. Tente novamente."
+        }
       }
     },
     "tag": {

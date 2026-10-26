@@ -4717,6 +4717,26 @@
         "cancel": "Cancel",
         "delete": "Delete",
         "deleteConfirm": "Are you sure to delete this message?"
+      },
+      "artifacts": {
+        "open": "Open {name}",
+        "saveAs": "Save {name} as...",
+        "saved": "File saved",
+        "openFailed": "Unable to open file",
+        "saveFailed": "Unable to save file",
+        "actionFailed": "The operation failed. Check that the file still exists and try again.",
+        "desktopOnly": "Open or save generated files in the desktop app.",
+        "partialHint": "This file was created during an incomplete execution. Its contents have not been verified.",
+        "errors": {
+          "INVALID_PATH": "The file path is invalid.",
+          "NOT_ALLOWED": "This link is not a file generated in this reply.",
+          "WORKSPACE_CHANGED": "The workspace has changed. Return to the file's workspace and try again.",
+          "MISSING_FILE": "The file has been moved or deleted.",
+          "SYMLINK_BLOCKED": "Files reached through symbolic links cannot be accessed.",
+          "UNSUPPORTED_PLATFORM": "Open or save generated files in the desktop app.",
+          "OPEN_FAILED": "The system could not open this file. Check that a compatible app is installed.",
+          "SAVE_FAILED": "Unable to copy the file to the selected location. Please try again."
+        }
       }
     },
     "tag": {

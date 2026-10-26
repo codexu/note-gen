@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-25T00:00:00Z",
+  "updatedAt": "2026-10-26T00:00:00Z",
   "configs": {
     "providerTemplates": {
       "versionCode": 107,
@@ -21,6 +21,11 @@
       "versionCode": 103,
       "versionName": "1.0.3",
       "url": "https://download.notegen.top/config/v1/notegen-default-models.json"
+    },
+    "recommendedSkills": {
+      "versionCode": 100,
+      "versionName": "1.0.0",
+      "url": "https://download.notegen.top/config/v1/recommended-skills.json?v=100"
     }
   }
 }

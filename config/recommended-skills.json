@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "id": "humanizer-zh",
+      "name": {
+        "zh": "中文自然润色",
+        "en": "Natural Chinese Editing"
+      },
+      "description": {
+        "zh": "清理中文文章中的套话、重复和模板化表达，保留原意与作者语气。",
+        "en": "Polish Chinese articles by removing filler, repetition, and formulaic phrasing while preserving meaning and voice."
+      },
+      "author": "op7418",
+      "sourceUrl": "https://github.com/op7418/Humanizer-zh/tree/f4518a8eab97b8bfebc66a89d34320a89bef6930"
+    },
+    {
+      "id": "doc-coauthoring",
+      "name": {
+        "zh": "文档共创",
+        "en": "Document Coauthoring"
+      },
+      "description": {
+        "zh": "通过补充背景、梳理结构和逐节修改，协作完成方案、说明和技术文档。",
+        "en": "Develop proposals, guides, and technical documents through context gathering, structured drafting, and revision."
+      },
+      "author": "Anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/doc-coauthoring"
+    },
+    {
+      "id": "pdf",
+      "name": {
+        "zh": "PDF 文档处理",
+        "en": "PDF Documents"
+      },
+      "description": {
+        "zh": "读取、编辑、合并、拆分和创建 PDF，支持表单填写、OCR 与页面预览；需桌面运行环境。",
+        "en": "Read, edit, merge, split, and create PDFs, with form filling, OCR, and page previews. Requires a desktop runtime environment."
+      },
+      "author": "Anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/pdf"
+    },
+    {
+      "id": "docx",
+      "name": {
+        "zh": "Word 文档处理",
+        "en": "Word Documents"
+      },
+      "description": {
+        "zh": "创建、读取和编辑 Word 文档，处理批注与修订，并转换为 PDF 检查版式；需桌面运行环境。",
+        "en": "Create, read, and edit Word documents, work with comments and tracked changes, and convert to PDF for layout review. Requires a desktop runtime environment."
+      },
+      "author": "Anthropic",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/docx"
+    },
+    {
+      "id": "article-writing",
+      "name": {
+        "zh": "中文长文写作",
+        "en": "Long-form Article Writing"
+      },
+      "description": {
+        "zh": "把笔记、转录稿和研究素材整理成文章，完善提纲、论据与段落节奏，并参考示例保持作者语气。",
+        "en": "Turn notes, transcripts, and research into articles with clear outlines, grounded evidence, and a consistent author voice."
+      },
+      "author": "Affaan Mustafa / ECC",
+      "sourceUrl": "https://github.com/affaan-m/ECC/tree/f3904009440af24f00617343910ee89714df8be3/docs/zh-CN/skills/article-writing"
+    },
+    {
+      "id": "professional-communication",
+      "name": {
+        "zh": "职场沟通写作",
+        "en": "Professional Communication"
+      },
+      "description": {
+        "zh": "整理邮件、工作汇报和会议沟通，按读者背景调整结构、重点与表达。",
+        "en": "Structure emails, status updates, and meeting communications for the audience, with clear purpose and next steps."
+      },
+      "author": "Softaworks",
+      "sourceUrl": "https://github.com/softaworks/agent-toolkit/tree/3027f20f3181758385a1bb8c022d4041dfb4de84/skills/professional-communication"
+    },
+    {
+      "id": "meeting-insights-analyzer",
+      "name": {
+        "zh": "会议沟通复盘",
+        "en": "Meeting Communication Review"
+      },
+      "description": {
+        "zh": "分析已有会议转写中的表达、提问和倾听方式，结合原文提出沟通改进建议。",
+        "en": "Review communication, questioning, and listening patterns in existing meeting transcripts, with examples and improvement suggestions."
+      },
+      "author": "Composio",
+      "sourceUrl": "https://github.com/ComposioHQ/awesome-claude-skills/tree/be2a406907dbc61b73e6827ded415c96139d13a2/meeting-insights-analyzer"
+    },
+    {
+      "id": "copywriting",
+      "name": {
+        "zh": "营销文案创作",
+        "en": "Marketing Copywriting"
+      },
+      "description": {
+        "zh": "根据目标读者和产品资料撰写产品介绍、页面标题与行动文案，突出具体价值。",
+        "en": "Write product descriptions, page headlines, and calls to action based on audience needs and product context."
+      },
+      "author": "Corey Haines",
+      "sourceUrl": "https://github.com/coreyhaines31/marketingskills/tree/e85f3cbc2e4a79bf33b2a12e9bdd9087d414735b/skills/copywriting"
+    }
+  ]
+}

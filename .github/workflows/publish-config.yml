@@ -60,6 +60,21 @@ jobs:
           }
           if (!Number.isSafeInteger(policy.limited.dailyRequestLimit) || policy.limited.dailyRequestLimit < 0) throw new Error('Invalid dailyRequestLimit')
           if (!Number.isSafeInteger(policy.limited.dailyTokenLimit) || policy.limited.dailyTokenLimit < 0) throw new Error('Invalid dailyTokenLimit')
+          const recommended = JSON.parse(fs.readFileSync('config/recommended-skills.json', 'utf8'))
+          if (recommended.schemaVersion !== 1 || !Array.isArray(recommended.skills)) throw new Error('Invalid recommended Skills config')
+          const isText = (value) => typeof value === 'string' && value.trim().length > 0
+          const isLocalizedText = (value) => value && typeof value === 'object' && !Array.isArray(value)
+            && isText(value.en) && Object.entries(value).every(([locale, text]) => locale.trim() && isText(text))
+          const skillIds = new Set()
+          for (const skill of recommended.skills) {
+            if (!skill || typeof skill !== 'object' || !isText(skill.id) || skill.id.length > 64
+              || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skill.id) || skillIds.has(skill.id)) throw new Error('Invalid or duplicate recommended Skill ID')
+            if (!isLocalizedText(skill.name) || !isLocalizedText(skill.description) || !isText(skill.author)) throw new Error(`Invalid recommended Skill metadata: ${skill.id}`)
+            if (!isText(skill.sourceUrl)) throw new Error(`Invalid recommended Skill source: ${skill.id}`)
+            const source = new URL(skill.sourceUrl)
+            if (source.protocol !== 'https:' || source.username || source.password) throw new Error(`Invalid recommended Skill source: ${skill.id}`)
+            skillIds.add(skill.id)
+          }
           NODE
 
       - name: Install ossutil
@@ -89,7 +104,7 @@ jobs:
           ossutil cp "oss://${ALIYUN_OSS_BUCKET}/config/v1/config-manifest.json" "$RUNNER_TEMP/remote-config-manifest.json" \
             -c "$OSSUTIL_CONFIG" --no-progress
           changed=false
-          for file in provider-templates.json provider-templates-cn.json notegen-model-policy.json; do
+          for file in provider-templates.json provider-templates-cn.json notegen-model-policy.json recommended-skills.json; do
             remote="$RUNNER_TEMP/$file"
             if ossutil cp "oss://${ALIYUN_OSS_BUCKET}/config/v1/$file" "$remote" -c "$OSSUTIL_CONFIG" --no-progress; then
               if cmp -s "config/$file" "$remote"; then
@@ -133,6 +148,13 @@ jobs:
             url.searchParams.set('v', String(entry.versionCode))
             entry.url = url.toString()
           }
+          if (process.env.PUBLISH_recommended_skills_json === 'true') {
+            update('recommendedSkills')
+            const entry = manifest.configs.recommendedSkills
+            const url = new URL(entry.url)
+            url.searchParams.set('v', String(entry.versionCode))
+            entry.url = url.toString()
+          }
           manifest.updatedAt = new Date().toISOString()
           fs.writeFileSync(`${process.env.RUNNER_TEMP}/config-manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`)
           NODE
@@ -149,6 +171,7 @@ jobs:
           [[ "${PUBLISH_provider_templates_json:-false}" == true ]] && upload config/provider-templates.json
           [[ "${PUBLISH_provider_templates_cn_json:-false}" == true ]] && upload config/provider-templates-cn.json
           [[ "${PUBLISH_notegen_model_policy_json:-false}" == true ]] && upload config/notegen-model-policy.json
+          [[ "${PUBLISH_recommended_skills_json:-false}" == true ]] && upload config/recommended-skills.json
           upload "$RUNNER_TEMP/config-manifest.json"
 
       - name: Install Alibaba Cloud CLI

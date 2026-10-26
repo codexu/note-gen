@@ -6167,5 +6167,8 @@
     "loadError": "Não foi possível carregar as configurações. Tente novamente.",
     "saveError": "Salvamento não confirmado. Tente novamente; o rascunho será mantido e não será salvo duas vezes.",
     "retry": "Tentar novamente"
+  },
+  "editorImage": {
+    "changedOnDisk": "A imagem foi atualizada pela sincronização ou por outra operação. Abra-a novamente antes de editar e salvar."
   }
 }

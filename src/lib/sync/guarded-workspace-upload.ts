@@ -5,6 +5,7 @@ import { gitBlobVersion, normalizeRemoteVersion } from './remote-content-cache'
 import { getSyncMetadataKey } from './sync-context'
 import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
 import { prepareWorkspacePathUpload } from './workspace-path-moves'
+import { syncContentBytes } from './file-content'
 
 export type WorkspaceRemotePlatform = Exclude<SyncPlatform, 'local' | 'selfHosted'>
 
@@ -43,7 +44,7 @@ export async function readVersionedWorkspaceFile(path: string, platform: Workspa
 /** Normal writes use the last accepted version; explicit overwrites pass a
  * freshly captured version. Transport retries must keep that same condition. */
 export async function uploadGuardedWorkspaceFile(
-  path: string, content: string, platform: WorkspaceRemotePlatform,
+  path: string, content: string | Uint8Array, platform: WorkspaceRemotePlatform,
   expectedVersion: string | null, message: string, expectedMetadataKey?: string,
   beforeWrite?: () => Promise<void>,
 ): Promise<string> {
@@ -64,7 +65,7 @@ export async function uploadGuardedWorkspaceFile(
     await beforeWrite?.()
   }
   await assertBeforeWrite()
-  const bytes = new TextEncoder().encode(content)
+  const bytes = syncContentBytes(content)
   let uploadedVersion: string
   try { uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform, beforeWrite ? assertBeforeWrite : undefined) }
   catch (error) { throw withSyncStaleContext(error, { stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion, exists: expectedVersion !== null } }) }

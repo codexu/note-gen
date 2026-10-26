@@ -1,8 +1,8 @@
 'use client'
 
 import { Store } from '@tauri-apps/plugin-store'
-import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
-import { readTextFile } from '@tauri-apps/plugin-fs'
+import { getFilePathOptions } from '@/lib/workspace'
+import { readFile } from '@tauri-apps/plugin-fs'
 import emitter from '@/lib/emitter'
 import { setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { isSyncConfigured } from './sync-manager'
@@ -11,7 +11,8 @@ import useSyncStore from '@/stores/sync'
 import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 import { CloudFolderConfig } from '@/types/sync'
 import { debugSyncPerf } from './remote-file'
-import { generateGitSyncCommitMessage } from './commit-message'
+import { buildSyncCommitMessage, generateGitSyncCommitMessage } from './commit-message'
+import { decodeSyncText, sameFileBytes } from './file-content'
 import { getSyncMetadataKey } from './sync-context'
 import { prepareWorkspacePathUpload, resumeWorkspacePathMoves } from './workspace-path-moves'
 import { supportsCloudFolderWorkspace } from './cloud-folder'
@@ -403,18 +404,18 @@ class SyncPushQueue {
         logPerf('loadConfig', { attempt, provider })
 
         // 从磁盘读取最新内容，确保上传的是本地最新内容
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-        const content = workspace.isCustom
-          ? await readTextFile(pathOptions.path)
-          : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        const content = pathOptions.baseDir
+          ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+          : await readFile(pathOptions.path)
+        const textContent = decodeSyncText(path, content)
         logPerf('readLocalFile', {
           attempt,
-          workspaceCustom: workspace.isCustom,
+          workspaceCustom: !pathOptions.baseDir,
           contentLength: content.length,
         })
 
-        const referencedImagePaths = collectLocalMarkdownImagePaths(content, path)
+        const referencedImagePaths = textContent === undefined ? [] : collectLocalMarkdownImagePaths(textContent, path)
         for (const imagePath of referencedImagePaths) {
           enqueueStaticAssetSync(imagePath)
         }
@@ -429,13 +430,13 @@ class SyncPushQueue {
         let matchingVersion: string | undefined
         try {
           const remoteFile = await readVersionedWorkspaceFile(path, provider)
-          const remoteContent = new TextDecoder().decode(remoteFile.content)
+          const sameContent = sameFileBytes(remoteFile.content, content)
           logPerf('pullRemoteFile', {
             attempt,
-            remoteLength: remoteContent?.length || 0,
-            isSameContent: remoteContent === content,
+            remoteLength: remoteFile.content.length,
+            isSameContent: sameContent,
           })
-          if (remoteContent === content) matchingVersion = remoteFile.version
+          if (sameContent) matchingVersion = remoteFile.version
         } catch (remoteError) {
           logPerf('pullRemoteFileFailed', {
             attempt,
@@ -452,7 +453,9 @@ class SyncPushQueue {
 
         const needsCommitMessage = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
         const commitMessage = needsCommitMessage
-          ? await generateGitSyncCommitMessage(path, content)
+          ? textContent === undefined
+            ? buildSyncCommitMessage(path)
+            : await generateGitSyncCommitMessage(path, textContent)
           : ''
         if (needsCommitMessage) {
           logPerf('generateCommitMessage', {
@@ -638,15 +641,17 @@ class SyncPushQueue {
       const overwriteVersion = await getWorkspaceOverwriteVersion(path, provider)
 
       // 从磁盘读取最新内容
-      const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(path)
-      const content = workspace.isCustom
-        ? await readTextFile(pathOptions.path)
-        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      const content = pathOptions.baseDir
+        ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        : await readFile(pathOptions.path)
+      const textContent = decodeSyncText(path, content)
 
       const needsCommitMessage = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
       const commitMessage = needsCommitMessage
-        ? await generateGitSyncCommitMessage(path, content)
+        ? textContent === undefined
+          ? buildSyncCommitMessage(path)
+          : await generateGitSyncCommitMessage(path, textContent)
         : ''
 
       let success = false

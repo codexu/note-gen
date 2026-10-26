@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { Cropper, CropperRef, Priority } from 'react-advanced-cropper'
 import 'react-advanced-cropper/dist/style.css'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,9 @@ import { ImageFooter } from './image-footer'
 import { TooltipButton } from '@/components/tooltip-button'
 import NextImage from 'next/image'
 import { MainStatusBarPortal } from '../../main-status-bar'
+import emitter from '@/lib/emitter'
+import { sameFileBytes } from '@/lib/sync/file-content'
+import { markEditorPathMutation, runEditorPathWriteTransaction } from '@/lib/editor-deactivation'
 
 interface ImageEditorProps {
   filePath: string
@@ -42,6 +46,7 @@ interface CropperLayoutState {
 }
 
 export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
+  const t = useTranslations('editorImage')
   const cropperRef = useRef<CropperRef>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const cropperContainerRef = useRef<HTMLDivElement>(null)
@@ -55,6 +60,16 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
   const [previewScale, setPreviewScale] = useState(1)
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
   const { loadFileTree } = useArticleStore()
+  const sourceRef = useRef<{
+    filePath: string
+    workspace: Awaited<ReturnType<typeof getWorkspacePath>>
+    options: Awaited<ReturnType<typeof getFilePathOptions>>
+  } | null>(null)
+  const loadVersionRef = useRef(0)
+  const editingRef = useRef(false)
+  const externalUpdateRef = useRef(false)
+  const currentPathRef = useRef(filePath)
+  currentPathRef.current = filePath
 
   const MIN_PREVIEW_SCALE = 0.25
   const MAX_PREVIEW_SCALE = 4
@@ -69,8 +84,26 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
   }
 
   useEffect(() => {
-    loadImage()
+    editingRef.current = false
+    externalUpdateRef.current = false
+    sourceRef.current = null
+    void loadImage()
+    return () => { loadVersionRef.current += 1 }
   }, [filePath])
+
+  useEffect(() => {
+    const onPulled = ({ path }: { path: string }) => {
+      // Keep unsaved edits intact. Saving them checks the original disk bytes.
+      if (path !== filePath) return
+      if (editingRef.current || hasChanges || cropMode) {
+        externalUpdateRef.current = true
+      } else {
+        void loadImage()
+      }
+    }
+    emitter.on('sync-pulled', onPulled)
+    return () => { emitter.off('sync-pulled', onPulled) }
+  }, [filePath, hasChanges, cropMode])
 
   useEffect(() => {
     const element = viewportRef.current
@@ -94,11 +127,14 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
 
   async function loadImage() {
     if (!filePath) return
+    const version = ++loadVersionRef.current
     
     try {
       setLoading(true)
       const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(filePath)
+      const currentWorkspace = await getWorkspacePath()
+      if (currentWorkspace.path !== workspace.path || currentWorkspace.isCustom !== workspace.isCustom) return
       
       let imageData: Uint8Array
       if (workspace.isCustom) {
@@ -106,6 +142,9 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
       } else {
         imageData = await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
+
+      if (version !== loadVersionRef.current || currentPathRef.current !== filePath || editingRef.current) return
+      sourceRef.current = { filePath, workspace, options: pathOptions }
       
       setOriginalImageData(imageData)
       
@@ -130,11 +169,15 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
         variant: 'destructive'
       })
     } finally {
-      setLoading(false)
+      if (version === loadVersionRef.current) setLoading(false)
     }
   }
 
   const applyImageTransform = async (transformFn: (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, img: HTMLImageElement) => void) => {
+    const wasEditing = editingRef.current
+    const version = loadVersionRef.current
+    let changed = false
+    editingRef.current = true
     try {
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -157,10 +200,13 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
         }, 'image/png')
       })
 
+      if (version !== loadVersionRef.current || currentPathRef.current !== filePath) return
+
       const url = URL.createObjectURL(blob)
       setImageSrc(url)
       keepCurrentPreviewTab()
       setHasChanges(true)
+      changed = true
       setPreviewScale(1)
       
       // 更新图片尺寸
@@ -168,6 +214,10 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
       setImageHeight(canvas.height)
     } catch (error) {
       console.error('Failed to transform image:', error)
+    } finally {
+      if (!changed && version === loadVersionRef.current && currentPathRef.current === filePath) {
+        editingRef.current = wasEditing
+      }
     }
   }
 
@@ -220,6 +270,14 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
   }
 
   const handleReset = () => {
+    editingRef.current = false
+    if (externalUpdateRef.current) {
+      externalUpdateRef.current = false
+      setHasChanges(false)
+      setCropMode(false)
+      void loadImage()
+      return
+    }
     if (originalImageData) {
       const blob = new Blob([originalImageData as unknown as BlobPart])
       const url = URL.createObjectURL(blob)
@@ -254,16 +312,25 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
       const arrayBuffer = await blob.arrayBuffer()
       const uint8Array = new Uint8Array(arrayBuffer)
 
-      const workspace = await getWorkspacePath()
-      const pathOptions = await getFilePathOptions(filePath)
-
-      if (workspace.isCustom) {
-        await writeFile(pathOptions.path, uint8Array)
-      } else {
-        await writeFile(pathOptions.path, uint8Array, { baseDir: pathOptions.baseDir })
-      }
+      const source = sourceRef.current
+      const original = originalImageData
+      if (!source || source.filePath !== filePath || !original) throw new Error(t('changedOnDisk'))
+      const saved = await runEditorPathWriteTransaction(filePath, async () => {
+        const workspace = await getWorkspacePath()
+        if (workspace.path !== source.workspace.path || workspace.isCustom !== source.workspace.isCustom) {
+          throw new Error(t('changedOnDisk'))
+        }
+        const diskBytes = await readFile(source.options.path, { baseDir: source.options.baseDir })
+        if (!sameFileBytes(diskBytes, original)) throw new Error(t('changedOnDisk'))
+        await writeFile(source.options.path, uint8Array, { baseDir: source.options.baseDir })
+        markEditorPathMutation(filePath)
+        return true
+      })
+      if (!saved) throw new Error(t('changedOnDisk'))
 
       setOriginalImageData(uint8Array)
+      editingRef.current = false
+      externalUpdateRef.current = false
       setHasChanges(false)
       setCropMode(false)
       
@@ -285,6 +352,10 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
 
   const handleCropComplete = async () => {
     if (!cropMode || !cropperRef.current) return
+    const wasEditing = editingRef.current
+    const version = loadVersionRef.current
+    let changed = false
+    editingRef.current = true
     
     try {
       // 获取裁切后的图片
@@ -296,6 +367,8 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
           if (blob) resolve(blob)
         }, 'image/png')
       })
+
+      if (version !== loadVersionRef.current || currentPathRef.current !== filePath) return
 
       // 更新图片显示
       const url = URL.createObjectURL(blob)
@@ -311,10 +384,15 @@ export function ImageEditor({ filePath, isActive = true }: ImageEditorProps) {
       
       keepCurrentPreviewTab()
       setHasChanges(true)
+      changed = true
       setCropMode(false)
       setPreviewScale(1)
     } catch (error) {
       console.error('Failed to crop image:', error)
+    } finally {
+      if (!changed && version === loadVersionRef.current && currentPathRef.current === filePath) {
+        editingRef.current = wasEditing
+      }
     }
   }
 

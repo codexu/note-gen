@@ -2,12 +2,14 @@ import { retryWorkspacePathMoves } from './workspace-path-moves'
 import { normalizeRemoteVersion } from './remote-content-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
-import { decodeBase64ToString, getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
+import { getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits, getGitlabApiBaseUrl } from '@/lib/sync/gitlab'
 import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
-import { s3HeadObject, s3Download } from './s3'
-import { webdavHeadObject, webdavDownload } from './webdav'
+import { s3HeadObject, s3DownloadBytes } from './s3'
+import { webdavHeadObject, webdavDownloadBytes } from './webdav'
+import { decodeBase64ToBytes } from './remote-file'
+import { decodeSyncText, isBinaryFilePath, syncContentBytes } from './file-content'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import {
   androidCloudFolderWorkspaceDownloadBytes,
@@ -17,7 +19,7 @@ import {
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getCurrentSyncContext, getSyncMetadataKey } from '@/lib/sync/sync-context'
 import { toast } from '@/hooks/use-toast'
-import { readTextFile, writeTextFile, stat, mkdir, exists, remove } from '@tauri-apps/plugin-fs'
+import { readFile, writeTextFile, stat, mkdir, exists, remove } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import {
   checkFileLock,
@@ -117,9 +119,8 @@ export interface SyncResult {
 /**
  * 计算文件内容的 SHA 值
  */
-export async function calculateFileSha(content: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(content)
+export async function calculateFileSha(content: string | Uint8Array): Promise<string> {
+  const data = Uint8Array.from(syncContentBytes(content))
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
@@ -146,12 +147,9 @@ export async function getLocalFileMetadata(path: string): Promise<FileMetadata> 
       fileStat = await stat(pathOptions.path, { baseDir: pathOptions.baseDir })
     }
 
-    let content = ''
-    if (workspace.isCustom) {
-      content = await readTextFile(pathOptions.path)
-    } else {
-      content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-    }
+    const content = pathOptions.baseDir
+      ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      : await readFile(pathOptions.path)
 
     return {
       path,
@@ -459,6 +457,7 @@ export async function compareFileVersions(path: string): Promise<SyncResult> {
  * 从远程拉取文件内容
  */
 export async function pullRemoteFile(path: string): Promise<string> {
+  if (isBinaryFilePath(path)) throw new Error('Binary files must be pulled through the byte-preserving sync API')
   const store = await Store.load('store.json')
   const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github'
 
@@ -469,7 +468,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
         const githubRepo = await getSyncRepoName('github')
         file = await getGithubFiles({ path, repo: githubRepo })
         if (file && typeof file.content === 'string') {
-          return decodeBase64ToString(file.content)
+          return requireSyncText(path, decodeBase64ToBytes(file.content))
         }
         break
 
@@ -477,7 +476,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
         const giteeRepo = await getSyncRepoName('gitee')
         file = await getGiteeFiles({ path, repo: giteeRepo })
         if (file && typeof file.content === 'string') {
-          return decodeBase64ToString(file.content)
+          return requireSyncText(path, decodeBase64ToBytes(file.content))
         }
         break
 
@@ -486,7 +485,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
         const gitlabBranch = await getGitlabBranch()
         file = await getGitlabFileContent({ path, ref: gitlabBranch, repo: gitlabRepo })
         if (file && typeof file.content === 'string') {
-          return decodeBase64ToString(file.content)
+          return requireSyncText(path, decodeBase64ToBytes(file.content))
         }
         break
       }
@@ -496,7 +495,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
         const giteaBranch = await getGiteaBranch()
         file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
         if (file && typeof file.content === 'string') {
-          return decodeBase64ToString(file.content)
+          return requireSyncText(path, decodeBase64ToBytes(file.content))
         }
         break
       }
@@ -504,9 +503,9 @@ export async function pullRemoteFile(path: string): Promise<string> {
       case 's3': {
         const s3Config = await store.get<S3Config>('s3SyncConfig')
         if (s3Config) {
-          const s3File = await s3Download(s3Config, path)
+          const s3File = await s3DownloadBytes(s3Config, path)
           if (s3File) {
-            return s3File.content
+            return requireSyncText(path, s3File.content)
           }
         }
         break
@@ -515,9 +514,9 @@ export async function pullRemoteFile(path: string): Promise<string> {
       case 'webdav': {
         const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
         if (webdavConfig) {
-          const webdavFile = await webdavDownload(webdavConfig, path)
+          const webdavFile = await webdavDownloadBytes(webdavConfig, path)
           if (webdavFile) {
-            return webdavFile.content
+            return requireSyncText(path, webdavFile.content)
           }
         }
         break
@@ -529,7 +528,7 @@ export async function pullRemoteFile(path: string): Promise<string> {
           ? await androidCloudFolderWorkspaceDownloadBytes(config, path)
           : null
         if (cloudFile) {
-          return new TextDecoder().decode(cloudFile.content)
+          return requireSyncText(path, cloudFile.content)
         }
         break
       }
@@ -539,6 +538,12 @@ export async function pullRemoteFile(path: string): Promise<string> {
   }
 
   throw new Error('无法获取远程文件内容')
+}
+
+function requireSyncText(path: string, bytes: Uint8Array): string {
+  const content = decodeSyncText(path, bytes)
+  if (content === undefined) throw new Error('Binary or invalid UTF-8 file cannot enter the text editor sync flow')
+  return content
 }
 
 /**
@@ -586,6 +591,7 @@ export async function ensureDirectoryExists(filePath: string): Promise<void> {
  * 保存文件到本地（增强版，处理文件名兼容性和目录创建）
  */
 export async function saveLocalFile(path: string, content: string): Promise<void> {
+  if (isBinaryFilePath(path)) throw new Error('Binary files must be saved through the byte-preserving sync API')
   if (isFileDeletionPending(path)) throw new Error('The file is being deleted')
   const workspace = await getWorkspacePath()
   
@@ -772,6 +778,11 @@ export async function autoSyncIfNeeded(path: string, options: {
  */
 async function performSync(path: string, enableConflictResolution: boolean): Promise<string | null> {
   try {
+    if (isBinaryFilePath(path)) {
+      const { getSyncManager } = await import('./sync-manager')
+      await getSyncManager().pullFile(path)
+      return null
+    }
     // 获取本地内容用于冲突检测
     let actualPath = path
     
@@ -789,9 +800,10 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
         : await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
       if (!fileExists) return { exists: false, content: '' }
 
-      const content = workspace.isCustom
-        ? await readTextFile(pathOptions.path)
-        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      const bytes = pathOptions.baseDir
+        ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        : await readFile(pathOptions.path)
+      const content = requireSyncText(actualPath, bytes)
       return { exists: true, content }
     }
     const restoreLocalSnapshot = async (snapshot: LocalFileSnapshot): Promise<void> => {
@@ -816,20 +828,9 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       left.exists === right.exists && left.content === right.content
     )
 
-    let localSnapshot: LocalFileSnapshot = { exists: false, content: '' }
-    try {
-      localSnapshot = await readCurrentLocalSnapshot()
-    } catch (error) {
-      // 本地文件不存在或目录不存在，这是正常的同步场景
-      if (error instanceof Error && 
-          (error.message.includes('no such file') || 
-           error.message.includes('not found') ||
-           error.message.includes('系统找不到指定的路径'))) {
-      } else {
-        // 静默处理读取本地文件时的意外错误
-      }
-      // 继续处理，将直接拉取远程文件
-    }
+    // A missing file is represented by exists=false. A failed read is not a
+    // missing snapshot and must abort before any write or rollback can occur.
+    const localSnapshot = await readCurrentLocalSnapshot()
     const localContent = localSnapshot.content
     
     const remoteContent = await pullRemoteFile(path)
@@ -841,12 +842,7 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
     // The remote request can outlive a local edit. Flush a stable snapshot and
     // abort this pull if the local file changed while the request was running.
     if (!await prepareActiveEditorDeactivationDurably(actualPath)) return null
-    let latestLocalSnapshot: LocalFileSnapshot = { exists: false, content: '' }
-    try {
-      latestLocalSnapshot = await readCurrentLocalSnapshot()
-    } catch {
-      latestLocalSnapshot = { exists: false, content: '' }
-    }
+    let latestLocalSnapshot = await readCurrentLocalSnapshot()
     if (!snapshotsMatch(latestLocalSnapshot, localSnapshot)) return null
 
     // 检测和处理冲突
@@ -886,21 +882,12 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       }
 
       if (!await prepareActiveEditorDeactivationDurably(actualPath)) return null
-      try {
-        latestLocalSnapshot = await readCurrentLocalSnapshot()
-      } catch {
-        latestLocalSnapshot = { exists: false, content: '' }
-      }
+      latestLocalSnapshot = await readCurrentLocalSnapshot()
       if (!snapshotsMatch(latestLocalSnapshot, localSnapshot)) return null
       
       markEditorPathMutation(actualPath)
       const didSave = await runEditorPathWriteTransaction(actualPath, async ({ hasQueuedSave }) => {
-        let snapshotAtGate: LocalFileSnapshot
-        try {
-          snapshotAtGate = await readCurrentLocalSnapshot()
-        } catch {
-          snapshotAtGate = { exists: false, content: '' }
-        }
+        const snapshotAtGate = await readCurrentLocalSnapshot()
         if (!snapshotsMatch(snapshotAtGate, latestLocalSnapshot)) return false
 
         try {
@@ -939,12 +926,7 @@ async function performSync(path: string, enableConflictResolution: boolean): Pro
       // 无冲突，直接保存
       markEditorPathMutation(actualPath)
       const didSave = await runEditorPathWriteTransaction(actualPath, async ({ hasQueuedSave }) => {
-        let snapshotAtGate: LocalFileSnapshot
-        try {
-          snapshotAtGate = await readCurrentLocalSnapshot()
-        } catch {
-          snapshotAtGate = { exists: false, content: '' }
-        }
+        const snapshotAtGate = await readCurrentLocalSnapshot()
         if (!snapshotsMatch(snapshotAtGate, latestLocalSnapshot)) return false
 
         try {

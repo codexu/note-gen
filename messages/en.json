@@ -6291,5 +6291,8 @@
     "loadError": "Could not load capture settings. Please retry.",
     "saveError": "Save not confirmed. Retry to confirm; your draft is kept and will not be saved twice.",
     "retry": "Retry"
+  },
+  "editorImage": {
+    "changedOnDisk": "The image was updated by sync or another operation. Reopen it before editing and saving again."
   }
 }

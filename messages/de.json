@@ -6151,5 +6151,8 @@
     "loadError": "Aufnahmeeinstellungen konnten nicht geladen werden. Bitte erneut versuchen.",
     "saveError": "Speicherung nicht bestätigt. Erneut versuchen; der Entwurf bleibt erhalten und wird nicht doppelt gespeichert.",
     "retry": "Erneut versuchen"
+  },
+  "editorImage": {
+    "changedOnDisk": "Das Bild wurde durch die Synchronisierung oder einen anderen Vorgang aktualisiert. Öffne es erneut, bevor du es bearbeitest und speicherst."
   }
 }

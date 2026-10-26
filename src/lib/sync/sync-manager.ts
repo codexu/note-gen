@@ -17,10 +17,12 @@ import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import useSyncStore from '@/stores/sync'
 import { isFileDeletionPending } from '@/stores/file-deletion'
 import { toast } from '@/hooks/use-toast'
-import { exists, mkdir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
-import { dirname } from '@tauri-apps/api/path'
+import { BaseDirectory, exists, mkdir, readFile, remove, writeFile } from '@tauri-apps/plugin-fs'
+import { dirname, join } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
+import { decodeSyncText, isBinaryFilePath, sameFileBytes, syncContentBytes } from './file-content'
 import { shouldExclude } from '@/config/sync-exclusions'
+import emitter from '@/lib/emitter'
 import {
   getEditorPathMutationRevision,
   prepareActiveEditorDeactivation,
@@ -164,7 +166,7 @@ export class SyncManager {
   /**
    * 计算文件的 SHA
    */
-  async calculateSha(content: string): Promise<string> {
+  async calculateSha(content: string | Uint8Array): Promise<string> {
     return await calculateFileSha(content)
   }
 
@@ -187,7 +189,7 @@ export class SyncManager {
   /**
    * 推送文件到远程
    */
-  async pushFile(path: string, content: string, overwrite = false): Promise<SyncResult> {
+  async pushFile(path: string, content: string | Uint8Array, overwrite = false): Promise<SyncResult> {
     if (isFileDeletionPending(path)) {
       return { success: true, action: 'none', message: '文件正在删除' }
     }
@@ -197,6 +199,10 @@ export class SyncManager {
     }
 
     try {
+      if (isBinaryFilePath(path) && typeof content === 'string') {
+        throw new Error('二进制文件必须以原始字节同步，不能上传文本解码结果')
+      }
+      const bytes = syncContentBytes(content)
       if (await (await Store.load('store.json')).get('platformSwitchRecovery')) throw new Error('SYNC_SWITCH_STALE')
       if (await this.getCurrentPlatform() === 'selfHosted') {
         const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([
@@ -206,7 +212,7 @@ export class SyncManager {
         if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
         await enqueueFileSnapshot(path)
         void getSelfHostedSyncRuntime().wake('local-change')
-        return { success: true, action: 'push', message: '已加入自托管同步队列', content }
+        return { success: true, action: 'push', message: '已加入自托管同步队列', content: decodeSyncText(path, bytes) }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
       await prepareWorkspacePathUpload(path)
@@ -228,7 +234,7 @@ export class SyncManager {
         let matchingVersion: string | undefined
         try {
           const remoteFile = await readVersionedWorkspaceFile(path, platform)
-          if (new TextDecoder().decode(remoteFile.content) === content) matchingVersion = remoteFile.version
+          if (sameFileBytes(remoteFile.content, bytes)) matchingVersion = remoteFile.version
         } catch { /* Missing/unreadable remote: the conditional write remains authoritative. */ }
         version = matchingVersion || await uploadGuardedWorkspaceFile(path, content, platform, acceptedVersion, message, metadataKey)
       }
@@ -267,30 +273,38 @@ export class SyncManager {
         return { success: true, action: 'none', message: '已检查自托管同步事件' }
       }
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
+      const workspace = await getWorkspacePath()
+      const safePath = hasInvalidFileNameChars(path) ? sanitizeFilePath(path) : path
+      const localPathOptions = workspace.isCustom
+        ? { path: await join(workspace.path, safePath), baseDir: undefined }
+        : { path: `article/${safePath}`, baseDir: BaseDirectory.AppData }
       await retryWorkspacePathMoves()
       const pullMetadataKey = await getSyncMetadataKey(path, platform)
-      const targetIsCurrent = async () => !await store.get('platformSwitchRecovery')
-        && await this.getCurrentPlatform() === platform && await getSyncMetadataKey(path, platform) === pullMetadataKey
+      const targetIsCurrent = async () => {
+        const currentWorkspace = await getWorkspacePath()
+        return currentWorkspace.path === workspace.path && currentWorkspace.isCustom === workspace.isCustom
+          && !await store.get('platformSwitchRecovery')
+          && await this.getCurrentPlatform() === platform && await getSyncMetadataKey(path, platform) === pullMetadataKey
+      }
       const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
       const remoteFile = platform === 'cloudFolder' && config?.provider !== 'oneDrive'
         ? config ? await androidCloudFolderWorkspaceDownloadBytes(config, path) : null
         : await readVersionedWorkspaceFile(path, platform)
       if (remoteFile) {
         if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
-        const decodedContent = new TextDecoder().decode(remoteFile.content)
+        const decodedContent = decodeSyncText(path, remoteFile.content)
         const acceptedVersion = 'version' in remoteFile ? remoteFile.version : remoteFile.etag
 
         if (!await prepareActiveEditorDeactivationDurably(path)) {
           return { success: false, action: 'none', error: '编辑器正在处理未完成的内容' }
         }
-        const localPathOptions = await getFilePathOptions(hasInvalidFileNameChars(path) ? sanitizeFilePath(path) : path)
-        const writeCapturedFile = async (content: string) => {
+        const writeCapturedFile = async (content: Uint8Array) => {
           // Never resolve the workspace again during rollback: it may already
           // have changed while an older pull was waiting on disk or network.
           const parent = await dirname(localPathOptions.path)
           const options = localPathOptions.baseDir ? { baseDir: localPathOptions.baseDir } : {}
           if (parent && parent !== '.') await mkdir(parent, { ...options, recursive: true })
-          await writeTextFile(localPathOptions.path, content, options)
+          await writeFile(localPathOptions.path, content, options)
         }
         const pullAccepted = await runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
           if (isFileDeletionPending(path)) return false
@@ -299,8 +313,8 @@ export class SyncManager {
             : await exists(localPathOptions.path)
           const stableContent = stableFileExists
             ? localPathOptions.baseDir
-              ? await readTextFile(localPathOptions.path, { baseDir: localPathOptions.baseDir })
-              : await readTextFile(localPathOptions.path)
+              ? await readFile(localPathOptions.path, { baseDir: localPathOptions.baseDir })
+              : await readFile(localPathOptions.path)
             : null
 
           const restoreStableContent = async () => {
@@ -325,7 +339,7 @@ export class SyncManager {
           }
 
           try {
-            await writeCapturedFile(decodedContent)
+            await writeCapturedFile(remoteFile.content)
           } catch (error) {
             await restoreStableContent()
             throw error
@@ -362,6 +376,7 @@ export class SyncManager {
         })().catch(error => {
           console.error('Failed to finalize pull metadata:', error)
         })
+        emitter.emit('sync-pulled', { path })
         return { success: true, action: 'pull', message: '拉取成功', content: decodedContent }
       }
 
@@ -430,7 +445,7 @@ export class SyncManager {
   /**
    * 处理冲突
    */
-  async resolveConflict(path: string, strategy: 'ask' | 'local' | 'remote', localContent?: string): Promise<SyncResult> {
+  async resolveConflict(path: string, strategy: 'ask' | 'local' | 'remote', localContent?: string | Uint8Array): Promise<SyncResult> {
     try {
       // 如果策略是 ask，需要获取用户选择
       if (strategy === 'ask') {
@@ -439,16 +454,9 @@ export class SyncManager {
       }
 
       // 获取内容
-      if (strategy === 'local' && localContent === undefined) {
-        const workspace = await getWorkspacePath()
+      if (strategy === 'local' && (localContent === undefined || isBinaryFilePath(path))) {
         const pathOptions = await getFilePathOptions(path)
-        try {
-          localContent = workspace.isCustom
-            ? await readTextFile(pathOptions.path)
-            : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-        } catch {
-          localContent = ''
-        }
+        localContent = await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       }
 
       const result = strategy === 'local'
@@ -502,11 +510,8 @@ export class SyncManager {
 
       if (syncResult.action === 'push') {
         // 推送本地版本
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-        const content = workspace.isCustom
-          ? await readTextFile(pathOptions.path)
-          : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        const content = await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
 
         const result = await this.pushFile(path, content)
         this.state.lastSyncTime = Date.now()
@@ -524,11 +529,11 @@ export class SyncManager {
 
       if (syncResult.action === 'conflict' && options.onConflict) {
         // 处理冲突
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-        const localContent = workspace.isCustom
-          ? await readTextFile(pathOptions.path)
-          : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+        const localContent = decodeSyncText(path, await readFile(pathOptions.path, { baseDir: pathOptions.baseDir }))
+        if (localContent === undefined) {
+          return { success: false, action: 'conflict', message: '此文件不能使用文本合并，请选择保留本地或远程版本' }
+        }
         const remoteContent = await pullRemoteFile(path)
         const choice = await options.onConflict(localContent, remoteContent)
 
@@ -537,6 +542,10 @@ export class SyncManager {
         }
 
         return await this.resolveConflict(path, choice, localContent)
+      }
+
+      if (syncResult.action === 'conflict') {
+        return { success: false, action: 'conflict', message: '文件存在冲突，需要选择保留本地或远程版本' }
       }
 
       return { success: true, action: 'none' }
@@ -654,17 +663,8 @@ export class SyncManager {
           continue
         }
         // 始终从磁盘读取最新内容，确保上传的是本地最新内容
-        const { getFilePathOptions, getWorkspacePath } = await import('@/lib/workspace')
-        const { readTextFile } = await import('@tauri-apps/plugin-fs')
-        const workspace = await getWorkspacePath()
         const pathOptions = await getFilePathOptions(path)
-
-        let content: string
-        if (workspace.isCustom) {
-          content = await readTextFile(pathOptions.path)
-        } else {
-          content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
-        }
+        const content = await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
 
         const result = await this.pushFile(path, content)
         if (result.success) {

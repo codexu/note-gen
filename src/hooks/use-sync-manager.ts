@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { getSyncManager, SyncResult } from '@/lib/sync/sync-manager'
-import { readTextFile } from '@tauri-apps/plugin-fs'
-import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
+import { readFile } from '@tauri-apps/plugin-fs'
+import { getFilePathOptions } from '@/lib/workspace'
 
 interface UseSyncManagerOptions {
   autoRefresh?: boolean
@@ -65,11 +65,10 @@ export function useSyncManager(path?: string, options: UseSyncManagerOptions = {
 
     setIsLoading(true)
     try {
-      const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(path)
-      const content = workspace.isCustom
-        ? await readTextFile(pathOptions.path)
-        : await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
+      const content = pathOptions.baseDir === undefined
+        ? await readFile(pathOptions.path)
+        : await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
       const result = await manager.pushFile(path, content)
       await checkStatus(path)
       return result

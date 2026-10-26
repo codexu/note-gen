@@ -10,6 +10,7 @@ import { androidCloudFolderWorkspaceList, supportsCloudFolderWorkspace, type Clo
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
 import { isSyncConfigured, syncOnOpen } from '@/lib/sync/sync-manager'
+import { isSyncTextPath } from '@/lib/sync/file-content'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
@@ -3281,8 +3282,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
     if (activeFilePath) {
       const currentState = get()
 
-      // 检查是否是文件夹（所有支持的文件扩展名都是文件，不是文件夹）
-      if (!activeFilePath.match(/\.(md|txt|markdown|py|js|ts|jsx|tsx|css|scss|less|html|xml|json|yaml|yml|sh|bash|java|c|cpp|h|go|rs|sql|rb|php|vue|svelte|astro|toml|ini|conf|cfg|gitignore|env|example|template|jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
+      const activeEntry = getCurrentFolder(activeFilePath, currentState.fileTree)
+      const activeName = activeFilePath.split(/[\\/]/).pop() || ''
+      const activeIsFile = activeEntry?.isFile ?? activeName.includes('.')
+      if (!activeIsFile) {
         set({ activeFilePath })
         // 文件夹：确保展开并加载内容
         if (!get().collapsibleList.includes(activeFilePath)) {
@@ -3448,6 +3451,21 @@ const useArticleStore = create<NoteState>((set, get) => ({
       && get().activeFilePath === actualPath
       && !isFileDeletionPending(actualPath)
       )
+
+    if (!isSyncTextPath(actualPath)) {
+      // Images and other binary files have their own viewers. They may pull
+      // original bytes on open, but must never enter Markdown/text recovery,
+      // empty-file creation, tokenization, or editor-content events.
+      set({ currentArticle: '', loading: false, readFilePath: '', isPulling: false, justPulledFile: false })
+      if (autoSync && !isAbsoluteFsPath(actualPath) && await hasNetworkConnection() && isCurrentArticleRead()) {
+        try {
+          await syncOnOpen(actualPath, getEditorPathMutationRevision(actualPath))
+        } catch {
+          // A failed background pull must not replace the binary viewer.
+        }
+      }
+      return
+    }
 
     warmMarkdownLexerWorker()
 
@@ -3720,6 +3738,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
   saveCurrentArticle: async (content: string, pathOverride?: string) => {
     const path = pathOverride ?? get().activeFilePath
     if (isFileDeletionPending(path)) return
+    if (path && !isSyncTextPath(path)) {
+      throw new Error('Binary files cannot be saved through the article text editor')
+    }
     const justPulled = get().justPulledFile
 
     if (path && content !== undefined && content !== null) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import type { PluginFormBlock, PluginFormField, PluginFormValue } from '@notegen/plugin-api'
 import { PluginNotePicker } from './plugin-note-picker'
@@ -31,6 +31,7 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
   const message = session?.message ?? ''
   const failure = session?.failure ?? ''
   const busy = session?.busy ?? false
+  const [busyAction, setBusyAction] = useState<string | null>(null)
   useEffect(() => { reconcilePluginForm(scope, block) }, [scope, block])
   useEffect(() => {
     if (!block.changeCommand || !session || session.busy || session.changeRevision <= session.notifiedRevision) return
@@ -63,7 +64,9 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
     patchPluginForm(key, current.generation, { values: { ...current.values, [id]: value }, errors: { ...current.errors, [id]: '' }, message: '', failure: '', changedField: id, changeRevision: current.changeRevision + 1 })
   }
 
-  async function submit() {
+  async function submit(actionId?: string) {
+    const action = block.submitActions?.find(item => item.id === actionId)
+    if (block.submitActions && (!action || action.disabled)) return
     const current = reconcilePluginForm(scope, block)
     if (current.busy || block.submitDisabled) return
     const generation = current.generation
@@ -97,9 +100,10 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
     patchPluginForm(key, generation, { errors: nextErrors, failure: '', message: '' })
     if (Object.keys(nextErrors).length) return
     patchPluginForm(key, generation, { busy: true })
+    setBusyAction(action?.id ?? null)
     try {
       const dialogId = scope.split(':')[1] === 'dialog' ? scope.split(':')[2] : undefined
-      const result = await executePluginUserCommand(block.command, { formId: block.id, values: submitted, ...(dialogId ? { dialogId } : {}) })
+      const result = await executePluginUserCommand(action?.command ?? block.command, { formId: block.id, values: submitted, ...(action ? { actionId: action.id } : {}), ...(dialogId ? { dialogId } : {}) })
       if (usePluginFormStore.getState().sessions[key]?.generation !== generation) return
       if (result && typeof result === 'object' && !Array.isArray(result)) {
         if ('fieldErrors' in result && result.fieldErrors && typeof result.fieldErrors === 'object' && !Array.isArray(result.fieldErrors)) {
@@ -114,10 +118,16 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
       patchPluginForm(key, generation, { failure: error instanceof Error ? error.message : String(error) })
     } finally {
       patchPluginForm(key, generation, { busy: false })
+      setBusyAction(null)
     }
   }
 
-  return <form aria-busy={busy} noValidate onSubmit={event => { event.preventDefault(); void submit() }}>
+  return <form aria-busy={busy} noValidate onSubmit={event => {
+    event.preventDefault()
+    const submitter = (event.nativeEvent as SubmitEvent).submitter
+    const actionId = submitter instanceof HTMLButtonElement ? submitter.value : block.submitActions?.find(action => !action.disabled)?.id
+    void submit(actionId)
+  }}>
     <FieldGroup className={settingsLayout ? "gap-3" : undefined}>
       {block.fields.map(field => {
         if (!visible(field, values)) return null
@@ -157,7 +167,9 @@ export function PluginForm({ block, scope }: { block: PluginFormBlock; scope: st
       })}
       <FieldError>{failure}</FieldError>
       {message ? <p role="status" className="whitespace-pre-wrap text-sm">{message}</p> : null}
-      {block.changeCommand && block.submitDisabled ? null : <Button type="submit" disabled={busy || block.submitDisabled} className={settingsLayout ? "self-end" : "self-start"}>{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>}
+      {block.changeCommand && block.submitDisabled ? null : block.submitActions ? <div className="flex flex-wrap gap-2">
+        {block.submitActions.map(action => <Button key={action.id} type="submit" value={action.id} variant={action.variant} disabled={busy || block.submitDisabled || action.disabled}>{busy && busyAction === action.id ? <Spinner data-icon="inline-start" /> : null}{action.label}</Button>)}
+      </div> : <Button type="submit" disabled={busy || block.submitDisabled} className={settingsLayout ? "self-end" : "self-start"}>{busy ? <Spinner data-icon="inline-start" /> : null}{block.submitLabel}</Button>}
     </FieldGroup>
   </form>
 }

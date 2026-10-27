@@ -39,7 +39,7 @@
     "@json-render/core": "0.21.3",
     "@json-render/react": "0.21.3",
     "@mozilla/readability": "^0.6.0",
-    "@notegen/plugin-api": "0.1.12",
+    "@notegen/plugin-api": "0.1.14",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@shadcn/react": "^0.2.1",
     "@streamdown/cjk": "^1.0.3",

@@ -149,3 +149,64 @@ export const codeHighlighter: CodeHighlighterPlugin = {
     return null
   },
 }
+
+/** Own asynchronous callbacks so an export cannot capture another editor's work. */
+export function createExportCodeHighlighter() {
+  const cached = new Map<string, TokensResult>()
+  const pending = new Map<string, Promise<void>>()
+  type HighlightCallback = NonNullable<Parameters<CodeHighlighterPlugin['highlight']>[1]>
+  const callbacks = new Map<string, Set<HighlightCallback>>()
+  const requested = new Set<string>()
+  let disposed = false
+  let fallback = false
+
+  const plugin: CodeHighlighterPlugin = {
+    ...codeHighlighter,
+    highlight({ code, language }, callback) {
+      const resolved = resolveLanguage(language)
+      const key = `${resolved}\0${code}`
+      requested.add(key)
+      const result = cached.get(key)
+      if (result) return result
+      if (disposed || resolved === 'text') return plainTokens(code)
+
+      if (callback) {
+        const listeners = callbacks.get(key) ?? new Set<HighlightCallback>()
+        listeners.add(callback)
+        callbacks.set(key, listeners)
+      }
+      if (!pending.has(key)) {
+        const work = loadLanguage(resolved).then(instance => instance.codeToTokens(code, {
+          lang: resolved,
+          themes: { light: 'github-light', dark: 'github-dark' },
+        })).catch(() => {
+          fallback = true
+          return plainTokens(code)
+        }).then(tokens => {
+          if (disposed) return
+          cached.set(key, tokens)
+          for (const listener of callbacks.get(key) ?? []) listener(tokens)
+          callbacks.delete(key)
+        }).finally(() => pending.delete(key))
+        pending.set(key, work)
+      }
+      return null
+    },
+  }
+
+  return {
+    plugin,
+    async waitForIdle() {
+      while (!disposed && pending.size > 0) await Promise.all(pending.values())
+    },
+    didFallback: () => fallback,
+    hasPending: () => pending.size > 0,
+    hasRequested: (code: string, language: string) => requested.has(`${resolveLanguage(language)}\0${code}`),
+    dispose() {
+      disposed = true
+      callbacks.clear()
+      cached.clear()
+      requested.clear()
+    },
+  }
+}

@@ -7,10 +7,7 @@ import TaskItem from '@tiptap/extension-task-item'
 import TaskList from '@tiptap/extension-task-list'
 import { MarkdownManager } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { createElement } from 'react'
-import { flushSync } from 'react-dom'
-import { createRoot } from 'react-dom/client'
-import { StreamdownRenderer } from '@/components/markdown/streamdown-renderer'
+import { renderMarkdownExportFragment } from '@/lib/markdown/export-document'
 import { checkIsTauri } from '@/lib/check'
 import { resolveImagePathFromMarkdown } from '@/lib/markdown-image-path'
 import { convertImageByWorkspace } from '@/lib/utils'
@@ -361,34 +358,8 @@ async function waitForDocumentResources(frameDocument: Document) {
 }
 
 export async function renderMarkdownToHtml(markdown: string, sourcePath?: string) {
-  const container = document.createElement('div')
-  container.style.position = 'fixed'
-  container.style.left = '-10000px'
-  container.style.top = '0'
-  container.style.width = '800px'
-  container.style.pointerEvents = 'none'
-  container.setAttribute('aria-hidden', 'true')
-  document.body.appendChild(container)
-
-  const root = createRoot(container)
-
-  try {
-    flushSync(() => {
-      root.render(createElement(StreamdownRenderer, {
-        interactiveCodeBlocks: false,
-        markdown,
-      }))
-    })
-    await waitForAnimationFrame()
-
-    return await resolveMarkdownImageSources(
-      sanitizeExportHtml(container.innerHTML),
-      sourcePath,
-    )
-  } finally {
-    root.unmount()
-    container.remove()
-  }
+  const { html } = await renderMarkdownExportFragment(markdown)
+  return await resolveMarkdownImageSources(sanitizeExportHtml(html), sourcePath)
 }
 
 function blobToDataUrl(blob: Blob) {

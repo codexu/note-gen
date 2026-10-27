@@ -303,7 +303,7 @@ function isNamespaced(value: string, pluginId: string): boolean {
 }
 
 function validatePermissionScopes(manifest: PluginManifestV1): void {
-  const allowedScopes: Record<PluginPermissionName | 'terminal.open', readonly string[]> = {
+  const allowedScopes: Partial<Record<PluginPermissionName | 'terminal.open', readonly string[]>> = {
     'records.read': ['application'],
     'records.write': ['application'],
     'chat.read': ['application'],
@@ -329,7 +329,8 @@ function validatePermissionScopes(manifest: PluginManifestV1): void {
 
   for (const [permission, declaration] of Object.entries(manifest.permissions)) {
     if (!declaration) continue
-    if (!allowedScopes[permission as PluginPermissionName | 'terminal.open'].includes(declaration.scope)) {
+    const scopes = allowedScopes[permission as PluginPermissionName | 'terminal.open']
+    if (!scopes?.includes(declaration.scope)) {
       throw new PluginError(
         'InvalidManifest',
         `${permission} does not support the ${declaration.scope} scope`,

@@ -31,6 +31,7 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
   const focus = usePluginUiStore(state => state.focusRequest)
   const t = useTranslations('settings.plugins.ui')
   const [pluginId, viewId] = viewKey.split(':')
+  const pluginRevision = usePluginUiStore(state => state.pluginRevisions[pluginId] ?? 0)
   const hash = usePluginStore(state => state.installed.find(plugin => plugin.manifest.id === pluginId)?.contentHash)
   const settingsLayout = usePluginStore(state => state.installed.find(plugin => plugin.manifest.id === pluginId)?.manifest.contributes.views?.find(view => view.id === viewId)?.location === 'settings')
   const workspace = usePluginStore(state => state.currentWorkspaceId)
@@ -52,7 +53,7 @@ export function PluginViewSurface({ viewKey, active = true, toolbarInHeader = fa
       if (current) setError(reason instanceof Error ? reason.message : String(reason))
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [pluginId, viewId, hash, workspace, active, attempt, hostRevision])
+  }, [pluginId, viewId, hash, workspace, active, attempt, hostRevision, pluginRevision])
   useEffect(() => {
     if (active && focus?.key === viewKey) container.current?.focus()
   }, [focus, viewKey, active])

@@ -52,6 +52,7 @@ export function PluginEmbeddedView({ item, contextKey = '', compact = false, car
   const recordGrant = usePluginStore(state => workspace ? state.workspaceStates[workspace]?.[item.pluginId]?.permissions['records.read'] : undefined)
   const chatGrant = usePluginStore(state => workspace ? state.workspaceStates[workspace]?.[item.pluginId]?.permissions['chat.read'] : undefined)
   const revision = usePluginUiStore(state => state.hostRevision)
+  const pluginRevision = usePluginUiStore(state => state.pluginRevisions[item.pluginId] ?? 0)
   const hidden = usePluginUiStore(state => state.hiddenTitleBarViews.includes(item.key))
   const [visible, setVisible] = useState(false)
   const [placeholderHeight, setPlaceholderHeight] = useState(0)
@@ -61,7 +62,7 @@ export function PluginEmbeddedView({ item, contextKey = '', compact = false, car
   useEffect(() => {
     if (!hidden && focus?.key === item.key) container.current?.scrollIntoView({ block: 'nearest' })
   }, [focus, hidden, item.key])
-  const contextId = useMemo(() => crypto.randomUUID(), [item.key, item.hash, workspace, contextKey, target, revision, visible, hidden, listGrant, recordGrant, chatGrant])
+  const contextId = useMemo(() => crypto.randomUUID(), [item.key, item.hash, workspace, contextKey, target, revision, pluginRevision, visible, hidden, listGrant, recordGrant, chatGrant])
   useEffect(() => {
     const node = container.current
     if (!node || hidden) { setVisible(false); return }

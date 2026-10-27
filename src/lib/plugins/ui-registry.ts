@@ -38,6 +38,13 @@ export function setPluginViewActivationResolver(resolver: typeof viewActivationR
   // plugin, workspace and content hash have not changed.
   usePluginUiStore.setState(state => ({ hostRevision: state.hostRevision + 1 }))
 }
+export function notifyPluginRuntimeReady(pluginId: string): void {
+  // A mounted view may have awaited an activation superseded during permission
+  // reconciliation. Rebind once after the replacement runtime is registered.
+  usePluginUiStore.setState(state => ({
+    pluginRevisions: { ...state.pluginRevisions, [pluginId]: (state.pluginRevisions[pluginId] ?? 0) + 1 },
+  }))
+}
 export async function activatePluginView(pluginId: string, viewId: string): Promise<void> {
   declaredView(pluginId, viewId)
   if (!viewActivationResolver) throw new PluginError('Cancelled', 'Plugin host is not running')
@@ -62,6 +69,7 @@ export function dismissPluginDialog(id: string, reason: PluginDialogCloseEvent['
 
 interface PluginUiState {
   hostRevision: number
+  pluginRevisions: Record<string, number>
   embeddedContexts: Record<string, string>
   embeddedTargets: Record<string, PluginViewState['target']>
   views: Record<string, PluginUiDocument>
@@ -141,7 +149,7 @@ const legacyBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('list'), items: z.array(z.string().max(2_000)).max(100) }).strict(),
   z.object({ type: z.literal('key-value'), items: z.array(z.object({ label: z.string().max(500), value: z.string().max(2_000) }).strict()).max(100) }).strict(),
   z.object({ type: z.literal('actions'), actions: z.array(actionSchema).max(20) }).strict(),
-  z.object({ type: z.literal('form'), id: z.string().min(1).max(160), resetKey: z.string().max(160).optional(), changeCommand: z.string().min(1).max(220).optional(), submitDisabled: z.boolean().optional(), fields: z.array(fieldSchema).min(1).max(30), submitLabel: z.string().min(1).max(160), command: z.string().min(1).max(220) }).strict(),
+  z.object({ type: z.literal('form'), id: z.string().min(1).max(160), resetKey: z.string().max(160).optional(), changeCommand: z.string().min(1).max(220).optional(), submitDisabled: z.boolean().optional(), fields: z.array(fieldSchema).min(1).max(30), submitLabel: z.string().min(1).max(160), command: z.string().min(1).max(220), submitActions: z.array(z.object({ id: z.string().min(1).max(160), label: z.string().min(1).max(160), command: z.string().min(1).max(220), variant: z.enum(['default', 'secondary', 'destructive']).optional(), disabled: z.boolean().optional() }).strict()).min(1).max(6).optional() }).strict(),
   z.object({ type: z.literal('table'), id: z.string().min(1).max(160).optional(), rowIds: z.array(z.string().min(1).max(160)).max(100).optional(), columns: z.array(z.string().max(500)).min(1).max(20), rows: z.array(z.array(z.union([z.string().max(2_000), z.object({ text: z.string().min(1).max(160), command: z.string().min(1).max(220), argument: jsonValueSchema.optional(), disabled: z.boolean().optional() }).strict()])).max(20)).max(100) }).strict(),
   z.object({ type: z.literal('tree'), items: z.array(z.object({ id: z.string().min(1).max(160), parentId: z.string().min(1).max(160).optional(), label: z.string().max(500), command: z.string().min(1).max(220).optional(), argument: jsonValueSchema.optional() }).strict()).max(100) }).strict(),
 ])
@@ -149,7 +157,11 @@ const legacyBlockSchema = z.discriminatedUnion('type', [
 function parseBlocks(value: unknown, depth = 0): PluginUiBlock[] {
   if (depth > 6 || !Array.isArray(value) || value.length > 50) throw new PluginError('InvalidPath', 'Invalid UI nesting or block count')
   return value.map(block => {
-    return parsePluginUiExtension(block, children => parseBlocks(children, depth + 1)) ?? legacyBlockSchema.parse(block)
+    const parsed = parsePluginUiExtension(block, children => parseBlocks(children, depth + 1)) ?? legacyBlockSchema.parse(block)
+    if (parsed.type === 'form' && parsed.submitActions && new Set(parsed.submitActions.map(action => action.id)).size !== parsed.submitActions.length) {
+      throw new PluginError('InvalidPath', 'Form submit action IDs must be unique')
+    }
+    return parsed
   })
 }
 const blocksSchema = z.unknown().transform((value, context) => {
@@ -235,6 +247,7 @@ function serializedUi(value: unknown): string {
 
 export const usePluginUiStore = create<PluginUiState>((set) => ({
   hostRevision: 0,
+  pluginRevisions: {},
   embeddedContexts: {},
   embeddedTargets: {},
   views: {},
@@ -251,6 +264,9 @@ export const usePluginUiStore = create<PluginUiState>((set) => ({
   requestFocus: (key) => set(state => ({ focusRequest: { key, sequence: (state.focusRequest?.sequence ?? 0) + 1 } })),
   setDialog: (dialog) => set({ dialog }),
   clearPlugin: (pluginId) => set((state) => ({
+    // Visible lazy views must request a replacement runtime after disposal.
+    // Its readiness notification then rebinds any superseded activation.
+    pluginRevisions: { ...state.pluginRevisions, [pluginId]: (state.pluginRevisions[pluginId] ?? 0) + 1 },
     hiddenTitleBarViews: state.hiddenTitleBarViews.filter(key => !key.startsWith(`${pluginId}:`)),
     embeddedContexts: Object.fromEntries(Object.entries(state.embeddedContexts).filter(([key]) => !key.startsWith(`${pluginId}:`))),
     embeddedTargets: Object.fromEntries(Object.entries(state.embeddedTargets).filter(([key]) => !key.startsWith(`${pluginId}:`))),
@@ -273,7 +289,7 @@ function validateDocumentCommands(pluginId: string, content: PluginUiDocument): 
   const plugin = usePluginStore.getState().installed.find((item) => item.manifest.id === pluginId)
   const commands = new Set((plugin?.manifest.contributes.commands ?? []).map((item) => item.id))
   for (const block of flattenPluginUiBlocks(content.blocks)) {
-    const referenced = block.type === 'form' ? [block.command, ...(block.changeCommand ? [block.changeCommand] : [])]
+    const referenced = block.type === 'form' ? [block.command, ...(block.changeCommand ? [block.changeCommand] : []), ...(block.submitActions ?? []).map(action => action.command)]
       : block.type === 'navigation-list' ? [block.openCommand, block.addCommand, block.removeCommand, block.reorderCommand]
       : block.type === 'toolbar' ? block.actions.map(action => action.command)
       : block.type === 'kanban' ? [block.openCardCommand, block.addCardCommand, block.editColumnCommand, block.moveCardCommand, block.reorderColumnsCommand, ...(block.openNoteCommand ? [block.openNoteCommand] : [])]

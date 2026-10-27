@@ -1,6 +1,6 @@
 import { withPluginUserAction } from './user-actions'
 import { usePluginStore } from '@/stores/plugins'
-import { isPluginDisplayVisible } from './display-preferences'
+import { isPluginDisplayVisible, pluginDisplayLocations, type PluginDisplayLocation } from './display-preferences'
 import {
   PluginError,
   matchesPluginMenuCondition,
@@ -173,7 +173,12 @@ export function getPluginCommands(): RegisteredPluginCommand[] {
   return [...commands.values()].sort((left, right) => left.title.localeCompare(right.title))
 }
 
+function isSupportedDisplayLocation(location: string): location is PluginDisplayLocation {
+  return pluginDisplayLocations.some(candidate => candidate === location)
+}
+
 export function getPluginMenuCommands(location: PluginMenuContribution['location'], context: PluginMenuContext = {}, displayLocation: PluginMenuContribution['location'] = location): RegisteredPluginCommand[] {
+  if (!isSupportedDisplayLocation(location) || !isSupportedDisplayLocation(displayLocation)) return []
   const seen = new Set<string>()
   return [...(menus.get(location) ?? [])]
     .filter(menu => isPluginDisplayVisible(usePluginStore.getState().deviceSettings, menu.pluginId, displayLocation) && matchesPluginMenuCondition(menu.when, context))

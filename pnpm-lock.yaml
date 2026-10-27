@@ -66,8 +66,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@notegen/plugin-api':
-        specifier: 0.1.12
-        version: 0.1.12
+        specifier: 0.1.14
+        version: 0.1.14
       '@sereneinserenade/tiptap-search-and-replace':
         specifier: ^0.1.1
         version: 0.1.1(@tiptap/core@3.19.0(@tiptap/pm@3.19.0))(@tiptap/pm@3.19.0)
@@ -1201,8 +1201,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@notegen/plugin-api@0.1.12':
-    resolution: {integrity: sha512-4gxMW+iOvZijUxJKzdzM5gy9nAj3x284OptxyVaHCrmsojtmza1ZaUmqQf7hv+l5OY4+i03+Xs5G9ob7ceg0Fg==}
+  '@notegen/plugin-api@0.1.14':
+    resolution: {integrity: sha512-bzGGGATGvy8Nv4Vl0MkqkRQy2qqX6m63h3UVbHOGgfaXpyXstBSJYIWASmDCPzzsB+3rYOM0McB2b46BSmuJtg==}
     engines: {node: '>=20'}
 
   '@parcel/watcher-android-arm64@2.5.6':
@@ -7423,7 +7423,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@notegen/plugin-api@0.1.12':
+  '@notegen/plugin-api@0.1.14':
     dependencies:
       yaml: 2.8.0
 

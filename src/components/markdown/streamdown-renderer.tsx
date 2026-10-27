@@ -5,10 +5,12 @@ import { cjk } from '@streamdown/cjk'
 import { createContext, useContext, useMemo, type ComponentProps } from 'react'
 import {
   Streamdown,
+  defaultRehypePlugins,
   defaultRemarkPlugins,
   type AnimateOptions,
   type Components,
   type ControlsConfig,
+  type CodeHighlighterPlugin,
   type PluginConfig,
   type StreamdownTranslations,
 } from 'streamdown'
@@ -31,6 +33,9 @@ interface StreamdownRendererProps {
   interactive?: boolean
   translations?: Partial<StreamdownTranslations>
   artifacts?: AgentArtifactPaths
+  /** Export images stay inert until the caller resolves their sources. */
+  deferImages?: boolean
+  exportCodeHighlighter?: CodeHighlighterPlugin
 }
 
 const math = createMathPlugin({
@@ -73,6 +78,55 @@ function StreamdownLink({ children, node, ...props }: ComponentProps<'a'> & { no
 
 // Keep raw CSS filtered by Streamdown. Reconstruct only a validated color.
 const colorTags = { span: ['dataNotegenColor'], mark: ['dataNotegenColor'] }
+const exportTags = { ...colorTags, img: ['dataNotegenExportSrc'] }
+type RehypePlugins = NonNullable<ComponentProps<typeof Streamdown>['rehypePlugins']>
+interface ExportSanitizeSchema {
+  tagNames?: string[]
+  attributes?: Record<string, unknown[]>
+}
+
+function exportSanitizer(): RehypePlugins[number] {
+  const sanitizer = defaultRehypePlugins.sanitize
+  if (!Array.isArray(sanitizer)) return sanitizer
+  const schema = sanitizer[1] as ExportSanitizeSchema
+  const attributes = { ...schema.attributes }
+  for (const [tag, names] of Object.entries(exportTags)) attributes[tag] = [...(attributes[tag] ?? []), ...names]
+  // Streamdown extends allowedTags only for its unchanged default plugin list.
+  return [sanitizer[0], {
+    ...schema,
+    tagNames: [...(schema.tagNames ?? []), ...Object.keys(exportTags)],
+    attributes,
+  }] as RehypePlugins[number]
+}
+interface ExportImageTree {
+  type: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: ExportImageTree[]
+}
+
+/** Preserve workspace-relative and raster data references before URL hardening. */
+function deferExportImageSources() {
+  return (tree: ExportImageTree) => {
+    const visit = (node: ExportImageTree) => {
+      if (node.type === 'element' && node.tagName === 'img' && node.properties) {
+        node.properties.dataNotegenExportSrc = typeof node.properties.src === 'string' ? node.properties.src : ''
+        // The component below drops this URL; it is never mounted in the DOM.
+        node.properties.src = 'https://notegen-export.invalid/image'
+        delete node.properties.srcSet
+      }
+      node.children?.forEach(visit)
+    }
+    visit(tree)
+  }
+}
+
+const exportRehypePlugins: RehypePlugins = [
+  defaultRehypePlugins.raw,
+  deferExportImageSources,
+  exportSanitizer(),
+  defaultRehypePlugins.harden,
+]
 type ColorProps = ComponentProps<'span'> & { 'data-notegen-color'?: string; node?: unknown }
 function ColoredText({ children, 'data-notegen-color': value, node, style, ...props }: ColorProps) {
   void node
@@ -94,6 +148,12 @@ const previewComponents: Components = {
   ...components,
   img: (({ alt }: ComponentProps<'img'>) => <span>{alt}</span>) as Components['img'],
 }
+const exportComponents: Components = {
+  ...components,
+  img: (({ alt, title, 'data-notegen-export-src': source }: ComponentProps<'img'> & { 'data-notegen-export-src'?: string }) => (
+    <img alt={alt ?? ''} title={title} data-notegen-export-src={source ?? ''} />
+  )) as Components['img'],
+}
 
 export function StreamdownRenderer({
   markdown,
@@ -103,7 +163,12 @@ export function StreamdownRenderer({
   interactive = true,
   translations,
   artifacts = EMPTY_ARTIFACT_LINKS,
+  deferImages = false,
+  exportCodeHighlighter,
 }: StreamdownRendererProps) {
+  const rendererPlugins = useMemo<PluginConfig>(() => exportCodeHighlighter
+    ? { ...plugins, code: exportCodeHighlighter }
+    : plugins, [exportCodeHighlighter])
   const remarkPlugins = useMemo<NonNullable<ComponentProps<typeof Streamdown>['remarkPlugins']>>(() => [
     ...Object.values(defaultRemarkPlugins),
     [remarkArtifacts, { targets: artifacts.artifacts, paths: artifacts.paths }],
@@ -118,14 +183,15 @@ export function StreamdownRenderer({
           <Streamdown
           key={`${artifactKey}:${interactive ? 'interactive' : 'preview'}`}
           animated={streaming ? streamingAnimation : false}
-          components={interactive ? components : previewComponents}
-          allowedTags={colorTags}
+          components={deferImages ? exportComponents : interactive ? components : previewComponents}
+          allowedTags={deferImages ? exportTags : colorTags}
+          rehypePlugins={deferImages ? exportRehypePlugins : undefined}
           controls={interactive && interactiveCodeBlocks ? interactiveControls : false}
           isAnimating={streaming}
           linkSafety={linkSafety}
           lineNumbers={interactiveCodeBlocks}
           mode={streaming ? 'streaming' : 'static'}
-          plugins={plugins}
+          plugins={rendererPlugins}
           remarkPlugins={remarkPlugins}
           translations={translations}
           >

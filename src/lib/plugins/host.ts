@@ -31,7 +31,7 @@ import {
 } from '@/lib/plugins/internal-types'
 import { usePluginStore } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
-import { clearPluginUi, setPluginViewActivationResolver } from '@/lib/plugins/ui-registry'
+import { clearPluginUi, notifyPluginRuntimeReady, setPluginViewActivationResolver } from '@/lib/plugins/ui-registry'
 import { startDevelopmentAutoReload } from '@/lib/plugins/development-reload'
 
 interface ActiveRuntime {
@@ -406,6 +406,7 @@ export class PluginHost {
       if (this.surface === 'main' && usePluginStore.getState().failures[pluginId]) {
         void store.clearFailure(pluginId).catch((error) => this.logHostError(error))
       }
+      if (this.isActivationCurrent(pluginId, generation, activationId)) notifyPluginRuntimeReady(pluginId)
     } catch (error) {
       const pendingRuntime = this.pendingRuntimes.get(pluginId)
       if (pendingRuntime?.activationId === activationId) this.pendingRuntimes.delete(pluginId)

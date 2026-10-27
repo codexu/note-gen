@@ -1,5 +1,5 @@
 import { renderPluginDocument, releasePluginDocument, clearPluginDocuments } from './documents'
-import { writePluginClipboard, exportPluginFile } from './document-output'
+import { writePluginClipboard, exportPluginFile, exportPluginHtml, copyPluginHtml } from './document-output'
 import { setPluginEditorStyles, clearPluginEditorStyles } from './editor-styles'
 import { generatePluginAi, cancelPluginAi, onPluginAiStream } from './ai'
 import { createRecordsApi } from './records'
@@ -83,6 +83,12 @@ const MAX_CONCURRENT_NETWORK_REQUESTS_PER_PLUGIN = 4
 const MAX_NOTICE_LENGTH = 500
 const MAX_STATUS_TEXT_LENGTH = 160
 const MIN_STATUS_UPDATE_INTERVAL_MS = 100
+
+// Describe this host's actual surface while other capability-gated SDK additions are developed separately.
+export type HostPluginContext = Omit<PluginContext, 'canvas' | 'sources' | 'knowledge' | 'diagrams' | 'files' | 'ai'> & {
+  files: Pick<PluginContext['files'], 'export'>
+  ai: Pick<PluginContext['ai'], 'generate' | 'cancel' | 'onDidStream'>
+}
 const statusUpdateTimes = new Map<string, number>()
 const pendingStatusUpdates = new Map<string, {
   contentHash: string
@@ -1405,7 +1411,7 @@ export function createPluginContext(options: {
   messages: Record<string, string>
   disposables: PluginDisposable[]
   workspaceBinding?: PluginWorkspaceBinding
-}): PluginContext {
+}): HostPluginContext {
   const { plugin, signal, messages, disposables } = options
   const pluginId = plugin.manifest.id
   const pluginFingerprint = getPluginManifestFingerprint(plugin)
@@ -1430,6 +1436,42 @@ export function createPluginContext(options: {
     await assertCurrentPluginAuthority(pluginId, workspaceBinding, permission, path)
     guard()
   }
+  const htmlOutputServices: Parameters<typeof exportPluginHtml>[3] = {
+    guard: guardCurrent,
+    capture: async exportOptions => {
+      await guardCurrent('editor.read')
+      const editor = await getActivePluginEditor()
+      if (!editor || editor.editorId !== exportOptions.editorId) {
+        throw new PluginError('NotFound', 'The requested editor is no longer active')
+      }
+      if (editor.composing) throw new PluginError('EditorBusy', 'The editor is composing text')
+      const snapshot = await getPluginEditorTextSnapshot({
+        editorId: exportOptions.editorId,
+        expectedRevision: exportOptions.expectedRevision,
+        format: 'markdown',
+      })
+      const current = await getActivePluginEditor()
+      if (!current || current.editorId !== snapshot.editorId || current.documentId !== snapshot.documentId
+        || current.revision !== snapshot.revision) {
+        throw new PluginError('StaleRevision', 'The editor changed while the export was captured')
+      }
+      if (current.composing) throw new PluginError('EditorBusy', 'The editor is composing text')
+      await guardCurrent('editor.read')
+      return { snapshot, path: current.path }
+    },
+    readAttachment: async path => {
+      const normalized = normalizeAttachmentPath(path)
+      await guardCurrent('attachments.read', normalized)
+      const workspace = await getCurrentWorkspaceSnapshot()
+      await guardCurrent('attachments.read', normalized)
+      const result = await invokePluginBackend<PluginAttachment>('plugin_read_attachment', {
+        workspaceRoot: workspace.root, relativePath: normalized,
+      })
+      await guardCurrent('attachments.read', normalized)
+      return result
+    },
+  }
+
   const authorizedViewState = async (state: PluginViewState): Promise<PluginViewState> => {
     const target = state.target
     if (!target) return state
@@ -1453,7 +1495,7 @@ export function createPluginContext(options: {
       id: pluginId,
       version: plugin.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'] as PluginContext['plugin']['capabilities'],
+      capabilities: ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'html-export', 'html-copy', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'] as PluginContext['plugin']['capabilities'],
     },
     log: {
       info: message => { guard(); usePluginStore.getState().addLog({ pluginId, level: 'info', message }) },
@@ -1481,6 +1523,8 @@ export function createPluginContext(options: {
     documents: {
       render: async options => { await guardCurrent(); return renderPluginDocument(pluginId, signal, options, guardCurrent) },
       release: async id => { await guardCurrent(); releasePluginDocument(pluginId, id, signal) },
+      exportHtml: options => exportPluginHtml(pluginId, signal, options, htmlOutputServices),
+      copyHtml: options => copyPluginHtml(pluginId, signal, options, htmlOutputServices),
     },
     clipboard: { write: content => writePluginClipboard(pluginId, signal, content, () => guardCurrent('clipboard.write')) },
     files: { export: options => exportPluginFile(pluginId, signal, options, () => guardCurrent('files.export')) },
@@ -1906,6 +1950,8 @@ export async function invokePluginCapability(
   switch (method) {
     case 'documents.render': return context.documents.render(record as unknown as Parameters<PluginContext['documents']['render']>[0])
     case 'documents.release': return context.documents.release(requireString(record.id, 'id'))
+    case 'documents.exportHtml': return context.documents.exportHtml(record as unknown as Parameters<PluginContext['documents']['exportHtml']>[0])
+    case 'documents.copyHtml': return context.documents.copyHtml(record as unknown as Parameters<PluginContext['documents']['copyHtml']>[0])
     case 'clipboard.write': return context.clipboard.write(record as unknown as Parameters<PluginContext['clipboard']['write']>[0])
     case 'files.export': return context.files.export(record as unknown as Parameters<PluginContext['files']['export']>[0])
     case 'editor.setStyles': return context.editor.setStyles({ css: requireString(record.css, 'css') })

@@ -387,7 +387,7 @@ export const BlockMath = Node.create({
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderMarkdown(node, _helpers) {
-    return `\n$$${node.attrs?.latex ?? ''}$$\n`
+    return `\n$$\n${node.attrs?.latex ?? ''}\n$$\n`
   },
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

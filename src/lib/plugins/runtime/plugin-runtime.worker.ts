@@ -493,7 +493,7 @@ const context = Object.freeze({
       return disposable(() => workspaceListeners.delete(listener));
     },
   }),
-  documents: Object.freeze({ render: options => rpc('documents.render', options), release: id => rpc('documents.release', { id }) }),
+  documents: Object.freeze({ render: options => rpc('documents.render', options), release: id => rpc('documents.release', { id }), exportHtml: options => rpc('documents.exportHtml', options), copyHtml: options => rpc('documents.copyHtml', options) }),
   clipboard: Object.freeze({ write: content => rpc('clipboard.write', content) }),
   files: Object.freeze({ export: options => rpc('files.export', options) }),
   calendar: Object.freeze({ resolveDay: (options) => rpc('calendar.resolveDay', options) }),
@@ -772,7 +772,7 @@ async function initialize(message: Extract<PluginHostToWorkerMessage, { type: 'i
       id: message.manifest.id,
       version: message.manifest.version,
       apiVersion: PLUGIN_API_VERSION,
-      capabilities: message.surface === 'editor-window' ? ['document-rendering', 'clipboard-write', 'file-export', 'editor-styles'] : ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'],
+      capabilities: message.surface === 'editor-window' ? ['document-rendering', 'html-export', 'html-copy', 'clipboard-write', 'file-export', 'editor-styles'] : ['embedded-views', 'workspace-views', 'contextual-views', 'editor-actions', 'records', 'chat-draft', 'ai-generation', 'ui-prompts', 'document-rendering', 'document-preview', 'html-export', 'html-copy', 'clipboard-write', 'file-export', 'editor-styles', 'terminal', 'related-notes-search'],
     },
     commands: (message.manifest.contributes.commands ?? []).map((command) => command.id),
     statusItems: (message.manifest.contributes.statusBar ?? []).map((item) => item.id),
